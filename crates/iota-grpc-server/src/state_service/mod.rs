@@ -7,18 +7,20 @@ mod list_owned_objects;
 
 use std::sync::Arc;
 
+use iota_config::node::GrpcApiConfig;
 use iota_grpc_types::v1::state_service::{self as grpc_state_service};
 use tonic::Response;
 
 use crate::{metrics::RequestMetrics, types::*};
 
 pub struct StateGrpcService {
+    pub config: GrpcApiConfig,
     pub reader: Arc<GrpcReader>,
 }
 
 impl StateGrpcService {
-    pub fn new(reader: Arc<GrpcReader>) -> Self {
-        Self { reader }
+    pub fn new(config: GrpcApiConfig, reader: Arc<GrpcReader>) -> Self {
+        Self { config, reader }
     }
 }
 
@@ -35,6 +37,7 @@ impl grpc_state_service::state_service_server::StateService for StateGrpcService
         let response = list_dynamic_fields::list_dynamic_fields(
             self.reader.clone(),
             &metrics,
+            self.config.max_message_size_bytes(),
             request.into_inner(),
         )
         .map(Response::new)
@@ -53,6 +56,7 @@ impl grpc_state_service::state_service_server::StateService for StateGrpcService
         let response = list_owned_objects::list_owned_objects(
             self.reader.clone(),
             &metrics,
+            self.config.max_message_size_bytes(),
             request.into_inner(),
         )
         .map(Response::new)

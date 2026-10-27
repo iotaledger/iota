@@ -332,7 +332,11 @@ pub struct GrpcApiConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tls: Option<TlsConfig>,
 
-    /// Maximum message size for gRPC responses (in bytes)
+    /// Maximum size of a gRPC response message, in bytes. Values below
+    /// `GrpcApiConfig::GRPC_MIN_CLIENT_MAX_MESSAGE_SIZE_BYTES` are raised to
+    /// it. The server cannot send a checkpoint transaction larger than this
+    /// value, so a checkpoint stream fails at the checkpoint that has such a
+    /// transaction.
     #[serde(default = "default_grpc_api_max_message_size_bytes")]
     pub max_message_size_bytes: u32,
 
@@ -397,7 +401,7 @@ fn default_grpc_api_max_concurrent_stream_subscribers() -> u32 {
 }
 
 fn default_grpc_api_max_message_size_bytes() -> u32 {
-    128 * 1024 * 1024 // 128MB
+    30 * 1024 * 1024 // 30 MiB
 }
 
 fn default_grpc_api_max_json_move_value_size() -> usize {
@@ -1774,6 +1778,16 @@ mod tests {
         // The same config is valid for a fullnode.
         config.consensus_config = None;
         config.validate().unwrap();
+    }
+
+    #[test]
+    fn the_default_max_message_size_bytes_is_30_mib() {
+        let from_empty: GrpcApiConfig = serde_yaml::from_str("{}").unwrap();
+        assert_eq!(from_empty.max_message_size_bytes, 30 * 1024 * 1024);
+        assert_eq!(
+            GrpcApiConfig::default().max_message_size_bytes,
+            30 * 1024 * 1024
+        );
     }
 
     #[test]

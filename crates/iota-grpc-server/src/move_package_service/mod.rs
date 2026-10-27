@@ -5,18 +5,20 @@ mod list_package_versions;
 
 use std::sync::Arc;
 
+use iota_config::node::GrpcApiConfig;
 use iota_grpc_types::v1::move_package_service::{self as grpc_move_package_service};
 use tonic::Response;
 
 use crate::{metrics::RequestMetrics, types::*};
 
 pub struct MovePackageGrpcService {
+    pub config: GrpcApiConfig,
     pub reader: Arc<GrpcReader>,
 }
 
 impl MovePackageGrpcService {
-    pub fn new(reader: Arc<GrpcReader>) -> Self {
-        Self { reader }
+    pub fn new(config: GrpcApiConfig, reader: Arc<GrpcReader>) -> Self {
+        Self { config, reader }
     }
 }
 
@@ -35,6 +37,7 @@ impl grpc_move_package_service::move_package_service_server::MovePackageService
         let response = list_package_versions::list_package_versions(
             self.reader.clone(),
             &metrics,
+            self.config.max_message_size_bytes(),
             request.into_inner(),
         )
         .map(Response::new)
