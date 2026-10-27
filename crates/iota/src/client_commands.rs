@@ -1216,10 +1216,9 @@ impl IotaClientCommands {
                 };
 
                 let limits = VerifierSigningConfig::default();
-                let signing_limits = Some(limits.limits_for_signing());
                 let mut verifier = iota_execution::verifier(
                     &protocol_config,
-                    signing_limits,
+                    protocol_config.verifier_config(Some(limits.limits_for_signing())),
                     &bytecode_verifier_metrics,
                 );
 
