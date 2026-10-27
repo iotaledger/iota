@@ -268,6 +268,16 @@ impl<C> SafeClient<C> {
         );
         match status {
             TransactionStatus::Signed(signed) => {
+                fp_ensure!(
+                    signed.authority == self.address,
+                    IotaError::ByzantineAuthoritySuspicion {
+                        authority: self.address,
+                        reason: format!(
+                            "Unexpected validator address in the signed transaction signature: {:?}",
+                            signed.authority
+                        ),
+                    }
+                );
                 self.get_committee(&signed.epoch)?;
                 Ok(PlainTransactionInfoResponse::Signed(
                     SignedTransaction::new_from_data_and_sig(transaction.into_data(), signed),
