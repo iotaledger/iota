@@ -35,6 +35,7 @@ use iota_keys::{
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
 use iota_ledger::Ledger;
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_crypto::{
     Signer as _, ToFromBase64, ToFromBech32, ToFromBytes as _, ed25519::Ed25519PrivateKey,
     simple::SimpleKeypair,
@@ -87,6 +88,11 @@ pub enum KeyToolCommand {
         tx_bytes: String,
         #[arg(long)]
         sig: Option<UserSignature>,
+        /// The network whose signature rules to verify against, at the newest
+        /// protocol version this CLI supports. Use `unknown` for devnet and
+        /// local networks.
+        #[arg(long, value_enum, default_value_t = Chain::Unknown)]
+        network: Chain,
     },
     /// Given a Base64 encoded MultiSig signature, decode its components.
     /// If tx_bytes is passed in, verify the multisig.
@@ -95,6 +101,11 @@ pub enum KeyToolCommand {
         multisig: MultisigAggregatedSignature,
         #[arg(long)]
         tx_bytes: Option<String>,
+        /// The network whose signature rules to verify against, at the newest
+        /// protocol version this CLI supports. Use `unknown` for devnet and
+        /// local networks.
+        #[arg(long, value_enum, default_value_t = Chain::Unknown)]
+        network: Chain,
     },
     /// Decode a Base64 encoded signature and print its deserialized content.
     /// Also supports decoding a Base64 encoded SenderSignedTransaction and
@@ -425,7 +436,11 @@ impl KeyToolCommand {
                 let result = convert_private_key_to_bech32(value)?;
                 CommandOutput::Convert(result)
             }
-            KeyToolCommand::DecodeMultiSig { multisig, tx_bytes } => {
+            KeyToolCommand::DecodeMultiSig {
+                multisig,
+                tx_bytes,
+                network,
+            } => {
                 let members = multisig.committee().members();
                 let signatures = multisig.signatures();
                 let indices = multisig.indices()?;
@@ -465,8 +480,11 @@ impl KeyToolCommand {
                     let tx = Transaction::from_base64(&tx_bytes)
                         .map_err(|e| anyhow!("Invalid tx bytes: {e}"))?;
                     let s = UserSignature::Multisig(multisig);
-                    let res =
-                        s.verify_claims(&tx.intent_message(), address, &VerifyParams::default());
+                    let res = s.verify_claims(
+                        &tx.intent_message(),
+                        address,
+                        &latest_verify_params(network),
+                    );
 
                     match res {
                         Ok(()) => output.sig_verify_result = "OK".to_string(),
@@ -561,7 +579,11 @@ impl KeyToolCommand {
                 };
                 CommandOutput::DecodeSig(decoded)
             }
-            KeyToolCommand::DecodeOrVerifyTx { tx_bytes, sig } => {
+            KeyToolCommand::DecodeOrVerifyTx {
+                tx_bytes,
+                sig,
+                network,
+            } => {
                 let tx = Transaction::from_base64(&tx_bytes)
                     .map_err(|e| anyhow!("Invalid tx bytes: {e:?}"))?;
                 match sig {
@@ -572,7 +594,7 @@ impl KeyToolCommand {
                         let res = s.verify_claims(
                             &tx.intent_message(),
                             tx.sender(),
-                            &VerifyParams::default(),
+                            &latest_verify_params(network),
                         );
                         CommandOutput::DecodeOrVerifyTx(DecodeOrVerifyTxOutput {
                             tx,
@@ -1137,6 +1159,15 @@ impl Debug for CommandOutput {
 }
 
 impl PrintableResult for CommandOutput {}
+
+/// The signature checks `chain` applies at the newest protocol version this
+/// CLI supports.
+fn latest_verify_params(chain: Chain) -> VerifyParams {
+    VerifyParams::from_protocol_config(&ProtocolConfig::get_for_version(
+        ProtocolVersion::MAX,
+        chain,
+    ))
+}
 
 /// Build and validate a [`MultisigCommittee`] from a list of public keys and
 /// their corresponding weights. The number of keys must match the number of

@@ -6,6 +6,7 @@ use either::Either;
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
 use iota_multiaddr::Multiaddr;
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_move_types::iota_framework::object::ID;
 use iota_sdk_types::{Address, ObjectId};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -17,7 +18,6 @@ use crate::{
     crypto::network_pubkey_from_bytes,
     dynamic_field::get_dynamic_field_from_store,
     error::IotaError,
-    id::ID,
     iota_serde::{BigInt, Readable},
     iota_system_state::get_validator_from_table,
     storage::ObjectStore,

@@ -98,7 +98,7 @@ Resolving a dynamic field or dynamic object field at a parent object's version n
 
 :::
 
-The `--fallback-kv-multi-fetch-batch-size`, `--fallback-kv-concurrent-fetches`, and `--fallback-kv-cache-size` knobs tune the KV client's request batching, concurrency, and in-memory cache.
+The `--fallback-kv-multi-fetch-batch-size`, `--fallback-kv-concurrent-fetches`, and `--fallback-kv-cache-size` knobs tune the KV client's request batching, concurrency, and in-memory cache. `--fallback-kv-max-response-size-bytes` caps the size of a single response body accepted from the KV store, larger responses are rejected.
 
 ### HTTP server
 
@@ -201,6 +201,7 @@ reverse-registry-id = "0x..."
 | `--fallback-kv-multi-fetch-batch-size` | `100`                                                   | Experimental. Maximum number of keys per batch request to the fallback KV store. Also `FALLBACK_KV_MULTI_FETCH_BATCH_SIZE` env var. |
 | `--fallback-kv-concurrent-fetches`    | `10`                                                     | Experimental. Maximum number of concurrent batch requests to the fallback KV store. Also `FALLBACK_KV_CONCURRENT_FETCHES` env var. |
 | `--fallback-kv-cache-size`            | `100000`                                                 | Experimental. In-memory cache size for historic fallback. Also `FALLBACK_KV_CACHE_SIZE` env var.  |
+| `--fallback-kv-max-response-size-bytes` | `~ 134 MB`                                             | Experimental. Maximum size in bytes of a single response body accepted from the fallback KV store. Also `FALLBACK_KV_MAX_RESPONSE_SIZE_BYTES` env var. |
 | `--ide-title`, `-i`                   | `IOTA GraphQL IDE`                                       | Title displayed at the top of the GraphiQL IDE.                                                   |
 | `--config`, `-c`                      | _(none)_                                                 | Path to a TOML file with service configuration; see below.                                        |
 

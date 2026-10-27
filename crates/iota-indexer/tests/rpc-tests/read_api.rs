@@ -1,13 +1,16 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs::File, path::Path, str::FromStr, sync::Arc};
+use std::{collections::HashMap, fs::File, path::Path, str::FromStr, sync::Arc};
 
 use hex::FromHex;
 use iota_indexer::{
     config::RetentionConfig,
     models::transactions::StoredTransaction,
-    store::{PgIndexerStore, package_resolver::IndexerStorePackageResolver},
+    pruning::{CommitterTables, pruner::PrunableTable},
+    store::{
+        PgIndexerStore, indexer_store::IndexerStore, package_resolver::IndexerStorePackageResolver,
+    },
     test_utils::{TestDatabase, db_url},
 };
 use iota_json::{IotaJsonValue, call_args, type_args};
@@ -34,6 +37,7 @@ use iota_test_transaction_builder::{
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     digests::ChainIdentifier,
+    effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
     utils::to_sender_signed_transaction,
@@ -46,10 +50,12 @@ use serde_json::Value;
 use crate::{
     coin_api::execute_move_call,
     common::{
-        ApiTestSetup, FIXTURES_DIR, execute_tx_and_wait_for_indexer_checkpoint,
-        indexer_wait_for_checkpoint, indexer_wait_for_checkpoint_pruned, indexer_wait_for_object,
-        indexer_wait_for_transaction, input_size_limit_exceeded_msg, publish_test_move_package,
-        rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
+        ApiTestSetup, FIXTURES_DIR, WATERMARK_REFRESH_TIMEOUT, assert_reports_data_pruned,
+        execute_dummy_tx_and_wait_for_indexer, execute_tx_and_wait_for_indexer_checkpoint,
+        indexer_wait_for_checkpoint, indexer_wait_for_checkpoint_pruned, indexer_wait_for_epoch,
+        indexer_wait_for_object, indexer_wait_for_transaction, input_size_limit_exceeded_msg,
+        publish_test_move_package, retry_with_timeout, rpc_call_error_msg_matches,
+        start_test_cluster_with_read_write_indexer,
     },
     write_api::{create_basic_object, deploy_basics_pkg},
 };
@@ -1127,7 +1133,7 @@ fn get_events_not_found() {
 
         assert!(rpc_call_error_msg_matches(
             result,
-            r#"{"code":-32603,"message":"Missing data due to pruning: `requested events not available`"}"#,
+            r#"{"code":-32603,"message":"Invalid argument with error: `Transaction 11111111111111111111111111111111 not found`"}"#,
         ))
     });
 }
@@ -2059,6 +2065,51 @@ async fn get_chain_identifier_with_pruning_enabled() {
     )
 }
 
+/// Returns the `oldest_available_checkpoint` reported by `iota_getCheckpoints`.
+///
+/// Pages in descending order since an ascending query from genesis on pruned
+/// indexer fails with [`IndexerError::DataPruned`].
+async fn checkpoints_oldest_available_checkpoint(client: &HttpClient) -> Option<u64> {
+    client
+        .get_checkpoints(None, Some(1), true)
+        .await
+        .expect("get_checkpoints should succeed")
+        .oldest_available_checkpoint
+        .map(|cp| *cp)
+}
+
+#[tokio::test]
+async fn get_checkpoints_reports_oldest_available_checkpoint() {
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("test_get_checkpoints_reports_oldest_available_checkpoint"),
+        None,
+        Some(RetentionConfig::new(1, Default::default())),
+    )
+    .await;
+
+    indexer_wait_for_checkpoint(store, 1).await;
+
+    // Nothing is pruned yet, so the response reaches the genesis checkpoint.
+    let oldest = retry_with_timeout(WATERMARK_REFRESH_TIMEOUT, || {
+        checkpoints_oldest_available_checkpoint(client)
+    })
+    .await
+    .expect("timeout waiting for the reported oldest available checkpoint");
+    assert_eq!(oldest, 0);
+
+    cluster.force_new_epoch().await;
+    indexer_wait_for_checkpoint_pruned(store, 0).await;
+
+    // Once the genesis checkpoint is pruned, the reported checkpoint is above it.
+    retry_with_timeout(WATERMARK_REFRESH_TIMEOUT, || async {
+        checkpoints_oldest_available_checkpoint(client)
+            .await
+            .filter(|cp| *cp > 0)
+    })
+    .await
+    .expect("timeout waiting for a checkpoint above the pruned genesis one");
+}
+
 #[test]
 fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error> {
     let ApiTestSetup {
@@ -2771,4 +2822,185 @@ fn try_multi_get_past_objects_at_and_above_limit() {
             &input_size_limit_exceeded_msg()
         ));
     });
+}
+
+#[tokio::test]
+async fn point_lookups_report_the_oldest_available_cp() {
+    let (cluster, store, client) = start_test_cluster_with_read_write_indexer(
+        Some("test_point_lookups_report_the_oldest_available_cp"),
+        None,
+        Some(RetentionConfig::new(1, Default::default())),
+    )
+    .await;
+
+    indexer_wait_for_checkpoint(&store, 1).await;
+
+    // The genesis checkpoint is the one pruned below, and the transaction it
+    // holds goes with it. Both digests are read now, since pruning deletes the
+    // rows they resolve through.
+    let genesis_checkpoint = CheckpointId::SequenceNumber(0);
+    let genesis = client
+        .get_checkpoint(genesis_checkpoint)
+        .await
+        .expect("the genesis checkpoint is still there");
+    let genesis_checkpoint_by_digest = CheckpointId::Digest(genesis.digest);
+    let genesis_tx_digest = *genesis
+        .transactions
+        .first()
+        .expect("the genesis checkpoint holds the genesis transaction");
+
+    // We execute a tx to have an object version from epoch 0 that will be pruned.
+    let transfer = cluster
+        .test_transaction_builder()
+        .await
+        .transfer_iota(Some(1_000), Address::random())
+        .build();
+    let effects = cluster.sign_and_execute_transaction(&transfer).await;
+    wait_for_objects_history(*effects.transaction_digest(), &store, &client).await;
+    let epoch_0_gas_coin = &effects.modified_at_versions()[0];
+
+    cluster.force_new_epoch().await;
+    indexer_wait_for_checkpoint_pruned(&store, 0).await;
+    let oldest_available_epoch = 1;
+
+    // A lookup that fails because the data it asks for is pruned reports how
+    // far back the data goes, in the error.
+    assert_reports_data_pruned(
+        &client,
+        "iota_getCheckpoint",
+        oldest_available_epoch,
+        || client.get_checkpoint(genesis_checkpoint),
+    )
+    .await;
+    assert_reports_data_pruned(&client, "iota_getEvents", oldest_available_epoch, || {
+        client.get_events(genesis_tx_digest)
+    })
+    .await;
+    assert_reports_data_pruned(
+        &client,
+        "iota_getTransactionBlock",
+        oldest_available_epoch,
+        || client.get_transaction_block(genesis_tx_digest, None),
+    )
+    .await;
+    // Ascending from the start, so the pruned genesis checkpoint is the first
+    // one the page asks for.
+    assert_reports_data_pruned(
+        &client,
+        "iota_getCheckpoints",
+        oldest_available_epoch,
+        || client.get_checkpoints(None, Some(5), false),
+    )
+    .await;
+    // Pruning deleted the row this digest resolves through, so the lookup
+    // cannot tell the checkpoint apart from one that never existed.
+    assert_reports_data_pruned(
+        &client,
+        "iota_getCheckpoint by digest",
+        oldest_available_epoch,
+        || client.get_checkpoint(genesis_checkpoint_by_digest),
+    )
+    .await;
+
+    // The gas coin's previous version is still in `objects_version`, but its
+    // content was pruned from `objects_backward_history`.
+    assert_reports_data_pruned(
+        &client,
+        "iota_tryGetPastObject",
+        oldest_available_epoch,
+        || {
+            client.try_get_past_object(
+                *epoch_0_gas_coin.object_id(),
+                epoch_0_gas_coin.version().into(),
+                None,
+            )
+        },
+    )
+    .await;
+
+    // Simulate a restore: the pruner never touches `objects_version`, so an
+    // object missing from it is reported as pruned only after a restore.
+    let current_epoch = 1;
+    store
+        .update_watermarks_lower_bound(vec![(CommitterTables::ObjectsVersion, current_epoch)])
+        .await
+        .expect("the watermark lower bound is updated");
+    assert_reports_data_pruned(
+        &client,
+        "iota_tryGetPastObject",
+        oldest_available_epoch,
+        || client.try_get_past_object(ObjectId::random(), Version::from_u64(1).into(), None),
+    )
+    .await;
+}
+
+/// `iota_getEvents` reads the events from `transactions`, so pruning that
+/// table alone is enough for the lookup to report pruned data.
+#[tokio::test]
+async fn get_events_fails_when_only_transactions_are_pruned() {
+    let overrides = HashMap::from([(PrunableTable::Transactions, 1)]);
+    let (cluster, store, client) = start_test_cluster_with_read_write_indexer(
+        Some("test_get_events_fails_when_only_transactions_are_pruned"),
+        None,
+        Some(RetentionConfig::new(100, overrides)),
+    )
+    .await;
+
+    indexer_wait_for_checkpoint(&store, 1).await;
+    let epoch_0_tx_digest = *client
+        .get_checkpoint(CheckpointId::SequenceNumber(0))
+        .await
+        .expect("the genesis checkpoint is still there")
+        .transactions
+        .first()
+        .expect("the genesis checkpoint holds the genesis transaction");
+
+    cluster.force_new_epoch().await;
+    let oldest_available_epoch = 1;
+    let epoch_1_tx_digest = execute_dummy_tx_and_wait_for_indexer(&cluster, &store, &client).await;
+
+    assert_reports_data_pruned(&client, "iota_getEvents", oldest_available_epoch, || {
+        client.get_events(epoch_0_tx_digest)
+    })
+    .await;
+
+    client
+        .get_events(epoch_1_tx_digest)
+        .await
+        .expect("the events of a transaction from the current epoch are resolved");
+}
+
+/// Without a fallback, a past object missing from a pruned `objects_version`
+/// reports a lower bound of both `objects_version` and `objects_backward_history`.
+#[tokio::test]
+async fn past_object_lookup_reports_a_checkpoint_with_content_available() {
+    let (cluster, store, client) = start_test_cluster_with_read_write_indexer(
+        Some("test_past_object_lookup_reports_a_checkpoint_with_content_available"),
+        None,
+        Some(RetentionConfig::new(1, Default::default())),
+    )
+    .await;
+
+    indexer_wait_for_checkpoint(&store, 1).await;
+
+    // we set lower bound of `objects_version` to epoch 1 and of
+    // `objects_backward_history` to epoch 2
+    cluster.force_new_epoch().await;
+    let restored_epoch = 1;
+    indexer_wait_for_epoch(&store, restored_epoch).await;
+    store
+        .update_watermarks_lower_bound(vec![(CommitterTables::ObjectsVersion, restored_epoch)])
+        .await
+        .expect("the watermark lower bound is updated");
+    cluster.force_new_epoch().await;
+    let backward_history_lowest_epoch = 2;
+    indexer_wait_for_epoch(&store, backward_history_lowest_epoch).await;
+
+    assert_reports_data_pruned(
+        &client,
+        "iota_tryGetPastObject",
+        backward_history_lowest_epoch,
+        || client.try_get_past_object(ObjectId::random(), Version::from_u64(1).into(), None),
+    )
+    .await;
 }

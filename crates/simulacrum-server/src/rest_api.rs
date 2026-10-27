@@ -118,7 +118,7 @@ pub async fn get_status(
     let highest_checkpoint = Some(highest_verified_checkpoint_data.sequence_number());
     let current_epoch = highest_verified_checkpoint_data.epoch;
 
-    let timestamp_ms = simulacrum.with_store(|store| store.get_clock().timestamp_ms());
+    let timestamp_ms = simulacrum.with_store(|store| store.get_clock().timestamp_ms);
     let reference_gas_price = simulacrum.reference_gas_price();
 
     let response = SimulacrumStatus {
@@ -200,9 +200,9 @@ pub async fn advance_clock(
 ) -> Result<Json<AdvanceClockResponse>, StatusCode> {
     let simulacrum = state.simulacrum.as_ref();
 
-    let old_timestamp = simulacrum.with_store(|store| store.get_clock().timestamp_ms());
+    let old_timestamp = simulacrum.with_store(|store| store.get_clock().timestamp_ms);
     simulacrum.advance_clock(Duration::from_millis(request.duration_ms));
-    let new_timestamp = simulacrum.with_store(|store| store.get_clock().timestamp_ms());
+    let new_timestamp = simulacrum.with_store(|store| store.get_clock().timestamp_ms);
 
     let response = AdvanceClockResponse {
         new_timestamp_ms: new_timestamp,

@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.35.0-alpha"
+    "version": "1.36.0-alpha"
   },
   "methods": [
     {
@@ -741,7 +741,8 @@
                 }
               ],
               "nextCursor": "1008",
-              "hasNextPage": true
+              "hasNextPage": true,
+              "oldestAvailableCheckpoint": "0"
             }
           }
         }
@@ -1307,12 +1308,14 @@
                 "calculate_validator_scores": true,
                 "check_canonical_module_version_header": true,
                 "check_cyclic_dependencies": true,
+                "check_groth16_pvk_length": true,
                 "congestion_control_gas_price_feedback_mechanism": true,
                 "congestion_control_min_free_execution_slot": true,
                 "congestion_limit_overshoot_in_gas_price_feedback_mechanism": true,
                 "consensus_batched_block_sync": true,
                 "consensus_block_restrictions": true,
                 "consensus_commit_transactions_only_for_traversed_headers": true,
+                "consensus_dedup_only_recorded_messages": true,
                 "consensus_distributed_vote_scoring_strategy": true,
                 "consensus_enable_absolute_score_leader_schedule": true,
                 "consensus_enable_sliding_window_leader_schedule": true,
@@ -1326,10 +1329,8 @@
                 "consensus_zstd_compression": true,
                 "convert_type_argument_error": true,
                 "deny_authenticator_packages": true,
-                "deny_rule_governance": false,
-                "deny_rule_governance_on_chain": false,
                 "dependency_linkage_error": true,
-                "deprecate_global_storage_ops_during_deserialization": false,
+                "deprecate_global_storage_ops": true,
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "disallow_new_modules_in_deps_only_packages": true,
                 "disallow_randomness_in_move_authenticator": true,
@@ -1341,6 +1342,7 @@
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
+                "limit_groth16_pvk_inputs": true,
                 "max_ptb_value_size_v2": true,
                 "metadata_in_module_bytes": true,
                 "minimize_child_object_mutations": true,
@@ -1359,6 +1361,7 @@
                 "publish_package_metadata": true,
                 "reject_immutable_account_creation": true,
                 "reject_immutable_account_objects": true,
+                "reject_partially_signed_mixed_ed25519_multisig": true,
                 "relocate_event_module": true,
                 "report_move_authentication_error": true,
                 "rethrow_serialization_type_layout_errors": true,
@@ -1540,8 +1543,9 @@
                 "debug_print_stack_trace_base_cost": {
                   "u64": "52"
                 },
-                "deny_rule_removal_grace_round_floor": null,
-                "deny_rule_update_max_entries_per_tx": null,
+                "deny_rule_update_max_entries_per_tx": {
+                  "u64": "1000"
+                },
                 "dynamic_field_add_child_object_cost_base": {
                   "u64": "100"
                 },
@@ -2080,7 +2084,7 @@
                   "u64": "4"
                 },
                 "min_validator_joining_stake": {
-                  "u64": "2000000000000000"
+                  "u64": "6000000000000000"
                 },
                 "move_binary_format_version": {
                   "u32": "7"
@@ -2129,6 +2133,9 @@
                 },
                 "package_publish_cost_per_byte": {
                   "u64": "80"
+                },
+                "pcool_deterministic_validation_horizon_distance": {
+                  "u64": "4"
                 },
                 "poseidon_bn254_cost_base": {
                   "u64": "260"
@@ -2254,7 +2261,7 @@
                   "u64": "7"
                 },
                 "validator_low_stake_threshold": {
-                  "u64": "1500000000000000"
+                  "u64": "5500000000000000"
                 },
                 "validator_target_reward": {
                   "u64": "767000000000000"
@@ -2266,7 +2273,7 @@
                   "u64": "2"
                 },
                 "validator_very_low_stake_threshold": {
-                  "u64": "1000000000000000"
+                  "u64": "5000000000000000"
                 },
                 "vdf_hash_to_input_cost": {
                   "u64": "100"
@@ -4273,7 +4280,8 @@
             "value": "some_system_state"
           }
         }
-      ]
+      ],
+      "deprecated": true
     },
     {
       "name": "iotax_getLatestIotaSystemStateV2",
@@ -4333,7 +4341,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Return the list of objects owned by an address. Note that if the address owns more than `QUERY_MAX_RESULT_LIMIT` objects, the pagination is not accurate, because previous page may have been updated when the next page is fetched. Please use iotax_queryObjects if this is a concern.",
+      "description": "Return the list of objects owned by an address. Note that if the address owns more than `QUERY_MAX_RESULT_LIMIT` objects, the pagination is not accurate, because previous page may have been updated when the next page is fetched. Please use iotax_queryObjects if this is a concern.\n\nA full node reads a limited number of objects per page, so a page can hold fewer objects than `limit`, even none, while `hasNextPage` is true: keep fetching pages until `hasNextPage` is false. A full node also refuses filters with more than 10 nested levels or more than 64 filters, counting each object ID of `ObjectIds`.",
       "params": [
         {
           "name": "address",
@@ -5055,7 +5063,8 @@
                 "txDigest": "2HyYwpsD5YiiN96i7BBoAyJfTwSvK8MTh42F5777a4ZD",
                 "eventSeq": "1"
               },
-              "hasNextPage": false
+              "hasNextPage": false,
+              "oldestAvailableCheckpoint": "0"
             }
           }
         }
@@ -5153,7 +5162,8 @@
                 }
               ],
               "nextCursor": "EBzDydzw7LpM9r3UFh8JTDQcXt2U4bvW8ZD1qTrPZyqo",
-              "hasNextPage": false
+              "hasNextPage": false,
+              "oldestAvailableCheckpoint": "0"
             }
           }
         }
@@ -5189,7 +5199,8 @@
         "schema": {
           "$ref": "#/components/schemas/Event"
         }
-      }
+      },
+      "deprecated": true
     },
     {
       "name": "iotax_subscribeTransaction",
@@ -5220,7 +5231,8 @@
         "schema": {
           "$ref": "#/components/schemas/TransactionBlockEffects"
         }
-      }
+      },
+      "deprecated": true
     },
     {
       "name": "unsafe_batchTransaction",
@@ -10747,6 +10759,13 @@
               "string",
               "null"
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10775,6 +10794,13 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
             ]
           }
         }
@@ -10805,6 +10831,13 @@
                 "type": "null"
               }
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10830,6 +10863,13 @@
               "string",
               "null"
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10851,6 +10891,13 @@
             "type": "boolean"
           },
           "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
             "type": [
               "string",
               "null"
@@ -10884,6 +10931,13 @@
                 "type": "null"
               }
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10913,6 +10967,13 @@
                 "type": "null"
               }
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10941,6 +11002,13 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
             ]
           }
         }
@@ -11876,6 +11944,7 @@
             ]
           },
           "errors": {
+            "description": "Why a requested field could not be filled. In a batch read, an unknown digest carries its not-found error here.",
             "type": "array",
             "items": {
               "type": "string"

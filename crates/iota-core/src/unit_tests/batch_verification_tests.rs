@@ -163,6 +163,7 @@ async fn test_async_verifier() {
         metrics,
         true, // accept_passkey_in_multisig
         true, // additional_multisig_checks
+        true, // reject_partially_signed_mixed_ed25519_multisig
     ));
 
     let tasks: Vec<_> = (0..32)
@@ -302,6 +303,7 @@ async fn test_async_verifier_batch_with_invalid_cert_accepts_passkey_multisig() 
             SignatureVerifierMetrics::new(&Registry::new()),
             accept_passkey_in_multisig,
             true, // additional_multisig_checks
+            true, // reject_partially_signed_mixed_ed25519_multisig
         )
     };
 
@@ -359,6 +361,7 @@ fn test_authority_capabilities_cache_hit_still_checks_signature() {
             SignatureVerifierMetrics::new(&Registry::new()),
             true, // accept_passkey_in_multisig
             true, // additional_multisig_checks
+            true, // reject_partially_signed_mixed_ed25519_multisig
         )
     };
 

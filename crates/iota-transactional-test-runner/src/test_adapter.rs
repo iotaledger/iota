@@ -213,7 +213,6 @@ impl AdapterInitConfig {
             reference_gas_price,
             default_gas_price,
             move_auth,
-            deny_rule_governance,
             flavor,
             epochs_to_keep,
             data_ingestion_path,
@@ -227,7 +226,18 @@ impl AdapterInitConfig {
             .unwrap_or_default();
 
         let mut protocol_config = if let Some(protocol_version) = protocol_version {
-            ProtocolConfig::get_for_version(protocol_version.into(), Chain::Unknown)
+            let mut config =
+                ProtocolConfig::get_for_version(protocol_version.into(), Chain::Unknown);
+            // The test chain runs the P-COOL flow from protocol version 32, but
+            // sets the settings it requires only from version 39. A test pinned
+            // to an earlier version gets the values version 39 sets.
+            if protocol_version < 39 && config.enable_pcool_flow() {
+                config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
+                config.set_consensus_dedup_only_recorded_messages_for_testing(true);
+                config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+                config.set_max_meter_ticks_regex_reference_safety_for_testing(2_200_000);
+            }
+            config
         } else {
             ProtocolConfig::get_for_max_version_UNSAFE()
         };
@@ -244,13 +254,9 @@ impl AdapterInitConfig {
             protocol_config.set_enable_move_authentication_for_testing(enable);
             protocol_config.set_enable_move_authentication_for_sponsor_for_testing(enable);
             protocol_config.set_pre_consensus_sponsor_only_move_authentication_for_testing(enable);
-        }
-        if let Some(enable) = deny_rule_governance {
-            protocol_config.set_deny_rule_governance_for_testing(enable);
-            protocol_config.set_deny_rule_governance_on_chain_for_testing(enable);
             if enable {
-                protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-                protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+                // Sponsor-only pre-consensus authentication excludes the P-COOL flow.
+                protocol_config.set_enable_pcool_flow_for_testing(false);
             }
         }
         if custom_validator_account && !simulator {
@@ -2852,22 +2858,6 @@ async fn init_sim_executor(
     // Create the simulator with the specific account configs, which also crates
     // objects
 
-    // The simulator resolves its `ProtocolConfig` from the protocol version alone,
-    // so feature flags toggled on `protocol_config` would not reach it. Scope a
-    // thread-local override around the (synchronous) construction so the genesis
-    // epoch picks the flags up; `Simulacrum::advance_epoch` then carries the
-    // config over to later epochs.
-    let config_override = protocol_config.deny_rule_governance().then(|| {
-        let max_entries = protocol_config.deny_rule_update_max_entries_per_tx();
-        let grace_floor = protocol_config.deny_rule_removal_grace_round_floor();
-        ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
-            config.set_deny_rule_governance_for_testing(true);
-            config.set_deny_rule_governance_on_chain_for_testing(true);
-            config.set_deny_rule_update_max_entries_per_tx_for_testing(max_entries);
-            config.set_deny_rule_removal_grace_round_floor_for_testing(grace_floor);
-            config
-        })
-    });
     let (sim, read_replica) = PersistedStore::new_sim_replica_with_protocol_version_and_accounts(
         rng,
         DEFAULT_CHAIN_START_TIMESTAMP,
@@ -2877,7 +2867,6 @@ async fn init_sim_executor(
         reference_gas_price,
         None,
     );
-    drop(config_override);
 
     sim.set_data_ingestion_path(data_ingestion_path.clone());
 

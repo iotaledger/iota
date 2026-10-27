@@ -10,7 +10,7 @@ use std::{
 };
 
 use anemo::{
-    Network, Peer, PeerId, Request, Response,
+    Network, Peer, PeerId, ProbeOutcome, Request, Response,
     types::{PeerEvent, PeerInfo},
 };
 use futures::StreamExt;
@@ -500,27 +500,26 @@ async fn verify_address_ownership(
                         return Some(address);
                     }
 
-                    // Try to connect to the claimed address with the claimed peer_id
+                    // Probe the claimed address for the claimed peer_id. Unlike a regular
+                    // connection, a probe never joins the peer set, so it can't replace or
+                    // close a real connection to this peer.
                     match tokio::time::timeout(
                         config.address_verification_timeout(),
-                        network.connect_with_peer_id(anemo_address, peer_id),
+                        network.probe_address(anemo_address, peer_id),
                     )
                     .await
                     {
-                        Ok(Ok(_connection)) => {
+                        Ok(ProbeOutcome::Reachable) => {
                             debug!(
                                 "Address verification succeeded for peer {} at address {}",
                                 peer_id, address
                             );
-
-                            // Disconnect immediately since this was just for verification
-                            let _ = network.disconnect(peer_id);
                             return Some(address);
                         }
-                        Ok(Err(e)) => {
+                        Ok(outcome) => {
                             debug!(
-                                "Address verification failed for peer {} at address {}: {}",
-                                peer_id, address, e
+                                "Address verification failed for peer {} at address {}: {:?}",
+                                peer_id, address, outcome
                             );
                         }
                         Err(_timeout) => {

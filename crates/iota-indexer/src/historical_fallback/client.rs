@@ -5,7 +5,7 @@
 
 use std::{fmt::Display, num::NonZeroUsize, time::Duration};
 
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use futures::{
     TryStreamExt,
     stream::{self, StreamExt},
@@ -24,7 +24,7 @@ use iota_types::{
 };
 use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
 use reqwest::{
-    Client, Url,
+    Client, Response, Url,
     header::{CONTENT_LENGTH, HeaderValue},
 };
 use serde::{Deserialize, Serialize};
@@ -174,6 +174,10 @@ pub(crate) struct HttpRestKVClient {
     batch_size: usize,
     /// Maximum number of concurrent batch requests
     max_concurrent_batches: usize,
+    /// Maximum size in bytes of a single response body. Larger responses are
+    /// rejected before being fully read, so memory usage per request is
+    /// bounded by this value rather than by the remote server.
+    max_response_size_bytes: usize,
     cache: MokaCache<Key, Bytes>,
     /// Cache for before-version lookups, keyed by `ObjectKey`.
     ///
@@ -191,10 +195,11 @@ impl HttpRestKVClient {
         cache_size: u64,
         batch_size: usize,
         max_concurrent_batches: usize,
+        max_response_size_bytes: usize,
         metrics: HistoricalFallbackClientMetrics,
     ) -> IndexerResult<Self> {
         info!(
-            "creating HttpRestKVClient with base_url: {base_url}, batch_size: {batch_size}, max_concurrent_batches: {max_concurrent_batches}",
+            "creating HttpRestKVClient with base_url: {base_url}, batch_size: {batch_size}, max_concurrent_batches: {max_concurrent_batches}, max_response_size_bytes: {max_response_size_bytes}",
         );
 
         let _ = rustls::crypto::ring::default_provider().install_default();
@@ -221,10 +226,45 @@ impl HttpRestKVClient {
             client,
             batch_size,
             max_concurrent_batches,
+            max_response_size_bytes,
             metrics,
             cache,
             cache_object_before_version,
         })
+    }
+
+    /// Reads the response body into memory, failing as soon as it is known to
+    /// exceed `max_response_size_bytes`.
+    ///
+    /// - If the body size is known upfront ([`Response::content_length`]), it is checked against
+    ///   the limit before reading. Within the limit, the body is read directly.
+    /// - Otherwise the body is read and checked chunk by chunk.
+    async fn read_body_bounded(&self, mut resp: Response) -> IndexerResult<Bytes> {
+        let max = self.max_response_size_bytes;
+
+        if let Some(known_size) = resp.content_length() {
+            if known_size > max as u64 {
+                return Err(IndexerError::HistoricalFallbackResponseTooLarge {
+                    size: known_size,
+                    max: max as u64,
+                });
+            }
+            return Ok(resp.bytes().await?);
+        }
+
+        let mut body = BytesMut::new();
+        while let Some(chunk) = resp.chunk().await? {
+            let received = body.len() + chunk.len();
+            if received > max {
+                return Err(IndexerError::HistoricalFallbackResponseTooLarge {
+                    size: received as u64,
+                    max: max as u64,
+                });
+            }
+            body.extend_from_slice(&chunk);
+        }
+
+        Ok(body.freeze())
     }
 
     async fn multi_fetch(&self, keys: Vec<Key>) -> IndexerResult<Vec<Option<Bytes>>> {
@@ -326,10 +366,12 @@ impl HttpRestKVClient {
             )));
         }
 
-        let bytes = resp.bytes().await?;
-        bcs::from_bytes::<Vec<Option<Bytes>>>(&bytes).map_err(|e| {
+        let bytes = self.read_body_bounded(resp).await?;
+        let values = bcs::from_bytes::<Vec<Option<Bytes>>>(&bytes).map_err(|e| {
             IndexerError::Serde(format!("failed to deserialize multi_get response: {e:?}"))
-        })
+        })?;
+        check_multi_get_len(values.len(), request.keys.len())?;
+        Ok(values)
     }
 
     /// Fetches a paginated list of items from a range-query endpoint.
@@ -416,10 +458,18 @@ impl HttpRestKVClient {
             )));
         }
 
-        let bytes = resp.bytes().await?;
-        bcs::from_bytes::<Vec<T>>(&bytes).map_err(|e| {
+        let bytes = self.read_body_bounded(resp).await?;
+        let values = bcs::from_bytes::<Vec<T>>(&bytes).map_err(|e| {
             IndexerError::Serde(format!("failed to deserialize paginated response: {e:?}"))
-        })
+        })?;
+        if values.len() > limit.get() {
+            return Err(IndexerError::HistoricalFallbackStorageError(format!(
+                "paginated response returned {} items, more than the requested limit of {}",
+                values.len(),
+                limit.get()
+            )));
+        }
+        Ok(values)
     }
 
     async fn multi_fetch_objects_before_version(
@@ -531,13 +581,26 @@ impl HttpRestKVClient {
             )));
         }
 
-        let bytes = resp.bytes().await?;
-        bcs::from_bytes::<Vec<Option<Bytes>>>(&bytes).map_err(|e| {
+        let bytes = self.read_body_bounded(resp).await?;
+        let values = bcs::from_bytes::<Vec<Option<Bytes>>>(&bytes).map_err(|e| {
             IndexerError::Serde(format!(
                 "failed to deserialize before_version response: {e:?}"
             ))
-        })
+        })?;
+        check_multi_get_len(values.len(), request.keys.len())?;
+        Ok(values)
     }
+}
+
+/// A multi_get response must carry exactly one entry per requested key,
+/// otherwise results cannot be matched back to their keys.
+fn check_multi_get_len(received: usize, requested: usize) -> IndexerResult<()> {
+    if received != requested {
+        return Err(IndexerError::HistoricalFallbackStorageError(format!(
+            "multi_get response returned {received} entries for {requested} requested keys"
+        )));
+    }
+    Ok(())
 }
 
 fn deser<K, T>(key: &K, bytes: &[u8]) -> Option<T>
@@ -791,5 +854,141 @@ impl PaginatedKeyValueStoreClient for HttpRestKVClient {
             oldest_first,
         )
         .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{assert_matches, convert::Infallible};
+
+    use axum::{Router, body::Body, routing::any};
+    use prometheus_filtered::Registry;
+    use tokio::net::TcpListener;
+
+    use super::*;
+
+    const MAX_RESPONSE_SIZE: usize = 1024;
+
+    async fn spawn_server(app: Router) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        format!("http://{addr}")
+    }
+
+    fn client(base_url: impl AsRef<str>) -> HttpRestKVClient {
+        HttpRestKVClient::new(
+            base_url.as_ref(),
+            10,
+            100,
+            1,
+            MAX_RESPONSE_SIZE,
+            HistoricalFallbackClientMetrics::new(&Registry::new()),
+        )
+        .unwrap()
+    }
+
+    fn encode(values: Vec<Option<Bytes>>) -> Vec<u8> {
+        bcs::to_bytes(&values).unwrap()
+    }
+
+    fn single_key() -> Vec<Key> {
+        vec![Key::Transaction(TransactionDigest::ZERO)]
+    }
+
+    #[tokio::test]
+    async fn accepts_response_within_limit() {
+        let app = Router::new().route(
+            "/{*path}",
+            any(|| async { encode(vec![Some(Bytes::from_static(b"value"))]) }),
+        );
+        let url = spawn_server(app).await;
+        let client = client(url);
+
+        let values = client.multi_fetch(single_key()).await.unwrap();
+
+        assert_eq!(values, vec![Some(Bytes::from_static(b"value"))]);
+    }
+
+    #[tokio::test]
+    async fn rejects_response_with_oversized_content_length() {
+        let app = Router::new().route(
+            "/{*path}",
+            any(|| async { vec![0u8; MAX_RESPONSE_SIZE + 1] }),
+        );
+        let url = spawn_server(app).await;
+        let client = client(url);
+
+        let err = client.multi_fetch(single_key()).await.unwrap_err();
+
+        assert_matches!(
+            err,
+            IndexerError::HistoricalFallbackResponseTooLarge { size, max }
+                if size == (MAX_RESPONSE_SIZE + 1) as u64 && max == MAX_RESPONSE_SIZE as u64,
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_oversized_streamed_response_without_content_length() {
+        let app = Router::new().route(
+            "/{*path}",
+            any(|| async {
+                let chunks = (0..4)
+                    .map(|_| Ok::<_, Infallible>(Bytes::from(vec![0u8; MAX_RESPONSE_SIZE / 2])));
+                Body::from_stream(stream::iter(chunks))
+            }),
+        );
+        let url = spawn_server(app).await;
+        let client = client(url);
+
+        let err = client.multi_fetch(single_key()).await.unwrap_err();
+
+        assert_matches!(
+            err,
+            IndexerError::HistoricalFallbackResponseTooLarge { size, max }
+                if size > MAX_RESPONSE_SIZE as u64 && max == MAX_RESPONSE_SIZE as u64,
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_multi_get_response_with_wrong_entry_count() {
+        let app = Router::new().route("/{*path}", any(|| async { encode(vec![None, None]) }));
+        let url = spawn_server(app).await;
+        let client = client(url);
+
+        let err = client.multi_fetch(single_key()).await.unwrap_err();
+
+        assert_matches!(
+            err,
+            IndexerError::HistoricalFallbackStorageError(ref msg)
+                if msg == "multi_get response returned 2 entries for 1 requested keys",
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_paginated_response_exceeding_limit() {
+        let app = Router::new().route(
+            "/{*path}",
+            any(|| async { bcs::to_bytes(&vec![1u64, 2u64]).unwrap() }),
+        );
+        let url = spawn_server(app).await;
+        let client = client(url);
+
+        let err = client
+            .paginate::<u64, u64>(Key::Transaction(TransactionDigest::ZERO), None, 1, false)
+            .await
+            .unwrap_err();
+
+        assert_matches!(
+            err,
+            IndexerError::HistoricalFallbackStorageError(ref msg)
+                if msg == "paginated response returned 2 items, more than the requested limit of 1",
+            "unexpected error: {err:?}"
+        );
     }
 }

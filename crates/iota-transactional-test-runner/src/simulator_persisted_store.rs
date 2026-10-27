@@ -25,6 +25,7 @@ use iota_types::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ReadStore,
         load_package_object_from_object_store,
     },
+    supported_protocol_versions::SupportedProtocolVersions,
     transaction::VerifiedTransaction,
 };
 use move_binary_format::CompiledModule;
@@ -121,6 +122,12 @@ impl PersistedStore {
             .with_chain_start_timestamp_ms(chain_start_timestamp_ms)
             .deterministic_committee_size(NonZeroUsize::new(1).unwrap())
             .with_protocol_version(protocol_version)
+            // The protocol version never changes, so validators only need the stake it
+            // requires.
+            .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
+                protocol_version.as_u64(),
+                protocol_version.as_u64(),
+            ))
             .with_accounts(account_configs);
 
         if let Some(validator_keys) = validator_keys {
@@ -197,7 +204,7 @@ impl SimulatorStore for PersistedStore {
         iota_types::iota_system_state::get_iota_system_state(self).expect("system state must exist")
     }
 
-    fn get_clock(&self) -> iota_types::clock::Clock {
+    fn get_clock(&self) -> iota_sdk_move_types::iota_framework::clock::Clock {
         SimulatorStore::get_object(self, &ObjectId::CLOCK)
             .expect("clock should exist")
             .to_rust()

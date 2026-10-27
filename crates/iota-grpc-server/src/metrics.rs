@@ -10,6 +10,7 @@ use std::{
     time::Instant,
 };
 
+use iota_http::metrics::ListenerMetrics;
 use iota_metrics::peak::{PeakGauge, PeakGaugeVec};
 use pin_project_lite::pin_project;
 use prometheus_filtered::{
@@ -67,8 +68,9 @@ const RESPONSE_MESSAGE_SIZE_BUCKETS: &[f64] = &[
 /// Metrics for the public-facing gRPC server.
 ///
 /// Tracks in-flight requests, total request counts (by method and gRPC status),
-/// request latency per RPC method, the sizes of response messages and items,
-/// and the max message size that requests ask for.
+/// request latency per RPC method, checkpoint stream subscribers, the sizes of
+/// response messages and items, the max message size that requests ask for, and
+/// the connections of the listener.
 #[derive(Clone)]
 pub struct GrpcServerMetrics {
     inflight_requests: IntGaugeVec,
@@ -79,6 +81,7 @@ pub struct GrpcServerMetrics {
     response_item_bytes_peaks: Vec<PeakGauge>,
     requested_max_message_bytes: Histogram,
     response_message_bytes: HistogramVec,
+    listener: ListenerMetrics,
 }
 
 impl GrpcServerMetrics {
@@ -104,14 +107,16 @@ impl GrpcServerMetrics {
                 "node_grpc_inflight_requests",
                 "Total in-flight node gRPC requests per method",
                 &["method"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             num_requests: register_int_counter_vec_with_registry!(
                 "node_grpc_requests",
                 "Total node gRPC requests per method and status code",
                 &["method", "status"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             request_latency: register_histogram_vec_with_registry!(
@@ -119,13 +124,15 @@ impl GrpcServerMetrics {
                 "Latency of node gRPC requests per method in seconds",
                 &["method"],
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             inflight_checkpoint_stream_subscribers: register_int_gauge_with_registry!(
                 "node_grpc_inflight_checkpoint_stream_subscribers",
                 "Number of active subscribers to the checkpoint data broadcast",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             response_item_bytes_peaks,
@@ -149,7 +156,13 @@ impl GrpcServerMetrics {
                 MetricLevel::Info
             )
             .expect("the gRPC server metrics register without collision"),
+            listener: ListenerMetrics::new("node_grpc", registry, MetricLevel::Warn),
         }
+    }
+
+    /// The metrics of the connections of the listener of the gRPC API.
+    pub fn listener_metrics(&self) -> ListenerMetrics {
+        self.listener.clone()
     }
 
     /// Gauge tracking the number of active subscribers to the checkpoint

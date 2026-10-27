@@ -8,7 +8,10 @@ use anyhow::Result;
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_sdk_move_types::{
-    iota_framework::dynamic_field::Field, iota_system::validator_wrapper::Validator,
+    iota_framework::dynamic_field::Field,
+    iota_system::{
+        iota_system::IotaSystemState as IotaSystemStateWrapper, validator_wrapper::Validator,
+    },
 };
 use iota_sdk_types::{Identifier, MoveStruct, ObjectId};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -25,7 +28,6 @@ use crate::{
     committee::CommitteeWithNetworkMetadata,
     dynamic_field::{get_dynamic_field_from_store, get_dynamic_field_object_from_store},
     error::IotaError,
-    id::UID,
     object::{MoveStructExt, Object},
     storage::ObjectStore,
 };
@@ -58,26 +60,26 @@ pub const IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V1: u64 = 18446744073709551606; // 
 #[cfg(msim)]
 pub const IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1: u64 = 18446744073709551607; // u64::MAX - 8
 
-/// Rust version of the Move iota::iota_system::IotaSystemState type
-/// This repreents the object with 0x5 ID.
-/// In Rust, this type should be rarely used since it's just a thin
-/// wrapper used to access the inner object.
-/// Within this module, we use it to determine the current version of the system
-/// state inner object type, so that we could deserialize the inner object
-/// correctly. Outside of this module, we only use it in genesis snapshot and
-/// testing.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct IotaSystemStateWrapper {
-    pub id: UID,
-    pub version: u64,
+mod iota_system_state_wrapper_ext {
+    pub trait Sealed {}
+    impl Sealed for super::IotaSystemStateWrapper {}
 }
 
-impl IotaSystemStateWrapper {
+pub trait IotaSystemStateWrapperExt: Sized + iota_system_state_wrapper_ext::Sealed {
     /// Advances epoch in safe mode natively in Rust, without involking Move.
     /// This ensures that there cannot be any failure from Move and is
     /// guaranteed to succeed. Returns the old and new inner system state
     /// object.
-    pub fn advance_epoch_safe_mode(
+    fn advance_epoch_safe_mode(
+        &self,
+        params: &AdvanceEpochParams,
+        object_store: &dyn ObjectStore,
+        protocol_config: &ProtocolConfig,
+    ) -> (Object, Object);
+}
+
+impl IotaSystemStateWrapperExt for IotaSystemStateWrapper {
+    fn advance_epoch_safe_mode(
         &self,
         params: &AdvanceEpochParams,
         object_store: &dyn ObjectStore,
@@ -93,14 +95,14 @@ impl IotaSystemStateWrapper {
             .expect("Dynamic field object must be a Move object");
         match self.version {
             1 => {
-                Self::advance_epoch_safe_mode_impl::<IotaSystemStateV1>(
+                advance_epoch_safe_mode_impl::<IotaSystemStateV1>(
                     move_struct,
                     params,
                     protocol_config,
                 );
             }
             2 => {
-                Self::advance_epoch_safe_mode_impl::<IotaSystemStateV2>(
+                advance_epoch_safe_mode_impl::<IotaSystemStateV2>(
                     move_struct,
                     params,
                     protocol_config,
@@ -108,7 +110,7 @@ impl IotaSystemStateWrapper {
             }
             #[cfg(msim)]
             IOTA_SYSTEM_STATE_SIM_TEST_V1 => {
-                Self::advance_epoch_safe_mode_impl::<SimTestIotaSystemStateV1>(
+                advance_epoch_safe_mode_impl::<SimTestIotaSystemStateV1>(
                     move_struct,
                     params,
                     protocol_config,
@@ -116,7 +118,7 @@ impl IotaSystemStateWrapper {
             }
             #[cfg(msim)]
             IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V1 => {
-                Self::advance_epoch_safe_mode_impl::<SimTestIotaSystemStateShallowV1>(
+                advance_epoch_safe_mode_impl::<SimTestIotaSystemStateShallowV1>(
                     move_struct,
                     params,
                     protocol_config,
@@ -124,7 +126,7 @@ impl IotaSystemStateWrapper {
             }
             #[cfg(msim)]
             IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1 => {
-                Self::advance_epoch_safe_mode_impl::<SimTestIotaSystemStateDeepV1>(
+                advance_epoch_safe_mode_impl::<SimTestIotaSystemStateDeepV1>(
                     move_struct,
                     params,
                     protocol_config,
@@ -134,36 +136,36 @@ impl IotaSystemStateWrapper {
         }
         (old_field_object, new_field_object)
     }
+}
 
-    fn advance_epoch_safe_mode_impl<T>(
-        move_struct: &mut MoveStruct,
-        params: &AdvanceEpochParams,
-        protocol_config: &ProtocolConfig,
-    ) where
-        T: Serialize + DeserializeOwned + IotaSystemStateTrait,
-    {
-        let mut field: Field<u64, T> =
-            bcs::from_bytes(move_struct.contents()).expect("bcs deserialization should never fail");
-        tracing::info!(
-            "Advance epoch safe mode: current epoch: {}, protocol_version: {}, system_state_version: {}",
-            field.value.epoch(),
-            field.value.protocol_version(),
-            field.value.system_state_version()
+fn advance_epoch_safe_mode_impl<T>(
+    move_struct: &mut MoveStruct,
+    params: &AdvanceEpochParams,
+    protocol_config: &ProtocolConfig,
+) where
+    T: Serialize + DeserializeOwned + IotaSystemStateTrait,
+{
+    let mut field: Field<u64, T> =
+        bcs::from_bytes(move_struct.contents()).expect("bcs deserialization should never fail");
+    tracing::info!(
+        "Advance epoch safe mode: current epoch: {}, protocol_version: {}, system_state_version: {}",
+        field.value.epoch(),
+        field.value.protocol_version(),
+        field.value.system_state_version()
+    );
+    field.value.advance_epoch_safe_mode(params);
+    tracing::info!(
+        "Safe mode activated. New epoch: {}, protocol_version: {}, system_state_version: {}",
+        field.value.epoch(),
+        field.value.protocol_version(),
+        field.value.system_state_version()
+    );
+    let new_contents = bcs::to_bytes(&field).expect("bcs serialization should never fail");
+    move_struct
+        .update_contents_advance_epoch_safe_mode(new_contents, protocol_config)
+        .expect(
+            "Update iota system object content cannot fail since it should be small or unbounded",
         );
-        field.value.advance_epoch_safe_mode(params);
-        tracing::info!(
-            "Safe mode activated. New epoch: {}, protocol_version: {}, system_state_version: {}",
-            field.value.epoch(),
-            field.value.protocol_version(),
-            field.value.system_state_version()
-        );
-        let new_contents = bcs::to_bytes(&field).expect("bcs serialization should never fail");
-        move_struct
-            .update_contents_advance_epoch_safe_mode(new_contents, protocol_config)
-            .expect(
-                "Update iota system object content cannot fail since it should be small or unbounded",
-            );
-    }
 }
 
 /// This is the standard API that all inner system state object type should
@@ -234,7 +236,9 @@ impl IotaSystemState {
     /// state to exercise BCS round-trip paths.
     pub fn for_testing(epoch: u64, protocol_version: u64) -> Self {
         use iota_sdk_move_types::{
-            iota_framework::{bag::Bag, system_admin_cap::IotaSystemAdminCap, vec_map::VecMap},
+            iota_framework::{
+                bag::Bag, object::UID, system_admin_cap::IotaSystemAdminCap, vec_map::VecMap,
+            },
             iota_system::iota_system_state_inner::SystemParametersV1,
         };
         use iota_sdk_types::ObjectId;
@@ -244,7 +248,6 @@ impl IotaSystemState {
             coin::TreasuryCap,
             collection_types::{Table, TableVec},
             gas_coin::IotaTreasuryCap,
-            id::UID,
             iota_system_state::iota_system_state_inner_v1::{
                 IotaSystemStateV1, StorageFundV1, ValidatorSetV1,
             },

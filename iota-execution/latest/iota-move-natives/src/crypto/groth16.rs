@@ -15,7 +15,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 
-use crate::{NativesCostTable, object_runtime::ObjectRuntime};
+use crate::{NativesCostTable, get_extension, object_runtime::ObjectRuntime};
 
 pub const INVALID_VERIFYING_KEY: u64 = 0;
 pub const INVALID_CURVE: u64 = 1;
@@ -28,6 +28,11 @@ pub const BN254: u8 = 1;
 // We need to set an upper bound on the number of public inputs to avoid a DoS
 // attack
 pub const MAX_PUBLIC_INPUTS: usize = 8;
+
+// Byte length of a compressed BN254 G1 element. fastcrypto_zkp does not export
+// it, unlike `fastcrypto::groups::bls12381::G1_ELEMENT_BYTE_LENGTH`.
+// TODO(https://github.com/iotaledger/iota/issues/13310): use `fastcrypto_zkp::bn254::api::G1_SIZE`.
+const BN254_G1_SIZE: usize = 32;
 
 #[derive(Clone)]
 pub struct Groth16PrepareVerifyingKeyCostParams {
@@ -44,7 +49,11 @@ pub struct Groth16PrepareVerifyingKeyCostParams {
 /// otherwise we use the `bn254` cost constants.   gas cost:
 /// groth16_prepare_verifying_key_cost_base                    | covers various
 /// fixed costs in the oper Note: `curve` and `verifying_key` are fixed size, so
-/// their costs are included in the base cost. *********************************
+/// their costs are included in the base cost.
+///
+/// When `limit_groth16_pvk_inputs` is enabled, a verifying key for more than
+/// `MAX_PUBLIC_INPUTS` public inputs is rejected with `TOO_MANY_PUBLIC_INPUTS`
+/// before it is deserialized. *************************************************
 /// **************************************************************
 pub fn prepare_verifying_key_internal(
     context: &mut NativeContext,
@@ -86,6 +95,23 @@ pub fn prepare_verifying_key_internal(
     // Charge the base cost for this oper
     native_charge_gas_early_exit!(context, base_cost);
     let cost = context.gas_used();
+
+    if get_extension!(context, ObjectRuntime)?
+        .protocol_config
+        .limit_groth16_pvk_inputs()
+    {
+        let num_public_inputs = match curve {
+            BLS12381 => fastcrypto_zkp::bls12381::api::get_public_inputs_num(verifying_key.len()),
+            BN254 => fastcrypto_zkp::bn254::api::get_public_inputs_num(verifying_key.len()),
+            _ => return Ok(NativeResult::err(cost, INVALID_CURVE)),
+        };
+        let Ok(num_public_inputs) = num_public_inputs else {
+            return Ok(NativeResult::err(cost, INVALID_VERIFYING_KEY));
+        };
+        if num_public_inputs > MAX_PUBLIC_INPUTS {
+            return Ok(NativeResult::err(cost, TOO_MANY_PUBLIC_INPUTS));
+        }
+    }
 
     let result = if curve == BLS12381 {
         fastcrypto_zkp::bls12381::api::prepare_pvk_bytes(&verifying_key)
@@ -140,7 +166,12 @@ pub struct Groth16VerifyGroth16ProofInternalCostParams {
 ///                                                   * num_public_inputs) | covers the cost of
 ///                                                     verifying each public input per input
 /// Note: every other arg is fixed size, so their costs are included in the base
-/// cost. **********************************************************************
+/// cost.
+///
+/// A prepared verifying key for `n` public inputs holds `n + 1` G1 elements in
+/// `vk_gamma_abc_g1`. When `check_groth16_pvk_length` is enabled, any other
+/// length is rejected with `INVALID_VERIFYING_KEY` before the key is
+/// deserialized. *************************************************************
 /// *************************
 pub fn verify_groth16_proof_internal(
     context: &mut NativeContext,
@@ -229,11 +260,21 @@ pub fn verify_groth16_proof_internal(
 
     let cost = context.gas_used();
 
+    let check_pvk_length = get_extension!(context, ObjectRuntime)?
+        .protocol_config
+        .check_groth16_pvk_length();
+
     let result = if curve == BLS12381 {
         if public_proof_inputs.len()
             > fastcrypto::groups::bls12381::SCALAR_LENGTH * MAX_PUBLIC_INPUTS
         {
             return Ok(NativeResult::err(cost, TOO_MANY_PUBLIC_INPUTS));
+        }
+        if check_pvk_length
+            && vk_gamma_abc_g1.len()
+                != (num_public_inputs + 1) * fastcrypto::groups::bls12381::G1_ELEMENT_BYTE_LENGTH
+        {
+            return Ok(NativeResult::err(cost, INVALID_VERIFYING_KEY));
         }
         fastcrypto_zkp::bls12381::api::verify_groth16_in_bytes(
             &vk_gamma_abc_g1,
@@ -246,6 +287,9 @@ pub fn verify_groth16_proof_internal(
     } else if curve == BN254 {
         if public_proof_inputs.len() > fastcrypto_zkp::bn254::api::SCALAR_SIZE * MAX_PUBLIC_INPUTS {
             return Ok(NativeResult::err(cost, TOO_MANY_PUBLIC_INPUTS));
+        }
+        if check_pvk_length && vk_gamma_abc_g1.len() != (num_public_inputs + 1) * BN254_G1_SIZE {
+            return Ok(NativeResult::err(cost, INVALID_VERIFYING_KEY));
         }
         fastcrypto_zkp::bn254::api::verify_groth16_in_bytes(
             &vk_gamma_abc_g1,

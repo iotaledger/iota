@@ -386,9 +386,9 @@ impl TransactionEffectsAPI for TransactionEffects {
     }
 
     fn gas_object(&self) -> OwnedObjectReference {
-        // A system transaction pays no gas, so its effects name no gas object;
-        // this reports the dummy reference callers here have always been given
-        // for that case.
+        // A system transaction pays no gas, so its effects name no gas object.
+        // A placeholder reference to the zero object ID, owned by the zero
+        // address, is returned instead, so callers do not need a special case.
         effects_version!(self).gas_object().unwrap_or_else(|| {
             OwnedObjectReference::new(
                 ObjectReference::new(ObjectId::ZERO, Version::default(), ObjectDigest::MIN),

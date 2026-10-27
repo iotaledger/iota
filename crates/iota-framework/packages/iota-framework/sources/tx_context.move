@@ -251,3 +251,8 @@ native fun replace(
 #[allow(unused_function)]
 /// Native function for deriving an ID via hash(tx_hash || ids_created)
 native fun derive_id(tx_hash: vector<u8>, ids_created: u64): address;
+
+#[test_only]
+public fun derive_id_for_testing(tx_hash: vector<u8>, ids_created: u64): address {
+    derive_id(tx_hash, ids_created)
+}

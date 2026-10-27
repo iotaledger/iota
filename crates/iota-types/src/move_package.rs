@@ -38,7 +38,11 @@ use std::{
 
 use derive_more::Display;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_move_types::iota_framework::vec_map::{Entry, VecMap};
+use iota_sdk_move_types::iota_framework::{
+    object::{ID, UID},
+    package::UpgradeTicket,
+    vec_map::{Entry, VecMap},
+};
 use iota_sdk_types::{
     Identifier, MovePackage, ObjectId, PackageUpgradeError, StructTag, TypeOrigin, TypeTag,
     UpgradeInfo, Version,
@@ -56,7 +60,6 @@ use serde_with::{Bytes, serde_as};
 use crate::{
     Address,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
-    id::{ID, UID},
     iota_sdk_types_conversions::identifier_core_to_sdk,
     iota_serde::TypeName,
 };
@@ -135,15 +138,6 @@ pub struct UpgradeCap {
     pub package: ID,
     pub version: u64,
     pub policy: u8,
-}
-
-/// Rust representation of `iota::package::UpgradeTicket`.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UpgradeTicket {
-    pub cap: ID,
-    pub package: ID,
-    pub policy: u8,
-    pub digest: Vec<u8>,
 }
 
 /// Rust representation of `iota::package::UpgradeReceipt`.

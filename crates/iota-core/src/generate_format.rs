@@ -177,15 +177,16 @@ fn get_registry() -> Result<Registry> {
     let sig: SimpleSignature = kp1.sign(b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
-    let multisig_pk = MultisigCommittee::new(
+    // `MultisigCommittee::new` rejects partially signed committees mixing Ed25519 with other key
+    // schemes, but this one is signed by every member below.
+    let multisig_pk = MultisigCommittee::new_unchecked(
         vec![
             MultisigMember::new(kp1.public_key(), 1),
             MultisigMember::new(kp2.public_key(), 1),
             MultisigMember::new(kp3.public_key(), 1),
         ],
         2,
-    )
-    .unwrap();
+    );
 
     let digest = IntentMessage::new(
         Intent::iota_transaction(),

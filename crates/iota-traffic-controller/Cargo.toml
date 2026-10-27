@@ -28,6 +28,11 @@ iota-types.workspace = true
 prometheus-filtered.workspace = true
 
 [dev-dependencies]
+# external dependencies
+serde_json.workspace = true
+tracing-subscriber.workspace = true
+
+# internal dependencies
 iota-macros.workspace = true
 
 [target.'cfg(msim)'.dependencies]

@@ -1419,6 +1419,71 @@ impl IotaObjectDataFilter {
             IotaObjectDataFilter::Version(v) => object.version == *v,
         }
     }
+
+    /// Checks that the filter is within [`MAX_FILTER_DEPTH`] and
+    /// [`MAX_FILTER_NODES`].
+    pub fn check_size(&self) -> Result<(), FilterSizeError> {
+        let mut nodes = 0;
+        self.check_size_at_depth(0, &mut nodes)
+    }
+
+    fn check_size_at_depth(&self, depth: usize, nodes: &mut usize) -> Result<(), FilterSizeError> {
+        *nodes += 1;
+        if *nodes > MAX_FILTER_NODES {
+            return Err(FilterSizeError::TooManyNodes);
+        }
+        match self {
+            IotaObjectDataFilter::MatchAll(filters)
+            | IotaObjectDataFilter::MatchAny(filters)
+            | IotaObjectDataFilter::MatchNone(filters) => {
+                let depth = check_filter_depth(depth + 1)?;
+                for filter in filters {
+                    filter.check_size_at_depth(depth, nodes)?;
+                }
+            }
+            IotaObjectDataFilter::ObjectIds(ids) => {
+                // Matching compares the object against every ID.
+                *nodes += ids.len();
+                if *nodes > MAX_FILTER_NODES {
+                    return Err(FilterSizeError::TooManyNodes);
+                }
+            }
+            IotaObjectDataFilter::Package(_)
+            | IotaObjectDataFilter::MoveModule { .. }
+            | IotaObjectDataFilter::StructType(_)
+            | IotaObjectDataFilter::AddressOwner(_)
+            | IotaObjectDataFilter::ObjectOwner(_)
+            | IotaObjectDataFilter::ObjectId(_)
+            | IotaObjectDataFilter::Version(_) => {}
+        }
+        Ok(())
+    }
+}
+
+/// Maximum number of nested `MatchAll`, `MatchAny` and `MatchNone` filters in
+/// an object filter.
+pub const MAX_FILTER_DEPTH: usize = 10;
+
+/// Maximum number of filters in an object filter, counting the filters that
+/// combine others, every filter inside them, and every object ID of
+/// `ObjectIds`.
+pub const MAX_FILTER_NODES: usize = 64;
+
+/// A filter that exceeds one of the size limits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum FilterSizeError {
+    #[error("filter nesting exceeds the limit of {MAX_FILTER_DEPTH} levels")]
+    TooDeep,
+    #[error("filter exceeds the limit of {MAX_FILTER_NODES} nodes")]
+    TooManyNodes,
+}
+
+pub(crate) fn check_filter_depth(depth: usize) -> Result<usize, FilterSizeError> {
+    if depth > MAX_FILTER_DEPTH {
+        Err(FilterSizeError::TooDeep)
+    } else {
+        Ok(depth)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]
@@ -1451,5 +1516,56 @@ impl IotaObjectResponseQuery {
             filter: None,
             options: Some(options),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_size_limits_object_filter() {
+        let leaf = || IotaObjectDataFilter::ObjectId(ObjectId::ZERO);
+        let combinators: [fn(IotaObjectDataFilter) -> IotaObjectDataFilter; 3] = [
+            |f| IotaObjectDataFilter::MatchAll(vec![f]),
+            |f| IotaObjectDataFilter::MatchAny(vec![f]),
+            |f| IotaObjectDataFilter::MatchNone(vec![f]),
+        ];
+        for combine in combinators {
+            let nested = |depth| (0..depth).fold(leaf(), |filter, _| combine(filter));
+            assert_eq!(nested(MAX_FILTER_DEPTH).check_size(), Ok(()));
+            assert_eq!(
+                nested(MAX_FILTER_DEPTH + 1).check_size(),
+                Err(FilterSizeError::TooDeep)
+            );
+        }
+
+        let wide = |len: usize| IotaObjectDataFilter::MatchAny((0..len).map(|_| leaf()).collect());
+        assert_eq!(wide(MAX_FILTER_NODES - 1).check_size(), Ok(()));
+        assert_eq!(
+            wide(MAX_FILTER_NODES).check_size(),
+            Err(FilterSizeError::TooManyNodes)
+        );
+        assert_eq!(
+            wide(1_000_000).check_size(),
+            Err(FilterSizeError::TooManyNodes)
+        );
+
+        let ids = |len: usize| IotaObjectDataFilter::ObjectIds(vec![ObjectId::ZERO; len]);
+        assert_eq!(ids(MAX_FILTER_NODES - 1).check_size(), Ok(()));
+        assert_eq!(
+            ids(MAX_FILTER_NODES).check_size(),
+            Err(FilterSizeError::TooManyNodes)
+        );
+        // Nodes are counted across all levels: 1 + (1 + 31) + (1 + 31) = 65.
+        let half = MAX_FILTER_NODES / 2 - 1;
+        assert_eq!(
+            IotaObjectDataFilter::MatchAll(vec![ids(half), ids(half)]).check_size(),
+            Err(FilterSizeError::TooManyNodes)
+        );
+        assert_eq!(
+            IotaObjectDataFilter::MatchAll(vec![ids(half), ids(half - 1)]).check_size(),
+            Ok(())
+        );
     }
 }

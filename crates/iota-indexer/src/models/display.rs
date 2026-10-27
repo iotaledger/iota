@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::prelude::*;
-use iota_sdk_move_types::iota_framework::vec_map::VecMap;
-use iota_sdk_types::{Address, Event, Identifier, ObjectId, StructTag, TypeTag};
-use iota_types::{
-    display::{DisplayObject, DisplayVersionUpdatedEvent},
-    id::ID,
-    object::Object,
+use iota_sdk_move_types::iota_framework::{
+    display::{Display, VersionUpdated},
+    object::ID,
+    vec_map::VecMap,
 };
+use iota_sdk_types::{Address, Event, Identifier, ObjectId, StructTag, TypeTag};
+use iota_types::object::Object;
 
 use crate::{errors::IndexerError, schema::display};
 
@@ -18,9 +18,9 @@ const DISPLAY_STRUCT_NAME: Identifier = Identifier::from_static("Display");
 /// Identifies what type is encoded in [`StoredDisplay`]'s `bcs` column.
 #[derive(Debug, Copy, Clone)]
 pub enum DisplayBcsKind {
-    /// Full [`DisplayVersionUpdatedEvent`] BCS, written from on-chain events.
+    /// Full [`VersionUpdated`] BCS, written from on-chain events.
     Event = 0,
-    /// Only the [`DisplayVersionUpdatedEvent::fields`].
+    /// Only the [`VersionUpdated::fields`].
     Fields = 1,
 }
 
@@ -59,14 +59,14 @@ impl StoredDisplay {
             [TypeTag::Struct(struct_type)] => struct_type,
             _ => return None,
         };
-        let display_event: DisplayVersionUpdatedEvent = bcs::from_bytes(&event.contents).ok()?;
+        let display_event: VersionUpdated<()> = bcs::from_bytes(&event.contents).ok()?;
+        let fields: VecMap<String, String> = display_event.fields.try_into().ok()?;
 
         Some(Self {
             object_type: ty.to_canonical_string(/* with_prefix */ true),
             id: display_event.id.bytes.as_bytes().to_vec(),
             version: display_event.version as i16,
-            bcs: bcs::to_bytes(&display_event.fields)
-                .expect("serializing a deserialized value should succeed"),
+            bcs: bcs::to_bytes(&fields).expect("serializing a deserialized value should succeed"),
             bcs_kind: DisplayBcsKind::Fields as i16,
         })
     }
@@ -83,24 +83,26 @@ impl StoredDisplay {
         let [TypeTag::Struct(object_type)] = struct_tag.type_params() else {
             return None;
         };
-        let display: DisplayObject = bcs::from_bytes(move_object.contents()).ok()?;
+        let display: Display<()> = bcs::from_bytes(move_object.contents()).ok()?;
+        let fields: VecMap<String, String> = display.fields.try_into().ok()?;
 
         Some(Self {
             object_type: object_type.to_canonical_string(/* with_prefix */ true),
             id: display.id.object_id().as_bytes().to_vec(),
             version: display.version as i16,
-            bcs: bcs::to_bytes(&display.fields)
-                .expect("serializing a deserialized value should succeed"),
+            bcs: bcs::to_bytes(&fields).expect("serializing a deserialized value should succeed"),
             bcs_kind: DisplayBcsKind::Fields as i16,
         })
     }
 
     pub fn to_display_fields(&self) -> Result<VecMap<String, String>, IndexerError> {
         match DisplayBcsKind::try_from(self.bcs_kind)? {
-            DisplayBcsKind::Event => {
-                bcs::from_bytes::<DisplayVersionUpdatedEvent>(&self.bcs).map(|event| event.fields)
-            }
-            DisplayBcsKind::Fields => bcs::from_bytes(&self.bcs),
+            DisplayBcsKind::Event => bcs::from_bytes::<VersionUpdated<()>>(&self.bcs)
+                .map_err(|e| e.to_string())
+                .and_then(|event| {
+                    VecMap::<String, String>::try_from(event.fields).map_err(|e| e.to_string())
+                }),
+            DisplayBcsKind::Fields => bcs::from_bytes(&self.bcs).map_err(|e| e.to_string()),
         }
         .map_err(|e| {
             IndexerError::PersistentStorageDataCorruption(format!(

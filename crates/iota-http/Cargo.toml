@@ -13,7 +13,7 @@ http.workspace = true
 http-body.workspace = true
 http-body-util.workspace = true
 hyper = { workspace = true, features = ["http1", "http2"] }
-hyper-util.workspace = true
+hyper-util = { workspace = true, features = ["server-graceful"] }
 pin-project-lite.workspace = true
 socket2 = { version = "0.5", features = ["all"] }
 strum.workspace = true
