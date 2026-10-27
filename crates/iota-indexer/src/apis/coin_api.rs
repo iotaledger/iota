@@ -60,7 +60,10 @@ impl CoinReadApiServer for CoinReadApi {
 
         // This store pages by object id alone. Without a cursor, start from
         // the minimal possible ObjectId.
-        let cursor = common::object_id_cursor(cursor)?.unwrap_or(ObjectId::ZERO);
+        let cursor = cursor
+            .map(|c| common::resolve_object_id_cursor(c))
+            .transpose()?
+            .unwrap_or(ObjectId::ZERO);
         let mut results = self
             .inner
             .get_owned_coins_in_blocking_task(owner, Some(coin_type), cursor, limit + 1)
@@ -92,7 +95,10 @@ impl CoinReadApiServer for CoinReadApi {
 
         // This store pages by object id alone. Without a cursor, start from
         // the minimal possible ObjectId.
-        let cursor = common::object_id_cursor(cursor)?.unwrap_or(ObjectId::ZERO);
+        let cursor = cursor
+            .map(|c| common::resolve_object_id_cursor(c))
+            .transpose()?
+            .unwrap_or(ObjectId::ZERO);
         let mut results = self
             .inner
             .get_owned_coins_in_blocking_task(owner, None, cursor, limit + 1)

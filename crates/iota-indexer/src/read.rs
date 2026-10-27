@@ -2902,7 +2902,9 @@ impl DataReader for IndexerReader {
             .get_owned_objects_in_blocking_task(
                 address,
                 Some(IotaObjectDataFilter::StructType(object_type)),
-                crate::apis::common::object_id_cursor(cursor)?,
+                cursor
+                    .map(|c| crate::apis::common::resolve_object_id_cursor(c))
+                    .transpose()?,
                 limit + 1,
             )
             .await?;

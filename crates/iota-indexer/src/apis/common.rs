@@ -20,20 +20,17 @@ pub(crate) fn validate_input_limit(len: usize) -> RpcResult<()> {
     Ok(())
 }
 
-/// The object a coin or owned-object cursor names. This store pages by object
-/// id alone, so it refuses a cursor that holds a full node's position, whose
-/// pages are ordered by type and balance: continuing such a page by object id
-/// would skip or repeat objects.
-pub(crate) fn object_id_cursor(cursor: Option<OwnedObjectCursor>) -> RpcResult<Option<ObjectId>> {
+/// Resolves the [`ObjectId`] from an opaque cursor [`OwnedObjectCursor`].
+///
+/// ## Errors
+///
+/// Fails if the cursor does not represent an [`ObjectId`].
+pub(crate) fn resolve_object_id_cursor(cursor: OwnedObjectCursor) -> RpcResult<ObjectId> {
     match cursor {
-        None => Ok(None),
-        Some(cursor) if cursor.position().is_none() => Ok(Some(cursor.object_id())),
-        Some(_) => Err(IotaRpcInputError::GenericInvalid(
-            "the cursor comes from a full node, which orders its pages differently; pass a \
-             cursor this indexer returned"
-                .into(),
-        )
-        .into()),
+        OwnedObjectCursor::ObjectId(object_id) => Ok(object_id),
+        OwnedObjectCursor::Position(_) => {
+            Err(IotaRpcInputError::GenericInvalid("Invalid cursor. Not an ObjectId".into()).into())
+        }
     }
 }
 
@@ -51,15 +48,14 @@ mod tests {
     use iota_sdk_types::ObjectId;
     use iota_types::storage::OwnedObjectCursor as IndexCursor;
 
-    use super::{object_id_cursor, validate_cursor};
+    use super::{resolve_object_id_cursor, validate_cursor};
 
     #[test]
     fn an_object_id_cursor_is_followed_and_a_full_node_position_refused() {
         let id = ObjectId::random();
-        assert_eq!(object_id_cursor(None).unwrap(), None);
         assert_eq!(
-            object_id_cursor(Some(OwnedObjectCursor::from_object_id(id))).unwrap(),
-            Some(id)
+            resolve_object_id_cursor(OwnedObjectCursor::from_object_id(id)).unwrap(),
+            id
         );
         let position = OwnedObjectCursor::from_position(IndexCursor {
             object_type_identifier: 1,
@@ -67,7 +63,7 @@ mod tests {
             inverted_balance: Some(3),
             object_id: id,
         });
-        assert!(object_id_cursor(Some(position)).is_err());
+        assert!(resolve_object_id_cursor(position).is_err());
     }
 
     #[test]
