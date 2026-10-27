@@ -51,10 +51,12 @@ impl CommitSolidifier {
         }
     }
 
-    /// Sets the last solid commit index and drops the buffered commits at or
-    /// below it.
     pub(crate) fn set_last_solid_committed_index(&mut self, index: CommitIndex) {
         self.last_solid_committed_index = index;
+    }
+
+    /// Removes the buffered commits at or below `index`.
+    pub(crate) fn remove_pending_subdags_up_to(&mut self, index: CommitIndex) {
         self.pending_subdags
             .retain(|&commit_index, _| commit_index > index);
     }
@@ -1066,11 +1068,10 @@ mod tests {
         assert!(missing.is_empty());
     }
 
-    /// Buffered commits at or below a new last solid commit index are dropped
-    /// and no longer requested; the ones above it are output once their
-    /// transactions arrive.
+    /// Removed commits are no longer requested; the ones above the index are
+    /// output once their transactions arrive.
     #[tokio::test]
-    async fn test_set_last_solid_committed_index_drops_buffered_commits() {
+    async fn test_remove_pending_subdags_up_to() {
         let setup = Arc::new(TestSetup::new(4));
         let (mut commit_solidifier, selective_dag_state) =
             setup.create_selective_commit_solidifier(vec![1, 2, 3, 4], vec![(1, 0), (2, 0)]);
@@ -1107,6 +1108,7 @@ mod tests {
         assert_eq!(commit_solidifier.pending_subdags.len(), 3);
 
         commit_solidifier.set_last_solid_committed_index(2);
+        commit_solidifier.remove_pending_subdags_up_to(2);
         assert_eq!(
             commit_solidifier
                 .pending_subdags

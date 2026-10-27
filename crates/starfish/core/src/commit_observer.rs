@@ -341,6 +341,10 @@ impl CommitObserver {
         // not be reset per batch.
         self.commit_solidifier
             .set_last_solid_committed_index(self.last_sent_commit_index);
+        // Buffered commits up to this index were already sent by fast sync and
+        // can no longer be output.
+        self.commit_solidifier
+            .remove_pending_subdags_up_to(self.last_sent_commit_index);
 
         // Process in bounded batches so a large unprocessed range (e.g. when tx
         // data lagged behind commits for a long period) is never materialized at
