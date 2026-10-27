@@ -1,7 +1,7 @@
 # iota-json-rpc
 
 The `iota-json-rpc` library crate provides a flexible framework for building JSON-RPC servers to expose IOTA APIs.
-It supports requests over HTTP and WebSocket, and is primarily to spawn a nested service in the `iota-indexer`
+It serves requests over HTTP, and is primarily used to spawn a nested service in the `iota-indexer`
 or `iota-node` applications.
 
 It provides module implementations for various JSON-RPC server traits (
