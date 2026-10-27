@@ -90,6 +90,7 @@ ignore = [
   # zstd-safe 8. The latest `tonic` and `parquet` releases still require zstd
   # 0.13. Remove once they move to 0.14.
   "RUSTSEC-2026-0391",
+  "RUSTSEC-2026-0398",
   "RUSTSEC-2026-0403",
   # `im` is unmaintained and its `OrdSet` insertion is unsound, together with
   # its `bitmaps` dependency. Only reachable through `fastcrypto-zkp`; remove
