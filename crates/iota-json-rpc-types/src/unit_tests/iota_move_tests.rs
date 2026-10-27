@@ -59,6 +59,10 @@ fn parse_move_function_name_non_ascii_fun() {
     assert!(parsed.is_err());
 }
 
+/// `to_json_value` builds the `parsedJson` field of every event the JSON-RPC
+/// API returns, so this pins the format clients see: `u64` values as decimal
+/// strings, addresses as `0x` hex, a Move `String` as a plain string, and
+/// nested structs under their field paths.
 #[test]
 fn test_to_json_value() {
     let move_event = TestEvent {
