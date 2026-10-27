@@ -35,6 +35,7 @@ axum.workspace = true
 fastcrypto.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies
 iota-metrics = { workspace = true, features = ["test-utils"] }
