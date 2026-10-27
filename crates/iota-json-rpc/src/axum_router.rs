@@ -31,10 +31,7 @@ use jsonrpsee::{
 use serde_json::value::RawValue;
 use tracing::error;
 
-use crate::{
-    logger::{Logger, TransportProtocol},
-    routing_layer::RpcRouter,
-};
+use crate::{logger::Logger, routing_layer::RpcRouter};
 
 pub const MAX_RESPONSE_SIZE: u32 = 2 << 30;
 const TOO_MANY_REQUESTS_MSG: &str = "Too many requests";
@@ -79,7 +76,7 @@ impl<L: Logger> JsonRpcService<L> {
             rpc_router: &self.rpc_router,
             extensions: &self.extensions,
             max_response_body_size: MAX_RESPONSE_SIZE,
-            request_start: self.logger.on_request(TransportProtocol::Http),
+            request_start: self.logger.on_request(),
         }
     }
 }
@@ -278,22 +275,12 @@ async fn process_request<L: Logger>(
 
     let response = match methods.method_with_name(name) {
         None => {
-            logger.on_call(
-                name,
-                params.clone(),
-                MethodKind::NotFound,
-                TransportProtocol::Http,
-            );
+            logger.on_call(name, params.clone(), MethodKind::NotFound);
             MethodResponse::error(id, ErrorObject::from(ErrorCode::MethodNotFound))
         }
         Some((name, method)) => match method {
             MethodCallback::Sync(callback) => {
-                logger.on_call(
-                    name,
-                    params.clone(),
-                    MethodKind::MethodCall,
-                    TransportProtocol::Http,
-                );
+                logger.on_call(name, params.clone(), MethodKind::MethodCall);
                 (callback)(
                     id,
                     params,
@@ -302,12 +289,7 @@ async fn process_request<L: Logger>(
                 )
             }
             MethodCallback::Async(callback) => {
-                logger.on_call(
-                    name,
-                    params.clone(),
-                    MethodKind::MethodCall,
-                    TransportProtocol::Http,
-                );
+                logger.on_call(name, params.clone(), MethodKind::MethodCall);
 
                 let id = id.into_owned();
                 let params = params.into_owned();
@@ -322,12 +304,7 @@ async fn process_request<L: Logger>(
                 .await
             }
             MethodCallback::Subscription(_) | MethodCallback::Unsubscription(_) => {
-                logger.on_call(
-                    name,
-                    params.clone(),
-                    MethodKind::NotFound,
-                    TransportProtocol::Http,
-                );
+                logger.on_call(name, params.clone(), MethodKind::NotFound);
                 // Subscriptions not supported on HTTP
                 MethodResponse::error(id, ErrorObject::from(ErrorCode::InternalError))
             }
@@ -339,7 +316,6 @@ async fn process_request<L: Logger>(
         response.is_success(),
         response.as_error_code(),
         request_start,
-        TransportProtocol::Http,
     );
     response
 }

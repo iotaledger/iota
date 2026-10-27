@@ -22,7 +22,6 @@ chrono.workspace = true
 eyre.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
-http-body.workspace = true
 hyper.workspace = true
 indexmap.workspace = true
 itertools.workspace = true
