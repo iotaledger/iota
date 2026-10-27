@@ -61,38 +61,6 @@ async fn objects_transitioning_to_shared_remember_their_previous_version(pcool: 
 }
 
 #[sim_test]
-async fn shared_object_owner_doesnt_change_on_write() {
-    let env = TestEnvironment::new().await;
-    let counter = *env.create_counter().await.reference();
-
-    let inc_counter = *env.increment_owned_counter(counter).await.reference();
-    let ExecutionError::MoveAbort { location, code } =
-        env.share_counter(inc_counter).await.unwrap_err()
-    else {
-        panic!()
-    };
-    assert_eq!(location.package, ObjectId::FRAMEWORK);
-    assert_eq!(location.module.as_str(), "transfer");
-    assert_eq!(code, 0 /* ESharedNonNewObject */);
-}
-
-#[sim_test]
-async fn initial_shared_version_mismatch_start_version() {
-    let env = TestEnvironment::new().await;
-    let counter = *env.create_counter().await.reference();
-
-    let counter = *env.increment_owned_counter(counter).await.reference();
-    let ExecutionError::MoveAbort { location, code } =
-        env.share_counter(counter).await.unwrap_err()
-    else {
-        panic!()
-    };
-    assert_eq!(location.package, ObjectId::FRAMEWORK);
-    assert_eq!(location.module.as_str(), "transfer");
-    assert_eq!(code, 0 /* ESharedNonNewObject */);
-}
-
-#[sim_test]
 async fn initial_shared_version_mismatch_current_version() {
     let env = TestEnvironment::new().await;
     let counter = *env.create_counter().await.reference();

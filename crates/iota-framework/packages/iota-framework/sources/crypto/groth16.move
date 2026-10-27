@@ -100,7 +100,7 @@ public fun prepare_verifying_key(curve: &Curve, verifying_key: &vector<u8>): Pre
     prepare_verifying_key_internal(curve.id, verifying_key)
 }
 
-/// Native functions that flattens the inputs into an array and passes to the Rust native function. May abort with `EInvalidVerifyingKey` or `EInvalidCurve`.
+/// Native functions that flattens the inputs into an array and passes to the Rust native function. May abort with `EInvalidVerifyingKey`, `EInvalidCurve` or `ETooManyPublicInputs`.
 native fun prepare_verifying_key_internal(
     curve: u8,
     verifying_key: &vector<u8>,
@@ -129,7 +129,7 @@ public fun verify_groth16_proof(
     )
 }
 
-/// Native functions that flattens the inputs into arrays of vectors and passed to the Rust native function. May abort with `EInvalidCurve` or `ETooManyPublicInputs`.
+/// Native functions that flattens the inputs into arrays of vectors and passed to the Rust native function. May abort with `EInvalidCurve`, `ETooManyPublicInputs` or `EInvalidVerifyingKey`.
 native fun verify_groth16_proof_internal(
     curve: u8,
     vk_gamma_abc_g1_bytes: &vector<u8>,

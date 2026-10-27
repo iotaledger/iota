@@ -150,6 +150,10 @@ mod tests {
     use crate::authority::authority_per_epoch_store::handler_object_state::HandlerProcessedObjectKind;
 
     const HORIZON: CommitIndex = 10;
+    /// The horizon distance these tests set, so validation at
+    /// `VALIDATED_COMMIT` reads the state as of `HORIZON`.
+    const HORIZON_DISTANCE: CommitIndex = 4;
+    const VALIDATED_COMMIT: CommitIndex = HORIZON + HORIZON_DISTANCE;
 
     fn row(produced_at: CommitIndex) -> HandlerProcessedObject {
         HandlerProcessedObject {
@@ -179,7 +183,7 @@ mod tests {
         assert_eq!(classify_package(None, HORIZON), PackageClass::Visible);
     }
 
-    /// A package published by commit 11, above the horizon (10) of commit 12,
+    /// A package published by commit 11, above the horizon (10) of commit 14,
     /// answers missing once its row exists. The row is written before the
     /// package reaches the store.
     #[tokio::test]
@@ -198,7 +202,9 @@ mod tests {
         };
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.enable_pcool_deterministic_validation_for_testing();
+                config.set_pcool_deterministic_validation_horizon_distance_for_testing(
+                    HORIZON_DISTANCE,
+                );
                 config
             });
 
@@ -250,7 +256,7 @@ mod tests {
 
         // No row: published before the epoch.
         assert!(matches!(
-            read_at(PUBLISHING_COMMIT + 1),
+            read_at(VALIDATED_COMMIT),
             PackageRowLookup::Visible(_)
         ));
 
@@ -262,7 +268,7 @@ mod tests {
             )
             .unwrap();
         assert!(matches!(
-            read_at(PUBLISHING_COMMIT + 1),
+            read_at(VALIDATED_COMMIT),
             PackageRowLookup::Missing(reason) if reason.kind() == MissingKind::PackageAboveHorizon
         ));
     }

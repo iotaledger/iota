@@ -128,10 +128,7 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
             // A validator does not verify its own blocks, so otherwise its own signature
             // reaches its aggregator only when its consensus handler gets to the commit
             // that includes it, and a handler waiting on certification would never get there.
-            if epoch_store
-                .protocol_config()
-                .pcool_deterministic_validation()
-            {
+            if epoch_store.protocol_config().enable_pcool_flow() {
                 checkpoint_service.notify_checkpoint_signature(epoch_store, &message)?;
             }
             self.metrics

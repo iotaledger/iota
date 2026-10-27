@@ -39,6 +39,7 @@ pub struct VerifierConfig {
     /// exceeded the checker fails with `PROGRAM_TOO_COMPLEX`. `None` means no
     /// bound.
     pub max_instantiation_loop_graph_edges: Option<usize>,
+    pub deprecate_global_storage_ops: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -87,6 +88,7 @@ impl Default for VerifierConfig {
             check_cyclic_dependencies: true,
             meter_instantiation_loops: false,
             max_instantiation_loop_graph_edges: None,
+            deprecate_global_storage_ops: true,
         }
     }
 }

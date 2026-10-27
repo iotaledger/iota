@@ -139,6 +139,7 @@ impl Indexer {
             fallback_kv_multi_fetch_batch_size,
             fallback_kv_concurrent_fetches,
             fallback_kv_cache_size,
+            fallback_kv_max_response_size_bytes,
         } = config.historic_fallback_options
         {
             let historic_fallback_reader = HistoricalFallbackReader::new(
@@ -147,6 +148,7 @@ impl Indexer {
                 read.package_resolver().clone(),
                 fallback_kv_multi_fetch_batch_size,
                 fallback_kv_concurrent_fetches,
+                fallback_kv_max_response_size_bytes,
                 registry,
             )?;
             info!("HistoricalFallbackReader initialized with URL: {url}");

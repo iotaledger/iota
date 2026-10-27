@@ -80,6 +80,7 @@ mod sim_only_tests {
         TransactionKind, Version,
     };
     use iota_types::{
+        IOTA_TRANSACTION_DENY_RULES_OBJECT_ID,
         base_types::ConciseableName,
         effects::TransactionEffectsAPI,
         iota_system_state::{
@@ -421,6 +422,7 @@ mod sim_only_tests {
                         ObjectId::CLOCK,
                         ObjectId::AUTHENTICATOR_STATE,
                         ObjectId::RANDOMNESS_STATE,
+                        IOTA_TRANSACTION_DENY_RULES_OBJECT_ID,
                     ]
                     .contains(&obj.reference().object_id);
                     (!is_framework_obj).then_some(obj.reference().object_id)

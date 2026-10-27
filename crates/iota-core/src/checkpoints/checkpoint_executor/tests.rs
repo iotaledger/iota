@@ -208,16 +208,12 @@ pub async fn test_notify_read_epoch_last_checkpoint() {
     assert_eq!(seq, end_of_epoch.sequence_number());
 }
 
-/// With `pcool_deterministic_validation`, a committee validator does not
+/// With `enable_pcool_flow`, a committee validator does not
 /// execute a synced checkpoint it has not built while its epoch is running.
 /// Once the certified last checkpoint of the epoch is known, it switches to
 /// executing synced checkpoints for the rest of the epoch.
 #[tokio::test]
 pub async fn test_validator_waits_for_local_build_until_epoch_end() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
-        config
-    });
     let checkpoint_store = CheckpointStore::new_for_tests();
     let (state, executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;
@@ -268,10 +264,6 @@ pub async fn test_validator_waits_for_local_build_until_epoch_end() {
 /// checkpoint may never be computed.
 #[tokio::test]
 pub async fn test_switched_validator_executes_synced_data_of_locally_built_checkpoint() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
-        config
-    });
     let checkpoint_store = CheckpointStore::new_for_tests();
     let (state, executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;
@@ -307,10 +299,6 @@ pub async fn test_switched_validator_executes_synced_data_of_locally_built_check
 /// has to replay their commit and execute them first.
 #[tokio::test]
 pub async fn test_validator_waits_for_the_transactions_of_a_locally_built_checkpoint() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
-        config
-    });
     let checkpoint_store = CheckpointStore::new_for_tests();
     let (state, executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;
@@ -353,10 +341,6 @@ pub async fn test_validator_waits_for_the_transactions_of_a_locally_built_checkp
 /// again with its contents available.
 #[tokio::test]
 pub async fn test_switched_validator_waits_for_the_transactions_of_a_locally_built_checkpoint() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
-        config
-    });
     let checkpoint_store_dir = iota_common::tempdir();
     let checkpoint_store = CheckpointStore::new(checkpoint_store_dir.path());
     let (state, executor, hasher, committee) =
@@ -415,12 +399,12 @@ pub async fn test_switched_validator_waits_for_the_transactions_of_a_locally_bui
     executor_handle.abort();
 }
 
-/// Without `pcool_deterministic_validation`, a committee validator executes
+/// Without the P-COOL flow, a committee validator executes
 /// a synced checkpoint it has not built at once.
 #[tokio::test]
 pub async fn test_validator_executes_synced_checkpoints_without_the_flag() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_pcool_deterministic_validation_for_testing(false);
+        config.set_enable_pcool_flow_for_testing(false);
         config
     });
     let checkpoint_store = CheckpointStore::new_for_tests();
@@ -450,11 +434,11 @@ pub async fn test_validator_executes_synced_checkpoints_without_the_flag() {
 
 /// Test checkpoint executor happy path, test that checkpoint executor correctly
 /// picks up where it left off in the event of a mid-epoch node crash, on a
-/// committee validator without `pcool_deterministic_validation`.
+/// committee validator without the P-COOL flow.
 #[tokio::test]
 pub async fn test_checkpoint_executor_crash_recovery() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_pcool_deterministic_validation_for_testing(false);
+        config.set_enable_pcool_flow_for_testing(false);
         config
     });
     run_crash_recovery(true).await;
@@ -1237,10 +1221,6 @@ async fn the_synced_watermark_does_not_pass_a_checkpoint_the_write_skips() {
 /// hash the checkpoint itself.
 #[tokio::test]
 pub async fn test_locally_built_checkpoint_without_its_state_hash_executes_without_the_builder() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
-        config
-    });
     let checkpoint_store = CheckpointStore::new_for_tests();
     let (state, executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;

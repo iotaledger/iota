@@ -299,11 +299,15 @@ pub struct GrpcReader {
 
 impl GrpcReader {
     /// Get a reference to the gRPC indexes, returning an error if they are
-    /// not available (i.e. disabled or not yet initialised).
-    fn require_indexes(&self) -> anyhow::Result<&dyn iota_node_storage::GrpcIndexes> {
+    /// not available (i.e. disabled or not yet initialised). The error
+    /// renders as `FailedPrecondition`, so clients can tell an unsupported
+    /// node configuration from a server fault.
+    fn require_indexes(
+        &self,
+    ) -> Result<&dyn iota_node_storage::GrpcIndexes, crate::error::MissingIndexesError> {
         self.state_reader
             .grpc_indexes()
-            .ok_or_else(|| anyhow::anyhow!("gRPC indexes are disabled"))
+            .ok_or(crate::error::MissingIndexesError)
     }
 
     pub fn new(
@@ -706,9 +710,7 @@ impl GrpcReader {
         cursor: Option<&OwnedObjectCursor>,
         object_type: Option<StructTag>,
     ) -> Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>, crate::error::RpcError> {
-        let indexes = self
-            .require_indexes()
-            .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
+        let indexes = self.require_indexes()?;
         let iter = indexes
             .account_owned_objects_info_iter(owner, cursor, object_type)
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
@@ -733,9 +735,7 @@ impl GrpcReader {
         &self,
         coin_type: &StructTag,
     ) -> Result<Option<iota_types::storage::CoinInfo>, crate::error::RpcError> {
-        let indexes = self
-            .require_indexes()
-            .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
+        let indexes = self.require_indexes()?;
         let info = indexes
             .get_coin_info(coin_type)
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
@@ -751,9 +751,7 @@ impl GrpcReader {
         original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<Box<dyn Iterator<Item = PackageVersionIterItem> + '_>, crate::error::RpcError> {
-        let indexes = self
-            .require_indexes()
-            .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
+        let indexes = self.require_indexes()?;
         let iter = indexes
             .package_versions_iter(original_package_id, cursor)
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
@@ -1193,8 +1191,7 @@ impl GrpcReader {
 
         let (checkpoint, timestamp_ms) = if fields.include_checkpoint || fields.include_timestamp {
             let checkpoint = self
-                .require_indexes()
-                .map_err(|e| crate::error::RpcError::internal().with_context(e))?
+                .require_indexes()?
                 .get_transaction_info(digest)?
                 .map(|info| info.checkpoint);
 

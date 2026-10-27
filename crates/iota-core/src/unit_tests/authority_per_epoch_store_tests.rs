@@ -1497,8 +1497,6 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_deny_rule_governance_for_testing(true);
-    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
     protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
     let authority_state = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config.clone())
@@ -1661,8 +1659,6 @@ async fn pushed_commit_records_the_proposal_and_recomputes_enforcement() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_deny_rule_governance_for_testing(true);
-    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
     protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
     let authority_state = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config.clone())
@@ -1758,8 +1754,6 @@ async fn deny_rule_update_is_scheduled_right_after_the_prologue() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_deny_rule_governance_for_testing(true);
-    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
     protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
     // The validator's own key is needed below: the reopened store gets its own
     // randomness manager, and one is built from the committee member's key.
@@ -1852,8 +1846,6 @@ async fn skipped_deny_rule_chunks_hold_the_mirror_back() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_deny_rule_governance_for_testing(true);
-    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
     protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
     let authority_state = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config.clone())
@@ -1936,8 +1928,6 @@ async fn every_injected_deny_rule_chunk_becomes_a_checkpoint_root() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_deny_rule_governance_for_testing(true);
-    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
     // One entry per transaction, so the four denied addresses below split
     // across four chunks.
     protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1);
@@ -2408,7 +2398,6 @@ async fn verify_consensus_transaction_mirrors_feature_gates(
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
     protocol_config.set_enable_pcool_flow_for_testing(gated_features_enabled);
     protocol_config.set_calculate_validator_scores_for_testing(gated_features_enabled);
-    protocol_config.set_deny_rule_governance_for_testing(gated_features_enabled);
     let authority = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
         .build()
@@ -2696,19 +2685,8 @@ mod handler_object_state_storage {
         }
     }
 
-    /// Turns on P-COOL deterministic validation, without which the epoch store
-    /// keeps no handler object state. Build the authority while the guard
-    /// lives.
-    fn enable_deterministic_validation() -> iota_protocol_config::OverrideGuard {
-        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
-            config
-        })
-    }
-
     #[tokio::test]
     async fn handler_processed_rows_are_read_by_exact_key_from_memory_and_the_table() {
-        let _guard = enable_deterministic_validation();
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
         let state = epoch_store.handler_object_state_for_testing();
@@ -2774,7 +2752,6 @@ mod handler_object_state_storage {
 
     #[tokio::test]
     async fn flushed_rows_for_one_id_keep_every_version() {
-        let _guard = enable_deterministic_validation();
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
         let state = epoch_store.handler_object_state_for_testing();
@@ -2827,7 +2804,6 @@ mod handler_object_state_storage {
     /// from a neighbouring id.
     #[tokio::test]
     async fn highest_handler_processed_row_reads_from_memory_and_the_table() {
-        let _guard = enable_deterministic_validation();
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
         let state = epoch_store.handler_object_state_for_testing();
@@ -2883,7 +2859,6 @@ mod handler_object_state_storage {
     /// version, never at the version itself or from a neighbouring id.
     #[tokio::test]
     async fn lowest_handler_processed_row_above_reads_from_memory_and_the_table() {
-        let _guard = enable_deterministic_validation();
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
         let state = epoch_store.handler_object_state_for_testing();
@@ -2949,7 +2924,6 @@ mod handler_object_state_storage {
     /// rows in memory, produced at that commit.
     #[tokio::test]
     async fn executing_a_transaction_of_an_assigned_commit_records_its_rows_at_that_commit() {
-        let _guard = enable_deterministic_validation();
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
 
@@ -2973,7 +2947,6 @@ mod handler_object_state_storage {
     /// first call runs under `catch_unwind`.
     #[tokio::test]
     async fn execution_without_an_assigned_commit_panics_unless_executing_synced_checkpoints() {
-        let _guard = enable_deterministic_validation();
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
 
@@ -3010,7 +2983,6 @@ mod handler_object_state_storage {
     /// never moves down.
     #[tokio::test]
     async fn highest_fully_executed_commit_resumes_from_the_flushed_commit() {
-        let _guard = enable_deterministic_validation();
         let authority = TestAuthorityBuilder::new().build().await;
         let store = authority.epoch_store_for_testing().clone();
         let assert_highest = |store: &AuthorityPerEpochStore, index: CommitIndex| {

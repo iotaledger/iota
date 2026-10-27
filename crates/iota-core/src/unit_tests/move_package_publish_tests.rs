@@ -533,6 +533,39 @@ async fn test_publish_non_canonical_version_header_before_the_check() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publish_deprecated_bytes_modules() {
+    assert_rejected_at_signing(publish_module_using_global_storage().await);
+}
+
+/// The same holds before execution rejects these instructions when it
+/// deserializes a module.
+#[tokio::test]
+#[cfg_attr(msim, ignore)]
+async fn test_publish_deprecated_bytes_modules_before_the_flag() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_deprecate_global_storage_ops_for_testing(false);
+        config
+    });
+
+    assert_rejected_at_signing(publish_module_using_global_storage().await);
+}
+
+fn assert_rejected_at_signing(result: Result<ExecutionStatus, IotaError>) {
+    let error = result.unwrap_err();
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::PackageVerificationTimedout { .. }
+            }
+        ),
+        "{error:?}"
+    );
+}
+
+/// Publish a test package, then the same package with a private function added
+/// that uses a deprecated global storage instruction, and return the outcome of
+/// the second publish.
+async fn publish_module_using_global_storage() -> Result<ExecutionStatus, IotaError> {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -645,18 +678,9 @@ async fn test_publish_deprecated_bytes_modules() {
         rgp,
     );
     let transaction = to_sender_signed_transaction(tx, &sender_key);
-    let error = send_and_confirm_transaction(&authority, transaction)
+    send_and_confirm_transaction(&authority, transaction)
         .await
-        .unwrap_err();
-    assert!(
-        matches!(
-            error,
-            IotaError::UserInput {
-                error: UserInputError::PackageVerificationTimedout { .. }
-            }
-        ),
-        "{error:?}"
-    );
+        .map(|(_, effects)| effects.status().clone())
 }
 
 #[tokio::test]

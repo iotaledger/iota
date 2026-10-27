@@ -69,8 +69,6 @@ pub mod transaction_execution_api;
 
 pub const APP_NAME_HEADER: &str = "app-name";
 
-pub const MAX_REQUEST_SIZE: u32 = 2 << 30;
-
 pub struct JsonRpcServerBuilder {
     module: RpcModule<()>,
     rpc_doc: Project,

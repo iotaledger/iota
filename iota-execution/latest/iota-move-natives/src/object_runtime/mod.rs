@@ -360,7 +360,7 @@ impl<'a> ObjectRuntime<'a> {
         child_fully_annotated_layout: &MoveTypeLayout,
         child_struct_tag: StructTag,
     ) -> PartialVMResult<Option<ObjectResult<Value>>> {
-        let coin_type = if self.protocol_config.pcool_deterministic_validation() {
+        let coin_type = if self.protocol_config.enable_pcool_flow() {
             coin_type_for_denylist_check(&child_struct_tag)
         } else {
             None

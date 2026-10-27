@@ -462,7 +462,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-r", "--release-network",
         default="devnet",
-        choices=("devnet", "testnet", "mainnet", "alphanet"),
+        choices=("devnet", "testnet", "mainnet"),
         help="Release network to pull the old image from (default: devnet)",
     )
     parser.add_argument(

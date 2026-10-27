@@ -1004,6 +1004,13 @@ impl CheckpointStore {
         let contents = self
             .get_checkpoint_contents(&checkpoint.contents_digest)?
             .expect("the contents of a checkpoint at or below the synced watermark are stored");
+        // A checkpoint whose outputs are only in memory usually misses all of
+        // them, so one lookup settles most calls before the full check.
+        if let Some(last) = contents.iter().last() {
+            if !perpetual_tables.effects.contains_key(&last.effects)? {
+                return Ok(false);
+            }
+        }
         let (transactions, effects): (Vec<_>, Vec<_>) = contents
             .iter()
             .map(|digests| (digests.transaction, digests.effects))
@@ -1884,11 +1891,7 @@ impl CheckpointBuilder {
 
         batch.write()?;
         fail_point!("checkpoint-summaries-written");
-        if self
-            .epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation()
-        {
+        if self.epoch_store.protocol_config().enable_pcool_flow() {
             self.store
                 .notify_locally_computed_checkpoints(new_checkpoints.iter().map(|c| &c.summary));
         }
@@ -3716,10 +3719,6 @@ mod tests {
     // must be the same bytes and be ignored.
     #[tokio::test]
     async fn own_checkpoint_signature_reaches_aggregator_without_consensus() {
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
-            config
-        });
         let network_config =
             iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
                 .committee_size(std::num::NonZeroUsize::new(4).unwrap())

@@ -354,7 +354,7 @@ Supported flags:
   Test schedule, see above (default: `simple`).
 
 - `-r <network>`\
-  Release network to pull the old image from (`devnet`, `testnet`, `mainnet`, `alphanet`; default: `testnet`).
+  Release network to pull the old image from (`devnet`, `testnet`, `mainnet`; default: `testnet`).
 
 - `-b <true|false>`\
   Build the local upgrade image before running (default: `true`).
@@ -363,7 +363,7 @@ Supported flags:
   Number of validators (2–30, default: `10`).
 
 - `-c <chain>`\
-  Chain override for protocol feature flags (`testnet`, `mainnet`, or empty; default: empty, which **inherits from `-r`** — `testnet`/`mainnet` set the matching override, `devnet`/`alphanet` set none. With the default `-r testnet` the network therefore runs with testnet feature flags).
+  Chain override for protocol feature flags (`testnet`, `mainnet`, or empty; default: empty, which **inherits from `-r`** — `testnet`/`mainnet` set the matching override, `devnet` sets none. With the default `-r testnet` the network therefore runs with testnet feature flags).
 
 - `-e <MINUTES>`\
   Epoch duration in minutes (default: `10`).
