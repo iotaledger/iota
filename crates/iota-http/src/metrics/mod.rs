@@ -18,6 +18,7 @@ use prometheus_filtered::{
     register_int_counter_vec_with_registry,
 };
 
+mod clients;
 mod connection;
 mod io;
 mod requests;
@@ -61,6 +62,7 @@ impl ListenerMetrics {
             level,
             metrics: Metrics::new(prefix, registry, level),
             requests: requests::Metrics::new(prefix, registry, level),
+            clients: clients::Clients::new(prefix, registry, level),
             tls: OnceLock::new(),
         }))
     }
@@ -81,13 +83,15 @@ impl ListenerMetrics {
     /// handshake, until the guard is dropped.
     fn track_connection(&self, remote: SocketAddr) -> ConnectionGuard {
         let metrics = &self.0.metrics;
-        let scope: &str = Scope::of(remote.ip()).into();
+        let scope = Scope::of(remote.ip());
+        let scope_label: &str = scope.into();
         metrics
             .inbound_connections_accepted
-            .with_label_values(&[scope])
+            .with_label_values(&[scope_label])
             .inc();
         metrics.inbound_connections.inc();
-        ConnectionGuard::new(self.0.clone())
+        let client = self.0.clients.add_connection(remote.ip(), scope);
+        ConnectionGuard::new(self.0.clone(), client)
     }
 }
 
@@ -97,6 +101,7 @@ struct Inner {
     level: MetricLevel,
     metrics: Metrics,
     requests: requests::Metrics,
+    clients: clients::Clients,
     /// Registered when the listener starts with TLS.
     tls: OnceLock<Arc<tls::Metrics>>,
 }

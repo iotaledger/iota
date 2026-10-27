@@ -1,10 +1,16 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::net::IpAddr;
+
 use iota_metrics::test_utils::MetricsReader;
 use prometheus_filtered::{MetricLevel, Registry};
 
 use crate::metrics::{HandshakeResult, ListenerMetrics};
+
+pub(super) fn ip(address: &str) -> IpAddr {
+    address.parse().unwrap()
+}
 
 /// A listener with the prefix `t`, and a reader of its registry.
 pub(super) fn setup() -> (ListenerMetrics, MetricsReader) {
