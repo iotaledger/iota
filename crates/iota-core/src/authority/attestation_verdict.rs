@@ -4,7 +4,8 @@
 //! Judges the attestation of a transaction whose Move authentication failed at
 //! execution, by re-running authentication at the object versions the attestor
 //! recorded. The verdict is recorded as `AttestationRecord::verdict` and
-//! certified in the checkpoint summary; the transaction effects are unaffected.
+//! certified in the checkpoint summary unless `Valid`; the transaction effects
+//! are unaffected.
 
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -457,6 +458,7 @@ mod tests {
     use std::collections::BTreeSet;
 
     use iota_types::base_types::random_object_ref;
+    use move_core_types::gas_algebra::InternalGas;
 
     use super::*;
 
@@ -553,6 +555,42 @@ mod tests {
                 "{error:?}"
             );
         }
+    }
+
+    /// The re-run's units are the bucketized computation in gas units, not
+    /// NANOS, and the whole budget when the run exhausted it.
+    #[test]
+    fn consumed_units_are_bucketized_gas_units_capped_at_the_budget() {
+        let config = ProtocolConfig::get_for_max_version_UNSAFE();
+        let step = config.gas_rounding_step();
+        let (gas_price, reference_gas_price) = (2 * step, step);
+        let metered = |budget_units: u64| {
+            IotaGasStatus::new(
+                budget_units * gas_price,
+                gas_price,
+                reference_gas_price,
+                &config,
+            )
+            .unwrap()
+        };
+
+        // A run below one step rounds up to one step; in NANOS it would be
+        // `step * gas_price`.
+        let mut gas_status = metered(10 * step);
+        gas_status.charge_storage_read(1).unwrap();
+        assert_eq!(consumed_units(gas_status), step);
+
+        // Exhausting the budget pins the computation at the budget, which is
+        // not a step multiple.
+        let budget_units = step + step / 2;
+        let mut gas_status = metered(budget_units);
+        assert!(
+            gas_status
+                .move_gas_status_mut()
+                .deduct_gas(InternalGas::new(u64::MAX))
+                .is_err()
+        );
+        assert_eq!(consumed_units(gas_status), budget_units);
     }
 
     fn ref_at(version: u64) -> ObjectReference {

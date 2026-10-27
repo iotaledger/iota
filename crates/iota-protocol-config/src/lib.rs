@@ -1442,7 +1442,7 @@ pub struct ProtocolConfig {
     checkpoint_rate_window_size: Option<u64>,
 
     /// Version number to use for version_specific_data in `CheckpointSummary`.
-    /// 2 adds the per-transaction attestation records and is required by
+    /// 2 adds the attestation faults and totals and is required by
     /// `enable_validator_attestation`.
     checkpoint_summary_version_specific_data: Option<u64>,
 
@@ -1455,7 +1455,8 @@ pub struct ProtocolConfig {
 
     /// Wasted authentication units at which one refuted attestation takes the
     /// attestor's whole epoch reward, through its entry in the change-epoch
-    /// scores; a smaller fault takes the square of its fraction. Unset
+    /// scores; a smaller fault takes the square of its fraction. The cut
+    /// reaches the reward only under `adjust_rewards_by_score`. Unset
     /// disables the penalty.
     attestation_max_fault_units: Option<u64>,
 
@@ -2171,6 +2172,10 @@ impl ProtocolConfig {
             assert!(
                 ret.enable_validator_attestation(),
                 "attestation_max_fault_units requires enable_validator_attestation"
+            );
+            assert!(
+                ret.pass_validator_scores_to_advance_epoch(),
+                "attestation_max_fault_units requires pass_validator_scores_to_advance_epoch"
             );
         }
 

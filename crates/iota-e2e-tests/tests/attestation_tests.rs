@@ -247,10 +247,10 @@ async fn test_normal_tx_with_body_abort_is_attested() -> Result<(), anyhow::Erro
     Ok(())
 }
 
-/// The verdict on an attested transaction is certified in the checkpoint
-/// summary, one slot per transaction in contents order. The fullnode executes
-/// the checkpoint from state sync without the attestation, so its effects must
-/// match without it, and it stores the record the summary certifies.
+/// A valid verdict is recorded by the validators that judged it but not
+/// certified: the summary carries only the records other than `Valid`. The
+/// fullnode executes the checkpoint from state sync without the attestation,
+/// so its effects must match without it, and it stores no record.
 #[sim_test]
 async fn valid_attestation_is_recorded_locally_but_not_certified() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
@@ -307,7 +307,7 @@ async fn valid_attestation_is_recorded_locally_but_not_certified() -> Result<(),
         "the validators judged the attestation valid: {validator_records:?}"
     );
 
-    let (faults, totals, fullnode_record) =
+    let (entries, totals, fullnode_record) =
         test_env
             .test_cluster
             .fullnode_handle
@@ -324,14 +324,14 @@ async fn valid_attestation_is_recorded_locally_but_not_certified() -> Result<(),
                     .pop()
                     .expect("one result per digest");
                 (
-                    data.attestation_faults().to_vec(),
+                    data.attestation_entries().to_vec(),
                     data.attestation_totals().cloned(),
                     fullnode_record,
                 )
             });
     assert!(
-        faults.is_empty(),
-        "a valid attestation is not certified: {faults:?}"
+        entries.is_empty(),
+        "a valid attestation is not certified: {entries:?}"
     );
     assert_eq!(
         totals,

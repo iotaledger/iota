@@ -277,7 +277,7 @@ impl AuthorityState {
     }
 }
 
-/// The record of an attested transaction's execution: the certified fault
+/// The record of an attested transaction's execution: the certified record
 /// when executing from a checkpoint, the judged verdict when executing from
 /// consensus, nothing for an unattested transaction.
 pub(super) fn attestation_record(

@@ -24,7 +24,7 @@ Argument:
         TUPLE:
           - U16
           - U16
-AttestationFault:
+AttestationEntry:
   STRUCT:
     - position: U32
     - record:
@@ -229,9 +229,9 @@ CheckpointVersionSpecificDataV2:
   STRUCT:
     - randomness_rounds:
         SEQ: U64
-    - attestation_faults:
+    - attestation_entries:
         SEQ:
-          TYPENAME: AttestationFault
+          TYPENAME: AttestationEntry
     - attestation_totals:
         TYPENAME: AttestationTotals
 Command:

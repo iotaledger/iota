@@ -111,8 +111,8 @@ pub enum AttestationVerdict {
     /// by itself evidence against the attestor.
     Inaccurate,
     /// Authentication failed at the versions the attestor recorded. `units`
-    /// is the computation both failed runs consumed: the one execution
-    /// charged and the judge's re-run at the recorded versions.
+    /// is the computation the failed runs consumed: the one execution charged
+    /// plus the judge's re-run at the recorded versions, when one was needed.
     Refuted { units: u64 },
 }
 
@@ -151,7 +151,7 @@ impl AttestationVerdict {
 }
 
 /// The validator's verdict on an attested, executed transaction, certified in
-/// the checkpoint summary.
+/// the checkpoint summary unless `Valid`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AttestationRecord {
     /// Index of the attestor in the committee of the checkpoint's epoch.
@@ -174,12 +174,12 @@ impl AttestationRecord {
 /// A record other than `Valid`, certified in the checkpoint summary at its
 /// transaction's position in the checkpoint contents.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct AttestationFault {
+pub struct AttestationEntry {
     pub position: u32,
     pub record: AttestationRecord,
 }
 
-impl AttestationFault {
+impl AttestationEntry {
     /// The records other than `Valid`, each at its position in `records`.
     ///
     /// # Panics
@@ -355,7 +355,7 @@ mod tests {
         assert_eq!(
             bcs::to_bytes(&AttestationTotals::default()).unwrap(),
             vec![0],
-            "no faults cost one byte"
+            "empty totals cost one byte"
         );
     }
 

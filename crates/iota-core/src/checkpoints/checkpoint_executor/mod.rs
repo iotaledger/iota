@@ -92,21 +92,21 @@ pub(crate) struct CheckpointExecutionData {
 }
 
 impl CheckpointExecutionData {
-    /// The faults the summary certifies, one slot per transaction in contents
+    /// The records the summary certifies, one slot per transaction in contents
     /// order; `None` where the attestation was valid or there was none.
     ///
     /// # Panics
     ///
-    /// If a certified fault lies outside the checkpoint, which a certified
+    /// If a certified entry lies outside the checkpoint, which a certified
     /// checkpoint cannot do without a protocol bug.
     fn certified_attestations(&self) -> Vec<Option<AttestationRecord>> {
         let mut records = vec![None; self.tx_digests.len()];
         if let Some(CheckpointVersionSpecificData::V2(data)) = &self.version_specific_data {
-            for fault in &data.attestation_faults {
+            for entry in &data.attestation_entries {
                 let slot = records
-                    .get_mut(fault.position as usize)
-                    .expect("a certified fault position is within the checkpoint");
-                *slot = Some(fault.record);
+                    .get_mut(entry.position as usize)
+                    .expect("a certified entry position is within the checkpoint");
+                *slot = Some(entry.record);
             }
         }
         records
@@ -905,7 +905,7 @@ impl CheckpointExecutor {
         }
     }
 
-    /// Compares the faults this node recorded for the already-executed
+    /// Compares the records this node recorded for the already-executed
     /// transactions with the certified ones.
     fn check_executed_attestation_records(
         &self,
@@ -932,8 +932,8 @@ impl CheckpointExecutor {
             .transaction_cache_reader
             .multi_get_attestation_records(&digests);
         for (digest, certified, local) in itertools::izip!(digests, certified, local) {
-            // Only faults are certified, so a valid local record matches no
-            // certified one.
+            // Only records other than `Valid` are certified, so a valid local
+            // record matches no certified one.
             let local = local.filter(|record| !record.verdict.is_valid());
             if local != certified {
                 self.metrics

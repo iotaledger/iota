@@ -104,7 +104,7 @@ pub(crate) trait ExecutionSchedulerAPI {
     /// Enqueues transactions whose effects are already certified — the
     /// checkpoint-execution path — so execution is checked against the
     /// expected effects digest. The effects do not depend on the attestation,
-    /// so it is not needed; the certified verdict is carried along instead.
+    /// so it is not needed; the certified record, if any, is carried along.
     fn enqueue_with_expected_effects_digest(
         &self,
         transactions: Vec<(

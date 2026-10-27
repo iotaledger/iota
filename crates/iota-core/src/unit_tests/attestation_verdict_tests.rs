@@ -8,14 +8,14 @@
 //! is recorded separately as `AttestationRecord::verdict`. An attestation is
 //! refuted when authentication failed at exactly the recorded state, a recorded
 //! version is ahead of the executed one or was not superseded this epoch, or
-//! the re-run rejects. Each test rotates the account after the transaction is
+//! the re-run rejects. Most tests rotate the account after the transaction is
 //! built - its key or its authenticator function - so the same transaction
 //! authenticates differently at two versions of the same account.
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{ExecutionError, ExecutionStatus, TransactionEffects};
 use iota_types::{
-    attestation::{AttestationRecord, AttestationVerdict},
+    attestation::{Attestation, AttestationRecord, AttestationVerdict},
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
 };
@@ -62,18 +62,41 @@ fn assert_record(
     );
 }
 
+/// The computation units execution charged, at the transaction's gas price,
+/// which the environment sets to the reference gas price.
+fn charged_units(env: &AbstractAccountTestEnv, effects: &TransactionEffects) -> u64 {
+    effects.gas_cost_summary().computation_cost / env.rgp()
+}
+
 /// A refuted record carries the units of both failed runs: the one execution
-/// charged and the judge's re-run.
-fn assert_refuted(env: &AbstractAccountTestEnv, effects: &TransactionEffects) {
+/// charged, exactly, plus the judge's re-run, which meters the authenticator
+/// alone against the claimed units, so its share is a whole number of rounding
+/// steps below the claim.
+fn assert_refuted(
+    env: &AbstractAccountTestEnv,
+    effects: &TransactionEffects,
+    attestation: &Attestation,
+) {
     let record = env
         .attestation_record(effects.transaction_digest())
         .expect("an attested transaction has a record");
-    let charged_units = effects.gas_cost_summary().computation_cost / env.rgp();
     assert_eq!(record.attestor, 0);
+    let AttestationVerdict::Refuted { units } = record.verdict else {
+        panic!("expected a refuted record, got {:?}", record.verdict);
+    };
+    let charged_units = charged_units(env, effects);
+    let rerun_units = units
+        .checked_sub(charged_units)
+        .unwrap_or_else(|| panic!("{units} units do not cover the {charged_units} charged ones"));
+    let step = env
+        .authority
+        .epoch_store_for_testing()
+        .protocol_config()
+        .gas_rounding_step();
+    let claimed_units = attestation.computation_units();
     assert!(
-        matches!(record.verdict, AttestationVerdict::Refuted { units } if units > charged_units),
-        "expected the re-run counted on top of the {charged_units} charged units, got {:?}",
-        record.verdict
+        rerun_units > 0 && rerun_units % step == 0 && rerun_units < claimed_units,
+        "expected the re-run's share to be whole steps of {step} below the claimed {claimed_units} units, got {rerun_units}"
     );
 }
 
@@ -124,10 +147,36 @@ async fn attestation_that_fails_at_its_own_versions_is_recorded_refuted() {
     let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
     let tx = env.account_transaction_signed_with(&unrelated_key);
     let attestation = env.attest_with_versions(vec![claimed_version]);
+    let effects = env.submit(tx, Some(attestation.clone())).await;
+
+    assert_move_authentication_error(&effects);
+    assert_refuted(&env, &effects, &attestation);
+}
+
+/// An attestation at the very versions execution ran against: the failure
+/// reproduces at the recorded state, so nothing is re-run and the record
+/// carries the units execution charged alone.
+#[tokio::test]
+async fn attestation_that_fails_at_the_executed_versions_is_recorded_refuted() {
+    let _guard = attestation_config(None);
+
+    let mut env = AbstractAccountTestEnv::new().await;
+
+    // Signed with a key the account has never held, so authentication fails
+    // at the one version the attestor recorded, the account's current one.
+    let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
+    let tx = env.account_transaction_signed_with(&unrelated_key);
+    let attestation = env.attest_with_versions(vec![env.account_ref()]);
     let effects = env.submit(tx, Some(attestation)).await;
 
     assert_move_authentication_error(&effects);
-    assert_refuted(&env, &effects);
+    assert_record(
+        &env,
+        &effects,
+        AttestationVerdict::Refuted {
+            units: charged_units(&env, &effects),
+        },
+    );
 }
 
 /// The account can rotate to a different authenticator, not just a new key. An

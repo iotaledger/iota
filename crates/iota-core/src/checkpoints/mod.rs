@@ -35,7 +35,7 @@ use iota_sdk_types::{
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary, EndOfEpochData},
 };
 use iota_types::{
-    attestation::{AttestationFault, AttestationRecord, AttestationTotals},
+    attestation::{AttestationEntry, AttestationRecord, AttestationTotals},
     base_types::{AuthorityName, ConciseableName, EpochId, ExecutionData},
     committee::StakeUnit,
     crypto::AuthorityStrongQuorumSignInfo,
@@ -585,10 +585,10 @@ impl CheckpointStore {
                 ?local_checkpoint,
                 ?local_contents,
                 // Two summaries over identical contents can still differ in
-                // their attestation faults, which the dump above would not
+                // their attestation entries, which the dump above would not
                 // show.
-                attestation_fault_differences =
-                    ?attestation_fault_differences(local_checkpoint, verified_checkpoint),
+                attestation_entry_differences =
+                    ?attestation_entry_differences(local_checkpoint, verified_checkpoint),
                 attestation_totals_difference =
                     ?attestation_totals_difference(local_checkpoint, verified_checkpoint),
                 "Local checkpoint fork detected!",
@@ -2073,7 +2073,7 @@ impl CheckpointBuilder {
                 end_of_epoch_data,
                 timestamp_ms,
                 matching_randomness_rounds,
-                AttestationFault::from_records(&attestations),
+                AttestationEntry::from_records(&attestations),
                 attestation_totals,
             );
             summary.report_checkpoint_age(&self.metrics.last_created_checkpoint_age);
@@ -2625,14 +2625,14 @@ impl CheckpointSignatureAggregator {
     }
 }
 
-/// The attestation faults of two summaries when they disagree.
-fn attestation_fault_differences(
+/// The attestation entries of two summaries when they disagree.
+fn attestation_entry_differences(
     local: &CheckpointSummary,
     verified: &CheckpointSummary,
-) -> Option<(Vec<AttestationFault>, Vec<AttestationFault>)> {
+) -> Option<(Vec<AttestationEntry>, Vec<AttestationEntry>)> {
     let decode = |summary: &CheckpointSummary| {
         decode_version_specific_data(summary)
-            .map(|data| data.attestation_faults().to_vec())
+            .map(|data| data.attestation_entries().to_vec())
             .unwrap_or_default()
     };
     let (local, verified) = (decode(local), decode(verified));
@@ -3424,7 +3424,7 @@ mod tests {
     /// The summary certifies only the records other than `Valid`, each at
     /// its transaction's position in contents order.
     #[tokio::test]
-    async fn summary_certifies_only_faults_at_their_positions() {
+    async fn summary_certifies_records_other_than_valid_at_their_positions() {
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
         protocol_config.set_enable_pcool_flow_for_testing(true);
@@ -3442,7 +3442,7 @@ mod tests {
         for tx in &txs {
             store_executed_tx(&state, &mut effects_map, tx);
         }
-        // A valid record for the first transaction, a fault for the second.
+        // A valid record for the first transaction, a refuted one for the second.
         let records = &state
             .database_for_testing()
             .perpetual_tables
@@ -3456,11 +3456,11 @@ mod tests {
                 },
             )
             .unwrap();
-        let fault = AttestationRecord {
+        let refuted = AttestationRecord {
             attestor: 2,
             verdict: AttestationVerdict::Refuted { units: 7 },
         };
-        records.insert(&digests[1], &fault).unwrap();
+        records.insert(&digests[1], &refuted).unwrap();
         let effects: Vec<_> = digests.iter().map(|d| effects_map[d].clone()).collect();
 
         let tmp_dir = iota_common::tempdir();
@@ -3486,12 +3486,12 @@ mod tests {
             .unwrap();
         let built = new_checkpoints.first();
 
-        let faults = built
+        let entries = built
             .summary
             .parse_version_specific_data(epoch_store.protocol_config())
             .unwrap()
             .expect("version 2 summaries carry version specific data")
-            .attestation_faults()
+            .attestation_entries()
             .to_vec();
         let position = built
             .contents
@@ -3499,10 +3499,10 @@ mod tests {
             .position(|d| d.transaction == digests[1])
             .unwrap();
         assert_eq!(
-            faults,
-            vec![AttestationFault {
+            entries,
+            vec![AttestationEntry {
                 position: position as u32,
-                record: fault,
+                record: refuted,
             }]
         );
     }
