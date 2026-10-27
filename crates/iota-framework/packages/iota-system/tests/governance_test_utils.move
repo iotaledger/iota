@@ -339,6 +339,25 @@ public fun advance_epoch_with_subsidy_and_scores(
     adjust_rewards_by_score: bool,
     scenario: &mut Scenario,
 ) {
+    // Use the same value as the default value of max_active_validators.
+    advance_epoch_with_subsidy_scores_and_max_committee_members_count(
+        validator_subsidy,
+        scores,
+        adjust_rewards_by_score,
+        150,
+        scenario,
+    );
+}
+
+/// Advances the epoch with the given validator subsidy, the given scores, one per committee
+/// member in `committee_members` order, and the given cap on the committee size.
+public fun advance_epoch_with_subsidy_scores_and_max_committee_members_count(
+    validator_subsidy: u64,
+    scores: vector<u64>,
+    adjust_rewards_by_score: bool,
+    max_committee_members_count: u64,
+    scenario: &mut Scenario,
+) {
     scenario.next_tx(@0x0);
     let new_epoch = scenario.ctx().epoch() + 1;
     let mut system_state = scenario.take_shared<IotaSystemState>();
@@ -349,9 +368,6 @@ public fun advance_epoch_with_subsidy_and_scores(
         system_state.validators().active_validators_inner().length(),
         |i| i,
     );
-
-    // Use the same value as the default value of max_active_validators.
-    let max_committee_members_count = 150;
 
     let storage_rebate = system_state.advance_epoch_for_testing(
         new_epoch,
