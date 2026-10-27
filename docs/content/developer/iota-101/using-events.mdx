@@ -167,7 +167,7 @@ Polling is the simplest option and is most useful when the events you're monitor
 
 ### Polling with `queryEvents`
 
-`queryEvents` returns a `nextCursor` that points at the last event of the page. Passing it back as the `cursor` of the next request returns only newer events. The following examples first look up the newest matching event, so they only print events emitted after they start, and then poll every five seconds.
+`queryEvents` returns a `nextCursor` that points at the last event of the page. Passing it back as the `cursor` of the next request returns only newer events. A page without events has no `nextCursor`, so keep the previous cursor in that case. The following examples first look up the newest matching event, so they only print events emitted after they start, and then poll every five seconds.
 
 <Tabs>
 <TabItem value="ts" label="TypeScript">
@@ -187,7 +187,9 @@ while (true) {
     for (const event of page.data) {
         console.log(event.parsedJson);
     }
-    cursor = page.nextCursor;
+    // An empty page has no cursor; keep the previous one so the next poll
+    // doesn't start again from the oldest event.
+    cursor = page.nextCursor ?? cursor;
     if (!page.hasNextPage) {
         await new Promise((resolve) => setTimeout(resolve, 5000));
     }
@@ -229,7 +231,9 @@ async fn main() -> Result<(), anyhow::Error> {
         for event in &page.data {
             println!("Event: {:?}", event.parsed_json);
         }
-        cursor = page.next_cursor;
+        // An empty page has no cursor; keep the previous one so the next poll
+        // doesn't start again from the oldest event.
+        cursor = page.next_cursor.or(cursor);
         if !page.has_next_page {
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
