@@ -2,7 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, future, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet, hash_map::Entry},
+    future,
+    pin::pin,
+    sync::Arc,
+};
 
 use futures::{StreamExt, stream};
 use futures_core::Stream;
@@ -103,7 +108,11 @@ impl CoinReadApi {
     }
 
     /// Get the coins for the given address filtered by coin type.
-    /// Returns a stream, which yields each coin once.
+    /// Returns a stream, which yields each coin once: a coin that comes back
+    /// on a later page, because its balance changed while the pages were read,
+    /// is yielded as first seen. Where the coin's current version matters,
+    /// collect the coins and keep each coin's highest version, as
+    /// [`Self::select_coins`] does.
     ///
     /// The coin type defaults to `0x2::iota::IOTA`.
     ///
@@ -129,9 +138,17 @@ impl CoinReadApi {
         owner: Address,
         coin_type: impl Into<Option<String>>,
     ) -> impl Stream<Item = Coin> + '_ {
-        let coin_type = coin_type.into();
+        once_each(self.coin_pages(owner, coin_type.into()))
+    }
 
-        once_each(stream::unfold(
+    /// The coins of every page `get_coins` returns, in order, including a coin
+    /// that comes back on a later page.
+    fn coin_pages(
+        &self,
+        owner: Address,
+        coin_type: Option<String>,
+    ) -> impl Stream<Item = Coin> + '_ {
+        stream::unfold(
             (
                 vec![],
                 // cursor
@@ -160,7 +177,7 @@ impl CoinReadApi {
                     None
                 }
             },
-        ))
+        )
     }
 
     /// Get a list of coins for the given address filtered by coin type with at
@@ -198,12 +215,8 @@ impl CoinReadApi {
         amount: u128,
         exclude: Vec<ObjectId>,
     ) -> IotaRpcResult<Vec<Coin>> {
-        let (coins, total) = select_from(
-            self.get_coins_stream(address, coin_type.into()),
-            amount,
-            &exclude,
-        )
-        .await;
+        let (coins, total) =
+            select_from(self.coin_pages(address, coin_type.into()), amount, &exclude).await;
         if total < amount {
             return Err(Error::InsufficientFunds { address, amount });
         }
@@ -344,21 +357,41 @@ fn once_each(coins: impl Stream<Item = Coin>) -> impl Stream<Item = Coin> {
 /// The coins of `coins`, in order, until they add up to `amount`, leaving out
 /// `exclude`; with their total, which falls short of `amount` if `coins` runs
 /// out first.
+///
+/// A coin that comes back with a higher version, because its balance changed
+/// while the pages were read, takes the place of its earlier copy, so the
+/// selection holds the version a transaction can use.
 async fn select_from(
     coins: impl Stream<Item = Coin>,
     amount: u128,
     exclude: &[ObjectId],
 ) -> (Vec<Coin>, u128) {
+    let mut selected: Vec<Coin> = Vec::new();
+    let mut positions: HashMap<ObjectId, usize> = HashMap::new();
     let mut total = 0u128;
-    let selected = coins
-        .filter(|coin: &Coin| future::ready(!exclude.contains(&coin.coin_object_id)))
-        .take_while(|coin: &Coin| {
-            let ready = future::ready(total < amount);
-            total += coin.balance as u128;
-            ready
-        })
-        .collect::<Vec<_>>()
-        .await;
+    let mut coins = pin!(coins);
+    while total < amount {
+        let Some(coin) = coins.next().await else {
+            break;
+        };
+        if exclude.contains(&coin.coin_object_id) {
+            continue;
+        }
+        match positions.entry(coin.coin_object_id) {
+            Entry::Occupied(position) => {
+                let held = &mut selected[*position.get()];
+                if coin.version > held.version {
+                    total = total - held.balance as u128 + coin.balance as u128;
+                    *held = coin;
+                }
+            }
+            Entry::Vacant(position) => {
+                position.insert(selected.len());
+                total += coin.balance as u128;
+                selected.push(coin);
+            }
+        }
+    }
     (selected, total)
 }
 
@@ -366,35 +399,73 @@ async fn select_from(
 mod tests {
     use super::*;
 
-    fn coin(id: ObjectId, balance: u64) -> Coin {
+    fn coin(id: ObjectId, version: u64, balance: u64) -> Coin {
         Coin {
             coin_type: "0x2::iota::IOTA".to_string(),
             coin_object_id: id,
-            version: 1.into(),
+            version: version.into(),
             digest: iota_sdk_types::ObjectDigest::ZERO,
             balance,
             previous_transaction: iota_sdk_types::TransactionDigest::ZERO,
         }
     }
 
-    /// A coin that comes back on a later page is yielded and selected once.
+    /// The selected coins as `(id, version)`, in selection order.
+    fn picked(coins: &[Coin]) -> Vec<(ObjectId, u64)> {
+        coins
+            .iter()
+            .map(|coin| (coin.coin_object_id, coin.version.as_u64()))
+            .collect()
+    }
+
+    /// The stream yields a coin that comes back on a later page once, as
+    /// first seen.
     #[tokio::test]
-    async fn a_coin_repeated_across_pages_is_selected_once() {
+    async fn a_coin_repeated_across_pages_is_yielded_once() {
         let (a, b) = (ObjectId::random(), ObjectId::random());
-        let coins = || {
-            once_each(stream::iter([
-                coin(a, 5),
-                coin(b, 3),
-                coin(a, 4),
-                coin(ObjectId::random(), 9),
-            ]))
-        };
+        let coins = once_each(stream::iter([coin(a, 1, 5), coin(b, 1, 3), coin(a, 2, 4)]));
 
-        let ids: Vec<_> = coins().map(|coin| coin.coin_object_id).collect().await;
-        assert_eq!(ids.iter().filter(|id| **id == a).count(), 1, "{ids:?}");
-        assert_eq!(ids.len(), 3);
+        let yielded: Vec<_> = coins.collect().await;
+        assert_eq!(picked(&yielded), [(a, 1), (b, 1)]);
+    }
 
-        let (_, total) = select_from(coins(), 15, &[]).await;
-        assert_eq!(total, 17);
+    /// A coin that comes back with a higher version replaces its earlier copy,
+    /// and the total follows its new balance.
+    #[tokio::test]
+    async fn a_newer_copy_of_a_selected_coin_replaces_it() {
+        let (a, b, c) = (ObjectId::random(), ObjectId::random(), ObjectId::random());
+        let coins = stream::iter([coin(a, 1, 5), coin(b, 1, 3), coin(a, 2, 4), coin(c, 1, 9)]);
+
+        let (selected, total) = select_from(coins, 15, &[]).await;
+        assert_eq!(picked(&selected), [(a, 2), (b, 1), (c, 1)]);
+        assert_eq!(total, 16);
+    }
+
+    /// A newer copy that lowers the total below the amount makes the selection
+    /// take further coins.
+    #[tokio::test]
+    async fn a_lower_newer_balance_selects_further_coins() {
+        let (a, b, c) = (ObjectId::random(), ObjectId::random(), ObjectId::random());
+        let coins = stream::iter([coin(a, 1, 5), coin(b, 1, 3), coin(a, 2, 1), coin(c, 1, 9)]);
+
+        let (selected, total) = select_from(coins, 8, &[]).await;
+        assert_eq!(picked(&selected), [(a, 1), (b, 1)]);
+        assert_eq!(total, 8, "the amount is covered before the newer copy");
+
+        let coins = stream::iter([coin(a, 1, 5), coin(b, 1, 3), coin(a, 2, 1), coin(c, 1, 9)]);
+        let (selected, total) = select_from(coins, 9, &[]).await;
+        assert_eq!(picked(&selected), [(a, 2), (b, 1), (c, 1)]);
+        assert_eq!(total, 13);
+    }
+
+    /// An older copy that comes later is left out, and so are excluded coins.
+    #[tokio::test]
+    async fn older_copies_and_excluded_coins_are_left_out() {
+        let (a, b, c) = (ObjectId::random(), ObjectId::random(), ObjectId::random());
+        let coins = stream::iter([coin(a, 2, 5), coin(b, 1, 7), coin(a, 1, 9), coin(c, 1, 4)]);
+
+        let (selected, total) = select_from(coins, 100, &[b]).await;
+        assert_eq!(picked(&selected), [(a, 2), (c, 1)]);
+        assert_eq!(total, 9);
     }
 }

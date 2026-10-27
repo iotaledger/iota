@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, path::Path, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashMap, hash_map::Entry},
+    path::Path,
+    sync::Arc,
+};
 
 use anyhow::{anyhow, bail, ensure};
 use colored::Colorize;
@@ -15,7 +19,9 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, StructTag, Transaction, crypto::Intent};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, StructTag, Transaction, Version, crypto::Intent,
+};
 use iota_types::{
     gas_coin::GasCoin,
     transaction::{TransactionAPI, TransactionEnvelope},
@@ -195,7 +201,7 @@ impl WalletContext {
     ) -> Result<Vec<(u64, IotaObjectData)>, anyhow::Error> {
         let client = self.get_client().await?;
 
-        let mut values_objects = PagedFn::stream(async |cursor| {
+        let values_objects = PagedFn::stream(async |cursor| {
             client
                 .read_api()
                 .get_owned_objects(
@@ -227,11 +233,10 @@ impl WalletContext {
         .try_collect::<Vec<_>>()
         .await?;
         // Pages are ordered by balance, so a coin whose balance changes while
-        // they are read can come back on a later page.
-        let mut seen = BTreeSet::new();
-        values_objects.retain(|(_, object)| seen.insert(object.object_id));
-
-        Ok(values_objects)
+        // they are read can come back on a later page, with a higher version.
+        Ok(newest_versions(values_objects, |(_, object)| {
+            (object.object_id, object.version)
+        }))
     }
 
     /// Get the address that owns the object of the provided [`ObjectId`].
@@ -466,5 +471,51 @@ impl WalletContext {
                 iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution,
             )
             .await?)
+    }
+}
+
+/// `items` in their order, with each object once: an object that occurs more
+/// than once keeps the place of its first occurrence and the contents of its
+/// highest version.
+fn newest_versions<T>(items: Vec<T>, key: impl Fn(&T) -> (ObjectId, Version)) -> Vec<T> {
+    let mut positions: HashMap<ObjectId, usize> = HashMap::new();
+    let mut kept: Vec<T> = Vec::with_capacity(items.len());
+    for item in items {
+        let (id, version) = key(&item);
+        match positions.entry(id) {
+            Entry::Occupied(position) => {
+                let held = &mut kept[*position.get()];
+                if version > key(held).1 {
+                    *held = item;
+                }
+            }
+            Entry::Vacant(position) => {
+                position.insert(kept.len());
+                kept.push(item);
+            }
+        }
+    }
+    kept
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An object that occurs again with a higher version keeps its first place
+    /// with the newer contents, and an older copy is left out.
+    #[test]
+    fn an_object_keeps_its_first_place_and_its_highest_version() {
+        let (a, b) = (ObjectId::random(), ObjectId::random());
+        let items = vec![
+            (a, Version::from_u64(1), "a1"),
+            (b, Version::from_u64(2), "b2"),
+            (a, Version::from_u64(3), "a3"),
+            (b, Version::from_u64(1), "b1"),
+        ];
+
+        let kept = newest_versions(items, |(id, version, _)| (*id, *version));
+        let names: Vec<_> = kept.iter().map(|(_, _, name)| *name).collect();
+        assert_eq!(names, ["a3", "b2"]);
     }
 }
