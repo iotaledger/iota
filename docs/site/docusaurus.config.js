@@ -352,6 +352,10 @@ const config = {
               to: '/operator/extended-data-services/iota-indexer',
             },
             {
+              from: '/operator/activate_DoS_protection_for_validators',
+              to: '/operator/validator-node/dos-protection',
+            },
+            {
               from: '/developer/references/rust-sdk',
               to: '/developer/iota-sdk/getting-started/rust',
             },
