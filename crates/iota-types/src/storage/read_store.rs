@@ -339,6 +339,7 @@ pub trait ReadStore: ObjectStore {
             .expect("storage access failed")
     }
 
+    /// Returns exactly one result per input digest, in the same order.
     fn try_multi_get_transactions_with_events_and_effects(
         &self,
         transaction_digests: Vec<TransactionDigest>,
@@ -420,9 +421,8 @@ pub trait ReadStore: ObjectStore {
         Ok(full_transaction)
     }
 
-    /// Stream checkpoint transactions individually to avoid large memory
-    /// footprint. Returns a stream of individual CheckpointTransaction items
-    /// along with metadata
+    /// Streams the transactions of a checkpoint. Reads and yields one
+    /// transaction at a time.
     fn stream_checkpoint_transactions(
         &self,
         checkpoint_contents: CheckpointContents,
@@ -438,10 +438,23 @@ pub trait ReadStore: ObjectStore {
                 .map(|execution_digests| execution_digests.transaction)
                 .collect::<Vec<_>>();
 
-            let txs_with_events_and_effects = self
-                .try_multi_get_transactions_with_events_and_effects(transaction_digests)?;
+            // Read one transaction at a time, not the whole checkpoint. A
+            // stream that the client does not read keeps what it has read in
+            // memory, and the checkpoint size limit does not count events,
+            // which can be up to 62.5 MiB for one transaction.
+            for digest in transaction_digests {
+                let Some(tx_with_events_and_effects) = self
+                    .try_multi_get_transactions_with_events_and_effects(vec![digest])?
+                    .into_iter()
+                    .next()
+                else {
+                    yield Err(anyhow::anyhow!(
+                        "try_multi_get_transactions_with_events_and_effects returned no result \
+                         for digest {digest}"
+                    ));
+                    return;
+                };
 
-            for tx_with_events_and_effects in txs_with_events_and_effects {
                 yield self.get_checkpoint_transaction(tx_with_events_and_effects);
             }
         })

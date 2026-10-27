@@ -788,13 +788,13 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 // Server setup helpers
 // ---------------------------------------------------------------------------
 
-/// Start a gRPC server backed by the given `MockGrpcStateReader`, with an
+/// Start a gRPC server backed by the given `GrpcStateReader`, with an
 /// optional transaction executor and traffic controller.
 ///
 /// Returns the server handle and the `GrpcReader` (callers may need it to
 /// create different client types).
 pub async fn start_test_server_with(
-    state_reader: Arc<MockGrpcStateReader>,
+    state_reader: Arc<dyn iota_node_storage::GrpcStateReader>,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
     traffic_controller: Option<Arc<iota_traffic_controller::TrafficController>>,
     client_id_source: Option<ClientIdSource>,
@@ -827,12 +827,12 @@ pub async fn start_test_server_with(
     (server_handle, grpc_reader)
 }
 
-/// Start a gRPC server backed by the given `MockGrpcStateReader`.
+/// Start a gRPC server backed by the given `GrpcStateReader`.
 ///
 /// Returns the server handle and the `GrpcReader` (callers may need it to
 /// create different client types).
 pub async fn start_test_server(
-    state_reader: Arc<MockGrpcStateReader>,
+    state_reader: Arc<dyn iota_node_storage::GrpcStateReader>,
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
     start_test_server_with(
@@ -856,7 +856,7 @@ fn test_metrics() -> iota_grpc_server::GrpcServerMetrics {
 /// `client_id_source`, and an optional transaction executor (required for the
 /// `TransactionExecutionService` to be registered).
 pub async fn start_test_server_with_traffic_controller(
-    state_reader: Arc<MockGrpcStateReader>,
+    state_reader: Arc<dyn iota_node_storage::GrpcStateReader>,
     traffic_controller: Arc<iota_traffic_controller::TrafficController>,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
     client_id_source: ClientIdSource,

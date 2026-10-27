@@ -290,6 +290,17 @@ fn checkpoint_summary_and_contents(
     }
 }
 
+/// Iterates the transactions of a live checkpoint one at a time, cloning
+/// each only when the stream reaches it, instead of cloning the whole list
+/// up front. A stream that the client does not read then holds only the
+/// transaction it last cloned, not the rest of the checkpoint too.
+fn live_checkpoint_transaction_stream(
+    item: Arc<IotaTypesCheckpointData>,
+) -> impl futures::Stream<Item = anyhow::Result<IotaTypesCheckpointTransaction>> {
+    futures::stream::iter(0..item.transactions.len())
+        .map(move |i| Ok::<_, anyhow::Error>(item.transactions[i].clone()))
+}
+
 /// Central gRPC data reader wrapping a [`GrpcStateReader`].
 #[derive(Clone)]
 pub struct GrpcReader {
@@ -483,9 +494,13 @@ impl GrpcReader {
                 while let Some(result) = transaction_stream.next().await {
                     match result {
                         Ok(checkpoint_transaction) => {
-                            // Collect and yield events as they reach size limits
+                            // Everything still alive at a yield stays in memory until
+                            // the client reads that message. Build the event and
+                            // transaction protos first, which consumes the raw
+                            // transaction, and yield batches only after that.
+                            let mut new_events: Vec<grpc_event::Event> = Vec::new();
                             if should_collect_events {
-                                if let Some(ref tx_events) = checkpoint_transaction.events {
+                                if let Some(tx_events) = &checkpoint_transaction.events {
                                     // Filter raw events before SDK conversion
                                     for raw_event in &tx_events.0 {
                                         // Apply event filter if present
@@ -494,73 +509,92 @@ impl GrpcReader {
                                                 continue; // Skip non-matching events
                                             }
                                         }
-                                        let grpc_event = grpc_event::Event::merge_from(raw_event, &events_submask)
-                                            .map_err(|e| e.with_context("failed to merge event"))?;
-                                        let event_encoded_len = grpc_event.encoded_len();
-                                        let event_size = event_encoded_len + crate::utils::repeated_field_item_overhead(event_encoded_len);
-                                        metrics.record_response_item(ResponseItemKind::Event, event_encoded_len);
-
-                                        // Check if a single event exceeds the message size limit
-                                        let event_total = event_size + crate::utils::checkpoint_data_wrapper_overhead(event_size);
-                                        if event_total > max_message_size_bytes {
-                                            yield Err(Status::invalid_argument(format!(
-                                                "Single event size ({event_total} bytes) exceeds max message size ({max_message_size_bytes} bytes)"
-                                            )));
-                                            return;
-                                        }
-
-                                        // Check if adding this event would exceed limit
-                                        // (batch content + wrapper overhead for CheckpointData oneof)
-                                        let candidate_size = events_batch_size + event_size;
-                                        if candidate_size + crate::utils::checkpoint_data_wrapper_overhead(candidate_size) > max_message_size_bytes && !events_batch.is_empty() {
-                                            // Yield current event batch
-                                            checkpoint_size_tracker.add_batch_size(events_batch_size);
-                                            yield Ok(grpc_ledger_service::CheckpointData::default()
-                                                .with_events(grpc_event::Events::default().with_events(events_batch)));
-
-                                            // Reset event batch
-                                            events_batch = vec![grpc_event];
-                                            events_batch_size = event_size;
-                                        } else {
-                                            events_batch.push(grpc_event);
-                                            events_batch_size += event_size;
-                                        }
+                                        new_events.push(
+                                            grpc_event::Event::merge_from(raw_event, &events_submask)
+                                                .map_err(|e| e.with_context("failed to merge event"))?,
+                                        );
                                     }
                                 }
                             }
 
-                            // Build transaction only if transactions_mask is requested
-                            if transactions_mask.is_some() {
-                                // Apply transaction filter if present
-                                if let Some(ref tx_filter) = transaction_filter {
-                                    if !tx_filter.matches_transaction(&checkpoint_transaction) {
-                                        continue; // Skip non-matching transactions
-                                    }
-                                }
-
+                            // Build the transaction proto only if transactions_mask is
+                            // requested and it passes the transaction filter.
+                            let new_executed_tx = if transactions_mask.is_some()
+                                && transaction_filter
+                                    .as_ref()
+                                    .is_none_or(|tx_filter| tx_filter.matches_transaction(&checkpoint_transaction))
+                            {
                                 let checkpoint_tx_ctx = CheckpointTransactionWithContext::new(
                                     checkpoint_transaction,
                                     Some(sequence_number),
                                     Some(checkpoint_summary.data().timestamp_ms),
                                 );
-                                let executed_tx = grpc_transaction::ExecutedTransaction::merge_from(
-                                    checkpoint_tx_ctx,
-                                    &tx_mask,
+                                Some(
+                                    grpc_transaction::ExecutedTransaction::merge_from(
+                                        checkpoint_tx_ctx,
+                                        &tx_mask,
+                                    )
+                                    .map_err(|e| e.with_context("failed to merge transaction"))?,
                                 )
-                                .map_err(|e| e.with_context("failed to merge transaction"))?;
-                                let tx_encoded_len = executed_tx.encoded_len();
-                                metrics.record_response_item(ResponseItemKind::Transaction, tx_encoded_len);
-                                let tx_size = tx_encoded_len + crate::utils::repeated_field_item_overhead(tx_encoded_len);
+                            } else {
+                                drop(checkpoint_transaction);
+                                None
+                            };
 
-                                // Check if a single transaction exceeds the message size limit
-                                let tx_total = tx_size + crate::utils::checkpoint_data_wrapper_overhead(tx_size);
-                                if tx_total > max_message_size_bytes {
+                            // Check the transaction's own size right after building it,
+                            // before it can be held alive across any event-batch yield
+                            // below.
+                            let new_executed_tx = match new_executed_tx {
+                                Some(executed_tx) => {
+                                    let tx_encoded_len = executed_tx.encoded_len();
+                                    metrics.record_response_item(ResponseItemKind::Transaction, tx_encoded_len);
+                                    let tx_size = tx_encoded_len + crate::utils::repeated_field_item_overhead(tx_encoded_len);
+                                    let tx_total = tx_size + crate::utils::checkpoint_data_wrapper_overhead(tx_size);
+                                    if tx_total > max_message_size_bytes {
+                                        yield Err(Status::invalid_argument(format!(
+                                            "Single transaction size ({tx_total} bytes) exceeds max message size ({max_message_size_bytes} bytes)"
+                                        )));
+                                        return;
+                                    }
+                                    Some((executed_tx, tx_size))
+                                }
+                                None => None,
+                            };
+
+                            // Collect and yield events as they reach size limits
+                            for grpc_event in new_events {
+                                let event_encoded_len = grpc_event.encoded_len();
+                                let event_size = event_encoded_len + crate::utils::repeated_field_item_overhead(event_encoded_len);
+                                metrics.record_response_item(ResponseItemKind::Event, event_encoded_len);
+
+                                // Check if a single event exceeds the message size limit
+                                let event_total = event_size + crate::utils::checkpoint_data_wrapper_overhead(event_size);
+                                if event_total > max_message_size_bytes {
                                     yield Err(Status::invalid_argument(format!(
-                                        "Single transaction size ({tx_total} bytes) exceeds max message size ({max_message_size_bytes} bytes)"
+                                        "Single event size ({event_total} bytes) exceeds max message size ({max_message_size_bytes} bytes)"
                                     )));
                                     return;
                                 }
 
+                                // Check if adding this event would exceed limit
+                                // (batch content + wrapper overhead for CheckpointData oneof)
+                                let candidate_size = events_batch_size + event_size;
+                                if candidate_size + crate::utils::checkpoint_data_wrapper_overhead(candidate_size) > max_message_size_bytes && !events_batch.is_empty() {
+                                    // Yield current event batch
+                                    checkpoint_size_tracker.add_batch_size(events_batch_size);
+                                    yield Ok(grpc_ledger_service::CheckpointData::default()
+                                        .with_events(grpc_event::Events::default().with_events(events_batch)));
+
+                                    // Reset event batch
+                                    events_batch = vec![grpc_event];
+                                    events_batch_size = event_size;
+                                } else {
+                                    events_batch.push(grpc_event);
+                                    events_batch_size += event_size;
+                                }
+                            }
+
+                            if let Some((executed_tx, tx_size)) = new_executed_tx {
                                 // Check if adding this tx would exceed limit
                                 // (batch content + wrapper overhead for CheckpointData oneof)
                                 let candidate_size = current_batch_size + tx_size;
@@ -1093,10 +1127,7 @@ impl GrpcReader {
 
                         // Pass 1: lightweight filter check when filter_checkpoints is enabled
                         if filter_checkpoints {
-                            // Convert the transactions Vec to a stream
-                            let scan_stream = futures::stream::iter(
-                                item.transactions.clone().into_iter().map(Ok)
-                            );
+                            let scan_stream = live_checkpoint_transaction_stream(item.clone());
                             match Self::match_checkpoint_filter_or_report_progress(
                                 scan_stream,
                                 &tx_filter,
@@ -1118,11 +1149,7 @@ impl GrpcReader {
                         }
 
                         // Pass 2 (or normal mode): full processing
-
-                        // Convert the transactions Vec to a stream
-                        let transaction_stream = futures::stream::iter(
-                            item.transactions.clone().into_iter().map(Ok)
-                        );
+                        let transaction_stream = live_checkpoint_transaction_stream(item.clone());
 
                         // Use the unified streaming function
                         let mut stream = Box::pin(Self::create_checkpoint_messages_stream(
@@ -1475,5 +1502,241 @@ impl Merge<CheckpointTransactionWithContext>
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        alloc::{GlobalAlloc, Layout, System},
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+
+    use iota_sdk_types::{CheckpointSummary, Event, Identifier, MoveStruct, Owner};
+    use iota_test_transaction_builder::TestTransactionBuilder;
+    use iota_types::{
+        base_types::random_object_ref,
+        crypto::{AccountPrivateKey, AuthorityStrongQuorumSignInfo, get_key_pair},
+        effects::TransactionEffectsExtForTesting as _,
+        gas_coin::GasCoin,
+        messages_checkpoint::CheckpointContentsExt as _,
+        object::{MoveStructExt as _, OBJECT_START_VERSION},
+        transaction::VerifiedTransaction,
+    };
+
+    use super::*;
+
+    /// Allocations at least this big are assumed to be the test's large
+    /// output-object payload: every other allocation in this test (proto
+    /// buffers, small event contents, bookkeeping) is far smaller.
+    const LARGE_ALLOC_THRESHOLD: usize = 512 * 1024;
+
+    /// Bytes currently allocated in allocations of at least
+    /// `LARGE_ALLOC_THRESHOLD`. This test drives the stream itself, one
+    /// `.next().await` at a time, instead of through a real client and
+    /// server: a real round trip gives the server task no reason to stay
+    /// suspended at a `yield` once the client has read it, so it cannot
+    /// tell a fixed handler from a regressed one that drops its data a
+    /// little later. That also means this allocator, and the one test
+    /// below that uses it, must stay in this lib's own unit tests rather
+    /// than move to an integration test in `tests/`.
+    static LARGE_LIVE_BYTES: AtomicUsize = AtomicUsize::new(0);
+
+    struct CountingAllocator;
+
+    unsafe impl GlobalAlloc for CountingAllocator {
+        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+            if layout.size() >= LARGE_ALLOC_THRESHOLD {
+                LARGE_LIVE_BYTES.fetch_add(layout.size(), Ordering::SeqCst);
+            }
+            unsafe { System.alloc(layout) }
+        }
+
+        unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+            if layout.size() >= LARGE_ALLOC_THRESHOLD {
+                LARGE_LIVE_BYTES.fetch_sub(layout.size(), Ordering::SeqCst);
+            }
+            unsafe { System.dealloc(ptr, layout) }
+        }
+    }
+
+    #[global_allocator]
+    static ALLOCATOR: CountingAllocator = CountingAllocator;
+
+    /// A Move object with `padding_bytes_len` extra content bytes, big enough
+    /// to be tracked by [`LARGE_ALLOC_THRESHOLD`].
+    fn large_object(padding_bytes_len: usize) -> Object {
+        let id = ObjectId::random();
+        let mut contents = GasCoin::new(id, 100).to_bcs_bytes();
+        contents.extend(vec![0u8; padding_bytes_len]);
+        let move_struct = MoveStruct::new_from_execution_with_limit(
+            StructTag::new_gas_coin(),
+            OBJECT_START_VERSION,
+            contents,
+            u64::try_from(padding_bytes_len).unwrap() + 1024,
+        )
+        .unwrap();
+        Object::new_move(
+            move_struct,
+            Owner::Address(Address::random()),
+            TransactionDigest::GENESIS_MARKER,
+        )
+    }
+
+    /// An event with `contents_len` bytes of BCS content.
+    fn small_event(contents_len: usize) -> Event {
+        Event {
+            package_id: ObjectId::random(),
+            module: Identifier::from_static("m"),
+            sender: Address::random(),
+            struct_tag: StructTag::new(
+                Address::random(),
+                Identifier::from_static("m"),
+                Identifier::from_static("E"),
+                vec![],
+            ),
+            contents: vec![0u8; contents_len],
+        }
+    }
+
+    fn mock_checkpoint_summary(contents: &CheckpointContents) -> CertifiedCheckpointSummary {
+        let summary = CheckpointSummary {
+            epoch: 0,
+            sequence_number: 0,
+            network_total_transactions: 0,
+            contents_digest: contents.digest(),
+            previous_digest: None,
+            epoch_rolling_gas_cost_summary: Default::default(),
+            timestamp_ms: 0,
+            checkpoint_commitments: vec![],
+            end_of_epoch_data: None,
+            version_specific_data: vec![],
+        };
+        let sig = AuthorityStrongQuorumSignInfo {
+            epoch: 0,
+            signature: Default::default(),
+            signers_map: Default::default(),
+        };
+        CertifiedCheckpointSummary::new_from_data_and_sig(summary, sig)
+    }
+
+    /// The raw `CheckpointTransaction` (with its input and output objects)
+    /// must not be alive at a `yield` in `create_checkpoint_messages_stream`,
+    /// or a client that opens the stream and never reads it keeps that data
+    /// resident.
+    ///
+    /// Builds one checkpoint transaction with a large (and, for this test,
+    /// otherwise unused) output object and two events sized so the second
+    /// event overflows the first event batch, forcing a flush `yield` while
+    /// that transaction is still the "current" item. The test drives the
+    /// stream by hand (one `.next().await` per message, like a stalled
+    /// reader that has not asked for the next message yet) and checks, right
+    /// after receiving that flush, that no large allocation is still live.
+    ///
+    /// Runs both with and without a `transactions_mask` (asking for
+    /// transactions, but not their objects) in the same test, since the
+    /// process-wide allocator above would otherwise let two such tests see
+    /// each other's allocations.
+    #[tokio::test]
+    async fn events_batch_yield_does_not_hold_the_raw_checkpoint_transaction() {
+        assert_events_batch_yield_holds_no_large_allocation(None).await;
+
+        let transactions_mask = FieldMaskTree::from_field_mask(&prost_types::FieldMask {
+            paths: vec!["transaction.digest".to_string()],
+        });
+        assert_events_batch_yield_holds_no_large_allocation(Some(transactions_mask)).await;
+    }
+
+    async fn assert_events_batch_yield_holds_no_large_allocation(
+        transactions_mask: Option<FieldMaskTree>,
+    ) {
+        let events_mask = FieldMaskTree::new_wildcard();
+        let events_submask = events_mask
+            .subtree("events")
+            .unwrap_or_else(FieldMaskTree::new_wildcard);
+
+        // Measure the actual encoded size of one event instead of
+        // hand-deriving the wire format, then size the batch limit so the
+        // first event fits alone but a second, identical event does not.
+        // The probe is a copy of the transaction's events, because the
+        // encoded size depends on the random addresses in the event.
+        let event = small_event(64);
+        let probe = grpc_event::Event::merge_from(&event, &events_submask).unwrap();
+        let probe_len = probe.encoded_len();
+        let probe_size = probe_len + crate::utils::repeated_field_item_overhead(probe_len);
+        let max_message_size_bytes =
+            probe_size + crate::utils::checkpoint_data_wrapper_overhead(probe_size);
+
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let gas = random_object_ref();
+        let tx = TestTransactionBuilder::new(sender, gas, 1000)
+            .transfer(random_object_ref(), sender)
+            .build_and_sign(&key);
+        let digest = *tx.digest();
+        let verified_tx = VerifiedTransaction::new_unchecked(tx);
+
+        let checkpoint_transaction = IotaTypesCheckpointTransaction {
+            transaction: verified_tx.into(),
+            effects: TransactionEffects::new_empty_v1_for_testing(digest),
+            events: Some(TransactionEvents(vec![event.clone(), event])),
+            input_objects: Vec::new(),
+            output_objects: vec![large_object(LARGE_ALLOC_THRESHOLD * 4)],
+        };
+        let transaction_stream = futures::stream::iter([Ok(checkpoint_transaction)]);
+
+        let checkpoint_contents = CheckpointContents::new_with_digests_only_for_tests(Vec::new());
+        let checkpoint_summary = mock_checkpoint_summary(&checkpoint_contents);
+
+        let stream = GrpcReader::create_checkpoint_messages_stream(
+            checkpoint_summary,
+            checkpoint_contents,
+            transaction_stream,
+            &FieldMaskTree::new_wildcard(),
+            transactions_mask,
+            Some(events_mask),
+            max_message_size_bytes,
+            None,
+            None,
+            RequestMetrics::default(),
+        );
+        let mut stream = std::pin::pin!(stream);
+
+        // 1. The checkpoint summary message: no raw transaction data involved.
+        let first = stream
+            .next()
+            .await
+            .expect("checkpoint message")
+            .expect("checkpoint message should be Ok");
+        assert!(
+            matches!(
+                first.payload,
+                Some(grpc_ledger_service::checkpoint_data::Payload::Checkpoint(_))
+            ),
+            "expected the first message to be the checkpoint summary, got {first:?}"
+        );
+
+        // 2. The events batch flush, forced by the second event.
+        let second = stream
+            .next()
+            .await
+            .expect("events message")
+            .expect("events message should be Ok");
+        assert!(
+            matches!(
+                second.payload,
+                Some(grpc_ledger_service::checkpoint_data::Payload::Events(_))
+            ),
+            "expected the second message to be the events batch, got {second:?}"
+        );
+
+        assert_eq!(
+            LARGE_LIVE_BYTES.load(Ordering::SeqCst),
+            0,
+            "the raw checkpoint transaction's output object is still resident \
+             at the events batch yield"
+        );
+
+        // Drain the rest of the stream.
+        while stream.next().await.is_some() {}
     }
 }
