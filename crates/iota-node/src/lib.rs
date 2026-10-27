@@ -3106,6 +3106,7 @@ mod listener_metrics_tests {
         "connection_lifetime_seconds",
     ];
     const TLS_FAMILIES: &[&str] = &["handshake_latency", "pending_handshakes_peak"];
+    const CLIENT_FAMILIES: &[&str] = &["clients", "client_connections", "client_connections_peak"];
     const REQUEST_FAMILIES: &[&str] = &[
         "connection_idle_seconds",
         "connection_inflight_requests",
@@ -3128,6 +3129,7 @@ mod listener_metrics_tests {
     fn listener_families(prefix: &str) -> BTreeSet<String> {
         prefix_names(prefix, CONNECTION_FAMILIES)
             .chain(prefix_names(prefix, REQUEST_FAMILIES))
+            .chain(prefix_names(prefix, CLIENT_FAMILIES))
             .collect()
     }
 

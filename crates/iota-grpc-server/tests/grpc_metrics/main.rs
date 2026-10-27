@@ -4,6 +4,7 @@
 //! Integration tests for the metrics of the gRPC server. Each test runs a real
 //! server and a real client.
 
+mod clients;
 #[path = "../common/mod.rs"]
 mod common;
 mod connections;
