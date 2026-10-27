@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::Duration;
+use std::{
+    num::{NonZeroU32, NonZeroUsize},
+    time::Duration,
+};
 
 use eyre::Result;
 use serde::{Deserialize, Serialize};
@@ -29,17 +32,17 @@ pub struct Config {
 
     /// Sets the SETTINGS_INITIAL_WINDOW_SIZE option for HTTP2 stream-level flow
     /// control. Default is 65,535
-    pub http2_initial_stream_window_size: Option<u32>,
+    pub http2_initial_stream_window_size: Option<NonZeroU32>,
 
     /// Sets the max connection-level flow control for HTTP2
     ///
     /// Default is 65,535
-    pub http2_initial_connection_window_size: Option<u32>,
+    pub http2_initial_connection_window_size: Option<NonZeroU32>,
 
     /// Sets the SETTINGS_MAX_CONCURRENT_STREAMS option for HTTP2 connections.
     ///
     /// Default is no limit (None).
-    pub http2_max_concurrent_streams: Option<u32>,
+    pub http2_max_concurrent_streams: Option<NonZeroU32>,
 
     /// Set whether TCP keepalive messages are enabled on accepted connections.
     ///
@@ -73,7 +76,7 @@ pub struct Config {
     /// are closed as soon as they are accepted, before any handshake.
     ///
     /// Default is no limit (`None`).
-    pub max_connections: Option<usize>,
+    pub max_connections: Option<NonZeroUsize>,
 
     /// Only affects servers. How long a connection may serve no request
     /// before it is closed. Keepalive closes a connection whose peer has

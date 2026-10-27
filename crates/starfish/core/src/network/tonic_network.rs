@@ -5,6 +5,7 @@
 use std::{
     collections::BTreeMap,
     net::{SocketAddr, SocketAddrV4, SocketAddrV6},
+    num::{NonZeroU32, NonZeroUsize},
     pin::Pin,
     sync::Arc,
     time::{Duration, Instant},
@@ -1355,7 +1356,7 @@ const TIMEOUT_EXEMPT_PATHS: &[&str] = &["/consensus.ConsensusService/SubscribeBl
 /// once. One is enough to serve a peer: the channel pool keeps a single
 /// connection per authority and multiplexes every RPC over it. The rest is
 /// headroom for a reconnect whose predecessor has not been reaped yet.
-const MAX_CONNECTIONS_PER_PEER: usize = 4;
+const MAX_CONNECTIONS_PER_PEER: NonZeroUsize = NonZeroUsize::new(4).unwrap();
 
 /// Time a bounded RPC has to deliver its request message after its headers;
 /// a request still waiting for it is answered with `DEADLINE_EXCEEDED`, which
@@ -1529,11 +1530,9 @@ impl<S: NetworkService> TonicManager<S> {
         }
 
         let http_config = iota_http::Config::default()
-            .initial_connection_window_size(64 << 20)
-            .initial_stream_window_size(32 << 20)
-            .max_concurrent_streams(
-                (config.max_concurrent_streams > 0).then_some(config.max_concurrent_streams),
-            )
+            .initial_connection_window_size(NonZeroU32::new(64 << 20))
+            .initial_stream_window_size(NonZeroU32::new(32 << 20))
+            .max_concurrent_streams(NonZeroU32::new(config.max_concurrent_streams))
             .http2_keepalive_interval(Some(config.keepalive_interval))
             .http2_keepalive_timeout(Some(config.keepalive_interval))
             .accept_http1(false)

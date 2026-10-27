@@ -2,7 +2,13 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fmt, sync::Arc, time::Duration};
+use std::{
+    fmt,
+    num::{NonZeroU32, NonZeroUsize},
+    ops::RangeInclusive,
+    sync::Arc,
+    time::Duration,
+};
 
 use crate::metrics::ListenerMetrics;
 
@@ -18,28 +24,34 @@ const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
 /// takes to make honest connections wait in the kernel backlog. Concurrent
 /// handshakes only build up when peers are slow or silent, so this leaves ample
 /// room for a legitimate reconnect burst.
-const DEFAULT_MAX_PENDING_CONNECTIONS: usize = 4096;
+const DEFAULT_MAX_PENDING_CONNECTIONS: NonZeroUsize = NonZeroUsize::new(4096).unwrap();
+/// The largest HTTP/2 flow-control window (RFC 9113, section 6.9.1); h2 panics
+/// on a larger connection window.
+const HTTP2_MAX_WINDOW_SIZE: u32 = (1 << 31) - 1;
+/// The frame sizes HTTP/2 allows (RFC 9113, section 6.5.2); h2 panics outside
+/// them.
+const HTTP2_MAX_FRAME_SIZE_RANGE: RangeInclusive<u32> = (1 << 14)..=(1 << 24) - 1;
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    init_stream_window_size: Option<u32>,
-    init_connection_window_size: Option<u32>,
-    max_concurrent_streams: Option<u32>,
+    init_stream_window_size: Option<NonZeroU32>,
+    init_connection_window_size: Option<NonZeroU32>,
+    max_concurrent_streams: Option<NonZeroU32>,
     pub(crate) tcp_keepalive: Option<Duration>,
     http2_keepalive_interval: Option<Duration>,
     http2_keepalive_timeout: Option<Duration>,
     http2_adaptive_window: Option<bool>,
-    http2_max_pending_accept_reset_streams: Option<usize>,
-    http2_max_header_list_size: Option<u32>,
-    max_frame_size: Option<u32>,
+    http2_max_pending_accept_reset_streams: Option<NonZeroUsize>,
+    http2_max_header_list_size: Option<NonZeroU32>,
+    max_frame_size: Option<NonZeroU32>,
     pub(crate) accept_http1: bool,
     http1_header_read_timeout: Option<Duration>,
     enable_connect_protocol: bool,
     pub(crate) max_connection_age: Option<Duration>,
     pub(crate) handshake_timeout: Option<Duration>,
-    pub(crate) max_pending_connections: Option<usize>,
-    pub(crate) max_connections_per_peer: Option<usize>,
-    pub(crate) max_connections: Option<usize>,
+    pub(crate) max_pending_connections: Option<NonZeroUsize>,
+    pub(crate) max_connections_per_peer: Option<NonZeroUsize>,
+    pub(crate) max_connections: Option<NonZeroUsize>,
     pub(crate) max_connection_idle: Option<Duration>,
     pub(crate) on_peer_connection_event: Option<OnPeerConnectionEvent>,
     pub(crate) metrics: Option<ListenerMetrics>,
@@ -108,10 +120,12 @@ impl Config {
     /// Sets the [`SETTINGS_INITIAL_WINDOW_SIZE`][spec] option for HTTP2
     /// stream-level flow control.
     ///
+    /// At most 2^31 - 1, the largest window HTTP/2 allows.
+    ///
     /// Default is 1 MiB, the default of hyper.
     ///
     /// [spec]: https://httpwg.org/specs/rfc9113.html#InitialWindowSize
-    pub fn initial_stream_window_size(self, sz: impl Into<Option<u32>>) -> Self {
+    pub fn initial_stream_window_size(self, sz: impl Into<Option<NonZeroU32>>) -> Self {
         Self {
             init_stream_window_size: sz.into(),
             ..self
@@ -120,8 +134,10 @@ impl Config {
 
     /// Sets the max connection-level flow control for HTTP2
     ///
+    /// At most 2^31 - 1, the largest window HTTP/2 allows.
+    ///
     /// Default is 1 MiB, the default of hyper.
-    pub fn initial_connection_window_size(self, sz: impl Into<Option<u32>>) -> Self {
+    pub fn initial_connection_window_size(self, sz: impl Into<Option<NonZeroU32>>) -> Self {
         Self {
             init_connection_window_size: sz.into(),
             ..self
@@ -134,7 +150,7 @@ impl Config {
     /// Default is no limit (`None`).
     ///
     /// [spec]: https://httpwg.org/specs/rfc9113.html#n-stream-concurrency
-    pub fn max_concurrent_streams(self, max: impl Into<Option<u32>>) -> Self {
+    pub fn max_concurrent_streams(self, max: impl Into<Option<NonZeroU32>>) -> Self {
         Self {
             max_concurrent_streams: max.into(),
             ..self
@@ -144,9 +160,9 @@ impl Config {
     /// Sets the maximum time option in milliseconds that a connection may exist
     ///
     /// Default is no limit (`None`).
-    pub fn max_connection_age(self, max_connection_age: Duration) -> Self {
+    pub fn max_connection_age(self, max_connection_age: impl Into<Option<Duration>>) -> Self {
         Self {
-            max_connection_age: Some(max_connection_age),
+            max_connection_age: max_connection_age.into(),
             ..self
         }
     }
@@ -159,9 +175,12 @@ impl Config {
     /// keepalive ping can be set with [`Config::http2_keepalive_timeout`].
     ///
     /// Default is no HTTP2 keepalive (`None`)
-    pub fn http2_keepalive_interval(self, http2_keepalive_interval: Option<Duration>) -> Self {
+    pub fn http2_keepalive_interval(
+        self,
+        http2_keepalive_interval: impl Into<Option<Duration>>,
+    ) -> Self {
         Self {
-            http2_keepalive_interval,
+            http2_keepalive_interval: http2_keepalive_interval.into(),
             ..self
         }
     }
@@ -172,9 +191,12 @@ impl Config {
     /// be closed. Does nothing if http2_keep_alive_interval is disabled.
     ///
     /// Default is 20 seconds.
-    pub fn http2_keepalive_timeout(self, http2_keepalive_timeout: Option<Duration>) -> Self {
+    pub fn http2_keepalive_timeout(
+        self,
+        http2_keepalive_timeout: impl Into<Option<Duration>>,
+    ) -> Self {
         Self {
-            http2_keepalive_timeout,
+            http2_keepalive_timeout: http2_keepalive_timeout.into(),
             ..self
         }
     }
@@ -183,9 +205,9 @@ impl Config {
     /// Enabling this will override the limits set in
     /// http2_initial_stream_window_size and
     /// http2_initial_connection_window_size.
-    pub fn http2_adaptive_window(self, enabled: Option<bool>) -> Self {
+    pub fn http2_adaptive_window(self, enabled: impl Into<Option<bool>>) -> Self {
         Self {
-            http2_adaptive_window: enabled,
+            http2_adaptive_window: enabled.into(),
             ..self
         }
     }
@@ -197,9 +219,12 @@ impl Config {
     /// 20.
     ///
     /// See <https://github.com/hyperium/hyper/issues/2877> for more information.
-    pub fn http2_max_pending_accept_reset_streams(self, max: Option<usize>) -> Self {
+    pub fn http2_max_pending_accept_reset_streams(
+        self,
+        max: impl Into<Option<NonZeroUsize>>,
+    ) -> Self {
         Self {
-            http2_max_pending_accept_reset_streams: max,
+            http2_max_pending_accept_reset_streams: max.into(),
             ..self
         }
     }
@@ -211,9 +236,9 @@ impl Config {
     /// probes.
     ///
     /// Default is no keepalive (`None`)
-    pub fn tcp_keepalive(self, tcp_keepalive: Option<Duration>) -> Self {
+    pub fn tcp_keepalive(self, tcp_keepalive: impl Into<Option<Duration>>) -> Self {
         Self {
-            tcp_keepalive,
+            tcp_keepalive: tcp_keepalive.into(),
             ..self
         }
     }
@@ -222,7 +247,7 @@ impl Config {
     ///
     /// This will default to whatever the default in hyper is. As of v1.4.1, it
     /// is 16 KiB.
-    pub fn http2_max_header_list_size(self, max: impl Into<Option<u32>>) -> Self {
+    pub fn http2_max_header_list_size(self, max: impl Into<Option<NonZeroU32>>) -> Self {
         Self {
             http2_max_header_list_size: max.into(),
             ..self
@@ -231,10 +256,11 @@ impl Config {
 
     /// Sets the maximum frame size to use for HTTP2.
     ///
-    /// Passing `None` will do nothing.
+    /// HTTP/2 allows 16,384 to 16,777,215; any other value is rejected when the
+    /// server starts.
     ///
     /// If not set, will default from underlying transport.
-    pub fn max_frame_size(self, frame_size: impl Into<Option<u32>>) -> Self {
+    pub fn max_frame_size(self, frame_size: impl Into<Option<NonZeroU32>>) -> Self {
         Self {
             max_frame_size: frame_size.into(),
             ..self
@@ -271,9 +297,9 @@ impl Config {
     /// on a peer that stalls mid-headers.
     ///
     /// Default is 30 seconds. `None` disables the deadline.
-    pub fn http1_header_read_timeout(self, timeout: Option<Duration>) -> Self {
+    pub fn http1_header_read_timeout(self, timeout: impl Into<Option<Duration>>) -> Self {
         Config {
-            http1_header_read_timeout: timeout,
+            http1_header_read_timeout: timeout.into(),
             ..self
         }
     }
@@ -284,9 +310,9 @@ impl Config {
     /// descriptor indefinitely.
     ///
     /// Default is 5 seconds. `None` disables the deadline.
-    pub fn handshake_timeout(self, handshake_timeout: Option<Duration>) -> Self {
+    pub fn handshake_timeout(self, handshake_timeout: impl Into<Option<Duration>>) -> Self {
         Self {
-            handshake_timeout,
+            handshake_timeout: handshake_timeout.into(),
             ..self
         }
     }
@@ -297,9 +323,12 @@ impl Config {
     /// for them.
     ///
     /// Default is 4096. `None` removes the limit.
-    pub fn max_pending_connections(self, max_pending_connections: Option<usize>) -> Self {
+    pub fn max_pending_connections(
+        self,
+        max_pending_connections: impl Into<Option<NonZeroUsize>>,
+    ) -> Self {
         Self {
-            max_pending_connections,
+            max_pending_connections: max_pending_connections.into(),
             ..self
         }
     }
@@ -313,9 +342,12 @@ impl Config {
     /// other.
     ///
     /// Default is no limit (`None`).
-    pub fn max_connections_per_peer(self, max_connections_per_peer: Option<usize>) -> Self {
+    pub fn max_connections_per_peer(
+        self,
+        max_connections_per_peer: impl Into<Option<NonZeroUsize>>,
+    ) -> Self {
         Self {
-            max_connections_per_peer,
+            max_connections_per_peer: max_connections_per_peer.into(),
             ..self
         }
     }
@@ -329,9 +361,9 @@ impl Config {
     /// [`handshake_timeout`](Self::handshake_timeout).
     ///
     /// Default is no limit (`None`).
-    pub fn max_connections(self, max_connections: Option<usize>) -> Self {
+    pub fn max_connections(self, max_connections: impl Into<Option<NonZeroUsize>>) -> Self {
         Self {
-            max_connections,
+            max_connections: max_connections.into(),
             ..self
         }
     }
@@ -348,9 +380,9 @@ impl Config {
     /// leaves.
     ///
     /// Default is no deadline (`None`).
-    pub fn max_connection_idle(self, max_connection_idle: Option<Duration>) -> Self {
+    pub fn max_connection_idle(self, max_connection_idle: impl Into<Option<Duration>>) -> Self {
         Self {
-            max_connection_idle,
+            max_connection_idle: max_connection_idle.into(),
             ..self
         }
     }
@@ -375,43 +407,66 @@ impl Config {
     /// behaviour.
     ///
     /// Default is no measuring (`None`).
-    pub fn metrics(self, metrics: Option<ListenerMetrics>) -> Self {
-        Self { metrics, ..self }
+    pub fn metrics(self, metrics: impl Into<Option<ListenerMetrics>>) -> Self {
+        Self {
+            metrics: metrics.into(),
+            ..self
+        }
     }
 
-    /// Rejects settings the accept loop cannot recover from.
+    /// Rejects settings the accept loop cannot recover from, and those that
+    /// would leave it unable to serve anything.
     pub(crate) fn validate(&self) -> Result<(), crate::BoxError> {
-        if self.max_connections == Some(0) {
-            return Err("'max_connections' must be greater than zero, \
-                        a listener that serves no connection is never useful"
-                .into());
+        // A zero deadline is reached at once and a zero interval never pauses,
+        // so either would close or flood every connection.
+        for (name, duration) in [
+            ("tcp_keepalive", self.tcp_keepalive),
+            ("http2_keepalive_interval", self.http2_keepalive_interval),
+            ("http2_keepalive_timeout", self.http2_keepalive_timeout),
+            ("http1_header_read_timeout", self.http1_header_read_timeout),
+            ("max_connection_age", self.max_connection_age),
+            ("handshake_timeout", self.handshake_timeout),
+            ("max_connection_idle", self.max_connection_idle),
+        ] {
+            if duration == Some(Duration::ZERO) {
+                return Err(format!("'{name}' must be greater than zero").into());
+            }
         }
 
-        if self.max_connection_idle == Some(Duration::ZERO) {
-            return Err("'max_connection_idle' must be greater than zero, \
-                        a connection closed the moment it goes idle can never serve anything"
-                .into());
-        }
-
-        if self.max_connections_per_peer == Some(0) {
-            return Err("'max_connections_per_peer' must be greater than zero, \
-                        a peer allowed no connection can never be served"
-                .into());
-        }
-
-        match self.max_pending_connections {
-            Some(0) => Err("'max_pending_connections' must be greater than zero, \
-                            a server that accepts no connection is never useful"
-                .into()),
-            // Reaching the limit stops accepting until a handshake finishes, so
-            // without a deadline enough silent peers stall the server for good.
-            Some(_) if self.handshake_timeout.is_none() => Err(
-                "'max_pending_connections' requires a 'handshake_timeout' to release its \
-                     slots"
-                    .into(),
+        for (name, size) in [
+            ("initial_stream_window_size", self.init_stream_window_size),
+            (
+                "initial_connection_window_size",
+                self.init_connection_window_size,
             ),
-            _ => Ok(()),
+        ] {
+            if size.is_some_and(|size| size.get() > HTTP2_MAX_WINDOW_SIZE) {
+                return Err(format!("'{name}' must be at most {HTTP2_MAX_WINDOW_SIZE}").into());
+            }
         }
+
+        if self
+            .max_frame_size
+            .is_some_and(|size| !HTTP2_MAX_FRAME_SIZE_RANGE.contains(&size.get()))
+        {
+            return Err(format!(
+                "'max_frame_size' must be between {} and {}",
+                HTTP2_MAX_FRAME_SIZE_RANGE.start(),
+                HTTP2_MAX_FRAME_SIZE_RANGE.end()
+            )
+            .into());
+        }
+
+        // Reaching the limit stops accepting until a handshake finishes, so
+        // without a deadline enough silent peers stall the server for good.
+        if self.max_pending_connections.is_some() && self.handshake_timeout.is_none() {
+            return Err(
+                "'max_pending_connections' requires a 'handshake_timeout' to release its slots"
+                    .into(),
+            );
+        }
+
+        Ok(())
     }
 
     pub(crate) fn connection_builder(
@@ -440,17 +495,22 @@ impl Config {
         builder
             .http2()
             .timer(hyper_util::rt::TokioTimer::new())
-            .initial_connection_window_size(self.init_connection_window_size)
-            .initial_stream_window_size(self.init_stream_window_size)
-            .max_concurrent_streams(self.max_concurrent_streams)
+            .initial_connection_window_size(self.init_connection_window_size.map(NonZeroU32::get))
+            .initial_stream_window_size(self.init_stream_window_size.map(NonZeroU32::get))
+            .max_concurrent_streams(self.max_concurrent_streams.map(NonZeroU32::get))
             .keep_alive_interval(self.http2_keepalive_interval)
             .keep_alive_timeout(http2_keepalive_timeout)
             .adaptive_window(self.http2_adaptive_window.unwrap_or_default())
-            .max_pending_accept_reset_streams(self.http2_max_pending_accept_reset_streams)
-            .max_frame_size(self.max_frame_size);
+            .max_pending_accept_reset_streams(
+                self.http2_max_pending_accept_reset_streams
+                    .map(NonZeroUsize::get),
+            )
+            .max_frame_size(self.max_frame_size.map(NonZeroU32::get));
 
         if let Some(max_header_list_size) = self.http2_max_header_list_size {
-            builder.http2().max_header_list_size(max_header_list_size);
+            builder
+                .http2()
+                .max_header_list_size(max_header_list_size.get());
         }
 
         builder
