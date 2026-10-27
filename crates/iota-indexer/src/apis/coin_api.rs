@@ -61,7 +61,7 @@ impl CoinReadApiServer for CoinReadApi {
         // This store pages by object id alone. Without a cursor, start from
         // the minimal possible ObjectId.
         let cursor = cursor
-            .map(|c| common::resolve_object_id_cursor(c))
+            .map(common::resolve_object_id_cursor)
             .transpose()?
             .unwrap_or(ObjectId::ZERO);
         let mut results = self
@@ -96,7 +96,7 @@ impl CoinReadApiServer for CoinReadApi {
         // This store pages by object id alone. Without a cursor, start from
         // the minimal possible ObjectId.
         let cursor = cursor
-            .map(|c| common::resolve_object_id_cursor(c))
+            .map(common::resolve_object_id_cursor)
             .transpose()?
             .unwrap_or(ObjectId::ZERO);
         let mut results = self

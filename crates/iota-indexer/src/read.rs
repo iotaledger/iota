@@ -2903,7 +2903,7 @@ impl DataReader for IndexerReader {
                 address,
                 Some(IotaObjectDataFilter::StructType(object_type)),
                 cursor
-                    .map(|c| crate::apis::common::resolve_object_id_cursor(c))
+                    .map(crate::apis::common::resolve_object_id_cursor)
                     .transpose()?,
                 limit + 1,
             )

@@ -61,9 +61,7 @@ impl IndexerApi {
             .get_owned_objects_in_blocking_task(
                 address,
                 filter,
-                cursor
-                    .map(|c| common::resolve_object_id_cursor(c))
-                    .transpose()?,
+                cursor.map(common::resolve_object_id_cursor).transpose()?,
                 limit + 1,
             )
             .await?;
