@@ -11,6 +11,7 @@ use common::{
     MockGrpcStateReader, PendingExecutor, call_execute_transactions_with_grpc_timeout,
     execute_transactions_request, start_test_server, start_test_server_with,
 };
+use iota_config::node::GrpcApiConfig;
 use iota_grpc_types::v1::transaction_execution_service::transaction_execution_service_client::TransactionExecutionServiceClient;
 use tokio::{
     io::{AsyncReadExt as _, AsyncWriteExt as _},
@@ -73,12 +74,13 @@ async fn shutdown_stops_the_server() {
     );
 }
 
-/// The server announces only hyper's default window, frame and header list
-/// sizes: it sets no limit on concurrent streams and does not offer the
-/// extended CONNECT protocol.
+/// The server announces its stream limit of 100 and hyper's default window,
+/// frame and header list sizes; it does not offer the extended CONNECT
+/// protocol.
 #[tokio::test]
-async fn the_server_announces_no_stream_limit_and_no_extended_connect() {
+async fn the_server_announces_its_stream_limit_and_no_extended_connect() {
     // SETTINGS parameters (RFC 9113, section 6.5.2).
+    const SETTINGS_MAX_CONCURRENT_STREAMS: u16 = 0x3;
     const SETTINGS_INITIAL_WINDOW_SIZE: u16 = 0x4;
     const SETTINGS_MAX_FRAME_SIZE: u16 = 0x5;
     const SETTINGS_MAX_HEADER_LIST_SIZE: u16 = 0x6;
@@ -89,6 +91,10 @@ async fn the_server_announces_no_stream_limit_and_no_extended_connect() {
     assert_eq!(
         server_settings(handle.address()).await,
         BTreeMap::from([
+            (
+                SETTINGS_MAX_CONCURRENT_STREAMS,
+                GrpcApiConfig::MAX_CONCURRENT_STREAMS_PER_CONNECTION
+            ),
             (SETTINGS_INITIAL_WINDOW_SIZE, 1024 * 1024),
             (SETTINGS_MAX_FRAME_SIZE, 16 * 1024),
             (SETTINGS_MAX_HEADER_LIST_SIZE, 16 * 1024),

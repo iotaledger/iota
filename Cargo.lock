@@ -6576,6 +6576,7 @@ dependencies = [
  "bcs 0.2.1",
  "bytes",
  "futures",
+ "h2",
  "http 1.5.0",
  "http-body 1.0.1",
  "http-body-util",

@@ -348,6 +348,17 @@ pub struct GrpcApiConfig {
     #[serde(default = "default_grpc_api_max_concurrent_stream_subscribers")]
     pub max_concurrent_stream_subscribers: u32,
 
+    /// Maximum number of responses in progress on one connection. A response
+    /// is in progress from before its handler runs until its last byte has
+    /// been written to the connection, so a response that the client reads
+    /// slowly or not at all counts for all that time. Further calls on the
+    /// connection wait on the node, in arrival order, and are served in turn.
+    /// A `StreamCheckpoints` subscription does not count. The value must be
+    /// at most [`Self::MAX_CONCURRENT_STREAMS_PER_CONNECTION`]; the node
+    /// refuses to start with a larger value. `0` turns the limit off.
+    #[serde(default = "default_grpc_api_concurrency_limit_per_connection")]
+    pub concurrency_limit_per_connection: u32,
+
     /// Maximum size for Move values when rendering to JSON
     /// in bytes.
     #[serde(default = "default_grpc_api_max_json_move_value_size")]
@@ -396,6 +407,10 @@ fn default_grpc_api_max_concurrent_stream_subscribers() -> u32 {
     1024
 }
 
+fn default_grpc_api_concurrency_limit_per_connection() -> u32 {
+    16
+}
+
 fn default_grpc_api_max_message_size_bytes() -> u32 {
     128 * 1024 * 1024 // 128MB
 }
@@ -436,6 +451,7 @@ impl Default for GrpcApiConfig {
             max_message_size_bytes: default_grpc_api_max_message_size_bytes(),
             broadcast_buffer_size: default_grpc_api_broadcast_buffer_size(),
             max_concurrent_stream_subscribers: default_grpc_api_max_concurrent_stream_subscribers(),
+            concurrency_limit_per_connection: default_grpc_api_concurrency_limit_per_connection(),
             max_json_move_value_size: default_grpc_api_max_json_move_value_size(),
             max_execute_transaction_batch_size: default_grpc_api_max_execute_transaction_batch_size(
             ),
@@ -456,6 +472,31 @@ impl GrpcApiConfig {
     const GRPC_TONIC_DEFAULT_MAX_RECV_MESSAGE_SIZE: u32 = 4 * 1024 * 1024; // 4MB
     const GRPC_MIN_CLIENT_MAX_MESSAGE_SIZE_BYTES: u32 =
         Self::GRPC_TONIC_DEFAULT_MAX_RECV_MESSAGE_SIZE;
+
+    /// The number of HTTP/2 streams that one connection to the gRPC API may
+    /// open at once, announced in the server's settings. hyper-based clients
+    /// send up to 100 calls before they have read the server's settings, so
+    /// a smaller value would refuse some of them, and a client does not retry
+    /// a refused call. `concurrency-limit-per-connection` needs a finite
+    /// stream limit to size the connection window.
+    pub const MAX_CONCURRENT_STREAMS_PER_CONNECTION: u32 = 100;
+
+    /// Rejects a `concurrency-limit-per-connection` above
+    /// [`Self::MAX_CONCURRENT_STREAMS_PER_CONNECTION`].
+    pub fn validate(&self) -> Result<()> {
+        // Each response in progress uses a stream, so a higher value would
+        // never be reached.
+        if self.concurrency_limit_per_connection > Self::MAX_CONCURRENT_STREAMS_PER_CONNECTION {
+            anyhow::bail!(
+                "`grpc-api-config.concurrency-limit-per-connection` is {}, but it must be at \
+                 most {}, the number of HTTP/2 streams that one connection may open, or 0 to \
+                 turn the limit off",
+                self.concurrency_limit_per_connection,
+                Self::MAX_CONCURRENT_STREAMS_PER_CONNECTION
+            );
+        }
+        Ok(())
+    }
 
     pub fn tls_config(&self) -> Option<&TlsConfig> {
         self.tls.as_ref()
@@ -864,6 +905,9 @@ impl NodeConfig {
                 "`enable-grpc-api` is set but `grpc-api-config` is `null`; give it a value, \
                  remove the key to take the default config, or turn off `enable-grpc-api`"
             );
+        }
+        if let Some(grpc_api_config) = &self.grpc_api_config {
+            grpc_api_config.validate()?;
         }
         // The uploader builds the store at startup, which needs a backend.
         if self
@@ -1736,6 +1780,33 @@ mod tests {
         const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
 
         let _template: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+    }
+
+    /// A `concurrency-limit-per-connection` above the stream limit of a
+    /// connection could never be reached, so the config is rejected, also
+    /// when the API is off. The limit itself and 0 are accepted.
+    #[test]
+    fn validate_rejects_a_concurrency_limit_above_the_stream_limit() {
+        let with_limit = |limit| GrpcApiConfig {
+            concurrency_limit_per_connection: limit,
+            ..GrpcApiConfig::default()
+        };
+        let max = GrpcApiConfig::MAX_CONCURRENT_STREAMS_PER_CONNECTION;
+        with_limit(max).validate().unwrap();
+        with_limit(0).validate().unwrap();
+        let err = with_limit(max + 1).validate().unwrap_err().to_string();
+        assert!(
+            err.contains("`grpc-api-config.concurrency-limit-per-connection`"),
+            "{err}"
+        );
+
+        let mut config = template_config();
+        assert!(!config.enable_grpc_api);
+        config.grpc_api_config = Some(with_limit(max + 1));
+        let err = config.validate().unwrap_err().to_string();
+        assert!(err.contains("concurrency-limit-per-connection"), "{err}");
+        config.grpc_api_config = Some(with_limit(max));
+        config.validate().unwrap();
     }
 
     #[test]

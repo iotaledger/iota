@@ -53,6 +53,7 @@ prometheus-filtered.workspace = true
 [dev-dependencies]
 # external dependencies
 async-trait.workspace = true
+h2.workspace = true
 http-body-util.workspace = true
 hyper = { workspace = true, features = ["client", "http2"] }
 hyper-util.workspace = true

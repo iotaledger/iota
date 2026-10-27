@@ -6,11 +6,13 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
+use iota_config::node::GrpcApiConfig;
 use iota_grpc_types::v1::{
     ledger_service as grpc_ledger_service, move_package_service as grpc_move_package_service,
     service_methods, state_service as grpc_state_service,
     transaction_execution_service as grpc_tx_service,
 };
+use iota_http::ResponseLimitLayer;
 use iota_network_stack::{grpc_timeout::GrpcTimeout, server::insert_tonic_connect_info};
 use iota_traffic_controller::TrafficController;
 use iota_types::{traffic_control::ClientIdSource, transaction_executor::TransactionExecutor};
@@ -24,6 +26,18 @@ use crate::{
     metrics::GrpcMetricsLayer, server_timing::ServerTimingLayer,
     traffic_control::TrafficControlLayer,
 };
+
+const STREAM_CHECKPOINTS_PATH: &str =
+    "/iota.grpc.v1.ledger_service.LedgerService/StreamCheckpoints";
+
+/// Whether a call to `path` takes no slot of `concurrency-limit-per-connection`
+/// for its whole response. A subscription stays open for as long as the
+/// client wants and is idle between checkpoints, so with a slot for its
+/// whole life a few subscriptions would block every other call on their
+/// connection.
+fn takes_slots_per_item(path: &str) -> bool {
+    path == STREAM_CHECKPOINTS_PATH
+}
 
 /// Handle to control a running gRPC server
 pub struct GrpcServerHandle {
@@ -67,13 +81,15 @@ impl GrpcServerHandle {
 pub async fn start_grpc_server(
     grpc_reader: Arc<GrpcReader>,
     executor: Option<Arc<dyn TransactionExecutor>>,
-    config: iota_config::node::GrpcApiConfig,
+    config: GrpcApiConfig,
     shutdown_token: CancellationToken,
     chain_id: iota_types::digests::ChainIdentifier,
     metrics: Option<GrpcServerMetrics>,
     traffic_controller: Option<Arc<TrafficController>>,
     client_id_source: Option<ClientIdSource>,
 ) -> Result<GrpcServerHandle> {
+    config.validate()?;
+
     // Create broadcast channels
     let (checkpoint_data_tx, _) = broadcast::channel(config.broadcast_buffer_size as usize);
 
@@ -112,10 +128,16 @@ pub async fn start_grpc_server(
     let move_package_service = MovePackageGrpcService::new(grpc_reader);
 
     // gRPC runs over HTTP/2 only, and no route of this API uses the extended
-    // CONNECT protocol.
+    // CONNECT protocol. The stream limit is set here and not left to the
+    // listener's default: hyper-based clients send up to 100 calls before they
+    // have read the server's settings, so a smaller value refuses some of
+    // them, and the response limit needs a finite stream limit to size the
+    // connection window.
     let http_config = iota_http::Config::default()
         .accept_http1(false)
         .enable_connect_protocol(false)
+        .max_concurrent_streams(Some(GrpcApiConfig::MAX_CONCURRENT_STREAMS_PER_CONNECTION))
+        .concurrency_limit_per_connection(Some(config.concurrency_limit_per_connection as usize))
         .metrics(metrics.as_ref().map(GrpcServerMetrics::listener_metrics));
     let mut http_builder = iota_http::Builder::new().config(http_config);
 
@@ -157,8 +179,11 @@ pub async fn start_grpc_server(
     // Order matters: the address copy before traffic control, which reads it;
     // metrics before traffic control, to count blocked requests; `GrpcTimeout`
     // inside both, so they see the status of a call that ends at its deadline;
+    // the response limit inside `GrpcTimeout`, so that a call whose deadline
+    // passes while it waits for a slot ends there and never runs its handler;
     // server-timing innermost, to time only the requests that traffic control
-    // lets through.
+    // lets through, without their wait for a slot. The body of the response
+    // limit is boxed again for the metrics layer, which reads tonic's body.
     let service = tower::ServiceBuilder::new()
         .map_request(insert_tonic_connect_info)
         .option_layer(
@@ -169,6 +194,11 @@ pub async fn start_grpc_server(
                 .map(|tc| TrafficControlLayer::new(tc, client_id_source.unwrap_or_default())),
         )
         .layer_fn(|service| GrpcTimeout::new(service, None))
+        .map_response(|response: http::Response<_>| response.map(tonic::body::Body::new))
+        .layer(
+            ResponseLimitLayer::new()
+                .takes_slots_per_item(|parts| takes_slots_per_item(parts.uri.path())),
+        )
         .layer(ServerTimingLayer)
         .service(routes.prepare());
 
@@ -198,4 +228,55 @@ pub async fn start_grpc_server(
         checkpoint_data_broadcaster,
         address: actual_addr,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every method of the API is in this table, with whether it takes a
+    /// slot for each item that it sends. A call takes one slot for its
+    /// whole response, so a method whose calls stay open for long must take
+    /// slots per item instead, as `StreamCheckpoints` does. A method that
+    /// the SDK adds fails this test, so that someone decides which it is.
+    #[test]
+    fn every_api_method_is_known_and_only_stream_checkpoints_takes_slots_per_item() {
+        const LEDGER: &str = "/iota.grpc.v1.ledger_service.LedgerService/";
+        const PACKAGE: &str = "/iota.grpc.v1.move_package_service.MovePackageService/";
+        const STATE: &str = "/iota.grpc.v1.state_service.StateService/";
+        const EXECUTION: &str =
+            "/iota.grpc.v1.transaction_execution_service.TransactionExecutionService/";
+        let methods = [
+            (LEDGER, "GetHealth", false),
+            (LEDGER, "GetServiceInfo", false),
+            (LEDGER, "GetObjects", false),
+            (LEDGER, "GetTransactions", false),
+            (LEDGER, "GetCheckpoint", false),
+            (LEDGER, "StreamCheckpoints", true),
+            (LEDGER, "GetEpoch", false),
+            (PACKAGE, "ListPackageVersions", false),
+            (STATE, "ListDynamicFields", false),
+            (STATE, "ListOwnedObjects", false),
+            (STATE, "GetCoinInfo", false),
+            (EXECUTION, "ExecuteTransactions", false),
+            (EXECUTION, "SimulateTransactions", false),
+            (EXECUTION, "ViewFunctionCalls", false),
+        ];
+        let mut known: Vec<String> = methods
+            .iter()
+            .map(|(service, method, _)| format!("{service}{method}"))
+            .collect();
+        known.sort();
+        let mut api: Vec<String> = service_methods::ALL_METHOD_PATHS
+            .iter()
+            .map(|path| path.to_string())
+            .collect();
+        api.sort();
+        assert_eq!(known, api, "add each new API method here");
+
+        for (service, method, per_item) in methods {
+            let path = format!("{service}{method}");
+            assert_eq!(takes_slots_per_item(&path), per_item, "{path}");
+        }
+    }
 }

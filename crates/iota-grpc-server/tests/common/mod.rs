@@ -57,6 +57,8 @@ use iota_types::{
 };
 use tonic::transport::{Certificate, Channel, ClientTlsConfig};
 
+pub mod raw_h2;
+
 // ---------------------------------------------------------------------------
 // Stream invariant helpers
 // ---------------------------------------------------------------------------
@@ -417,6 +419,10 @@ pub struct MockGrpcStateReader {
 
     // -- Pruning --
     pub lowest_available_checkpoint: u64,
+
+    /// How many times an object was read, so a test can count the handlers
+    /// that ran.
+    pub object_reads: std::sync::atomic::AtomicUsize,
 }
 
 /// Shared empty contents used when generating on-the-fly summaries.
@@ -456,6 +462,8 @@ impl MockGrpcStateReader {
 // -- ObjectStore impl --
 impl iota_types::storage::ObjectStore for MockGrpcStateReader {
     fn try_get_object(&self, object_id: &ObjectId) -> StorageResult<Option<Object>> {
+        self.object_reads
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Ok(self.objects.get(object_id).cloned())
     }
 
