@@ -19,7 +19,7 @@ use tokio::sync::{
     Mutex,
     oneshot::{self, Sender},
 };
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::{
     IngestionError,
@@ -27,7 +27,7 @@ use crate::{
     history::{
         CHECKPOINT_FILE_MAGIC,
         epoch_boundaries::{EpochBoundaries, read_epoch_boundaries},
-        manifest::{FileMetadata, Manifest, read_manifest},
+        manifest::{FileMetadata, Manifest, read_manifest, read_manifest_from_bytes},
     },
 };
 
@@ -39,8 +39,80 @@ pub struct HistoricalReader {
     /// reader and hence terminate the manifest sync
     /// process.
     sender: Arc<Sender<()>>,
-    manifest: Arc<Mutex<Manifest>>,
+    manifest: Arc<Mutex<ManifestState>>,
     remote_object_store: Arc<dyn ObjectStoreGetExt>,
+}
+
+/// The manifest as of the last sync, together with the file list derived from
+/// it.
+struct ManifestState {
+    manifest: Manifest,
+    files: Arc<[FileMetadata]>,
+}
+
+impl ManifestState {
+    /// The state before the first sync, holding no checkpoint data.
+    fn unsynced() -> Self {
+        Self {
+            manifest: Manifest::new(0),
+            files: Arc::from([]),
+        }
+    }
+
+    /// Verifies `manifest` and derives its file list, sorted by starting
+    /// sequence number. Returns an error if checkpoints since genesis are
+    /// missing, or if the files do not reach the manifest's next sequence
+    /// number.
+    fn new(manifest: Manifest) -> Result<Self> {
+        let mut files = manifest.to_files();
+        if files.is_empty() {
+            return Err(IngestionError::HistoryRead(
+                "unexpected empty remote store of historical data".to_string(),
+            ));
+        }
+
+        files.sort_by_key(|f| f.checkpoint_seq_range.start);
+
+        if let Some(empty) = files.iter().find(|f| f.checkpoint_seq_range.is_empty()) {
+            return Err(IngestionError::HistoryRead(format!(
+                "historical data file {} covers no checkpoint",
+                empty.file_path()
+            )));
+        }
+
+        let start = files[0].checkpoint_seq_range.start;
+        if start != 0 {
+            return Err(IngestionError::HistoryRead(format!(
+                "historical data starts at checkpoint {start} instead of 0"
+            )));
+        }
+
+        if let Some(pair) = files
+            .windows(2)
+            .find(|w| w[1].checkpoint_seq_range.start != w[0].checkpoint_seq_range.end)
+        {
+            return Err(IngestionError::HistoryRead(format!(
+                "historical data files are not contiguous: {} is followed by {}",
+                pair[0].file_path(),
+                pair[1].file_path()
+            )));
+        }
+
+        // Without this the reader would keep fetching the last file and
+        // discarding every checkpoint in it, or keep re-syncing the manifest.
+        let end = files[files.len() - 1].checkpoint_seq_range.end;
+        let next = manifest.next_checkpoint_seq_num();
+        if end != next {
+            return Err(IngestionError::HistoryRead(format!(
+                "historical data ends at checkpoint {end} but the manifest expects {next}"
+            )));
+        }
+
+        Ok(Self {
+            manifest,
+            files: files.into(),
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -57,7 +129,7 @@ impl HistoricalReader {
             config.remote_store_config.make().map(Arc::new)?
         };
         let (sender, recv) = oneshot::channel();
-        let manifest = Arc::new(Mutex::new(Manifest::new(0)));
+        let manifest = Arc::new(Mutex::new(ManifestState::unsynced()));
         // Start a background tokio task to keep local manifest in sync with remote
         Self::spawn_manifest_sync_task(remote_object_store.clone(), manifest.clone(), recv);
         Ok(Self {
@@ -68,36 +140,17 @@ impl HistoricalReader {
         })
     }
 
-    /// This function verifies the manifest and returns the file metadata
-    /// sorted by the starting sequence number.
+    /// Returns the files of the archive, sorted by starting sequence number,
+    /// as verified when the manifest was last synced.
     ///
-    /// More specifically it verifies that the files in the remote store
-    /// cover the entire range of checkpoints from sequence number 0
-    /// until the latest available checkpoint with no missing checkpoint.
-    pub fn verify_and_get_manifest_files(&self, manifest: Manifest) -> Result<Vec<FileMetadata>> {
-        let mut files = manifest.to_files();
-        if files.is_empty() {
-            return Err(IngestionError::HistoryRead(
-                "unexpected empty remote store of historical data".to_string(),
-            ));
-        }
-
-        files.sort_by_key(|f| f.checkpoint_seq_range.start);
-
-        assert!(
-            files
-                .windows(2)
-                .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end)
-        );
-
-        assert_eq!(files.first().map(|f| f.checkpoint_seq_range.start), Some(0));
-
-        Ok(files)
+    /// The list is empty until the first successful sync.
+    pub(crate) async fn manifest_files(&self) -> Arc<[FileMetadata]> {
+        self.manifest.lock().await.files.clone()
     }
 
     /// This function downloads checkpoint data files and ensures their
     /// computed checksum matches the one in manifest.
-    pub async fn verify_file_consistency(&self, files: Vec<FileMetadata>) -> Result<()> {
+    pub async fn verify_file_consistency(&self, files: &[FileMetadata]) -> Result<()> {
         let remote_object_store = self.remote_object_store.clone();
         futures::stream::iter(files.iter())
             .map(|metadata| {
@@ -203,6 +256,9 @@ impl HistoricalReader {
     /// data from the remote store, decodes the raw data, and streams the
     /// deserialized values.
     ///
+    /// The file is fetched with a single request, so the caller is
+    /// responsible for retrying and for bounding how long a transfer may run.
+    ///
     /// # Errors
     ///
     /// Returns an error in the following cases:
@@ -213,7 +269,7 @@ impl HistoricalReader {
         &self,
         file_path: Path,
     ) -> Result<impl Iterator<Item = CheckpointData>> {
-        let raw_data_batch = get(&self.remote_object_store, &file_path).await?;
+        let raw_data_batch = self.remote_object_store.get_bytes(&file_path).await?;
         make_blob_iterator(raw_data_batch)
     }
 
@@ -222,6 +278,7 @@ impl HistoricalReader {
         self.manifest
             .lock()
             .await
+            .manifest
             .next_checkpoint_seq_num()
             .checked_sub(1)
             .ok_or_else(|| {
@@ -252,41 +309,54 @@ impl HistoricalReader {
         Ok(())
     }
 
+    /// Syncs the Manifest from remote store with a single request.
+    pub(crate) async fn sync_manifest_no_retry(&self) -> Result<()> {
+        let bytes = self
+            .remote_object_store
+            .get_bytes(&Manifest::file_path())
+            .await?;
+        let new_manifest = read_manifest_from_bytes(bytes.to_vec())?;
+        *self.manifest.lock().await = ManifestState::new(new_manifest)?;
+        Ok(())
+    }
+
     pub async fn get_manifest(&self) -> Manifest {
-        self.manifest.lock().await.clone()
+        self.manifest.lock().await.manifest.clone()
     }
 
     /// Copies Manifest from remote store to the given Manifest.
     async fn sync_manifest(
         remote_store: Arc<dyn ObjectStoreGetExt>,
-        manifest: Arc<Mutex<Manifest>>,
+        manifest: Arc<Mutex<ManifestState>>,
     ) -> Result<()> {
         let new_manifest = read_manifest(remote_store.clone()).await?;
+        let new_state = ManifestState::new(new_manifest)?;
         let mut locked = manifest.lock().await;
-        *locked = new_manifest;
+        *locked = new_state;
         Ok(())
     }
 
-    /// Resolve the files to fetch for the specified range.
-    ///
-    /// The method retrieves the manifest from the remote store and
-    /// searches for the files that cover the given range of checkpoint
-    /// data.
+    /// Resolve the files covering the specified range, from the manifest as
+    /// of the last sync.
     ///
     /// # Errors
     ///
-    /// The method fails if the remote store has no data, or if the
-    /// manifest fails to verify.
+    /// Fails if the manifest holds no checkpoint data, or if the range starts
+    /// past the latest available checkpoint.
     async fn get_files_for_range(
         &self,
         checkpoint_range: Range<CheckpointSequenceNumber>,
     ) -> Result<impl Iterator<Item = FileMetadata>> {
-        let manifest = self.get_manifest().await;
+        let (next_checkpoint_seq_num, files) = {
+            let state = self.manifest.lock().await;
+            (
+                state.manifest.next_checkpoint_seq_num(),
+                state.files.clone(),
+            )
+        };
 
-        let latest_available_checkpoint = manifest
-            .next_checkpoint_seq_num()
-            .checked_sub(1)
-            .ok_or_else(|| {
+        let latest_available_checkpoint =
+            next_checkpoint_seq_num.checked_sub(1).ok_or_else(|| {
                 IngestionError::HistoryRead("no checkpoint data in the remote store".into())
             })?;
 
@@ -296,13 +366,11 @@ impl HistoricalReader {
             )));
         }
 
-        let files = self.verify_and_get_manifest_files(manifest)?;
-
         let start_index = match files
             .binary_search_by_key(&checkpoint_range.start, |s| s.checkpoint_seq_range.start)
         {
             Ok(index) => index,
-            Err(index) => index - 1,
+            Err(index) => index.saturating_sub(1),
         };
 
         let end_index = match files
@@ -312,17 +380,12 @@ impl HistoricalReader {
             Err(index) => index,
         };
 
-        Ok(files
-            .into_iter()
-            .enumerate()
-            .filter_map(move |(index, metadata)| {
-                (index >= start_index && index < end_index).then_some(metadata)
-            }))
+        Ok((start_index..end_index).map(move |index| files[index].clone()))
     }
 
     fn spawn_manifest_sync_task(
         remote_store: Arc<dyn ObjectStoreGetExt>,
-        manifest: Arc<Mutex<Manifest>>,
+        manifest: Arc<Mutex<ManifestState>>,
         mut recv: oneshot::Receiver<()>,
     ) {
         tokio::task::spawn(async move {
@@ -330,13 +393,16 @@ impl HistoricalReader {
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
-                        Self::sync_manifest(remote_store.clone(), manifest.clone()).await?;
+                        // A failed sync leaves the previous manifest in place; giving
+                        // up here would leave it stale for the reader's whole lifetime.
+                        if let Err(err) = Self::sync_manifest(remote_store.clone(), manifest.clone()).await {
+                            warn!("failed to sync the manifest from the remote store: {err}");
+                        }
                     }
                     _ = &mut recv => break,
                 }
             }
             info!("terminating the manifest sync loop");
-            Ok::<(), IngestionError>(())
         });
     }
 }
@@ -361,4 +427,86 @@ pub fn make_blob_iterator_for_range(
 ) -> Result<impl Iterator<Item = CheckpointData>> {
     Ok(make_blob_iterator(blob)?
         .filter(move |data| range.contains(&data.checkpoint_summary.sequence_number)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn file(checkpoint_seq_range: Range<CheckpointSequenceNumber>) -> FileMetadata {
+        FileMetadata {
+            checkpoint_seq_range,
+            sha3_digest: [0; 32],
+        }
+    }
+
+    /// Builds a manifest whose next sequence number is the highest end of the
+    /// given files, as the writer maintains it.
+    fn manifest(files: impl IntoIterator<Item = FileMetadata>) -> Manifest {
+        let mut manifest = Manifest::new(0);
+        let mut next = 0;
+        for file in files {
+            next = next.max(file.checkpoint_seq_range.end);
+            manifest.update(next, file);
+        }
+        manifest
+    }
+
+    /// The reason a manifest was rejected, so that a test cannot pass on the
+    /// wrong error.
+    fn rejection(manifest: Manifest) -> String {
+        match ManifestState::new(manifest) {
+            Err(IngestionError::HistoryRead(reason)) => reason,
+            Err(other) => panic!("expected a HistoryRead rejection, got {other:?}"),
+            Ok(_) => panic!("expected the manifest to be rejected"),
+        }
+    }
+
+    #[test]
+    fn manifest_state_sorts_the_files() {
+        let state = ManifestState::new(manifest([file(10..20), file(0..10)])).unwrap();
+
+        let starts: Vec<_> = state
+            .files
+            .iter()
+            .map(|f| f.checkpoint_seq_range.start)
+            .collect();
+        assert_eq!(starts, vec![0, 10]);
+    }
+
+    #[test]
+    fn manifest_state_rejects_an_empty_manifest() {
+        assert!(rejection(manifest([])).contains("empty remote store"));
+    }
+
+    #[test]
+    fn manifest_state_rejects_files_not_starting_at_genesis() {
+        assert!(rejection(manifest([file(1..10)])).contains("starts at checkpoint 1"));
+    }
+
+    #[test]
+    fn manifest_state_rejects_a_gap_between_files() {
+        assert!(rejection(manifest([file(0..10), file(11..20)])).contains("are not contiguous"));
+    }
+
+    #[test]
+    fn manifest_state_rejects_overlapping_files() {
+        assert!(rejection(manifest([file(0..10), file(5..15)])).contains("are not contiguous"));
+    }
+
+    #[test]
+    fn manifest_state_rejects_a_file_covering_no_checkpoint() {
+        assert!(rejection(manifest([file(0..0), file(0..10)])).contains("covers no checkpoint"));
+    }
+
+    #[test]
+    fn manifest_state_rejects_files_short_of_the_next_sequence_number() {
+        let mut manifest = manifest([file(0..10)]);
+        manifest.update(20, file(10..20));
+        // Drop the file again, keeping the sequence number the writer set.
+        let Manifest::V1(ref mut v1) = manifest;
+        v1.file_metadata.pop();
+
+        assert!(rejection(manifest).contains("ends at checkpoint 10 but the manifest expects 20"));
+    }
 }
