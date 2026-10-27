@@ -454,16 +454,6 @@ impl IotaNode {
             ))
             .expect("Failed registering uptime metric");
 
-        // If genesis come with some migration data then load them into memory from the
-        // file path specified in config.
-        let migration_tx_data = if genesis.contains_migrations() {
-            // Here the load already verifies that the content of the migration blob is
-            // valid in respect to the content found in genesis
-            Some(config.load_migration_tx_data()?)
-        } else {
-            None
-        };
-
         remove_legacy_db_checkpoints(&config);
 
         let secret = Arc::pin(config.authority_key_pair().copy());
@@ -484,6 +474,7 @@ impl IotaNode {
         let is_genesis = perpetual_tables
             .database_is_empty()
             .expect("Database read should not fail at init.");
+
         let checkpoint_store = CheckpointStore::new_with_contents_cache(
             &config.db_path().join("checkpoints"),
             FullCheckpointContentsCache::new(
@@ -493,6 +484,23 @@ impl IotaNode {
                 FullCheckpointContentsCacheMetrics::new(&prometheus_registry),
             ),
         );
+
+        // The migration data is only needed to initialize an empty database and to
+        // execute the migration transactions, which are part of the genesis
+        // checkpoint. Loading it also leads to re-executing every migration
+        // transaction, so skip it once the genesis checkpoint has been executed.
+        let genesis_checkpoint_executed = checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()?
+            .is_some();
+        let migration_tx_data =
+            if genesis.contains_migrations() && (is_genesis || !genesis_checkpoint_executed) {
+                // Here the load already verifies that the content of the migration blob is
+                // valid in respect to the content found in genesis
+                Some(config.load_migration_tx_data()?)
+            } else {
+                None
+            };
+
         let chain = match config.chain_override_for_testing {
             Some(chain) => chain,
             None => chain_identifier.chain(),
