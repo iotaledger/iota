@@ -106,7 +106,7 @@ name = "iota-indexer"
 path = "src/main.rs"
 
 [package.metadata.cargo-udeps.ignore]
-development = ["simulacrum", "simulacrum-server"]
+development = ["rstest", "simulacrum", "simulacrum-server"]
 
 [lints]
 workspace = true
