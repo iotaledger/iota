@@ -77,8 +77,8 @@ pub struct MetricGroups {
     /// Modules: `iota_core::authority` (incl. the authority store and pruner),
     /// `iota_core::safe_client`, `iota_core::signature_verifier`,
     /// `iota_core::validator_client_monitor`. Also the `authority_grpc_*`
-    /// transport and connection metrics of the validator gRPC server. They
-    /// match by name prefix, because their modules are shared with other
+    /// transport, connection and request metrics of the validator gRPC server.
+    /// They match by name prefix, because their modules are shared with other
     /// groups: `iota_node::metrics` with the `epoch` group and
     /// `iota_http::metrics` with the `rpc` group.
     ///
@@ -113,9 +113,9 @@ pub struct MetricGroups {
     /// API servers and RPC-facing indexes.
     ///
     /// Modules: `iota_json_rpc`, `iota_grpc_server`, `iota_graphql_rpc`,
-    /// `iota_http` (the connection metrics of the JSON-RPC and gRPC API
-    /// listeners; those of the validator listener are `authority_grpc_*`, so
-    /// they belong to the `authority` group), `iota_core::jsonrpc_index`,
+    /// `iota_http` (the connection and request metrics of the JSON-RPC and gRPC
+    /// API listeners; those of the validator listener are `authority_grpc_*`,
+    /// so they belong to the `authority` group), `iota_core::jsonrpc_index`,
     /// `iota_core::subscription_handler`.
     pub rpc: MetricLevel,
     /// Epoch reconfiguration and protocol versioning.

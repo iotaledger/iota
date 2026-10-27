@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Measures the connections of one listener.
+//! Measures the connections and the requests of one listener.
 //!
 //! The listener wraps each socket it accepts in a `TrackedIo` and uses it for
 //! the whole life of the connection.
@@ -20,13 +20,16 @@ use prometheus_filtered::{
 
 mod connection;
 mod io;
+mod requests;
 mod scope;
 mod tls;
+mod track_requests;
 
-pub(crate) use connection::ConnectionGuard;
+pub(crate) use connection::{ConnectionGuard, ConnectionMetrics};
 pub(crate) use io::TrackedIo;
 use scope::Scope;
 pub(crate) use tls::HandshakeResult;
+pub(crate) use track_requests::TrackRequests;
 
 /// Connection lifetimes in seconds.
 const CONNECTION_LIFETIME_SEC_BUCKETS: &[f64] =
@@ -57,6 +60,7 @@ impl ListenerMetrics {
             registry: registry.clone(),
             level,
             metrics: Metrics::new(prefix, registry, level),
+            requests: requests::Metrics::new(prefix, registry, level),
             tls: OnceLock::new(),
         }))
     }
@@ -73,9 +77,9 @@ impl ListenerMetrics {
         });
     }
 
-    /// Counts a socket the listener has just accepted, before any TLS
-    /// handshake.
-    fn record_accept(&self, remote: SocketAddr) -> ConnectionGuard {
+    /// Tracks a socket the listener has just accepted, before any TLS
+    /// handshake, until the guard is dropped.
+    fn track_connection(&self, remote: SocketAddr) -> ConnectionGuard {
         let metrics = &self.0.metrics;
         let scope: &str = Scope::of(remote.ip()).into();
         metrics
@@ -92,6 +96,7 @@ struct Inner {
     registry: Registry,
     level: MetricLevel,
     metrics: Metrics,
+    requests: requests::Metrics,
     /// Registered when the listener starts with TLS.
     tls: OnceLock<Arc<tls::Metrics>>,
 }

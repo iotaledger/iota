@@ -9,7 +9,7 @@ pub use http;
 use http::{Request, Response};
 use hyper_util::service::TowerToHyperService;
 use io::ServerIo;
-use metrics::{HandshakeResult, TrackedIo};
+use metrics::{HandshakeResult, TrackRequests, TrackedIo};
 use tokio::task::JoinSet;
 use tokio_rustls::{TlsAcceptor, rustls};
 use tower::{Service, ServiceBuilder, ServiceExt};
@@ -310,7 +310,7 @@ where
         if let Some(tls) = self.tls_config.clone() {
             let tls_acceptor = TlsAcceptor::from(tls);
             let handshake_timeout = self.config.handshake_timeout;
-            let handshake_guard = io.connection().and_then(|c| c.record_handshake_start());
+            let handshake_guard = io.connection().and_then(|c| c.track_handshake());
             self.pending_connections.spawn(async move {
                 let result = tokio::select! {
                     result = handshake(io, remote_addr, tls_acceptor) => Some(result),
@@ -362,9 +362,11 @@ where
             remote_addr: *connection_info.remote_address(),
         };
         let peer_certificates = connection_info.peer_certificates().cloned();
+        let connection_metrics = io.connection().map(|connection| connection.metrics());
         let hyper_io = hyper_util::rt::TokioIo::new(io);
 
-        let hyper_svc = TowerToHyperService::new(self.service.clone().map_request(
+        let service = TrackRequests::new(self.service.clone(), connection_metrics);
+        let hyper_svc = TowerToHyperService::new(service.map_request(
             move |mut request: Request<hyper::body::Incoming>| {
                 request.extensions_mut().insert(connect_info.clone());
                 if let Some(peer_certificates) = peer_certificates.clone() {

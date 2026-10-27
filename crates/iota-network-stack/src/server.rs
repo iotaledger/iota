@@ -62,7 +62,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
         }
     }
 
-    /// Measures the connections of the listener. See
+    /// Measures the connections and the requests of the listener. See
     /// [`iota_http::Config::metrics`].
     pub fn listener_metrics(mut self, metrics: ListenerMetrics) -> Self {
         self.listener_metrics = Some(metrics);

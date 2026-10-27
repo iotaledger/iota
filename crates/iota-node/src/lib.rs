@@ -3106,6 +3106,13 @@ mod listener_metrics_tests {
         "connection_lifetime_seconds",
     ];
     const TLS_FAMILIES: &[&str] = &["handshake_latency", "pending_handshakes_peak"];
+    const REQUEST_FAMILIES: &[&str] = &[
+        "connection_idle_seconds",
+        "connection_inflight_requests",
+        "connection_inflight_requests_peak",
+        "request_completion_latency",
+        "response_delivery_latency",
+    ];
 
     /// `node_grpc_response_message_bytes` is not listed: it has a series per
     /// method, so it shows only once the gRPC API has sent a response.
@@ -3119,7 +3126,9 @@ mod listener_metrics_tests {
     /// Every family the listener of `prefix` registers, but not its TLS
     /// families.
     fn listener_families(prefix: &str) -> BTreeSet<String> {
-        prefix_names(prefix, CONNECTION_FAMILIES).collect()
+        prefix_names(prefix, CONNECTION_FAMILIES)
+            .chain(prefix_names(prefix, REQUEST_FAMILIES))
+            .collect()
     }
 
     /// Every family the three listeners register. Only the validator listener
