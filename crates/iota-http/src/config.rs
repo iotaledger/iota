@@ -332,8 +332,8 @@ impl Config {
         }
     }
 
-    /// Measures the connections of the listener. The measuring changes no
-    /// behaviour.
+    /// Measures the connections and the requests of the listener. The
+    /// measuring changes no behaviour.
     ///
     /// Default is no measuring (`None`).
     pub fn metrics(self, metrics: Option<ListenerMetrics>) -> Self {
