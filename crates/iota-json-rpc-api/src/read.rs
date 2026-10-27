@@ -32,6 +32,15 @@ pub trait ReadApi {
     ) -> RpcResult<bool>;
 
     /// Return the transaction response object.
+    /// The method will throw an error if the node does not have the
+    /// transaction, or its effects when they are needed for the requested
+    /// fields. A requested field that can't be loaded otherwise, such as
+    /// events or balance changes, is left out and the reason is added to
+    /// `errors`.
+    /// Balance and object changes are derived from the object versions the
+    /// transaction read, so they can only be returned while the node still
+    /// keeps those versions; by default, nodes keep past object versions for
+    /// fewer epochs than transactions.
     #[rustfmt::skip]
     #[method(name = "getTransactionBlock")]
     async fn get_transaction_block(
@@ -45,7 +54,16 @@ pub trait ReadApi {
 
     /// Returns an ordered list of transaction responses
     /// The method will throw an error if the input contains any duplicate or
-    /// the input size exceeds QUERY_MAX_RESULT_LIMIT
+    /// the input size exceeds QUERY_MAX_RESULT_LIMIT.
+    /// Data missing for one transaction does not fail the request: if the
+    /// node does not have a transaction or its effects, or a requested field
+    /// such as events or balance changes can't be loaded, the response for
+    /// that digest leaves out the affected fields and the reason is added to
+    /// its `errors`.
+    /// Balance and object changes are derived from the object versions the
+    /// transaction read, so they can only be returned while the node still
+    /// keeps those versions; by default, nodes keep past object versions for
+    /// fewer epochs than transactions.
     #[rustfmt::skip]
     #[method(name = "multiGetTransactionBlocks")]
     async fn multi_get_transaction_blocks(
