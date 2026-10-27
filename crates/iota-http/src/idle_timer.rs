@@ -109,6 +109,11 @@ impl IdleHandle {
             state: self.state.clone(),
         }
     }
+
+    /// Whether the task holds a guard right now.
+    pub fn is_busy(&self) -> bool {
+        self.state.lock().counter > 0
+    }
 }
 
 /// Counts its task as busy for as long as it is held. See [`idle_timeout`].
