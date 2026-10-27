@@ -31,7 +31,10 @@ mod io;
 mod listener;
 pub mod metrics;
 
-pub use config::{Config, PeerConnectionEvent};
+pub use config::{
+    Config, DEFAULT_HANDSHAKE_TIMEOUT, DEFAULT_HTTP1_HEADER_READ_TIMEOUT,
+    DEFAULT_MAX_PENDING_CONNECTIONS, PeerConnectionEvent,
+};
 pub use connection_info::{ConnectInfo, ConnectionId, ConnectionInfo, PeerCertificates};
 pub use listener::{Listener, ListenerExt};
 
