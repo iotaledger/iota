@@ -682,7 +682,12 @@ async fn multi_get_transaction_blocks() {
 /// empty entry indistinguishable from a found transaction.
 #[sim_test]
 async fn multi_get_transaction_blocks_marks_unknown_digests() {
-    let cluster = TestClusterBuilder::new().build().await;
+    // Balance changes of the known transaction read object versions that
+    // fullnode pruning may already have removed.
+    let cluster = TestClusterBuilder::new()
+        .disable_fullnode_pruning()
+        .build()
+        .await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
