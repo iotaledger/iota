@@ -19,11 +19,22 @@ use crate::{
     encoder::ShardEncoder,
     error::ConsensusResult,
     network::{
-        BlockBundleStream, FetchedCommitsAndTransactions, NetworkService, SerializedBlockBundle,
-        StreamPosition,
+        BlockBundleStream, ChunkStream, FetchedCommitsAndTransactions, NetworkService,
+        SerializedBlockBundle, StreamPosition,
+        tonic_network::{MAX_FETCH_RESPONSE_BYTES, chunk_data},
     },
     transaction_ref::TransactionRef,
 };
+
+/// Serves `entries` in messages of at most `MAX_FETCH_RESPONSE_BYTES` each.
+fn chunk_stream(entries: Vec<Bytes>) -> ChunkStream {
+    stream::iter(
+        chunk_data(entries, MAX_FETCH_RESPONSE_BYTES)
+            .into_iter()
+            .map(Ok),
+    )
+    .boxed()
+}
 
 /// Parks the bundle handler so a test can act while one bundle is in flight.
 #[derive(Clone)]
@@ -151,10 +162,10 @@ impl NetworkService for Mutex<TestService> {
         peer: AuthorityIndex,
         block_refs: Vec<BlockRef>,
         _highest_accepted_rounds: Vec<Round>,
-    ) -> ConsensusResult<Vec<Bytes>> {
+    ) -> ConsensusResult<ChunkStream> {
         let mut service = self.lock();
         service.handle_fetch_block_headers.push((peer, block_refs));
-        Ok(service.fetch_block_headers_response.clone())
+        Ok(chunk_stream(service.fetch_block_headers_response.clone()))
     }
 
     async fn handle_fetch_commits(
@@ -196,11 +207,11 @@ impl NetworkService for Mutex<TestService> {
         &self,
         peer: AuthorityIndex,
         transaction_refs: Vec<TransactionRef>,
-    ) -> ConsensusResult<Vec<Bytes>> {
+    ) -> ConsensusResult<ChunkStream> {
         let mut service = self.lock();
         service
             .handle_fetch_transactions
             .push((peer, transaction_refs));
-        Ok(service.fetch_transactions_response.clone())
+        Ok(chunk_stream(service.fetch_transactions_response.clone()))
     }
 }
