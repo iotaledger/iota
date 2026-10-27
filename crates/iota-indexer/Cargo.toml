@@ -84,6 +84,7 @@ shared_test_runtime = ["dep:rand"]
 # external dependencies
 hex.workspace = true
 rand.workspace = true
+rstest.workspace = true
 
 # internal dependencies
 iota-common.workspace = true

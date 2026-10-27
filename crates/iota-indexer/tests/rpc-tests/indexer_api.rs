@@ -17,7 +17,7 @@ use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockData,
     IotaTransactionBlockKind, IotaTransactionBlockResponseOptions,
     IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, IotaTransactionKind,
-    ObjectsPage, TransactionFilter, TransactionFilterV2,
+    MAX_FILTER_NODES, ObjectsPage, TransactionFilter, TransactionFilterV2,
 };
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
@@ -33,8 +33,9 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
-use jsonrpsee::http_client::HttpClient;
+use jsonrpsee::{core::ClientError, http_client::HttpClient, types::error::INVALID_PARAMS_CODE};
 use move_core_types::annotated_value::MoveValue;
+use rstest::rstest;
 
 use crate::{
     coin_api::execute_move_call,
@@ -854,6 +855,73 @@ fn test_get_owned_objects() -> Result<(), anyhow::Error> {
         assert_eq!(5, objects.data.len());
 
         Ok(())
+    })
+}
+
+/// Returns `count` copies of the same struct type filter.
+fn struct_type_terms(count: usize) -> Vec<IotaObjectDataFilter> {
+    let struct_tag = StructTag::from_str("0x2::coin::Coin").expect("valid struct tag");
+    vec![IotaObjectDataFilter::StructType(struct_tag); count]
+}
+
+/// The combining filter counts as one node, so the largest accepted filter has
+/// `MAX_FILTER_NODES - 1` terms.
+#[rstest]
+#[case::match_any(IotaObjectDataFilter::MatchAny(struct_type_terms(MAX_FILTER_NODES - 1)))]
+#[case::match_none(IotaObjectDataFilter::MatchNone(struct_type_terms(MAX_FILTER_NODES - 1)))]
+fn get_owned_objects_filter_passes(#[case] filter: IotaObjectDataFilter) {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        client
+            .get_owned_objects(
+                cluster.get_address_0(),
+                Some(IotaObjectResponseQuery::new_with_filter(filter)),
+                None,
+                None,
+            )
+            .await
+            .expect("a filter within the node limit must succeed");
+    })
+}
+
+#[rstest]
+#[case::match_any(IotaObjectDataFilter::MatchAny(struct_type_terms(MAX_FILTER_NODES)))]
+#[case::match_none(IotaObjectDataFilter::MatchNone(struct_type_terms(MAX_FILTER_NODES)))]
+fn get_owned_objects_filter_rejected(#[case] filter: IotaObjectDataFilter) {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let result = client
+            .get_owned_objects(
+                cluster.get_address_0(),
+                Some(IotaObjectResponseQuery::new_with_filter(filter)),
+                None,
+                None,
+            )
+            .await;
+        let Err(ClientError::Call(error)) = result else {
+            panic!("expected a call error, got {result:?}");
+        };
+        assert_eq!(error.code(), INVALID_PARAMS_CODE);
+        assert_eq!(
+            error.message(),
+            format!("invalid object filter: filter exceeds the limit of {MAX_FILTER_NODES} nodes")
+        );
     })
 }
 
