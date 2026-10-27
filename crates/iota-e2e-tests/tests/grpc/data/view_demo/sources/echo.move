@@ -34,6 +34,18 @@ module view_demo::echo {
     #[view]
     public fun echo_pair(x: Pair): Pair { x }
 
+    /// Returns `copies` copies of `x`: a small call with a large result.
+    #[view]
+    public fun repeat_bytes(x: vector<u8>, copies: u64): vector<vector<u8>> {
+        let mut out = vector[];
+        let mut i = 0;
+        while (i < copies) {
+            out.push_back(x);
+            i = i + 1;
+        };
+        out
+    }
+
     /// Always aborts: exercises the execution-error output path.
     #[view]
     public fun always_aborts(): u64 { abort 7 }

@@ -84,7 +84,8 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         .map_err(tonic::Status::from)?;
         // Each batch item is invisible to the transport-level traffic control:
         // account for every item so a batch is charged per item, and its
-        // embedded per-item errors feed the error policy.
+        // embedded per-item errors feed the error policy. Tally before the
+        // size check: it returns early, and the items are already processed.
         if let Some(tally_handle) = &tally_handle {
             tally_handle.tally_items(response.get_ref().transaction_results.iter().map(|result| {
                 match &result.result {
@@ -95,6 +96,11 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
                 }
             }));
         }
+        check_response_size(
+            response.get_ref(),
+            self.config.max_message_size_bytes(),
+            "; the transactions were executed",
+        )?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 
@@ -114,7 +120,8 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         .map_err(tonic::Status::from)?;
         // Each batch item is invisible to the transport-level traffic control:
         // account for every item so a batch is charged per item, and its
-        // embedded per-item errors feed the error policy.
+        // embedded per-item errors feed the error policy. Tally before the
+        // size check: it returns early, and the items are already processed.
         if let Some(tally_handle) = &tally_handle {
             tally_handle.tally_items(response.get_ref().transaction_results.iter().map(|result| {
                 match &result.result {
@@ -125,6 +132,7 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
                 }
             }));
         }
+        check_response_size(response.get_ref(), self.config.max_message_size_bytes(), "")?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 
@@ -145,7 +153,8 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         .map_err(tonic::Status::from)?;
         // Each batch item is invisible to the transport-level traffic control:
         // account for every item so a batch is charged per item, and its
-        // embedded per-item errors feed the error policy.
+        // embedded per-item errors feed the error policy. Tally before the
+        // size check: it returns early, and the items are already processed.
         if let Some(tally_handle) = &tally_handle {
             tally_handle.tally_items(response.get_ref().call_results.iter().map(|result| {
                 match &result.result {
@@ -156,8 +165,27 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
                 }
             }));
         }
+        check_response_size(response.get_ref(), self.config.max_message_size_bytes(), "")?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }
+}
+
+/// Returns `OutOfRange` if the encoded size of `response` is larger than
+/// `max_message_size_bytes`. tonic checks the size only when it encodes the
+/// response, after the handler has returned it; a client that does not read
+/// then keeps it in memory. `context` is appended to the error message.
+fn check_response_size<T: prost::Message>(
+    response: &T,
+    max_message_size_bytes: u32,
+    context: &str,
+) -> Result<(), tonic::Status> {
+    let encoded_len = response.encoded_len();
+    if encoded_len > max_message_size_bytes as usize {
+        return Err(tonic::Status::out_of_range(format!(
+            "response size ({encoded_len} bytes) exceeds max message size ({max_message_size_bytes} bytes){context}"
+        )));
+    }
+    Ok(())
 }
 
 // === Shared helpers for execute and simulate ===
@@ -776,4 +804,34 @@ async fn execute_single_transaction(
         .map_err(|e| e.with_context("failed to merge executed transaction"))?;
 
     Ok((digest, executed, rebuild_ctx))
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_grpc_types::v1::bcs::BcsData;
+    use prost::Message;
+
+    use super::*;
+
+    /// `BcsData { bytes data = 1; }` encodes as a 1-byte tag, a 1-byte length
+    /// (for lengths under 128), and the data itself.
+    fn bcs_data_of_encoded_len(encoded_len: usize) -> BcsData {
+        BcsData::default().with_data(vec![0u8; encoded_len - 2])
+    }
+
+    #[test]
+    fn check_response_size_allows_exactly_the_max() {
+        let max = 100u32;
+        let response = bcs_data_of_encoded_len(max as usize);
+        assert_eq!(response.encoded_len(), max as usize);
+        assert!(check_response_size(&response, max, "").is_ok());
+    }
+
+    #[test]
+    fn check_response_size_rejects_one_byte_over_the_max() {
+        let max = 100u32;
+        let response = bcs_data_of_encoded_len(max as usize + 1);
+        assert_eq!(response.encoded_len(), max as usize + 1);
+        assert!(check_response_size(&response, max, "").is_err());
+    }
 }
