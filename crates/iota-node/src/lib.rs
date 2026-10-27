@@ -25,11 +25,18 @@ use futures::future::BoxFuture;
 pub use handle::IotaNodeHandle;
 use iota_common::{debug_fatal, fatal};
 use iota_config::{
-    ConsensusConfig, NodeConfig, node::RunWithRange, node_config_metrics::NodeConfigMetrics,
+    ConsensusConfig, NodeConfig,
+    genesis::Genesis,
+    migration_tx_data::MigrationTxData,
+    node::{GrpcApiConfig, RunWithRange},
+    node_config_metrics::NodeConfigMetrics,
+    object_storage_config::ObjectStoreConfig,
+    p2p::P2pConfig,
 };
 use iota_core::{
     authority::{
         AuthorityState, AuthorityStore, ExecutionEnv, RandomnessRoundReceiver,
+        StableSyncAuthoritySigner,
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
         backpressure::BackpressureManager,
@@ -62,8 +69,8 @@ use iota_core::{
         epoch_metrics::EpochMetrics, randomness::RandomnessManager,
         reconfiguration::ReconfigurationInitiator,
     },
-    epoch_end_db_snapshot::{EpochEndDbSnapshotHandle, EpochEndDbSnapshotRequest},
-    execution_cache::build_execution_cache,
+    epoch_end_db_snapshot::EpochEndDbSnapshotHandle,
+    execution_cache::{ExecutionCacheTraitPointers, build_execution_cache},
     execution_scheduler::ExecutionSchedulerAPI,
     global_state_hasher::{GlobalStateHashMetrics, GlobalStateHasher},
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
@@ -177,6 +184,171 @@ pub struct ValidatorComponents {
     checkpoint_metrics: Arc<CheckpointMetrics>,
     iota_tx_validator_metrics: Arc<IotaTxValidatorMetrics>,
     validator_registry_id: RegistryID,
+}
+
+/// The stores a node opens at start, the execution cache over them, and the
+/// backpressure manager the cache is built with.
+struct NodeStores {
+    committee_store: Arc<CommitteeStore>,
+    perpetual_tables: Arc<AuthorityPerpetualTables>,
+    checkpoint_store: Arc<CheckpointStore>,
+    store: Arc<AuthorityStore>,
+    cache_traits: ExecutionCacheTraitPointers,
+    backpressure_manager: Arc<BackpressureManager>,
+    /// Whether the database was empty before the node opened it, which is
+    /// the case only at genesis.
+    is_genesis: bool,
+}
+
+impl NodeStores {
+    /// Opens the stores in the database directory of `config`, and writes
+    /// genesis into them when the database is empty.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the database cannot be read or written.
+    async fn open(
+        config: &NodeConfig,
+        genesis: &Genesis,
+        migration_tx_data: Option<&MigrationTxData>,
+        prometheus_registry: &Registry,
+    ) -> Result<Self> {
+        let genesis_committee = genesis.committee()?;
+        let committee_store = Arc::new(CommitteeStore::new(
+            config.db_path().join("epochs"),
+            &genesis_committee,
+            None,
+        ));
+
+        // By default, only enable write stall on validators for perpetual db.
+        let enable_write_stall = config
+            .enable_db_write_stall
+            .unwrap_or(config.is_validator());
+        let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
+        let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
+            &config.db_path().join("store"),
+            Some(perpetual_tables_options),
+        ));
+        let is_genesis = perpetual_tables
+            .database_is_empty()
+            .expect("Database read should not fail at init.");
+        let checkpoint_store = CheckpointStore::new_with_contents_cache(
+            &config.db_path().join("checkpoints"),
+            FullCheckpointContentsCache::new(
+                config
+                    .full_checkpoint_contents_cache_size_mb
+                    .saturating_mul(1024 * 1024),
+                FullCheckpointContentsCacheMetrics::new(prometheus_registry),
+            ),
+        );
+        let backpressure_manager =
+            BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
+
+        let store = AuthorityStore::open(
+            perpetual_tables.clone(),
+            genesis,
+            config,
+            prometheus_registry,
+            migration_tx_data,
+        )
+        .await?;
+
+        let cache_traits = build_execution_cache(
+            &config.execution_cache_config,
+            prometheus_registry,
+            &store,
+            backpressure_manager.clone(),
+        );
+
+        Ok(Self {
+            committee_store,
+            perpetual_tables,
+            checkpoint_store,
+            store,
+            cache_traits,
+            backpressure_manager,
+            is_genesis,
+        })
+    }
+
+    /// Opens the store of the epoch the node starts in.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the database has no committee or no start configuration for
+    /// that epoch, or if the checkpoint store cannot be read.
+    fn open_epoch_store(
+        &self,
+        config: &NodeConfig,
+        chain_identifier: ChainIdentifier,
+        prometheus_registry: &Registry,
+    ) -> Result<Arc<AuthorityPerEpochStore>> {
+        let cur_epoch = self.store.get_recovery_epoch_at_restart()?;
+        let committee = self
+            .committee_store
+            .get_committee(&cur_epoch)?
+            .expect("Committee of the current epoch must exist");
+        let epoch_start_configuration = self
+            .store
+            .get_epoch_start_configuration()?
+            .expect("EpochStartConfiguration of the current epoch must exist");
+        let cache_metrics = Arc::new(ResolverMetrics::new(prometheus_registry));
+        let signature_verifier_metrics = SignatureVerifierMetrics::new(prometheus_registry);
+        let chain = match config.chain_override_for_testing {
+            Some(chain) => chain,
+            None => chain_identifier.chain(),
+        };
+
+        let epoch_options = default_db_options().optimize_db_for_write_throughput(4);
+        let epoch_store = AuthorityPerEpochStore::new(
+            config.authority_public_key(),
+            committee,
+            &config.db_path().join("store"),
+            Some(epoch_options.options),
+            EpochMetrics::new(prometheus_registry),
+            epoch_start_configuration,
+            self.cache_traits.backing_package_store.clone(),
+            cache_metrics,
+            signature_verifier_metrics,
+            &config.expensive_safety_check_config,
+            (chain_identifier, chain),
+            self.checkpoint_store
+                .get_highest_executed_checkpoint_seq_number()
+                .expect("checkpoint store read cannot fail")
+                .unwrap_or(0),
+        )?;
+
+        info!("created epoch store");
+        Ok(epoch_store)
+    }
+}
+
+/// The p2p network of a node, the handles of the services that run on it, the
+/// ends of the channels between the node and these services, and the flag that
+/// the node sets for state sync.
+struct P2pComponents {
+    p2p_network: Network,
+    discovery_handle: discovery::Handle,
+    state_sync_handle: state_sync::Handle,
+    randomness_handle: randomness::Handle,
+    /// Sends the trusted peers of each epoch to discovery.
+    trusted_peer_change_tx: watch::Sender<TrustedPeerChangeEvent>,
+    /// Receives the randomness that the randomness service generates.
+    randomness_rx: mpsc::Receiver<(EpochId, RandomnessRound, Vec<u8>)>,
+    /// Lets state sync fetch summaries to the end of the epoch being
+    /// executed.
+    sync_summaries_to_epoch_end: Arc<AtomicBool>,
+}
+
+/// The stores that the services of a node use besides `NodeStores`.
+struct ServiceStores {
+    /// The store through which state sync, the gRPC API and the ledger client
+    /// use the database.
+    state_sync_store: RocksDbStore,
+    /// The JSON-RPC indexes, on a fullnode with index processing on.
+    index_store: Option<Arc<IndexStore>>,
+    /// The gRPC API indexes, on a node that serves the gRPC API.
+    grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
 }
 
 #[cfg(msim)]
@@ -377,24 +549,69 @@ impl IotaNode {
     }
 
     pub async fn start_async(
-        mut config: NodeConfig,
+        config: NodeConfig,
         registry_service: RegistryService,
         server_version: ServerVersion,
         serving_rt_handle: tokio::runtime::Handle,
     ) -> Result<Arc<IotaNode>> {
-        config.validate()?;
+        let config = Self::prepare_config(config)?;
         NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
-        if config.supported_protocol_versions.is_none() {
-            info!(
-                "populating config.supported_protocol_versions with default {:?}",
-                SupportedProtocolVersions::SYSTEM_DEFAULT
-            );
-            config.supported_protocol_versions = Some(SupportedProtocolVersions::SYSTEM_DEFAULT);
+        let is_full_node = !config.is_validator();
+        // Validators do not expose gRPC APIs. This must agree with the gRPC
+        // rule in `NodeConfig::validate`, which is what makes the `expect`
+        // unreachable.
+        let grpc_api_config = (is_full_node && config.enable_grpc_api).then(|| {
+            config
+                .grpc_api_config
+                .clone()
+                .expect("`NodeConfig::validate` rejects an enabled gRPC API without a config")
+        });
+
+        let (mut node, epoch_store) = Self::create_node(
+            config,
+            grpc_api_config.is_some(),
+            registry_service,
+            &server_version,
+            serving_rt_handle,
+        )
+        .await?;
+
+        if is_full_node {
+            node.start_fullnode_services(grpc_api_config, server_version)
+                .await?;
         }
 
-        let run_with_range = config.run_with_range;
-        let is_validator = config.is_validator();
-        let is_full_node = !is_validator;
+        if node.state.is_committee_validator(&epoch_store) {
+            node.start_validator_components(&epoch_store).await?;
+        }
+
+        Ok(node.start_background_tasks(epoch_store))
+    }
+
+    /// Creates the node with the parts that every node runs: the database, the
+    /// p2p network and its services, the authority state and the tasks over
+    /// it. The authority state also gets the index store if `config` is a
+    /// fullnode config with index processing on, and the gRPC indexes if
+    /// `serves_grpc_api`. The snapshot uploader starts if `config` sets an
+    /// object store for it. The fields that `start_fullnode_services` and
+    /// `start_validator_components` fill are empty. Returns the node and the
+    /// store of the epoch it starts in.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the database is marked as corrupted or its status cannot be
+    /// read or written, if a key file of `config` is invalid, if
+    /// `registry_service` already has a metric that the node registers, if
+    /// `config` has no supported protocol versions (`prepare_config` fills them
+    /// in), if the `epoch_info` row cannot be written, and in the cases that
+    /// the functions it calls document.
+    async fn create_node(
+        config: NodeConfig,
+        serves_grpc_api: bool,
+        registry_service: RegistryService,
+        server_version: &ServerVersion,
+        serving_rt_handle: tokio::runtime::Handle,
+    ) -> Result<(Self, Arc<AuthorityPerEpochStore>)> {
         let prometheus_registry = registry_service.default_registry();
 
         info!(node =? config.authority_public_key(),
@@ -412,47 +629,18 @@ impl IotaNode {
             panic!("Failed to check database corruption: {err}");
         }
 
-        // Initialize metrics to track db usage before creating any stores
-        DBMetrics::init(&prometheus_registry);
-
-        // Initialize IOTA metrics.
-        iota_metrics::init_metrics(&prometheus_registry);
+        // Before any store is created, so that the DB metrics are registered in
+        // this registry.
+        Self::init_metrics(
+            &config,
+            &prometheus_registry,
+            server_version,
+            chain_identifier,
+        );
         // Unsupported (because of the use of static variable) and unnecessary in
-        // simtests.
+        // simtests, where tokio runs under the deterministic simulator.
         #[cfg(not(msim))]
-        iota_metrics::thread_stall_monitor::start_thread_stall_monitor();
-
-        // Monitor the node-core and serving runtimes so that worker-thread
-        // starvation between them is observable. Gated out of simtests, where
-        // tokio runs under the deterministic simulator.
-        #[cfg(not(msim))]
-        {
-            let runtime_monitor_metrics =
-                iota_metrics::runtime_metrics::RuntimeMonitorMetrics::new(&prometheus_registry);
-            iota_metrics::runtime_metrics::start_runtime_monitor(
-                "iota_node",
-                &tokio::runtime::Handle::current(),
-                runtime_monitor_metrics.clone(),
-            );
-            iota_metrics::runtime_metrics::start_runtime_monitor(
-                "serving",
-                &serving_rt_handle,
-                runtime_monitor_metrics,
-            );
-        }
-
-        // Register uptime metric
-        prometheus_registry
-            .register(iota_metrics::uptime_metric(
-                if is_validator {
-                    "validator"
-                } else {
-                    "fullnode"
-                },
-                server_version.version,
-                &chain_identifier.to_string(),
-            ))
-            .expect("Failed registering uptime metric");
+        Self::start_runtime_monitors(&prometheus_registry, &serving_rt_handle);
 
         // If genesis come with some migration data then load them into memory from the
         // file path specified in config.
@@ -467,111 +655,22 @@ impl IotaNode {
         remove_legacy_db_checkpoints(&config);
 
         let secret = Arc::pin(config.authority_key_pair().copy());
-        let genesis_committee = genesis.committee()?;
-        let committee_store = Arc::new(CommitteeStore::new(
-            config.db_path().join("epochs"),
-            &genesis_committee,
-            None,
-        ));
-
-        // By default, only enable write stall on validators for perpetual db.
-        let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
-        let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
-        let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
-            &config.db_path().join("store"),
-            Some(perpetual_tables_options),
-        ));
-        let is_genesis = perpetual_tables
-            .database_is_empty()
-            .expect("Database read should not fail at init.");
-        let checkpoint_store = CheckpointStore::new_with_contents_cache(
-            &config.db_path().join("checkpoints"),
-            FullCheckpointContentsCache::new(
-                config
-                    .full_checkpoint_contents_cache_size_mb
-                    .saturating_mul(1024 * 1024),
-                FullCheckpointContentsCacheMetrics::new(&prometheus_registry),
-            ),
-        );
-        let chain = match config.chain_override_for_testing {
-            Some(chain) => chain,
-            None => chain_identifier.chain(),
-        };
-        let backpressure_manager =
-            BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
-
-        let perpetual_tables_for_progress = perpetual_tables.clone();
-        let perpetual_tables_for_snapshots = perpetual_tables.clone();
-        let perpetual_tables_for_synced_watermark = perpetual_tables.clone();
-        let store = AuthorityStore::open(
-            perpetual_tables,
-            &genesis,
+        let (stores, epoch_store) = Self::open_database(
             &config,
-            &prometheus_registry,
+            &genesis,
             migration_tx_data.as_ref(),
+            chain_identifier,
+            &prometheus_registry,
         )
         .await?;
-
-        let cur_epoch = store.get_recovery_epoch_at_restart()?;
-        let committee = committee_store
-            .get_committee(&cur_epoch)?
-            .expect("Committee of the current epoch must exist");
-        let epoch_start_configuration = store
-            .get_epoch_start_configuration()?
-            .expect("EpochStartConfiguration of the current epoch must exist");
-        let cache_metrics = Arc::new(ResolverMetrics::new(&prometheus_registry));
-        let signature_verifier_metrics = SignatureVerifierMetrics::new(&prometheus_registry);
-
-        let cache_traits = build_execution_cache(
-            &config.execution_cache_config,
+        let auth_agg = Self::create_authority_aggregator(
+            &epoch_store,
+            &stores.committee_store,
             &prometheus_registry,
-            &store,
-            backpressure_manager.clone(),
         );
 
-        let auth_agg = {
-            let safe_client_metrics_base = SafeClientMetricsBase::new(&prometheus_registry);
-            let auth_agg_metrics = Arc::new(AuthAggMetrics::new(&prometheus_registry));
-            Arc::new(ArcSwap::new(Arc::new(
-                AuthorityAggregator::new_from_epoch_start_state(
-                    epoch_start_configuration.epoch_start_state(),
-                    &committee_store,
-                    safe_client_metrics_base,
-                    auth_agg_metrics,
-                ),
-            )))
-        };
-
-        let epoch_options = default_db_options().optimize_db_for_write_throughput(4);
-        let epoch_store = AuthorityPerEpochStore::new(
-            config.authority_public_key(),
-            committee.clone(),
-            &config.db_path().join("store"),
-            Some(epoch_options.options),
-            EpochMetrics::new(&registry_service.default_registry()),
-            epoch_start_configuration,
-            cache_traits.backing_package_store.clone(),
-            cache_metrics,
-            signature_verifier_metrics,
-            &config.expensive_safety_check_config,
-            (chain_identifier, chain),
-            checkpoint_store
-                .get_highest_executed_checkpoint_seq_number()
-                .expect("checkpoint store read cannot fail")
-                .unwrap_or(0),
-        )?;
-
-        info!("created epoch store");
-        // As at an epoch change; must come before anything marks a checkpoint
-        // synced.
-        if epoch_store.protocol_config().enable_pcool_flow()
-            && epoch_store
-                .committee()
-                .authority_exists(&config.authority_public_key())
-        {
-            checkpoint_store
-                .hold_synced_watermark_in_memory(perpetual_tables_for_synced_watermark.clone())?;
-        }
+        // Database has everything from genesis, set corrupted key to 0
+        unmark_db_corruption(db_corrupted_path)?;
 
         replay_log!(
             "Beginning replay run. Epoch: {:?}, Protocol config: {:?}",
@@ -579,19 +678,283 @@ impl IotaNode {
             epoch_store.protocol_config()
         );
 
-        // the database is empty at genesis time
-        if is_genesis {
-            info!("checking IOTA conservation at genesis");
-            // When we are opening the db table, the only time when it's safe to
-            // check IOTA conservation is at genesis. Otherwise we may be in the middle of
-            // an epoch and the IOTA conservation check will fail. This also initialize
-            // the expected_network_iota_amount table.
-            cache_traits
-                .reconfig_api
-                .try_expensive_check_iota_conservation(&epoch_store, None)
-                .expect("IOTA conservation check cannot fail at genesis");
+        let ServiceStores {
+            state_sync_store,
+            index_store,
+            grpc_indexes_store,
+        } = Self::prepare_database_for_services(
+            &config,
+            serves_grpc_api,
+            &stores,
+            &epoch_store,
+            chain_identifier,
+            &prometheus_registry,
+        )
+        .await;
+
+        info!("creating archive reader");
+        // Create network
+        // TODO only configure validators as seed/preferred peers for validators and not
+        // for fullnodes once we've had a chance to re-work fullnode
+        // configuration generation.
+        let P2pComponents {
+            p2p_network,
+            discovery_handle,
+            state_sync_handle,
+            randomness_handle,
+            trusted_peer_change_tx,
+            randomness_rx,
+            sync_summaries_to_epoch_end,
+        } = Self::create_p2p_network(
+            &config,
+            &epoch_store,
+            state_sync_store.clone(),
+            chain_identifier,
+            &prometheus_registry,
+        )?;
+
+        info!("start snapshot upload");
+        let (state_snapshot_handle, epoch_end_db_snapshots) = config
+            .state_snapshot_write_config
+            .object_store_config
+            .as_ref()
+            .map(|remote_store_config| {
+                Self::start_state_snapshot(
+                    &config,
+                    remote_store_config,
+                    &prometheus_registry,
+                    &stores,
+                )
+            })
+            .transpose()?
+            .unzip();
+
+        let checkpoint_progress_tracker = Arc::new(CheckpointProgressTracker::new());
+        let state = Self::create_authority_state(
+            &config,
+            secret,
+            &stores,
+            &epoch_store,
+            &genesis,
+            migration_tx_data,
+            chain_identifier,
+            index_store,
+            grpc_indexes_store,
+            &auth_agg,
+            checkpoint_progress_tracker.clone(),
+            epoch_end_db_snapshots,
+            &prometheus_registry,
+        )
+        .await;
+
+        // Start the loop that receives new randomness and generates transactions for
+        // it.
+        RandomnessRoundReceiver::spawn(state.clone(), randomness_rx);
+
+        let (end_of_epoch_channel, _) =
+            broadcast::channel(config.end_of_epoch_broadcast_channel_capacity);
+        let global_state_hasher = Arc::new(GlobalStateHasher::new(
+            stores.cache_traits.global_state_hash_store.clone(),
+            GlobalStateHashMetrics::new(&prometheus_registry),
+        ));
+        let connection_monitor_status =
+            Self::start_connection_monitor(&p2p_network, &epoch_store, &prometheus_registry);
+        let iota_node_metrics = Self::create_iota_node_metrics(
+            config.supported_protocol_versions.unwrap().max,
+            &prometheus_registry,
+        );
+
+        // setup shutdown channel
+        let (shutdown_channel, _) = broadcast::channel::<Option<RunWithRange>>(1);
+
+        let node = Self {
+            config,
+            validator_components: Mutex::new(None),
+            _http_server: None,
+            state,
+            transaction_orchestrator: None,
+            registry_service,
+            metrics: iota_node_metrics,
+
+            _discovery: discovery_handle,
+            state_sync_handle,
+            randomness_handle,
+            sync_summaries_to_epoch_end,
+            checkpoint_store: stores.checkpoint_store,
+            perpetual_tables: stores.perpetual_tables,
+            state_sync_store,
+            global_state_hasher: Mutex::new(Some(global_state_hasher)),
+            end_of_epoch_channel,
+            connection_monitor_status,
+            trusted_peer_change_tx,
+            backpressure_manager: stores.backpressure_manager,
+            checkpoint_progress_tracker: checkpoint_progress_tracker.clone(),
+
+            #[cfg(msim)]
+            sim_state: Default::default(),
+
+            _state_snapshot_uploader_handle: state_snapshot_handle,
+            shutdown_channel_tx: shutdown_channel,
+
+            grpc_server_handle: Mutex::new(None),
+
+            auth_agg,
+
+            serving_rt_handle,
+        };
+
+        Ok((node, epoch_store))
+    }
+
+    /// Starts the tasks that run for the life of the node: the reconfiguration
+    /// at each epoch change, and the log of checkpoint progress.
+    fn start_background_tasks(self, epoch_store: Arc<AuthorityPerEpochStore>) -> Arc<Self> {
+        info!("IotaNode started!");
+        let node = Arc::new(self);
+        let node_copy = node.clone();
+        spawn_monitored_task!(async move {
+            let result = Self::monitor_reconfiguration(node_copy, epoch_store).await;
+            if let Err(error) = result {
+                warn!("Reconfiguration finished with error {:?}", error);
+            }
+        });
+
+        node.checkpoint_progress_tracker
+            .spawn_logging_task(node.checkpoint_store.clone(), node.perpetual_tables.clone());
+
+        node
+    }
+
+    /// Validates `config` and fills in the supported protocol versions if it
+    /// leaves them out.
+    fn prepare_config(mut config: NodeConfig) -> Result<NodeConfig> {
+        config.validate()?;
+        if config.supported_protocol_versions.is_none() {
+            info!(
+                "populating config.supported_protocol_versions with default {:?}",
+                SupportedProtocolVersions::SYSTEM_DEFAULT
+            );
+            config.supported_protocol_versions = Some(SupportedProtocolVersions::SYSTEM_DEFAULT);
+        }
+        Ok(config)
+    }
+
+    /// Registers the database, IOTA and uptime metrics of the node.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `prometheus_registry` already has any of these metrics.
+    fn init_metrics(
+        config: &NodeConfig,
+        prometheus_registry: &Registry,
+        server_version: &ServerVersion,
+        chain_identifier: ChainIdentifier,
+    ) {
+        DBMetrics::init(prometheus_registry);
+        // Initialize IOTA metrics.
+        iota_metrics::init_metrics(prometheus_registry);
+        Self::register_uptime_metric(
+            prometheus_registry,
+            config.is_validator(),
+            server_version,
+            chain_identifier,
+        );
+    }
+
+    /// # Panics
+    ///
+    /// Panics if `prometheus_registry` already has an uptime metric.
+    fn register_uptime_metric(
+        prometheus_registry: &Registry,
+        is_validator: bool,
+        server_version: &ServerVersion,
+        chain_identifier: ChainIdentifier,
+    ) {
+        prometheus_registry
+            .register(iota_metrics::uptime_metric(
+                if is_validator {
+                    "validator"
+                } else {
+                    "fullnode"
+                },
+                server_version.version,
+                &chain_identifier.to_string(),
+            ))
+            .expect("Failed registering uptime metric");
+    }
+
+    /// Starts the monitors of thread stalls and of the node-core and serving
+    /// runtimes.
+    #[cfg(not(msim))]
+    fn start_runtime_monitors(
+        prometheus_registry: &Registry,
+        serving_rt_handle: &tokio::runtime::Handle,
+    ) {
+        iota_metrics::thread_stall_monitor::start_thread_stall_monitor();
+
+        // Monitor the node-core and serving runtimes so that worker-thread
+        // starvation between them is observable.
+        let runtime_monitor_metrics =
+            iota_metrics::runtime_metrics::RuntimeMonitorMetrics::new(prometheus_registry);
+        iota_metrics::runtime_metrics::start_runtime_monitor(
+            "iota_node",
+            &tokio::runtime::Handle::current(),
+            runtime_monitor_metrics.clone(),
+        );
+        iota_metrics::runtime_metrics::start_runtime_monitor(
+            "serving",
+            serving_rt_handle,
+            runtime_monitor_metrics,
+        );
+    }
+
+    /// Opens the stores of the node and the store of the epoch it starts in,
+    /// and writes genesis into them when the database is empty.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the database cannot be read or written, if it has no committee
+    /// or no start configuration for the epoch to start in, or if the IOTA
+    /// conservation check fails on an empty database.
+    async fn open_database(
+        config: &NodeConfig,
+        genesis: &Genesis,
+        migration_tx_data: Option<&MigrationTxData>,
+        chain_identifier: ChainIdentifier,
+        prometheus_registry: &Registry,
+    ) -> Result<(NodeStores, Arc<AuthorityPerEpochStore>)> {
+        let stores =
+            NodeStores::open(config, genesis, migration_tx_data, prometheus_registry).await?;
+        let epoch_store = stores.open_epoch_store(config, chain_identifier, prometheus_registry)?;
+        // As at an epoch change; must come before anything marks a checkpoint
+        // synced.
+        if epoch_store.protocol_config().enable_pcool_flow()
+            && epoch_store
+                .committee()
+                .authority_exists(&config.authority_public_key())
+        {
+            stores
+                .checkpoint_store
+                .hold_synced_watermark_in_memory(stores.perpetual_tables.clone())?;
         }
 
+        // the database is empty at genesis time
+        if stores.is_genesis {
+            Self::check_iota_conservation_at_genesis(&stores.cache_traits, &epoch_store);
+        }
+
+        Self::warn_if_buffer_stake_is_overridden(&epoch_store);
+
+        stores.checkpoint_store.insert_genesis_checkpoint(
+            genesis.checkpoint(),
+            genesis.checkpoint_contents().clone(),
+            &epoch_store,
+        );
+
+        Ok((stores, epoch_store))
+    }
+
+    fn warn_if_buffer_stake_is_overridden(epoch_store: &AuthorityPerEpochStore) {
         let effective_buffer_stake = epoch_store.get_effective_buffer_stake_bps();
         let default_buffer_stake = epoch_store
             .protocol_config()
@@ -603,109 +966,156 @@ impl IotaNode {
                 "buffer_stake_for_protocol_upgrade_bps is currently overridden"
             );
         }
+    }
 
-        checkpoint_store.insert_genesis_checkpoint(
-            genesis.checkpoint(),
-            genesis.checkpoint_contents().clone(),
-            &epoch_store,
-        );
+    /// Checks that the total IOTA amount is as expected, and saves the total
+    /// IOTA supply and the expected storage fund imbalance. Does nothing if the
+    /// config turns the check off.
+    /// Call it only on a database that holds just genesis.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the check fails.
+    fn check_iota_conservation_at_genesis(
+        cache_traits: &ExecutionCacheTraitPointers,
+        epoch_store: &AuthorityPerEpochStore,
+    ) {
+        info!("checking IOTA conservation at genesis");
+        // When we are opening the db table, the only time when it's safe to
+        // check IOTA conservation is at genesis. Otherwise we may be in the middle of
+        // an epoch and the IOTA conservation check will fail. This also initialize
+        // the total_iota_supply and expected_storage_fund_imbalance tables.
+        cache_traits
+            .reconfig_api
+            .try_expensive_check_iota_conservation(epoch_store, None)
+            .expect("IOTA conservation check cannot fail at genesis");
+    }
 
-        // Database has everything from genesis, set corrupted key to 0
-        unmark_db_corruption(db_corrupted_path)?;
+    fn create_authority_aggregator(
+        epoch_store: &AuthorityPerEpochStore,
+        committee_store: &Arc<CommitteeStore>,
+        prometheus_registry: &Registry,
+    ) -> Arc<ArcSwap<AuthorityAggregator<NetworkAuthorityClient>>> {
+        let safe_client_metrics_base = SafeClientMetricsBase::new(prometheus_registry);
+        let auth_agg_metrics = Arc::new(AuthAggMetrics::new(prometheus_registry));
+        Arc::new(ArcSwap::new(Arc::new(
+            AuthorityAggregator::new_from_epoch_start_state(
+                epoch_store.epoch_start_state(),
+                committee_store,
+                safe_client_metrics_base,
+                auth_agg_metrics,
+            ),
+        )))
+    }
 
+    /// Prepares the database for the services of the node: makes the store
+    /// that state sync, the gRPC API and the ledger client use, opens the index
+    /// store if `config` is a fullnode config with index processing on and the
+    /// gRPC indexes if `serves_grpc_api`, and seeds the `epoch_info` row of the
+    /// open epoch.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an index store cannot be opened or built, or registers a
+    /// metric that `prometheus_registry` already has, and if the `epoch_info`
+    /// row cannot be written or, on Mainnet and Testnet, the `epoch_info` chain
+    /// has a gap.
+    async fn prepare_database_for_services(
+        config: &NodeConfig,
+        serves_grpc_api: bool,
+        stores: &NodeStores,
+        epoch_store: &AuthorityPerEpochStore,
+        chain_identifier: ChainIdentifier,
+        prometheus_registry: &Registry,
+    ) -> ServiceStores {
         info!("creating state sync store");
         let state_sync_store = RocksDbStore::new(
-            cache_traits.clone(),
-            committee_store.clone(),
-            checkpoint_store.clone(),
+            stores.cache_traits.clone(),
+            stores.committee_store.clone(),
+            stores.checkpoint_store.clone(),
         );
 
-        let index_store = if is_full_node && config.enable_index_processing {
-            info!("creating index store");
-            Some(Arc::new(IndexStore::new(
-                config.db_path().join("indexes"),
-                &prometheus_registry,
-                epoch_store
-                    .protocol_config()
-                    .max_move_identifier_len_as_option(),
-            )))
-        } else {
-            None
-        };
-
-        let grpc_indexes_store = if is_full_node && config.enable_grpc_api {
-            Some(Arc::new(
-                GrpcIndexesStore::new(
-                    config.db_path().join(GRPC_INDEXES_DIR),
-                    Arc::clone(&store),
-                    &checkpoint_store,
-                )
-                .await,
+        let index_store = if !config.is_validator() && config.enable_index_processing {
+            Some(Self::open_index_store(
+                config,
+                epoch_store,
+                prometheus_registry,
             ))
         } else {
             None
         };
 
+        let grpc_indexes_store = if serves_grpc_api {
+            Some(Self::open_grpc_indexes_store(config, stores).await)
+        } else {
+            None
+        };
+
         // Seed the open epoch's `epoch_info` row before services start.
-        checkpoint_store
-            .seed_epoch_info(&store, chain_identifier)
+        stores
+            .checkpoint_store
+            .seed_epoch_info(&stores.store, chain_identifier)
             .expect("failed to seed the epoch_info chain");
 
-        info!("creating archive reader");
-        // Create network
-        // TODO only configure validators as seed/preferred peers for validators and not
-        // for fullnodes once we've had a chance to re-work fullnode
-        // configuration generation.
-        let (trusted_peer_change_tx, trusted_peer_change_rx) = watch::channel(Default::default());
-        let (randomness_tx, randomness_rx) = mpsc::channel(
-            config
-                .p2p_config
-                .randomness
-                .clone()
-                .unwrap_or_default()
-                .mailbox_capacity(),
-        );
-        let sync_summaries_to_epoch_end = Arc::new(AtomicBool::new(
-            Self::sync_summaries_to_epoch_end(&config, &epoch_store),
-        ));
-        let (p2p_network, discovery_handle, state_sync_handle, randomness_handle) =
-            Self::create_p2p_network(
-                &config,
-                state_sync_store.clone(),
-                chain_identifier,
-                trusted_peer_change_rx,
-                randomness_tx,
-                sync_summaries_to_epoch_end.clone(),
-                &prometheus_registry,
-            )?;
+        ServiceStores {
+            state_sync_store,
+            index_store,
+            grpc_indexes_store,
+        }
+    }
 
-        // We must explicitly send this instead of relying on the initial value to
-        // trigger watch value change, so that state-sync is able to process it.
-        send_trusted_peer_change(
-            &config,
-            &trusted_peer_change_tx,
-            epoch_store.epoch_start_state(),
-        );
+    fn open_index_store(
+        config: &NodeConfig,
+        epoch_store: &AuthorityPerEpochStore,
+        prometheus_registry: &Registry,
+    ) -> Arc<IndexStore> {
+        info!("creating index store");
+        Arc::new(IndexStore::new(
+            config.db_path().join("indexes"),
+            prometheus_registry,
+            epoch_store
+                .protocol_config()
+                .max_move_identifier_len_as_option(),
+        ))
+    }
 
-        info!("start snapshot upload");
-        // The state snapshot writer is the consumer of the epoch end database
-        // snapshot: the boundary hands each epoch to it on this channel. A
-        // depth of one is enough, because an epoch arriving while the writer
-        // is still busy is skipped rather than queued.
-        let (state_snapshot_requests, state_snapshot_receiver) = mpsc::channel(1);
-        let state_snapshot_handle = Self::start_state_snapshot(
-            &config,
-            &prometheus_registry,
-            checkpoint_store.clone(),
-            perpetual_tables_for_snapshots,
-            state_snapshot_receiver,
-        )?;
-        let epoch_end_db_snapshots = state_snapshot_handle
-            .is_some()
-            .then(|| EpochEndDbSnapshotHandle::new(state_snapshot_requests));
+    async fn open_grpc_indexes_store(
+        config: &NodeConfig,
+        stores: &NodeStores,
+    ) -> Arc<GrpcIndexesStore> {
+        Arc::new(
+            GrpcIndexesStore::new(
+                config.db_path().join(GRPC_INDEXES_DIR),
+                Arc::clone(&stores.store),
+                &stores.checkpoint_store,
+            )
+            .await,
+        )
+    }
 
-        let checkpoint_progress_tracker = Arc::new(CheckpointProgressTracker::new());
-
+    /// Creates the authority state of the node, and executes the genesis
+    /// transactions when the node starts in epoch 0.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the genesis objects cannot be indexed, if a genesis
+    /// transaction fails to execute, or if the secondary index checks are on
+    /// and find the indexes inconsistent.
+    async fn create_authority_state(
+        config: &NodeConfig,
+        secret: StableSyncAuthoritySigner,
+        stores: &NodeStores,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        genesis: &Genesis,
+        migration_tx_data: Option<MigrationTxData>,
+        chain_identifier: ChainIdentifier,
+        index_store: Option<Arc<IndexStore>>,
+        grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
+        auth_agg: &Arc<ArcSwap<AuthorityAggregator<NetworkAuthorityClient>>>,
+        checkpoint_progress_tracker: Arc<CheckpointProgressTracker>,
+        epoch_end_db_snapshots: Option<EpochEndDbSnapshotHandle>,
+        prometheus_registry: &Registry,
+    ) -> Arc<AuthorityState> {
         let mut genesis_objects = genesis.objects().to_vec();
         if let Some(migration_tx_data) = migration_tx_data.as_ref() {
             genesis_objects.extend(migration_tx_data.get_objects());
@@ -718,27 +1128,29 @@ impl IotaNode {
                 .then_some(Arc::new(ValidatorTxFinalizer::new(
                     auth_agg.clone(),
                     authority_name,
-                    &prometheus_registry,
+                    prometheus_registry,
                 )));
 
         info!("create authority state");
         let state = AuthorityState::new(
             authority_name,
             secret,
-            config.supported_protocol_versions.unwrap(),
-            store.clone(),
-            cache_traits.clone(),
+            config
+                .supported_protocol_versions
+                .expect("`prepare_config` fills in the supported protocol versions"),
+            stores.store.clone(),
+            stores.cache_traits.clone(),
             epoch_store.clone(),
-            committee_store.clone(),
-            index_store.clone(),
+            stores.committee_store.clone(),
+            index_store,
             grpc_indexes_store,
-            checkpoint_store.clone(),
-            &prometheus_registry,
+            stores.checkpoint_store.clone(),
+            prometheus_registry,
             &genesis_objects,
             config.clone(),
             validator_tx_finalizer,
             chain_identifier,
-            Some(checkpoint_progress_tracker.clone()),
+            Some(checkpoint_progress_tracker),
             config.policy_config.clone(),
             epoch_end_db_snapshots,
         )
@@ -746,72 +1158,188 @@ impl IotaNode {
 
         // ensure genesis and migration txs were executed
         if epoch_store.epoch() == 0 {
-            let genesis_tx = &genesis.transaction();
-            let span = error_span!("genesis_txn", tx_digest = ?genesis_tx.digest());
-            // Execute genesis transaction
-            Self::execute_transaction_immediately_at_zero_epoch(
-                &state,
-                &epoch_store,
-                genesis_tx,
-                span,
-            )
-            .await;
-
-            // Execute migration transactions if present
-            if let Some(migration_tx_data) = migration_tx_data {
-                for (tx_digest, (tx, _, _)) in migration_tx_data.txs_data() {
-                    let span = error_span!("migration_txn", tx_digest = ?tx_digest);
-                    Self::execute_transaction_immediately_at_zero_epoch(
-                        &state,
-                        &epoch_store,
-                        tx,
-                        span,
-                    )
-                    .await;
-                }
-            }
+            Self::execute_genesis_transactions(&state, epoch_store, genesis, migration_tx_data)
+                .await;
         }
-
-        // Start the loop that receives new randomness and generates transactions for
-        // it.
-        RandomnessRoundReceiver::spawn(state.clone(), randomness_rx);
 
         if config
             .expensive_safety_check_config
             .enable_secondary_index_checks()
         {
             if let Some(indexes) = state.indexes.clone() {
-                iota_core::verify_indexes::verify_indexes(
-                    state.get_global_state_hash_store().as_ref(),
-                    indexes,
-                )
-                .expect("secondary indexes are inconsistent");
+                Self::verify_secondary_indexes(&state, indexes);
             }
         }
 
-        let (end_of_epoch_channel, end_of_epoch_receiver) =
-            broadcast::channel(config.end_of_epoch_broadcast_channel_capacity);
+        state
+    }
 
-        let transaction_orchestrator = if is_full_node && run_with_range.is_none() {
+    /// Executes the genesis transaction and the migration transactions in
+    /// `migration_tx_data`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a transaction fails to execute.
+    async fn execute_genesis_transactions(
+        state: &Arc<AuthorityState>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        genesis: &Genesis,
+        migration_tx_data: Option<MigrationTxData>,
+    ) {
+        let genesis_tx = &genesis.transaction();
+        let span = error_span!("genesis_txn", tx_digest = ?genesis_tx.digest());
+        // Execute genesis transaction
+        Self::execute_transaction_immediately_at_zero_epoch(state, epoch_store, genesis_tx, span)
+            .await;
+
+        // Execute migration transactions if present
+        if let Some(migration_tx_data) = migration_tx_data {
+            for (tx_digest, (tx, _, _)) in migration_tx_data.txs_data() {
+                let span = error_span!("migration_txn", tx_digest = ?tx_digest);
+                Self::execute_transaction_immediately_at_zero_epoch(state, epoch_store, tx, span)
+                    .await;
+            }
+        }
+    }
+
+    /// Checks that `indexes`, the secondary indexes of `state`, are
+    /// consistent.
+    ///
+    /// # Panics
+    ///
+    /// Panics if they are not.
+    fn verify_secondary_indexes(state: &AuthorityState, indexes: Arc<IndexStore>) {
+        iota_core::verify_indexes::verify_indexes(
+            state.get_global_state_hash_store().as_ref(),
+            indexes,
+        )
+        .expect("secondary indexes are inconsistent");
+    }
+
+    /// Starts the monitor of the connections of `p2p_network`. The returned
+    /// status also maps the validators of the epoch of `epoch_store` to their
+    /// peer ids.
+    fn start_connection_monitor(
+        p2p_network: &Network,
+        epoch_store: &AuthorityPerEpochStore,
+        prometheus_registry: &Registry,
+    ) -> Arc<ConnectionMonitorStatus> {
+        let authority_names_to_peer_ids = epoch_store
+            .epoch_start_state()
+            .get_authority_names_to_peer_ids();
+
+        let network_connection_metrics = NetworkConnectionMetrics::new("iota", prometheus_registry);
+
+        let authority_names_to_peer_ids = ArcSwap::from_pointee(authority_names_to_peer_ids);
+
+        let (_connection_monitor_handle, connection_statuses) = ConnectionMonitor::spawn(
+            p2p_network.downgrade(),
+            network_connection_metrics,
+            HashMap::new(),
+            None,
+        );
+
+        Arc::new(ConnectionMonitorStatus {
+            connection_statuses,
+            authority_names_to_peer_ids,
+        })
+    }
+
+    fn create_iota_node_metrics(
+        configured_max_protocol_version: ProtocolVersion,
+        prometheus_registry: &Registry,
+    ) -> Arc<IotaNodeMetrics> {
+        let iota_node_metrics = Arc::new(IotaNodeMetrics::new(prometheus_registry));
+
+        iota_node_metrics
+            .binary_max_protocol_version
+            .set(ProtocolVersion::MAX.as_u64() as i64);
+        iota_node_metrics
+            .configured_max_protocol_version
+            .set(configured_max_protocol_version.as_u64() as i64);
+
+        iota_node_metrics
+    }
+
+    /// Starts the services a fullnode runs for clients: the transaction
+    /// orchestrator unless the node runs with a range, the JSON-RPC server,
+    /// and the gRPC API server if `grpc_api_config` is set. The node gets
+    /// them only when all of them have started.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the pending transaction log of the orchestrator cannot be
+    /// opened, or if a task that builds a server on the serving runtime panics
+    /// or is cancelled.
+    async fn start_fullnode_services(
+        &mut self,
+        grpc_api_config: Option<GrpcApiConfig>,
+        server_version: ServerVersion,
+    ) -> Result<()> {
+        let prometheus_registry = self.registry_service.default_registry();
+        let transaction_orchestrator = if self.config.run_with_range.is_none() {
             Some(Arc::new(TransactionOrchestrator::new_with_auth_aggregator(
-                auth_agg.load_full(),
-                state.clone(),
-                end_of_epoch_receiver,
-                &config.db_path(),
+                self.auth_agg.load_full(),
+                self.state.clone(),
+                self.end_of_epoch_channel.subscribe(),
+                &self.config.db_path(),
                 &prometheus_registry,
-                Some(&config),
+                Some(&self.config),
             )))
         } else {
             None
         };
 
+        let http_server = Self::start_http_server(
+            &self.serving_rt_handle,
+            self.state.clone(),
+            transaction_orchestrator.clone(),
+            &self.config,
+            &prometheus_registry,
+        )
+        .await?;
+
+        let grpc_server_handle = match grpc_api_config {
+            Some(grpc_api_config) => Some(
+                Self::start_grpc_api_server(
+                    &self.serving_rt_handle,
+                    grpc_api_config,
+                    &self.config,
+                    self.state.clone(),
+                    self.state_sync_store.clone(),
+                    transaction_orchestrator.clone(),
+                    &prometheus_registry,
+                    server_version,
+                )
+                .await?,
+            ),
+            None => None,
+        };
+
+        self.transaction_orchestrator = transaction_orchestrator;
+        self._http_server = Some(http_server);
+        self.grpc_server_handle = Mutex::new(grpc_server_handle);
+        Ok(())
+    }
+
+    /// Starts the JSON-RPC server on the serving runtime.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the task that builds the server on the serving runtime
+    /// panics or is cancelled.
+    async fn start_http_server(
+        serving_rt_handle: &tokio::runtime::Handle,
+        state: Arc<AuthorityState>,
+        transaction_orchestrator: Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
+        config: &NodeConfig,
+        prometheus_registry: &Registry,
+    ) -> Result<iota_http::ServerHandle> {
         // Run the JSON-RPC server (and its per-request handlers) on the serving
         // runtime. `iota_http::Builder::serve` spawns the accept loop via
         // `Handle::current()`, so the builder must execute on the serving runtime.
-        let http_server = serving_rt_handle
+        serving_rt_handle
             .spawn({
-                let state = state.clone();
-                let transaction_orchestrator = transaction_orchestrator.clone();
                 let config = config.clone();
                 let prometheus_registry = prometheus_registry.clone();
                 async move {
@@ -825,63 +1353,40 @@ impl IotaNode {
                 }
             })
             .await
-            .expect("Failed to join JSON-RPC server startup task")?;
+            .expect("Failed to join JSON-RPC server startup task")
+    }
 
-        let global_state_hasher = Arc::new(GlobalStateHasher::new(
-            cache_traits.global_state_hash_store.clone(),
-            GlobalStateHashMetrics::new(&prometheus_registry),
-        ));
-
-        let authority_names_to_peer_ids = epoch_store
-            .epoch_start_state()
-            .get_authority_names_to_peer_ids();
-
-        let network_connection_metrics =
-            NetworkConnectionMetrics::new("iota", &registry_service.default_registry());
-
-        let authority_names_to_peer_ids = ArcSwap::from_pointee(authority_names_to_peer_ids);
-
-        let (_connection_monitor_handle, connection_statuses) = ConnectionMonitor::spawn(
-            p2p_network.downgrade(),
-            network_connection_metrics,
-            HashMap::new(),
-            None,
-        );
-
-        let connection_monitor_status = ConnectionMonitorStatus {
-            connection_statuses,
-            authority_names_to_peer_ids,
-        };
-
-        let connection_monitor_status = Arc::new(connection_monitor_status);
-        let iota_node_metrics =
-            Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
-
-        iota_node_metrics
-            .binary_max_protocol_version
-            .set(ProtocolVersion::MAX.as_u64() as i64);
-        iota_node_metrics
-            .configured_max_protocol_version
-            .set(config.supported_protocol_versions.unwrap().max.as_u64() as i64);
-
+    /// Starts the gRPC API server on the serving runtime. Without a
+    /// `transaction_orchestrator`, the server does not execute transactions.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the task that builds the server on the serving runtime
+    /// panics or is cancelled.
+    async fn start_grpc_api_server(
+        serving_rt_handle: &tokio::runtime::Handle,
+        grpc_api_config: GrpcApiConfig,
+        config: &NodeConfig,
+        state: Arc<AuthorityState>,
+        state_sync_store: RocksDbStore,
+        transaction_orchestrator: Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
+        prometheus_registry: &Registry,
+        server_version: ServerVersion,
+    ) -> Result<GrpcServerHandle> {
         // Convert transaction orchestrator to executor trait object for gRPC server
-        // Note that the transaction_orchestrator (so as executor) will be None if it is
-        // a validator node or run_with_range is set
         let executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>> =
             transaction_orchestrator
-                .clone()
                 .map(|o| o as Arc<dyn iota_types::transaction_executor::TransactionExecutor>);
 
-        // Run the gRPC read API server (and its per-request handlers) on the
-        // serving runtime, for the same reason as the JSON-RPC server above.
-        let grpc_server_handle = serving_rt_handle
+        // Run the gRPC API server (and its per-request handlers) on the
+        // serving runtime, for the same reason as in `start_http_server`.
+        serving_rt_handle
             .spawn({
                 let config = config.clone();
-                let state = state.clone();
-                let state_sync_store = state_sync_store.clone();
                 let prometheus_registry = prometheus_registry.clone();
                 async move {
                     build_grpc_server(
+                        grpc_api_config,
                         &config,
                         state,
                         state_sync_store,
@@ -893,91 +1398,55 @@ impl IotaNode {
                 }
             })
             .await
-            .expect("Failed to join gRPC server startup task")?;
+            .expect("Failed to join gRPC server startup task")
+    }
 
-        let validator_components = if state.is_committee_validator(&epoch_store) {
-            let (components, _) = futures::join!(
-                Self::construct_validator_components(
-                    config.clone(),
-                    state.clone(),
-                    committee,
-                    epoch_store.clone(),
-                    checkpoint_store.clone(),
-                    state_sync_handle.clone(),
-                    randomness_handle.clone(),
-                    Arc::downgrade(&global_state_hasher),
-                    backpressure_manager.clone(),
-                    connection_monitor_status.clone(),
-                    &registry_service,
-                    serving_rt_handle.clone(),
-                ),
-                Self::reexecute_pending_consensus_certs(&epoch_store, &state,)
-            );
-            let mut components = components?;
+    /// Starts the components of a validator in the committee of the epoch of
+    /// `epoch_store`. While it builds them, it re-executes the pending
+    /// owned-object certificates, and it starts the validator server only
+    /// after that finishes.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the epoch store cannot be read while it re-executes the
+    /// pending certificates, if the node has no randomness manager for the
+    /// epoch, or if the validator gRPC server fails to start.
+    async fn start_validator_components(
+        &mut self,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> Result<()> {
+        let global_state_hasher = Arc::downgrade(
+            self.global_state_hasher
+                .get_mut()
+                .as_ref()
+                .expect("only `monitor_reconfiguration` takes the global state hasher"),
+        );
+        let (components, _) = futures::join!(
+            Self::construct_validator_components(
+                self.config.clone(),
+                self.state.clone(),
+                epoch_store.committee().clone(),
+                epoch_store.clone(),
+                self.checkpoint_store.clone(),
+                self.state_sync_handle.clone(),
+                self.randomness_handle.clone(),
+                global_state_hasher,
+                self.backpressure_manager.clone(),
+                self.connection_monitor_status.clone(),
+                &self.registry_service,
+                self.serving_rt_handle.clone(),
+            ),
+            Self::reexecute_pending_consensus_certs(epoch_store, &self.state)
+        );
+        let mut components = components?;
 
-            components.consensus_adapter.submit_recovered(&epoch_store);
+        components.consensus_adapter.submit_recovered(epoch_store);
 
-            // Start the gRPC server
-            components.validator_server_handle = components.validator_server_handle.start().await;
+        // Start the validator gRPC server
+        components.validator_server_handle = components.validator_server_handle.start().await;
 
-            Some(components)
-        } else {
-            None
-        };
-
-        // setup shutdown channel
-        let (shutdown_channel, _) = broadcast::channel::<Option<RunWithRange>>(1);
-
-        let node = Self {
-            config,
-            validator_components: Mutex::new(validator_components),
-            _http_server: http_server,
-            state,
-            transaction_orchestrator,
-            registry_service,
-            metrics: iota_node_metrics,
-
-            _discovery: discovery_handle,
-            state_sync_handle,
-            randomness_handle,
-            sync_summaries_to_epoch_end,
-            checkpoint_store,
-            perpetual_tables: perpetual_tables_for_synced_watermark,
-            state_sync_store,
-            global_state_hasher: Mutex::new(Some(global_state_hasher)),
-            end_of_epoch_channel,
-            connection_monitor_status,
-            trusted_peer_change_tx,
-            backpressure_manager,
-            checkpoint_progress_tracker: checkpoint_progress_tracker.clone(),
-
-            #[cfg(msim)]
-            sim_state: Default::default(),
-
-            _state_snapshot_uploader_handle: state_snapshot_handle,
-            shutdown_channel_tx: shutdown_channel,
-
-            grpc_server_handle: Mutex::new(grpc_server_handle),
-
-            auth_agg,
-
-            serving_rt_handle,
-        };
-
-        info!("IotaNode started!");
-        let node = Arc::new(node);
-        let node_copy = node.clone();
-        spawn_monitored_task!(async move {
-            let result = Self::monitor_reconfiguration(node_copy, epoch_store).await;
-            if let Err(error) = result {
-                warn!("Reconfiguration finished with error {:?}", error);
-            }
-        });
-
-        node.checkpoint_progress_tracker
-            .spawn_logging_task(node.checkpoint_store.clone(), perpetual_tables_for_progress);
-
-        Ok(node)
+        self.validator_components = Mutex::new(Some(components));
+        Ok(())
     }
 
     pub fn subscribe_to_epoch_change(&self) -> broadcast::Receiver<IotaSystemState> {
@@ -1026,34 +1495,38 @@ impl IotaNode {
         self.close_epoch(&epoch_store).await
     }
 
-    /// Creates a StateSnapshotUploader and starts it if
-    /// `state-snapshot-write-config.object-store-config` is set. Snapshot
-    /// publication is a fullnode-only role.
+    /// Creates a StateSnapshotUploader that publishes to `remote_store_config`
+    /// and starts it. Snapshot publication is a fullnode-only role. Returns the
+    /// sender that stops the uploader when it is dropped, and the handle that
+    /// the epoch boundary uses to hand each ending epoch to the uploader.
     fn start_state_snapshot(
         config: &NodeConfig,
+        remote_store_config: &ObjectStoreConfig,
         prometheus_registry: &Registry,
-        checkpoint_store: Arc<CheckpointStore>,
-        perpetual_tables: Arc<AuthorityPerpetualTables>,
-        requests: mpsc::Receiver<EpochEndDbSnapshotRequest>,
-    ) -> Result<Option<tokio::sync::broadcast::Sender<()>>> {
-        if let Some(remote_store_config) = &config.state_snapshot_write_config.object_store_config {
-            debug_assert!(
-                !config.is_validator(),
-                "`NodeConfig::validate` rejects snapshot upload on a validator"
-            );
-            let snapshot_uploader = StateSnapshotUploader::new(
-                &config.snapshot_path(),
-                remote_store_config.clone(),
-                config.state_snapshot_write_config.concurrency,
-                60,
-                prometheus_registry,
-                checkpoint_store,
-                perpetual_tables,
-            )?;
-            Ok(Some(snapshot_uploader.start(requests)))
-        } else {
-            Ok(None)
-        }
+        stores: &NodeStores,
+    ) -> Result<(broadcast::Sender<()>, EpochEndDbSnapshotHandle)> {
+        debug_assert!(
+            !config.is_validator(),
+            "`NodeConfig::validate` rejects snapshot upload on a validator"
+        );
+        // The state snapshot writer is the consumer of the epoch end database
+        // snapshot: the boundary hands each epoch to it on this channel. A depth
+        // of one is enough, because an epoch arriving while the writer is still
+        // busy is skipped rather than queued.
+        let (requests, receiver) = mpsc::channel(1);
+        let snapshot_uploader = StateSnapshotUploader::new(
+            &config.snapshot_path(),
+            remote_store_config.clone(),
+            config.state_snapshot_write_config.concurrency,
+            60,
+            prometheus_registry,
+            stores.checkpoint_store.clone(),
+            stores.perpetual_tables.clone(),
+        )?;
+        Ok((
+            snapshot_uploader.start(receiver),
+            EpochEndDbSnapshotHandle::new(requests),
+        ))
     }
 
     /// Whether state sync should fetch summaries to the end of the epoch of
@@ -1066,25 +1539,34 @@ impl IotaNode {
         config.is_validator() && epoch_store.pcool_bookkeeping_enabled()
     }
 
+    /// Starts the p2p network and the discovery, state sync and randomness
+    /// services on it, and sends the trusted peers of the epoch of
+    /// `epoch_store` to discovery.
     fn create_p2p_network(
         config: &NodeConfig,
+        epoch_store: &AuthorityPerEpochStore,
         state_sync_store: RocksDbStore,
         chain_identifier: ChainIdentifier,
-        trusted_peer_change_rx: watch::Receiver<TrustedPeerChangeEvent>,
-        randomness_tx: mpsc::Sender<(EpochId, RandomnessRound, Vec<u8>)>,
-        sync_summaries_to_epoch_end: Arc<AtomicBool>,
         prometheus_registry: &Registry,
-    ) -> Result<(
-        Network,
-        discovery::Handle,
-        state_sync::Handle,
-        randomness::Handle,
-    )> {
+    ) -> Result<P2pComponents> {
+        let (trusted_peer_change_tx, trusted_peer_change_rx) = watch::channel(Default::default());
+        let (randomness_tx, randomness_rx) = mpsc::channel(
+            config
+                .p2p_config
+                .randomness
+                .clone()
+                .unwrap_or_default()
+                .mailbox_capacity(),
+        );
+        let sync_summaries_to_epoch_end = Arc::new(AtomicBool::new(
+            Self::sync_summaries_to_epoch_end(config, epoch_store),
+        ));
+
         let (state_sync, state_sync_server) = state_sync::Builder::new()
             .config(config.p2p_config.state_sync.clone().unwrap_or_default())
             .store(state_sync_store)
             .checkpoint_archive_config(config.checkpoint_archive_config().cloned())
-            .sync_summaries_to_epoch_end(sync_summaries_to_epoch_end)
+            .sync_summaries_to_epoch_end(sync_summaries_to_epoch_end.clone())
             .with_metrics(prometheus_registry)
             .build();
 
@@ -1098,115 +1580,148 @@ impl IotaNode {
                 .with_metrics(prometheus_registry)
                 .build();
 
-        let p2p_network = {
-            let routes = anemo::Router::new()
-                .add_rpc_service(discovery_server)
-                .add_rpc_service(state_sync_server);
-            let routes = routes.merge(randomness_router);
-
-            let inbound_network_metrics =
-                NetworkMetrics::new("iota", "inbound", prometheus_registry);
-            let outbound_network_metrics =
-                NetworkMetrics::new("iota", "outbound", prometheus_registry);
-
-            let service = ServiceBuilder::new()
-                .layer(
-                    TraceLayer::new_for_server_errors()
-                        .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
-                        .on_failure(DefaultOnFailure::new().level(tracing::Level::WARN)),
-                )
-                .layer(CallbackLayer::new(MetricsMakeCallbackHandler::new(
-                    Arc::new(inbound_network_metrics),
-                    config.p2p_config.excessive_message_size(),
-                )))
-                .service(routes);
-
-            let outbound_layer = ServiceBuilder::new()
-                .layer(
-                    TraceLayer::new_for_client_and_server_errors()
-                        .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
-                        .on_failure(DefaultOnFailure::new().level(tracing::Level::DEBUG)),
-                )
-                .layer(CallbackLayer::new(MetricsMakeCallbackHandler::new(
-                    Arc::new(outbound_network_metrics),
-                    config.p2p_config.excessive_message_size(),
-                )))
-                .into_inner();
-
-            let mut anemo_config = config.p2p_config.anemo_config.clone().unwrap_or_default();
-            // Inbound requests on this network are small (signatures, queries, summaries).
-            // Cap request frames at 1 MiB.
-            anemo_config.max_request_frame_size = Some(1 << 20);
-            // Responses can be larger (checkpoint contents).
-            // Cap response frames at 128 MiB.
-            anemo_config.max_response_frame_size = Some(128 << 20);
-
-            // Set a higher default value for socket send/receive buffers if not already
-            // configured.
-            let mut quic_config = anemo_config.quic.unwrap_or_default();
-            if quic_config.socket_send_buffer_size.is_none() {
-                quic_config.socket_send_buffer_size = Some(20 << 20);
-            }
-            if quic_config.socket_receive_buffer_size.is_none() {
-                quic_config.socket_receive_buffer_size = Some(20 << 20);
-            }
-            quic_config.allow_failed_socket_buffer_size_setting = true;
-
-            // Set high-performance defaults for quinn transport.
-            // With 200MiB buffer size and ~500ms RTT, max throughput ~400MiB/s.
-            if quic_config.max_concurrent_bidi_streams.is_none() {
-                quic_config.max_concurrent_bidi_streams = Some(500);
-            }
-            if quic_config.max_concurrent_uni_streams.is_none() {
-                quic_config.max_concurrent_uni_streams = Some(500);
-            }
-            if quic_config.stream_receive_window.is_none() {
-                quic_config.stream_receive_window = Some(100 << 20);
-            }
-            if quic_config.receive_window.is_none() {
-                quic_config.receive_window = Some(200 << 20);
-            }
-            if quic_config.send_window.is_none() {
-                quic_config.send_window = Some(200 << 20);
-            }
-            if quic_config.crypto_buffer_size.is_none() {
-                quic_config.crypto_buffer_size = Some(1 << 20);
-            }
-            if quic_config.max_idle_timeout_ms.is_none() {
-                quic_config.max_idle_timeout_ms = Some(10_000);
-            }
-            if quic_config.keep_alive_interval_ms.is_none() {
-                quic_config.keep_alive_interval_ms = Some(5_000);
-            }
-            anemo_config.quic = Some(quic_config);
-
-            let server_name = format!("iota-{chain_identifier}");
-            let network = Network::bind(config.p2p_config.listen_address)
-                .server_name(&server_name)
-                .private_key(config.network_key_pair().copy().private().0.to_bytes())
-                .config(anemo_config)
-                .outbound_request_layer(outbound_layer)
-                .start(service)?;
-            info!(
-                server_name = server_name,
-                "P2p network started on {}",
-                network.local_addr()
-            );
-
-            network
-        };
+        let routes = anemo::Router::new()
+            .add_rpc_service(discovery_server)
+            .add_rpc_service(state_sync_server);
+        let routes = routes.merge(randomness_router);
+        let p2p_network =
+            Self::start_p2p_network(config, routes, chain_identifier, prometheus_registry)?;
 
         let discovery_handle =
             discovery.start(p2p_network.clone(), config.network_key_pair().copy());
         let state_sync_handle = state_sync.start(p2p_network.clone());
         let randomness_handle = randomness.start(p2p_network.clone());
 
-        Ok((
+        // We must explicitly send this instead of relying on the initial value to
+        // trigger watch value change, so that discovery is able to process it.
+        send_trusted_peer_change(
+            config,
+            &trusted_peer_change_tx,
+            epoch_store.epoch_start_state(),
+        );
+
+        Ok(P2pComponents {
             p2p_network,
             discovery_handle,
             state_sync_handle,
             randomness_handle,
-        ))
+            trusted_peer_change_tx,
+            randomness_rx,
+            sync_summaries_to_epoch_end,
+        })
+    }
+
+    /// Starts the p2p network on the p2p listen address of `config`, serving
+    /// `routes`, with tracing and metrics on its inbound and outbound
+    /// requests.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `prometheus_registry` already has the p2p network metrics, or
+    /// if the network key of `config` cannot be read or is not an Ed25519 key.
+    fn start_p2p_network(
+        config: &NodeConfig,
+        routes: anemo::Router,
+        chain_identifier: ChainIdentifier,
+        prometheus_registry: &Registry,
+    ) -> Result<Network> {
+        let inbound_network_metrics = NetworkMetrics::new("iota", "inbound", prometheus_registry);
+        let outbound_network_metrics = NetworkMetrics::new("iota", "outbound", prometheus_registry);
+
+        let service = ServiceBuilder::new()
+            .layer(
+                TraceLayer::new_for_server_errors()
+                    .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
+                    .on_failure(DefaultOnFailure::new().level(tracing::Level::WARN)),
+            )
+            .layer(CallbackLayer::new(MetricsMakeCallbackHandler::new(
+                Arc::new(inbound_network_metrics),
+                config.p2p_config.excessive_message_size(),
+            )))
+            .service(routes);
+
+        let outbound_layer = ServiceBuilder::new()
+            .layer(
+                TraceLayer::new_for_client_and_server_errors()
+                    .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
+                    .on_failure(DefaultOnFailure::new().level(tracing::Level::DEBUG)),
+            )
+            .layer(CallbackLayer::new(MetricsMakeCallbackHandler::new(
+                Arc::new(outbound_network_metrics),
+                config.p2p_config.excessive_message_size(),
+            )))
+            .into_inner();
+
+        let anemo_config = Self::build_anemo_config(&config.p2p_config);
+
+        let server_name = format!("iota-{chain_identifier}");
+        let network = Network::bind(config.p2p_config.listen_address)
+            .server_name(&server_name)
+            .private_key(config.network_key_pair().copy().private().0.to_bytes())
+            .config(anemo_config)
+            .outbound_request_layer(outbound_layer)
+            .start(service)?;
+        info!(
+            server_name = server_name,
+            "P2p network started on {}",
+            network.local_addr()
+        );
+
+        Ok(network)
+    }
+
+    /// Builds the anemo config of the p2p network from the configured one: it
+    /// sets the request and response frame caps and allows failed socket buffer
+    /// size settings, whatever the config says, and fills in the QUIC values
+    /// that the config leaves out.
+    fn build_anemo_config(p2p_config: &P2pConfig) -> anemo::Config {
+        let mut anemo_config = p2p_config.anemo_config.clone().unwrap_or_default();
+        // Inbound requests on this network are small (signatures, queries, summaries).
+        // Cap request frames at 1 MiB.
+        anemo_config.max_request_frame_size = Some(1 << 20);
+        // Responses can be larger (checkpoint contents).
+        // Cap response frames at 128 MiB.
+        anemo_config.max_response_frame_size = Some(128 << 20);
+
+        // Set a higher default value for socket send/receive buffers if not already
+        // configured.
+        let mut quic_config = anemo_config.quic.unwrap_or_default();
+        if quic_config.socket_send_buffer_size.is_none() {
+            quic_config.socket_send_buffer_size = Some(20 << 20);
+        }
+        if quic_config.socket_receive_buffer_size.is_none() {
+            quic_config.socket_receive_buffer_size = Some(20 << 20);
+        }
+        quic_config.allow_failed_socket_buffer_size_setting = true;
+
+        // Set high-performance defaults for quinn transport.
+        // With 200MiB buffer size and ~500ms RTT, max throughput ~400MiB/s.
+        if quic_config.max_concurrent_bidi_streams.is_none() {
+            quic_config.max_concurrent_bidi_streams = Some(500);
+        }
+        if quic_config.max_concurrent_uni_streams.is_none() {
+            quic_config.max_concurrent_uni_streams = Some(500);
+        }
+        if quic_config.stream_receive_window.is_none() {
+            quic_config.stream_receive_window = Some(100 << 20);
+        }
+        if quic_config.receive_window.is_none() {
+            quic_config.receive_window = Some(200 << 20);
+        }
+        if quic_config.send_window.is_none() {
+            quic_config.send_window = Some(200 << 20);
+        }
+        if quic_config.crypto_buffer_size.is_none() {
+            quic_config.crypto_buffer_size = Some(1 << 20);
+        }
+        if quic_config.max_idle_timeout_ms.is_none() {
+            quic_config.max_idle_timeout_ms = Some(10_000);
+        }
+        if quic_config.keep_alive_interval_ms.is_none() {
+            quic_config.keep_alive_interval_ms = Some(5_000);
+        }
+        anemo_config.quic = Some(quic_config);
+        anemo_config
     }
 
     /// Asynchronously constructs and initializes the components necessary for
@@ -2586,33 +3101,15 @@ fn build_kv_store(
 
 /// Builds and starts the gRPC server for the IOTA node based on the node's
 /// configuration.
-///
-/// Returns `None` on a validator and when the gRPC API is disabled.
-///
-/// # Panics
-///
-/// Panics if the gRPC API is enabled without a `grpc-api-config`.
-/// [`NodeConfig::validate`] rejects such a config at startup.
 async fn build_grpc_server(
+    grpc_config: GrpcApiConfig,
     config: &NodeConfig,
     state: Arc<AuthorityState>,
     state_sync_store: RocksDbStore,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
     prometheus_registry: &Registry,
     server_version: ServerVersion,
-) -> Result<Option<GrpcServerHandle>> {
-    // Validators do not expose gRPC APIs. This return must agree with the
-    // gRPC rule in `NodeConfig::validate`, which is what makes the `expect`
-    // below unreachable.
-    if config.is_validator() || !config.enable_grpc_api {
-        return Ok(None);
-    }
-
-    let grpc_config = config
-        .grpc_api_config
-        .as_ref()
-        .expect("`NodeConfig::validate` rejects an enabled gRPC API without a config");
-
+) -> Result<GrpcServerHandle> {
     // Get chain identifier from state directly
     let chain_id = state.get_chain_identifier();
 
@@ -2637,7 +3134,7 @@ async fn build_grpc_server(
     let handle = start_grpc_server(
         grpc_reader,
         executor,
-        grpc_config.clone(),
+        grpc_config,
         shutdown_token,
         chain_id,
         Some(grpc_server_metrics),
@@ -2646,32 +3143,25 @@ async fn build_grpc_server(
     )
     .await?;
 
-    Ok(Some(handle))
+    Ok(handle)
 }
 
 /// Builds and starts the HTTP server for the IOTA node, exposing the JSON-RPC
 /// API based on the node's configuration.
 ///
 /// This function performs the following tasks:
-/// 1. Checks if the node is a validator by inspecting the consensus configuration; if so, it
-///    returns early as validators do not expose these APIs.
-/// 2. Creates an Axum router to handle HTTP requests.
-/// 3. Initializes the JSON-RPC server and registers various RPC modules based on the node's state
+/// 1. Creates an Axum router to handle HTTP requests.
+/// 2. Initializes the JSON-RPC server and registers various RPC modules based on the node's state
 ///    and configuration, including CoinApi, TransactionBuilderApi, GovernanceApi,
 ///    TransactionExecutionApi, and IndexerApi.
-/// 4. Binds the server to the specified JSON-RPC address and starts listening for incoming
+/// 3. Binds the server to the specified JSON-RPC address and starts listening for incoming
 ///    connections.
-pub async fn build_http_server(
+async fn build_http_server(
     state: Arc<AuthorityState>,
     transaction_orchestrator: &Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     config: &NodeConfig,
     prometheus_registry: &Registry,
-) -> Result<Option<iota_http::ServerHandle>> {
-    // Validators do not expose these APIs
-    if config.is_validator() {
-        return Ok(None);
-    }
-
+) -> Result<iota_http::ServerHandle> {
     let mut router = axum::Router::new();
 
     let json_rpc_router = {
@@ -2759,7 +3249,7 @@ pub async fn build_http_server(
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     info!(local_addr =? handle.local_addr(), "IOTA JSON-RPC server listening on {}", handle.local_addr());
 
-    Ok(Some(handle))
+    Ok(handle)
 }
 
 fn json_rpc_listener_metrics(prometheus_registry: &Registry) -> ListenerMetrics {
@@ -2951,8 +3441,8 @@ genesis:
     }
 
     /// `start_async` validates the config before it does anything else. That
-    /// keeps the `expect` in `build_grpc_server` and the `debug_assert` in
-    /// `start_state_snapshot` unreachable.
+    /// keeps the `expect` on the gRPC API config in `start_async` and the
+    /// `debug_assert` in `start_state_snapshot` unreachable.
     #[tokio::test]
     async fn start_rejects_a_config_no_node_could_start_with() {
         let mut config = config_with_db_path(std::path::Path::new("/nonexistent/db"));
