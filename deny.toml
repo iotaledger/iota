@@ -86,6 +86,12 @@ ignore = [
   # secp256r1 secret keys are only used client-side. Remove once fastcrypto
   # moves to elliptic-curve 0.14.
   "RUSTSEC-2026-0387",
+  # zstd 0.13 and zstd-safe 7 advisories, fixed only in zstd 0.14 and
+  # zstd-safe 8. The latest `tonic` and `parquet` releases still require zstd
+  # 0.13. Remove once they move to 0.14.
+  "RUSTSEC-2026-0391",
+  "RUSTSEC-2026-0398",
+  "RUSTSEC-2026-0403",
   # `im` is unmaintained and its `OrdSet` insertion is unsound, together with
   # its `bitmaps` dependency. Only reachable through `fastcrypto-zkp`; remove
   # all three once that switches to `imbl`.
