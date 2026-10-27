@@ -490,7 +490,8 @@ struct StateSyncEventLoop<S> {
     checkpoint_archive_config: Option<CheckpointArchiveConfig>,
     /// Cached genesis checkpoint, shared with the RPC server.
     genesis_checkpoint: Arc<VerifiedCheckpoint>,
-    /// The highest checkpoint received from consensus. Until the content sync
+    /// The highest checkpoint received from consensus, or found by
+    /// [`Self::note_stored_contents_above_synced`]. Until the content sync
     /// task marks it synced, it is a reason to run that task whatever the
     /// peers report.
     highest_checkpoint_from_consensus: Option<CheckpointSequenceNumber>,
@@ -510,6 +511,9 @@ where
         info!("State-Synchronizer started");
 
         self.config.pinned_checkpoints.sort();
+        if self.sync_summaries_to_epoch_end.load(Ordering::Relaxed) {
+            self.verify_stored_checkpoints_above_watermark();
+        }
 
         let mut interval = tokio::time::interval(self.config.interval_period());
         let mut peer_events = {
@@ -711,31 +715,7 @@ where
                 .collect::<Vec<_>>();
         }
 
-        // If this is the last checkpoint of an epoch, we need to make sure
-        // new committee is in store before we verify newer checkpoints in next epoch.
-        // This could happen before this validator's reconfiguration finishes, because
-        // state sync does not reconfig.
-        // TODO: make CheckpointAggregator use WriteStore so we don't need to do this
-        // committee insertion in two places (only in `insert_checkpoint`).
-        if let Some(EndOfEpochData {
-            next_epoch_committee,
-            ..
-        }) = checkpoint.end_of_epoch_data.as_ref()
-        {
-            let _span = tracing::trace_span!(
-                "store_next_committee",
-                sequence_number = checkpoint.sequence_number(),
-            )
-            .entered();
-
-            let committee = Committee::from_committee_members(
-                checkpoint.epoch().checked_add(1).unwrap(),
-                next_epoch_committee,
-            );
-            self.store
-                .try_insert_committee(committee)
-                .expect("store operation should not fail");
-        }
+        self.insert_next_epoch_committee(&checkpoint);
 
         {
             let _span = tracing::trace_span!(
@@ -781,6 +761,88 @@ where
 
         // Notify connected peers of the new checkpoint
         self.spawn_notify_peers_of_checkpoint(checkpoint);
+    }
+
+    /// If `checkpoint` is the last checkpoint of an epoch, stores the next
+    /// epoch's committee, which verifying that epoch's checkpoints needs. This
+    /// can happen before this validator's reconfiguration finishes, because
+    /// state sync does not reconfigure.
+    // TODO: make CheckpointAggregator use WriteStore so we don't need to do this
+    // committee insertion in two places (only in `insert_checkpoint`).
+    fn insert_next_epoch_committee(&self, checkpoint: &VerifiedCheckpoint) {
+        let Some(EndOfEpochData {
+            next_epoch_committee,
+            ..
+        }) = checkpoint.end_of_epoch_data.as_ref()
+        else {
+            return;
+        };
+        let _span = tracing::trace_span!(
+            "store_next_committee",
+            sequence_number = checkpoint.sequence_number(),
+        )
+        .entered();
+
+        let committee = Committee::from_committee_members(
+            checkpoint.epoch().checked_add(1).unwrap(),
+            next_epoch_committee,
+        );
+        self.store
+            .try_insert_committee(committee)
+            .expect("store operation should not fail");
+    }
+
+    /// Moves the verified watermark over the checkpoints stored right above
+    /// it, which have all been verified: the checkpoint aggregator stores a
+    /// checkpoint it certified, and summary sync one it verified, before the
+    /// watermark moves.
+    ///
+    /// A node that stopped in between keeps such a checkpoint above the
+    /// watermark. After a restart the aggregator certifies only the
+    /// checkpoints after the highest one stored, so it does not send that
+    /// checkpoint again, and when it is the last checkpoint of an epoch no
+    /// later checkpoint moves the watermark past it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the store cannot be read or written, or if a stored
+    /// checkpoint's `previous_digest` is not the digest of the checkpoint
+    /// below it. Every stored checkpoint is certified, and certified
+    /// checkpoints form a single chain, so a mismatch means the local store
+    /// is corrupt and the node must not go on from it.
+    fn verify_stored_checkpoints_above_watermark(&self) {
+        let mut highest_verified = self
+            .store
+            .try_get_highest_verified_checkpoint()
+            .expect("reading the verified watermark from the store should succeed");
+        let previously_verified = highest_verified.sequence_number();
+        while let Some(checkpoint) = self.store.get_checkpoint_by_sequence_number(
+            highest_verified
+                .sequence_number()
+                .checked_add(1)
+                .expect("the verified checkpoint is below the highest sequence number"),
+        ) {
+            if checkpoint.previous_digest != Some(*highest_verified.digest()) {
+                panic!(
+                    "Stored checkpoint {} has mismatched previous_digest, expected: {:?}, actual: {:?}",
+                    checkpoint.sequence_number(),
+                    Some(*highest_verified.digest()),
+                    checkpoint.previous_digest
+                );
+            }
+            self.insert_next_epoch_committee(&checkpoint);
+            self.store
+                .try_update_highest_verified_checkpoint(&checkpoint)
+                .expect("updating the verified watermark in the store should succeed");
+            highest_verified = checkpoint;
+        }
+        if highest_verified.sequence_number() > previously_verified {
+            info!(
+                "Verified the stored checkpoints {}..={} above the verified watermark",
+                previously_verified + 1,
+                highest_verified.sequence_number(),
+            );
+        }
     }
 
     fn handle_peer_event(
@@ -920,6 +982,52 @@ where
 
         if let Some(layer) = self.download_limit_layer.as_ref() {
             layer.maybe_prune_map();
+        }
+
+        if self.sync_summaries_to_epoch_end.load(Ordering::Relaxed) {
+            self.note_stored_contents_above_synced();
+        }
+    }
+
+    /// Counts the checkpoint right above the synced watermark as a reason to
+    /// run the content sync task when its contents are in the store, as for a
+    /// checkpoint from consensus.
+    ///
+    /// After a restart a node can hold checkpoints it verified whose contents
+    /// only it can provide, such as the last checkpoint of an epoch that no
+    /// node executed: no checkpoint comes from consensus after it, and no peer
+    /// reports it. The node's own replay puts their contents in the store.
+    fn note_stored_contents_above_synced(&mut self) {
+        let highest_synced = self
+            .store
+            .try_get_highest_synced_checkpoint_seq_number()
+            .expect("store operation should not fail");
+        if self.highest_checkpoint_from_consensus > Some(highest_synced)
+            || self
+                .peer_heights
+                .read()
+                .unwrap()
+                .highest_known_checkpoint_sequence_number()
+                > Some(highest_synced)
+        {
+            return;
+        }
+        let next = highest_synced
+            .checked_add(1)
+            .expect("the synced checkpoint is below the highest sequence number");
+        let Some(checkpoint) = self.store.get_checkpoint_by_sequence_number(next) else {
+            return;
+        };
+        if self
+            .store
+            .get_full_checkpoint_contents_by_sequence_number(next)
+            .or_else(|| {
+                self.store
+                    .get_full_checkpoint_contents(&checkpoint.contents_digest)
+            })
+            .is_some()
+        {
+            self.highest_checkpoint_from_consensus = Some(next);
         }
     }
 

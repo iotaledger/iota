@@ -875,6 +875,7 @@ mod checked {
                 loaded_child_objects,
                 mut created_object_ids,
                 deleted_object_ids,
+                received_coin_types,
             } = object_runtime.finish()?;
             assert_invariant!(
                 remaining_events.is_empty(),
@@ -949,6 +950,7 @@ mod checked {
                 created_object_ids,
                 deleted_object_ids,
                 user_events,
+                received_coin_types,
             );
             results
         }
@@ -1257,6 +1259,7 @@ mod checked {
         created_object_ids: IndexSet<ObjectId>,
         deleted_object_ids: IndexSet<ObjectId>,
         user_events: Vec<(ModuleId, StructTag, Vec<u8>)>,
+        received_coin_types: BTreeSet<String>,
     ) -> Result<ExecutionResults, ExecutionError> {
         // Before finishing, ensure that any shared object taken by value by the
         // transaction is either:
@@ -1304,6 +1307,16 @@ mod checked {
         } = state_view.check_coin_deny_list(&written_objects);
         gas_charger.charge_coin_transfers(protocol_config, num_non_gas_coin_owners)?;
         result?;
+
+        // Under P-COOL deterministic validation, post-consensus validation checks
+        // the sender against its inputs and receiving objects, with the deny list
+        // as of the commit's horizon. Here the sender is checked again, once the
+        // commands have run, against the coins the Move code received, with the
+        // deny list as the epoch started, the same read as the check of the
+        // written coins above.
+        if protocol_config.enable_pcool_flow() {
+            state_view.check_received_coin_deny_list(tx_context.sender(), received_coin_types)?;
+        }
 
         let user_events = user_events
             .into_iter()

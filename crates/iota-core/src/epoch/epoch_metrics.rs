@@ -142,10 +142,6 @@ pub struct EpochMetrics {
     /// of the delta).
     pub deny_rule_update_transactions_injected: IntCounter,
 
-    /// Whether deny-rule removals are unlocked: enough announced stake this
-    /// epoch and the grace round floor passed.
-    pub deny_rule_removals_unlocked: IntGauge,
-
     /// Set to 1, and never cleared, when the `TransactionDenyRules` object
     /// diverged from the mirrored state at an epoch boundary.
     pub deny_rule_mirror_divergence: IntGauge,
@@ -310,12 +306,6 @@ impl EpochMetrics {
             deny_rule_update_transactions_injected: register_int_counter_with_registry!(
                 "deny_rule_update_transactions_injected",
                 "The number of injected deny-rule update transactions",
-                registry
-            )
-            .unwrap(),
-            deny_rule_removals_unlocked: register_int_gauge_with_registry!(
-                "deny_rule_removals_unlocked",
-                "Whether deny-rule removals are currently unlocked",
                 registry
             )
             .unwrap(),

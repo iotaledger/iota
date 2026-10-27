@@ -26,7 +26,7 @@ use std::{future::Future, sync::Arc, time::Instant};
 use futures::{StreamExt, TryStreamExt};
 use iota_common::{debug_fatal, fatal};
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
-use iota_macros::fail_point;
+use iota_macros::{fail_point, fail_point_async};
 use iota_sdk_types::{
     CheckpointContents, CheckpointSummary, RandomnessRound, TransactionDigest, TransactionEffects,
     TransactionEffectsDigest, TransactionKind,
@@ -362,11 +362,7 @@ impl CheckpointExecutor {
         // executes it from synced data like the checkpoints before, so it
         // switches first.
         if is_last_checkpoint_of_epoch
-            && !self.state.is_fullnode(&self.epoch_store)
-            && self
-                .epoch_store
-                .protocol_config()
-                .pcool_deterministic_validation()
+            && self.epoch_store.pcool_bookkeeping_enabled()
             && self
                 .checkpoint_store
                 .get_locally_computed_checkpoint(sequence_number)
@@ -378,7 +374,10 @@ impl CheckpointExecutor {
 
         // The last checkpoint is executed from synced data even when this node
         // built it, which schedules every transaction in it not executed yet.
-        // Leave those to the consensus handler unless this node has switched.
+        // The epoch's last checkpoint is already known here, so the call below
+        // does not wait for the consensus handler: unless the handler has
+        // executed every transaction in it, the call switches this node to
+        // executing synced checkpoints.
         if let Some((_, tx_data)) = loaded
             .as_ref()
             .filter(|_| is_last_checkpoint_of_epoch && self.epoch_store.pcool_bookkeeping_enabled())
@@ -558,6 +557,7 @@ impl CheckpointExecutor {
                 .execute_transactions_from_synced_checkpoint(ckpt_state, tx_data, pipeline_handle)
                 .await;
         };
+        fail_point_async!("execute-locally-built-checkpoint");
 
         self.metrics.checkpoint_executor_validator_path.inc();
 
@@ -661,7 +661,7 @@ impl CheckpointExecutor {
     /// Returns this node's own summary of `checkpoint`, waiting for the
     /// checkpoint builder if needed. Returns `None` when the caller should
     /// execute the synced checkpoint instead: always without
-    /// `pcool_deterministic_validation`; with it, for the genesis
+    /// `enable_pcool_flow`; with it, for the genesis
     /// checkpoint, and for any checkpoint once the certified last checkpoint of this epoch
     /// is known, because peers then stop serving this epoch's consensus
     /// commits. In that last case it first switches this node to executing
@@ -673,10 +673,7 @@ impl CheckpointExecutor {
         checkpoint: &VerifiedCheckpoint,
     ) -> Option<CheckpointSummary> {
         let seq = checkpoint.sequence_number;
-        let skip_synced_execution = self
-            .epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation();
+        let skip_synced_execution = self.epoch_store.protocol_config().enable_pcool_flow();
         // Once switched, the builder no longer runs, so the state hash of a
         // checkpoint it built may never be computed; the synced path computes
         // it.

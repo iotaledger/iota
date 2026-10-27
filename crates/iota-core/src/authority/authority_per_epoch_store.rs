@@ -697,10 +697,9 @@ pub struct AuthorityPerEpochStore {
     /// Holds various data from consensus_quarantine in a more easily
     /// accessible form.
     consensus_output_cache: ConsensusOutputCache,
-    /// P-COOL deterministic-validation bookkeeping: the transaction-key ->
-    /// commit-index map and the overlays over the three bookkeeping tables,
-    /// holding entries not yet durable.
-    /// `None` without deterministic validation.
+    /// The handler object state for P-COOL deterministic validation: the map
+    /// from transaction key to assigned commit, and the rows not yet written
+    /// to the table. `None` without deterministic validation.
     handler_object_state: Option<HandlerObjectState>,
     /// See [`Self::pcool_bookkeeping_enabled`].
     pcool_bookkeeping_enabled: bool,
@@ -779,7 +778,7 @@ pub struct AuthorityPerEpochStore {
     soft_locks: OnceCell<Arc<PreConsensusSoftLocks>>,
 
     /// Effects of executed transactions, read by the quarantine flush to
-    /// derive a commit's handler-processed rows. Wired by `AuthorityState`
+    /// derive a commit's rows of the handler object state. Wired by `AuthorityState`
     /// once the execution cache exists; the next epoch's store inherits it.
     effects_store: OnceCell<Arc<dyn TransactionCacheRead>>,
 
@@ -867,10 +866,12 @@ pub struct AuthorityEpochTables {
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
     owned_object_locked_transactions: DBMap<ObjectReference, LockDetailsWrapper>,
 
-    /// Every object version produced by a commit the handler processed, for
-    /// P-COOL deterministic post-consensus validation (see
-    /// [`handler_object_state`]). Flushed through each commit's quarantined
-    /// `ConsensusCommitOutput`, atomically with `last_consensus_stats`. Same
+    /// The rows of the handler object state, for P-COOL deterministic
+    /// post-consensus validation (see [`handler_object_state`]): every object
+    /// version produced by a commit the handler assigned. Written by each
+    /// commit's quarantine flush in the same batch as `last_consensus_stats`,
+    /// and by the checkpoint executor in a separate batch just before each
+    /// checkpoint's outputs. Same
     /// access profile as the lock table: one write per written object version
     /// per commit, one point lookup per validated input.
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
@@ -919,7 +920,8 @@ pub struct AuthorityEpochTables {
         DBMap<(CommitIndex, TransactionDigest), SavedPostConsensusDecision>,
     /// The candidates of a consensus commit in consensus order, written in
     /// the same batch as their rows in `post_consensus_decisions`, so its
-    /// presence means every candidate of the commit has a decision.
+    /// presence means every candidate of the commit has a decision. A digest
+    /// appears once per copy of the transaction validated at the commit.
     pub(crate) post_consensus_decision_candidates: DBMap<CommitIndex, Vec<TransactionDigest>>,
 
     /// The last commit the consensus handler processed before this node
@@ -1336,10 +1338,11 @@ impl AuthorityPerEpochStore {
             signature_verifier_metrics,
             protocol_config.accept_passkey_in_multisig(),
             protocol_config.additional_multisig_checks(),
+            protocol_config.reject_partially_signed_mixed_ed25519_multisig(),
         );
 
         let consensus_output_cache = ConsensusOutputCache::new(&tables);
-        let resume_point = protocol_config.pcool_deterministic_validation().then(|| {
+        let resume_point = protocol_config.enable_pcool_flow().then(|| {
             tables
                 .get_last_consensus_index()
                 .expect("AuthorityEpochTables should hold a readable consensus resume point")
@@ -1349,7 +1352,7 @@ impl AuthorityPerEpochStore {
         let handler_object_state =
             resume_point.map(|resume_point| HandlerObjectState::new(resume_point, metrics.clone()));
         let pcool_bookkeeping_enabled =
-            committee.authority_exists(&name) && protocol_config.pcool_deterministic_validation();
+            committee.authority_exists(&name) && protocol_config.enable_pcool_flow();
 
         // Seed the quarantine's in-memory overload-notification cache from the
         // persisted table. This is the only point we iterate the table; all
@@ -1893,34 +1896,37 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// Whether this node keeps the P-COOL deterministic-validation
-    /// bookkeeping: the flag is on and this node is in the epoch's committee.
-    /// Every bookkeeping write, the execution watcher and the commit
-    /// assignment check this rather than the flag alone. A node outside the
-    /// committee runs no consensus handler, so no transaction it executes
-    /// would have its commit assigned.
+    /// Whether this node keeps the handler object state: the P-COOL
+    /// deterministic-validation flag is on and this node is in the epoch's
+    /// committee. Every write to the handler object state, the execution
+    /// watcher and the commit assignment check this rather than the flag
+    /// alone. A node outside the committee runs no consensus handler, so no
+    /// transaction it executes would have its commit assigned.
     pub fn pcool_bookkeeping_enabled(&self) -> bool {
         self.pcool_bookkeeping_enabled
     }
 
-    /// How far the object pruner may go in this epoch's checkpoints, or `None`
-    /// for no limit, when the P-COOL bookkeeping is off.
+    /// How far the object pruner may go in this epoch's checkpoints. `None`
+    /// means no limit, and is returned when this node does not keep the
+    /// handler object state.
     ///
-    /// A version that commit `c` consumed can still be kept, as on a validator
-    /// that has not executed `c`, by the validation of a commit below
-    /// `c + K` (K the horizon distance), and by the replay after a restart of
-    /// any commit above the resume point. Keeping it needs its bytes. Every
-    /// commit not flushed yet is above the resume point, so the versions of
-    /// commits up to `resume point + 1 - K` are the ones no validation can
-    /// keep any more. Checkpoints of earlier epochs are not limited: rows are
-    /// per epoch, so no validation keeps a version consumed in one.
+    /// Validation of commit `C` reads object state as of commit `C - K`, where
+    /// `K` is the protocol config's horizon distance. A version consumed by a
+    /// commit above `C - K` is still live in that state, so validation of `C`
+    /// can keep a transaction that uses it, which needs the version's bytes.
+    /// The commits still to be validated are those after the last flushed
+    /// commit, including the ones a restart replays. So only the versions
+    /// consumed by commits at or below `last flushed commit + 1 - K` may be
+    /// pruned, and the limit is the last checkpoint holding only such commits.
+    /// Checkpoints of earlier epochs are not limited: rows are per epoch, so
+    /// no validation keeps a version consumed in one.
     pub fn object_pruning_limit(&self) -> Option<ObjectPruningLimit> {
         if !self.pcool_bookkeeping_enabled {
             return None;
         }
         let horizon_distance = self
             .protocol_config()
-            .pcool_deterministic_validation_horizon_distance_or_default();
+            .pcool_deterministic_validation_horizon_distance();
         Some(ObjectPruningLimit {
             epoch: self.epoch(),
             highest_prunable_checkpoint: self
@@ -1953,17 +1959,25 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// Registers the roots of commit `index` in the transaction-key ->
-    /// commit-index map and hands the commit to the execution watcher. Must
-    /// be called once per commit while the handler processes it, before any
-    /// of its transactions can be scheduled:
-    /// [`Self::record_executed_transaction`] records rows only for a
-    /// transaction whose commit is assigned.
+    /// Assigns commit `index` to its roots and hands the commit to the
+    /// execution watcher; see
+    /// [`HandlerObjectState::assign_commit_to_transactions`]. Call it once per
+    /// commit while the handler processes it, before any of its transactions
+    /// can be scheduled: [`Self::record_executed_transaction`] records rows
+    /// only for a transaction whose commit is assigned.
     pub fn assign_commit_to_transactions(&self, index: CommitIndex, roots: Vec<TransactionKey>) {
         let Some(handler_object_state) = &self.handler_object_state else {
             return;
         };
         handler_object_state.assign_commit_to_transactions(index, roots);
+    }
+
+    /// See [`HandlerObjectState::assign_to_a_new_commit_for_testing`]. Does
+    /// nothing on a node that keeps no handler object state.
+    pub fn assign_to_a_new_commit_for_testing(&self, keys: &[TransactionKey]) {
+        if let Some(handler_object_state) = &self.handler_object_state {
+            handler_object_state.assign_to_a_new_commit_for_testing(keys);
+        }
     }
 
     /// The execution watcher's end of the assigned-commit channel; `None`
@@ -2048,7 +2062,9 @@ impl AuthorityPerEpochStore {
     }
 
     /// Saves the decisions of every candidate of commit `index`, in consensus
-    /// order, together with the commit's candidate list, in one batch.
+    /// order, together with the commit's candidate list, in one batch. A
+    /// digest with several copies validated appears once per copy, each entry
+    /// with the digest's decision.
     pub(crate) fn persist_post_consensus_decisions(
         &self,
         index: CommitIndex,
@@ -2076,8 +2092,8 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// Records one executed transaction's object writes for the P-COOL
-    /// deterministic-validation bookkeeping; see
+    /// Records the rows of one executed transaction in the handler object
+    /// state; see
     /// [`HandlerObjectState::record_executed_transaction`]. The caller skips
     /// genesis transactions, the epoch-0 migration transactions among them,
     /// and the change-epoch transaction, which run outside any commit.
@@ -2118,10 +2134,10 @@ impl AuthorityPerEpochStore {
             return Ok(());
         };
         let tables = self.tables()?;
-        // Outside the lock: a row found stays found, since rows are never
-        // deleted and are evicted only once durable. A row that appears after
-        // this check is inserted again with the same value, and the commit's
-        // flush writes and evicts it like any other row still in the overlay.
+        // The check needs no lock: a row that exists is never removed, it
+        // only moves from memory to the table. A row that appears right after
+        // this check is put in memory a second time with the same value, and
+        // the commit's flush writes it and removes it from memory.
         let inserts = handler_object_state.rows_not_yet_present(&tables, upserts)?;
         // Held so a flush cannot complete this commit between the guard inside
         // and the upserts: the flush runs under the write lock throughout.
@@ -2130,16 +2146,17 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// Stages the handler rows of a commit flushing out of the quarantine into
-    /// `batch`. Returns them for the caller to evict once `batch` is durable, or `None`
-    /// when the bookkeeping is off.
+    /// Stages the rows of a commit flushing out of the quarantine into
+    /// `batch`. Returns them for the caller to remove from memory once `batch`
+    /// is written, or `None` when this node does not keep the handler object
+    /// state.
     ///
-    /// A commit the watcher completed stages only its rows still in the
-    /// overlay; see [`HandlerObjectState::take_completed_commit_rows`].
+    /// A commit the execution watcher completed stages only its rows still
+    /// held in memory; see [`HandlerObjectState::take_completed_commit_rows`].
     /// Otherwise the flush completes the commit, deriving its rows from the
-    /// effects of the transactions it checkpointed: the overlay holds nothing
-    /// for a commit replayed after a restart, since its transactions executed
-    /// before the crash and the execution hook does not run for them again.
+    /// effects of the transactions it checkpointed. A commit replayed after a
+    /// restart has no rows in memory, since its transactions executed before
+    /// the crash and are not executed again.
     fn stage_flushed_commit_rows(
         &self,
         index: CommitIndex,
@@ -2165,7 +2182,7 @@ impl AuthorityPerEpochStore {
         Ok(Some(FlushedCommitRows { index, rows }))
     }
 
-    /// The handler rows of commit `index`, derived from the effects of the
+    /// The rows of commit `index`, derived from the effects of the
     /// transactions its pending checkpoints hold.
     ///
     /// Every root of a flushing commit is in a checkpoint that has been built
@@ -2205,9 +2222,9 @@ impl AuthorityPerEpochStore {
         Ok(handler_rows_for_commit(&effects, index))
     }
 
-    /// Evicts the overlay entries of commits whose rows are now durable, and
-    /// raises the highest fully executed commit. Call only after the flush
-    /// batch has been written.
+    /// Removes the rows of the flushed commits from memory, and raises the
+    /// highest fully executed commit. Call only after the flush batch has
+    /// been written.
     fn evict_flushed_commit_rows(&self, flushed: &[FlushedCommitRows]) {
         let Some(handler_object_state) = &self.handler_object_state else {
             return;
@@ -2217,12 +2234,12 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// Makes the handler rows left by the executions behind `effects` - one
-    /// checkpoint's transactions - durable, then evicts them from the
-    /// overlay. The checkpoint executor calls this before this checkpoint's
-    /// outputs and its commits' quarantine flushes, so an object is never
-    /// durable without its handler row. Does nothing when the bookkeeping is
-    /// off or the epoch has ended.
+    /// Writes to the table the rows that the executions behind `effects`, the
+    /// transactions of one checkpoint, put in memory, then removes them from
+    /// memory. The checkpoint executor calls this before writing the
+    /// checkpoint's outputs and before its commits' quarantine flushes, so an
+    /// object is never written without its row. Does nothing when this node
+    /// does not keep the handler object state or the epoch has ended.
     ///
     /// Takes no lock: rows never change once written for a key, and no flush
     /// deletes them, so this write commutes with every other row write.
@@ -2248,15 +2265,15 @@ impl AuthorityPerEpochStore {
         let mut batch = tables.handler_processed_objects.batch();
         handler_object_state.write_checkpoint_rows_to_batch(&tables, &mut batch, &rows)?;
         batch.write()?;
-        // Lets a test crash the node with the bookkeeping durable and the
-        // checkpoint's outputs not.
+        // Lets a test crash the node with the checkpoint's rows written and
+        // its outputs not.
         fail_point!("crash-after-checkpoint-bookkeeping-write");
         handler_object_state.evict_flushed_checkpoint_rows(&rows);
         Ok(())
     }
 
-    /// The handler-processed row at `key`, the exact version a transaction
-    /// names.
+    /// The row at `key`, the exact version a transaction names; see
+    /// [`HandlerObjectState::handler_processed_object`].
     pub fn handler_processed_object(
         &self,
         key: &ObjectKey,
@@ -2268,8 +2285,7 @@ impl AuthorityPerEpochStore {
         handler_object_state.handler_processed_object(&tables, key)
     }
 
-    /// The handler-processed row of `id` at its highest version, with its
-    /// key.
+    /// The row of `id` at its highest version, with its key.
     pub fn highest_handler_processed_row(
         &self,
         id: &ObjectId,
@@ -2281,8 +2297,7 @@ impl AuthorityPerEpochStore {
         handler_object_state.highest_handler_processed_row(&tables, id)
     }
 
-    /// The handler-processed row of `id` at its lowest version above
-    /// `version`, with its key.
+    /// The row of `id` at its lowest version above `version`, with its key.
     pub fn lowest_handler_processed_row_above(
         &self,
         id: &ObjectId,
@@ -2295,8 +2310,8 @@ impl AuthorityPerEpochStore {
         handler_object_state.lowest_handler_processed_row_above(&tables, id, version)
     }
 
-    /// The handler-processed row of `id` at its highest version below
-    /// `version`, with its key; see
+    /// The row of `id` at its highest version below `version`, with its key;
+    /// see
     /// [`HandlerObjectState::highest_handler_processed_row_below`].
     pub fn highest_handler_processed_row_below(
         &self,
@@ -2317,9 +2332,9 @@ impl AuthorityPerEpochStore {
             .expect("tests of the handler object state turn deterministic validation on")
     }
 
-    /// Durably writes `handler_rows`, then evicts them from the overlay - the
-    /// quarantine flush's locking and write-then-evict order, without its row
-    /// derivation or its completion of the commit. Like the flush's
+    /// Writes `handler_rows` to the table, then removes them from memory, with
+    /// the quarantine flush's locking and order of the two steps, but without
+    /// deriving the rows or completing the commit. Like the flush's
     /// `last_consensus_stats`, the same batch raises the resume point a
     /// reopened epoch store starts from to `commit_index`, unless it is
     /// already higher. Tests of the flush itself use
@@ -2374,8 +2389,8 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// The handler-processed row at `key` in the durable table, skipping the
-    /// overlay and the read-through cache.
+    /// The row at `key` in the table, skipping the rows held in memory and the
+    /// read-through cache.
     #[cfg(test)]
     pub fn durable_handler_processed_object_for_testing(
         &self,
@@ -2395,14 +2410,30 @@ impl AuthorityPerEpochStore {
     /// Flushes commit `index` out of the consensus quarantine through the
     /// same path a running node takes, with one pending checkpoint of `roots`
     /// at height `index` and checkpoint sequence number `index`. Calls must
-    /// use increasing indices. Returns the handler rows the flush wrote.
+    /// use increasing indices. Returns the rows the flush wrote.
     #[cfg(test)]
     pub fn flush_commit_through_quarantine_for_testing(
         &self,
         index: CommitIndex,
         roots: Vec<TransactionDigest>,
     ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
-        let summary = self.build_checkpoint_of_commit_for_testing(index, &roots)?;
+        self.push_commit_with_one_pending_checkpoint_for_testing(index, &roots)?;
+        self.flush_pushed_commits_for_testing(index, index, roots)
+    }
+
+    /// Flushes the commits already in the consensus quarantine whose pending
+    /// checkpoints are at or below `height`, through the same path a running
+    /// node takes: builds checkpoint `sequence` of `roots` at `height` and
+    /// handles it as executed. `sequence` must be above every checkpoint
+    /// built before. Returns the rows the flush wrote.
+    #[cfg(test)]
+    pub fn flush_pushed_commits_for_testing(
+        &self,
+        height: CheckpointHeight,
+        sequence: CheckpointSequenceNumber,
+        roots: Vec<TransactionDigest>,
+    ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
+        let summary = self.build_checkpoint_for_testing(height, sequence, &roots);
         Ok(self
             .finalize_checkpoint(&summary, &roots)?
             .into_iter()
@@ -2421,7 +2452,8 @@ impl AuthorityPerEpochStore {
         roots: Vec<TransactionDigest>,
         between: impl FnOnce(),
     ) -> IotaResult {
-        self.build_checkpoint_of_commit_for_testing(index, &roots)?;
+        self.push_commit_with_one_pending_checkpoint_for_testing(index, &roots)?;
+        self.build_checkpoint_for_testing(index, index, &roots);
         let tables = self.tables()?;
         let mut batch = tables.signed_effects_digests.batch();
         let mut quarantine = self.consensus_quarantine.write();
@@ -2432,18 +2464,14 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// Pushes commit `index` into the consensus quarantine with one pending
-    /// checkpoint of `roots`, and builds that checkpoint, so that its
-    /// execution flushes the commit.
+    /// Pushes commit `index`, in consensus round `index`, into the consensus
+    /// quarantine with one pending checkpoint of `roots` at height `index`.
     #[cfg(test)]
-    fn build_checkpoint_of_commit_for_testing(
+    fn push_commit_with_one_pending_checkpoint_for_testing(
         &self,
         index: CommitIndex,
         roots: &[TransactionDigest],
-    ) -> IotaResult<CheckpointSummary> {
-        use iota_sdk_types::GasCostSummary;
-        use iota_types::{base_types::ExecutionDigests, messages_checkpoint::CheckpointSummaryExt};
-
+    ) -> IotaResult {
         let checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
             roots: roots.iter().copied().map(TransactionKey::Digest).collect(),
             details: PendingCheckpointInfo {
@@ -2465,6 +2493,21 @@ impl AuthorityPerEpochStore {
             ..Default::default()
         });
         self.push_consensus_output_for_tests(output);
+        Ok(())
+    }
+
+    /// Builds checkpoint `sequence` of `roots` at checkpoint height `height`,
+    /// as the checkpoint builder does, so that its execution flushes the
+    /// commits whose pending checkpoints are at or below `height`.
+    #[cfg(test)]
+    fn build_checkpoint_for_testing(
+        &self,
+        height: CheckpointHeight,
+        sequence: CheckpointSequenceNumber,
+        roots: &[TransactionDigest],
+    ) -> CheckpointSummary {
+        use iota_sdk_types::GasCostSummary;
+        use iota_types::{base_types::ExecutionDigests, messages_checkpoint::CheckpointSummaryExt};
 
         let contents = CheckpointContents::new_with_digests_only_for_tests(
             roots
@@ -2474,7 +2517,7 @@ impl AuthorityPerEpochStore {
         let summary = CheckpointSummary::new_with_protocol_config(
             self.protocol_config(),
             self.epoch(),
-            index,
+            sequence,
             0,
             &contents,
             None,
@@ -2483,8 +2526,8 @@ impl AuthorityPerEpochStore {
             0,
             Vec::new(),
         );
-        self.process_constructed_checkpoint(index, NonEmpty::new((summary.clone(), contents)));
-        Ok(summary)
+        self.process_constructed_checkpoint(height, NonEmpty::new((summary.clone(), contents)));
+        summary
     }
 
     pub fn revert_executed_transaction(&self, tx_digest: &TransactionDigest) -> IotaResult {
@@ -2701,6 +2744,18 @@ impl AuthorityPerEpochStore {
             .await
     }
 
+    /// Wait for any drop of a transaction at a commit. Unlike
+    /// [`Self::notify_read_dropped_digests`], this also returns on the drop of
+    /// one copy of the transaction for a reason that may come from that
+    /// copy's own signatures, which leaves the digest open for another copy.
+    /// Not for answering a client: the error returned is not necessarily
+    /// the final status of the transaction.
+    pub(crate) async fn notify_read_any_drop(&self, digest: TransactionDigest) -> IotaError {
+        self.dropped_tx_status_cache
+            .notify_read_any_drop(digest)
+            .await
+    }
+
     #[cfg(test)]
     pub(crate) fn pending_dropped_digest_requests_for_testing(&self) -> usize {
         self.dropped_tx_status_cache.num_pending_for_testing()
@@ -2767,8 +2822,8 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// [`Self::handle_finalized_checkpoint`], returning the handler rows of
-    /// the commits it flushed out of the quarantine.
+    /// [`Self::handle_finalized_checkpoint`], returning the rows of the
+    /// commits it flushed out of the quarantine.
     fn finalize_checkpoint(
         &self,
         checkpoint: &CheckpointSummary,
@@ -4038,6 +4093,106 @@ impl AuthorityPerEpochStore {
         }
     }
 
+    /// Computes the part of `mirror` that may leave the object: a deny list
+    /// entry once 2f+1 stake has announced a proposal without it, a kill
+    /// switch once f+1 stake has. Past that much explicit non-support the
+    /// entry or switch cannot reach its activation threshold whatever the
+    /// validators still to announce propose, so none of them can reactivate
+    /// it. Stake that has not announced counts neither way. Pure, like
+    /// `compute_active_transaction_deny_rules`.
+    pub(crate) fn compute_removable_transaction_deny_rules(
+        proposals: &BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
+        committee: &Committee,
+        mirror: &DenyRuleSet,
+    ) -> DenyRuleSet {
+        let announced = Self::announced_stake(proposals, committee);
+        let mut address_stakes: BTreeMap<Address, StakeUnit> = BTreeMap::new();
+        let mut object_stakes: BTreeMap<ObjectId, StakeUnit> = BTreeMap::new();
+        let mut package_stakes: BTreeMap<ObjectId, StakeUnit> = BTreeMap::new();
+
+        for (authority, proposal) in proposals {
+            let stake = committee.weight(authority);
+            let rules = &proposal.proposed_rules;
+            for address in rules
+                .denied_addresses
+                .intersection(&mirror.denied_addresses)
+            {
+                *address_stakes.entry(*address).or_default() += stake;
+            }
+            for object in rules.denied_objects.intersection(&mirror.denied_objects) {
+                *object_stakes.entry(*object).or_default() += stake;
+            }
+            for package in rules.denied_packages.intersection(&mirror.denied_packages) {
+                *package_stakes.entry(*package).or_default() += stake;
+            }
+        }
+
+        fn removable<T: Ord + Copy>(
+            entries: &BTreeSet<T>,
+            stakes: BTreeMap<T, StakeUnit>,
+            announced: StakeUnit,
+            threshold: StakeUnit,
+        ) -> BTreeSet<T> {
+            entries
+                .iter()
+                .filter(|entry| announced - stakes.get(entry).copied().unwrap_or(0) >= threshold)
+                .copied()
+                .collect()
+        }
+
+        let validity_threshold = committee.validity_threshold();
+        let quorum_threshold = committee.quorum_threshold();
+        let switch_removable = |mirror_switch: bool, enabled: fn(&DenyRuleSet) -> bool| {
+            let supporting = proposals
+                .iter()
+                .filter(|(_, proposal)| enabled(&proposal.proposed_rules))
+                .map(|(authority, _)| committee.weight(authority))
+                .sum::<StakeUnit>();
+            mirror_switch && announced - supporting >= validity_threshold
+        };
+        DenyRuleSet {
+            denied_addresses: removable(
+                &mirror.denied_addresses,
+                address_stakes,
+                announced,
+                quorum_threshold,
+            ),
+            denied_objects: removable(
+                &mirror.denied_objects,
+                object_stakes,
+                announced,
+                quorum_threshold,
+            ),
+            denied_packages: removable(
+                &mirror.denied_packages,
+                package_stakes,
+                announced,
+                quorum_threshold,
+            ),
+            package_publish_disabled: switch_removable(mirror.package_publish_disabled, |rules| {
+                rules.package_publish_disabled
+            }),
+            package_upgrade_disabled: switch_removable(mirror.package_upgrade_disabled, |rules| {
+                rules.package_upgrade_disabled
+            }),
+            shared_object_disabled: switch_removable(mirror.shared_object_disabled, |rules| {
+                rules.shared_object_disabled
+            }),
+            user_transaction_disabled: switch_removable(
+                mirror.user_transaction_disabled,
+                |rules| rules.user_transaction_disabled,
+            ),
+            receiving_objects_disabled: switch_removable(
+                mirror.receiving_objects_disabled,
+                |rules| rules.receiving_objects_disabled,
+            ),
+            move_authenticator_disabled: switch_removable(
+                mirror.move_authenticator_disabled,
+                |rules| rules.move_authenticator_disabled,
+            ),
+        }
+    }
+
     pub fn get_quarantined_owned_object_lock(
         &self,
         obj_ref: &ObjectReference,
@@ -4273,21 +4428,35 @@ impl AuthorityPerEpochStore {
         // A user transaction from an authority that has sent EndOfPublish must not be processed.
         // Drop it here, before its key enters the duplicate checks of this commit, so that it
         // cannot make a later transaction with the same key be skipped.
-        if self
-            .protocol_config()
-            .consensus_dedup_only_recorded_messages()
-            && transaction.transaction.user_transaction_digest().is_some()
-            && self
-                .has_sent_end_of_publish(&transaction.certificate_author)
-                .expect("the end-of-publish set is readable")
-        {
-            warn!(
-                "[Byzantine authority] Authority {:?} sent user transaction {:?} after it sent \
-                 EndOfPublish message to consensus",
-                transaction.certificate_author.concise(),
-                transaction.transaction.user_transaction_digest(),
-            );
-            return None;
+        if let Some(digest) = transaction.transaction.user_transaction_digest() {
+            if self
+                .protocol_config()
+                .consensus_dedup_only_recorded_messages()
+                && self
+                    .has_sent_end_of_publish(&transaction.certificate_author)
+                    .expect("the end-of-publish set is readable")
+            {
+                warn!(
+                    "[Byzantine authority] Authority {:?} sent user transaction {:?} after it \
+                     sent EndOfPublish message to consensus",
+                    transaction.certificate_author.concise(),
+                    digest,
+                );
+                // The copy is not recorded as processed, so the consensus adapter
+                // that submitted it would hold its submit permit, which checkpoint
+                // signatures also need, until the epoch ends. Only this
+                // validator's adapter is told: another author's copy can still be
+                // kept. Without deterministic validation the adapter waits until
+                // the epoch ends, as for the other copies ignored at the end of
+                // the epoch.
+                if self.protocol_config().enable_pcool_flow()
+                    && transaction.certificate_author == self.name
+                {
+                    self.dropped_tx_status_cache
+                        .notify_dropped_copies(&[(digest, IotaError::ValidatorHaltedAtEpochEnd)]);
+                }
+                return None;
+            }
         }
         // Signatures are verified as part of the consensus payload verification in
         // IotaTxValidator
@@ -4297,14 +4466,44 @@ impl AuthorityPerEpochStore {
                 ..
             }) => {}
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
+                kind: ConsensusTransactionKind::UserTransactionV1(user_transaction),
                 ..
             }) => {
                 if !self.protocol_config().enable_pcool_flow() {
                     debug!(
                         "Ignoring UserTransactionV1 {:?}: the P-COOL flow is disabled",
-                        transaction.digest()
+                        user_transaction.digest()
                     );
+                    return None;
+                }
+                // Once the epoch no longer accepts consensus transactions, such
+                // a transaction is ignored when scheduled, so it never
+                // executes. Under deterministic validation it is skipped here
+                // instead: kept at validation, it would hold its owned-object
+                // locks until the epoch ends, and it would hide a later copy of
+                // the same transaction in this commit. A transaction from an
+                // author that sent EndOfPublish was already dropped above. A
+                // deferred transaction is reloaded without passing through
+                // here, so it stays eligible.
+                if self.protocol_config().enable_pcool_flow()
+                    && !self
+                        .get_reconfig_state_read_lock_guard()
+                        .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Ignoring UserTransactionV1 {:?}: the epoch no longer accepts consensus \
+                         transactions",
+                        user_transaction.digest()
+                    );
+                    // An ignored copy is not recorded as processed, so the
+                    // consensus adapter that submitted it would hold its submit
+                    // permit, which checkpoint signatures also need, until the
+                    // epoch ends. Only the adapter is told: another copy may
+                    // still be kept.
+                    self.dropped_tx_status_cache.notify_dropped_copies(&[(
+                        *user_transaction.digest(),
+                        IotaError::ValidatorHaltedAtEpochEnd,
+                    )]);
                     return None;
                 }
             }
@@ -4454,7 +4653,7 @@ impl AuthorityPerEpochStore {
                 kind: ConsensusTransactionKind::TransactionDenyRuleProposal(proposal),
                 ..
             }) => {
-                if !self.protocol_config().deny_rule_governance() {
+                if !self.protocol_config().enable_pcool_flow() {
                     debug!(
                         "Ignoring TransactionDenyRuleProposal from {:?}: deny rule governance is disabled",
                         proposal.authority.concise()
@@ -4514,7 +4713,7 @@ impl AuthorityPerEpochStore {
         ),
         AdvanceDkgError,
     > {
-        let deterministic_validation = self.protocol_config.pcool_deterministic_validation();
+        let deterministic_validation = self.protocol_config.enable_pcool_flow();
         // Only `process_consensus_transactions` below moves the reconfig
         // state to `RejectAllTx`, so this value holds until it runs. Only
         // deterministic validation reads it.
@@ -4528,6 +4727,11 @@ impl AuthorityPerEpochStore {
         // checkpoint and are never assigned, so the highest fully executed
         // commit cannot reach them. They admit no user transaction either, so
         // they do not wait.
+        //
+        // A commit that reserves a randomness round is fully executed only once
+        // that round's randomness state update executes, which needs the
+        // validators to exchange the round's partial signatures. So this wait
+        // can last that long even on a validator whose execution keeps up.
         if self.pcool_bookkeeping_enabled && accepts_tx {
             self.within_alive_epoch(self.wait_for_fully_executed_commit(horizon(
                 &self.protocol_config,
@@ -4745,8 +4949,9 @@ impl AuthorityPerEpochStore {
         // Post-consensus validation and owned-object conflict resolution in a
         // single pass: validates UserTransactionV1 transactions and resolves
         // lock conflicts before reordering. Deferred txs from previous commits
-        // already have persistent locks, giving them natural precedence.
-        // Also collects all UserTransactionV1 digests for soft lock release
+        // still hold the locks they took there, giving them natural precedence;
+        // with deterministic validation they are kept without being validated
+        // again. Also collects all UserTransactionV1 digests for soft lock release
         // after the consensus output is quarantined.
         let congestion_control_parameters = CongestionControlParameters::new(&self.protocol_config);
 
@@ -4811,11 +5016,17 @@ impl AuthorityPerEpochStore {
                     self,
                     consensus_commit_info.index,
                     deterministic_validation,
+                    &previously_deferred_tx_digests,
                     &mut sequenced_transactions,
                 )
                 .await?;
             output.set_owned_object_locks(owned_object_locks);
             soft_lock_release_tx_digests.extend(soft_lock_digests);
+            let kept: Vec<_> = sequenced_transactions
+                .iter()
+                .filter_map(|tx| tx.0.transaction.user_transaction_digest())
+                .collect();
+            self.dropped_tx_status_cache.remove_kept(&kept);
             // TODO: possibly record dropped digests in ConsensusCommitPrologue for
             //  consistent view
             if !dropped.is_empty() {
@@ -4824,10 +5035,18 @@ impl AuthorityPerEpochStore {
                     .inc_by(dropped.len() as u64);
                 // A drop for an input not visible at the horizon yet is not
                 // final for the digest, so it is not recorded as its status.
+                // A drop that may come from the signatures of the copy
+                // validated is not even reported to the current waiters:
+                // another copy can be kept, so they wait for its outcome, or
+                // until their own timeout or the end of the epoch. The
+                // consensus adapter is still told, so that it stops waiting
+                // for the transaction it submitted.
                 let mut final_drops = Vec::new();
                 let mut not_final = Vec::new();
+                let mut dropped_copies = Vec::new();
                 for (digest, error, decision) in dropped {
                     match decision {
+                        PostConsensusDecision::DroppedCopy => dropped_copies.push((digest, error)),
                         PostConsensusDecision::DroppedInputNotVisibleYet => {
                             not_final.push((digest, error))
                         }
@@ -4837,6 +5056,8 @@ impl AuthorityPerEpochStore {
                 self.dropped_tx_status_cache.insert_and_notify(&final_drops);
                 self.dropped_tx_status_cache
                     .notify_without_recording(&not_final);
+                self.dropped_tx_status_cache
+                    .notify_dropped_copies(&dropped_copies);
             }
 
             // Split back for downstream processing (separate reordering and
@@ -5032,8 +5253,8 @@ impl AuthorityPerEpochStore {
             let should_write_random_checkpoint =
                 randomness_round.is_some() || (dkg_failed && !randomness_roots.is_empty());
 
-            // The deterministic-validation bookkeeping tracks exactly the
-            // roots written to this commit's pending checkpoints.
+            // The handler object state assigns the commit to exactly the
+            // roots written to its pending checkpoints.
             if self.pcool_bookkeeping_enabled {
                 let mut commit_roots = non_randomness_roots.clone();
                 if should_write_random_checkpoint {
@@ -5184,11 +5405,11 @@ impl AuthorityPerEpochStore {
 
     /// Injects `TransactionDenyRulesUpdate` system transactions bringing the
     /// on-chain object to the current proposal aggregate, chunked and gated
-    /// by `compute_deny_rule_update_chunks`. Advances the mirrored state to
-    /// the injected target in the same commit output that persists it. Each
-    /// scheduled update becomes a checkpoint root: nothing else in the commit
-    /// can depend on the object, so an unrooted update would never be
-    /// checkpointed.
+    /// by `compute_deny_rule_update_chunks`. Runs only for commits that record
+    /// a proposal. Advances the mirrored state to the injected target in the
+    /// same commit output that persists it. Each scheduled update becomes a
+    /// checkpoint root: nothing else in the commit can depend on the object,
+    /// so an unrooted update would never be checkpointed.
     pub(crate) fn add_deny_rule_update_transactions(
         &self,
         output: &mut ConsensusCommitOutput,
@@ -5196,7 +5417,7 @@ impl AuthorityPerEpochStore {
         roots: &mut BTreeSet<TransactionKey>,
         consensus_commit_info: &ConsensusCommitInfo,
     ) -> IotaResult<()> {
-        if !self.protocol_config().deny_rule_governance_on_chain() {
+        if !self.protocol_config().enable_pcool_flow() {
             return Ok(());
         }
         // Mirroring starts the epoch after the object is created: without the
@@ -5207,6 +5428,10 @@ impl AuthorityPerEpochStore {
         else {
             return Ok(());
         };
+        // A commit that records no proposal would find nothing new.
+        if output.deny_rule_proposals().is_empty() {
+            return Ok(());
+        }
 
         // The aggregate from every recorded proposal, this commit's included.
         let mut proposals = self
@@ -5219,28 +5444,18 @@ impl AuthorityPerEpochStore {
                 .iter()
                 .map(|(authority, proposal)| (*authority, proposal.clone())),
         );
-        // No proposals means an empty aggregate and zero announced stake.
-        // The diff can produce no chunk from that.
-        if proposals.is_empty() {
-            return Ok(());
-        }
         let aggregate = Self::compute_active_transaction_deny_rules(&proposals, self.committee());
         let mirror = self.mirrored_transaction_deny_rules.load_full();
-
-        // Removals wait for enough of the committee to re-announce, so entries
-        // do not drop out while announcements are still arriving.
-        let announced_stake = Self::announced_stake(&proposals, self.committee());
-        let removals_unlocked = announced_stake >= self.committee().quorum_threshold()
-            && consensus_commit_info.round
-                >= self.protocol_config().deny_rule_removal_grace_round_floor();
-        self.metrics
-            .deny_rule_removals_unlocked
-            .set(removals_unlocked as i64);
+        // A validator that has not announced this epoch may still support
+        // what the object holds, so removals wait for explicit non-support
+        // rather than for a share of the committee to have announced.
+        let removable =
+            Self::compute_removable_transaction_deny_rules(&proposals, self.committee(), &mirror);
 
         let (chunks, target) = compute_deny_rule_update_chunks(
             &aggregate,
             &mirror,
-            removals_unlocked,
+            &removable,
             self.protocol_config().deny_rule_update_max_entries_per_tx() as usize,
             self.epoch(),
             consensus_commit_info.round,
@@ -5276,8 +5491,12 @@ impl AuthorityPerEpochStore {
                 *transaction.digest(),
             ));
         }
-        // Holding the mirror back when a chunk was skipped (epoch closing) makes
-        // the next commit re-derive the same delta; re-application is a no-op.
+        // Scheduling is all-or-nothing today: proposals are recorded only
+        // while transactions are still accepted, and the epoch closes after
+        // this runs. A partial schedule would leave the object ahead of the
+        // held-back mirror until the next proposal-recording commit re-sends
+        // the delta or the boundary re-seeds the mirror from the object, so a
+        // removal the object applied would stay enforced until then.
         if all_scheduled {
             self.metrics.deny_rule_updates_injected.inc();
             self.metrics
@@ -5285,10 +5504,6 @@ impl AuthorityPerEpochStore {
                 .inc_by(chunk_count as u64);
             output.record_deny_rule_mirror(target.clone());
             self.mirrored_transaction_deny_rules.store(Arc::new(target));
-            // The recompute in `push_consensus_output` only runs for commits
-            // that record proposals, so a removal unlocking on a proposal-free
-            // commit would otherwise stay enforced after the object dropped it.
-            self.store_active_transaction_deny_rules(&proposals);
         }
 
         Ok(())
@@ -5420,6 +5635,18 @@ impl AuthorityPerEpochStore {
         skip_consensus_commit_prologue_in_test: bool,
         authority_state: &AuthorityState,
     ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
+        let round = self.get_highest_pending_checkpoint_height() / 2 + 1;
+        // With the handler object state, each commit takes a new index, and
+        // the earlier ones count as fully executed: no execution watcher runs
+        // here to complete them.
+        let commit_index = match &self.handler_object_state {
+            Some(handler_object_state) => {
+                let index = handler_object_state.next_commit_index_for_testing();
+                handler_object_state.mark_fully_executed_for_testing(index - 1);
+                index
+            }
+            None => round,
+        };
         let verified_transactions = transactions
             .into_iter()
             .filter_map(|transaction| {
@@ -5435,8 +5662,8 @@ impl AuthorityPerEpochStore {
             checkpoint_service,
             cache_reader,
             &ConsensusCommitInfo::new_for_test(
-                self.get_highest_pending_checkpoint_height() / 2 + 1,
-                self.get_highest_pending_checkpoint_height() / 2 + 1,
+                commit_index,
+                round,
                 0,
                 skip_consensus_commit_prologue_in_test,
             ),
@@ -6283,9 +6510,10 @@ impl AuthorityPerEpochStore {
                 Ok(ConsensusTransactionResult::RandomnessConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
+                kind: ConsensusTransactionKind::UserTransactionV1(attested_tx),
                 ..
             }) => {
+                let transaction = &attested_tx.transaction;
                 if transaction.is_system_tx() {
                     warn!("UserTransactionV1 contains system transaction, ignoring");
                     return Ok(ConsensusTransactionResult::Ignored);
@@ -6378,7 +6606,7 @@ impl AuthorityPerEpochStore {
                 kind: ConsensusTransactionKind::TransactionDenyRuleProposal(proposal),
                 ..
             }) => {
-                // The `deny_rule_governance` feature gate is enforced in
+                // The `enable_pcool_flow` feature gate is enforced in
                 // `verify_consensus_transaction`, which filters every
                 // sequenced transaction before it reaches this point.
                 if !self
@@ -7027,30 +7255,37 @@ pub(crate) fn union_deny_rule_sets(mut rules: DenyRuleSet, other: &DenyRuleSet) 
 }
 
 /// Computes the `TransactionDenyRulesUpdate` transactions that bring the
-/// on-chain object from `mirror` to `aggregate`: additions and switch
-/// activations always, removals and switch deactivations only when
-/// `removals_unlocked`. A delta larger than `max_entries_per_tx` is split into
-/// disjoint chunks of the sorted delta, each carrying the absolute switch
+/// on-chain object from `mirror` towards `aggregate`: additions and switch
+/// activations always, removals and switch deactivations only for the part of
+/// `mirror` in `removable`. A delta larger than `max_entries_per_tx` is split
+/// into disjoint chunks of the sorted delta, each carrying the absolute switch
 /// states. Returns the chunks (empty when the object is up to date) and the
-/// state the object holds once they have executed — the next mirror. Pure, so
-/// every validator derives the same transactions at the same commit.
+/// state the object holds once they have executed, which is the next mirror.
+/// Pure, so every validator derives the same transactions at the same commit.
 pub(crate) fn compute_deny_rule_update_chunks(
     aggregate: &DenyRuleSet,
     mirror: &DenyRuleSet,
-    removals_unlocked: bool,
+    removable: &DenyRuleSet,
     max_entries_per_tx: usize,
     epoch: EpochId,
     round: u64,
     deny_rules_obj_initial_shared_version: Version,
 ) -> (Vec<TransactionDenyRulesUpdate>, DenyRuleSet) {
-    let switch = |aggregate_switch: bool, mirror_switch: bool| {
-        if removals_unlocked {
-            aggregate_switch
-        } else {
-            aggregate_switch || mirror_switch
-        }
+    let switch = |aggregate_switch: bool, mirror_switch: bool, removable_switch: bool| {
+        aggregate_switch || (mirror_switch && !removable_switch)
     };
-    let mut delta = TransactionDenyRulesUpdate {
+    fn removed<T: Ord + Copy>(
+        mirror: &BTreeSet<T>,
+        aggregate: &BTreeSet<T>,
+        removable: &BTreeSet<T>,
+    ) -> BTreeSet<T> {
+        mirror
+            .difference(aggregate)
+            .filter(|entry| removable.contains(entry))
+            .copied()
+            .collect()
+    }
+    let delta = TransactionDenyRulesUpdate {
         epoch,
         round,
         added_addresses: aggregate
@@ -7058,62 +7293,63 @@ pub(crate) fn compute_deny_rule_update_chunks(
             .difference(&mirror.denied_addresses)
             .copied()
             .collect(),
-        removed_addresses: BTreeSet::new(),
+        removed_addresses: removed(
+            &mirror.denied_addresses,
+            &aggregate.denied_addresses,
+            &removable.denied_addresses,
+        ),
         added_objects: aggregate
             .denied_objects
             .difference(&mirror.denied_objects)
             .copied()
             .collect(),
-        removed_objects: BTreeSet::new(),
+        removed_objects: removed(
+            &mirror.denied_objects,
+            &aggregate.denied_objects,
+            &removable.denied_objects,
+        ),
         added_packages: aggregate
             .denied_packages
             .difference(&mirror.denied_packages)
             .copied()
             .collect(),
-        removed_packages: BTreeSet::new(),
+        removed_packages: removed(
+            &mirror.denied_packages,
+            &aggregate.denied_packages,
+            &removable.denied_packages,
+        ),
         package_publish_disabled: switch(
             aggregate.package_publish_disabled,
             mirror.package_publish_disabled,
+            removable.package_publish_disabled,
         ),
         package_upgrade_disabled: switch(
             aggregate.package_upgrade_disabled,
             mirror.package_upgrade_disabled,
+            removable.package_upgrade_disabled,
         ),
         shared_object_disabled: switch(
             aggregate.shared_object_disabled,
             mirror.shared_object_disabled,
+            removable.shared_object_disabled,
         ),
         user_transaction_disabled: switch(
             aggregate.user_transaction_disabled,
             mirror.user_transaction_disabled,
+            removable.user_transaction_disabled,
         ),
         receiving_objects_disabled: switch(
             aggregate.receiving_objects_disabled,
             mirror.receiving_objects_disabled,
+            removable.receiving_objects_disabled,
         ),
         move_authenticator_disabled: switch(
             aggregate.move_authenticator_disabled,
             mirror.move_authenticator_disabled,
+            removable.move_authenticator_disabled,
         ),
         deny_rules_obj_initial_shared_version,
     };
-    if removals_unlocked {
-        delta.removed_addresses = mirror
-            .denied_addresses
-            .difference(&aggregate.denied_addresses)
-            .copied()
-            .collect();
-        delta.removed_objects = mirror
-            .denied_objects
-            .difference(&aggregate.denied_objects)
-            .copied()
-            .collect();
-        delta.removed_packages = mirror
-            .denied_packages
-            .difference(&aggregate.denied_packages)
-            .copied()
-            .collect();
-    }
 
     // The object state once the delta has executed.
     let target = DenyRuleSet {

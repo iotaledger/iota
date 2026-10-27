@@ -16,7 +16,7 @@ use std::{
     io::Write,
     path::Path,
     pin::Pin,
-    sync::{Arc, Weak},
+    sync::{Arc, OnceLock, Weak},
     task::{Context, Poll},
     time::{Duration, SystemTime},
 };
@@ -87,6 +87,7 @@ use crate::{
     authority::{
         AuthorityState,
         authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
+        authority_store_tables::AuthorityPerpetualTables,
     },
     authority_client::{
         make_network_authority_clients_with_network_config, validator_peer::ValidatorPeerAPI,
@@ -259,6 +260,23 @@ pub struct CheckpointStore {
     locally_computed_checkpoint_notify_read:
         NotifyRead<CheckpointSequenceNumber, CheckpointSummary>,
     epoch_last_checkpoint_notify_read: NotifyRead<EpochId, CheckpointSequenceNumber>,
+    /// Set by [`Self::hold_synced_watermark_in_memory`]; empty while the saved
+    /// synced watermark is the one readers see.
+    synced_in_memory: OnceLock<SyncedWatermarkInMemory>,
+    /// Held for the whole of every write of the synced watermark, whether or
+    /// not it is held in memory, so that writes apply one at a time and the
+    /// saved watermark never passes the one readers see. Readers never take
+    /// it. Taken before the lock on the value held in memory.
+    synced_writes: Mutex<()>,
+}
+
+/// The synced watermark readers see, held in memory while the saved one only
+/// moves over checkpoints whose contents are stored.
+struct SyncedWatermarkInMemory {
+    perpetual_tables: Arc<AuthorityPerpetualTables>,
+    /// Locked only to copy or replace the value, never across a read of the
+    /// store, so readers do not wait for one.
+    highest_synced: Mutex<Option<(CheckpointSequenceNumber, CheckpointDigest)>>,
 }
 
 impl CheckpointStore {
@@ -288,6 +306,8 @@ impl CheckpointStore {
             executed_checkpoint_notify_read: NotifyRead::new(),
             locally_computed_checkpoint_notify_read: NotifyRead::new(),
             epoch_last_checkpoint_notify_read: NotifyRead::new(),
+            synced_in_memory: OnceLock::new(),
+            synced_writes: Mutex::new(()),
         })
     }
 
@@ -435,11 +455,18 @@ impl CheckpointStore {
     ///
     /// Only the verified, synced and executed rows name a checkpoint. The
     /// pruner writes a random digest for `HighestPruned`, since nothing reads
-    /// it, so that row's sequence number is the only part worth having.
+    /// it, so that row's sequence number is the only part worth having. While
+    /// the synced watermark readers see is held in memory, `HighestSynced`
+    /// answers with that one instead of the saved row.
     fn get_watermark(
         &self,
         watermark: CheckpointWatermark,
     ) -> Result<Option<(CheckpointSequenceNumber, CheckpointDigest)>, TypedStoreError> {
+        if matches!(watermark, CheckpointWatermark::HighestSynced) {
+            if let Some(in_memory) = self.synced_in_memory.get() {
+                return Ok(*in_memory.highest_synced.lock());
+            }
+        }
         self.tables.watermarks.get(&watermark)
     }
 
@@ -757,10 +784,7 @@ impl CheckpointStore {
                 checkpoint_seq = last.sequence_number(),
                 "Updating highest synced checkpoint",
             );
-            self.tables.watermarks.insert(
-                &CheckpointWatermark::HighestSynced,
-                &(last.sequence_number(), *last.digest()),
-            )?;
+            self.write_highest_synced(last)?;
 
             // A reader parks only below the watermark, so only what this
             // write has just passed can have anyone waiting on it.
@@ -897,7 +921,106 @@ impl CheckpointStore {
         )?;
         self.executed_checkpoint_notify_read
             .notify(&seq, checkpoint);
+        // The checkpoint's outputs are stored now, so the saved synced
+        // watermark may pass it.
+        if let Some(in_memory) = self.synced_in_memory.get() {
+            let _writes = self.synced_writes.lock();
+            self.advance_saved_synced(in_memory)?;
+        }
         Ok(())
+    }
+
+    /// Moves the synced watermark readers see to `checkpoint`, and the saved
+    /// one towards it over the checkpoints whose contents are stored.
+    fn write_highest_synced(&self, checkpoint: &VerifiedCheckpoint) -> Result<(), TypedStoreError> {
+        let _writes = self.synced_writes.lock();
+        let row = (checkpoint.sequence_number(), *checkpoint.digest());
+        let Some(in_memory) = self.synced_in_memory.get() else {
+            return self
+                .tables
+                .watermarks
+                .insert(&CheckpointWatermark::HighestSynced, &row);
+        };
+        {
+            let mut highest_synced = in_memory.highest_synced.lock();
+            if highest_synced
+                .is_none_or(|(sequence_number, _)| sequence_number < checkpoint.sequence_number())
+            {
+                *highest_synced = Some(row);
+            }
+        }
+        self.advance_saved_synced(in_memory)
+    }
+
+    /// Moves the saved synced watermark forwards over the checkpoints, up to
+    /// the one readers see, that have executed or whose transactions and
+    /// effects are stored, stopping at the first that has neither. Call with
+    /// `synced_writes` held.
+    fn advance_saved_synced(
+        &self,
+        in_memory: &SyncedWatermarkInMemory,
+    ) -> Result<(), TypedStoreError> {
+        let Some((highest_synced, _)) = *in_memory.highest_synced.lock() else {
+            return Ok(());
+        };
+        let saved = self
+            .tables
+            .watermarks
+            .get(&CheckpointWatermark::HighestSynced)?
+            .map(|(sequence_number, _)| sequence_number);
+        let highest_executed = self.get_highest_executed_checkpoint_seq_number()?;
+        let mut advanced_to = None;
+        for sequence_number in saved.map_or(0, |saved| saved + 1)..=highest_synced {
+            let stored = highest_executed.is_some_and(|executed| sequence_number <= executed)
+                || self.contents_stored(sequence_number, &in_memory.perpetual_tables)?;
+            if !stored {
+                break;
+            }
+            advanced_to = Some(sequence_number);
+        }
+        let Some(sequence_number) = advanced_to else {
+            return Ok(());
+        };
+        let checkpoint = self
+            .get_checkpoint_by_sequence_number(sequence_number)?
+            .expect("a checkpoint at or below the synced watermark is stored");
+        self.tables.watermarks.insert(
+            &CheckpointWatermark::HighestSynced,
+            &(sequence_number, *checkpoint.digest()),
+        )
+    }
+
+    /// Whether every transaction and effect of synced checkpoint
+    /// `sequence_number` is in the perpetual store, rather than only in
+    /// memory.
+    fn contents_stored(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
+        perpetual_tables: &AuthorityPerpetualTables,
+    ) -> Result<bool, TypedStoreError> {
+        let checkpoint = self
+            .get_checkpoint_by_sequence_number(sequence_number)?
+            .expect("a checkpoint at or below the synced watermark is stored");
+        let contents = self
+            .get_checkpoint_contents(&checkpoint.contents_digest)?
+            .expect("the contents of a checkpoint at or below the synced watermark are stored");
+        // A checkpoint whose outputs are only in memory usually misses all of
+        // them, so one lookup settles most calls before the full check.
+        if let Some(last) = contents.iter().last() {
+            if !perpetual_tables.effects.contains_key(&last.effects)? {
+                return Ok(false);
+            }
+        }
+        let (transactions, effects): (Vec<_>, Vec<_>) = contents
+            .iter()
+            .map(|digests| (digests.transaction, digests.effects))
+            .unzip();
+        Ok(perpetual_tables
+            .transactions
+            .multi_contains_keys(&transactions)?
+            .into_iter()
+            .chain(perpetual_tables.effects.multi_contains_keys(&effects)?)
+            .all(|stored| stored))
     }
 
     pub fn update_highest_pruned_checkpoint(
@@ -908,6 +1031,47 @@ impl CheckpointStore {
             &CheckpointWatermark::HighestPruned,
             &(checkpoint.sequence_number(), *checkpoint.digest()),
         )
+    }
+
+    /// From now on, holds the synced watermark that callers read in memory.
+    /// The value saved in the database passes a checkpoint only once that
+    /// checkpoint has executed or its transactions and effects are in
+    /// `perpetual_tables`.
+    ///
+    /// The synced watermark promises that the contents of every checkpoint up
+    /// to it can be loaded. A checkpoint can be marked synced while its
+    /// transactions and effects are only in memory: this node certified it
+    /// after building it, or state sync found its contents in memory. With
+    /// the watermark held in memory, a restarted node starts from a synced
+    /// checkpoint whose contents can be loaded, and state sync marks the later
+    /// checkpoints synced again.
+    ///
+    /// Turning this on does not change the value callers read. At startup,
+    /// call it before anything marks a checkpoint synced. A running node may
+    /// call it at an epoch change, after every checkpoint of the ending epoch
+    /// has executed. Once on, it stays on until the process stops, also in
+    /// later epochs where the node is not in the committee. There, state sync
+    /// marks a checkpoint synced only after its transactions and effects are
+    /// in `perpetual_tables`, so the saved value moves with the one callers
+    /// read. Does nothing if already on.
+    pub fn hold_synced_watermark_in_memory(
+        &self,
+        perpetual_tables: Arc<AuthorityPerpetualTables>,
+    ) -> Result<(), TypedStoreError> {
+        let _writes = self.synced_writes.lock();
+        if self.synced_in_memory.get().is_some() {
+            return Ok(());
+        }
+        let saved = self
+            .tables
+            .watermarks
+            .get(&CheckpointWatermark::HighestSynced)?;
+        self.synced_in_memory
+            .get_or_init(|| SyncedWatermarkInMemory {
+                perpetual_tables,
+                highest_synced: Mutex::new(saved),
+            });
+        Ok(())
     }
 
     /// Sets the verified watermark to `checkpoint` whether or not that moves
@@ -936,10 +1100,14 @@ impl CheckpointStore {
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
-        self.tables.watermarks.insert(
-            &CheckpointWatermark::HighestSynced,
-            &(checkpoint.sequence_number(), *checkpoint.digest()),
-        )
+        let _writes = self.synced_writes.lock();
+        let row = (checkpoint.sequence_number(), *checkpoint.digest());
+        if let Some(in_memory) = self.synced_in_memory.get() {
+            *in_memory.highest_synced.lock() = Some(row);
+        }
+        self.tables
+            .watermarks
+            .insert(&CheckpointWatermark::HighestSynced, &row)
     }
 
     /// Sets highest executed checkpoint to any value.
@@ -1723,11 +1891,7 @@ impl CheckpointBuilder {
 
         batch.write()?;
         fail_point!("checkpoint-summaries-written");
-        if self
-            .epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation()
-        {
+        if self.epoch_store.protocol_config().enable_pcool_flow() {
             self.store
                 .notify_locally_computed_checkpoints(new_checkpoints.iter().map(|c| &c.summary));
         }
@@ -2531,6 +2695,9 @@ impl CheckpointAggregator {
                     );
 
                     self.store.insert_certified_checkpoint(&summary)?;
+                    if summary.next_epoch_committee().is_some() {
+                        fail_point!("certified-end-of-epoch-checkpoint-before-state-sync");
+                    }
                     self.metrics
                         .last_certified_checkpoint
                         .set(current.summary.sequence_number as i64);
@@ -3552,10 +3719,6 @@ mod tests {
     // must be the same bytes and be ignored.
     #[tokio::test]
     async fn own_checkpoint_signature_reaches_aggregator_without_consensus() {
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.enable_pcool_deterministic_validation_for_testing();
-            config
-        });
         let network_config =
             iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
                 .committee_size(std::num::NonZeroUsize::new(4).unwrap())

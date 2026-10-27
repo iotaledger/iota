@@ -1,32 +1,44 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The oracle for P-COOL deterministic validation: the verdict a validator
+//! The oracle for P-COOL deterministic validation: the result a validator
 //! with perfect knowledge gives at commit `C`, as a pure function of the
 //! consensus history and the epoch-start state. It knows nothing about
 //! execution progress, state sync, crashes, caches or pruning, which is what
 //! makes it the specification the real code is checked against.
 //!
-//! The model keeps, per commit `c`, the object state `S_c` after every
-//! transaction that executes at `c`, the lock table `L_c` and the processed
-//! set `P_c`. A candidate at commit `C` is judged in the commit's order:
+//! Terms used here:
+//! - `C` is the commit being validated, and `K` is how many commits behind `C` the object state is
+//!   read: the protocol config's `pcool_deterministic_validation_horizon_distance`. Commit `C - K`
+//!   is the horizon.
+//! - For each commit `c`, `S_c` is the object state after every transaction that executes at `c`,
+//!   `L_c` is the lock table and `P_c` the set of processed digests. Validation at `C` reads
+//!   `S_{C-K}`.
+//! - A result ([`Verdict`]) is kept, dropped with a reason, or duplicate.
+//! - A deferral reload is a kept candidate that congestion control deferred, sequenced again at the
+//!   next commit.
+//!
+//! A candidate at commit `C` is judged in the commit's order:
 //!
 //! 1. a same-commit duplicate of an earlier candidate is silently dropped;
-//! 2. a digest already processed, other than a deferral reload, is a duplicate: it never reaches
-//!    validation and has no saved decision;
-//! 3. an owned input locked by another digest, counting locks taken earlier in this commit, drops
-//!    the candidate (lock conflict); a lock the candidate itself holds, from the commit that
-//!    deferred it, is no conflict;
-//! 4. every input is checked against `S_{C-K}`: an owned input is visible only if the state has
-//!    exactly the named version and digest live, stale if the state has a newer version or a
-//!    tombstone at or above it, and missing if the version is not produced yet or the id is
-//!    unknown; a shared input is visible if the object is live with the declared initial shared
-//!    version, stale if it is live otherwise or deleted, and missing if it is absent; a package is
-//!    visible if present and missing otherwise. A shared object deleted above the horizon is
-//!    therefore visible, and its transaction executes against the deletion. A receiving object is
-//!    checked as an owned input is, after every input, so a kept one was live at its named version
-//!    at the horizon and execution can always run it;
-//! 5. a candidate with every input visible is kept: its owned inputs are locked, its digest is
+//! 2. a deferral reload is kept without checks and takes no lock: the locks it took at the commit
+//!    that kept it stay in the table. A shared input deleted since that commit, or a receiving
+//!    object another transaction received since, fails its execution;
+//! 3. any other digest already processed is a duplicate: it never reaches validation and has no
+//!    saved decision;
+//! 4. an owned input locked by another digest, counting locks taken earlier in this commit, drops
+//!    the candidate (lock conflict);
+//! 5. every input is checked against `S_{C-K}`:
+//!    - an owned input is visible only if the state has exactly the named version and digest live,
+//!      stale if the state has a newer version or a tombstone at or above it, and missing if the
+//!      version is not produced yet or the id is unknown;
+//!    - a shared input is visible if the object is live with the declared initial shared version,
+//!      stale if it is live otherwise or deleted, and missing if it is absent. A shared object
+//!      deleted above the horizon is therefore visible, and its transaction executes against the
+//!      deletion;
+//!    - a package is visible if present and missing otherwise;
+//!    - a receiving object is checked as an owned input is, after every input;
+//! 6. a candidate with every input visible is kept: its owned inputs are locked, its digest is
 //!    processed, and unless deferred it executes at `C`. Receiving references take no lock.
 //!
 //! Content checks (gas balance, ownership, deny rules) are not modeled: the
@@ -54,6 +66,9 @@ pub const SENDER: Address = Address::new([0x5E; 32]);
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Slot {
     Live(Object),
+    /// For a shared object, the version the next transaction naming it is
+    /// assigned: the deletion's, or that of the last execution naming it
+    /// mutably since.
     Deleted(Version),
     Wrapped(Version),
 }
@@ -160,7 +175,8 @@ impl Candidate {
     }
 }
 
-/// Rule 4 for one input.
+/// The class of one input checked against the state at the horizon (item 5
+/// of the module doc).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InputClass {
     Visible,
@@ -234,7 +250,7 @@ impl Execution {
 /// What the oracle decided for one commit.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CommitOutcome {
-    /// One verdict per candidate that survived same-commit deduplication, in
+    /// One result per candidate that survived same-commit deduplication, in
     /// order.
     pub verdicts: Vec<(TransactionDigest, Verdict)>,
     /// The locks this commit's kept candidates took.
@@ -246,7 +262,7 @@ pub struct CommitOutcome {
 
 impl CommitOutcome {
     /// The digests that execute at this commit, which is what the handler
-    /// registers as the commit's roots.
+    /// assigns as the commit's roots.
     pub fn roots(&self) -> Vec<TransactionDigest> {
         self.executions
             .iter()
@@ -265,7 +281,7 @@ impl CommitOutcome {
 /// The consensus history as the oracle has judged it so far.
 #[derive(Clone, Debug)]
 pub struct Oracle {
-    /// Horizon distance: a verdict at `C` reads `S_{C-K}`.
+    /// `K`, the horizon distance: validation at `C` reads `S_{C-K}`.
     pub k: CommitIndex,
     /// `states[c]` is `S_c`; `states[0]` is the epoch start.
     states: Vec<State>,
@@ -296,7 +312,7 @@ impl Oracle {
         &self.states[commit as usize]
     }
 
-    /// The state a verdict at `commit` reads: `S_{C-K}`.
+    /// The state validation at `commit` reads: `S_{C-K}`.
     pub fn horizon_state(&self, commit: CommitIndex) -> &State {
         self.state(commit.saturating_sub(self.k))
     }
@@ -305,7 +321,8 @@ impl Oracle {
         &self.outcomes[commit as usize - 1]
     }
 
-    /// Rule 4 for every input of `candidate` at `commit`, in input order.
+    /// The class of every input of `candidate` at `commit`, in input order
+    /// (item 5 of the module doc).
     pub fn input_classes(&self, commit: CommitIndex, candidate: &Candidate) -> Vec<InputClass> {
         let state = self.horizon_state(commit);
         candidate
@@ -330,9 +347,11 @@ impl Oracle {
             if verdict != Verdict::Kept {
                 continue;
             }
-            for reference in &candidate.owned_inputs {
-                outcome.locks.insert(*reference, candidate.digest);
-                self.locks.insert(*reference, candidate.digest);
+            if !candidate.deferral_reload {
+                for reference in &candidate.owned_inputs {
+                    outcome.locks.insert(*reference, candidate.digest);
+                    self.locks.insert(*reference, candidate.digest);
+                }
             }
             self.processed.insert(candidate.digest);
             if !candidate.defer {
@@ -351,14 +370,14 @@ impl Oracle {
         commit_locks: &BTreeMap<ObjectReference, TransactionDigest>,
         candidate: &Candidate,
     ) -> Verdict {
-        if self.processed.contains(&candidate.digest) && !candidate.deferral_reload {
+        if candidate.deferral_reload {
+            return Verdict::Kept;
+        }
+        if self.processed.contains(&candidate.digest) {
             return Verdict::Duplicate;
         }
         for reference in &candidate.owned_inputs {
-            let holder = commit_locks
-                .get(reference)
-                .or_else(|| self.locks.get(reference));
-            if holder.is_some_and(|holder| *holder != candidate.digest) {
+            if commit_locks.contains_key(reference) || self.locks.contains_key(reference) {
                 return Verdict::Dropped(DropClass::Lock);
             }
         }
@@ -373,7 +392,8 @@ impl Oracle {
     }
 }
 
-/// Rule 4 for one input against the state at the horizon.
+/// Checks one input against the state at the horizon (item 5 of the module
+/// doc).
 pub fn input_class(state: &State, input: &Input) -> InputClass {
     match input {
         Input::Owned(reference) | Input::Receiving(reference) => {
@@ -415,8 +435,9 @@ pub fn input_class(state: &State, input: &Input) -> InputClass {
 /// it, and applies the changes. An owned input is consumed at the named
 /// version: a consumer between the horizon and the commit that named the
 /// version as an owned input took a lock that would have dropped the
-/// candidate. A receive takes no lock, so an owned input it consumed is not
-/// live here, which fails the execution and leaves that object as it is. A shared input already
+/// candidate, or, for a deferral reload, found the reload's lock. A receive
+/// takes no lock, so an owned input it consumed is not live here, which fails
+/// the execution and leaves that object as it is. A shared input already
 /// deleted at execution, a receiving object not live at its named version, or
 /// a failing transaction, aborts: it only charges gas, mutating every live
 /// owned input and every live mutable shared input.
@@ -483,11 +504,14 @@ fn execute(state: &mut State, candidate: &Candidate) -> Execution {
         },
         _ => None,
     });
+    // As in shared version assignment, every named owned and receiving
+    // version counts, whether or not the object is still there.
     let lamport = Version::lamport_increment(
-        owned
+        candidate
+            .owned_inputs
             .iter()
-            .chain(&received)
-            .map(|object| object.version())
+            .chain(&candidate.receiving)
+            .map(|reference| reference.version)
             .chain(shared_versions)
             .chain(wrapped_versions),
     )
@@ -604,6 +628,11 @@ fn execute(state: &mut State, candidate: &Candidate) -> Execution {
     }
     for change in &changes {
         state.slots.insert(change.id, change.after.clone());
+    }
+    // A mutable access moves the version the next transaction naming the
+    // object is assigned to this execution's version, deleted or not.
+    for id in &deleted_shared_inputs {
+        state.slots.insert(*id, Slot::Deleted(lamport));
     }
     Execution {
         digest: candidate.digest,

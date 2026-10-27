@@ -115,23 +115,9 @@ impl CommitConsumerMonitor {
         }
     }
 
-    pub async fn replay_complete(&self) {
-        self.wait_until_handled(self.highest_observed_commit_at_startup())
-            .await
-    }
-
     /// Waits until the consumer has handled commit `index`.
     pub async fn wait_until_handled(&self, index: CommitIndex) {
-        let mut rx = self.highest_handled_commit.subscribe();
-        loop {
-            let highest_handled = *rx.borrow_and_update();
-            if highest_handled >= index {
-                return;
-            }
-            rx.changed()
-                .await
-                .expect("the watch sender lives in this monitor, so it outlives this wait");
-        }
+        self.wait_until_handled_within(index, 1).await
     }
 }
 

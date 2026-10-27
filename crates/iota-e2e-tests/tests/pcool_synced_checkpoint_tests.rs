@@ -1,15 +1,14 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Cluster tests for P-COOL deterministic validation on committee validators
-//! that execute only what their own consensus handler assigned, which
-//! `pcool_deterministic_validation` makes them do. Such a validator executes synced checkpoints
-//! only once it switches to doing so for the rest of an epoch, after the network has certified the
-//! epoch's last checkpoint.
+//! Cluster tests for committee validators under the P-COOL flow, which execute
+//! only what their own consensus handler assigned. Such a validator executes
+//! synced checkpoints only once it switches to doing so for the rest of an
+//! epoch, after the network has certified the epoch's last checkpoint.
 //!
-//! Gated to the simulator for the reason given in
-//! `pcool_transaction_flow_tests.rs`: the protocol-config override is
-//! thread-local, and only the simulator runs every node on the test's thread.
+//! The tests run at the latest protocol version, where the P-COOL flow is on.
+//! They are gated to the simulator because they stop nodes at fail points and
+//! pick the node to stop by its simulator node id.
 //!
 //! Run with: `cargo simtest -p iota-e2e-tests --test pcool_synced_checkpoint_tests`.
 
@@ -24,17 +23,20 @@ use std::{
 };
 
 use futures::future::join_all;
+use iota_common::register_debug_fatal_handler;
 use iota_core::{authority::AuthorityState, consensus_manager::ConsensusReplayTargetReport};
 use iota_macros::{
     clear_fail_point, register_fail_point, register_fail_point_arg, register_fail_point_async,
     sim_test,
 };
-use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::Address;
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::{Address, TransactionKind};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId, dbg_addr},
     messages_checkpoint::CheckpointSequenceNumber,
+    supported_protocol_versions::SupportedProtocolVersions,
+    transaction::TransactionAPI,
 };
 use rand::distr::{Distribution, Uniform};
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -42,19 +44,10 @@ use tokio::{
     task::JoinHandle,
     time::{Instant, sleep, timeout},
 };
+use tracing::info;
 
-/// Enables deterministic validation, which also makes committee validators
-/// skip synced checkpoint execution. The guard must be held for the whole
-/// test.
-fn enable_deterministic_validation_for_testing() -> iota_protocol_config::OverrideGuard {
-    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
-        config
-    })
-}
-
-/// Builds a four-validator cluster and checks that the flag reached the
-/// validators.
+/// Builds a four-validator cluster and checks that every validator runs the
+/// P-COOL flow.
 async fn build_cluster(epoch_duration_ms: u64) -> Arc<TestCluster> {
     let test_cluster = TestClusterBuilder::new()
         .with_num_validators(4)
@@ -66,8 +59,8 @@ async fn build_cluster(epoch_duration_ms: u64) -> Arc<TestCluster> {
             let epoch_store = node.state().epoch_store_for_testing();
             let config = epoch_store.protocol_config();
             assert!(
-                config.pcool_deterministic_validation(),
-                "the protocol-config override must reach the validators"
+                config.enable_pcool_flow(),
+                "every validator must run the P-COOL flow"
             );
         });
     }
@@ -139,6 +132,7 @@ struct ValidatorProgress {
     epoch: EpochId,
     executing_synced_checkpoints: bool,
     highest_executed: CheckpointSequenceNumber,
+    highest_synced: CheckpointSequenceNumber,
     last_built: CheckpointSequenceNumber,
 }
 
@@ -159,6 +153,11 @@ fn progress(test_cluster: &TestCluster, name: &AuthorityName) -> Option<Validato
                     highest_executed: state
                         .get_checkpoint_store()
                         .get_highest_executed_checkpoint_seq_number()
+                        .unwrap()
+                        .unwrap_or_default(),
+                    highest_synced: state
+                        .get_checkpoint_store()
+                        .get_highest_synced_checkpoint_seq_number()
                         .unwrap()
                         .unwrap_or_default(),
                     last_built: epoch_store
@@ -188,6 +187,15 @@ fn fullnode_highest_executed_checkpoint(test_cluster: &TestCluster) -> Checkpoin
 /// a built checkpoint that differs from the certified one.
 async fn assert_validators_reach_the_same_checkpoints(test_cluster: &TestCluster) {
     let target = fullnode_highest_executed_checkpoint(test_cluster) + 5;
+    assert_validators_reach_the_same_checkpoints_up_to(test_cluster, target).await;
+}
+
+/// Waits until every validator has executed and built checkpoint `target`, and
+/// checks that each checkpoint it built up to there is the certified one.
+async fn assert_validators_reach_the_same_checkpoints_up_to(
+    test_cluster: &TestCluster,
+    target: CheckpointSequenceNumber,
+) {
     for name in test_cluster.get_validator_pubkeys() {
         timeout(Duration::from_secs(180), async {
             while progress(test_cluster, &name)
@@ -279,9 +287,19 @@ fn delay_execution_on(
     max_delay_ms: u64,
     enabled: Arc<AtomicBool>,
 ) {
+    delay_execution_on_nodes(move |id| id == sim_id, max_delay_ms, enabled);
+}
+
+/// Delays every transaction execution on the nodes `selects` picks by up to
+/// `max_delay_ms` while `enabled` is set. A node started again gets a new
+/// simulator node id, so `selects` can pick it before it starts.
+fn delay_execution_on_nodes(
+    selects: impl Fn(iota_simulator::task::NodeId) -> bool + Send + Sync + 'static,
+    max_delay_ms: u64,
+    enabled: Arc<AtomicBool>,
+) {
     register_fail_point_async("transaction_execution_delay", move || {
-        let delay =
-            iota_simulator::current_simnode_id() == sim_id && enabled.load(Ordering::SeqCst);
+        let delay = selects(iota_simulator::current_simnode_id()) && enabled.load(Ordering::SeqCst);
         async move {
             if delay {
                 let delay = Uniform::new(0, max_delay_ms)
@@ -383,7 +401,6 @@ async fn stop_until_the_epoch_ends_then_wait_for_the_switch(
 #[sim_test]
 async fn test_mid_epoch_restart_catches_up_without_fork() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(60_000).await;
     let names = test_cluster.get_validator_pubkeys();
     let stop = Arc::new(AtomicBool::new(false));
@@ -418,7 +435,6 @@ async fn test_mid_epoch_restart_catches_up_without_fork() {
 #[sim_test]
 async fn test_validator_missing_the_epochs_last_commits_switches_and_reaches_the_next_epoch() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(20_000).await;
     let names = test_cluster.get_validator_pubkeys();
     let victim = names[0];
@@ -463,7 +479,6 @@ async fn test_restart_after_switching_to_synced_checkpoints_does_not_fork() {
     const KILLS: usize = 6;
     const KILLS_PER_EPOCH: usize = 2;
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(15_000).await;
     let names = test_cluster.get_validator_pubkeys();
     let victim = names[0];
@@ -587,13 +602,767 @@ async fn test_restart_after_switching_to_synced_checkpoints_does_not_fork() {
     clear_fail_point("consensus-replay-target");
 }
 
+/// The checkpoints `name` built itself and holds as synced but has not
+/// executed, among them those whose transactions are not all in its
+/// perpetual store. Those transactions are only in memory, so a crash loses
+/// them.
+fn unexecuted_locally_built_checkpoints_without_stored_transactions(
+    test_cluster: &TestCluster,
+    name: &AuthorityName,
+) -> Vec<CheckpointSequenceNumber> {
+    let handle = test_cluster
+        .swarm
+        .node(name)
+        .unwrap()
+        .get_node_handle()
+        .unwrap();
+    handle.with(|node| {
+        let state = node.state();
+        let store = state.get_checkpoint_store();
+        let database = state.database_for_testing();
+        let executed = store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            .unwrap_or_default();
+        let synced = store
+            .get_highest_synced_checkpoint_seq_number()
+            .unwrap()
+            .unwrap_or_default();
+        (executed + 1..=synced)
+            .filter(|&sequence_number| {
+                if store
+                    .get_locally_computed_checkpoint(sequence_number)
+                    .unwrap()
+                    .is_none()
+                {
+                    return false;
+                }
+                let checkpoint = store
+                    .get_checkpoint_by_sequence_number(sequence_number)
+                    .unwrap()
+                    .expect("a synced checkpoint is stored");
+                let digests: Vec<_> = store
+                    .get_checkpoint_contents(&checkpoint.contents_digest)
+                    .unwrap()
+                    .expect("the contents of a synced checkpoint are stored")
+                    .transactions()
+                    .iter()
+                    .map(|digests| digests.transaction)
+                    .collect();
+                database
+                    .multi_get_transaction_blocks(&digests)
+                    .unwrap()
+                    .iter()
+                    .any(Option::is_none)
+            })
+            .collect()
+    })
+}
+
+/// How many commits have their consensus commit prologue in one of
+/// `checkpoints` of `name`, read from its transaction cache, which also holds
+/// transactions executed only in memory. Each commit has one prologue.
+fn commits_in_checkpoints(
+    test_cluster: &TestCluster,
+    name: &AuthorityName,
+    checkpoints: &[CheckpointSequenceNumber],
+) -> usize {
+    let handle = test_cluster
+        .swarm
+        .node(name)
+        .unwrap()
+        .get_node_handle()
+        .unwrap();
+    handle.with(|node| {
+        let state = node.state();
+        let store = state.get_checkpoint_store();
+        let digests: Vec<_> = checkpoints
+            .iter()
+            .flat_map(|&sequence_number| {
+                let checkpoint = store
+                    .get_checkpoint_by_sequence_number(sequence_number)
+                    .unwrap()
+                    .expect("a synced checkpoint is stored");
+                store
+                    .get_checkpoint_contents(&checkpoint.contents_digest)
+                    .unwrap()
+                    .expect("the contents of a synced checkpoint are stored")
+                    .transactions()
+                    .iter()
+                    .map(|digests| digests.transaction)
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        state
+            .get_transaction_cache_reader()
+            .multi_get_transaction_blocks(&digests)
+            .into_iter()
+            .flatten()
+            .filter(|transaction| {
+                matches!(
+                    transaction.data().transaction().kind(),
+                    TransactionKind::ConsensusCommitPrologueV1(_)
+                )
+            })
+            .count()
+    })
+}
+
+/// The simulator node ids of every node of the cluster but `name`. They stay
+/// the same while those nodes run; `name` gets a new one whenever it starts
+/// again.
+fn sim_node_ids_of_all_nodes_but(
+    test_cluster: &TestCluster,
+    name: &AuthorityName,
+) -> Vec<iota_simulator::task::NodeId> {
+    let mut ids: Vec<_> = test_cluster
+        .get_validator_pubkeys()
+        .iter()
+        .filter(|other| *other != name)
+        .map(|other| sim_node_id(test_cluster, other))
+        .collect();
+    ids.push(
+        test_cluster
+            .fullnode_handle
+            .iota_node
+            .with(|_| iota_simulator::current_simnode_id()),
+    );
+    ids
+}
+
+/// Holds the checkpoint executors of `names` at the next checkpoint each built
+/// itself, once they have executed their first checkpoints, until each has at
+/// least `at_risk` checkpoints it built certified and synced without their
+/// transactions on disk. The traffic must already run. Returns the flag that
+/// keeps holding the executors while set.
+async fn hold_executors_until_locally_built_checkpoints_are_unexecuted(
+    test_cluster: &TestCluster,
+    names: &[AuthorityName],
+    at_risk: usize,
+) -> Arc<AtomicBool> {
+    let sim_ids: Vec<_> = names
+        .iter()
+        .map(|name| sim_node_id(test_cluster, name))
+        .collect();
+    let holding = Arc::new(AtomicBool::new(false));
+    {
+        let holding = holding.clone();
+        register_fail_point_async("execute-locally-built-checkpoint", move || {
+            let hold = sim_ids.contains(&iota_simulator::current_simnode_id());
+            let holding = holding.clone();
+            async move {
+                while hold && holding.load(Ordering::SeqCst) {
+                    sleep(Duration::from_millis(100)).await;
+                }
+            }
+        });
+    }
+    timeout(Duration::from_secs(60), async {
+        while names
+            .iter()
+            .any(|name| progress(test_cluster, name).unwrap().highest_executed < 3)
+        {
+            sleep(Duration::from_millis(200)).await;
+        }
+    })
+    .await
+    .expect("the validators must execute their first checkpoints");
+
+    holding.store(true, Ordering::SeqCst);
+    timeout(Duration::from_secs(60), async {
+        while names.iter().any(|name| {
+            unexecuted_locally_built_checkpoints_without_stored_transactions(test_cluster, name)
+                .len()
+                < at_risk
+        }) {
+            sleep(Duration::from_millis(200)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!(
+            "the held validators must certify checkpoints they built: {:?}",
+            names
+                .iter()
+                .map(|name| progress(test_cluster, name))
+                .collect::<Vec<_>>()
+        )
+    });
+    holding
+}
+
+/// Holds every transaction execution on the nodes `selects` picks while
+/// `holding` is set.
+fn hold_execution_on_nodes(
+    selects: impl Fn(iota_simulator::task::NodeId) -> bool + Send + Sync + 'static,
+    holding: Arc<AtomicBool>,
+) {
+    register_fail_point_async("transaction_execution_delay", move || {
+        let hold = selects(iota_simulator::current_simnode_id());
+        let holding = holding.clone();
+        async move {
+            while hold && holding.load(Ordering::SeqCst) {
+                sleep(Duration::from_millis(100)).await;
+            }
+        }
+    });
+}
+
+/// A validator whose checkpoint executor falls behind its own checkpoint
+/// builder can switch to executing synced checkpoints while certified
+/// checkpoints it built itself have not executed yet. Their transactions are
+/// then only in memory: state sync downloads no contents for a checkpoint this
+/// node certified itself, or for one whose contents it still held in memory
+/// from building it. After a crash at that point, the restarted validator
+/// replays its commits up to the one it stopped at and then executes synced
+/// checkpoints again. It must execute those checkpoints even while the replay
+/// executes their transactions slowly, and the cluster must reach later epochs
+/// on the same checkpoints.
+///
+/// The executor is held at the first checkpoint it built, so it never reaches
+/// a checkpoint it did not build, where it would switch once the epoch's last
+/// checkpoint is certified. The test switches the validator itself instead,
+/// mid-epoch, which saves the same state.
+#[sim_test]
+async fn test_restart_after_switching_with_unexecuted_locally_built_checkpoints() {
+    telemetry_subscribers::init_for_testing();
+    let test_cluster = build_cluster(60_000).await;
+    restart_after_switching_with_unexecuted_locally_built_checkpoints(test_cluster).await;
+}
+
+/// `test_restart_after_switching_with_unexecuted_locally_built_checkpoints` in
+/// the first epoch after a protocol upgrade turns the P-COOL flow on. The
+/// validators started with it off, so they hold the synced watermark in memory
+/// only from that epoch change on.
+#[sim_test]
+async fn test_restart_after_switching_with_unexecuted_checkpoints_after_an_upgrade() {
+    const UPGRADE_VERSION: u64 = ProtocolVersion::MAX.as_u64();
+    telemetry_subscribers::init_for_testing();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|version, mut config| {
+        config.set_enable_pcool_flow_for_testing(version.as_u64() >= UPGRADE_VERSION);
+        config
+    });
+    let test_cluster = TestClusterBuilder::new()
+        .with_num_validators(4)
+        .with_protocol_version((UPGRADE_VERSION - 1).into())
+        .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
+            UPGRADE_VERSION - 1,
+            UPGRADE_VERSION,
+        ))
+        .with_epoch_duration_ms(60_000)
+        .build()
+        .await;
+    let pcool_flow = |test_cluster: &TestCluster| {
+        test_cluster
+            .all_validator_handles()
+            .iter()
+            .map(|handle| {
+                handle.with(|node| {
+                    node.state()
+                        .epoch_store_for_testing()
+                        .protocol_config()
+                        .enable_pcool_flow()
+                })
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(pcool_flow(&test_cluster), [false; 4]);
+    test_cluster
+        .wait_for_all_nodes_upgrade_to(UPGRADE_VERSION)
+        .await;
+    assert_eq!(pcool_flow(&test_cluster), [true; 4]);
+    restart_after_switching_with_unexecuted_locally_built_checkpoints(Arc::new(test_cluster)).await;
+}
+
+/// Switches one validator of `test_cluster` to executing synced checkpoints
+/// while it holds certified checkpoints it built itself whose transactions are
+/// only in memory, restarts it, and checks that the cluster reaches later
+/// epochs on the same checkpoints. The P-COOL flow must be on.
+async fn restart_after_switching_with_unexecuted_locally_built_checkpoints(
+    test_cluster: Arc<TestCluster>,
+) {
+    const AT_RISK_BEFORE_THE_SWITCH: usize = 3;
+    let names = test_cluster.get_validator_pubkeys();
+    let victim = names[0];
+    let others = sim_node_ids_of_all_nodes_but(&test_cluster, &victim);
+    let delaying = Arc::new(AtomicBool::new(false));
+    delay_execution_on_nodes(move |id| !others.contains(&id), 3_000, delaying.clone());
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let traffic = spawn_transfer_traffic_with_double_spends(
+        test_cluster.clone(),
+        test_cluster.get_addresses(),
+        stop.clone(),
+    );
+    let holding = hold_executors_until_locally_built_checkpoints_are_unexecuted(
+        &test_cluster,
+        &[victim],
+        AT_RISK_BEFORE_THE_SWITCH,
+    )
+    .await;
+
+    let victim_handle = test_cluster
+        .swarm
+        .node(&victim)
+        .unwrap()
+        .get_node_handle()
+        .unwrap();
+    let epoch = victim_handle
+        .with_async(|node| async move {
+            let epoch_store = node.state().epoch_store_for_testing().clone();
+            epoch_store.start_executing_synced_checkpoints().await;
+            epoch_store.epoch()
+        })
+        .await;
+    let last_commit_before_switch = victim_handle.with(|node| {
+        node.state()
+            .epoch_store_for_testing()
+            .last_commit_before_synced_checkpoint_execution()
+            .unwrap()
+    });
+    assert!(
+        last_commit_before_switch.is_some(),
+        "the switch must save the last commit the handler processed"
+    );
+    drop(victim_handle);
+    // State sync marks the checkpoints the victim built last as synced once
+    // its peers certify them, without downloading their contents.
+    timeout(Duration::from_secs(30), async {
+        while progress(&test_cluster, &victim).is_none_or(|p| p.highest_synced < p.last_built) {
+            sleep(Duration::from_millis(200)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!(
+            "every checkpoint the victim built must become synced: {:?}",
+            progress(&test_cluster, &victim)
+        )
+    });
+    let at_risk =
+        unexecuted_locally_built_checkpoints_without_stored_transactions(&test_cluster, &victim);
+    assert!(
+        at_risk.len() >= AT_RISK_BEFORE_THE_SWITCH,
+        "the victim must hold synced checkpoints it built whose transactions are only in \
+         memory: {at_risk:?}, {:?}",
+        progress(&test_cluster, &victim)
+    );
+    info!(
+        ?at_risk,
+        ?last_commit_before_switch,
+        "stopping the victim after the switch"
+    );
+
+    test_cluster.stop_node(&victim);
+    holding.store(false, Ordering::SeqCst);
+    delaying.store(true, Ordering::SeqCst);
+    // Lets the stopped node's tasks end, so they release its store.
+    sleep(Duration::from_secs(5)).await;
+    test_cluster.start_node(&victim).await;
+    sleep(Duration::from_secs(20)).await;
+    delaying.store(false, Ordering::SeqCst);
+
+    wait_for_validators_to_reach_epoch(&test_cluster, &names, epoch + 2, Duration::from_secs(240))
+        .await;
+    stop_traffic(traffic, &stop).await;
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+    clear_fail_point("execute-locally-built-checkpoint");
+    clear_fail_point("transaction_execution_delay");
+}
+
+/// A validator restarted while its checkpoint executor is behind its own
+/// checkpoint builder replays its commits to execute again the transactions of
+/// the certified checkpoints it built, which were only in memory. When that
+/// replay stalls past the startup wait for the rebuild, the executor starts
+/// anyway and waits at the first such checkpoint. Once the epoch's last
+/// checkpoint is certified, the validator switches to executing synced
+/// checkpoints, which stops the replay below the commits of the later
+/// checkpoints it built. It must still execute those checkpoints, and the
+/// cluster must reach later epochs on the same checkpoints.
+///
+/// The executor is held before the restart as in
+/// `test_restart_after_switching_with_unexecuted_locally_built_checkpoints`.
+/// After the restart, every transaction execution on the validator is held so
+/// the replay cannot get past the commits it waits for. Test builds panic when
+/// the startup wait for the rebuild times out, which production only logs, so
+/// the test logs it instead.
+#[sim_test]
+async fn test_restart_with_a_stalled_replay_and_unexecuted_locally_built_checkpoints() {
+    const AT_RISK_BEFORE_THE_RESTART: usize = 4;
+    telemetry_subscribers::init_for_testing();
+    register_debug_fatal_handler!("Timed out waiting for checkpoints to be rebuilt", || {});
+    let test_cluster = build_cluster(60_000).await;
+    let names = test_cluster.get_validator_pubkeys();
+    let victim = names[0];
+    let others = sim_node_ids_of_all_nodes_but(&test_cluster, &victim);
+    let holding_execution = Arc::new(AtomicBool::new(false));
+    hold_execution_on_nodes(move |id| !others.contains(&id), holding_execution.clone());
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let traffic = spawn_transfer_traffic_with_double_spends(
+        test_cluster.clone(),
+        test_cluster.get_addresses(),
+        stop.clone(),
+    );
+    let holding_executor = hold_executors_until_locally_built_checkpoints_are_unexecuted(
+        &test_cluster,
+        &[victim],
+        AT_RISK_BEFORE_THE_RESTART,
+    )
+    .await;
+    // The commits of these checkpoints are above every commit whose
+    // transactions are on disk. Post-consensus validation of commit C reads
+    // object state as of commit C - K, where K is the horizon distance read
+    // below. After the restart nothing executes, so the replay processes at
+    // most K commits above those and the switch saves a commit no higher.
+    // With more than K commits in these checkpoints, some lie above the saved
+    // commit, and the replay never executes their transactions.
+    let horizon_distance = test_cluster
+        .swarm
+        .node(&victim)
+        .unwrap()
+        .get_node_handle()
+        .unwrap()
+        .with(|node| {
+            node.state()
+                .epoch_store_for_testing()
+                .protocol_config()
+                .pcool_deterministic_validation_horizon_distance()
+        });
+    let (at_risk, commits_at_risk) = timeout(Duration::from_secs(60), async {
+        loop {
+            let at_risk = unexecuted_locally_built_checkpoints_without_stored_transactions(
+                &test_cluster,
+                &victim,
+            );
+            let commits = commits_in_checkpoints(&test_cluster, &victim, &at_risk);
+            if commits as u64 > horizon_distance {
+                return (at_risk, commits);
+            }
+            sleep(Duration::from_millis(200)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!(
+            "the checkpoints the held victim built must cover more than {horizon_distance} \
+             commits: {:?}",
+            progress(&test_cluster, &victim)
+        )
+    });
+    let epoch = progress(&test_cluster, &victim).unwrap().epoch;
+    info!(
+        ?at_risk,
+        commits_at_risk, "stopping the victim before any switch"
+    );
+
+    test_cluster.stop_node(&victim);
+    holding_executor.store(false, Ordering::SeqCst);
+    holding_execution.store(true, Ordering::SeqCst);
+    // Lets the stopped node's tasks end, so they release its store.
+    sleep(Duration::from_secs(5)).await;
+    test_cluster.start_node(&victim).await;
+
+    let last_commit_before_switch = timeout(Duration::from_secs(300), async {
+        loop {
+            let saved = test_cluster
+                .swarm
+                .node(&victim)
+                .unwrap()
+                .get_node_handle()
+                .and_then(|handle| {
+                    handle.with(|node| {
+                        let epoch_store = node.state().epoch_store_for_testing();
+                        (epoch_store.epoch() == epoch)
+                            .then(|| {
+                                epoch_store
+                                    .last_commit_before_synced_checkpoint_execution()
+                                    .unwrap()
+                            })
+                            .flatten()
+                    })
+                });
+            if let Some(saved) = saved {
+                return saved;
+            }
+            sleep(Duration::from_millis(200)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!(
+            "the restarted victim must switch to executing synced checkpoints in epoch {epoch}: \
+             {:?}",
+            progress(&test_cluster, &victim)
+        )
+    });
+    info!(last_commit_before_switch, "the restarted victim switched");
+    holding_execution.store(false, Ordering::SeqCst);
+
+    let target_epoch = names[1..]
+        .iter()
+        .filter_map(|name| progress(&test_cluster, name))
+        .map(|p| p.epoch)
+        .max()
+        .unwrap()
+        + 1;
+    wait_for_validators_to_reach_epoch(
+        &test_cluster,
+        &names,
+        target_epoch,
+        Duration::from_secs(300),
+    )
+    .await;
+    stop_traffic(traffic, &stop).await;
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+    clear_fail_point("execute-locally-built-checkpoint");
+    clear_fail_point("transaction_execution_delay");
+}
+
+/// Every validator restarts at once while each holds certified checkpoints it
+/// built itself whose transactions were only in memory. No validator then has
+/// those checkpoints' contents on disk, so each one must execute them again
+/// from its own replay before it can load them. Every validator must execute
+/// past them, and the network must reach a later epoch on the same
+/// checkpoints.
+///
+/// The executors are held at the first checkpoint each validator built, as in
+/// `test_restart_after_switching_with_unexecuted_locally_built_checkpoints`.
+/// The fullnode stays stopped, because it stores the contents it downloaded
+/// and would serve them.
+#[sim_test]
+async fn test_restart_of_every_validator_with_unexecuted_locally_built_checkpoints() {
+    const AT_RISK_BEFORE_THE_RESTART: usize = 2;
+    telemetry_subscribers::init_for_testing();
+    let test_cluster = build_cluster(60_000).await;
+    let names = test_cluster.get_validator_pubkeys();
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let traffic = spawn_transfer_traffic_with_double_spends(
+        test_cluster.clone(),
+        test_cluster.get_addresses(),
+        stop.clone(),
+    );
+    let holding = hold_executors_until_locally_built_checkpoints_are_unexecuted(
+        &test_cluster,
+        &names,
+        AT_RISK_BEFORE_THE_RESTART,
+    )
+    .await;
+    stop_traffic(traffic, &stop).await;
+    let epoch = progress(&test_cluster, &names[0]).unwrap().epoch;
+    let at_risk: Vec<_> = names
+        .iter()
+        .map(|name| {
+            unexecuted_locally_built_checkpoints_without_stored_transactions(&test_cluster, name)
+        })
+        .collect();
+    assert!(
+        at_risk
+            .iter()
+            .all(|checkpoints| checkpoints.len() >= AT_RISK_BEFORE_THE_RESTART),
+        "every validator must hold synced checkpoints it built whose transactions are only in \
+         memory: {at_risk:?}"
+    );
+    let highest_at_risk = at_risk.iter().flatten().copied().max().unwrap();
+    info!(?at_risk, "stopping every node");
+
+    for fullnode in test_cluster.swarm.fullnodes() {
+        fullnode.stop();
+    }
+    test_cluster.stop_all_validators().await;
+    holding.store(false, Ordering::SeqCst);
+    // Lets the stopped nodes' tasks end, so they release their stores.
+    sleep(Duration::from_secs(5)).await;
+    test_cluster.start_all_validators().await;
+
+    timeout(Duration::from_secs(120), async {
+        while names.iter().any(|name| {
+            progress(&test_cluster, name).is_none_or(|p| p.highest_executed <= highest_at_risk)
+        }) {
+            sleep(Duration::from_millis(500)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!(
+            "every validator must execute past checkpoint {highest_at_risk}: {:?}",
+            names
+                .iter()
+                .map(|name| progress(&test_cluster, name))
+                .collect::<Vec<_>>()
+        )
+    });
+
+    wait_for_validators_to_reach_epoch(&test_cluster, &names, epoch + 1, Duration::from_secs(240))
+        .await;
+    let highest_executed = names
+        .iter()
+        .filter_map(|name| progress(&test_cluster, name))
+        .map(|p| p.highest_executed)
+        .max()
+        .unwrap();
+    assert_validators_reach_the_same_checkpoints_up_to(&test_cluster, highest_executed + 5).await;
+    clear_fail_point("execute-locally-built-checkpoint");
+}
+
+/// Every validator crashes while executing the last checkpoint of an epoch,
+/// before it records it as executed, and all of them are down at once. No
+/// checkpoint is certified after the epoch's last one, and no node has that
+/// checkpoint synced over stored contents to advertise it, so after the
+/// restart each validator must mark it synced from its own store and replay.
+/// Every validator must reach the next epoch.
+///
+/// The fullnode is stopped from the start, because it would download the
+/// last checkpoint's contents and serve them.
+#[sim_test]
+async fn test_crash_of_every_validator_while_executing_the_last_checkpoint_of_an_epoch() {
+    const RESTART_AFTER: Duration = Duration::from_secs(10);
+    telemetry_subscribers::init_for_testing();
+    let test_cluster = build_cluster(20_000).await;
+    let names = test_cluster.get_validator_pubkeys();
+    for fullnode in test_cluster.swarm.fullnodes() {
+        fullnode.stop();
+    }
+    let epoch = progress(&test_cluster, &names[0]).unwrap().epoch;
+
+    // Each validator before its first kill, as its simulator node id and a
+    // weak reference that does not pin its store. A restarted validator has
+    // a new state, so it is not killed again.
+    let validators: Vec<(iota_simulator::task::NodeId, Weak<AuthorityState>)> = names
+        .iter()
+        .map(|name| {
+            test_cluster
+                .swarm
+                .node(name)
+                .unwrap()
+                .get_node_handle()
+                .unwrap()
+                .with(|node| {
+                    (
+                        iota_simulator::current_simnode_id(),
+                        Arc::downgrade(&node.state()),
+                    )
+                })
+        })
+        .collect();
+    let killed: Arc<Mutex<Vec<iota_simulator::task::NodeId>>> = Default::default();
+    {
+        let killed = killed.clone();
+        register_fail_point("highest-executed-checkpoint", move || {
+            let sim_id = iota_simulator::current_simnode_id();
+            let Some(state) = validators
+                .iter()
+                .find(|(id, _)| *id == sim_id)
+                .and_then(|(_, state)| state.upgrade())
+            else {
+                return;
+            };
+            let store = state.get_checkpoint_store();
+            let next = store
+                .get_highest_executed_checkpoint_seq_number()
+                .unwrap()
+                .map_or(0, |executed| executed + 1);
+            if store.get_epoch_last_checkpoint_seq_number(epoch).unwrap() != Some(next) {
+                return;
+            }
+            drop(state);
+            killed.lock().unwrap().push(sim_id);
+            iota_simulator::task::kill_current_node(Some(RESTART_AFTER));
+        });
+    }
+
+    timeout(Duration::from_secs(120), async {
+        while killed.lock().unwrap().len() < names.len() {
+            sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!(
+            "every validator must be killed while executing the last checkpoint of epoch \
+             {epoch}, killed: {:?}",
+            killed.lock().unwrap()
+        )
+    });
+
+    wait_for_validators_to_reach_epoch(&test_cluster, &names, epoch + 1, Duration::from_secs(120))
+        .await;
+    clear_fail_point("highest-executed-checkpoint");
+}
+
+/// Every validator crashes after its checkpoint aggregator stored the
+/// certified last checkpoint of an epoch and before it handed it to state
+/// sync, so no node verifies that checkpoint. After the restart the
+/// aggregator does not send it again and no checkpoint of the epoch comes
+/// after it, so state sync must verify it from the store and mark it synced.
+/// Every validator must reach the next epoch.
+///
+/// The fullnode is stopped from the start, because it would download the
+/// last checkpoint from a validator and serve it.
+#[sim_test]
+async fn test_crash_of_every_validator_between_certifying_and_verifying_the_last_checkpoint_of_an_epoch()
+ {
+    const RESTART_AFTER: Duration = Duration::from_secs(10);
+    telemetry_subscribers::init_for_testing();
+    let test_cluster = build_cluster(20_000).await;
+    let names = test_cluster.get_validator_pubkeys();
+    for fullnode in test_cluster.swarm.fullnodes() {
+        fullnode.stop();
+    }
+    let epoch = progress(&test_cluster, &names[0]).unwrap().epoch;
+
+    let validators: Vec<_> = names
+        .iter()
+        .map(|name| sim_node_id(&test_cluster, name))
+        .collect();
+    let killed: Arc<Mutex<Vec<iota_simulator::task::NodeId>>> = Default::default();
+    {
+        let killed = killed.clone();
+        register_fail_point(
+            "certified-end-of-epoch-checkpoint-before-state-sync",
+            move || {
+                let sim_id = iota_simulator::current_simnode_id();
+                if !validators.contains(&sim_id) {
+                    return;
+                }
+                {
+                    let mut killed = killed.lock().unwrap();
+                    if killed.contains(&sim_id) {
+                        return;
+                    }
+                    killed.push(sim_id);
+                }
+                iota_simulator::task::kill_current_node(Some(RESTART_AFTER));
+            },
+        );
+    }
+
+    timeout(Duration::from_secs(120), async {
+        while killed.lock().unwrap().len() < names.len() {
+            sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!(
+            "every validator must be killed after certifying the last checkpoint of epoch \
+             {epoch}, killed: {:?}",
+            killed.lock().unwrap()
+        )
+    });
+
+    wait_for_validators_to_reach_epoch(&test_cluster, &names, epoch + 1, Duration::from_secs(120))
+        .await;
+    clear_fail_point("certified-end-of-epoch-checkpoint-before-state-sync");
+}
+
 /// Runs double-spend traffic while one validator is killed `kills` times at
 /// `fail_point`, at the first hit after a pause, and restarts on its own each
 /// time. The cluster must then reach the same checkpoints on every validator
 /// and a later epoch.
 async fn run_crashes_at_fail_point_under_traffic(fail_point: &'static str, kills: usize) {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(60_000).await;
     let names = test_cluster.get_validator_pubkeys();
     let victim = names[0];
@@ -672,7 +1441,6 @@ async fn test_crashes_after_post_consensus_decisions_do_not_fork() {
 #[sim_test]
 async fn test_executor_waiting_for_a_slow_handler_does_not_deadlock_or_fork() {
     telemetry_subscribers::init_for_testing();
-    let _guard = enable_deterministic_validation_for_testing();
     let test_cluster = build_cluster(60_000).await;
     let names = test_cluster.get_validator_pubkeys();
     let slow = names[2];

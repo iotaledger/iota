@@ -237,6 +237,10 @@ pub struct IotaNode {
     /// executed; set for each epoch from `sync_summaries_to_epoch_end`.
     sync_summaries_to_epoch_end: Arc<AtomicBool>,
     checkpoint_store: Arc<CheckpointStore>,
+    /// Checked by the checkpoint store before its saved synced watermark
+    /// passes a checkpoint; see
+    /// [`CheckpointStore::hold_synced_watermark_in_memory`].
+    perpetual_tables: Arc<AuthorityPerpetualTables>,
     state_sync_store: RocksDbStore,
     global_state_hasher: Mutex<Option<Arc<GlobalStateHasher>>>,
     connection_monitor_status: Arc<ConnectionMonitorStatus>,
@@ -489,11 +493,16 @@ impl IotaNode {
                 FullCheckpointContentsCacheMetrics::new(&prometheus_registry),
             ),
         );
+        let chain = match config.chain_override_for_testing {
+            Some(chain) => chain,
+            None => chain_identifier.chain(),
+        };
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
         let perpetual_tables_for_progress = perpetual_tables.clone();
         let perpetual_tables_for_snapshots = perpetual_tables.clone();
+        let perpetual_tables_for_synced_watermark = perpetual_tables.clone();
         let store = AuthorityStore::open(
             perpetual_tables,
             &genesis,
@@ -533,11 +542,6 @@ impl IotaNode {
             )))
         };
 
-        let chain = match config.chain_override_for_testing {
-            Some(chain) => chain,
-            None => chain_identifier.chain(),
-        };
-
         let epoch_options = default_db_options().optimize_db_for_write_throughput(4);
         let epoch_store = AuthorityPerEpochStore::new(
             config.authority_public_key(),
@@ -558,6 +562,16 @@ impl IotaNode {
         )?;
 
         info!("created epoch store");
+        // As at an epoch change; must come before anything marks a checkpoint
+        // synced.
+        if epoch_store.protocol_config().enable_pcool_flow()
+            && epoch_store
+                .committee()
+                .authority_exists(&config.authority_public_key())
+        {
+            checkpoint_store
+                .hold_synced_watermark_in_memory(perpetual_tables_for_synced_watermark.clone())?;
+        }
 
         replay_log!(
             "Beginning replay run. Epoch: {:?}, Protocol config: {:?}",
@@ -928,6 +942,7 @@ impl IotaNode {
             randomness_handle,
             sync_summaries_to_epoch_end,
             checkpoint_store,
+            perpetual_tables: perpetual_tables_for_synced_watermark,
             state_sync_store,
             global_state_hasher: Mutex::new(Some(global_state_hasher)),
             end_of_epoch_channel,
@@ -1048,13 +1063,7 @@ impl IotaNode {
         config: &NodeConfig,
         epoch_store: &AuthorityPerEpochStore,
     ) -> bool {
-        config.is_validator()
-            && epoch_store
-                .committee()
-                .authority_exists(&config.authority_public_key())
-            && epoch_store
-                .protocol_config()
-                .pcool_deterministic_validation()
+        config.is_validator() && epoch_store.pcool_bookkeeping_enabled()
     }
 
     fn create_p2p_network(
@@ -1464,10 +1473,7 @@ impl IotaNode {
         // has to be rebuilt from the replayed commits before it is executed.
         let replay_waiter = if std::env::var("DISABLE_REPLAY_WAITER").is_err() {
             Some(replay_waiter)
-        } else if epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation()
-        {
+        } else if epoch_store.protocol_config().enable_pcool_flow() {
             warn!("DISABLE_REPLAY_WAITER is ignored with deterministic validation");
             Some(replay_waiter)
         } else {
@@ -1934,7 +1940,7 @@ impl IotaNode {
                 // The empty set is announced too: every committee member
                 // attests its configuration each epoch, so silence means
                 // offline rather than "no rules".
-                if config.deny_rule_governance() {
+                if config.enable_pcool_flow() {
                     let proposed_rules = self.config.transaction_deny_config.to_deny_rule_set();
                     let recorded = cur_epoch_store.recorded_deny_rule_proposal(&self.state.name);
                     let transaction = ConsensusTransaction::new_transaction_deny_rule_proposal(
@@ -2313,6 +2319,18 @@ impl IotaNode {
             .expect("Reconfigure authority state cannot fail");
         info!(next_epoch, "Node State has been reconfigured");
         assert_eq!(next_epoch, new_epoch_store.epoch());
+        // Every checkpoint of the ending epoch has executed, so the saved
+        // synced watermark is safe to go on from while readers' value is held
+        // in memory. Nodes outside the committee build no checkpoints, so
+        // their saved watermark never falls behind and the hold is not turned
+        // on for them. A hold turned on in an earlier epoch stays on, which is
+        // harmless (see `CheckpointStore::hold_synced_watermark_in_memory`).
+        if new_epoch_store.protocol_config().enable_pcool_flow()
+            && self.state.is_committee_validator(&new_epoch_store)
+        {
+            self.checkpoint_store
+                .hold_synced_watermark_in_memory(self.perpetual_tables.clone())?;
+        }
         self.state.get_reconfig_api().update_epoch_flags_metrics(
             cur_epoch_store.epoch_start_config().flags(),
             new_epoch_store.epoch_start_config().flags(),
@@ -2745,7 +2763,7 @@ pub async fn build_http_server(
 }
 
 fn json_rpc_listener_metrics(prometheus_registry: &Registry) -> ListenerMetrics {
-    ListenerMetrics::new("json_rpc", prometheus_registry, MetricLevel::Info)
+    ListenerMetrics::new("json_rpc", prometheus_registry, MetricLevel::Warn)
 }
 
 fn validator_server_listener_metrics(prometheus_registry: &Registry) -> ListenerMetrics {
@@ -3012,6 +3030,21 @@ mod listener_metrics_tests {
         assert!(response.starts_with("HTTP/1.1 200"), "{response}");
     }
 
+    /// Starts an HTTP listener with `metrics` and sends it one request.
+    async fn serve_health(
+        metrics: iota_http::metrics::ListenerMetrics,
+    ) -> iota_http::ServerHandle<std::net::SocketAddr> {
+        let handle = iota_http::Builder::new()
+            .config(iota_http::Config::default().metrics(Some(metrics)))
+            .serve(
+                "127.0.0.1:0",
+                axum::Router::new().route("/health", axum::routing::get(|| async { "up" })),
+            )
+            .unwrap();
+        get_health(&handle).await;
+        handle
+    }
+
     fn registry_with_groups(groups: &MetricGroups) -> Registry {
         let (filter, errors) = groups.startup_filter(None);
         assert!(errors.is_empty());
@@ -3019,8 +3052,8 @@ mod listener_metrics_tests {
     }
 
     /// The registry of a node with the listener metrics registered the way the
-    /// node registers them, after one request to the JSON-RPC listener and one
-    /// TLS connection to the validator listener.
+    /// node registers them, after one TLS connection to the validator listener
+    /// and one request to each of the JSON-RPC and gRPC API listeners.
     async fn node_registry(groups: &MetricGroups) -> Registry {
         let registry = registry_with_groups(groups);
 
@@ -3052,20 +3085,13 @@ mod listener_metrics_tests {
             .await
             .unwrap();
 
-        let json_rpc = iota_http::Builder::new()
-            .config(
-                iota_http::Config::default().metrics(Some(json_rpc_listener_metrics(&registry))),
-            )
-            .serve(
-                "127.0.0.1:0",
-                axum::Router::new().route("/health", axum::routing::get(|| async { "up" })),
-            )
-            .unwrap();
-        get_health(&json_rpc).await;
-        let _grpc_api = iota_grpc_server::GrpcServerMetrics::new(&registry);
+        let json_rpc = serve_health(json_rpc_listener_metrics(&registry)).await;
+        let grpc_api = iota_grpc_server::GrpcServerMetrics::new(&registry);
+        let grpc_api_listener = serve_health(grpc_api.listener_metrics()).await;
 
         validator.trigger_shutdown();
         json_rpc.trigger_shutdown();
+        grpc_api_listener.trigger_shutdown();
         registry
     }
 
@@ -3085,39 +3111,60 @@ mod listener_metrics_tests {
     /// method, so it shows only once the gRPC API has sent a response.
     const GRPC_API_FAMILIES: &[&str] = &["response_item_bytes_peak", "requested_max_message_bytes"];
 
-    /// Every family the validator listener registers.
-    fn validator_families() -> BTreeSet<String> {
-        prefix_names("authority_grpc", CONNECTION_FAMILIES)
+    /// The families of the gRPC API that show by default. The request
+    /// metrics per method are `warn` too, but have no series before the first
+    /// request.
+    const GRPC_API_DEFAULT_FAMILIES: &[&str] = &["inflight_checkpoint_stream_subscribers"];
+
+    /// Every family the listener of `prefix` registers, but not its TLS
+    /// families.
+    fn listener_families(prefix: &str) -> BTreeSet<String> {
+        prefix_names(prefix, CONNECTION_FAMILIES).collect()
+    }
+
+    /// Every family the three listeners register. Only the validator listener
+    /// uses TLS here.
+    fn all_listener_families() -> BTreeSet<String> {
+        listener_families("authority_grpc")
+            .into_iter()
             .chain(prefix_names("authority_grpc", TLS_FAMILIES))
+            .chain(listener_families("json_rpc"))
+            .chain(listener_families("node_grpc"))
             .collect()
     }
 
-    fn overrides(patterns: &[&str]) -> MetricGroups {
-        MetricGroups {
-            overrides: patterns
-                .iter()
-                .map(|pattern| ((*pattern).to_owned(), MetricLevel::Info))
-                .collect(),
-            ..MetricGroups::default()
-        }
+    /// The families of the response sizes of the gRPC API.
+    fn grpc_api_families() -> BTreeSet<String> {
+        prefix_names("node_grpc", GRPC_API_FAMILIES).collect()
     }
 
-    #[tokio::test]
-    async fn only_the_validator_listener_shows_by_default() {
-        let shown =
-            MetricsReader::new(&node_registry(&MetricGroups::default()).await).family_names();
-        assert_eq!(shown, validator_families());
-    }
-
-    #[tokio::test]
-    async fn overrides_show_every_family() {
-        let groups = overrides(&["iota_http", "iota_grpc_server"]);
-        let shown = MetricsReader::new(&node_registry(&groups).await).family_names();
-        let all: BTreeSet<String> = validator_families()
+    /// Every family that shows by default.
+    fn default_families() -> BTreeSet<String> {
+        all_listener_families()
             .into_iter()
-            .chain(prefix_names("json_rpc", CONNECTION_FAMILIES))
-            .chain(prefix_names("node_grpc", GRPC_API_FAMILIES))
+            .chain(prefix_names("node_grpc", GRPC_API_DEFAULT_FAMILIES))
+            .collect()
+    }
+
+    async fn shown(groups: &MetricGroups) -> BTreeSet<String> {
+        MetricsReader::new(&node_registry(groups).await).family_names()
+    }
+
+    #[tokio::test]
+    async fn the_listeners_and_the_grpc_api_requests_show_by_default() {
+        assert_eq!(shown(&MetricGroups::default()).await, default_families());
+    }
+
+    #[tokio::test]
+    async fn the_iota_grpc_server_override_shows_the_response_sizes_of_the_grpc_api() {
+        let groups = MetricGroups {
+            overrides: [("iota_grpc_server".to_owned(), MetricLevel::Info)].into(),
+            ..MetricGroups::default()
+        };
+        let expected: BTreeSet<String> = default_families()
+            .into_iter()
+            .chain(grpc_api_families())
             .collect();
-        assert_eq!(shown, all);
+        assert_eq!(shown(&groups).await, expected);
     }
 }

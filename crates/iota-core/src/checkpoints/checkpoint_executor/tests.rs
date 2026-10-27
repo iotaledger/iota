@@ -29,8 +29,8 @@ use crate::{
         test_authority_builder::TestAuthorityBuilder,
     },
     checkpoints::{
-        CheckpointStore, FullCheckpointContentsCache, FullCheckpointContentsCacheMetrics,
-        test_checkpoint_with_contents,
+        CheckpointStore, CheckpointWatermark, FullCheckpointContentsCache,
+        FullCheckpointContentsCacheMetrics, test_checkpoint_with_contents,
     },
     global_state_hasher::GlobalStateHasher,
 };
@@ -208,16 +208,12 @@ pub async fn test_notify_read_epoch_last_checkpoint() {
     assert_eq!(seq, end_of_epoch.sequence_number());
 }
 
-/// With `pcool_deterministic_validation`, a committee validator does not
+/// With `enable_pcool_flow`, a committee validator does not
 /// execute a synced checkpoint it has not built while its epoch is running.
 /// Once the certified last checkpoint of the epoch is known, it switches to
 /// executing synced checkpoints for the rest of the epoch.
 #[tokio::test]
 pub async fn test_validator_waits_for_local_build_until_epoch_end() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
-        config
-    });
     let checkpoint_store = CheckpointStore::new_for_tests();
     let (state, executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;
@@ -268,10 +264,6 @@ pub async fn test_validator_waits_for_local_build_until_epoch_end() {
 /// checkpoint may never be computed.
 #[tokio::test]
 pub async fn test_switched_validator_executes_synced_data_of_locally_built_checkpoint() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
-        config
-    });
     let checkpoint_store = CheckpointStore::new_for_tests();
     let (state, executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;
@@ -307,10 +299,6 @@ pub async fn test_switched_validator_executes_synced_data_of_locally_built_check
 /// has to replay their commit and execute them first.
 #[tokio::test]
 pub async fn test_validator_waits_for_the_transactions_of_a_locally_built_checkpoint() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
-        config
-    });
     let checkpoint_store = CheckpointStore::new_for_tests();
     let (state, executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;
@@ -343,12 +331,80 @@ pub async fn test_validator_waits_for_the_transactions_of_a_locally_built_checkp
     executor_handle.abort();
 }
 
-/// Without `pcool_deterministic_validation`, a committee validator executes
+/// A committee validator that switched to executing synced checkpoints before a
+/// restart resumes the switch once its consensus handler replays past the last
+/// commit it processed before the switch. A checkpoint it built and marked
+/// synced before the restart can still have transactions the replay has not
+/// executed again. With readers' synced watermark held in memory and the saved
+/// one moving only over checkpoints whose contents are stored, the restarted
+/// executor does not reach that checkpoint until state sync marks it synced
+/// again with its contents available.
+#[tokio::test]
+pub async fn test_switched_validator_waits_for_the_transactions_of_a_locally_built_checkpoint() {
+    let checkpoint_store_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(checkpoint_store_dir.path());
+    let (state, executor, hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    let epoch_store = state.epoch_store_for_testing().clone();
+    assert!(epoch_store.pcool_bookkeeping_enabled());
+    let perpetual_tables = state.database_for_testing().perpetual_tables.clone();
+    checkpoint_store
+        .hold_synced_watermark_in_memory(perpetual_tables.clone())
+        .unwrap();
+    let (checkpoints, contents, _, _) = committee.make_random_checkpoints(2, None);
+    for (checkpoint, contents) in checkpoints.iter().zip(&contents) {
+        sync_checkpoint(&checkpoint_store, checkpoint, contents);
+    }
+    // Built here; its transactions are only in memory.
+    checkpoint_store
+        .tables
+        .locally_computed_checkpoints
+        .insert(&1, checkpoints[1].data())
+        .unwrap();
+
+    // Before the restart the genesis checkpoint executed; checkpoint 1 waited
+    // for the consensus handler.
+    checkpoint_store
+        .update_highest_executed_checkpoint(&checkpoints[0])
+        .unwrap();
+
+    // The restart: the store opens again from its saved synced watermark.
+    drop(executor);
+    drop(checkpoint_store);
+    let checkpoint_store = CheckpointStore::new(checkpoint_store_dir.path());
+    checkpoint_store
+        .hold_synced_watermark_in_memory(perpetual_tables)
+        .unwrap();
+    epoch_store.resume_executing_synced_checkpoints();
+    let executor = CheckpointExecutor::new_for_tests(
+        epoch_store.clone(),
+        checkpoint_store.clone(),
+        state.clone(),
+        hasher,
+    );
+    let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
+
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    assert!(
+        !executor_handle.is_finished(),
+        "the executor must keep waiting for the transactions of checkpoint 1"
+    );
+    assert_eq!(
+        checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap(),
+        Some(0),
+        "checkpoint 1 must wait until its transactions have executed"
+    );
+    executor_handle.abort();
+}
+
+/// Without the P-COOL flow, a committee validator executes
 /// a synced checkpoint it has not built at once.
 #[tokio::test]
 pub async fn test_validator_executes_synced_checkpoints_without_the_flag() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_pcool_deterministic_validation_for_testing(false);
+        config.set_enable_pcool_flow_for_testing(false);
         config
     });
     let checkpoint_store = CheckpointStore::new_for_tests();
@@ -378,11 +434,11 @@ pub async fn test_validator_executes_synced_checkpoints_without_the_flag() {
 
 /// Test checkpoint executor happy path, test that checkpoint executor correctly
 /// picks up where it left off in the event of a mid-epoch node crash, on a
-/// committee validator without `pcool_deterministic_validation`.
+/// committee validator without the P-COOL flow.
 #[tokio::test]
 pub async fn test_checkpoint_executor_crash_recovery() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_pcool_deterministic_validation_for_testing(false);
+        config.set_enable_pcool_flow_for_testing(false);
         config
     });
     run_crash_recovery(true).await;
@@ -886,6 +942,193 @@ fn sync_checkpoint(
         .unwrap();
 }
 
+/// The synced watermark readers of `checkpoint_store` see.
+fn synced_checkpoint(checkpoint_store: &CheckpointStore) -> Option<CheckpointSequenceNumber> {
+    checkpoint_store
+        .get_highest_synced_checkpoint_seq_number()
+        .unwrap()
+}
+
+/// The synced watermark saved in the checkpoint store, which a restarted node
+/// starts from.
+fn saved_synced_checkpoint(checkpoint_store: &CheckpointStore) -> Option<CheckpointSequenceNumber> {
+    checkpoint_store
+        .tables
+        .watermarks
+        .get(&CheckpointWatermark::HighestSynced)
+        .unwrap()
+        .map(|(sequence_number, _digest)| sequence_number)
+}
+
+/// With readers' synced watermark held in memory, marking a checkpoint synced
+/// moves what readers see at once. The saved watermark only
+/// passes checkpoints that have executed or whose transactions and effects are
+/// stored, so it never passes one whose contents a restart would lose.
+#[tokio::test]
+pub async fn test_the_saved_synced_watermark_passes_only_stored_contents() {
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (state, _executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    checkpoint_store
+        .hold_synced_watermark_in_memory(state.database_for_testing().perpetual_tables.clone())
+        .unwrap();
+    let (checkpoints, contents, _, _) = committee.make_random_checkpoints(4, None);
+    // 2 is downloaded, so its transactions and effects are stored. 1 and 3
+    // are only in memory, like checkpoints this node built and has not
+    // executed.
+    state
+        .get_state_sync_store()
+        .try_multi_insert_transaction_and_effects(contents[2].transactions())
+        .unwrap();
+    for (checkpoint, contents) in checkpoints.iter().zip(&contents) {
+        sync_checkpoint(&checkpoint_store, checkpoint, contents);
+    }
+    let synced = || {
+        checkpoint_store
+            .get_highest_synced_checkpoint_seq_number()
+            .unwrap()
+    };
+    assert_eq!(synced(), Some(3));
+
+    let mut expected_saved = [Some(0), Some(2), Some(2), Some(3)].into_iter();
+    for checkpoint in &checkpoints {
+        checkpoint_store
+            .update_highest_executed_checkpoint(checkpoint)
+            .unwrap();
+        assert_eq!(
+            saved_synced_checkpoint(&checkpoint_store),
+            expected_saved.next().unwrap(),
+            "after executing checkpoint {}",
+            checkpoint.sequence_number()
+        );
+        assert_eq!(
+            synced(),
+            Some(3),
+            "readers keep seeing every synced checkpoint"
+        );
+    }
+}
+
+/// After a restart readers start from the saved synced watermark, below the
+/// checkpoints whose contents were only in memory. State sync then marks those
+/// synced again, and the saved watermark keeps moving forwards from where it
+/// was as they execute.
+#[tokio::test]
+pub async fn test_a_restarted_store_starts_from_the_saved_synced_watermark() {
+    let checkpoint_store_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(checkpoint_store_dir.path());
+    let (state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    drop(executor);
+    let perpetual_tables = state.database_for_testing().perpetual_tables.clone();
+    checkpoint_store
+        .hold_synced_watermark_in_memory(perpetual_tables.clone())
+        .unwrap();
+    let (checkpoints, contents, _, _) = committee.make_random_checkpoints(4, None);
+    state
+        .get_state_sync_store()
+        .try_multi_insert_transaction_and_effects(contents[2].transactions())
+        .unwrap();
+    for (checkpoint, contents) in checkpoints.iter().zip(&contents) {
+        sync_checkpoint(&checkpoint_store, checkpoint, contents);
+    }
+    checkpoint_store
+        .update_highest_executed_checkpoint(&checkpoints[0])
+        .unwrap();
+    assert_eq!(synced_checkpoint(&checkpoint_store), Some(3));
+    assert_eq!(saved_synced_checkpoint(&checkpoint_store), Some(0));
+
+    // The restart: the store opens again from its saved synced watermark.
+    drop(checkpoint_store);
+    let checkpoint_store = CheckpointStore::new(checkpoint_store_dir.path());
+    checkpoint_store
+        .hold_synced_watermark_in_memory(perpetual_tables)
+        .unwrap();
+    assert_eq!(synced_checkpoint(&checkpoint_store), Some(0));
+    assert_eq!(saved_synced_checkpoint(&checkpoint_store), Some(0));
+
+    for checkpoint in &checkpoints[1..] {
+        checkpoint_store
+            .update_highest_synced_checkpoint(checkpoint)
+            .unwrap();
+    }
+    assert_eq!(synced_checkpoint(&checkpoint_store), Some(3));
+    assert_eq!(saved_synced_checkpoint(&checkpoint_store), Some(0));
+    checkpoint_store
+        .update_highest_executed_checkpoint(&checkpoints[1])
+        .unwrap();
+    assert_eq!(saved_synced_checkpoint(&checkpoint_store), Some(2));
+}
+
+/// A running node starts holding the synced watermark in memory at an epoch
+/// change, when every synced checkpoint of the ending epoch has executed. What
+/// readers see does not move, and from then on the saved watermark only passes
+/// checkpoints whose contents are stored. Starting again changes nothing.
+#[tokio::test]
+pub async fn test_holding_the_synced_watermark_in_memory_from_an_epoch_change() {
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (state, _executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    let perpetual_tables = state.database_for_testing().perpetual_tables.clone();
+    let (checkpoints, contents, _, _) = committee.make_random_checkpoints(5, None);
+    for (checkpoint, contents) in checkpoints.iter().zip(&contents).take(4) {
+        sync_checkpoint(&checkpoint_store, checkpoint, contents);
+        checkpoint_store
+            .update_highest_executed_checkpoint(checkpoint)
+            .unwrap();
+    }
+
+    checkpoint_store
+        .hold_synced_watermark_in_memory(perpetual_tables.clone())
+        .unwrap();
+    assert_eq!(synced_checkpoint(&checkpoint_store), Some(3));
+    assert_eq!(saved_synced_checkpoint(&checkpoint_store), Some(3));
+
+    // Built here and not executed yet, so only in memory.
+    sync_checkpoint(&checkpoint_store, &checkpoints[4], &contents[4]);
+    assert_eq!(synced_checkpoint(&checkpoint_store), Some(4));
+    assert_eq!(saved_synced_checkpoint(&checkpoint_store), Some(3));
+
+    checkpoint_store
+        .hold_synced_watermark_in_memory(perpetual_tables)
+        .unwrap();
+    assert_eq!(synced_checkpoint(&checkpoint_store), Some(4));
+
+    checkpoint_store
+        .update_highest_executed_checkpoint(&checkpoints[4])
+        .unwrap();
+    assert_eq!(saved_synced_checkpoint(&checkpoint_store), Some(4));
+}
+
+/// Readers of a synced watermark held in memory never take the lock that
+/// serializes its writes, so they do not wait for a write in progress, which
+/// reads the store.
+#[tokio::test]
+pub async fn test_synced_watermark_readers_do_not_wait_for_a_write() {
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (state, _executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    checkpoint_store
+        .hold_synced_watermark_in_memory(state.database_for_testing().perpetual_tables.clone())
+        .unwrap();
+    let (checkpoints, contents, _, _) = committee.make_random_checkpoints(2, None);
+    for (checkpoint, contents) in checkpoints.iter().zip(&contents) {
+        sync_checkpoint(&checkpoint_store, checkpoint, contents);
+    }
+
+    let _write = checkpoint_store.synced_writes.lock();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let reader_store = checkpoint_store.clone();
+    std::thread::spawn(move || {
+        let _ = sender.send(synced_checkpoint(&reader_store));
+    });
+    assert_eq!(
+        receiver.recv_timeout(Duration::from_secs(10)),
+        Ok(Some(1)),
+        "a reader must not wait for the write"
+    );
+}
+
 /// The synced watermark promises that the contents of every checkpoint up to
 /// it are stored: the checkpoint executor loads them as soon as its wait
 /// returns, and panics when they are missing. A write that would carry the
@@ -978,10 +1221,6 @@ async fn the_synced_watermark_does_not_pass_a_checkpoint_the_write_skips() {
 /// hash the checkpoint itself.
 #[tokio::test]
 pub async fn test_locally_built_checkpoint_without_its_state_hash_executes_without_the_builder() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
-        config
-    });
     let checkpoint_store = CheckpointStore::new_for_tests();
     let (state, executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;

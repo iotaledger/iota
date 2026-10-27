@@ -115,7 +115,8 @@ pub async fn start_grpc_server(
     // CONNECT protocol.
     let http_config = iota_http::Config::default()
         .accept_http1(false)
-        .enable_connect_protocol(false);
+        .enable_connect_protocol(false)
+        .metrics(metrics.as_ref().map(GrpcServerMetrics::listener_metrics));
     let mut http_builder = iota_http::Builder::new().config(http_config);
 
     if let Some(tls_config) = config.tls_config() {

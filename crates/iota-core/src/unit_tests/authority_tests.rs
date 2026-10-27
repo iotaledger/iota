@@ -30,6 +30,7 @@ use iota_sdk_types::{
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
+    attestation::AttestedTransaction,
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
     committee::Committee,
     crypto::{
@@ -1079,6 +1080,106 @@ async fn test_dev_inspect_on_validator() {
     )
     .await;
     assert!(result.is_err())
+}
+
+/// A dev inspect may call private and `public(package)` Move functions, but not
+/// such natives: they rely on their Move callers to check the arguments.
+#[tokio::test]
+async fn test_dev_inspect_rejects_non_public_natives() {
+    let (_validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+    let sender = Address::random();
+
+    let assert_rejected = |pt: ProgrammableTransaction, target: &str| {
+        let result = dev_inspect(
+            &fullnode,
+            sender,
+            TransactionKind::new_programmable(pt),
+            None,
+        )
+        .unwrap_or_else(|e| panic!("{target}: {e}"));
+        assert!(
+            matches!(
+                result.effects.status(),
+                ExecutionStatus::Failure {
+                    error: ExecutionError::NonEntryFunctionInvoked,
+                    ..
+                }
+            ),
+            "{target}: {:?}",
+            result.effects.status()
+        );
+    };
+
+    // An end index past the end of the string.
+    assert_rejected(
+        ProgrammableTransaction {
+            inputs: vec![
+                CallArg::pure(&b"A".to_vec()),
+                CallArg::pure(&0_u64),
+                CallArg::pure(&2_u64),
+            ],
+            commands: vec![Command::new_move_call(
+                ObjectId::STD,
+                Identifier::from_static("string"),
+                Identifier::from_static("internal_sub_string"),
+                vec![],
+                vec![Argument::Input(0), Argument::Input(1), Argument::Input(2)],
+            )],
+        },
+        "0x1::string::internal_sub_string",
+    );
+
+    // The visibility check comes before arguments are read, so no arguments are
+    // needed to reach it.
+    let mut natives = 0;
+    for package in BuiltInFramework::iter_system_packages() {
+        for module in package.modules() {
+            for fdef in module.function_defs() {
+                if !fdef.is_native()
+                    || fdef.is_entry
+                    || fdef.visibility == file_format::Visibility::Public
+                {
+                    continue;
+                }
+                let function = module.identifier_at(module.function_handle_at(fdef.function).name);
+                assert_rejected(
+                    ProgrammableTransaction {
+                        inputs: vec![],
+                        commands: vec![Command::new_move_call(
+                            package.id,
+                            Identifier::new(module.self_id().name().as_str()).unwrap(),
+                            Identifier::new(function.as_str()).unwrap(),
+                            vec![],
+                            vec![],
+                        )],
+                    },
+                    &format!("{}::{function}", module.self_id()),
+                );
+                natives += 1;
+            }
+        }
+    }
+    assert!(natives > 0, "the framework should have non-public natives");
+
+    // The rule is limited to natives: a private Move function stays callable.
+    let result = dev_inspect(
+        &fullnode,
+        sender,
+        TransactionKind::new_programmable(ProgrammableTransaction {
+            inputs: vec![CallArg::pure(&b'a')],
+            commands: vec![Command::new_move_call(
+                ObjectId::STD,
+                Identifier::from_static("ascii"),
+                Identifier::from_static("char_to_uppercase"),
+                vec![],
+                vec![Argument::Input(0)],
+            )],
+        }),
+        None,
+    )
+    .unwrap();
+    assert_eq!(result.effects.status(), &ExecutionStatus::Success);
 }
 
 #[tokio::test]
@@ -5063,6 +5164,7 @@ async fn test_execute_randomness_state_update_records_key_to_digest() {
     let key = TransactionKey::RandomnessRound(epoch_store.epoch(), round);
     assert_eq!(epoch_store.tx_key_to_digest(&key).unwrap(), None);
 
+    epoch_store.assign_to_a_new_commit_for_testing(&[key]);
     authority
         .try_execute_immediately(
             &transaction,
@@ -5201,11 +5303,15 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
         // Submit as UserTransactionV1 — no certificates needed.
         let transactions = vec![
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(shared_tx)),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(shared_tx, None),
+                )),
                 tracking_id: Default::default(),
             }),
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(clock_tx)),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(clock_tx, None),
+                )),
                 tracking_id: Default::default(),
             }),
         ];
@@ -7178,12 +7284,6 @@ fn get_object_lock(
 async fn test_post_consensus_white_flag_simple_conflict() {
     telemetry_subscribers::init_for_testing();
 
-    // Enable P-COOL flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     // Setup: Two transactions competing for the same owned object
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = dbg_addr(2);
@@ -7229,11 +7329,17 @@ async fn test_post_consensus_white_flag_simple_conflict() {
 
     // Create consensus transactions
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7304,12 +7410,6 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     // below double-checks the choice took effect.
     set_scheduler_env(use_execution_scheduler);
 
-    // Enable P-COOL flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     // Setup: two transactions competing for the same owned object.
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = dbg_addr(2);
@@ -7353,11 +7453,17 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     );
 
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7765,12 +7871,6 @@ async fn duplicate_enqueue_executes_once(use_execution_scheduler: bool) {
 async fn test_post_consensus_white_flag_no_conflict() {
     telemetry_subscribers::init_for_testing();
 
-    // Enable P-COOL flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     // Setup: Two transactions using different objects
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
@@ -7818,11 +7918,17 @@ async fn test_post_consensus_white_flag_no_conflict() {
 
     // Create consensus transactions
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7878,12 +7984,6 @@ async fn test_post_consensus_white_flag_no_conflict() {
 async fn test_post_consensus_white_flag_conflict_different_commits() {
     telemetry_subscribers::init_for_testing();
 
-    // Enable P-COOL flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     // Test that a transaction in a second commit is dropped if it conflicts
     // with a lock from a first commit that was persisted to DB
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
@@ -7918,7 +8018,10 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
     );
 
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7965,7 +8068,10 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
 
     let verified_tx2 = epoch_store.verify_transaction(tx2.into()).unwrap();
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -8037,7 +8143,7 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
     let shared_objects = create_shared_objects(1);
     let gas_objects = create_gas_objects(2, sender);
 
-    // Enable the P-COOL flow (where the bug lived) and force congestion-driven
+    // Under the P-COOL flow (where the bug lived), force congestion-driven
     // deferral: count each transaction as one unit of cost, allow only one unit
     // per shared object per commit, and forbid any overshoot, so the second
     // transaction touching the shared object in the same commit is deferred.
@@ -8045,7 +8151,6 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
     // execute in, rather than being cancelled.
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_enable_pcool_flow_for_testing(true);
     protocol_config.set_per_object_congestion_control_mode_for_testing(
         PerObjectCongestionControlMode::TotalTxCount,
     );
@@ -8098,7 +8203,10 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
 
     let seq = |tx: VerifiedTransaction| {
         SequencedConsensusTransaction::new_test(ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.into())),
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                tx.into(),
+                None,
+            ))),
             tracking_id: Default::default(),
         })
     };
@@ -8289,11 +8397,12 @@ async fn test_consensus_queue_graduated_load_shedding() {
     );
 }
 
-/// Builds an authority with the deny-rule-governance protocol flag toggled.
-async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityState> {
+/// Builds an authority with the P-COOL flow, and with it deny rule
+/// governance, toggled.
+async fn authority_with_pcool_flow(enabled: bool) -> Arc<AuthorityState> {
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_deny_rule_governance_for_testing(enabled);
+    protocol_config.set_enable_pcool_flow_for_testing(enabled);
     TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
         .build()
@@ -8301,7 +8410,7 @@ async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityStat
 }
 
 /// The end-of-epoch transaction creates the `TransactionDenyRules` object
-/// exactly when on-chain deny rule governance is enabled and the object does
+/// exactly when the P-COOL flow is enabled and the object does
 /// not exist at epoch start.
 #[rstest::rstest]
 #[tokio::test]
@@ -8315,12 +8424,7 @@ async fn advance_epoch_tx_creates_deny_rules_object_under_flag(
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    if enabled {
-        protocol_config.set_deny_rule_governance_for_testing(true);
-        protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
-        protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-        protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
-    }
+    protocol_config.set_enable_pcool_flow_for_testing(enabled);
     let authority = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
         .build()
@@ -8363,7 +8467,7 @@ async fn deny_rule_proposal_through_consensus_updates_active_set() {
         deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
 
-    let authority = authority_with_deny_rule_governance(true).await;
+    let authority = TestAuthorityBuilder::new().build().await;
     let epoch_store = authority.epoch_store_for_testing();
     // Single-validator test committee: this authority holds all stake and
     // clears both the f+1 and 2f+1 thresholds alone.
@@ -8448,7 +8552,7 @@ async fn deny_rule_proposal_ignored_when_flag_disabled() {
         deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
 
-    let authority = authority_with_deny_rule_governance(false).await;
+    let authority = authority_with_pcool_flow(false).await;
     let epoch_store = authority.epoch_store_for_testing();
     let me = epoch_store.name;
 
@@ -8545,6 +8649,7 @@ async fn test_effects_equivocation_prevented_at_signing_not_execution() {
 
     // Execution must not consult previously signed effects: it succeeds even
     // though the resulting effects differ from the previously signed digest.
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
     let (effects, execution_error) = authority_state
         .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();
@@ -8633,4 +8738,58 @@ async fn simulate_rejects_a_transaction_above_the_size_limit() {
         transaction,
         "serialized transaction size exceeded maximum",
     );
+}
+
+/// A simulation meters the packages a transaction publishes with the node's
+/// own `VerifierSigningConfig` under both `VmChecks` modes. Execution verifies
+/// a published package with neither a limit nor a meter, trusting signing to
+/// have bounded it, so a simulation that skips the signing-time checks has to
+/// bound it itself.
+#[tokio::test]
+async fn simulate_meters_published_packages_with_the_node_signing_limits() {
+    use iota_config::verifier_signing_config::VerifierSigningConfig;
+    use iota_move_build::BuildConfig;
+    use iota_types::crypto::get_authority_key_pair;
+
+    // A one-tick meter fails the first function it meters.
+    let node_limits: VerifierSigningConfig = serde_yaml::from_str(concat!(
+        "max-per-fun-meter-units: 1\n",
+        "max-per-mod-meter-units: 1\n",
+        "max-per-pkg-meter-units: 1\n",
+    ))
+    .unwrap();
+    let fullnode_key_pair = get_authority_key_pair().1;
+    let fullnode = TestAuthorityBuilder::new()
+        .with_keypair(&fullnode_key_pair)
+        .with_verifier_signing_config(node_limits)
+        .build()
+        .await;
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("src/unit_tests/data/object_basics");
+    let modules = BuildConfig::new_for_testing()
+        .build(&path)
+        .unwrap()
+        .get_package_bytes(false);
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.publish_immutable(modules, BuiltInFramework::all_package_ids());
+    // Gas is left unset for the simulation to fill in, the way the RPC layer
+    // leaves it.
+    let transaction =
+        Transaction::new_programmable(Address::random(), vec![], builder.finish(), 0, 0);
+
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        let Err(error) = fullnode.simulate_transaction(transaction.clone(), checks) else {
+            panic!("{checks:?} should reject the package under the node's signing limits");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::PackageVerificationTimedout { .. }
+                }
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
 }

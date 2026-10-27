@@ -84,6 +84,8 @@ pub async fn certify_transaction(
         .handle_transaction(&epoch_store, transaction.clone())
         .await?;
     let vote = response.status.into_signed_for_testing();
+    // As in `init_certified_transaction`.
+    epoch_store.assign_to_a_new_commit_for_testing(&[transaction.key()]);
 
     // Collect signatures from a quorum of authorities
     let committee = authority.clone_committee_for_testing();
@@ -333,12 +335,16 @@ pub fn init_certified_transfer_transaction(
     init_certified_transaction(transfer_transaction.into(), authority_state)
 }
 
+/// With the P-COOL flow, the transaction is also assigned to a new commit,
+/// as the consensus handler assigns every transaction it sequences before
+/// it can execute.
 pub fn init_certified_transaction(
     transaction: TransactionEnvelope,
     authority_state: &AuthorityState,
 ) -> VerifiedCertificate {
     let epoch_store = authority_state.epoch_store_for_testing();
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
+    epoch_store.assign_to_a_new_commit_for_testing(&[transaction.key()]);
 
     let vote = VerifiedSignedTransaction::new(
         0,
@@ -410,6 +416,9 @@ pub async fn execute_sequenced_certificate_to_effects(
     assigned_versions: AssignedVersions,
 ) -> Result<(TransactionEffects, Option<ExecutionError>), IotaError> {
     let env = ExecutionEnv::new().with_assigned_versions(assigned_versions);
+    authority
+        .epoch_store_for_testing()
+        .assign_to_a_new_commit_for_testing(&[certificate.key()]);
     authority.execution_scheduler().enqueue(
         vec![(
             VerifiedExecutableTransaction::new_from_certificate(certificate.clone()).into(),
@@ -454,9 +463,11 @@ pub async fn send_consensus(
         ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
     )];
 
+    let epoch_store = authority.epoch_store_for_testing();
+    epoch_store.assign_to_a_new_commit_for_testing(&[cert.key()]);
     authority
         .execution_scheduler()
-        .enqueue_transactions(certs, &authority.epoch_store_for_testing());
+        .enqueue_transactions(certs, &epoch_store);
 
     assigned_versions
 }

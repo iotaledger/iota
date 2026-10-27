@@ -35,10 +35,10 @@ use crate::{
     transaction::SenderSignedTransactionAPI,
     utils::{
         assert_size_limit_err, blake2b256_of_sig, make_move_authenticator_sig,
-        make_move_authenticator_tx, make_passkey_authenticator_sig,
-        make_sponsored_move_authenticator_tx, make_sponsored_regular_sig_tx, make_transaction,
-        make_transaction_data, make_upgraded_multisig_tx, ptb_above_max_tx_size,
-        ptb_with_pure_inputs,
+        make_move_authenticator_tx, make_move_authenticator_tx_with_inconsistent_shared_input,
+        make_passkey_authenticator_sig, make_sponsored_move_authenticator_tx,
+        make_sponsored_regular_sig_tx, make_transaction, make_transaction_data,
+        make_upgraded_multisig_tx, ptb_above_max_tx_size, ptb_with_pure_inputs,
     },
 };
 
@@ -1133,18 +1133,11 @@ fn validity_check_rejects_randomness_state_in_move_authenticator() {
     }
 }
 
-/// Returns the max-version protocol config with deterministic validation on.
-fn config_with_deterministic_validation() -> ProtocolConfig {
-    let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
-    config.enable_pcool_deterministic_validation_for_testing();
-    config
-}
-
-/// With deterministic validation, a mutable shared call argument is refused
-/// from the transaction bytes alone. An immutable one passes.
+/// With the P-COOL flow, a mutable shared call argument is refused from the
+/// transaction bytes alone. An immutable one passes.
 #[test]
 fn validity_check_rejects_a_mutable_shared_call_argument_in_move_authenticator() {
-    let config = config_with_deterministic_validation();
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
     let context = TxValidityCheckContext {
         config: &config,
         epoch: 0,
@@ -1177,12 +1170,12 @@ fn validity_check_rejects_a_mutable_shared_call_argument_in_move_authenticator()
         .unwrap();
 }
 
-/// With deterministic validation, the authenticator state object is refused
-/// from the transaction bytes alone, as a call argument and as the object to
+/// With the P-COOL flow, the authenticator state object is refused from the
+/// transaction bytes alone, as a call argument and as the object to
 /// authenticate.
 #[test]
 fn validity_check_rejects_authenticator_state_in_move_authenticator() {
-    let config = config_with_deterministic_validation();
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
     let sender = Address::random();
     let state = SharedObjectReference::new(ObjectId::AUTHENTICATOR_STATE, Version::from(1), false);
     let account = SharedObjectReference::new(sender.into(), Version::from(1), false);
@@ -1207,13 +1200,13 @@ fn validity_check_rejects_authenticator_state_in_move_authenticator() {
     }
 }
 
-/// Without deterministic validation, the transaction bytes alone refuse
-/// neither the authenticator state object nor a mutable shared object as a
-/// `MoveAuthenticator` input: the checks on the loaded objects do.
+/// Without the P-COOL flow, as on Mainnet and Testnet, the transaction bytes
+/// alone refuse neither the authenticator state object nor a mutable shared
+/// object as a `MoveAuthenticator` input: the checks on the loaded objects do.
 #[test]
 fn validity_check_leaves_move_authenticator_input_kinds_to_the_loaded_objects() {
-    let config = ProtocolConfig::get_for_max_version_UNSAFE();
-    assert!(!config.pcool_deterministic_validation());
+    let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+    config.set_enable_pcool_flow_for_testing(false);
     let sender = Address::random();
     let account = SharedObjectReference::new(sender.into(), Version::from(1), false);
     let state = SharedObjectReference::new(ObjectId::AUTHENTICATOR_STATE, Version::from(1), false);
@@ -1449,6 +1442,15 @@ fn test_consensus_commit_prologue_v1_transaction() {
     assert_eq!(tx.data().transaction().input_objects().unwrap().len(), 1);
 }
 
+/// A transaction and its Move authenticator that name the same shared object
+/// with different initial versions still report a shared object, without
+/// panicking: `validity_check` rejects such a transaction only later.
+#[test]
+fn test_contains_shared_object_with_inconsistent_authenticator_input() {
+    let (tx, _) = make_move_authenticator_tx_with_inconsistent_shared_input(Address::random(), 0);
+    assert!(tx.data().contains_shared_object());
+}
+
 fn transaction_deny_rules_update_kind() -> TransactionKind {
     TransactionKind::TransactionDenyRulesUpdate(TransactionDenyRulesUpdate {
         epoch: 1,
@@ -1496,10 +1498,9 @@ fn test_transaction_deny_rules_update_transaction() {
 /// it on they are system transactions that users cannot submit.
 #[test]
 fn test_transaction_deny_rules_kinds_rejected_from_users() {
-    let flag_off = ProtocolConfig::get_for_max_version_UNSAFE();
-    let mut flag_on = ProtocolConfig::get_for_max_version_UNSAFE();
-    flag_on.set_deny_rule_governance_for_testing(true);
-    flag_on.set_deny_rule_governance_on_chain_for_testing(true);
+    let mut flag_off = ProtocolConfig::get_for_max_version_UNSAFE();
+    flag_off.set_enable_pcool_flow_for_testing(false);
+    let flag_on = ProtocolConfig::get_for_max_version_UNSAFE();
 
     let create =
         TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::TransactionDenyRulesCreate]);

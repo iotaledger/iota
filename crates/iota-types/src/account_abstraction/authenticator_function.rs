@@ -128,7 +128,18 @@ pub struct MoveAuthenticatorForExecution<FunctionRef = AuthenticatorFunctionRefF
 /// execution and the failure is reported in the authentication's place.
 pub enum MoveAuthenticatorsForExecution {
     Resolved(Vec<MoveAuthenticatorForExecution>),
-    ResolutionFailed(ExecutionError),
+    /// An account could not be resolved; `error` is the first such failure in
+    /// signature order. `accounts` are the addresses of the accounts the
+    /// transaction's Move authenticators authenticate, so execution can tell
+    /// whether the gas owner is one of them. `gas_owner` is the gas owner's
+    /// authenticator when its account resolved. With P-COOL deterministic
+    /// validation it runs to decide whether the gas owner pays; otherwise no
+    /// authenticator runs.
+    ResolutionFailed {
+        error: ExecutionError,
+        accounts: Vec<Address>,
+        gas_owner: Option<Box<MoveAuthenticatorForExecution>>,
+    },
 }
 
 /// Derive the id of the dynamic field on the account object that holds its
