@@ -249,6 +249,9 @@ impl ValidatorConfigBuilder {
             grpc_api_config: None,
             chain_override_for_testing: self.chain_override,
             validator_client_monitor_config: None,
+            validator_grpc_listener_limits: Default::default(),
+            json_rpc_listener_limits: Default::default(),
+            grpc_api_listener_limits: Default::default(),
         }
     }
 
@@ -673,6 +676,9 @@ impl FullnodeConfigBuilder {
             grpc_api_config,
             chain_override_for_testing: self.chain_override,
             validator_client_monitor_config: None,
+            validator_grpc_listener_limits: Default::default(),
+            json_rpc_listener_limits: Default::default(),
+            grpc_api_listener_limits: Default::default(),
         })
     }
 

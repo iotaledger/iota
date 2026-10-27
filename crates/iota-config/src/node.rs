@@ -4,7 +4,7 @@
 
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    num::NonZeroUsize,
+    num::{NonZeroU32, NonZeroUsize},
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -35,7 +35,8 @@ use starfish_config::Parameters as StarfishParameters;
 use crate::{
     Config, certificate_deny_config::CertificateDenyConfig, genesis,
     migration_tx_data::MigrationTxData, object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
-    transaction_deny_config::TransactionDenyConfig, verifier_signing_config::VerifierSigningConfig,
+    setting::Setting, transaction_deny_config::TransactionDenyConfig,
+    verifier_signing_config::VerifierSigningConfig,
 };
 
 /// Default gas price of 1000 Nanos
@@ -288,6 +289,70 @@ pub struct NodeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub validator_client_monitor_config:
         Option<crate::validator_client_monitor_config::ValidatorClientMonitorConfig>,
+
+    /// Limits of the validator's gRPC listener on `network_address`.
+    #[serde(default, skip_serializing_if = "ListenerLimitsConfig::is_unset")]
+    pub validator_grpc_listener_limits: ListenerLimitsConfig,
+
+    /// Limits of the JSON-RPC listener on `json_rpc_address`.
+    #[serde(default, skip_serializing_if = "ListenerLimitsConfig::is_unset")]
+    pub json_rpc_listener_limits: ListenerLimitsConfig,
+
+    /// Limits of the gRPC API listener on `grpc_api_config.address`.
+    #[serde(default, skip_serializing_if = "ListenerLimitsConfig::is_unset")]
+    pub grpc_api_listener_limits: ListenerLimitsConfig,
+}
+
+/// Limits a listener places on the clients that connect to it.
+///
+/// Each field names a setting of `iota_http::Config`, which documents what the
+/// listener does with it. A field left out takes the listener's default, and a
+/// field written as `null` turns that limit off.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ListenerLimitsConfig {
+    /// How long an accepted connection may take to complete its TLS handshake.
+    #[serde(default, skip_serializing_if = "Setting::is_unset")]
+    pub handshake_timeout: Setting<Duration>,
+
+    /// How many accepted connections may be in their TLS handshake at the
+    /// same time.
+    #[serde(default, skip_serializing_if = "Setting::is_unset")]
+    pub max_pending_connections: Setting<NonZeroUsize>,
+
+    /// How many connections the listener may hold at once.
+    #[serde(default, skip_serializing_if = "Setting::is_unset")]
+    pub max_connections: Setting<NonZeroUsize>,
+
+    /// How many connections one client address may hold at once.
+    #[serde(default, skip_serializing_if = "Setting::is_unset")]
+    pub max_connections_per_client_ip: Setting<NonZeroUsize>,
+
+    /// How long a connection may serve no request before the listener closes
+    /// it.
+    #[serde(default, skip_serializing_if = "Setting::is_unset")]
+    pub max_connection_idle: Setting<Duration>,
+
+    /// How many HTTP/2 streams one connection may have open at once.
+    #[serde(default, skip_serializing_if = "Setting::is_unset")]
+    pub max_concurrent_streams: Setting<NonZeroU32>,
+
+    /// How often the listener pings an HTTP/2 connection to find out whether
+    /// its peer is still there.
+    #[serde(default, skip_serializing_if = "Setting::is_unset")]
+    pub http2_keepalive_interval: Setting<Duration>,
+
+    /// How long an HTTP/1 connection may take to send a complete request
+    /// header block.
+    #[serde(default, skip_serializing_if = "Setting::is_unset")]
+    pub http1_header_read_timeout: Setting<Duration>,
+}
+
+impl ListenerLimitsConfig {
+    /// Whether every field was left out. Meant for `skip_serializing_if`.
+    pub fn is_unset(&self) -> bool {
+        *self == Self::default()
+    }
 }
 
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
@@ -1712,7 +1777,11 @@ pub struct StateDebugDumpConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::{
+        num::{NonZeroU32, NonZeroUsize},
+        path::PathBuf,
+        time::Duration,
+    };
 
     use fastcrypto::traits::KeyPair;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
@@ -1727,10 +1796,12 @@ mod tests {
 
     use super::{
         AuthorityStorePruningConfig, DEFAULT_NUM_EPOCHS_TO_RETAIN_FOR_CHECKPOINTS, Genesis,
-        GrpcApiConfig, ObjectStoreConfig, default_grpc_api_config,
+        GrpcApiConfig, ListenerLimitsConfig, ObjectStoreConfig, default_grpc_api_config,
         default_periodic_compaction_threshold_days, default_traffic_controller_policy_config,
     };
-    use crate::{ConsensusConfig, NodeConfig, object_storage_config::ObjectStoreType};
+    use crate::{
+        ConsensusConfig, NodeConfig, object_storage_config::ObjectStoreType, setting::Setting,
+    };
 
     const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
 
@@ -2232,6 +2303,124 @@ mod tests {
             written_at(&written, COMPACTION_THRESHOLD),
             Some(Value::Null)
         );
+    }
+
+    fn limits(yaml: &str) -> ListenerLimitsConfig {
+        serde_yaml::from_str(yaml).unwrap()
+    }
+
+    #[test]
+    fn a_node_config_without_listener_limits_leaves_every_limit_unset() {
+        let config = template_config();
+        assert_eq!(
+            config.validator_grpc_listener_limits,
+            ListenerLimitsConfig::default()
+        );
+        assert_eq!(
+            config.json_rpc_listener_limits,
+            ListenerLimitsConfig::default()
+        );
+        assert_eq!(
+            config.grpc_api_listener_limits,
+            ListenerLimitsConfig::default()
+        );
+    }
+
+    #[test]
+    fn a_listener_limit_left_out_is_unset_and_null_disables_it() {
+        assert_eq!(
+            limits("max-connections: 30\nmax-connection-idle: null"),
+            ListenerLimitsConfig {
+                max_connections: Setting::Value(NonZeroUsize::new(30).unwrap()),
+                max_connection_idle: Setting::Disabled,
+                ..Default::default()
+            }
+        );
+    }
+
+    /// Every value is distinct, so a key read into the wrong field fails here.
+    #[test]
+    fn every_listener_limit_is_read_from_its_own_key() {
+        let read = limits(
+            "
+            handshake-timeout: {secs: 1, nanos: 0}
+            max-pending-connections: 2
+            max-connections: 3
+            max-connections-per-client-ip: 4
+            max-connection-idle: {secs: 5, nanos: 0}
+            max-concurrent-streams: 6
+            http2-keepalive-interval: {secs: 7, nanos: 0}
+            http1-header-read-timeout: {secs: 8, nanos: 0}
+            ",
+        );
+        assert_eq!(
+            read,
+            ListenerLimitsConfig {
+                handshake_timeout: Setting::Value(Duration::from_secs(1)),
+                max_pending_connections: Setting::Value(NonZeroUsize::new(2).unwrap()),
+                max_connections: Setting::Value(NonZeroUsize::new(3).unwrap()),
+                max_connections_per_client_ip: Setting::Value(NonZeroUsize::new(4).unwrap()),
+                max_connection_idle: Setting::Value(Duration::from_secs(5)),
+                max_concurrent_streams: Setting::Value(NonZeroU32::new(6).unwrap()),
+                http2_keepalive_interval: Setting::Value(Duration::from_secs(7)),
+                http1_header_read_timeout: Setting::Value(Duration::from_secs(8)),
+            }
+        );
+    }
+
+    #[test]
+    fn every_listener_limit_can_be_disabled() {
+        let read = limits(
+            "
+            handshake-timeout: null
+            max-pending-connections: null
+            max-connections: null
+            max-connections-per-client-ip: null
+            max-connection-idle: null
+            max-concurrent-streams: null
+            http2-keepalive-interval: null
+            http1-header-read-timeout: null
+            ",
+        );
+        assert_eq!(
+            read,
+            ListenerLimitsConfig {
+                handshake_timeout: Setting::Disabled,
+                max_pending_connections: Setting::Disabled,
+                max_connections: Setting::Disabled,
+                max_connections_per_client_ip: Setting::Disabled,
+                max_connection_idle: Setting::Disabled,
+                max_concurrent_streams: Setting::Disabled,
+                http2_keepalive_interval: Setting::Disabled,
+                http1_header_read_timeout: Setting::Disabled,
+            }
+        );
+    }
+
+    #[test]
+    fn listener_limits_are_written_only_when_set() {
+        let mut config = template_config();
+        let written = serde_yaml::to_value(&config).unwrap();
+        for key in [
+            "validator-grpc-listener-limits",
+            "json-rpc-listener-limits",
+            "grpc-api-listener-limits",
+        ] {
+            assert_eq!(written_at(&written, &[key]), None, "{key} was written");
+        }
+
+        config.json_rpc_listener_limits.max_connections = Setting::Value(NonZeroUsize::MIN);
+        config.grpc_api_listener_limits.max_connection_idle = Setting::Disabled;
+        let read_back = round_trip(&config);
+        assert_eq!(
+            read_back.json_rpc_listener_limits,
+            config.json_rpc_listener_limits
+        );
+        assert_eq!(
+            read_back.grpc_api_listener_limits,
+            config.grpc_api_listener_limits
+        );
+        assert!(read_back.validator_grpc_listener_limits.is_unset());
     }
 }
 

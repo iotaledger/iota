@@ -1750,13 +1750,49 @@ impl IotaNode {
         // next to five minutes without a request.
         const VALIDATOR_GRPC_MAX_CONNECTION_IDLE: Duration = Duration::from_secs(300);
 
+        let limits = &config.validator_grpc_listener_limits;
         let http_config = iota_http::Config::default()
-            .http2_keepalive_interval(VALIDATOR_GRPC_KEEPALIVE)
+            .handshake_timeout(
+                limits
+                    .handshake_timeout
+                    .resolve(iota_http::DEFAULT_HANDSHAKE_TIMEOUT),
+            )
+            .max_pending_connections(
+                limits
+                    .max_pending_connections
+                    .resolve(iota_http::DEFAULT_MAX_PENDING_CONNECTIONS),
+            )
+            .max_connections(
+                limits
+                    .max_connections
+                    .resolve(VALIDATOR_GRPC_MAX_CONNECTIONS),
+            )
+            .max_connections_per_client_ip(
+                limits
+                    .max_connections_per_client_ip
+                    .resolve(VALIDATOR_GRPC_MAX_CONNECTIONS_PER_CLIENT_IP),
+            )
+            .max_connection_idle(
+                limits
+                    .max_connection_idle
+                    .resolve(VALIDATOR_GRPC_MAX_CONNECTION_IDLE),
+            )
+            .max_concurrent_streams(
+                limits
+                    .max_concurrent_streams
+                    .resolve(VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS),
+            )
+            .http2_keepalive_interval(
+                limits
+                    .http2_keepalive_interval
+                    .resolve(VALIDATOR_GRPC_KEEPALIVE),
+            )
             .http2_keepalive_timeout(VALIDATOR_GRPC_KEEPALIVE)
-            .max_concurrent_streams(VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS)
-            .max_connections(VALIDATOR_GRPC_MAX_CONNECTIONS)
-            .max_connections_per_client_ip(VALIDATOR_GRPC_MAX_CONNECTIONS_PER_CLIENT_IP)
-            .max_connection_idle(VALIDATOR_GRPC_MAX_CONNECTION_IDLE)
+            .http1_header_read_timeout(
+                limits
+                    .http1_header_read_timeout
+                    .resolve(iota_http::DEFAULT_HTTP1_HEADER_READ_TIMEOUT),
+            )
             .metrics(validator_server_listener_metrics(prometheus_registry));
         let server_builder = ServerBuilder::from_config(
             &iota_network_stack::config::Config::new(),
@@ -2765,6 +2801,7 @@ async fn build_grpc_server(
         grpc_reader,
         executor,
         grpc_config.clone(),
+        &config.grpc_api_listener_limits,
         shutdown_token,
         chain_id,
         Some(grpc_server_metrics),
@@ -2897,16 +2934,47 @@ pub async fn build_http_server(
     // request in flight, which the idle deadline does not.
     const JSON_RPC_HTTP2_KEEPALIVE: Duration = Duration::from_secs(60);
 
-    let handle = iota_http::Builder::new()
-        .config(
-            iota_http::Config::default()
-                .max_connections(JSON_RPC_MAX_CONNECTIONS)
-                .max_connections_per_client_ip(JSON_RPC_MAX_CONNECTIONS_PER_CLIENT_IP)
-                .max_connection_idle(JSON_RPC_MAX_CONNECTION_IDLE)
-                .max_concurrent_streams(JSON_RPC_MAX_CONCURRENT_STREAMS)
-                .http2_keepalive_interval(JSON_RPC_HTTP2_KEEPALIVE)
-                .metrics(json_rpc_listener_metrics(prometheus_registry)),
+    let limits = &config.json_rpc_listener_limits;
+    let http_config = iota_http::Config::default()
+        .handshake_timeout(
+            limits
+                .handshake_timeout
+                .resolve(iota_http::DEFAULT_HANDSHAKE_TIMEOUT),
         )
+        .max_pending_connections(
+            limits
+                .max_pending_connections
+                .resolve(iota_http::DEFAULT_MAX_PENDING_CONNECTIONS),
+        )
+        .max_connections(limits.max_connections.resolve(JSON_RPC_MAX_CONNECTIONS))
+        .max_connections_per_client_ip(
+            limits
+                .max_connections_per_client_ip
+                .resolve(JSON_RPC_MAX_CONNECTIONS_PER_CLIENT_IP),
+        )
+        .max_connection_idle(
+            limits
+                .max_connection_idle
+                .resolve(JSON_RPC_MAX_CONNECTION_IDLE),
+        )
+        .max_concurrent_streams(
+            limits
+                .max_concurrent_streams
+                .resolve(JSON_RPC_MAX_CONCURRENT_STREAMS),
+        )
+        .http2_keepalive_interval(
+            limits
+                .http2_keepalive_interval
+                .resolve(JSON_RPC_HTTP2_KEEPALIVE),
+        )
+        .http1_header_read_timeout(
+            limits
+                .http1_header_read_timeout
+                .resolve(iota_http::DEFAULT_HTTP1_HEADER_READ_TIMEOUT),
+        )
+        .metrics(json_rpc_listener_metrics(prometheus_registry));
+    let handle = iota_http::Builder::new()
+        .config(http_config)
         .serve(&config.json_rpc_address, router)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     info!(
