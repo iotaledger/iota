@@ -1288,15 +1288,15 @@
           "params": [
             {
               "name": "version",
-              "value": 39
+              "value": 40
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "39",
-              "protocolVersion": "39",
+              "maxSupportedProtocolVersion": "40",
+              "protocolVersion": "40",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -1345,6 +1345,7 @@
                 "limit_groth16_pvk_inputs": true,
                 "max_ptb_value_size_v2": true,
                 "metadata_in_module_bytes": true,
+                "meter_instantiation_loops": true,
                 "minimize_child_object_mutations": true,
                 "move_native_tx_context": true,
                 "native_charging_v2": true,
@@ -1949,6 +1950,9 @@
                 },
                 "max_input_objects": {
                   "u64": "2048"
+                },
+                "max_instantiation_loop_graph_edges": {
+                  "u64": "100000"
                 },
                 "max_jwk_votes_per_validator_per_epoch": null,
                 "max_loop_depth": {
