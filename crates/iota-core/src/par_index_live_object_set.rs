@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    panic::{AssertUnwindSafe, catch_unwind, resume_unwind},
     sync::atomic::{AtomicBool, AtomicU64, Ordering},
     time::{Duration, Instant},
 };
@@ -49,7 +50,9 @@ pub trait LiveObjectIndexer {
 /// the disjoint parts of the live object set.
 ///
 /// Setting `cancelled` makes the scan fail early with a cancellation error;
-/// the partial work is the caller's to discard.
+/// the partial work is the caller's to discard. A task that fails or panics
+/// stops the others early, and the scan then returns its error or raises its
+/// panic.
 #[tracing::instrument(skip_all)]
 pub fn par_index_live_object_set<T: ParMakeLiveObjectIndexer>(
     authority_store: &AuthorityStore,
@@ -69,6 +72,7 @@ pub fn par_index_live_object_set<T: ParMakeLiveObjectIndexer>(
         .collect();
     let objects_scanned = AtomicU64::new(0);
     let done = AtomicBool::new(false);
+    let failed = AtomicBool::new(false);
 
     std::thread::scope(|s| -> Result<(), StorageError> {
         let reporter = s.spawn(|| {
@@ -79,30 +83,46 @@ pub fn par_index_live_object_set<T: ParMakeLiveObjectIndexer>(
         for index in 0u8..(TASKS as u8) {
             let position = &positions[index as usize];
             let objects_scanned = &objects_scanned;
+            let failed = &failed;
             threads.push(s.spawn(move || {
-                let object_indexer = make_indexer.make_live_object_indexer();
-                live_object_set_index_task(
-                    index,
-                    BITS,
-                    authority_store,
-                    object_indexer,
-                    position,
-                    objects_scanned,
-                    cancelled,
-                )
+                let outcome = catch_unwind(AssertUnwindSafe(|| {
+                    let object_indexer = make_indexer.make_live_object_indexer();
+                    live_object_set_index_task(
+                        index,
+                        BITS,
+                        authority_store,
+                        object_indexer,
+                        position,
+                        objects_scanned,
+                        &|| cancelled.load(Ordering::Relaxed) || failed.load(Ordering::Relaxed),
+                    )
+                }));
+                if !matches!(outcome, Ok(Ok(()))) {
+                    failed.store(true, Ordering::Relaxed);
+                }
+                outcome
             }));
         }
 
-        // Join every task before stopping the reporter, so a failed task
-        // can't leave the reporter thread blocking the scope forever.
+        // Join every task before stopping the reporter, and raise a task's
+        // panic only after that: the reporter runs until it is stopped, so
+        // the scope would never return.
         let mut result = Ok(());
+        let mut panicked = None;
         for thread in threads {
-            if let Err(e) = thread.join().unwrap() {
-                result = keep_task_error(result, e);
+            match thread.join().expect("a scan task's panic is caught") {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => result = keep_task_error(result, e),
+                Err(payload) => {
+                    panicked.get_or_insert(payload);
+                }
             }
         }
         done.store(true, Ordering::Relaxed);
         reporter.join().unwrap();
+        if let Some(payload) = panicked {
+            resume_unwind(payload);
+        }
 
         result
     })?;
@@ -115,7 +135,9 @@ pub fn par_index_live_object_set<T: ParMakeLiveObjectIndexer>(
     Ok(())
 }
 
-#[tracing::instrument(skip(authority_store, object_indexer, position, objects_scanned, cancelled))]
+/// Indexes task `task_id`'s range of the live object set. Fails with a
+/// cancellation error once `stop` answers `true`.
+#[tracing::instrument(skip(authority_store, object_indexer, position, objects_scanned, stop))]
 fn live_object_set_index_task<T: LiveObjectIndexer>(
     task_id: u8,
     bits: u8,
@@ -123,12 +145,12 @@ fn live_object_set_index_task<T: LiveObjectIndexer>(
     mut object_indexer: T,
     position: &AtomicU64,
     objects_scanned: &AtomicU64,
-    cancelled: &AtomicBool,
+    stop: &dyn Fn() -> bool,
 ) -> Result<(), StorageError> {
     const COUNTER_CHUNK: u64 = 10_000;
     const CANCELLATION_CHUNK: u64 = 1_024;
 
-    if cancelled.load(Ordering::Relaxed) {
+    if stop() {
         return Err(scan_cancelled());
     }
 
@@ -153,7 +175,7 @@ fn live_object_set_index_task<T: LiveObjectIndexer>(
         if object_scanned.is_multiple_of(COUNTER_CHUNK) {
             objects_scanned.fetch_add(COUNTER_CHUNK, Ordering::Relaxed);
         }
-        if object_scanned.is_multiple_of(CANCELLATION_CHUNK) && cancelled.load(Ordering::Relaxed) {
+        if object_scanned.is_multiple_of(CANCELLATION_CHUNK) && stop() {
             return Err(scan_cancelled());
         }
 
@@ -312,6 +334,42 @@ fn format_count(count: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::authority::test_authority_builder::TestAuthorityBuilder;
+
+    struct PanickingIndexer;
+
+    impl ParMakeLiveObjectIndexer for PanickingIndexer {
+        type ObjectIndexer<'a> = PanickingIndexer;
+
+        fn make_live_object_indexer(&self) -> PanickingIndexer {
+            PanickingIndexer
+        }
+    }
+
+    impl LiveObjectIndexer for PanickingIndexer {
+        fn index_object(&mut self, _object: &Object) -> Result<(), StorageError> {
+            panic!("an indexer panicked");
+        }
+
+        fn finish(self) -> Result<(), StorageError> {
+            Ok(())
+        }
+    }
+
+    /// A panicking task makes the scan panic in turn, rather than leaving it
+    /// waiting forever for the progress reporter.
+    #[tokio::test]
+    async fn a_panicking_task_ends_the_scan_with_its_panic() {
+        let state = TestAuthorityBuilder::new().build().await;
+        let store = state.database_for_testing();
+        let scan = tokio::task::spawn_blocking(move || {
+            par_index_live_object_set(&store, &PanickingIndexer, &AtomicBool::new(false))
+        });
+        let joined = tokio::time::timeout(Duration::from_secs(60), scan)
+            .await
+            .expect("the scan must end once a task panics");
+        assert!(joined.unwrap_err().is_panic());
+    }
 
     const BITS: u8 = 5;
 
