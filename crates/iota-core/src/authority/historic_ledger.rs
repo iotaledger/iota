@@ -25,8 +25,9 @@ use typed_store::{
 };
 
 use crate::epoch_buckets::{
-    BucketPaths, BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_options,
-    bucket_metrics_label, dump_page, dump_retention_floor, dump_rows, extra_column_family_options,
+    BucketPaths, BucketReopen, EpochBuckets, PrunedBuckets, absent_if_dropped, bucket_cf_epoch,
+    bucket_cf_options, bucket_metrics_label, dump_page, dump_retention_floor, dump_rows,
+    extra_column_family_options,
 };
 
 /// Column-family prefix of the historic ledger buckets; a bucket's family
@@ -237,7 +238,8 @@ impl HistoricLedger {
     }
 
     /// Keeps the buckets of `current_epoch` and the `epochs_to_retain` epochs
-    /// below it, drops older ones, and returns the earliest epoch retained.
+    /// below it, drops older ones, and returns the earliest epoch retained and
+    /// how many buckets were dropped.
     ///
     /// `current_epoch` must be the epoch this node is executing, not the
     /// newest bucket (see [`HistoricLedger`]); buckets above it are left
@@ -252,7 +254,7 @@ impl HistoricLedger {
         current_epoch: EpochId,
         epochs_to_retain: u64,
         before_drop: &dyn Fn(),
-    ) -> IotaResult<Option<EpochId>> {
+    ) -> IotaResult<Option<PrunedBuckets>> {
         self.buckets
             // No live table holds rows that depend on a bucket.
             .prune(current_epoch, epochs_to_retain, |_, _| {

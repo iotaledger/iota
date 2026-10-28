@@ -36,7 +36,7 @@ use typed_store::{
 use crate::{
     authority::authority_store_types::{StoreObject, StoreObjectWrapper},
     epoch_buckets::{
-        BucketPaths, BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch,
+        BucketPaths, BucketReopen, EpochBuckets, PrunedBuckets, absent_if_dropped, bucket_cf_epoch,
         bucket_cf_name, bucket_cf_options, bucket_metrics_label, dump_page, dump_retention_floor,
         dump_rows, extra_column_family_options,
     },
@@ -441,8 +441,8 @@ impl HistoricObjects {
 
     /// Keeps the buckets of `current_epoch` and the `epochs_to_retain` epochs
     /// below it, drops older ones, and deletes the tombstones each
-    /// dropped epoch recorded. Returns the earliest epoch still retained,
-    /// `None` when there is no bucket at all.
+    /// dropped epoch recorded. Returns the earliest epoch still retained and
+    /// how many buckets were dropped, `None` when there is no bucket at all.
     ///
     /// Blocks for as long as the deletions and drops take, so an async caller
     /// must use `spawn_blocking`. Queries keep being answered meanwhile, from
@@ -451,7 +451,7 @@ impl HistoricObjects {
         &self,
         current_epoch: EpochId,
         epochs_to_retain: u64,
-    ) -> IotaResult<Option<EpochId>> {
+    ) -> IotaResult<Option<PrunedBuckets>> {
         self.buckets
             .prune(current_epoch, epochs_to_retain, |epoch, bucket| {
                 Self::expire_bucket(&self.objects, epoch, bucket).map_err(|e| {

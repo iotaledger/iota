@@ -17,8 +17,9 @@ use typed_store::{
 
 use super::{EMPTY_CHECKPOINT_CONTENTS_DIGEST, empty_checkpoint_contents};
 use crate::epoch_buckets::{
-    BucketPaths, BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_options,
-    bucket_metrics_label, dump_page, dump_retention_floor, dump_rows, extra_column_family_options,
+    BucketPaths, BucketReopen, EpochBuckets, PrunedBuckets, absent_if_dropped, bucket_cf_epoch,
+    bucket_cf_options, bucket_metrics_label, dump_page, dump_retention_floor, dump_rows,
+    extra_column_family_options,
 };
 
 /// Column-family prefix of the historic checkpoint buckets; a bucket's
@@ -198,7 +199,8 @@ impl HistoricCheckpoints {
 
     /// Drops the buckets of the epochs that have fallen outside
     /// `epochs_to_retain`, counted back from `current_epoch` and including
-    /// it, and returns the earliest epoch retained.
+    /// it, and returns the earliest epoch retained and how many buckets were
+    /// dropped.
     ///
     /// `current_epoch` must be the epoch this node is executing (see
     /// [`HistoricCheckpoints`]); buckets above it are left alone. Blocks while
@@ -212,7 +214,7 @@ impl HistoricCheckpoints {
         current_epoch: EpochId,
         epochs_to_retain: u64,
         before_drop: &dyn Fn(),
-    ) -> Result<Option<EpochId>, TypedStoreError> {
+    ) -> Result<Option<PrunedBuckets>, TypedStoreError> {
         self.buckets.prune(current_epoch, epochs_to_retain, |_, _| {
             before_drop();
             Ok(())

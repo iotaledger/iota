@@ -23,7 +23,7 @@ use crate::{
         authority_store_tables::AuthorityPerpetualTables,
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
     },
-    epoch_buckets::HISTORIC_DB_DIR,
+    epoch_buckets::{HISTORIC_DB_DIR, PrunedBuckets},
 };
 
 /// A perpetual store, its historic buckets, and an [`AuthorityStore`] over
@@ -251,11 +251,23 @@ async fn test_expiry_deletes_the_epochs_tombstones() {
     drop(bucket);
 
     historic.ensure(2).unwrap();
-    assert_eq!(historic.prune(2, 0).unwrap(), Some(2));
+    assert_eq!(
+        historic.prune(2, 0).unwrap(),
+        Some(PrunedBuckets {
+            earliest_retained: 2,
+            dropped: 1
+        })
+    );
     assert!(perpetual.objects.get(&deleted).unwrap().is_none());
     assert_eq!(historic.get(&relocated).unwrap(), None);
 
-    assert_eq!(historic.prune(2, 0).unwrap(), Some(2));
+    assert_eq!(
+        historic.prune(2, 0).unwrap(),
+        Some(PrunedBuckets {
+            earliest_retained: 2,
+            dropped: 0
+        })
+    );
 }
 
 /// An epoch holding more tombstones than fit in one write batch has all
@@ -287,7 +299,13 @@ async fn test_expiry_deletes_heads_past_the_batch_boundary() {
     drop(bucket);
 
     historic.ensure(2).unwrap();
-    assert_eq!(historic.prune(2, 0).unwrap(), Some(2));
+    assert_eq!(
+        historic.prune(2, 0).unwrap(),
+        Some(PrunedBuckets {
+            earliest_retained: 2,
+            dropped: 1
+        })
+    );
     for key in &deleted {
         assert!(
             perpetual.objects.get(key).unwrap().is_none(),
@@ -753,7 +771,13 @@ async fn test_expiry_keeps_a_tombstone_with_a_live_version_below_it() {
     drop(bucket);
 
     historic.ensure(2).unwrap();
-    assert_eq!(historic.prune(2, 0).unwrap(), Some(2));
+    assert_eq!(
+        historic.prune(2, 0).unwrap(),
+        Some(PrunedBuckets {
+            earliest_retained: 2,
+            dropped: 1
+        })
+    );
 
     assert!(
         perpetual.objects.get(&tombstone).unwrap().is_some(),
@@ -810,7 +834,13 @@ async fn test_expiry_decides_each_of_an_objects_tombstones_on_its_own() {
     drop(bucket);
 
     historic.ensure(2).unwrap();
-    assert_eq!(historic.prune(2, 0).unwrap(), Some(2));
+    assert_eq!(
+        historic.prune(2, 0).unwrap(),
+        Some(PrunedBuckets {
+            earliest_retained: 2,
+            dropped: 1
+        })
+    );
 
     assert!(
         perpetual.objects.get(&lower_tombstone).unwrap().is_none(),
@@ -853,7 +883,13 @@ async fn test_expiry_deletes_every_tombstone_an_object_left_in_the_epoch() {
     drop(bucket);
 
     historic.ensure(2).unwrap();
-    assert_eq!(historic.prune(2, 0).unwrap(), Some(2));
+    assert_eq!(
+        historic.prune(2, 0).unwrap(),
+        Some(PrunedBuckets {
+            earliest_retained: 2,
+            dropped: 1
+        })
+    );
 
     assert!(perpetual.objects.get(&wrapped).unwrap().is_none());
     assert!(perpetual.objects.get(&deleted).unwrap().is_none());

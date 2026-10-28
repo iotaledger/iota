@@ -153,6 +153,7 @@ use crate::{
     congestion_tracker::CongestionTracker,
     consensus_adapter::ConsensusAdapter,
     epoch::committee_store::CommitteeStore,
+    epoch_buckets::PrunedBuckets,
     epoch_end_db_snapshot::{EpochEndDbSnapshotHandle, HandOver},
     execution_cache::{
         CheckpointCache, ExecutionCacheCommit, ExecutionCacheReconfigAPI,
@@ -313,8 +314,8 @@ pub struct AuthorityMetrics {
     /// published each time an expiry runs with retention on. Not advancing
     /// across epochs means expiry is stuck.
     pub(crate) historic_bucket_earliest_retained_epoch: IntGaugeVec,
-    /// Per store, how long its last expiry took.
-    pub(crate) historic_bucket_expiry_duration_ms: IntGaugeVec,
+    /// Per store, how long the expiries that dropped a bucket took.
+    pub(crate) historic_bucket_expiry_duration: HistogramVec,
 
     pub(crate) authority_overload_status: IntGauge,
     /// Percentage of transactions shed due to consensus queue length.
@@ -415,6 +416,12 @@ const LATENCY_SEC_BUCKETS: &[f64] = &[
 const LOW_LATENCY_SEC_BUCKETS: &[f64] = &[
     0.00001, 0.00002, 0.00005, 0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1,
     0.2, 0.5, 1., 2., 5., 10., 20., 50., 100.,
+];
+
+// An expiry deletes the tombstones of the epochs it drops, which can take
+// minutes.
+const HISTORIC_BUCKET_EXPIRY_SEC_BUCKETS: &[f64] = &[
+    0.01, 0.05, 0.1, 0.5, 1., 2., 5., 10., 30., 60., 120., 300., 600., 1200., 1800.,
 ];
 
 const GAS_LATENCY_RATIO_BUCKETS: &[f64] = &[
@@ -622,10 +629,11 @@ impl AuthorityMetrics {
                 MetricLevel::Warn,
             )
             .unwrap(),
-            historic_bucket_expiry_duration_ms: register_int_gauge_vec_with_registry!(
-                "historic_bucket_expiry_duration_ms",
-                "How long a store's last expiry of historic buckets took, in milliseconds",
+            historic_bucket_expiry_duration: register_histogram_vec_with_registry!(
+                "historic_bucket_expiry_duration_seconds",
+                "How long a store's expiries of historic buckets that dropped a bucket took",
                 &["store"],
+                HISTORIC_BUCKET_EXPIRY_SEC_BUCKETS.to_vec(),
                 registry;
                 MetricLevel::Warn,
             )
@@ -3580,22 +3588,28 @@ impl AuthorityState {
             // The index first, so it never names a transaction the ledger has
             // dropped, and the checkpoints before the ledger, so a checkpoint
             // is never served without its transactions.
-            let expire = |store: &str, prune: &dyn Fn() -> Result<Option<EpochId>, String>| {
-                let started = Instant::now();
-                let pruned = prune();
-                metrics
-                    .historic_bucket_expiry_duration_ms
-                    .with_label_values(&[store])
-                    .set(started.elapsed().as_millis() as i64);
-                match pruned {
-                    Ok(Some(earliest_retained_epoch)) => metrics
-                        .historic_bucket_earliest_retained_epoch
-                        .with_label_values(&[store])
-                        .set(earliest_retained_epoch as i64),
-                    Ok(None) => {}
-                    Err(err) => error!(store, "Failed to expire historic buckets: {err}"),
-                }
-            };
+            // Only runs that dropped a bucket: the ones that drop nothing, as at
+            // every start, would bury the durations of the ones that do.
+            let expire =
+                |store: &str, prune: &dyn Fn() -> Result<Option<PrunedBuckets>, String>| {
+                    let started = Instant::now();
+                    match prune() {
+                        Ok(Some(pruned)) => {
+                            if pruned.dropped > 0 {
+                                metrics
+                                    .historic_bucket_expiry_duration
+                                    .with_label_values(&[store])
+                                    .observe(started.elapsed().as_secs_f64());
+                            }
+                            metrics
+                                .historic_bucket_earliest_retained_epoch
+                                .with_label_values(&[store])
+                                .set(pruned.earliest_retained as i64);
+                        }
+                        Ok(None) => {}
+                        Err(err) => error!(store, "Failed to expire historic buckets: {err}"),
+                    }
+                };
             if let Some(indexes) = &rpc_indexes_store {
                 expire("indexes", &|| {
                     indexes.prune(current_epoch).map_err(|e| format!("{e:?}"))

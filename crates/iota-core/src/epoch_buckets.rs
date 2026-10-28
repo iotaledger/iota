@@ -366,6 +366,16 @@ pub(crate) trait BucketReopen: Sized {
     }
 }
 
+/// What a prune of a store's buckets did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PrunedBuckets {
+    /// The earliest epoch retained; buckets below it are gone and are never
+    /// recreated.
+    pub earliest_retained: EpochId,
+    /// How many buckets this prune dropped.
+    pub dropped: usize,
+}
+
 /// The per-epoch buckets of one store, each viewed as a `B`.
 ///
 /// On-disk column-family names are the ground truth for which buckets exist;
@@ -612,8 +622,9 @@ impl<B: BucketReopen> EpochBuckets<B> {
     /// `current_epoch` is passed in because state sync can write buckets
     /// ahead of execution, which must not count towards the retention.
     ///
-    /// Returns the earliest epoch to retain, `None` when there is no bucket at
-    /// all. It is persisted before the drops and never moves backwards, so
+    /// Returns the earliest epoch to retain and how many buckets this call
+    /// dropped, `None` when there is no bucket at all. The earliest epoch is
+    /// persisted before the drops and never moves backwards, so
     /// dropped epochs are never recreated, even after a reopen or a raised
     /// `epochs_to_retain`. An epoch whose drop failed is gone all the same,
     /// and the next open drops it.
@@ -634,7 +645,7 @@ impl<B: BucketReopen> EpochBuckets<B> {
         current_epoch: EpochId,
         epochs_to_retain: u64,
         mut before_drop: impl FnMut(EpochId, &Arc<B>) -> Result<(), TypedStoreError>,
-    ) -> Result<Option<EpochId>, TypedStoreError> {
+    ) -> Result<Option<PrunedBuckets>, TypedStoreError> {
         let _pruning = self.pruning.lock();
         let (earliest_retained, expired) = {
             // Usually has nothing to do, so it takes the write lock queries
@@ -654,7 +665,10 @@ impl<B: BucketReopen> EpochBuckets<B> {
                 .map(|(&e, bucket)| (e, bucket.clone()))
                 .collect();
             if earliest_retained == persisted && expired.is_empty() {
-                return Ok(Some(earliest_retained));
+                return Ok(Some(PrunedBuckets {
+                    earliest_retained,
+                    dropped: 0,
+                }));
             }
             if earliest_retained != persisted {
                 // Under the write lock, so `ensure` cannot hand out a bucket
@@ -672,6 +686,7 @@ impl<B: BucketReopen> EpochBuckets<B> {
             (earliest_retained, expired)
         };
 
+        let mut dropped = 0;
         for (epoch, bucket) in expired {
             before_drop(epoch, &bucket)?;
             info!(
@@ -685,6 +700,7 @@ impl<B: BucketReopen> EpochBuckets<B> {
                 // matching the map.
                 self.publish_earliest_epoch(&buckets);
             }
+            dropped += 1;
             // A reader that took the bucket before it left the map finishes
             // against the open column family rather than failing; no new
             // reader can take it now.
@@ -712,7 +728,10 @@ impl<B: BucketReopen> EpochBuckets<B> {
         if let Some(paths) = &self.paths {
             paths.remove_empty_dirs_below(earliest_retained);
         }
-        Ok(Some(earliest_retained))
+        Ok(Some(PrunedBuckets {
+            earliest_retained,
+            dropped,
+        }))
     }
 
     /// The earliest epoch to retain when `current_epoch` is kept together
@@ -746,7 +765,8 @@ mod tests {
 
     use super::{
         Arc, BTreeMap, BucketPaths, BucketReopen, Database, EpochBuckets, EpochId, Map, Path,
-        PathBuf, TypedStoreError, bucket_cf_epoch, bucket_cf_name, bucket_cf_options, fs, rocksdb,
+        PathBuf, PrunedBuckets, TypedStoreError, bucket_cf_epoch, bucket_cf_name,
+        bucket_cf_options, fs, rocksdb,
     };
 
     /// The buckets of one store share one metrics label, so that a store
@@ -1135,13 +1155,19 @@ mod tests {
     async fn prune_calls_back_in_ascending_epoch_order() {
         let (buckets, _dir) = test_buckets(&[3, 4, 5, 6]);
         let seen = Mutex::new(Vec::new());
-        let earliest = buckets
+        let pruned = buckets
             .prune(6, 1, |epoch, _| {
                 seen.lock().unwrap().push(epoch);
                 Ok(())
             })
             .unwrap();
-        assert_eq!(earliest, Some(5));
+        assert_eq!(
+            pruned,
+            Some(PrunedBuckets {
+                earliest_retained: 5,
+                dropped: 2
+            })
+        );
         assert_eq!(*seen.lock().unwrap(), vec![3, 4]);
     }
 
@@ -1151,12 +1177,24 @@ mod tests {
     #[tokio::test]
     async fn prune_ignores_the_buckets_above_the_current_epoch() {
         let (buckets, _dir) = test_buckets(&[3, 4, 5, 6]);
-        let earliest = buckets.prune(4, 1, |_, _| Ok(())).unwrap();
-        assert_eq!(earliest, Some(3));
+        let pruned = buckets.prune(4, 1, |_, _| Ok(())).unwrap();
+        assert_eq!(
+            pruned,
+            Some(PrunedBuckets {
+                earliest_retained: 3,
+                dropped: 0
+            })
+        );
         assert_eq!(buckets.iter(false).len(), 4);
 
-        let earliest = buckets.prune(5, 1, |_, _| Ok(())).unwrap();
-        assert_eq!(earliest, Some(4));
+        let pruned = buckets.prune(5, 1, |_, _| Ok(())).unwrap();
+        assert_eq!(
+            pruned,
+            Some(PrunedBuckets {
+                earliest_retained: 4,
+                dropped: 1
+            })
+        );
         assert_eq!(buckets.earliest_epoch(), Some(4));
         assert_eq!(buckets.newest_epoch(), Some(6));
     }
