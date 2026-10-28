@@ -215,11 +215,65 @@ async fn query_events_refuses_a_cursor_naming_no_event() {
             end_time: u64::MAX,
         },
         EventFilter::Sender(event.sender),
+        EventFilter::Transaction(event.id.tx_digest),
     ] {
         let result = client
             .query_events(filter.clone(), Some(cursor), Some(10), None)
             .await;
         assert!(result.is_err(), "{filter:?}: {result:?}");
+    }
+}
+
+/// A transaction's events page through in order in both directions, each
+/// with its checkpoint's timestamp.
+#[sim_test]
+async fn query_events_pages_through_a_transactions_events() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let client = cluster.rpc_client();
+
+    let first = client
+        .query_events(EventFilter::All(vec![]), None, Some(1), None)
+        .await
+        .unwrap();
+    let digest = first
+        .data
+        .first()
+        .expect("genesis emits events")
+        .id
+        .tx_digest;
+
+    for descending in [false, true] {
+        let mut seqs = Vec::new();
+        let mut cursor = None;
+        loop {
+            let page = client
+                .query_events(
+                    EventFilter::Transaction(digest),
+                    cursor,
+                    Some(1),
+                    Some(descending),
+                )
+                .await
+                .unwrap();
+            for event in &page.data {
+                assert_eq!(event.id.tx_digest, digest);
+                assert!(event.timestamp_ms.is_some());
+            }
+            seqs.extend(page.data.iter().map(|event| event.id.event_seq));
+            if !page.has_next_page {
+                break;
+            }
+            cursor = page.next_cursor;
+        }
+        assert!(
+            seqs.len() > 1,
+            "the pages must split the transaction's events"
+        );
+        let mut expected: Vec<u64> = (0..seqs.len() as u64).collect();
+        if descending {
+            expected.reverse();
+        }
+        assert_eq!(seqs, expected, "descending: {descending}");
     }
 }
 

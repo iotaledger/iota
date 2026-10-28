@@ -10,7 +10,6 @@
 //! coin's balance (`inverted_balance = Some(!balance)`).
 
 use std::{
-    cmp::{max, min},
     collections::{
         HashMap, HashSet,
         hash_map::{Entry, RandomState},
@@ -576,33 +575,6 @@ impl RpcIndexesStore {
             (Bound::Unbounded, Bound::Included((tx_seq, event_seq)))
         } else {
             (Bound::Included((tx_seq, event_seq)), Bound::Unbounded)
-        };
-        self.scan_history_buckets(
-            |bucket| &bucket.event_order,
-            range,
-            Some(limit),
-            descending,
-            Self::event_order_row,
-        )
-    }
-
-    pub fn events_by_transaction(
-        &self,
-        digest: &TransactionDigest,
-        tx_seq: TxSequenceNumber,
-        event_seq: usize,
-        limit: usize,
-        descending: bool,
-    ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        self.require_jsonrpc()?;
-        let seq = self
-            .lookup_digest(digest)?
-            .map(|(seq, _)| seq)
-            .ok_or(IotaError::TransactionNotFound { digest: *digest })?;
-        let range = if descending {
-            (seq, 0)..=(min(tx_seq, seq), event_seq)
-        } else {
-            (max(tx_seq, seq), event_seq)..=(seq, usize::MAX)
         };
         self.scan_history_buckets(
             |bucket| &bucket.event_order,

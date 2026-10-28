@@ -36,7 +36,7 @@ use iota_metrics::{
 };
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
-    CheckpointSummary, Digest, EndOfEpochTransactionKind, ExecutionStatus, GasCostSummary,
+    CheckpointSummary, Digest, EndOfEpochTransactionKind, Event, ExecutionStatus, GasCostSummary,
     InputSharedObject, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, RandomnessRound,
     SenderSignedTransaction, StructTag, SystemPackage, Transaction, TransactionDigest,
     TransactionEffects, TransactionEffectsDigest, TransactionEvents, TransactionKind, TypeTag,
@@ -4310,6 +4310,46 @@ impl AuthorityState {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<IotaEvent>> {
+        let stored_events = match query {
+            // A transaction's own events answer this as soon as it has
+            // executed, without waiting for its checkpoint to be indexed.
+            EventFilter::Transaction(digest) => {
+                Self::transaction_events_page(kv_store, digest, cursor, limit, descending).await?
+            }
+            query => {
+                self.indexed_events_page(kv_store, query, cursor, limit, descending)
+                    .await?
+            }
+        };
+
+        let epoch_store = self.load_epoch_store_one_call_per_task();
+        let backing_store = self.get_backing_package_store().as_ref();
+        let mut layout_resolver = epoch_store
+            .executor()
+            .type_layout_resolver(Box::new(backing_store));
+        let mut events = vec![];
+        for (e, tx_digest, event_seq, timestamp) in stored_events.into_iter() {
+            events.push(IotaEvent::try_from(
+                e.clone(),
+                tx_digest,
+                event_seq as u64,
+                timestamp,
+                layout_resolver.get_annotated_layout(&e.struct_tag)?,
+            )?)
+        }
+        Ok(events)
+    }
+
+    /// The page of events matching `query` after `cursor`, from the RPC
+    /// index; at most `limit`.
+    async fn indexed_events_page(
+        &self,
+        kv_store: &Arc<TransactionKeyValueStore>,
+        query: EventFilter,
+        cursor: Option<EventID>,
+        limit: usize,
+        descending: bool,
+    ) -> IotaResult<Vec<(Event, TransactionDigest, usize, Option<u64>)>> {
         let index_store = self.get_indexes()?;
 
         // Get the tx_num from tx_digest
@@ -4348,9 +4388,6 @@ impl AuthorityState {
                         ),
                     });
                 }
-            }
-            EventFilter::Transaction(digest) => {
-                index_store.events_by_transaction(&digest, tx_num, event_num, limit, descending)?
             }
             EventFilter::MoveModule { package, module } => {
                 let module_id = ModuleId::new(
@@ -4392,7 +4429,9 @@ impl AuthorityState {
                     descending,
                 )?,
             // not using "_ =>" because we want to make sure we remember to add new variants here
-            EventFilter::Package(_)
+            // Answered by `query_events` from the transaction's own events.
+            EventFilter::Transaction(_)
+            | EventFilter::Package(_)
             | EventFilter::MoveEventField { .. }
             | EventFilter::Any(_)
             | EventFilter::And(_, _)
@@ -4427,10 +4466,9 @@ impl AuthorityState {
             .multi_get_events_by_tx_digests(&transaction_digests)
             .await?;
 
-        let events_map: HashMap<_, _> =
-            transaction_digests.iter().zip(events.into_iter()).collect();
+        let events_map: HashMap<_, _> = transaction_digests.iter().zip(events).collect();
 
-        let stored_events = event_keys
+        event_keys
             .into_iter()
             .map(|k| {
                 (
@@ -4445,28 +4483,82 @@ impl AuthorityState {
             .map(
                 |((_event_digest, tx_digest, event_seq, timestamp), event)| {
                     event
-                        .map(|e| (e, tx_digest, event_seq, timestamp))
+                        .map(|e| (e, tx_digest, event_seq, Some(timestamp)))
                         .ok_or(IotaError::TransactionEventsNotFound { digest: tx_digest })
                 },
             )
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()
+    }
 
-        let epoch_store = self.load_epoch_store_one_call_per_task();
-        let backing_store = self.get_backing_package_store().as_ref();
-        let mut layout_resolver = epoch_store
-            .executor()
-            .type_layout_resolver(Box::new(backing_store));
-        let mut events = vec![];
-        for (e, tx_digest, event_seq, timestamp) in stored_events.into_iter() {
-            events.push(IotaEvent::try_from(
-                e.clone(),
-                tx_digest,
-                event_seq as u64,
-                Some(timestamp),
-                layout_resolver.get_annotated_layout(&e.struct_tag)?,
-            )?)
+    /// The page of `digest`'s events after `cursor`, which must name one of
+    /// them, read from the transaction's stored events; at most `limit`.
+    async fn transaction_events_page(
+        kv_store: &Arc<TransactionKeyValueStore>,
+        digest: TransactionDigest,
+        cursor: Option<EventID>,
+        limit: usize,
+        descending: bool,
+    ) -> IotaResult<Vec<(Event, TransactionDigest, usize, Option<u64>)>> {
+        let effects = kv_store.get_fx_by_tx_digest(digest).await?;
+        let events = match effects.events_digest() {
+            None => Vec::new(),
+            Some(_) => {
+                kv_store
+                    .multi_get_events_by_tx_digests(&[digest])
+                    .await?
+                    .into_iter()
+                    .next()
+                    .flatten()
+                    .ok_or(IotaError::TransactionEventsNotFound { digest })?
+                    .0
+            }
+        };
+        let after = match cursor {
+            None => None,
+            Some(cursor) if cursor.tx_digest != digest => {
+                return Err(IotaError::UserInput {
+                    error: UserInputError::Unsupported(
+                        "the cursor must name an event of the transaction the filter names"
+                            .to_string(),
+                    ),
+                });
+            }
+            Some(cursor) if cursor.event_seq as usize >= events.len() => {
+                return Err(IotaError::TransactionEventsNotFound { digest });
+            }
+            Some(cursor) => Some(cursor.event_seq as usize),
+        };
+        let page: Vec<usize> = if descending {
+            (0..after.unwrap_or(events.len()))
+                .rev()
+                .take(limit)
+                .collect()
+        } else {
+            (after.map_or(0, |seq| seq + 1)..events.len())
+                .take(limit)
+                .collect()
+        };
+        if page.is_empty() {
+            return Ok(Vec::new());
         }
-        Ok(events)
+        // The checkpoint's time, as the index records it; none before the
+        // transaction is in a checkpoint.
+        let timestamp = match kv_store
+            .get_transaction_perpetual_checkpoint(digest)
+            .await?
+        {
+            Some(checkpoint) => Some(
+                kv_store
+                    .get_checkpoint_summary(checkpoint)
+                    .await?
+                    .timestamp_ms,
+            ),
+            None => None,
+        };
+        Ok(page
+            .into_iter()
+            .map(|seq| (events[seq].clone(), digest, seq, timestamp))
+            .collect())
     }
 
     pub fn insert_genesis_object(&self, object: Object) {
