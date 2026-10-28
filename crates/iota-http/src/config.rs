@@ -10,7 +10,10 @@ use std::{
     time::Duration,
 };
 
-use crate::metrics::ListenerMetrics;
+use crate::{
+    listener::{DEFAULT_IPV6_PREFIX_LEN, MIN_IPV6_PREFIX_LEN},
+    metrics::ListenerMetrics,
+};
 
 const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
 /// hyper's own default for the header read deadline; hyper only enforces it
@@ -51,6 +54,8 @@ pub struct Config {
     pub(crate) handshake_timeout: Option<Duration>,
     pub(crate) max_pending_connections: Option<NonZeroUsize>,
     pub(crate) max_connections_per_peer: Option<NonZeroUsize>,
+    pub(crate) max_connections_per_client_ip: Option<NonZeroUsize>,
+    pub(crate) ipv6_prefix_len: u8,
     pub(crate) max_connections: Option<NonZeroUsize>,
     pub(crate) max_connection_idle: Option<Duration>,
     pub(crate) on_peer_connection_event: Option<OnPeerConnectionEvent>,
@@ -108,6 +113,8 @@ impl Default for Config {
             handshake_timeout: Some(DEFAULT_HANDSHAKE_TIMEOUT),
             max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
             max_connections_per_peer: None,
+            max_connections_per_client_ip: None,
+            ipv6_prefix_len: DEFAULT_IPV6_PREFIX_LEN,
             max_connections: None,
             max_connection_idle: None,
             on_peer_connection_event: None,
@@ -352,6 +359,42 @@ impl Config {
         }
     }
 
+    /// Sets how many connections a single client address may hold at once,
+    /// counting those still in their TLS handshake. Further connections from a
+    /// client already at the limit are closed as soon as they are accepted,
+    /// before any handshake.
+    ///
+    /// Clients are told apart by their address, an IPv6 one cut to
+    /// [`ipv6_prefix_len`](Self::ipv6_prefix_len) bits, so all clients behind
+    /// one NAT or proxy share a single limit.
+    ///
+    /// Default is no limit (`None`).
+    pub fn max_connections_per_client_ip(
+        self,
+        max_connections_per_client_ip: impl Into<Option<NonZeroUsize>>,
+    ) -> Self {
+        Self {
+            max_connections_per_client_ip: max_connections_per_client_ip.into(),
+            ..self
+        }
+    }
+
+    /// Sets how many leading bits of an IPv6 address identify one client under
+    /// [`max_connections_per_client_ip`](Self::max_connections_per_client_ip).
+    /// A single client is usually given a whole network of addresses, so
+    /// counting each address alone would let it hold as many connections as
+    /// it has addresses. Addresses whose leading bits unrelated clients share,
+    /// such as link-local and NAT64 ones, are always taken whole, and IPv4
+    /// clients always by their full address.
+    ///
+    /// Must be between 32 and 128. Default is 64.
+    pub fn ipv6_prefix_len(self, ipv6_prefix_len: u8) -> Self {
+        Self {
+            ipv6_prefix_len,
+            ..self
+        }
+    }
+
     /// Sets how many connections this listener may hold at once, counting
     /// those still in their TLS handshake. Further connections are closed as
     /// soon as they are accepted, before any handshake, so a full listener
@@ -455,6 +498,12 @@ impl Config {
                 HTTP2_MAX_FRAME_SIZE_RANGE.end()
             )
             .into());
+        }
+
+        if !(MIN_IPV6_PREFIX_LEN..=128).contains(&self.ipv6_prefix_len) {
+            return Err(
+                format!("'ipv6_prefix_len' must be between {MIN_IPV6_PREFIX_LEN} and 128").into(),
+            );
         }
 
         // Reaching the limit stops accepting until a handshake finishes, so
