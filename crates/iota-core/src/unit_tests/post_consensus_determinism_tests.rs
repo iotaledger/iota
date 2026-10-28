@@ -1088,6 +1088,11 @@ struct StoreState {
     objects: BTreeMap<ObjectId, BTreeMap<Version, StoredEntry>>,
     /// Deletion markers by id and version, with whether they are dirty.
     markers: BTreeMap<ObjectId, BTreeMap<Version, (MarkerValue, bool)>>,
+    /// The consumed versions the commit of their consumer moved out of the
+    /// live state into the epoch's historic objects bucket.
+    moved: BTreeSet<ObjectKey>,
+    /// The epoch the store runs in, whose bucket holds `moved`.
+    epoch: EpochId,
 }
 
 impl StoreState {
@@ -1115,9 +1120,32 @@ impl StoreState {
     }
 
     fn by_key(&self, id: &ObjectId, version: Version) -> Option<Object> {
+        if self.moved.contains(&ObjectKey(*id, version)) {
+            return None;
+        }
         match &self.objects.get(id)?.get(&version)?.version {
             StoredVersion::Live { object, pruned } if !pruned => Some(object.clone()),
             _ => None,
+        }
+    }
+
+    /// [`Self::by_key`], or else the version moved into `epoch`'s bucket,
+    /// which the objects pruner does not touch.
+    fn by_key_with_history(
+        &self,
+        id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> Option<Object> {
+        if !self.moved.contains(&ObjectKey(*id, version)) {
+            return self.by_key(id, version);
+        }
+        if epoch != self.epoch {
+            return None;
+        }
+        match &self.objects.get(id)?.get(&version)?.version {
+            StoredVersion::Live { object, .. } => Some(object.clone()),
+            StoredVersion::Tombstone(_) => None,
         }
     }
 }
@@ -1147,8 +1175,11 @@ fn deletion_markers(execution: &Execution) -> Vec<(ObjectId, Version)> {
 struct FakeStore(Mutex<StoreState>);
 
 impl FakeStore {
-    fn new(history: &History) -> Self {
-        let mut state = StoreState::default();
+    fn new(history: &History, epoch: EpochId) -> Self {
+        let mut state = StoreState {
+            epoch,
+            ..Default::default()
+        };
         let genesis = |object: Object| StoredEntry {
             version: StoredVersion::Live {
                 object,
@@ -1228,9 +1259,15 @@ impl FakeStore {
         }
     }
 
+    /// Makes an execution's outputs durable and, as the commit does, moves
+    /// the versions it consumed out of the live state into the epoch's
+    /// bucket.
     fn make_durable(&self, execution: &Execution) {
         let mut state = self.lock();
         for change in &execution.changes {
+            if let Some(before) = &change.before {
+                state.moved.insert(ObjectKey(change.id, before.version()));
+            }
             let version = change.after.version();
             if let Some(entry) = state
                 .objects
@@ -1339,6 +1376,15 @@ impl ObjectCacheRead for FakeStore {
         version: Version,
     ) -> IotaResult<Option<Object>> {
         Ok(self.lock().by_key(object_id, version))
+    }
+
+    fn try_get_object_by_key_with_historic_fallback(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> IotaResult<Option<Object>> {
+        Ok(self.lock().by_key_with_history(object_id, version, epoch))
     }
 
     fn try_multi_get_objects_by_key(
@@ -1874,11 +1920,12 @@ struct InputRead {
 impl<'a> Validator<'a> {
     fn new(history: &'a History, env: &'a Env) -> IotaResult<Self> {
         let epoch_store = env.reset(history.k())?;
+        let epoch = epoch_store.epoch();
         Ok(Self {
             history,
             env,
             epoch_store,
-            store: Arc::new(FakeStore::new(history)),
+            store: Arc::new(FakeStore::new(history, epoch)),
             executed: BTreeMap::new(),
             quarantine: BTreeMap::new(),
             validated_through: 0,
@@ -3009,7 +3056,13 @@ impl<'a> Validator<'a> {
     ) -> Outcome<OwnedVerdict> {
         let reference = need_bytes.into_reference();
         let key = ObjectKey(reference.object_id, reference.version);
-        if let Some(object) = self.storage(self.store.try_get_object_by_key(&key.0, key.1))? {
+        if let Some(object) =
+            self.storage(self.store.try_get_object_by_key_with_historic_fallback(
+                &key.0,
+                key.1,
+                self.epoch_store.epoch(),
+            ))?
+        {
             if object.digest() != reference.digest {
                 return Ok(OwnedVerdict::Drop(DropReason(
                     DropKind::StoreDigestMismatch,
@@ -3949,6 +4002,29 @@ async fn version_older_than_a_received_one_stays_stale() {
         "stale version below a receive, not executed",
         &history,
         validates(12),
+    )
+    .await;
+}
+
+/// `T2` keeps the epoch start version of `R`, which the receive at commit 11
+/// consumed above the horizon. Once the receive's checkpoint has committed,
+/// that version is no longer in the live state but in this epoch's bucket,
+/// and the read of `T2`'s inputs, with a writer step between its reads, loads
+/// it from there.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn kept_version_moved_by_a_committed_checkpoint_is_loaded_from_the_bucket() {
+    let history = received_epoch_start_history(EPOCH_START_VERSION);
+    let mut steps = validates(11);
+    steps.push(writer(WriterStep::Execute));
+    steps.extend(checkpoints(11));
+    steps.push(validate_interleaved(
+        1,
+        vec![(ReaderPoint::Row, WriterStep::Watcher)],
+    ));
+    run_scenario(
+        "kept version moved by a committed checkpoint",
+        &history,
+        steps,
     )
     .await;
 }

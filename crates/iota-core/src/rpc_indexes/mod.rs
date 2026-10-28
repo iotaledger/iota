@@ -40,7 +40,6 @@ use iota_types::{
     storage::{
         DynamicFieldKey, PackageVersionInfo, PackageVersionKey,
         error::{Error as StorageError, Kind as StorageErrorKind},
-        get_transaction_input_objects, get_transaction_output_objects,
     },
     transaction::TransactionEnvelope,
 };
@@ -73,13 +72,16 @@ use self::{
     },
 };
 use crate::{
-    authority::AuthorityStore,
+    authority::{
+        AuthorityStore,
+        historic_objects::{get_transaction_input_objects, get_transaction_output_objects},
+    },
     checkpoints::CheckpointStore,
+    epoch_buckets::{self, EpochBuckets},
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
     par_index_live_object_set::{
         PROGRESS_REPORT_INTERVAL, eta_display, par_index_live_object_set, progress_rate,
     },
-    rpc_index_history::{self, EpochBuckets},
 };
 
 const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "RPC_INDEX_HISTORY_BLOCK_CACHE_MB";
@@ -1006,7 +1008,7 @@ impl RpcIndexesStore {
     /// block cache).
     fn open_index_db(path: &Path) -> IotaResult<OpenedIndexDb> {
         let db_options = default_db_options().disable_write_throttling();
-        let history_cf_options = rpc_index_history::history_cf_options(
+        let history_cf_options = epoch_buckets::history_cf_options(
             &db_options,
             read_size_from_env(ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB)
                 .unwrap_or(DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB),
@@ -1646,12 +1648,24 @@ fn load_executed_checkpoint(
         .ok_or_else(|| {
             StorageError::missing(format!("missing checkpoint contents {checkpoint_seq}"))
         })?;
+    let historic_objects = authority_store.get_historic_objects();
+    let storage = |e: IotaError| StorageError::custom(e.to_string());
     let transactions = load_checkpoint_transactions(authority_store, &contents)?
         .into_iter()
         .map(|(transaction, effects, events)| {
             Ok(CheckpointTransaction {
-                input_objects: get_transaction_input_objects(authority_store, &effects)?,
-                output_objects: get_transaction_output_objects(authority_store, &effects)?,
+                input_objects: get_transaction_input_objects(
+                    authority_store,
+                    historic_objects,
+                    &effects,
+                )
+                .map_err(storage)?,
+                output_objects: get_transaction_output_objects(
+                    authority_store,
+                    historic_objects,
+                    &effects,
+                )
+                .map_err(storage)?,
                 transaction,
                 effects,
                 events,

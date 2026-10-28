@@ -457,13 +457,10 @@ pub struct TypeNeedBytes {
 impl SharedState for TypeNeedBytes {}
 
 impl SharedReader<TypeNeedBytes> {
-    /// Loads the object at exactly that version. Pruning keeps it, so a
-    /// missing object is a storage error.
+    /// Loads the object at exactly that version, see
+    /// [`CommitIndexedReader::load_kept_version`].
     pub fn load_bytes(self, ctx: &CommitIndexedReader) -> IotaResult<Object> {
-        let key = ObjectKey(self.id, self.state.version);
-        ctx.cache
-            .try_get_object_by_key(&key.0, key.1)?
-            .ok_or_else(|| IotaError::Storage(format!("no bytes for {key:?} in the object store")))
+        ctx.load_kept_version(&ObjectKey(self.id, self.state.version))
     }
 }
 

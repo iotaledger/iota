@@ -3,23 +3,32 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     sync::Arc,
 };
 
-use iota_sdk_types::{ObjectReference, TransactionEffects, TransactionEvents};
+use iota_common::debug_fatal;
+use iota_sdk_types::{
+    ObjectId, ObjectReference, ObjectVersion, TransactionEffects, TransactionEvents,
+};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     inner_temporary_store::{InnerTemporaryStore, WrittenObjects},
+    object::{Object, ObjectSet},
     storage::{MarkerValue, ObjectKey},
     transaction::{TransactionAPI, VerifiedTransaction},
 };
+
+use crate::authority::AuthorityMetrics;
 
 /// TransactionOutputs
 pub struct TransactionOutputs {
     pub transaction: Arc<VerifiedTransaction>,
     pub effects: TransactionEffects,
     pub events: TransactionEvents,
+    /// Pre-images of the versions this transaction superseded, which
+    /// checkpoint commit moves into the historic bucket.
+    pub superseded: Vec<(ObjectKey, Object)>,
 
     pub markers: Vec<(ObjectKey, MarkerValue)>,
     pub wrapped: Vec<ObjectKey>,
@@ -36,6 +45,8 @@ impl TransactionOutputs {
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
         inner_temporary_store: InnerTemporaryStore,
+        read_objects: ObjectSet,
+        metrics: &AuthorityMetrics,
     ) -> TransactionOutputs {
         let InnerTemporaryStore {
             input_objects,
@@ -52,11 +63,12 @@ impl TransactionOutputs {
 
         let deleted: HashMap<_, _> = effects.all_tombstones().into_iter().collect();
 
+        let modified_at_versions = effects.modified_at_versions();
+
         // Get the actual set of objects that have been received -- any received
         // object will show up in the modified-at set.
-        let modified_at: HashSet<_> = effects
-            .modified_at_versions()
-            .into_iter()
+        let modified_at: HashSet<_> = modified_at_versions
+            .iter()
             .map(|modified| (*modified.object_id(), modified.version()))
             .collect();
         let possible_to_receive = transaction.transaction().receiving_objects();
@@ -130,10 +142,30 @@ impl TransactionOutputs {
 
         let wrapped = effects.wrapped().into_iter().map(ObjectKey::from).collect();
 
+        let mut capture_misses = 0;
+        let superseded = build_superseded_counting(
+            &modified_at_versions,
+            &input_objects,
+            &read_objects,
+            &mut capture_misses,
+        );
+        if capture_misses > 0 {
+            metrics
+                .superseded_capture_misses
+                .inc_by(capture_misses as u64);
+            // A miss loses no data: the version just stays in the live table.
+            // Crash test builds so that the gap does not go unnoticed.
+            debug_fatal!(
+                "{capture_misses} of the versions {tx_digest} superseded have no pre-image among \
+                 its input objects or the objects it read"
+            );
+        }
+
         TransactionOutputs {
             transaction: Arc::new(transaction),
             effects,
             events,
+            superseded,
             markers,
             wrapped,
             deleted,
@@ -143,3 +175,51 @@ impl TransactionOutputs {
         }
     }
 }
+
+/// Pre-images of the object versions a transaction superseded. A version
+/// whose pre-image is in neither source is left out and counted into
+/// `capture_misses`.
+fn build_superseded_counting(
+    modified_at: &[ObjectVersion],
+    input_objects: &BTreeMap<ObjectId, Object>,
+    read_objects: &ObjectSet,
+    capture_misses: &mut usize,
+) -> Vec<(ObjectKey, Object)> {
+    modified_at
+        .iter()
+        .filter_map(|modified| {
+            let (id, version) = (modified.object_id(), modified.version());
+            let pre_image = input_objects
+                .get(id)
+                .filter(|object| object.version() == version)
+                .or_else(|| read_objects.get(&ObjectKey(*id, version)));
+            match pre_image {
+                Some(object) => Some((ObjectKey(*id, version), object.clone())),
+                None => {
+                    *capture_misses += 1;
+                    None
+                }
+            }
+        })
+        .collect()
+}
+
+/// [`build_superseded_counting`] with the miss count discarded.
+#[cfg(test)]
+fn build_superseded(
+    modified_at: &[ObjectVersion],
+    input_objects: &BTreeMap<ObjectId, Object>,
+    read_objects: &ObjectSet,
+) -> Vec<(ObjectKey, Object)> {
+    let mut capture_misses = 0;
+    build_superseded_counting(
+        modified_at,
+        input_objects,
+        read_objects,
+        &mut capture_misses,
+    )
+}
+
+#[cfg(test)]
+#[path = "unit_tests/transaction_outputs_tests.rs"]
+mod tests;

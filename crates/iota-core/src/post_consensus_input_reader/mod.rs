@@ -101,11 +101,11 @@
 //! started with too: a newer version in the store does not drop it by
 //! itself, as the owned module explains. The object of such a version,
 //! including one consumed without a lock as a received object or a
-//! dynamic-field child, stays in the store, because the objects pruner does
-//! not pass the pruning limit, which covers every commit that a validation,
-//! or a replay after a restart, can still read (see
-//! `AuthorityPerEpochStore::object_pruning_limit`). A kept version missing
-//! from the store is therefore a storage error.
+//! dynamic-field child, stays readable: in the live state until its
+//! consumer's checkpoint commits, and from then on in this epoch's historic
+//! objects bucket, where that commit moves it. The bucket of the running epoch
+//! is not expired, so a kept version missing from both is a storage error (see
+//! `CommitIndexedReader::load_kept_version`).
 //!
 //! # Dynamic fields as of the horizon
 //!
