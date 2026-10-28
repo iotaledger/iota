@@ -1854,6 +1854,52 @@ async fn test_owned_coins_pages_follow_the_unified_key_order() {
     );
 }
 
+/// The coin rows gas selection reads hold only the requested coin type, in
+/// the coin pages' order, each with the balance of its row, and a page after
+/// a cursor does not return the cursor's row again.
+#[tokio::test]
+async fn test_owned_coin_rows_hold_one_coin_type_with_balances() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let owner = Address::random();
+    let mut object_store = BTreeMap::new();
+    seed_owner_objects_of_two_types(&index_store, &mut object_store, owner);
+    let gas = TypeTag::from(StructTag::new_gas());
+
+    let rows = index_store
+        .owned_coin_rows(owner, None, gas.clone(), 10)
+        .unwrap();
+    assert_eq!(
+        rows.iter()
+            .map(|row| row.inverted_balance.map(|inverted| !inverted))
+            .collect::<Vec<_>>(),
+        vec![Some(300), Some(100)],
+        "only the IOTA coins, largest first, each with its row's balance"
+    );
+    let coins = index_store
+        .get_owned_coins(owner, None, Some(gas.clone()), 10, &object_store)
+        .unwrap();
+    assert_eq!(
+        rows.iter().map(|row| row.object_id).collect::<Vec<_>>(),
+        coins.iter().map(|(_, id, _, _)| *id).collect::<Vec<_>>(),
+        "the rows must follow the coin pages' order"
+    );
+
+    let first = index_store
+        .owned_coin_rows(owner, None, gas.clone(), 1)
+        .unwrap();
+    let rest = index_store
+        .owned_coin_rows(owner, first.last(), gas.clone(), 10)
+        .unwrap();
+    assert_eq!([first, rest].concat(), rows);
+
+    assert!(
+        index_store
+            .owned_coin_rows(owner, None, gas, 0)
+            .unwrap()
+            .is_empty()
+    );
+}
+
 /// `get_balance` excludes other coin types and `get_all_balance` groups by
 /// coin type.
 #[tokio::test]
