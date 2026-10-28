@@ -911,9 +911,7 @@ impl Display for PastObjectRead {
 
 /// A collection of objects keyed by their `(id, version)`, so both the input
 /// and output versions of a mutated object can coexist.
-// Never remove this assert!
-// This data structure is meant to be used in-memory; for structures that can
-// be persisted in storage you should look at the protobuf versions.
+// For use in memory only; the assert below keeps it from being serialized.
 #[derive(Default, Clone, Debug)]
 pub struct ObjectSet(BTreeMap<ObjectKey, Object>);
 
