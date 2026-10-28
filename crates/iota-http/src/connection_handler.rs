@@ -10,7 +10,7 @@ use tracing::{debug, trace};
 
 use crate::{
     ActiveConnections, BoxError, ConnectionId,
-    connection_info::PeerConnectionGuard,
+    connection_info::ConnectionCountGuard,
     fuse::Fuse,
     idle::IdleSleep,
     metrics::{CloseReason, ListenerMetrics},
@@ -168,19 +168,19 @@ pub(crate) async fn sleep_or_pending(wait_for: Option<Duration>) {
 pub(crate) struct OnConnectionClose<A> {
     id: ConnectionId,
     active_connections: ActiveConnections<A>,
-    _peer_connection_guard: Option<PeerConnectionGuard>,
+    _count_guard: ConnectionCountGuard,
 }
 
 impl<A> OnConnectionClose<A> {
     pub(crate) fn new(
         id: ConnectionId,
         active_connections: ActiveConnections<A>,
-        peer_connection_guard: Option<PeerConnectionGuard>,
+        count_guard: ConnectionCountGuard,
     ) -> Self {
         Self {
             id,
             active_connections,
-            _peer_connection_guard: peer_connection_guard,
+            _count_guard: count_guard,
         }
     }
 }

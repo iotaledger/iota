@@ -17,7 +17,7 @@ use tracing::trace;
 
 use self::{
     body::BoxBody,
-    connection_info::{ActiveConnections, PeerConnectionCounts},
+    connection_info::{ActiveConnections, ConnectionCountGuard, ConnectionCounts},
 };
 
 pub mod body;
@@ -102,7 +102,11 @@ impl Builder {
             + 'static,
         ResponseBody: http_body::Body<Data = bytes::Bytes, Error: Into<BoxError>> + Send + 'static,
     {
-        let listener = listener::TcpListenerWithOptions::new(addr, self.config.tcp_keepalive)?;
+        let listener = listener::TcpListenerWithOptions::new(
+            addr,
+            self.config.tcp_keepalive,
+            self.config.ipv6_prefix_len,
+        )?;
 
         Self::serve_with_listener(self, listener, service)
     }
@@ -139,8 +143,7 @@ impl Builder {
         }
 
         let (watch_sender, watch_receiver) = tokio::sync::watch::channel(());
-        let peer_connection_counts =
-            PeerConnectionCounts::new(self.config.on_peer_connection_event.clone());
+        let connection_counts = ConnectionCounts::new(self.config.on_peer_connection_event.clone());
         let server = Server {
             config: self.config,
             tls_config,
@@ -156,7 +159,7 @@ impl Builder {
             connections: connections.clone(),
             graceful_shutdown_token: graceful_shutdown_token.clone(),
             _watch_receiver: watch_receiver,
-            peer_connection_counts,
+            connection_counts,
         };
 
         let handle = ServerHandle(Arc::new(HandleInner {
@@ -237,7 +240,10 @@ impl<A> Clone for ServerHandle<A> {
     }
 }
 
-type ConnectingOutput<Io, Addr> = Result<(ServerIo<TrackedIo<Io>>, Addr), crate::BoxError>;
+/// A connection that completed its handshake, with the places it holds under
+/// the per-client limits.
+type ConnectingOutput<Io, Addr> =
+    Result<(ServerIo<TrackedIo<Io>>, Addr, ConnectionCountGuard), crate::BoxError>;
 
 struct Server<L: Listener> {
     config: Config,
@@ -253,7 +259,7 @@ struct Server<L: Listener> {
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
     // Used to signal to a ServerHandle when the server has completed shutting down
     _watch_receiver: tokio::sync::watch::Receiver<()>,
-    peer_connection_counts: PeerConnectionCounts,
+    connection_counts: ConnectionCounts,
 }
 
 impl<L> Server<L>
@@ -269,15 +275,16 @@ where
                 },
                 // While the handshake limit is reached, leave new connections in the kernel
                 // backlog rather than accepting them into an unbounded set of pending tasks.
-                (io, remote_addr) = self.listener.accept(), if self.accepts_more_connections() => {
+                (io, remote_addr) = self.listener.accept(),
+                    if !self.at_max_pending_connections() => {
                     self.handle_incoming(io, remote_addr);
                 },
                 // A failed task affects only its own connection, so the loop keeps serving
                 // the others.
                 Some(maybe_connection) = self.pending_connections.join_next() => {
-                    let (io, remote_addr) = match maybe_connection {
-                        Ok(Ok((io, remote_addr))) => {
-                            (io, remote_addr)
+                    let (io, remote_addr, count_guard) = match maybe_connection {
+                        Ok(Ok((io, remote_addr, count_guard))) => {
+                            (io, remote_addr, count_guard)
                         }
                         Ok(Err(e)) => {
                             tracing::debug!(error = %e, "error accepting connection");
@@ -290,7 +297,7 @@ where
                     };
 
                     trace!("connection accepted");
-                    self.handle_connection(io, remote_addr);
+                    self.handle_connection(io, remote_addr, count_guard);
                 },
                 Some(connection_handler_output) = self.connection_handlers.join_next() => {
                     if let Err(e) = connection_handler_output {
@@ -306,25 +313,37 @@ where
         Ok(())
     }
 
-    /// Whether another connection may be accepted, or the limit on concurrent
-    /// TLS handshakes is currently reached.
-    fn accepts_more_connections(&self) -> bool {
+    /// Whether the connections still in their TLS handshake have reached
+    /// `max_pending_connections`.
+    fn at_max_pending_connections(&self) -> bool {
         self.config
             .max_pending_connections
-            .is_none_or(|max| self.pending_connections.len() < max.get())
+            .is_some_and(|max| self.pending_connections.len() >= max.get())
     }
 
     fn handle_incoming(&mut self, io: L::Io, remote_addr: L::Addr) {
         let io = TrackedIo::new(io, self.config.metrics.as_ref(), remote_addr);
         // Closed rather than left in the kernel backlog, and before any
         // handshake, which a full listener would only waste.
-        if self.is_full() {
+        if self.at_max_connections() {
             // Dropping the connection closes it, releasing its file descriptor.
             trace!("listener is already serving its maximum connections, closing the new one");
             if let Some(metrics) = &self.config.metrics {
                 metrics.record_refused(RefusedReason::ListenerFull);
             }
             return;
+        }
+        let mut count_guard = self.connection_counts.guard();
+        if let Some(max) = self.config.max_connections_per_client_ip {
+            let client_ip = self.listener.client_prefix(&remote_addr).into_boxed_slice();
+            if !count_guard.add_client_ip(client_ip, max.get()) {
+                // Dropping the connection closes it, releasing its file descriptor.
+                trace!("client address already holds {max} connections, closing the new one");
+                if let Some(metrics) = &self.config.metrics {
+                    metrics.record_refused(RefusedReason::ClientIpLimit);
+                }
+                return;
+            }
         }
         if let Some(tls) = self.tls_config.clone() {
             let tls_acceptor = TlsAcceptor::from(tls);
@@ -343,41 +362,47 @@ where
                         None => HandshakeResult::TimedOut,
                     });
                 }
-                result.unwrap_or_else(|| {
-                    Err(std::io::Error::new(
-                        std::io::ErrorKind::TimedOut,
-                        "TLS handshake timed out",
-                    )
-                    .into())
-                })
+                result
+                    .unwrap_or_else(|| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::TimedOut,
+                            "TLS handshake timed out",
+                        )
+                        .into())
+                    })
+                    // A failed handshake gives its places back with the task.
+                    .map(|(io, remote_addr)| (io, remote_addr, count_guard))
             });
         } else {
-            self.handle_connection(ServerIo::new_io(io), remote_addr);
+            self.handle_connection(ServerIo::new_io(io), remote_addr, count_guard);
         }
     }
 
     /// Whether the connections being served and those still in their
     /// handshake have reached `max_connections`.
-    fn is_full(&self) -> bool {
+    fn at_max_connections(&self) -> bool {
         self.config.max_connections.is_some_and(|max| {
             self.connection_handlers.len() + self.pending_connections.len() >= max.get()
         })
     }
 
-    fn handle_connection(&mut self, io: ServerIo<TrackedIo<L::Io>>, remote_addr: L::Addr) {
-        let mut peer_connection_guard = None;
+    fn handle_connection(
+        &mut self,
+        io: ServerIo<TrackedIo<L::Io>>,
+        remote_addr: L::Addr,
+        mut count_guard: ConnectionCountGuard,
+    ) {
         if let (Some(max), Some(peer)) =
             (self.config.max_connections_per_peer, peer_public_key(&io))
         {
-            let Some(guard) = self.peer_connection_counts.register(&peer, max.get()) else {
+            if !count_guard.add_peer_public_key(peer, max.get()) {
                 // Dropping the connection closes it, releasing its file descriptor.
                 trace!("peer already holds {max} connections, closing the new one");
                 if let Some(metrics) = &self.config.metrics {
                     metrics.record_refused(RefusedReason::PeerLimit);
                 }
                 return;
-            };
-            peer_connection_guard = Some(guard);
+            }
         }
 
         let connection_shutdown_token = self.graceful_shutdown_token.child_token();
@@ -425,11 +450,8 @@ where
             .write()
             .unwrap()
             .insert(connection_id, connection_info);
-        let on_connection_close = OnConnectionClose::new(
-            connection_id,
-            self.connections.clone(),
-            peer_connection_guard,
-        );
+        let on_connection_close =
+            OnConnectionClose::new(connection_id, self.connections.clone(), count_guard);
 
         self.connection_handlers
             .spawn(connection_handler::serve_connection(
@@ -481,7 +503,7 @@ async fn handshake<Io, Addr>(
     io: TrackedIo<Io>,
     remote_addr: Addr,
     tls_acceptor: TlsAcceptor,
-) -> ConnectingOutput<Io, Addr>
+) -> Result<(ServerIo<TrackedIo<Io>>, Addr), crate::BoxError>
 where
     Io: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 {
@@ -492,7 +514,7 @@ where
 
 /// Identifies the peer by the public key of the single certificate it
 /// authenticated with, or `None` if it presented no certificate.
-fn peer_public_key<Io>(io: &ServerIo<Io>) -> Option<Vec<u8>> {
+fn peer_public_key<Io>(io: &ServerIo<Io>) -> Option<Box<[u8]>> {
     let certs = io.peer_certs()?;
     let [certificate] = certs.as_slice() else {
         trace!("unexpected number of peer certificates: {}", certs.len());
@@ -500,7 +522,7 @@ fn peer_public_key<Io>(io: &ServerIo<Io>) -> Option<Vec<u8>> {
     };
 
     match iota_tls::public_key_from_certificate(certificate) {
-        Ok(public_key) => Some(AsRef::<[u8]>::as_ref(&public_key).to_vec()),
+        Ok(public_key) => Some(AsRef::<[u8]>::as_ref(&public_key).into()),
         Err(e) => {
             trace!("failed to extract the public key from the peer certificate: {e:?}");
             None
@@ -1161,6 +1183,132 @@ mod tests {
         drop((peer, other_peer, reconnected));
     }
 
+    /// An authenticated connection counts under its client's address from
+    /// accept and under its peer's key from the end of its handshake, and
+    /// gives both back when it closes. Only the key is reported to
+    /// `on_peer_connection_event`.
+    #[tokio::test]
+    async fn a_connection_is_counted_under_its_address_and_its_key() {
+        use fastcrypto::{
+            ed25519::{Ed25519KeyPair, Ed25519PrivateKey},
+            traits::{KeyPair, ToFromBytes},
+        };
+        use tokio::io::AsyncReadExt as _;
+
+        const MAX_PER_CLIENT: usize = 2;
+
+        let client_key =
+            |seed: u8| Ed25519KeyPair::from(Ed25519PrivateKey::from_bytes(&[seed; 32]).unwrap());
+        let server_keypair = client_key(1);
+        let server_public_key = server_keypair.public().to_owned();
+        let server_config = iota_tls::create_rustls_server_config_with_client_verifier(
+            server_keypair.private(),
+            SERVER_NAME.to_string(),
+            iota_tls::AllowPublicKeys::new(
+                [2, 3, 4]
+                    .map(|seed| client_key(seed).public().to_owned())
+                    .into(),
+            ),
+        );
+
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .max_connections_per_client_ip(NonZeroUsize::new(MAX_PER_CLIENT))
+                    .max_connections_per_peer(Some(NonZeroUsize::MIN))
+                    .on_peer_connection_event({
+                        let events = events.clone();
+                        move |peer, event| events.lock().unwrap().push((peer.to_vec(), event))
+                    }),
+            )
+            .tls_config(server_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+        let addr = *handle.local_addr();
+
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        let connect = |seed: u8| {
+            let connector =
+                tokio_rustls::TlsConnector::from(Arc::new(iota_tls::create_rustls_client_config(
+                    server_public_key.clone(),
+                    SERVER_NAME.to_string(),
+                    Some(client_key(seed).private()),
+                )));
+            let server_name = server_name.clone();
+            async move {
+                let io = tokio::net::TcpStream::connect(addr).await.unwrap();
+                tokio::time::timeout(Duration::from_secs(10), connector.connect(server_name, io))
+                    .await
+                    .expect("the server must answer")
+            }
+        };
+        let events_of = |seed: u8| -> Vec<PeerConnectionEvent> {
+            let peer = client_key(seed).public().as_ref().to_vec();
+            events
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(reported, _)| *reported == peer)
+                .map(|(_, event)| *event)
+                .collect()
+        };
+
+        let first = connect(2).await.expect("the first peer must be served");
+        wait_for_connections(&handle, 1, "the first peer must be counted").await;
+
+        // Refused for its key after the handshake, so the client sees the
+        // handshake complete and then the connection close.
+        let mut refused = connect(2)
+            .await
+            .expect("a peer at its own limit is refused only after its handshake");
+        let mut buf = [0u8; 1];
+        let read = tokio::time::timeout(Duration::from_secs(10), refused.read(&mut buf))
+            .await
+            .expect("the server must close a connection past the peer's limit");
+        assert!(
+            matches!(read, Ok(0) | Err(_)),
+            "the server must close the connection, got {read:?}"
+        );
+
+        // Takes the address's second place, which the refused connection
+        // must have given back.
+        let second = connect(3)
+            .await
+            .expect("a connection refused for its key must give its address's place back");
+        wait_for_connections(&handle, 2, "the second peer must be counted").await;
+
+        assert!(
+            connect(4).await.is_err(),
+            "an address at its limit must be refused before the handshake"
+        );
+
+        drop(first);
+        wait_for_connections(&handle, 1, "the first peer's connection must close").await;
+        let third = connect(4)
+            .await
+            .expect("a closed connection must give its address's place back");
+        wait_for_connections(&handle, 2, "the third peer must be counted").await;
+
+        assert_eq!(
+            events_of(2),
+            [
+                PeerConnectionEvent::Established { held: 1 },
+                PeerConnectionEvent::RefusedAtLimit { held: 1 },
+                PeerConnectionEvent::Closed { held: 0 },
+            ]
+        );
+        assert_eq!(events_of(3), [PeerConnectionEvent::Established { held: 1 }]);
+        assert_eq!(events_of(4), [PeerConnectionEvent::Established { held: 1 }]);
+        assert_eq!(
+            events.lock().unwrap().len(),
+            5,
+            "only the peers' keys must be reported, never the client's address"
+        );
+
+        drop((second, third));
+    }
+
     /// The cap identifies a peer by its single certificate, so a peer sending
     /// a longer chain is refused at the handshake and never holds a
     /// connection.
@@ -1306,6 +1454,11 @@ mod tests {
                 "max_frame_size",
                 Config::default().max_frame_size(size(1 << 24)),
             ),
+            (
+                "ipv6_prefix_len",
+                Config::default().ipv6_prefix_len(listener::MIN_IPV6_PREFIX_LEN - 1),
+            ),
+            ("ipv6_prefix_len", Config::default().ipv6_prefix_len(129)),
         ] {
             let error = served(config).err().map(|error| error.to_string());
             assert!(
@@ -1320,6 +1473,8 @@ mod tests {
                 .initial_connection_window_size(size((1 << 31) - 1)),
             Config::default().max_frame_size(size(1 << 14)),
             Config::default().max_frame_size(size((1 << 24) - 1)),
+            Config::default().ipv6_prefix_len(listener::MIN_IPV6_PREFIX_LEN),
+            Config::default().ipv6_prefix_len(128),
         ] {
             assert!(
                 served(config.clone()).is_ok(),
@@ -2026,5 +2181,180 @@ mod tests {
             refused.is_err(),
             "a connection must be refused while another holds the only slot in its handshake"
         );
+    }
+
+    /// Waits until the listener counts `expected` connections.
+    async fn wait_for_connections(handle: &ServerHandle, expected: usize, what: &str) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while handle.number_of_connections() != expected {
+            assert!(std::time::Instant::now() < deadline, "{what}");
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
+
+    /// Every connection in this test comes from the same loopback address.
+    #[tokio::test]
+    async fn connections_per_client_ip_are_capped() {
+        use tokio::io::AsyncReadExt as _;
+
+        const MAX_PER_CLIENT: usize = 2;
+        const ATTEMPTS: usize = MAX_PER_CLIENT * 4;
+
+        let handle = Builder::new()
+            .config(
+                Config::default().max_connections_per_client_ip(NonZeroUsize::new(MAX_PER_CLIENT)),
+            )
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        // Each connection waits for the server to close it, which only the
+        // refused ones see. The served ones stay open while their tasks wait.
+        let mut closed_by_server = tokio::task::JoinSet::new();
+        for _ in 0..ATTEMPTS {
+            let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+                .await
+                .unwrap();
+            closed_by_server.spawn(async move {
+                let mut buf = [0u8; 1];
+                let _ = connection.read(&mut buf).await;
+            });
+        }
+
+        tokio::time::timeout(Duration::from_secs(10), async {
+            for _ in 0..ATTEMPTS - MAX_PER_CLIENT {
+                closed_by_server.join_next().await;
+            }
+        })
+        .await
+        .expect("every connection past the client's limit must be refused");
+        assert_eq!(
+            handle.number_of_connections(),
+            MAX_PER_CLIENT,
+            "the client must hold its limit and never more"
+        );
+
+        // Closing the served connections gives their slots back.
+        closed_by_server.shutdown().await;
+        wait_for_connections(&handle, 0, "the closed connections must leave the listener").await;
+        let mut held = Vec::new();
+        for _ in 0..MAX_PER_CLIENT {
+            held.push(
+                tokio::net::TcpStream::connect(handle.local_addr())
+                    .await
+                    .unwrap(),
+            );
+        }
+        wait_for_connections(
+            &handle,
+            MAX_PER_CLIENT,
+            "a client whose connections closed must be served again",
+        )
+        .await;
+    }
+
+    /// A client at its limit is refused before its TLS handshake, and a
+    /// connection still in its handshake holds a slot until the handshake
+    /// ends.
+    #[tokio::test]
+    async fn a_client_ip_at_its_limit_is_refused_before_the_tls_handshake() {
+        use tokio::io::AsyncReadExt as _;
+
+        let (server_tls_config, client_tls_config) = test_tls_configs();
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .max_connections_per_client_ip(Some(NonZeroUsize::MIN))
+                    .handshake_timeout(Some(Duration::from_millis(500))),
+            )
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+        let addr = *handle.local_addr();
+
+        let connector = tokio_rustls::TlsConnector::from(Arc::new(client_tls_config));
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        let connect = || async {
+            let io = tokio::net::TcpStream::connect(addr).await.unwrap();
+            connector.connect(server_name.clone(), io).await
+        };
+
+        // Takes the client's only slot by never starting its handshake. The
+        // listener accepts in the order peers connected, so it is taken first.
+        let mut stalled = tokio::net::TcpStream::connect(addr).await.unwrap();
+
+        // Refused after its handshake, the client would see the handshake
+        // complete and only then the connection close.
+        let refused = tokio::time::timeout(Duration::from_secs(10), connect())
+            .await
+            .expect("a client at its limit must be answered");
+        assert!(
+            refused.is_err(),
+            "a client at its limit must not complete a TLS handshake"
+        );
+
+        let mut buf = [0u8; 1];
+        tokio::time::timeout(Duration::from_secs(10), stalled.read(&mut buf))
+            .await
+            .expect("the stalled handshake must time out")
+            .ok();
+        let _served = tokio::time::timeout(Duration::from_secs(10), connect())
+            .await
+            .expect("the listener must answer")
+            .expect("a handshake that timed out must give its slot back");
+
+        // The served connection keeps its slot once its handshake is done.
+        let refused = tokio::time::timeout(Duration::from_secs(10), connect())
+            .await
+            .expect("a client at its limit must be answered");
+        assert!(
+            refused.is_err(),
+            "a connection past its handshake must still hold its slot"
+        );
+    }
+
+    /// Counts each connection as a client of its own.
+    struct ClientPerPort(tokio::net::TcpListener);
+
+    impl Listener for ClientPerPort {
+        type Io = tokio::net::TcpStream;
+        type Addr = std::net::SocketAddr;
+
+        async fn accept(&mut self) -> (Self::Io, Self::Addr) {
+            Listener::accept(&mut self.0).await
+        }
+
+        fn local_addr(&self) -> std::io::Result<Self::Addr> {
+            Listener::local_addr(&self.0)
+        }
+
+        fn client_prefix(&self, client: &Self::Addr) -> Vec<u8> {
+            client.port().to_be_bytes().to_vec()
+        }
+    }
+
+    #[tokio::test]
+    async fn the_listener_decides_which_connections_are_one_client() {
+        const CONNECTIONS: usize = 4;
+
+        let listener = ClientPerPort(tokio::net::TcpListener::bind("localhost:0").await.unwrap());
+        let handle = Builder::new()
+            .config(Config::default().max_connections_per_client_ip(Some(NonZeroUsize::MIN)))
+            .serve_with_listener(listener, Router::new())
+            .unwrap();
+
+        let mut held = Vec::new();
+        for _ in 0..CONNECTIONS {
+            held.push(
+                tokio::net::TcpStream::connect(handle.local_addr())
+                    .await
+                    .unwrap(),
+            );
+        }
+        wait_for_connections(
+            &handle,
+            CONNECTIONS,
+            "connections the listener names as different clients must all be served",
+        )
+        .await;
     }
 }

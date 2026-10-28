@@ -40,6 +40,9 @@ pub(crate) enum RefusedReason {
     /// The listener already holds `max_connections`. Checked before any TLS
     /// handshake.
     ListenerFull,
+    /// The client's address already holds `max_connections_per_client_ip`.
+    /// Checked before any TLS handshake.
+    ClientIpLimit,
     /// The peer already holds `max_connections_per_peer`. Checked after its
     /// TLS handshake.
     PeerLimit,
