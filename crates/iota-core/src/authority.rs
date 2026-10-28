@@ -978,6 +978,10 @@ pub struct AuthorityState {
     /// The RPC index store, absent when this node maintains no index group.
     pub rpc_indexes_store: Option<Arc<RpcIndexesStore>>,
 
+    /// The object versions superseded by executed transactions, bucketed by
+    /// the epoch that superseded them.
+    historic_objects: Arc<HistoricObjects>,
+
     pub checkpoint_store: Arc<CheckpointStore>,
 
     committee_store: Arc<CommitteeStore>,
@@ -3078,6 +3082,7 @@ impl AuthorityState {
             input_loader,
             execution_cache_trait_pointers,
             rpc_indexes_store,
+            historic_objects: store.get_historic_objects().clone(),
             checkpoint_store,
             committee_store,
             execution_scheduler,
