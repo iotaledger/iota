@@ -79,7 +79,7 @@ use iota_types::{
     fp_ensure,
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,
-    inner_temporary_store::{InnerTemporaryStore, PackageStoreWithFallback},
+    inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
