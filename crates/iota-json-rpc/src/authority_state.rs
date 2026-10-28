@@ -81,6 +81,14 @@ pub trait StateRead: Send + Sync {
         limit: usize,
     ) -> StateReadResult<Vec<(ObjectId, Option<DynamicFieldInfo>)>>;
 
+    /// The objects of `owner`'s first `limit` dynamic fields, each read once;
+    /// `None` for a field whose object is gone.
+    fn get_dynamic_field_objects(
+        &self,
+        owner: ObjectId,
+        limit: usize,
+    ) -> StateReadResult<Vec<(ObjectId, Option<Object>)>>;
+
     fn get_cache_reader(&self) -> &Arc<dyn ObjectCacheRead>;
 
     fn get_object_store(&self) -> &Arc<dyn ObjectStore + Send + Sync>;
@@ -258,6 +266,14 @@ impl StateRead for AuthorityState {
         limit: usize,
     ) -> StateReadResult<Vec<(ObjectId, Option<DynamicFieldInfo>)>> {
         Ok(self.get_dynamic_fields(owner, cursor, limit)?)
+    }
+
+    fn get_dynamic_field_objects(
+        &self,
+        owner: ObjectId,
+        limit: usize,
+    ) -> StateReadResult<Vec<(ObjectId, Option<Object>)>> {
+        Ok(self.get_dynamic_field_objects(owner, limit)?)
     }
 
     fn get_cache_reader(&self) -> &Arc<dyn ObjectCacheRead> {

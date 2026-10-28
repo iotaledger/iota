@@ -3949,6 +3949,26 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
+    /// The objects of `owner`'s first `limit` dynamic fields, in the order
+    /// [`Self::get_dynamic_fields`] lists them; `None` for a field whose
+    /// object is gone.
+    pub fn get_dynamic_field_objects(
+        &self,
+        owner: ObjectId,
+        limit: usize,
+    ) -> IotaResult<Vec<(ObjectId, Option<Object>)>> {
+        let indexes = self.require_jsonrpc_indexes()?;
+        let object_store = self.get_object_store();
+        indexes
+            .get_dynamic_field_ids_iterator(owner, None)?
+            .take(limit)
+            .map(|field_id| {
+                let field_id = field_id?;
+                Ok((field_id, object_store.try_get_object(&field_id)?))
+            })
+            .collect()
+    }
+
     pub fn get_dynamic_field_object_id(
         &self,
         owner: ObjectId,

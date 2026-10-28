@@ -435,13 +435,24 @@ pub fn get_validator_from_table<K>(
 where
     K: MoveTypeTagTrait + Serialize + DeserializeOwned + fmt::Debug,
 {
-    let field: Validator =
+    let wrapper: Validator =
         get_dynamic_field_from_store(object_store, table_id, key).map_err(|err| {
             IotaError::IotaSystemStateRead(format!(
                 "Failed to load validator wrapper from table: {err:?}"
             ))
         })?;
-    let versioned = field.inner;
+    validator_summary_from_wrapper(object_store, wrapper, protocol_version)
+}
+
+/// The summary of the validator a table's `Validator` wrapper holds, for a
+/// caller that has already read the wrapper; as [`get_validator_from_table`]
+/// otherwise.
+pub fn validator_summary_from_wrapper(
+    object_store: &dyn ObjectStore,
+    wrapper: Validator,
+    protocol_version: Option<u64>,
+) -> Result<IotaValidatorSummary, IotaError> {
+    let versioned = wrapper.inner;
     let version = versioned.version;
     match version {
         1 => {
