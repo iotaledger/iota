@@ -1103,7 +1103,7 @@ pub(crate) fn try_create_dynamic_field_info(
     resolver: &mut dyn LayoutResolver,
 ) -> IotaResult<Option<DynamicFieldInfo>> {
     // Skip if not a move object
-    let Some(move_object) = o.data.as_opt_struct().cloned() else {
+    let Some(move_object) = o.data.as_opt_struct() else {
         return Ok(None);
     };
 
