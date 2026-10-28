@@ -281,26 +281,34 @@ pub fn print_last_consensus_index(path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Fails for the perpetual store under `store` when a release before the
-/// per-epoch storage wrote it last: opening it read-write here would migrate
-/// parts of it that release still needs, such as the objects pruner's
-/// watermark, and started again it would stop pruning.
+/// Fails for the perpetual store under `store` until a node on this release
+/// has finished its first start on it: before that the history is still in the
+/// flat tables the commands here no longer read, and a release before the
+/// per-epoch storage may still be started on it.
 pub fn ensure_migrated(store: &Path) -> anyhow::Result<()> {
     let perpetual = store.join("perpetual");
     if !perpetual.join("CURRENT").exists() {
         return Ok(());
     }
+    let not_migrated = || {
+        anyhow!(
+            "the database under {} has not been migrated to the per-epoch storage yet; \
+             start the node on this release until it serves before using this command, or \
+             use a read-only command such as `db-tool dump`",
+            store.display()
+        )
+    };
     if typed_store::rocks::list_tables(perpetual)
         .map_err(|e| anyhow!("cannot list the column families of the perpetual store: {e}"))?
         .iter()
         .any(|table| table == "pruned_checkpoint")
     {
-        bail!(
-            "the database under {} was last opened by a release before the per-epoch storage; \
-             start the node on this release once before using this command, or use a \
-             read-only command such as `db-tool dump`",
-            store.display()
-        );
+        return Err(not_migrated());
+    }
+    let tables =
+        AuthorityPerpetualTables::open_readonly(store, Some(&historic_db_path_of_store(store)));
+    if !tables.ledger_backlog_migrated()? {
+        return Err(not_migrated());
     }
     Ok(())
 }
@@ -350,6 +358,7 @@ pub fn print_object(path: &Path, opt: PrintObjectOptions) -> anyhow::Result<()> 
 }
 
 pub fn print_checkpoint(path: &Path, opt: PrintCheckpointOptions) -> anyhow::Result<()> {
+    ensure_migrated(&path.join("store"))?;
     let checkpoint_store = CheckpointStore::new_with_historic_db_path(
         &path.join("checkpoints"),
         &historic_db_path(path),
@@ -374,6 +383,7 @@ pub fn print_checkpoint_content(
     path: &Path,
     opt: PrintCheckpointContentOptions,
 ) -> anyhow::Result<()> {
+    ensure_migrated(&path.join("store"))?;
     let checkpoint_store = CheckpointStore::new_with_historic_db_path(
         &path.join("checkpoints"),
         &historic_db_path(path),
@@ -398,6 +408,7 @@ pub fn rewind_checkpoint_execution(
     epoch: EpochId,
     checkpoint_sequence_number: u64,
 ) -> anyhow::Result<()> {
+    ensure_migrated(&path.join("store"))?;
     let checkpoint_db = CheckpointStore::new_with_historic_db_path(
         &path.join("checkpoints"),
         &historic_db_path(path),
@@ -532,6 +543,7 @@ pub fn set_checkpoint_watermark(
     path: &Path,
     options: SetCheckpointWatermarkOptions,
 ) -> anyhow::Result<()> {
+    ensure_migrated(&path.join("store"))?;
     let checkpoint_db = CheckpointStore::new_with_historic_db_path(
         &path.join("checkpoints"),
         &historic_db_path(path),
@@ -572,7 +584,7 @@ mod tests {
 
     use typed_store::rocksdb;
 
-    use super::ensure_migrated;
+    use super::{AuthorityPerpetualTables, ensure_migrated};
 
     fn create_perpetual(store: &Path, column_families: &[&str]) {
         let mut options = rocksdb::Options::default();
@@ -581,16 +593,23 @@ mod tests {
         rocksdb::DB::open_cf(&options, store.join("perpetual"), column_families).unwrap();
     }
 
-    /// A store a release before the per-epoch storage wrote last is refused;
-    /// a migrated one and a missing one are not.
-    #[test]
-    fn a_store_still_holding_the_pruner_watermark_is_refused() {
+    /// A store a release before the per-epoch storage wrote last is refused,
+    /// and so is one whose first start has not finished the migration; a
+    /// migrated one and a missing one are not.
+    #[tokio::test]
+    async fn only_a_migrated_store_is_accepted() {
         let old = tempfile::tempdir().unwrap();
         create_perpetual(old.path(), &["objects", "pruned_checkpoint"]);
         assert!(ensure_migrated(old.path()).is_err());
 
+        let unfinished = tempfile::tempdir().unwrap();
+        drop(AuthorityPerpetualTables::open(unfinished.path(), None));
+        assert!(ensure_migrated(unfinished.path()).is_err());
+
         let migrated = tempfile::tempdir().unwrap();
-        create_perpetual(migrated.path(), &["objects"]);
+        AuthorityPerpetualTables::open(migrated.path(), None)
+            .mark_ledger_backlog_migrated()
+            .unwrap();
         ensure_migrated(migrated.path()).unwrap();
 
         ensure_migrated(&tempfile::tempdir().unwrap().path().join("missing")).unwrap();

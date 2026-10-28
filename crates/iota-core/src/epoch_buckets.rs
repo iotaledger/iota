@@ -25,9 +25,12 @@ use iota_types::committee::EpochId;
 use parking_lot::{Mutex, RwLock, RwLockUpgradableReadGuard};
 use tracing::{info, warn};
 use typed_store::{
-    DbIterator, TypedStoreError,
+    DBMetrics, DbIterator, TypedStoreError,
     database::Database,
-    rocks::{DBMap, DBOptions, ReadWriteOptions, list_tables, synced_write_options},
+    rocks::{
+        DBMap, DBOptions, ReadWriteOptions, available_disk_space, list_tables,
+        synced_write_options, target_file_size_base,
+    },
     rocksdb::{self, DBPath},
     traits::Map,
 };
@@ -35,6 +38,9 @@ use typed_store::{
 /// The directory in a node's live database directory that holds the
 /// per-epoch history of all its stores.
 pub const HISTORIC_DB_DIR: &str = "historic";
+
+/// How often a store reports the size of its buckets.
+const SIZE_REPORT_PERIOD: Duration = Duration::from_secs(30);
 
 /// The root a database's buckets live under: `historic_db_path` if given,
 /// otherwise [`HISTORIC_DB_DIR`] in the database directory itself.
@@ -197,6 +203,16 @@ pub(crate) fn history_cf_options(
 /// epoch's bucket, which takes all of the epoch's writes; closed buckets are
 /// compacted into one run by [`EpochBuckets::compact_closed`].
 const BUCKET_COMPACTION_TRIGGER: i32 = 8;
+
+/// The file size below which [`EpochBuckets::compact_closed`] counts a closed
+/// bucket's files as too many, even in a single sorted run: SST ingestion,
+/// as in the one-time ledger migration, can leave a bucket with thousands of
+/// small files, each costing a table reader and MANIFEST entry. Half the
+/// compaction's output file size if that is smaller, so a compacted bucket
+/// never counts.
+fn compacted_file_size() -> u64 {
+    (32 << 20).min(target_file_size_base() / 2).max(1)
+}
 
 /// Options every bucket column family is opened with.
 pub(crate) fn bucket_cf_options(db_options: &DBOptions) -> DBOptions {
@@ -391,7 +407,7 @@ pub(crate) struct EpochBuckets<B> {
     /// Where the buckets keep their files, `None` for a store that keeps them
     /// in the database directory.
     paths: Option<BucketPaths>,
-    buckets: RwLock<BTreeMap<EpochId, Arc<B>>>,
+    buckets: Arc<RwLock<BTreeMap<EpochId, Arc<B>>>>,
     /// Mirrors the persisted retention floor; never moves backwards.
     earliest_retained_epoch: AtomicU64,
     earliest_retained_table: DBMap<(), EpochId>,
@@ -404,7 +420,7 @@ pub(crate) struct EpochBuckets<B> {
     pruning: Mutex<()>,
 }
 
-impl<B: BucketReopen> EpochBuckets<B> {
+impl<B: BucketReopen + Send + Sync + 'static> EpochBuckets<B> {
     /// Assembles the store's buckets from the ones found on disk, dropping
     /// those below the persisted retention floor, which a failed drop leaves
     /// behind.
@@ -467,18 +483,63 @@ impl<B: BucketReopen> EpochBuckets<B> {
             paths.remove_empty_dirs_below(earliest_retained_epoch);
         }
         let earliest_bucket_epoch = Self::earliest_epoch_of(&buckets);
+        let buckets = Arc::new(RwLock::new(buckets));
+        Self::spawn_size_reporting(&db, cf_prefix, &buckets);
         Ok(Self {
             db,
             name,
             cf_prefix,
             cf_options,
             paths,
-            buckets: RwLock::new(buckets),
+            buckets,
             earliest_retained_epoch: AtomicU64::new(earliest_retained_epoch),
             earliest_retained_table,
             earliest_bucket_epoch: AtomicU64::new(earliest_bucket_epoch),
             pruning: Mutex::new(()),
         })
+    }
+
+    /// Reports the size of the SST files of all the store's buckets together
+    /// in `rocksdb_total_sst_files_size`, which reports a column family each,
+    /// under the store's [`bucket_metrics_label`] while the store is open. The buckets report
+    /// nothing on their own: one series each would grow with every epoch.
+    fn spawn_size_reporting(
+        db: &Arc<Database>,
+        cf_prefix: &'static str,
+        buckets: &Arc<RwLock<BTreeMap<EpochId, Arc<B>>>>,
+    ) {
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let db = Arc::downgrade(db);
+        let buckets = Arc::downgrade(buckets);
+        runtime.spawn(async move {
+            let mut interval = tokio::time::interval(SIZE_REPORT_PERIOD);
+            loop {
+                interval.tick().await;
+                let (Some(db), Some(buckets)) = (db.upgrade(), buckets.upgrade()) else {
+                    break;
+                };
+                let epochs: Vec<EpochId> = buckets.read().keys().copied().collect();
+                drop(buckets);
+                let size = tokio::task::spawn_blocking(move || {
+                    epochs
+                        .into_iter()
+                        .filter_map(|epoch| {
+                            db.sst_files_size(&bucket_cf_name(cf_prefix, epoch)).ok()
+                        })
+                        .sum::<u64>()
+                })
+                .await;
+                if let Ok(size) = size {
+                    DBMetrics::get()
+                        .cf_metrics
+                        .rocksdb_total_sst_files_size
+                        .with_label_values(&[bucket_metrics_label(cf_prefix)])
+                        .set(size.min(i64::MAX as u64) as i64);
+                }
+            }
+        });
     }
 
     /// The oldest epoch in `buckets`, [`NO_BUCKET`] when there is none.
@@ -542,6 +603,15 @@ impl<B: BucketReopen> EpochBuckets<B> {
     /// and are never recreated.
     pub(crate) fn earliest_retained(&self) -> EpochId {
         self.earliest_retained_epoch.load(Ordering::Relaxed)
+    }
+
+    /// The directory this store's buckets keep their files under: the bucket
+    /// root, or the database directory for a store without one.
+    pub(crate) fn files_dir(&self) -> PathBuf {
+        match &self.paths {
+            Some(paths) => paths.root.clone(),
+            None => self.db.path_for_pruning().to_path_buf(),
+        }
     }
 
     /// The options a bucket's column family is created with, which SST files
@@ -734,6 +804,90 @@ impl<B: BucketReopen> EpochBuckets<B> {
         }))
     }
 
+    /// Compacts each bucket below `current_epoch` into a single sorted run,
+    /// oldest first, so a lookup probes it once; also a bucket in one sorted
+    /// run of far more files than its size needs. Such a bucket is no longer
+    /// written, so this compacts it once; the ones already compacted are
+    /// skipped. A bucket is also skipped while its disk has less free space
+    /// than the bucket's files take plus 10%, which the compaction needs
+    /// again until it finishes. Returns how many buckets it compacted.
+    ///
+    /// `stop` is asked before each bucket; once it answers `true`, the rest
+    /// are left for a later call. A bucket's compaction cannot be cut short.
+    ///
+    /// Blocks for as long as the compactions take, so callers on an async
+    /// runtime must use `spawn_blocking`. Queries and writes go on meanwhile.
+    pub(crate) fn compact_closed(
+        &self,
+        current_epoch: EpochId,
+        stop: &dyn Fn() -> bool,
+    ) -> Result<usize, TypedStoreError> {
+        let mut compacted = 0;
+        let closed: Vec<EpochId> = self
+            .buckets
+            .read()
+            .range(..current_epoch)
+            .map(|(&epoch, _)| epoch)
+            .collect();
+        for epoch in closed {
+            if stop() {
+                break;
+            }
+            let cf_name = bucket_cf_name(self.cf_prefix, epoch);
+            let size = self.db.sst_files_size(&cf_name)?;
+            if self.db.sorted_runs(&cf_name)? <= 1
+                && self.db.sst_file_count(&cf_name)? <= size / compacted_file_size() + 8
+            {
+                continue;
+            }
+            let dir = match &self.paths {
+                Some(paths) => paths.bucket_dir(epoch),
+                None => self.db.path_for_pruning().to_path_buf(),
+            };
+            match available_disk_space(&dir) {
+                Some(free) if free < size + size / 10 => {
+                    warn!(
+                        store = self.name,
+                        epoch,
+                        size,
+                        free,
+                        "not compacting the bucket of a closed epoch: too little free disk space"
+                    );
+                    continue;
+                }
+                Some(_) => {}
+                None => warn!(
+                    store = self.name,
+                    epoch,
+                    dir = %dir.display(),
+                    "unable to determine the free disk space; compacting the bucket of a closed \
+                     epoch without the check"
+                ),
+            }
+            let started = Instant::now();
+            // A bucket dropped meanwhile needs no compaction.
+            absent_if_dropped(self.db.compact_cf(&cf_name))?;
+            // RocksDB reports no error from a manual compaction; one that
+            // failed leaves the runs as they were.
+            let runs = self.db.sorted_runs(&cf_name)?;
+            if runs > 1 {
+                warn!(
+                    store = self.name,
+                    epoch, runs, "the compaction of a closed bucket left more than one sorted run"
+                );
+                continue;
+            }
+            info!(
+                store = self.name,
+                epoch,
+                elapsed_ms = started.elapsed().as_millis(),
+                "compacted the bucket of a closed epoch"
+            );
+            compacted += 1;
+        }
+        Ok(compacted)
+    }
+
     /// The earliest epoch to retain when `current_epoch` is kept together
     /// with the `epochs_to_retain` epochs below it, never below `persisted`.
     /// `None` when there is no bucket at all. `u64::MAX` retains everything.
@@ -764,9 +918,9 @@ mod tests {
     };
 
     use super::{
-        Arc, BTreeMap, BucketPaths, BucketReopen, Database, EpochBuckets, EpochId, Map, Path,
-        PathBuf, PrunedBuckets, TypedStoreError, bucket_cf_epoch, bucket_cf_name,
-        bucket_cf_options, fs, rocksdb,
+        Arc, BTreeMap, BucketPaths, BucketReopen, DBMetrics, Database, Duration, EpochBuckets,
+        EpochId, Map, Path, PathBuf, PrunedBuckets, SIZE_REPORT_PERIOD, TypedStoreError,
+        bucket_cf_epoch, bucket_cf_name, bucket_cf_options, fs, rocksdb,
     };
 
     /// The buckets of one store share one metrics label, so that a store
@@ -939,11 +1093,19 @@ mod tests {
     fn test_buckets(
         epochs: &[EpochId],
     ) -> (EpochBuckets<TestBucket>, iota_common::random_util::TempDir) {
+        prefixed_test_buckets(TEST_CF_PREFIX, epochs)
+    }
+
+    /// [`test_buckets`] with the column-family prefix `cf_prefix`.
+    fn prefixed_test_buckets(
+        cf_prefix: &'static str,
+        epochs: &[EpochId],
+    ) -> (EpochBuckets<TestBucket>, iota_common::random_util::TempDir) {
         let dir = iota_common::tempdir();
         let db_options = default_db_options().options;
         let cf_names: Vec<String> = epochs
             .iter()
-            .map(|&epoch| bucket_cf_name(TEST_CF_PREFIX, epoch))
+            .map(|&epoch| bucket_cf_name(cf_prefix, epoch))
             .chain([RETENTION_CF.to_string()])
             .collect();
         let opt_cfs: Vec<(&str, rocksdb::Options)> = cf_names
@@ -962,7 +1124,7 @@ mod tests {
         let buckets = EpochBuckets::open(
             db,
             "test buckets",
-            TEST_CF_PREFIX,
+            cf_prefix,
             db_options,
             None,
             earliest_retained_table,
@@ -1044,6 +1206,78 @@ mod tests {
             false,
         )
         .unwrap()
+    }
+
+    /// A closed bucket in a single sorted run of many small files, as SST
+    /// ingestion leaves one, is compacted too, and only once.
+    #[tokio::test]
+    async fn a_closed_bucket_of_many_small_files_is_compacted() {
+        let (buckets, dir) = test_buckets(&[1, 2]);
+        let table = bucket_table(&buckets.db, 1);
+        let paths: Vec<PathBuf> = (0..20u64)
+            .map(|file| {
+                let mut buffer = typed_store::rocks::SstFileBuffer::<u64, u64>::new();
+                buffer.insert(&file, &file).unwrap();
+                let path = dir.path().join(format!("ingest-{file}.sst"));
+                buffer.write_file(&path, buckets.cf_options()).unwrap();
+                path
+            })
+            .collect();
+        table.ingest_sst_files(&paths).unwrap();
+        let cf_name = bucket_cf_name(TEST_CF_PREFIX, 1);
+        assert_eq!(buckets.db.sorted_runs(&cf_name).unwrap(), 1);
+        assert_eq!(buckets.db.sst_file_count(&cf_name).unwrap(), 20);
+
+        assert_eq!(buckets.compact_closed(2, &|| false).unwrap(), 1);
+        assert!(buckets.db.sst_file_count(&cf_name).unwrap() <= 8);
+        assert_eq!(table.get(&19).unwrap(), Some(19));
+        assert_eq!(buckets.compact_closed(2, &|| false).unwrap(), 0);
+    }
+
+    /// Closed buckets are compacted into one sorted run, once; the current
+    /// epoch's bucket and a closed one already in a single run are left alone.
+    #[tokio::test]
+    async fn closed_buckets_are_compacted_once() {
+        let (buckets, _dir) = test_buckets(&[1, 2, 3]);
+        let flushes = [(1, 2), (2, 1), (3, 2)];
+        for (epoch, files) in flushes {
+            let table = bucket_table(&buckets.db, epoch);
+            for key in 0..files {
+                table.insert(&key, &key).unwrap();
+                table.flush().unwrap();
+            }
+        }
+        let runs = |epoch| {
+            buckets
+                .db
+                .sorted_runs(&bucket_cf_name(TEST_CF_PREFIX, epoch))
+                .unwrap()
+        };
+        assert_eq!([runs(1), runs(2), runs(3)], [2, 1, 2]);
+
+        assert_eq!(buckets.compact_closed(3, &|| false).unwrap(), 1);
+        assert_eq!([runs(1), runs(2), runs(3)], [1, 1, 2]);
+        assert_eq!(bucket_table(&buckets.db, 1).get(&1).unwrap(), Some(1));
+
+        assert_eq!(buckets.compact_closed(3, &|| false).unwrap(), 0);
+    }
+
+    /// A compaction told to stop leaves the remaining buckets for a later
+    /// call.
+    #[tokio::test]
+    async fn a_stopped_compaction_leaves_the_remaining_buckets() {
+        let (buckets, _dir) = test_buckets(&[1, 2, 3]);
+        for epoch in [1, 2] {
+            let table = bucket_table(&buckets.db, epoch);
+            for key in 0..2 {
+                table.insert(&key, &key).unwrap();
+                table.flush().unwrap();
+            }
+        }
+        let asked = std::sync::atomic::AtomicUsize::new(0);
+        let stop_after_one = || asked.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 1;
+        assert_eq!(buckets.compact_closed(3, &stop_after_one).unwrap(), 1);
+        assert_eq!(buckets.compact_closed(3, &|| false).unwrap(), 1);
     }
 
     /// A bucket writes its files into its epoch's directory rather than the
@@ -1227,5 +1461,36 @@ mod tests {
         let result = buckets.prune(4, 0, |_, _| Err(TypedStoreError::RocksDB("no".to_string())));
         assert!(result.is_err());
         assert_eq!(buckets.iter(false).len(), 2);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_size_of_all_buckets_is_reported_under_the_store_label() {
+        const CF_PREFIX: &str = "size_report_e";
+        let (buckets, _dir) = prefixed_test_buckets(CF_PREFIX, &[1, 2]);
+        let mut expected = 0;
+        for epoch in [1, 2] {
+            let cf_name = bucket_cf_name(CF_PREFIX, epoch);
+            let map: DBMap<u64, Vec<u8>> = DBMap::reopen(
+                &buckets.db,
+                Some(&cf_name),
+                &ReadWriteOptions::default(),
+                true,
+            )
+            .unwrap();
+            map.insert(&epoch, &vec![7; 4096]).unwrap();
+            map.flush().unwrap();
+            expected += buckets.db.sst_files_size(&cf_name).unwrap();
+        }
+        assert!(expected > 0);
+
+        let gauge = DBMetrics::get()
+            .cf_metrics
+            .rocksdb_total_sst_files_size
+            .with_label_values(&["size_report"]);
+        let deadline = tokio::time::Instant::now() + SIZE_REPORT_PERIOD * 3;
+        while gauge.get() != expected as i64 && tokio::time::Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        assert_eq!(gauge.get(), expected as i64);
     }
 }
