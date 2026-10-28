@@ -798,43 +798,43 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
     }
 }
 
-/// Reads the payloads for `refs`, taking those at or above the GC round from
-/// the DAG state and leaving the rest to `read_below_gc`, which the caller
-/// picks so its store access matches the refs it asks for. A result missing
-/// some of `refs` is normal: `read_below_gc` may stop short, and a payload can
-/// be absent.
+/// Reads the payloads for `refs`, taking those above the evicted transaction
+/// round of their author from the DAG state and leaving the rest to
+/// `read_evicted`, which the caller picks so its store access matches the refs
+/// it asks for. A result missing some of `refs` is normal: `read_evicted` may
+/// stop short, and a payload can be absent.
 fn read_transaction_payloads(
     dag_state: &RwLock<DagState>,
     refs: &[TransactionRef],
-    read_below_gc: impl FnOnce(
+    read_evicted: impl FnOnce(
         BTreeSet<TransactionRef>,
     ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>>,
 ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
-    let mut below_gc = BTreeSet::new();
+    let mut evicted = BTreeSet::new();
     let mut payloads = BTreeMap::new();
     {
-        // Payloads at or above the GC round are handed out as clones of buffers
-        // the DAG state already holds, so they cost no new memory. They are
-        // taken under the same lock as the GC round, before eviction can drop
+        // Payloads not evicted are handed out as clones of buffers the DAG
+        // state already holds, so they cost no new memory. They are taken
+        // under the same lock as the evicted rounds, before eviction can drop
         // them and send the read to the store with no budget.
         let dag_state = dag_state.read();
-        let gc_round = dag_state.gc_round_for_last_solid_commit();
-        let mut above_gc = Vec::new();
+        let mut cached = Vec::new();
         for transaction_ref in refs {
-            if transaction_ref.round < gc_round {
-                below_gc.insert(*transaction_ref);
+            if transaction_ref.round <= dag_state.evicted_transaction_round(transaction_ref.author)
+            {
+                evicted.insert(*transaction_ref);
             } else {
-                above_gc.push(*transaction_ref);
+                cached.push(*transaction_ref);
             }
         }
-        if !above_gc.is_empty() {
+        if !cached.is_empty() {
             let generic_refs: Vec<GenericTransactionRef> =
-                above_gc.iter().copied().map(Into::into).collect();
+                cached.iter().copied().map(Into::into).collect();
             payloads.extend(
                 dag_state
                     .get_serialized_transactions(&generic_refs)
                     .into_iter()
-                    .zip(above_gc)
+                    .zip(cached)
                     .filter_map(|(payload, transaction_ref)| {
                         payload.map(|payload| (transaction_ref, payload))
                     }),
@@ -842,7 +842,7 @@ fn read_transaction_payloads(
         }
     }
 
-    payloads.extend(read_below_gc(below_gc)?);
+    payloads.extend(read_evicted(evicted)?);
     Ok(payloads)
 }
 
@@ -992,7 +992,7 @@ impl TransactionCursor {
                 self.read.extend(read_transaction_payloads(
                     &self.dag_state,
                     &unread,
-                    |below_gc| store.scan_serialized_transactions(&below_gc, space),
+                    |evicted| store.scan_serialized_transactions(&evicted, space),
                 )?);
             }
             let Some(payload) = take_payload(&self.context, &mut self.read, transaction_ref) else {
@@ -1578,43 +1578,43 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Get requested block headers from store.
         let serialized_headers = if commit_sync_handle {
-            // For commit sync, optimize by fetching from store for headers below GC round
-            let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
-
-            // Separate indices for below/above GC while preserving original order
-            let mut below_gc_indices = Vec::new();
-            let mut above_gc_indices = Vec::new();
-            let mut below_gc_refs = Vec::new();
-            let mut above_gc_refs = Vec::new();
-            for (i, block_ref) in block_refs.iter().enumerate() {
-                if block_ref.round < gc_round {
-                    below_gc_indices.push(i);
-                    below_gc_refs.push(*block_ref);
-                } else {
-                    above_gc_indices.push(i);
-                    above_gc_refs.push(*block_ref);
-                }
-            }
-
+            // For commit sync, optimize by fetching evicted headers from store
             let mut headers: Vec<Option<Bytes>> = vec![None; block_refs.len()];
 
-            // Read headers below GC from store
-            if !below_gc_refs.is_empty() {
-                for (idx, header) in below_gc_indices
-                    .iter()
-                    .zip(self.store.read_serialized_block_headers(&below_gc_refs)?)
-                {
-                    headers[*idx] = header;
+            // Separate indices for evicted/cached headers while preserving original order
+            let mut evicted_indices = Vec::new();
+            let mut evicted_refs = Vec::new();
+            {
+                let dag_state = self.dag_state.read();
+                let mut cached_indices = Vec::new();
+                let mut cached_refs = Vec::new();
+                for (i, block_ref) in block_refs.iter().enumerate() {
+                    if block_ref.round <= dag_state.evicted_header_round(block_ref.author) {
+                        evicted_indices.push(i);
+                        evicted_refs.push(*block_ref);
+                    } else {
+                        cached_indices.push(i);
+                        cached_refs.push(*block_ref);
+                    }
+                }
+
+                // Read cached headers from dag_state under the lock that split them
+                if !cached_refs.is_empty() {
+                    for (idx, header) in cached_indices
+                        .iter()
+                        .zip(dag_state.get_serialized_block_headers(&cached_refs))
+                    {
+                        headers[*idx] = header;
+                    }
                 }
             }
 
-            // Read headers at-or-above GC from dag_state
-            if !above_gc_refs.is_empty() {
-                for (idx, header) in above_gc_indices.iter().zip(
-                    self.dag_state
-                        .read()
-                        .get_serialized_block_headers(&above_gc_refs),
-                ) {
+            // Read evicted headers from store
+            if !evicted_refs.is_empty() {
+                for (idx, header) in evicted_indices
+                    .iter()
+                    .zip(self.store.read_serialized_block_headers(&evicted_refs)?)
+                {
                     headers[*idx] = header;
                 }
             }
@@ -1948,18 +1948,18 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             &self.context.committee,
         )?;
 
-        // Refs below the GC round are looked up one by one: they are whatever
-        // the requester asked for, so a scan over the range they span would
-        // read entries no one wants.
+        // Evicted refs are looked up one by one: they are whatever the
+        // requester asked for, so a scan over the range they span would read
+        // entries no one wants.
         let mut transactions_by_ref =
-            read_transaction_payloads(&self.dag_state, &committed_transactions_refs, |below_gc| {
+            read_transaction_payloads(&self.dag_state, &committed_transactions_refs, |evicted| {
                 let refs: Vec<GenericTransactionRef> =
-                    below_gc.iter().copied().map(Into::into).collect();
+                    evicted.iter().copied().map(Into::into).collect();
                 Ok(self
                     .store
                     .read_serialized_transactions(&refs)?
                     .into_iter()
-                    .zip(below_gc)
+                    .zip(evicted)
                     .filter_map(|(payload, transaction_ref)| {
                         payload
                             .or_else(|| {
@@ -2252,8 +2252,8 @@ mod tests {
         authority_service::{
             AuthorityService, BroadcastedBlockStream, FilterForHeaders, MAX_FILTER_SIZE,
             SubscriptionCounter, TransactionCursor, check_first_commit_payloads,
-            fast_sync_search_bound, filtered_header_info, serialize_transactions_entry,
-            transaction_chunk_stream,
+            fast_sync_search_bound, filtered_header_info, read_transaction_payloads,
+            serialize_transactions_entry, transaction_chunk_stream,
         },
         block_header::{
             BlockHeaderAPI, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions,
@@ -5305,6 +5305,7 @@ mod tests {
                 max_transactions_per_transaction_sync_fetch: 20,
                 max_transactions_per_commit_sync_fetch: 10,
                 enable_fast_commit_syncer: true,
+                dag_state_cached_rounds: 5,
                 ..context.parameters
             },
             ..context
@@ -5484,17 +5485,17 @@ mod tests {
         // dag
         assert!(serialized_transactions.is_empty());
 
-        let leader = all_block_headers[(2 * rounds) as usize][0].reference();
-        dag_state
-            .write()
-            .update_last_solid_subdag_base(crate::commit::SubDagBase {
-                leader,
-                headers: vec![],
-                committed_header_refs: vec![],
-                timestamp_ms: 0,
-                commit_ref: crate::commit::CommitRef::new(1, crate::commit::CommitDigest::MIN),
-                reputation_scores_desc: vec![],
-            });
+        // Commit and solidify every round, so the flush evicts the first rounds.
+        let subdags_and_commits = dag_builder.get_sub_dag_and_commits(1..=2 * rounds);
+        {
+            let mut dag_state = dag_state.write();
+            for (_, commit) in &subdags_and_commits {
+                dag_state.add_commit(commit.clone());
+            }
+            let (last_subdag, _) = subdags_and_commits.last().unwrap();
+            dag_state.update_last_solid_subdag_base(last_subdag.base.clone());
+            dag_state.flush();
+        }
         let empty_ref = TransactionRef {
             round: 1,
             author: AuthorityIndex::new_for_test(0),
@@ -5502,7 +5503,7 @@ mod tests {
                 &context.committee,
             ),
         };
-        assert!(empty_ref.round < dag_state.read().gc_round_for_last_solid_commit());
+        assert!(empty_ref.round <= dag_state.read().evicted_transaction_round(empty_ref.author));
 
         let serialized_transactions = authority_service
             .handle_fetch_transactions(peer, vec![empty_ref])
@@ -5516,9 +5517,9 @@ mod tests {
         assert!(transactions.is_empty());
     }
 
-    /// Tests request order across the GC boundary.
+    /// Tests request order across the eviction boundary.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_handle_fetch_data_commit_sync_order_across_gc_boundary() {
+    async fn test_handle_fetch_data_commit_sync_order_across_eviction_boundary() {
         // GIVEN
         let rounds = 20;
         let validators = 4;
@@ -5526,6 +5527,7 @@ mod tests {
         let (mut context, key_pairs) = Context::new_for_test(validators);
         context.protocol_config.set_gc_depth_for_testing(gc_depth);
         context.parameters.max_headers_per_commit_sync_fetch = 100;
+        context.parameters.dag_state_cached_rounds = 5;
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -5618,7 +5620,7 @@ mod tests {
         dag_builder.layers(1..=rounds).build();
         dag_builder.persist_all_blocks(dag_state.clone());
 
-        // Also write all block headers to the store so below-GC refs can be found
+        // Also write all block headers to the store so evicted refs can be found
         let all_headers: Vec<VerifiedBlockHeader> = dag_builder.block_headers(1..=rounds);
         store
             .write(WriteBatch {
@@ -5627,31 +5629,35 @@ mod tests {
                 ..WriteBatch::default()
             })
             .expect("Failed to write block headers to store");
-        dag_state.write().flush();
 
-        // Set last_solid_subdag_base so gc_round_for_last_solid_commit() is ~10.
-        // gc_round = leader_round.saturating_sub(gc_depth * 2) = 20 - 10 = 10
-        let leader_ref = dag_builder
-            .block_headers(rounds..=rounds)
-            .first()
-            .unwrap()
-            .reference();
-        dag_state
-            .write()
-            .update_last_solid_subdag_base(crate::commit::SubDagBase {
-                leader: leader_ref,
-                headers: vec![],
-                committed_header_refs: vec![],
-                timestamp_ms: 0,
-                commit_ref: crate::commit::CommitRef::new(1, crate::commit::CommitDigest::MIN),
-                reputation_scores_desc: vec![],
-            });
+        // Commit and solidify every round, so the flush evicts headers and
+        // transactions up to round 20 - gc_depth * 2 = 10.
+        let subdags_and_commits = dag_builder.get_sub_dag_and_commits(1..=rounds);
+        {
+            let mut dag_state = dag_state.write();
+            for (_, commit) in &subdags_and_commits {
+                dag_state.add_commit(commit.clone());
+            }
+            let (last_subdag, _) = subdags_and_commits.last().unwrap();
+            dag_state.update_last_solid_subdag_base(last_subdag.base.clone());
+            dag_state.flush();
+        }
 
-        let gc_round = dag_state.read().gc_round_for_last_solid_commit();
+        let evicted_round = dag_state.read().evicted_header_round(AuthorityIndex::ZERO);
         assert!(
-            gc_round > GENESIS_ROUND && gc_round < rounds,
-            "GC round {gc_round} should be between genesis and max round"
+            evicted_round > GENESIS_ROUND && evicted_round < rounds,
+            "Evicted round {evicted_round} should be between genesis and max round"
         );
+        for (authority, _) in context.committee.authorities() {
+            assert_eq!(
+                dag_state.read().evicted_header_round(authority),
+                evicted_round
+            );
+            assert_eq!(
+                dag_state.read().evicted_transaction_round(authority),
+                evicted_round
+            );
+        }
 
         // Collect block headers per round for easy access
         let mut headers_by_round: Vec<Vec<VerifiedBlockHeader>> =
@@ -5660,35 +5666,34 @@ mod tests {
             headers_by_round[round as usize] = dag_builder.block_headers(round..=round);
         }
 
-        // Create interleaved block_refs that alternate between below-GC and above-GC
+        // Create interleaved block_refs that alternate between evicted and cached
         // rounds. E.g., [round 3 auth 0, round 15 auth 1, round 5 auth 2, round 12 auth
         // 3, ...]
-        let below_gc_rounds: Vec<Round> = (1..gc_round).collect();
-        let above_gc_rounds: Vec<Round> = (gc_round..=rounds).collect();
+        let evicted_rounds: Vec<Round> = (1..=evicted_round).collect();
+        let cached_rounds: Vec<Round> = (evicted_round + 1..=rounds).collect();
         let mut interleaved_refs = Vec::new();
-        let max_pairs = min(below_gc_rounds.len(), above_gc_rounds.len());
+        let max_pairs = min(evicted_rounds.len(), cached_rounds.len());
         for i in 0..max_pairs {
-            let below_round = below_gc_rounds[i];
+            let round = evicted_rounds[i];
             let auth_idx = i % validators;
-            if auth_idx < headers_by_round[below_round as usize].len() {
-                interleaved_refs.push(headers_by_round[below_round as usize][auth_idx].reference());
+            if auth_idx < headers_by_round[round as usize].len() {
+                interleaved_refs.push(headers_by_round[round as usize][auth_idx].reference());
             }
-            let above_round = above_gc_rounds[i];
+            let round = cached_rounds[i];
             let auth_idx2 = (i + 1) % validators;
-            if auth_idx2 < headers_by_round[above_round as usize].len() {
-                interleaved_refs
-                    .push(headers_by_round[above_round as usize][auth_idx2].reference());
+            if auth_idx2 < headers_by_round[round as usize].len() {
+                interleaved_refs.push(headers_by_round[round as usize][auth_idx2].reference());
             }
         }
 
-        // Verify that we have refs from both sides of the GC boundary
+        // Verify that we have refs from both sides of the eviction boundary
         assert!(
-            interleaved_refs.iter().any(|r| r.round < gc_round),
-            "Should have refs below GC round"
+            interleaved_refs.iter().any(|r| r.round <= evicted_round),
+            "Should have evicted refs"
         );
         assert!(
-            interleaved_refs.iter().any(|r| r.round >= gc_round),
-            "Should have refs above GC round"
+            interleaved_refs.iter().any(|r| r.round > evicted_round),
+            "Should have cached refs"
         );
 
         // WHEN: call handle_fetch_headers with empty highest_accepted_rounds (commit
@@ -6025,29 +6030,37 @@ mod tests {
             .collect()
     }
 
-    /// A DAG state whose GC round is above both rounds of
-    /// `two_rounds_of_payloads`, so their payloads are read from the store.
+    /// A DAG state recovered from commits up to round 10, which evicts both
+    /// rounds of `two_rounds_of_payloads`, so their payloads are read from the
+    /// store.
     fn dag_state_reading_from_the_store(
         context: &Arc<Context>,
         store: Arc<MemStore>,
     ) -> Arc<RwLock<DagState>> {
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=10).build();
+        store
+            .write(WriteBatch {
+                block_headers: dag_builder.block_headers(1..=10),
+                commits: dag_builder
+                    .get_sub_dag_and_commits(1..=10)
+                    .into_iter()
+                    .map(|(_, commit)| commit)
+                    .collect(),
+                ..WriteBatch::default()
+            })
+            .unwrap();
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-        let leader = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(20, 0).build());
-        dag_state.write().update_last_solid_subdag_base(SubDagBase {
-            leader: leader.reference(),
-            headers: vec![],
-            committed_header_refs: vec![],
-            timestamp_ms: 0,
-            commit_ref: CommitRef::new(1, CommitDigest::MIN),
-            reputation_scores_desc: vec![],
-        });
-        assert!(dag_state.read().gc_round_for_last_solid_commit() > 2);
+        for (authority, _) in context.committee.authorities() {
+            assert!(dag_state.read().evicted_transaction_round(authority) >= 2);
+        }
         dag_state
     }
 
     fn context_with_budget(byte_budget: usize) -> Arc<Context> {
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.max_fast_commit_sync_transaction_bytes = byte_budget;
+        context.parameters.dag_state_cached_rounds = 5;
         context.protocol_config.set_gc_depth_for_testing(5);
         Arc::new(context)
     }
@@ -6309,5 +6322,32 @@ mod tests {
             reputation_scores_desc: vec![],
         });
         assert!(check(&[unknown_ref]).is_ok());
+    }
+
+    /// A payload not flushed yet is read from memory even after the last solid
+    /// commit has moved its GC round past the payload's round.
+    #[tokio::test]
+    async fn a_payload_not_flushed_yet_is_read_from_memory() {
+        let (mut context, _) = Context::new_for_test(4);
+        context.protocol_config.set_gc_depth_for_testing(5);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=20).build();
+        dag_builder.persist_all_blocks(dag_state.clone());
+        let (last_subdag, _) = dag_builder.get_sub_dag_and_commits(1..=20).pop().unwrap();
+        dag_state
+            .write()
+            .update_last_solid_subdag_base(last_subdag.base);
+        let transaction_ref = dag_builder.block_headers(1..=1)[0].transaction_ref();
+        assert!(transaction_ref.round < dag_state.read().gc_round_for_last_solid_commit());
+
+        let payloads = read_transaction_payloads(&dag_state, &[transaction_ref], |evicted| {
+            store.scan_serialized_transactions(&evicted, usize::MAX)
+        })
+        .unwrap();
+
+        assert!(payloads.contains_key(&transaction_ref));
     }
 }

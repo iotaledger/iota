@@ -2895,6 +2895,18 @@ impl DagState {
             || self.recent_transactions_by_authority[transaction_ref.author()]
                 .contains_key(&transaction_ref)
     }
+
+    /// Highest round of `authority_index` whose block headers are evicted
+    /// from memory and read from the store.
+    pub(crate) fn evicted_header_round(&self, authority_index: AuthorityIndex) -> Round {
+        self.evicted_rounds[authority_index]
+    }
+
+    /// Highest round of `authority_index` whose transactions are evicted from
+    /// memory and read from the store.
+    pub(crate) fn evicted_transaction_round(&self, authority_index: AuthorityIndex) -> Round {
+        self.evicted_transaction_rounds[authority_index]
+    }
 }
 #[cfg(test)]
 mod test {
