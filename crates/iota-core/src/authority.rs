@@ -162,8 +162,6 @@ use crate::{
     execution_driver::execution_process,
     execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
     global_state_hasher::{GlobalStateHashStore, GlobalStateHasher},
-    grpc_indexes::GrpcIndexesStore,
-    jsonrpc_index::{CachingLayoutResolver, CoinInfo, IndexStore, try_create_dynamic_field_info},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{
@@ -174,6 +172,10 @@ use crate::{
         AccountVerdict, InputResolution, ReceivingObjectsResolution, ValidationAtCommit,
         ValidationInputsAtCommit,
         reader::{CommitIndexedReader, DenyListAtCommit},
+    },
+    rpc_indexes::{
+        CachingLayoutResolver, CoinInfo, IndexStore, grpc_api::GrpcIndexesStore,
+        try_create_dynamic_field_info,
     },
     stake_aggregator::StakeAggregator,
     transaction_input_loader::TransactionInputLoader,

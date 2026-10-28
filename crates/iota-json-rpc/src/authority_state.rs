@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use iota_core::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     execution_cache::ObjectCacheRead,
-    jsonrpc_index::TotalBalance,
+    rpc_indexes::TotalBalance,
 };
 use iota_json_rpc_types::{
     Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, Page, TransactionFilter,
