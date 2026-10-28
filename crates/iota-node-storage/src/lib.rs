@@ -53,8 +53,9 @@ pub trait GrpcStateReader: ObjectStore + ReadStore + Send + Sync {
     /// Get a handle to an instance of the gRPC indexes.
     fn grpc_indexes(&self) -> Option<&dyn GrpcIndexes>;
 
-    /// The checkpoint that confirmed `digest`, or `None` if this node no
-    /// longer holds the transaction.
+    /// The checkpoint that confirmed `digest`, or `None` if the transaction
+    /// is not in a checkpoint this node has executed yet, or this node no
+    /// longer holds it.
     fn get_transaction_checkpoint(
         &self,
         digest: &TransactionDigest,
