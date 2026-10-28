@@ -81,8 +81,9 @@ impl DataReader for AuthorityStateDataReader {
         let data = page
             .data
             .into_iter()
-            .map(|info| {
-                let read = self.0.get_object_read(&info.object_id)?;
+            // The latest versions, which a transaction is built from.
+            .map(|object| {
+                let read = self.0.get_object_read(&object.id())?;
                 IotaObjectResponse::try_from_object_read_and_options(read, &options)
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -141,16 +142,16 @@ fn select_gas_coin_by_balance(
 ) -> Result<Option<ObjectReference>, anyhow::Error> {
     let mut cursor = None;
     loop {
-        let coins = state.get_owned_coins(
+        let rows = state.owned_coin_rows(
             signer,
             cursor,
-            Some(TypeTag::from(StructTag::new_gas())),
+            TypeTag::from(StructTag::new_gas()),
             GAS_SELECTION_PAGE,
         )?;
-        for (coin, _) in &coins {
-            if !input_objects.contains(&coin.coin_object_id) {
+        for row in &rows {
+            if !input_objects.contains(&row.object_id) {
                 if let ObjectRead::Exists(object_ref, object, _) =
-                    state.get_object_read(&coin.coin_object_id)?
+                    state.get_object_read(&row.object_id)?
                 {
                     if object.owner == Owner::Address(signer)
                         && GasCoin::try_from(&object).is_ok_and(|gas| gas.value() >= gas_budget)
@@ -159,21 +160,18 @@ fn select_gas_coin_by_balance(
                     }
                 }
             }
-            if coin.balance < gas_budget {
+            // A coin row always carries its balance.
+            if row
+                .inverted_balance
+                .is_none_or(|inverted| !inverted < gas_budget)
+            {
                 return Ok(None);
             }
         }
-        if coins.len() < GAS_SELECTION_PAGE {
+        if rows.len() < GAS_SELECTION_PAGE {
             return Ok(None);
         }
-        let Some((_, last)) = coins.last() else {
-            return Ok(None);
-        };
-        cursor = Some(
-            *last
-                .position()
-                .ok_or_else(|| anyhow::anyhow!("cursor does not name a position in the index"))?,
-        );
+        cursor = rows.last().copied();
     }
 }
 
@@ -479,7 +477,6 @@ impl IotaRpcModule for TransactionBuilderApi {
 mod tests {
     use std::collections::HashMap;
 
-    use iota_json_rpc_types::Coin;
     use iota_types::{object::Object, storage::OwnedObjectCursor as IndexCursor};
 
     use super::*;
@@ -492,42 +489,32 @@ mod tests {
 
     /// The owner index's row of `object`, holding `balance` as of its last
     /// checkpoint.
-    fn row(object: &Object, balance: u64) -> (Coin, OwnedObjectCursor) {
-        let object_ref = object.object_ref();
-        let coin = Coin {
-            coin_type: StructTag::new_gas().to_string(),
-            coin_object_id: object_ref.object_id,
-            version: object_ref.version,
-            digest: object_ref.digest,
-            balance,
-            previous_transaction: object.previous_transaction,
-        };
-        let cursor = OwnedObjectCursor::from_position(IndexCursor {
+    fn row(object: &Object, balance: u64) -> IndexCursor {
+        IndexCursor {
             object_type_identifier: 0,
             object_type_params: 0,
-            inverted_balance: None,
-            object_id: object_ref.object_id,
-        });
-        (coin, cursor)
+            inverted_balance: Some(!balance),
+            object_id: object.id(),
+        }
     }
 
     /// A node whose owner index lists `rows`, largest balance first, a page at
     /// a time, and whose live objects are `objects`. Expects exactly `pages`
     /// index reads and `object_reads` object reads.
     fn node(
-        rows: Vec<(Coin, OwnedObjectCursor)>,
+        rows: Vec<IndexCursor>,
         objects: Vec<Object>,
         pages: usize,
         object_reads: usize,
     ) -> MockStateRead {
         let mut state = MockStateRead::new();
         state
-            .expect_get_owned_coins()
+            .expect_owned_coin_rows()
             .times(pages)
             .returning(move |_, cursor, _, limit| {
                 let start = cursor.map_or(0, |cursor| {
                     rows.iter()
-                        .position(|(coin, _)| coin.coin_object_id == cursor.object_id)
+                        .position(|row| row.object_id == cursor.object_id)
                         .unwrap()
                         + 1
                 });

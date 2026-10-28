@@ -1466,7 +1466,14 @@ impl OwnerObjectsForTesting for RpcIndexesStore {
         object_store: &dyn ObjectStore,
     ) -> IotaResult<Vec<(ObjectInfo, OwnedObjectCursor)>> {
         self.get_owner_objects(owner, cursor, limit, filter, usize::MAX, object_store)
-            .map(|(objects, _)| objects)
+            .map(|(objects, _)| {
+                objects
+                    .into_iter()
+                    .map(|(object, cursor)| {
+                        (ObjectInfo::new(&object.object_ref(), &object), cursor)
+                    })
+                    .collect()
+            })
     }
 }
 
@@ -1506,7 +1513,7 @@ async fn test_owner_page_fills_from_the_objects_the_filter_keeps() {
         let (objects, next) = index_store
             .get_owner_objects(owner, cursor, limit, filter, 100, &object_store)
             .unwrap();
-        let ids: Vec<ObjectId> = objects.iter().map(|(info, _)| info.object_id).collect();
+        let ids: Vec<ObjectId> = objects.iter().map(|(object, _)| object.id()).collect();
         (ids, next)
     };
     let odd_filter = || Some(IotaObjectDataFilter::ObjectIds(odd.clone()));
@@ -1545,7 +1552,7 @@ async fn test_owner_page_stops_after_reading_the_limit() {
         let (objects, next) = index_store
             .get_owner_objects(owner, None, 5, Some(filter), max_read, &object_store)
             .unwrap();
-        let ids: Vec<ObjectId> = objects.iter().map(|(info, _)| info.object_id).collect();
+        let ids: Vec<ObjectId> = objects.iter().map(|(object, _)| object.id()).collect();
         (ids, next.map(|cursor| cursor.object_id))
     };
     let never = || IotaObjectDataFilter::ObjectIds(vec![]);

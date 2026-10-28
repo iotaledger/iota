@@ -23,7 +23,6 @@ use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
 use iota_types::{
-    base_types::ObjectInfo,
     committee::{Committee, EpochId},
     digests::ChainIdentifier,
     dynamic_field::DynamicFieldInfo,
@@ -41,6 +40,7 @@ use iota_types::{
 };
 #[cfg(test)]
 use mockall::automock;
+use move_core_types::annotated_value::MoveStructLayout;
 use thiserror::Error;
 use tokio::task::JoinError;
 use typed_store::TypedStoreError;
@@ -126,7 +126,7 @@ pub trait StateRead: Send + Sync {
         cursor: Option<IndexCursor>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
-    ) -> StateReadResult<Page<ObjectInfo, OwnedObjectCursor>>;
+    ) -> StateReadResult<Page<Object, OwnedObjectCursor>>;
 
     async fn get_transactions(
         &self,
@@ -137,12 +137,12 @@ pub trait StateRead: Send + Sync {
         reverse: bool,
     ) -> StateReadResult<Vec<TransactionDigest>>;
 
-    fn get_dynamic_field_object_id(
+    fn get_dynamic_field_object(
         &self,
         owner: ObjectId,
         name_type: TypeTag,
         name_bcs_bytes: &[u8],
-    ) -> StateReadResult<Option<ObjectId>>;
+    ) -> StateReadResult<Option<Object>>;
 
     // governance_api
     /// Reads `owner`'s objects of the stake type, so call it on a blocking thread.
@@ -165,6 +165,20 @@ pub trait StateRead: Send + Sync {
         coin_type: Option<TypeTag>,
         limit: usize,
     ) -> StateReadResult<Vec<(IotaCoin, OwnedObjectCursor)>>;
+
+    /// The cursors of `owner`'s next `limit` rows of `Coin<coin_type>` after
+    /// `cursor`, largest balance first, each carrying the balance its row was
+    /// written with. Reads no object.
+    fn owned_coin_rows(
+        &self,
+        owner: Address,
+        cursor: Option<IndexCursor>,
+        coin_type: TypeTag,
+        limit: usize,
+    ) -> StateReadResult<Vec<IndexCursor>>;
+
+    /// The layout of `object`'s Move struct, `None` for a package.
+    fn get_object_layout(&self, object: &Object) -> StateReadResult<Option<MoveStructLayout>>;
     async fn get_executed_transaction_and_effects(
         &self,
         digest: TransactionDigest,
@@ -322,7 +336,7 @@ impl StateRead for AuthorityState {
         cursor: Option<IndexCursor>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
-    ) -> StateReadResult<Page<ObjectInfo, OwnedObjectCursor>> {
+    ) -> StateReadResult<Page<Object, OwnedObjectCursor>> {
         if limit == 0 {
             // only when RPC_QUERY_MAX_RESULT_LIMIT is set to 0
             return Ok(Page::empty());
@@ -335,7 +349,7 @@ impl StateRead for AuthorityState {
             MAX_OWNED_OBJECTS_READ_PER_PAGE,
         )?;
         Ok(Page {
-            data: objects.into_iter().map(|(info, _)| info).collect(),
+            data: objects.into_iter().map(|(object, _)| object).collect(),
             has_next_page: next_cursor.is_some(),
             next_cursor: next_cursor.map(OwnedObjectCursor::from_position),
             oldest_available_checkpoint: None,
@@ -355,14 +369,14 @@ impl StateRead for AuthorityState {
             .await?)
     }
 
-    fn get_dynamic_field_object_id(
+    fn get_dynamic_field_object(
         // indexer
         &self,
         owner: ObjectId,
         name_type: TypeTag,
         name_bcs_bytes: &[u8],
-    ) -> StateReadResult<Option<ObjectId>> {
-        Ok(self.get_dynamic_field_object_id(owner, name_type, name_bcs_bytes)?)
+    ) -> StateReadResult<Option<Object>> {
+        Ok(self.get_dynamic_field_object(owner, name_type, name_bcs_bytes)?)
     }
 
     fn get_staked_iota(&self, owner: Address) -> StateReadResult<Vec<StakedIota>> {
@@ -391,6 +405,20 @@ impl StateRead for AuthorityState {
     fn find_publish_txn_digest(&self, package_id: ObjectId) -> StateReadResult<TransactionDigest> {
         Ok(self.find_publish_txn_digest(package_id)?)
     }
+    fn owned_coin_rows(
+        &self,
+        owner: Address,
+        cursor: Option<IndexCursor>,
+        coin_type: TypeTag,
+        limit: usize,
+    ) -> StateReadResult<Vec<IndexCursor>> {
+        Ok(self.owned_coin_rows(owner, cursor.as_ref(), coin_type, limit)?)
+    }
+
+    fn get_object_layout(&self, object: &Object) -> StateReadResult<Option<MoveStructLayout>> {
+        Ok(self.get_object_layout(object)?)
+    }
+
     fn get_owned_coins(
         &self,
         owner: Address,

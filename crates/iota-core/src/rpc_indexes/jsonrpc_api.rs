@@ -30,7 +30,7 @@ use iota_sdk_types::{
 };
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
-    base_types::{ObjectInfo, ObjectType, TxSequenceNumber},
+    base_types::{ObjectType, TxSequenceNumber},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     error::{IotaError, IotaResult, UserInputError},
     iota_sdk_types_conversions::type_tag_core_to_sdk,
@@ -309,12 +309,9 @@ fn sequence_bounds_after_cursor(
     Some((lower, upper))
 }
 
-/// One page of an owner's objects, each with the cursor of its row, and the
-/// cursor to continue from when rows are left.
-pub type OwnedObjectsPage = (
-    Vec<(ObjectInfo, OwnedObjectCursor)>,
-    Option<OwnedObjectCursor>,
-);
+/// One page of an owner's objects, each at the version its row names and with
+/// the cursor of its row, and the cursor to continue from when rows are left.
+pub type OwnedObjectsPage = (Vec<(Object, OwnedObjectCursor)>, Option<OwnedObjectCursor>);
 
 impl RpcIndexesStore {
     /// Fails fast when this store does not maintain the JSON-RPC group's
@@ -852,10 +849,7 @@ impl RpcIndexesStore {
                 let Some(object) = object else {
                     continue;
                 };
-                results.push((
-                    ObjectInfo::new(&object.object_ref(), &object),
-                    OwnedObjectCursor::from(key),
-                ));
+                results.push((object, OwnedObjectCursor::from(key)));
             }
             if results.len() == limit || read == max_read {
                 break;
@@ -967,6 +961,37 @@ impl RpcIndexesStore {
             }
         }
         Ok(results)
+    }
+
+    /// The cursors of `owner`'s next `limit` rows of `Coin<coin_type>` after
+    /// `cursor`, in the owner index's order, largest balance first; each
+    /// carries the balance the row was written with. Reads no object.
+    pub fn owned_coin_rows(
+        &self,
+        owner: Address,
+        cursor: Option<&OwnedObjectCursor>,
+        coin_type: TypeTag,
+        limit: usize,
+    ) -> IotaResult<Vec<OwnedObjectCursor>> {
+        self.require_jsonrpc()?;
+        let tag = StructTag::new_coin(coin_type);
+        let filter = OwnerTypeFilter::from_struct_tag(Some(&tag));
+        let cursor_key = cursor.map(|cursor| OwnerIndexKey::for_cursor(owner, cursor));
+        let mut rows = Vec::new();
+        if limit == 0 {
+            return Ok(rows);
+        }
+        for item in self.owner_iter(owner, cursor_key.as_ref(), filter)? {
+            let (key, _) = item?;
+            if Some(key.object_id) == cursor.map(|cursor| cursor.object_id) {
+                continue;
+            }
+            rows.push(OwnedObjectCursor::from(&key));
+            if rows.len() >= limit {
+                break;
+            }
+        }
+        Ok(rows)
     }
 
     /// The id of the `CoinMetadata<T>`, `TreasuryCap<T>` or `CoinManager<T>`

@@ -4057,7 +4057,7 @@ async fn test_owner_objects_queryable_through_authority_state() {
         .unwrap()
         .0
         .iter()
-        .map(|(info, _)| info.object_id)
+        .map(|(object, _)| object.id())
         .collect();
     owned.sort();
     let mut expected = vec![gas_object_id, outer_id];
@@ -4162,7 +4162,7 @@ async fn test_rpc_index_rebuild_on_open() {
         .unwrap()
         .0;
     assert_eq!(owned.len(), 1);
-    assert_eq!(owned[0].0.object_id, gas_object.id());
+    assert_eq!(owned[0].0.id(), gas_object.id());
     let balance = index_store
         .get_balance(owner, TypeTag::from(StructTag::new_gas()))
         .unwrap();
@@ -4261,7 +4261,7 @@ async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
         .unwrap()
         .0;
     assert_eq!(owned.len(), 1);
-    assert_eq!(owned[0].0.object_id, gas_object.id());
+    assert_eq!(owned[0].0.id(), gas_object.id());
 }
 
 /// History replay skips checkpoints below the pruned watermark, while the
@@ -4324,7 +4324,7 @@ async fn test_rpc_index_rebuild_skips_contents_pruned_checkpoints() {
         .unwrap()
         .0;
     assert_eq!(owned.len(), 1);
-    assert_eq!(owned[0].0.object_id, gas_object.id());
+    assert_eq!(owned[0].0.id(), gas_object.id());
 }
 
 /// Runs an executed transaction through the per-checkpoint RPC indexing
