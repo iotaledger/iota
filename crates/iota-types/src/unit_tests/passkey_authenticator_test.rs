@@ -8,6 +8,7 @@ use fastcrypto::{
     hash::HashFunction,
     rsa::{Base64UrlUnpadded, Encoding as _},
 };
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, ObjectId, SignatureScheme, Transaction, UserSignature,
     crypto::{Intent, IntentMessage, PasskeyAuthenticator, SimpleSignature},
@@ -32,7 +33,7 @@ use crate::{
     base_types::dbg_addr,
     crypto::{DefaultHash, PublicKey},
     object::Object,
-    signature::AuthenticatorTrait,
+    signature::{AuthenticatorTrait, VerifyParams},
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
 };
 
@@ -72,6 +73,11 @@ pub struct PasskeyResponse<T> {
     client_data_json: String,
     intent_msg: IntentMessage<T>,
     sender: Address,
+}
+
+/// The signature checks the newest protocol version applies.
+fn latest_verify_params() -> VerifyParams {
+    VerifyParams::from_protocol_config(&ProtocolConfig::get_for_max_version_UNSAFE())
 }
 
 /// Create a new passkey credential, derives its address
@@ -241,7 +247,11 @@ async fn test_passkey_authenticator() {
         .unwrap(),
     );
 
-    let res = sig.verify_claims(&response.intent_msg, response.sender, &Default::default());
+    let res = sig.verify_claims(
+        &response.intent_msg,
+        response.sender,
+        &latest_verify_params(),
+    );
     assert!(res.is_ok());
 }
 
@@ -344,7 +354,7 @@ async fn test_real_passkey_output() {
             .unwrap();
     let sig = UserSignature::from_base64("BiUL6eJ3+l0jTWmL4buH5lE8Vxe1+ge6xSU0oczBPpmt+h0AAAAAkwF7InR5cGUiOiJ3ZWJhdXRobi5nZXQiLCJjaGFsbGVuZ2UiOiJ5TzEtb3VBczFBRUsyOWd0X1dJTGM4ZndDdlFjMkhEQmEwX2dTU3RpU1FzIiwib3JpZ2luIjoiaHR0cHM6Ly9wYXNza2V5LWV4YW1wbGUudmVyY2VsLmFwcCIsImNyb3NzT3JpZ2luIjpmYWxzZX1iAu0JsgVDVgBZQJhsl9MUZmUfUkNTh1qCg0zNWFrXfTx3NKuakm8Wqaa3qnfo+s9K2KvfYp8jT8BazhK7bi9YSmsCATpOyeWH387SdhY7+172wODmilJnXx5QcaUnR+3QlEM=").unwrap();
     let tx = Transaction::from_base64("AAAAAJwMAOkp8IQxWD2tDpQJta+yDNuuAEP6VXfyV32+iKDbARrKzR59iiRcEIbBEBlB283cnWUBeUeKCiMa3UKM6NURNRHQFAAAAAAgVLos3IwH9g4OHDSWiKyUZCvixybPtnDQIeML1f+ErGOcDADpKfCEMVg9rQ6UCbWvsgzbrgBD+lV38ld9voig2+gDAAAAAAAAgIQeAAAAAAAA").unwrap();
-    let res = sig.verify_claims(&tx.intent_message(), address, &Default::default());
+    let res = sig.verify_claims(&tx.intent_message(), address, &latest_verify_params());
     assert!(res.is_ok());
 }
 
@@ -369,7 +379,11 @@ async fn test_passkey_wrong_challenge_fails_verification() {
         )
         .unwrap(),
     );
-    let res = sig.verify_claims(&response.intent_msg, response.sender, &Default::default());
+    let res = sig.verify_claims(
+        &response.intent_msg,
+        response.sender,
+        &latest_verify_params(),
+    );
     let err = res.unwrap_err();
     assert!(
         err.to_string()

@@ -3,7 +3,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use core::default::Default;
 use std::sync::Arc;
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
@@ -19,6 +18,7 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::ConsensusTransaction,
     object::Object,
+    signature::VerifyParams,
     transaction::{
         CertifiedTransaction, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         TransactionAPI, TransactionEnvelope, TransactionKey, VerifiedCertificate,
@@ -91,7 +91,10 @@ pub async fn certify_transaction(
     let committee = authority.clone_committee_for_testing();
     let certificate = CertifiedTransaction::new(transaction.into_message(), vec![vote], &committee)
         .unwrap()
-        .try_into_verified_for_testing(&committee, &Default::default())
+        .try_into_verified_for_testing(
+            &committee,
+            &VerifyParams::from_protocol_config(epoch_store.protocol_config()),
+        )
         .unwrap();
     Ok(certificate)
 }
@@ -358,7 +361,10 @@ pub fn init_certified_transaction(
         epoch_store.committee(),
     )
     .unwrap()
-    .try_into_verified_for_testing(epoch_store.committee(), &Default::default())
+    .try_into_verified_for_testing(
+        epoch_store.committee(),
+        &VerifyParams::from_protocol_config(epoch_store.protocol_config()),
+    )
     .unwrap()
 }
 
@@ -378,7 +384,10 @@ pub async fn certify_shared_obj_transaction_no_execution(
     let certificate =
         CertifiedTransaction::new(transaction.into_message(), vec![vote.clone()], &committee)
             .unwrap()
-            .try_into_verified_for_testing(&committee, &Default::default())
+            .try_into_verified_for_testing(
+                &committee,
+                &VerifyParams::from_protocol_config(epoch_store.protocol_config()),
+            )
             .unwrap();
 
     let assigned_versions = send_consensus_no_execution(authority, &certificate).await;

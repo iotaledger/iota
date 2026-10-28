@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::traits::KeyPair;
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::IotaSigner as _;
 use iota_sdk_types::{
     ObjectId, Transaction,
@@ -20,6 +21,11 @@ use crate::{
     signature::{AuthenticatorTrait, VerifyParams},
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
 };
+
+/// The signature checks the newest protocol version applies.
+fn latest_verify_params() -> VerifyParams {
+    VerifyParams::from_protocol_config(&ProtocolConfig::get_for_max_version_UNSAFE())
+}
 
 #[test]
 fn test_personal_message_intent() {
@@ -51,7 +57,7 @@ fn test_personal_message_intent() {
     let verification = s.verify_claims(
         &IntentMessage::new(intent, p_message_2),
         addr1,
-        &VerifyParams::default(),
+        &latest_verify_params(),
     );
     assert!(verification.is_ok())
 }
@@ -79,7 +85,7 @@ fn test_authority_signature_intent() {
     let tx = TransactionEnvelope::from_user_sig_data(tx, vec![signature]);
     let tx1 = tx.clone();
     assert!(
-        tx.try_into_verified_for_testing(&Default::default())
+        tx.try_into_verified_for_testing(&latest_verify_params())
             .is_ok()
     );
 

@@ -59,6 +59,7 @@ use iota_types::{
         ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, TransactionDenyRuleProposal,
         VerifiedAuthorityCapabilitiesV1, VersionedDkgConfirmation,
     },
+    signature::VerifyParams,
     storage::{BackingPackageStore, InputKey, ObjectKey},
     transaction::{
         CertifiedTransaction, InputObjectKind, SenderSignedTransactionAPI, TransactionAPI,
@@ -1336,9 +1337,7 @@ impl AuthorityPerEpochStore {
             committee.clone(),
             non_committee_validators,
             signature_verifier_metrics,
-            protocol_config.accept_passkey_in_multisig(),
-            protocol_config.additional_multisig_checks(),
-            protocol_config.reject_partially_signed_mixed_ed25519_multisig(),
+            VerifyParams::from_protocol_config(&protocol_config),
         );
 
         let consensus_output_cache = ConsensusOutputCache::new(&tables);
