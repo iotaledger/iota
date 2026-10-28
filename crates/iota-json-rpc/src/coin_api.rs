@@ -335,6 +335,10 @@ async fn find_package_object_id(
     kv_store: Arc<TransactionKeyValueStore>,
 ) -> RpcInterimResult<ObjectId> {
     spawn_monitored_task!(async move {
+        // The publish transaction below can have expired with its epoch.
+        if let Some(object_id) = state.find_coin_object_id(&object_struct_tag)? {
+            return Ok(object_id);
+        }
         let publish_txn_digest = state.find_publish_txn_digest(package_id)?;
 
         let (_, effect) = state
@@ -749,6 +753,9 @@ mod tests {
             let gas_coin_clone = gas_coin.clone();
             let mut mock_state = MockStateRead::new();
             mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
+            mock_state
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
@@ -784,6 +791,9 @@ mod tests {
             ];
             let coins_clone = coins.clone();
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state
                 .expect_get_owned_coins()
                 .with(
@@ -834,6 +844,9 @@ mod tests {
                 TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin.coin_type).unwrap()));
             let mut mock_state = MockStateRead::new();
             mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
+            mock_state
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
@@ -879,6 +892,9 @@ mod tests {
                 parse_iota_struct_tag(&coins[0].coin_type).unwrap(),
             ));
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state
                 .expect_get_owned_coins()
                 .with(
@@ -963,6 +979,9 @@ mod tests {
             let coin_type = get_test_coin_type(get_test_package_id());
             let mut mock_state = MockStateRead::new();
             mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
+            mock_state
                 .expect_get_owned_coins()
                 .returning(move |_, _, _, _| {
                     Err(StateReadError::Client(
@@ -989,6 +1008,9 @@ mod tests {
             let owner = get_test_owner();
             let coin_type = get_test_coin_type(get_test_package_id());
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state
                 .expect_get_owned_coins()
                 .returning(move |_, _, _, _| {
@@ -1022,6 +1044,9 @@ mod tests {
             let gas_coin = get_test_coin(None, CoinType::Gas);
             let gas_coin_clone = gas_coin.clone();
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state
                 .expect_get_owned_coins()
                 .with(
@@ -1062,6 +1087,9 @@ mod tests {
             );
             let mut mock_state = MockStateRead::new();
             mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
+            mock_state
                 .expect_get_object()
                 .return_once(move |_| Ok(Some(coin_object)));
             mock_state
@@ -1098,6 +1126,9 @@ mod tests {
             let coin = get_test_coin(None, CoinType::Gas);
             let coin_clone = coin.clone();
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             // The store is never asked for the cursor's object.
             mock_state
                 .expect_get_owned_coins()
@@ -1127,6 +1158,9 @@ mod tests {
             let gas_coin = get_test_coin(None, CoinType::Gas);
             let gas_coin_clone = gas_coin.clone();
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state
                 .expect_get_balance()
                 .with(
@@ -1160,6 +1194,9 @@ mod tests {
             let coin = get_test_coin(None, CoinType::Usdc);
             let coin_clone = coin.clone();
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state
                 .expect_get_balance()
                 .with(
@@ -1216,6 +1253,9 @@ mod tests {
             let owner = get_test_owner();
             let coin_type = get_test_coin_type(get_test_package_id());
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state.expect_get_balance().returning(move |_, _| {
                 Err(StateReadError::Client(
                     IotaError::IndexStoreNotAvailable.into(),
@@ -1243,6 +1283,9 @@ mod tests {
             let owner = get_test_owner();
             let coin_type = get_test_coin_type(get_test_package_id());
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state.expect_get_balance().returning(move |_, _| {
                 Err(IotaError::Execution("mock db error".to_string()).into())
             });
@@ -1275,6 +1318,9 @@ mod tests {
             let usdc_coin = get_test_coin(None, CoinType::Usdc);
             let usdc_coin_type_tag = get_test_coin_type_tag(usdc_coin.coin_type.clone());
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state
                 .expect_get_all_balance()
                 .with(predicate::eq(owner))
@@ -1330,6 +1376,9 @@ mod tests {
         async fn test_index_store_not_available() {
             let owner = get_test_owner();
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state.expect_get_all_balance().returning(move |_| {
                 Err(StateReadError::Client(
                     IotaError::IndexStoreNotAvailable.into(),
@@ -1404,6 +1453,9 @@ mod tests {
                 TransactionEffects::new_empty_v1_for_testing(transaction_digest);
 
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state
                 .expect_find_publish_txn_digest()
                 .return_once(move |_| Ok(transaction_digest));
@@ -1481,6 +1533,9 @@ mod tests {
             let coin_type = "0x2::iota::IOTA";
 
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state.expect_get_system_state().returning(move || {
                 let mut state = default_system_state();
                 state.iota_treasury_cap.inner.total_supply.value = 42;
@@ -1534,6 +1589,9 @@ mod tests {
                 TransactionEffects::new_empty_v1_for_testing(transaction_digest);
 
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state
                 .expect_find_publish_txn_digest()
                 .times(2)

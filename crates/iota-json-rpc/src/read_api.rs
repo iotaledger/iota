@@ -549,47 +549,13 @@ impl ReadApiServer for ReadApi {
             })
             .await
             .map_err(Error::from)??;
-            let options = options.unwrap_or_default();
-
-            match object_read {
-                ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
-                    IotaObjectResponseError::NotExists { object_id: id },
-                )),
-                ObjectRead::Exists(object_ref, o, layout) => {
-                    let mut display_fields = None;
-                    if options.show_display {
-                        match get_display_fields(self, &self.transaction_kv_store, &o, &layout)
-                            .await
-                        {
-                            Ok(rendered_fields) => display_fields = Some(rendered_fields),
-                            Err(e) => {
-                                return Ok(IotaObjectResponse::new(
-                                    Some(IotaObjectData::new(
-                                        object_ref, o, layout, &options, None,
-                                    )?),
-                                    Some(IotaObjectResponseError::Display {
-                                        error: e.to_string(),
-                                    }),
-                                ));
-                            }
-                        }
-                    }
-                    Ok(IotaObjectResponse::new_with_data(IotaObjectData::new(
-                        object_ref,
-                        o,
-                        layout,
-                        &options,
-                        display_fields,
-                    )?))
-                }
-                ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
-                    IotaObjectResponseError::Deleted {
-                        object_id: object_ref.object_id,
-                        version: object_ref.version.into(),
-                        digest: object_ref.digest,
-                    },
-                )),
-            }
+            object_response(
+                &self.state,
+                &self.transaction_kv_store,
+                object_read,
+                &options.unwrap_or_default(),
+            )
+            .await
         }
         .trace()
         .await
@@ -669,7 +635,7 @@ impl ReadApiServer for ReadApi {
                     let display_fields = if options.show_display {
                         // TODO (jian): api breaking change to also modify past objects.
                         Some(
-                            get_display_fields(self, &self.transaction_kv_store, &o, &layout)
+                            get_display_fields(&self.state, &self.transaction_kv_store, &o, &layout)
                                 .await
                                 .map_err(|e| {
                                     Error::Unexpected(format!(
@@ -1182,8 +1148,52 @@ pub enum ObjectDisplayError {
     StateRead(#[from] StateReadError),
 }
 
+/// The response for `object_read`, with `options` applied.
+pub(crate) async fn object_response(
+    state: &Arc<dyn StateRead>,
+    kv_store: &Arc<TransactionKeyValueStore>,
+    object_read: ObjectRead,
+    options: &IotaObjectDataOptions,
+) -> Result<IotaObjectResponse, Error> {
+    match object_read {
+        ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
+            IotaObjectResponseError::NotExists { object_id: id },
+        )),
+        ObjectRead::Exists(object_ref, o, layout) => {
+            let mut display_fields = None;
+            if options.show_display {
+                match get_display_fields(state, kv_store, &o, &layout).await {
+                    Ok(rendered_fields) => display_fields = Some(rendered_fields),
+                    Err(e) => {
+                        return Ok(IotaObjectResponse::new(
+                            Some(IotaObjectData::new(object_ref, o, layout, options, None)?),
+                            Some(IotaObjectResponseError::Display {
+                                error: e.to_string(),
+                            }),
+                        ));
+                    }
+                }
+            }
+            Ok(IotaObjectResponse::new_with_data(IotaObjectData::new(
+                object_ref,
+                o,
+                layout,
+                options,
+                display_fields,
+            )?))
+        }
+        ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
+            IotaObjectResponseError::Deleted {
+                object_id: object_ref.object_id,
+                version: object_ref.version.into(),
+                digest: object_ref.digest,
+            },
+        )),
+    }
+}
+
 async fn get_display_fields(
-    fullnode_api: &ReadApi,
+    state: &Arc<dyn StateRead>,
     kv_store: &Arc<TransactionKeyValueStore>,
     original_object: &Object,
     original_layout: &Option<MoveStructLayout>,
@@ -1195,9 +1205,7 @@ async fn get_display_fields(
             error: None,
         });
     };
-    if let Some(display_object) =
-        get_display_object_by_type(kv_store, fullnode_api, &object_type).await?
-    {
+    if let Some(display_object) = get_display_object_by_type(kv_store, state, &object_type).await? {
         let fields = VecMap::<String, String>::try_from(display_object.fields)
             .map_err(|_| bcs::Error::Utf8)?;
         return get_rendered_fields(fields, &layout);
@@ -1210,12 +1218,11 @@ async fn get_display_fields(
 
 async fn get_display_object_by_type(
     kv_store: &Arc<TransactionKeyValueStore>,
-    fullnode_api: &ReadApi,
+    state: &Arc<dyn StateRead>,
     object_type: &StructTag,
     // TODO: add query version support
 ) -> Result<Option<VersionUpdated<()>>, ObjectDisplayError> {
-    let mut events = fullnode_api
-        .state
+    let mut events = state
         .query_events(
             kv_store,
             EventFilter::MoveEventType(StructTag::new_display_version_updated(object_type.clone())),

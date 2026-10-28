@@ -4237,7 +4237,8 @@ impl AuthorityState {
         ObjectStoreWithHistoricFallback(self)
     }
 
-    fn get_object_layout(&self, object: &Object) -> IotaResult<Option<MoveStructLayout>> {
+    /// The layout of `object`'s Move struct, `None` for a package.
+    pub fn get_object_layout(&self, object: &Object) -> IotaResult<Option<MoveStructLayout>> {
         let layout = object
             .data
             .as_opt_struct()
@@ -4297,6 +4298,20 @@ impl AuthorityState {
             limit,
             &self.object_store_with_historic_fallback(),
         )
+    }
+
+    /// The cursors of `owner`'s next rows of `Coin<coin_type>`; see
+    /// [`RpcIndexesStore::owned_coin_rows`].
+    #[instrument(level = "trace", skip_all)]
+    pub fn owned_coin_rows(
+        &self,
+        owner: Address,
+        cursor: Option<&OwnedObjectCursor>,
+        coin_type: TypeTag,
+        limit: usize,
+    ) -> IotaResult<Vec<OwnedObjectCursor>> {
+        self.require_jsonrpc_indexes()?
+            .owned_coin_rows(owner, cursor, coin_type, limit)
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -4403,12 +4418,27 @@ impl AuthorityState {
             .collect()
     }
 
+    /// The id of the object `get_dynamic_field_object` returns.
     pub fn get_dynamic_field_object_id(
         &self,
         owner: ObjectId,
         name_type: TypeTag,
         name_bcs_bytes: &[u8],
     ) -> IotaResult<Option<ObjectId>> {
+        Ok(self
+            .get_dynamic_field_object(owner, name_type, name_bcs_bytes)?
+            .map(|object| object.id()))
+    }
+
+    /// The object of `owner`'s dynamic field named `name_type` and
+    /// `name_bcs_bytes`: the value object for a dynamic object field, the
+    /// `Field` object otherwise; `None` when there is no such field.
+    pub fn get_dynamic_field_object(
+        &self,
+        owner: ObjectId,
+        name_type: TypeTag,
+        name_bcs_bytes: &[u8],
+    ) -> IotaResult<Option<Object>> {
         let derive = |name_type: &TypeTag| {
             dynamic_field::derive_dynamic_field_id(owner, name_type, name_bcs_bytes).map_err(|e| {
                 IotaError::Unknown(format!(
@@ -4416,26 +4446,22 @@ impl AuthorityState {
                 ))
             })
         };
+        let object_store = self.get_object_store();
 
         // A field's id is derived from its parent and name, so the object
         // store alone says whether it exists, as soon as the transaction that
         // created it has executed.
-        let dynamic_field_id = derive(&name_type)?;
-        if self
-            .get_object_store()
-            .try_get_object(&dynamic_field_id)?
-            .is_some()
-        {
+        if let Some(field) = object_store.try_get_object(&derive(&name_type)?)? {
             let wrapped_name = matches!(
                 &name_type,
                 TypeTag::Struct(tag) if DynamicFieldInfo::is_dynamic_object_field_wrapper(tag)
             );
             if !wrapped_name {
-                return Ok(Some(dynamic_field_id));
+                return Ok(Some(field));
             }
             // An already-wrapped name type addresses a dynamic object field
             // directly.
-            return self.dynamic_field_value_id(dynamic_field_id);
+            return self.dynamic_field_value(field);
         }
 
         // A dynamic object field is stored under its `Field` wrapper, which
@@ -4443,26 +4469,32 @@ impl AuthorityState {
         let wrapper_type = TypeTag::Struct(Box::new(
             DynamicFieldInfo::dynamic_object_field_wrapper(name_type),
         ));
-        self.dynamic_field_value_id(derive(&wrapper_type)?)
+        match object_store.try_get_object(&derive(&wrapper_type)?)? {
+            Some(wrapper) => self.dynamic_field_value(wrapper),
+            None => Ok(None),
+        }
     }
 
-    /// The id a dynamic-field lookup resolves `field_id` to: the value
-    /// object's for a dynamic object field, the `Field` object's own
-    /// otherwise, or `None` when the field no longer resolves.
-    fn dynamic_field_value_id(&self, field_id: ObjectId) -> IotaResult<Option<ObjectId>> {
-        let Some(field_object) = self.get_object_store().try_get_object(&field_id)? else {
-            return Ok(None);
-        };
+    /// The object a dynamic-field lookup resolves `field` to: the value
+    /// object for a dynamic object field, `field` itself otherwise, or `None`
+    /// when the field no longer resolves.
+    fn dynamic_field_value(&self, field: Object) -> IotaResult<Option<Object>> {
         let epoch_store = self.load_epoch_store_one_call_per_task();
         let mut layout_resolver = epoch_store
             .executor()
             .type_layout_resolver(Box::new(self.get_backing_package_store().clone()));
-        Ok(try_create_dynamic_field_info(
-            &field_object,
+        let Some(info) = try_create_dynamic_field_info(
+            &field,
             self.get_object_store().as_ref(),
             layout_resolver.as_mut(),
         )?
-        .map(|info| info.object_id))
+        else {
+            return Ok(None);
+        };
+        if info.object_id == field.id() {
+            return Ok(Some(field));
+        }
+        Ok(self.get_object_store().try_get_object(&info.object_id)?)
     }
 
     #[instrument(level = "trace", skip_all)]

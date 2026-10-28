@@ -6,6 +6,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use futures::future::try_join_all;
 use iota_core::authority::AuthorityState;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{
@@ -29,8 +30,8 @@ use iota_sdk_move_types::iota_framework::dynamic_field::Field;
 use iota_sdk_types::{Address, ObjectId, TransactionDigest, TypeTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    dynamic_field::DynamicFieldName, error::UserInputError, event::EventID,
-    iota_sdk_types_conversions::type_tag_sdk_to_core,
+    base_types::ObjectInfo, dynamic_field::DynamicFieldName, error::UserInputError, event::EventID,
+    iota_sdk_types_conversions::type_tag_sdk_to_core, object::ObjectRead,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 use move_bytecode_utils::layout::TypeLayoutBuilder;
@@ -42,6 +43,7 @@ use crate::{
     coin_api::cursor_position,
     error::{Error, IotaRpcInputError},
     logger::FutureWithTracing as _,
+    read_api::object_response,
 };
 
 pub struct IndexerApi<R> {
@@ -96,16 +98,20 @@ impl<R: ReadApiServer> IndexerApi<R> {
         async move {
             let (name_type, name_bcs_value) = self.extract_values_from_dynamic_field_name(name)?;
 
-            let id = self
+            let object = self
                 .state
-                .get_dynamic_field_object_id(parent_object_id, name_type, &name_bcs_value)
+                .get_dynamic_field_object(parent_object_id, name_type, &name_bcs_value)
                 .map_err(Error::from)?;
 
-            if let Some(id) = id {
-                self.read_api
-                    .get_object(id, options)
-                    .await
-                    .map_err(|e| Error::Internal(anyhow!(e)))
+            if let Some(object) = object {
+                let layout = self.state.get_object_layout(&object)?;
+                object_response(
+                    &self.state,
+                    &self.transaction_kv_store,
+                    ObjectRead::Exists(object.object_ref(), object, layout),
+                    &options.unwrap_or_default(),
+                )
+                .await
             } else {
                 Ok(IotaObjectResponse::new_with_error(
                     IotaObjectResponseError::DynamicFieldNotFound { parent_object_id },
@@ -155,18 +161,32 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             })
             .await??;
 
+            // From the objects the page read, at the version their rows name,
+            // so each response matches the ownership the page reports.
             let data = match options.is_not_in_object_info() {
                 true => {
-                    let object_ids = page.data.iter().map(|obj| obj.object_id).collect();
-                    self.read_api
-                        .multi_get_objects(object_ids, Some(options))
-                        .await
-                        .map_err(|e| Error::Internal(anyhow!(e)))?
+                    let reads = page
+                        .data
+                        .into_iter()
+                        .map(|object| {
+                            let layout = self.state.get_object_layout(&object)?;
+                            Ok(ObjectRead::Exists(object.object_ref(), object, layout))
+                        })
+                        .collect::<Result<Vec<_>, Error>>()?;
+                    try_join_all(reads.into_iter().map(|read| {
+                        object_response(&self.state, &self.transaction_kv_store, read, &options)
+                    }))
+                    .await?
                 }
                 false => page
                     .data
                     .into_iter()
-                    .map(|o_info| IotaObjectResponse::try_from((o_info, options.clone())))
+                    .map(|object| {
+                        IotaObjectResponse::try_from((
+                            ObjectInfo::new(&object.object_ref(), &object),
+                            options.clone(),
+                        ))
+                    })
                     .collect::<Result<Vec<IotaObjectResponse>, _>>()?,
             };
 
