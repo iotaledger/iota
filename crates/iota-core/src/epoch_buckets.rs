@@ -13,6 +13,7 @@
 
 use std::{
     collections::BTreeMap,
+    fmt::Debug,
     path::Path,
     sync::{
         Arc,
@@ -24,9 +25,9 @@ use iota_types::committee::EpochId;
 use parking_lot::{RwLock, RwLockUpgradableReadGuard};
 use tracing::{info, warn};
 use typed_store::{
-    TypedStoreError,
+    DbIterator, TypedStoreError,
     database::Database,
-    rocks::{DBMap, DBOptions, list_tables, synced_write_options},
+    rocks::{DBMap, DBOptions, ReadWriteOptions, list_tables, synced_write_options},
     rocksdb,
     traits::Map,
 };
@@ -106,6 +107,44 @@ pub(crate) fn extra_column_family_options(
     options
 }
 
+/// The rows of one table for the `iota-tool` table dump, each key prefixed
+/// by `prefix`.
+pub(crate) fn dump_rows<'a, K: Debug + 'a, V: Debug + 'a>(
+    prefix: &'static str,
+    rows: DbIterator<'a, (K, V)>,
+) -> impl Iterator<Item = Result<(String, String), TypedStoreError>> + 'a {
+    rows.map(move |row| row.map(|(key, value)| (format!("{prefix}{key:?}"), format!("{value:?}"))))
+}
+
+/// Page `page_number` of `rows`, `page_size` rows to a page.
+pub(crate) fn dump_page(
+    rows: impl Iterator<Item = Result<(String, String), TypedStoreError>>,
+    page_size: u16,
+    page_number: usize,
+) -> Result<BTreeMap<String, String>, TypedStoreError> {
+    rows.skip(page_number * page_size as usize)
+        .take(page_size as usize)
+        .collect()
+}
+
+/// One page of a store's retention floor column family `cf_name` for the
+/// table dump. `db` may be a read-only or secondary handle.
+pub(crate) fn dump_retention_floor(
+    db: &Arc<Database>,
+    cf_name: &str,
+    page_size: u16,
+    page_number: usize,
+) -> Result<BTreeMap<String, String>, TypedStoreError> {
+    let earliest_retained: DBMap<(), EpochId> =
+        DBMap::reopen(db, Some(cf_name), &ReadWriteOptions::default(), true)?;
+    earliest_retained.try_catch_up_with_primary()?;
+    dump_page(
+        dump_rows("", earliest_retained.safe_iter()),
+        page_size,
+        page_number,
+    )
+}
+
 /// Treats a read from a bucket whose column family has been dropped as
 /// returning no rows, rather than as an error.
 ///
@@ -125,6 +164,15 @@ pub(crate) fn absent_if_dropped<T: Default>(
 /// No real epoch reaches it.
 const NO_BUCKET: EpochId = EpochId::MAX;
 
+/// What the metrics of a bucket store are labelled with, given the column-family
+/// name of one of its buckets or its column-family prefix: the prefix without
+/// its trailing `_e`, such as `hist_obj`. The buckets of one store share their
+/// series instead of adding a set per epoch.
+pub(crate) fn bucket_metrics_label(cf_name: &str) -> &str {
+    let prefix = cf_name.trim_end_matches(|c: char| c.is_ascii_digit());
+    prefix.strip_suffix("_e").unwrap_or(prefix)
+}
+
 /// The column-family name of `epoch`'s bucket: `"{cf_prefix}{epoch}"`.
 pub(crate) fn bucket_cf_name(cf_prefix: &str, epoch: EpochId) -> String {
     format!("{cf_prefix}{epoch}")
@@ -137,8 +185,20 @@ pub(crate) fn bucket_cf_epoch(cf_prefix: &str, cf_name: &str) -> Option<EpochId>
         .and_then(|epoch| epoch.parse().ok())
 }
 
-/// The per-epoch buckets of one store. `B` is that store's view of one
-/// bucket, built by `reopen` from the bucket's column-family name.
+/// A store's view of one per-epoch bucket, which [`EpochBuckets`] opens from
+/// the bucket's column-family name.
+pub(crate) trait BucketReopen: Sized {
+    fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError>;
+
+    /// Writes what a bucket of this store must hold from the moment it
+    /// exists, on a bucket [`EpochBuckets::ensure`] has just created. Must be
+    /// safe to run again on the same bucket. Writes nothing by default.
+    fn initialize(&self) -> Result<(), TypedStoreError> {
+        Ok(())
+    }
+}
+
+/// The per-epoch buckets of one store, each viewed as a `B`.
 ///
 /// On-disk column-family names are the ground truth for which buckets exist;
 /// the map here mirrors them for reads.
@@ -151,7 +211,6 @@ pub(crate) struct EpochBuckets<B> {
     /// Template options for the buckets' column families. All clones share
     /// one block cache through the cloned table factory.
     cf_options: rocksdb::Options,
-    reopen: fn(&Arc<Database>, &str) -> Result<B, TypedStoreError>,
     buckets: RwLock<BTreeMap<EpochId, Arc<B>>>,
     /// The earliest retained epoch recorded by the last [`Self::prune`]
     /// call, mirroring the persisted row; never moves backwards.
@@ -164,7 +223,7 @@ pub(crate) struct EpochBuckets<B> {
     earliest_bucket_epoch: AtomicU64,
 }
 
-impl<B> EpochBuckets<B> {
+impl<B: BucketReopen> EpochBuckets<B> {
     /// Assembles the store's buckets from the ones discovered on disk,
     /// dropping those below the persisted retention floor.
     ///
@@ -181,7 +240,6 @@ impl<B> EpochBuckets<B> {
         cf_options: rocksdb::Options,
         earliest_retained_table: DBMap<(), EpochId>,
         mut buckets: BTreeMap<EpochId, Arc<B>>,
-        reopen: fn(&Arc<Database>, &str) -> Result<B, TypedStoreError>,
     ) -> Result<Self, TypedStoreError> {
         let earliest_retained_epoch = earliest_retained_table.get(&())?.unwrap_or(0);
         let pruned: Vec<EpochId> = buckets
@@ -207,7 +265,6 @@ impl<B> EpochBuckets<B> {
             name,
             cf_prefix,
             cf_options,
-            reopen,
             buckets: RwLock::new(buckets),
             earliest_retained_epoch: AtomicU64::new(earliest_retained_epoch),
             earliest_retained_table,
@@ -284,10 +341,12 @@ impl<B> EpochBuckets<B> {
         self.buckets.read().get(&epoch).cloned()
     }
 
-    /// The bucket holding `epoch`'s rows, created if absent. Pruned
-    /// epochs are refused: recreating a pruned epoch's column family would
-    /// resurrect it under the same name, and a reader holding the dropped
-    /// bucket would silently read the new, empty one.
+    /// The bucket holding `epoch`'s rows, created if absent.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TypedStoreError::Pruned`] if `epoch` is below the retention
+    /// floor.
     pub(crate) fn ensure(&self, epoch: EpochId) -> Result<Arc<B>, TypedStoreError> {
         self.ensure_retained(epoch)?.ok_or_else(|| {
             TypedStoreError::Pruned(format!(
@@ -327,7 +386,8 @@ impl<B> EpochBuckets<B> {
         if self.db.cf_handle(&cf_name).is_none() {
             self.db.create_cf(&cf_name, &self.cf_options)?;
         }
-        let bucket = Arc::new((self.reopen)(&self.db, &cf_name)?);
+        let bucket = Arc::new(B::reopen(&self.db, &cf_name)?);
+        bucket.initialize()?;
         buckets.insert(epoch, bucket.clone());
         self.publish_earliest_epoch(&buckets);
         Ok(Some(bucket))
@@ -441,9 +501,23 @@ mod tests {
     };
 
     use super::{
-        Arc, BTreeMap, Database, EpochBuckets, EpochId, TypedStoreError, bucket_cf_epoch,
-        bucket_cf_name, bucket_cf_options, rocksdb,
+        Arc, BTreeMap, BucketReopen, Database, EpochBuckets, EpochId, TypedStoreError,
+        bucket_cf_epoch, bucket_cf_name, bucket_cf_options, rocksdb,
     };
+
+    /// The buckets of one store share one metrics label, so that a store
+    /// keeping many epochs does not add a set of series per epoch.
+    #[test]
+    fn the_buckets_of_a_store_share_one_metrics_label() {
+        assert_eq!(
+            super::bucket_metrics_label(&bucket_cf_name("hist_obj_e", 7)),
+            "hist_obj"
+        );
+        assert_eq!(
+            super::bucket_metrics_label(&bucket_cf_name("hist_obj_e", 702)),
+            super::bucket_metrics_label(&bucket_cf_name("hist_obj_e", 7))
+        );
+    }
 
     /// A bucket keeps no memtable in memory once it is flushed: a node holds
     /// many buckets that are no longer written, and each would otherwise keep
@@ -490,7 +564,7 @@ mod tests {
     /// `EpochBuckets` on its own.
     struct TestBucket;
 
-    impl TestBucket {
+    impl BucketReopen for TestBucket {
         fn reopen(_db: &Arc<Database>, _cf_name: &str) -> Result<Self, TypedStoreError> {
             Ok(Self)
         }
@@ -528,7 +602,6 @@ mod tests {
             db_options,
             earliest_retained_table,
             buckets,
-            TestBucket::reopen,
         )
         .unwrap();
         (buckets, dir)

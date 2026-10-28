@@ -2139,3 +2139,28 @@ fn open_rocksdb<P: AsRef<Path>>(path: P, opt_cfs: &[&str]) -> Arc<Database> {
     )
     .expect("failed to open rocksdb")
 }
+
+/// A map labelled with [`DBMap::with_metrics_label`] reports its operations
+/// under that label instead of its column family name.
+#[tokio::test]
+async fn a_relabelled_map_reports_its_operations_under_the_label() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = open_map::<_, u64, u64>(dir.path(), Some("relabelled_cf"))
+        .with_metrics_label("relabelled_label");
+    db.insert(&1, &1).unwrap();
+    assert_eq!(db.get(&1).unwrap(), Some(1));
+
+    let gets = &crate::DBMetrics::get()
+        .op_metrics
+        .rocksdb_get_latency_seconds;
+    assert!(
+        gets.with_label_values(&["relabelled_label"])
+            .get_sample_count()
+            > 0
+    );
+    assert_eq!(
+        gets.with_label_values(&["relabelled_cf"])
+            .get_sample_count(),
+        0
+    );
+}
