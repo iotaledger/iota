@@ -6861,6 +6861,98 @@ async fn test_for_inc_201_dry_run() {
     assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
 }
 
+/// A query for a transaction's events is answered from the transaction
+/// itself, before its checkpoint exists: an executed transaction's event
+/// comes back without a timestamp, one without events gives an empty page,
+/// and a cursor naming another transaction's event is refused.
+#[tokio::test]
+async fn test_transaction_events_are_queryable_before_their_checkpoint() {
+    use iota_json_rpc_types::EventFilter;
+    use iota_storage::{
+        key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
+    };
+    use iota_types::event::EventID;
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object_id = ObjectId::random();
+    let (validator, fullnode, object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
+
+    let create = |value: u64| {
+        call_move_(
+            &validator,
+            Some(&fullnode),
+            &gas_object_id,
+            &sender,
+            &sender_key,
+            &object_basics.object_id,
+            "object_basics",
+            "create",
+            vec![],
+            vec![
+                TestCallArg::Pure(bcs::to_bytes(&value).unwrap()),
+                TestCallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+            ],
+            false,
+        )
+    };
+    let created = create(1).await.unwrap();
+    let first = created.created()[0].reference().object_id;
+    let second = create(2).await.unwrap().created()[0].reference().object_id;
+    let update = call_move_(
+        &validator,
+        Some(&fullnode),
+        &gas_object_id,
+        &sender,
+        &sender_key,
+        &object_basics.object_id,
+        "object_basics",
+        "update",
+        vec![],
+        vec![TestCallArg::Object(first), TestCallArg::Object(second)],
+        false,
+    )
+    .await
+    .unwrap();
+    assert!(update.status().is_success());
+
+    let kv_store = Arc::new(TransactionKeyValueStore::new(
+        "rocksdb",
+        KeyValueStoreMetrics::new_for_tests(),
+        fullnode.clone(),
+    ));
+    let query = |digest, cursor| {
+        fullnode.query_events(
+            &kv_store,
+            EventFilter::Transaction(digest),
+            cursor,
+            10,
+            false,
+        )
+    };
+
+    let events = query(*update.transaction_digest(), None).await.unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].id.tx_digest, *update.transaction_digest());
+    assert_eq!(
+        events[0].timestamp_ms, None,
+        "the transaction has no checkpoint yet"
+    );
+
+    let events = query(*created.transaction_digest(), None).await.unwrap();
+    assert!(events.is_empty());
+
+    let foreign_cursor = EventID {
+        tx_digest: *created.transaction_digest(),
+        event_seq: 0,
+    };
+    assert!(
+        query(*update.transaction_digest(), Some(foreign_cursor))
+            .await
+            .is_err()
+    );
+}
+
 #[tokio::test]
 async fn test_function_not_found() {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
