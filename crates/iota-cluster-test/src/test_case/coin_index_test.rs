@@ -447,111 +447,90 @@ impl TestCaseImpl for CoinIndexTest {
         assert_eq!(managed_coins.len(), 40);
         assert!(managed_coins.iter().all(|c| c.balance == 5));
 
-        let total_coins = PagedFn::stream(async |cursor| {
+        // The listing of every coin groups them by type, in an order that
+        // depends on the managed coin's package id, so the pages below are
+        // checked against that listing rather than a fixed order of the types.
+        let all_coins: Vec<_> = PagedFn::stream(async |cursor| {
             client
                 .coin_read_api()
                 .get_all_coins(account, cursor, None)
                 .await
         })
-        .count()
-        .await;
-
-        assert_eq!(iota_coins.len() + managed_coins.len(), total_coins);
-
-        let iota_coins_with_managed_coin_1 = client
-            .coin_read_api()
-            .get_all_coins(account, None, Some(iota_coins.len() + 1))
-            .await
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .collect::<Result<_, _>>()
+        .unwrap();
+        assert_eq!(iota_coins.len() + managed_coins.len(), all_coins.len());
+        let first_managed = all_coins
+            .iter()
+            .position(|coin| coin.coin_object_id == first_managed_coin)
             .unwrap();
         assert_eq!(
-            iota_coins_with_managed_coin_1.data.len(),
-            iota_coins.len() + 1
+            all_coins[first_managed..first_managed + managed_coins.len()],
+            managed_coins[..],
+            "the managed coins must be listed together"
         );
+
+        // A page that ends at the first managed coin resumes after it, in the
+        // listing of every coin and in that of the managed coins alone.
+        let up_to_first_managed = client
+            .coin_read_api()
+            .get_all_coins(account, None, Some(first_managed + 1))
+            .await
+            .unwrap();
+        assert_eq!(up_to_first_managed.data, all_coins[..=first_managed]);
         assert_eq!(
-            iota_coins_with_managed_coin_1.next_cursor,
+            up_to_first_managed
+                .next_cursor
+                .as_ref()
+                .map(|cursor| cursor.object_id()),
             Some(first_managed_coin)
         );
-        assert!(iota_coins_with_managed_coin_1.has_next_page);
-        let cursor = iota_coins_with_managed_coin_1.next_cursor;
+        assert!(up_to_first_managed.has_next_page);
+        let cursor = up_to_first_managed.next_cursor;
 
-        let managed_coins_2_11 = client
+        let next_10 = client
             .coin_read_api()
             .get_all_coins(account, cursor, Some(10))
             .await
             .unwrap();
         assert_eq!(
-            managed_coins_2_11,
-            client
-                .coin_read_api()
-                .get_coins(account, Some(coin_type_str.clone()), cursor, Some(10))
-                .await
-                .unwrap(),
+            next_10.data,
+            all_coins[first_managed + 1..first_managed + 11]
         );
 
-        assert_eq!(managed_coins_2_11.data.len(), 10);
-        assert_ne!(
-            managed_coins_2_11.data.first().unwrap().coin_object_id,
-            first_managed_coin
-        );
+        let managed_coins_2_11 = client
+            .coin_read_api()
+            .get_coins(account, Some(coin_type_str.clone()), cursor, Some(10))
+            .await
+            .unwrap();
+        assert_eq!(managed_coins_2_11.data, managed_coins[1..11]);
         assert!(managed_coins_2_11.has_next_page);
         let cursor = managed_coins_2_11.next_cursor;
 
-        let managed_coins_12_40 = client
-            .coin_read_api()
-            .get_all_coins(account, cursor, None)
-            .await
-            .unwrap();
-        assert_eq!(
-            managed_coins_12_40,
-            client
+        for limit in [None, Some(30)] {
+            let managed_coins_12_40 = client
                 .coin_read_api()
-                .get_coins(account, Some(coin_type_str.clone()), cursor, None)
+                .get_coins(account, Some(coin_type_str.clone()), cursor, limit)
                 .await
-                .unwrap(),
-        );
-        assert_eq!(managed_coins_12_40.data.len(), 29);
-        assert_eq!(
-            managed_coins_12_40.data.last().unwrap().coin_object_id,
-            last_managed_coin
-        );
-        assert!(!managed_coins_12_40.has_next_page);
-
-        let managed_coins_12_40 = client
-            .coin_read_api()
-            .get_all_coins(account, cursor, Some(30))
-            .await
-            .unwrap();
-        assert_eq!(
-            managed_coins_12_40,
-            client
-                .coin_read_api()
-                .get_coins(account, Some(coin_type_str.clone()), cursor, Some(30))
-                .await
-                .unwrap(),
-        );
-        assert_eq!(managed_coins_12_40.data.len(), 29);
-        assert_eq!(
-            managed_coins_12_40.data.last().unwrap().coin_object_id,
-            last_managed_coin
-        );
-        assert!(!managed_coins_12_40.has_next_page);
+                .unwrap();
+            assert_eq!(managed_coins_12_40.data, managed_coins[11..]);
+            assert_eq!(
+                managed_coins_12_40.data.last().unwrap().coin_object_id,
+                last_managed_coin
+            );
+            assert!(!managed_coins_12_40.has_next_page);
+        }
 
         // 12. add one coin to envelope, now we only have 39 coins
         let removed_coin_id = managed_coins.get(20).unwrap().coin_object_id;
         let _ = add_to_envelope(ctx, package.object_id, envelope.object_id, removed_coin_id).await;
         let managed_coins_12_39 = client
             .coin_read_api()
-            .get_all_coins(account, cursor, Some(40))
+            .get_coins(account, Some(coin_type_str.clone()), cursor, Some(40))
             .await
             .unwrap();
-        assert_eq!(
-            managed_coins_12_39,
-            client
-                .coin_read_api()
-                .get_coins(account, Some(coin_type_str.clone()), cursor, Some(40))
-                .await
-                .unwrap(),
-        );
         assert_eq!(managed_coins_12_39.data.len(), 28);
         assert_eq!(
             managed_coins_12_39.data.last().unwrap().coin_object_id,

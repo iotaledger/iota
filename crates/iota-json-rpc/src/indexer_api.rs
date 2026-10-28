@@ -16,7 +16,8 @@ use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectDataFilter,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
-    IotaTransactionBlockResponseQueryV2, ObjectsPage, Page, TransactionBlocksPage,
+    IotaTransactionBlockResponseQueryV2, ObjectsPage, OwnedObjectCursor, Page,
+    TransactionBlocksPage,
 };
 use iota_metrics::spawn_monitored_blocking;
 use iota_names::{
@@ -38,6 +39,7 @@ use tracing::instrument;
 use crate::{
     IotaRpcModule,
     authority_state::{StateRead, StateReadResult},
+    coin_api::cursor_position,
     error::{Error, IotaRpcInputError},
     logger::FutureWithTracing as _,
 };
@@ -132,7 +134,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         &self,
         address: Address,
         query: Option<IotaObjectResponseQuery>,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage> {
         async move {
@@ -146,6 +148,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 })?;
             }
             let options = options.unwrap_or_default();
+            let cursor = cursor_position(cursor)?;
             let state = self.state.clone();
             let page = spawn_monitored_blocking!(move || {
                 state.get_owner_objects_page(address, cursor, limit, filter)
@@ -509,7 +512,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     async fn iota_names_find_all_registration_nfts(
         &self,
         address: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage> {

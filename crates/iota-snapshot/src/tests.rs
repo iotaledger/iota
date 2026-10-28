@@ -824,7 +824,7 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
         .get_owner_objects(owner, None, 10, None, usize::MAX, &restored_perpetual_db)?
         .0
         .into_iter()
-        .map(|info| info.object_id)
+        .map(|(info, _)| info.object_id)
         .collect();
     assert_eq!(restored_owned_ids, owned_ids);
     Ok(())
