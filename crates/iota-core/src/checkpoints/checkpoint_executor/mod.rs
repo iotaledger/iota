@@ -932,10 +932,7 @@ impl CheckpointExecutor {
             .transaction_cache_reader
             .multi_get_attestation_records(&digests);
         for (digest, certified, local) in itertools::izip!(digests, certified, local) {
-            // Only records other than `Valid` are certified, so a valid local
-            // record matches no certified one.
-            let local = local.filter(|record| !record.verdict.is_valid());
-            if local != certified {
+            if attestation_record_differs(local, certified) {
                 self.metrics
                     .checkpoint_exec_attestation_verdict_mismatches
                     .inc();
@@ -1212,4 +1209,14 @@ impl CheckpointExecutor {
             }
         }
     }
+}
+
+/// Whether the record a node stored for an executed transaction disagrees
+/// with the certified one. Only records other than `Valid` are certified, so
+/// a valid local record matches no certified one.
+fn attestation_record_differs(
+    local: Option<AttestationRecord>,
+    certified: Option<AttestationRecord>,
+) -> bool {
+    local.filter(|record| !record.verdict.is_valid()) != certified
 }

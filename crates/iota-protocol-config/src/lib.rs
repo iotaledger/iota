@@ -1455,7 +1455,8 @@ pub struct ProtocolConfig {
 
     /// Wasted authentication units at which one refuted attestation takes the
     /// attestor's whole epoch reward, through its entry in the change-epoch
-    /// scores; a smaller fault takes the square of its fraction. The cut
+    /// scores; a smaller fault takes the square of its fraction, and zero
+    /// takes the whole reward on the first refuted attestation. The cut
     /// reaches the reward only under `adjust_rewards_by_score`. Unset
     /// disables the penalty.
     attestation_max_fault_units: Option<u64>,
