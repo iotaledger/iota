@@ -79,9 +79,8 @@ use crate::{
     checkpoints::CheckpointStore,
     epoch_buckets::{self, EpochBuckets},
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
-    par_index_live_object_set::{
-        PROGRESS_REPORT_INTERVAL, eta_display, par_index_live_object_set, progress_rate,
-    },
+    par_index_live_object_set::par_index_live_object_set,
+    progress_logger::{PROGRESS_REPORT_INTERVAL, progress_line},
 };
 
 const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "RPC_INDEX_HISTORY_BLOCK_CACHE_MB";
@@ -177,12 +176,9 @@ pub struct RpcIndexesStore {
     history_backfill_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     /// Stops the startup rebuild and the background history backfill.
     cancelled: Arc<AtomicBool>,
-    /// How many historic epochs of history the pruner is configured to
-    /// retain on top of the current one (`num_epochs_to_retain_for_indexes`);
-    /// bounds the history backfill so it does not replay epochs the next
-    /// prune pass would drop again, and is the retention `prune` enforces.
-    /// Governs every history table, digests included, since they all live in
-    /// the one bucket family. `None` when index pruning is off.
+    /// How many historic epochs of history to retain on top of the current
+    /// one (`num_epochs_to_retain_for_indexes`), for every history table and
+    /// the history backfill. `None` when index pruning is off.
     epochs_to_retain: Option<u64>,
     /// The index watermark when the store was opened. Checkpoints up to it
     /// are in the store already, and executing them again stages nothing.
@@ -551,18 +547,15 @@ impl RpcIndexesStore {
     ///
     /// The history tables are filled by a background replay after this
     /// returns; until it finishes, history-backed queries cover a growing
-    /// range of recent checkpoints, as on a pruned node. When index pruning
-    /// is configured, `epochs_to_retain` bounds the replay to the epochs
-    /// the pruner would retain.
+    /// range of recent checkpoints. `epochs_to_retain` also bounds the replay.
     ///
     /// Checkpoints executed past the index watermark, whose index commits a
     /// power loss lost, are indexed again before this returns; the store is
     /// rebuilt instead when their data is gone.
     ///
-    /// Setting `cancelled` abandons a rebuild or such a replay running here
-    /// and the background replay, and fails the open: the store is left
-    /// unadopted for the next open to rebuild, or to resume the replay where
-    /// it stopped, and must not serve reads in the meantime.
+    /// Setting `cancelled` abandons a rebuild or such a replay running here,
+    /// failing the open, and stops the background replay. The next open
+    /// rebuilds the store, or resumes the replay where it stopped.
     pub async fn new(
         path: PathBuf,
         registry: &Registry,
@@ -891,14 +884,16 @@ impl RpcIndexesStore {
             if last_report.elapsed() >= PROGRESS_REPORT_INTERVAL {
                 last_report = Instant::now();
                 let done = done as u64 + 1;
-                let fraction = done as f64 / total as f64;
-                let elapsed = start_time.elapsed();
-                let rate = progress_rate(done, elapsed);
-                let eta = eta_display(elapsed, fraction);
                 info!(
-                    "Indexing lost checkpoints again: {:.1}% done ({done} of {total}), \
-                     {rate:.0} checkpoints/s, ETA ~{eta}",
-                    fraction * 100.0,
+                    "{}",
+                    progress_line(
+                        "Indexing lost checkpoints again",
+                        "checkpoints",
+                        done as f64 / total as f64,
+                        done,
+                        total,
+                        start_time.elapsed(),
+                    )
                 );
             }
         }
@@ -1094,8 +1089,24 @@ impl RpcIndexesStore {
         })
     }
 
-    /// The bucket holding `epoch`'s history, created if absent. Pruned
-    /// epochs are refused, see [`EpochBuckets::ensure`].
+    /// Opens `epoch`'s history bucket, creating its column family if needed,
+    /// which blocks.
+    pub(crate) fn ensure_history_bucket_exists(&self, epoch: EpochId) -> IotaResult<()> {
+        self.ensure_history_bucket(epoch).map(|_| ())
+    }
+
+    /// The epochs whose history buckets this store holds, oldest first.
+    #[cfg(test)]
+    pub(crate) fn retained_history_epochs(&self) -> Vec<EpochId> {
+        self.history
+            .iter_with_epoch(false)
+            .into_iter()
+            .map(|(epoch, _)| epoch)
+            .collect()
+    }
+
+    /// The bucket holding `epoch`'s history, created if absent. Pruned epochs
+    /// are refused, see [`EpochBuckets::ensure`].
     fn ensure_history_bucket(&self, epoch: EpochId) -> IotaResult<Arc<HistoryBucket>> {
         self.history
             .ensure(epoch)
@@ -1126,20 +1137,14 @@ impl RpcIndexesStore {
     /// kept, since [`Self::index_checkpoint`] reads its digests.
     ///
     /// A query racing a drop may report an error for the dropped epoch's
-    /// rows; a retry no longer sees the bucket. Queries block for the
-    /// duration of the drops, so callers on an async runtime must use
-    /// `spawn_blocking`.
-    pub fn prune(&self) -> IotaResult<Option<EpochId>> {
+    /// rows. Queries block for the duration of the drops, so callers on an
+    /// async runtime must use `spawn_blocking`.
+    pub fn prune(&self, current_epoch: EpochId) -> IotaResult<Option<EpochId>> {
         let Some(epochs_to_retain) = self.epochs_to_retain else {
             return Ok(None);
         };
-        // `EpochBuckets::prune` keeps its newest bucket plus `n - 1` below
-        // it, so retaining the current epoch plus `epochs_to_retain` historic
-        // ones takes `n = epochs_to_retain + 1`. Saturating avoids overflow
-        // at `u64::MAX`, where it still means "never prune": the resulting
-        // window covers everything there is.
         self.history
-            .prune(epochs_to_retain.saturating_add(1), |_, _| Ok(()))
+            .prune(current_epoch, epochs_to_retain, |_, _| Ok(()))
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
@@ -1284,11 +1289,8 @@ impl RpcIndexesStore {
             self.invalidate_balance_caches(&cache_updates);
         }
 
-        // The update may stage rows of a history bucket `prune` drops before
-        // this write; those rows are discarded instead of failing the write.
-        // Only expired epochs can be lost that way: `index_checkpoint`
-        // created the bucket of the epoch being executed, so it is the
-        // newest one, and `prune` retains at least the newest seven.
+        // Rows of a bucket `prune` dropped meanwhile are discarded rather than
+        // failing the write. That bucket is never the executing epoch's.
         // Not synced: the checkpoint is recorded as executed after this
         // returns, and a power loss that keeps that record but loses this
         // write is repaired by the next open, which indexes the checkpoint
@@ -1359,15 +1361,11 @@ impl RpcIndexesStore {
     }
 
     /// Fills the history tables for the checkpoints below
-    /// `history_watermark`, newest first, until it reaches the
-    /// checkpoint-contents pruner, an epoch [`Self::prune`] removed from the
-    /// index, or the configured index retention. The marker commits
-    /// atomically with each checkpoint's rows, so an interrupted run resumes
-    /// where it stopped.
-    /// No-op when the marker is absent (the history was indexed continuously
-    /// and is complete). Reports its progress through the
-    /// `rpc_index_history_backfill_lowest_replayed_checkpoint` gauge; where
-    /// it stopped and why is in the log.
+    /// `history_watermark`, newest first, until it reaches the lowest
+    /// checkpoint the node still holds, an epoch [`Self::prune`] removed, or
+    /// the index retention. The marker commits atomically with each
+    /// checkpoint's rows, so an interrupted run resumes where it stopped.
+    /// No-op when the marker is absent.
     #[tracing::instrument(skip_all)]
     fn backfill_history(
         &self,
@@ -1393,9 +1391,7 @@ impl RpcIndexesStore {
                 info!("Stopping the RPC index history backfill at checkpoint {next}: shutdown");
                 break;
             }
-            // The pruner advances while the backfill runs; re-check the
-            // bound so the replay stops before data that is about to
-            // disappear.
+            // Expiry raises this bound while the backfill runs.
             let lowest = checkpoint_store
                 .get_highest_pruned_checkpoint_seq_number()?
                 .map(|c| c.saturating_add(1))
@@ -1406,9 +1402,8 @@ impl RpcIndexesStore {
             let summary = match checkpoint_store.get_checkpoint_by_sequence_number(next)? {
                 Some(summary) => summary,
                 None => {
-                    // The checkpoint pruner can pass the bound check above
-                    // mid-iteration; reaching pruned data is a terminal
-                    // condition, not a failure.
+                    // Pruned since the check above: the end of the history,
+                    // not a failure.
                     if self.backfill_reached_pruned_data(checkpoint_store, next, None)? {
                         break;
                     }
@@ -1437,14 +1432,11 @@ impl RpcIndexesStore {
             if let Err(e) =
                 self.replay_checkpoint_history(authority_store, checkpoint_store, &summary)
             {
-                // See above: the pruners advance while the backfill runs.
                 if self.backfill_reached_pruned_data(checkpoint_store, next, Some(summary.epoch))? {
                     break;
                 }
-                // A pruner deletes a checkpoint's data before it advances
-                // the watermark checked above, so the replay can find the
-                // data already gone. That is the end of the locally
-                // available history, not a failure.
+                // Expiry drops a checkpoint's data before raising the pruned
+                // checkpoint checked above, so missing data means pruned too.
                 if e.kind() == StorageErrorKind::Missing {
                     info!(
                         "Stopping the RPC index history backfill at checkpoint {next}: its data \
@@ -1460,15 +1452,17 @@ impl RpcIndexesStore {
                 .set(next as i64);
             if last_report.elapsed() >= PROGRESS_REPORT_INTERVAL {
                 last_report = Instant::now();
-                let remaining = next - lowest;
-                let fraction = replayed as f64 / (replayed + remaining) as f64;
-                let elapsed = start_time.elapsed();
-                let rate = progress_rate(replayed, elapsed);
-                let eta = eta_display(elapsed, fraction);
+                let total = replayed + (next - lowest);
                 info!(
-                    "Backfilling RPC index history: {:.1}% done (checkpoint {next} down to \
-                     {lowest}), {rate:.0} checkpoints/s, ETA ~{eta}",
-                    fraction * 100.0,
+                    "{}",
+                    progress_line(
+                        "Backfilling RPC index history",
+                        "checkpoints",
+                        replayed as f64 / total as f64,
+                        replayed,
+                        total,
+                        start_time.elapsed(),
+                    )
                 );
             }
             let Some(n) = next.checked_sub(1) else {
@@ -1494,11 +1488,9 @@ impl RpcIndexesStore {
         Some(newest.saturating_sub(epochs_to_retain))
     }
 
-    /// Whether a pruner removed checkpoint `next`, or the history bucket of
-    /// its epoch, while the backfill was working on it — the same bounds the
-    /// loop checks before each checkpoint, re-read once the work on it has
-    /// failed. `epoch` is the checkpoint's epoch, where it is known. Logs
-    /// the reason the backfill stops.
+    /// Whether checkpoint `next`, or the history bucket of its `epoch` where
+    /// known, was pruned while the backfill worked on it. Logs why the
+    /// backfill stops.
     fn backfill_reached_pruned_data(
         &self,
         checkpoint_store: &CheckpointStore,
@@ -1606,7 +1598,8 @@ fn load_checkpoint_transactions(
         .iter()
         .map(|digests| {
             let transaction = authority_store
-                .get_transaction_block(&digests.transaction)?
+                .get_transaction_block(&digests.transaction)
+                .map_err(|e| StorageError::custom(e.to_string()))?
                 .ok_or_else(|| {
                     StorageError::missing(format!("missing transaction {}", digests.transaction))
                 })?
@@ -1620,7 +1613,8 @@ fn load_checkpoint_transactions(
             let events = if effects.events_digest().is_some() {
                 Some(
                     authority_store
-                        .get_events(&digests.transaction)?
+                        .get_events(&digests.transaction)
+                        .map_err(|e| StorageError::custom(e.to_string()))?
                         .ok_or_else(|| {
                             StorageError::missing(format!("missing events {}", digests.transaction))
                         })?,

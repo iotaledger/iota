@@ -328,6 +328,24 @@ impl<K, V> DBMap<K, V> {
         }
     }
 
+    /// RocksDB's estimate of how many keys the column family holds, `0` on a
+    /// backend that keeps no such estimate.
+    ///
+    /// Counts keys overwritten or deleted but not yet compacted away, so it
+    /// suits a progress report, not anything that must agree with a scan.
+    pub fn estimated_len(&self) -> Result<u64, TypedStoreError> {
+        let Storage::Rocks(rocksdb) = &self.db.storage else {
+            return Ok(0);
+        };
+        let Some(cf) = rocksdb.underlying.cf_handle(self.cf_name()) else {
+            return Ok(0);
+        };
+        Ok(
+            Self::get_rocksdb_int_property(rocksdb, &cf, properties::ESTIMATE_NUM_KEYS)?.max(0)
+                as u64,
+        )
+    }
+
     pub(crate) fn report_rocksdb_metrics(
         database: &Arc<Database>,
         cf_name: &str,
