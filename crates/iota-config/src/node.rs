@@ -95,6 +95,12 @@ pub struct NodeConfig {
     #[serde(default = "default_enable_jsonrpc_api")]
     pub enable_jsonrpc_api: bool,
 
+    /// Renamed to `enable_jsonrpc_api`; see [`NodeConfig::check_renamed_keys`]
+    /// for which configs that still set it are refused. Never set this.
+    /// Removal is tracked in <https://github.com/iotaledger/iota/issues/12885>.
+    #[serde(default, skip_serializing)]
+    pub enable_index_processing: Option<bool>,
+
     /// Flag to enable gRPC load shedding: requests over a service's
     /// concurrency limit are rejected immediately with `RESOURCE_EXHAUSTED`
     /// instead of waiting for a slot.
