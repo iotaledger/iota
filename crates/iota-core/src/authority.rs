@@ -36,7 +36,7 @@ use iota_metrics::{
 };
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
-    CheckpointSummary, Digest, EndOfEpochTransactionKind, ExecutionStatus, GasCostSummary,
+    CheckpointSummary, Digest, EndOfEpochTransactionKind, Event, ExecutionStatus, GasCostSummary,
     InputSharedObject, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, RandomnessRound,
     SenderSignedTransaction, StructTag, SystemPackage, Transaction, TransactionDigest,
     TransactionEffects, TransactionEffectsDigest, TransactionEvents, TransactionKind, TypeTag,
@@ -61,7 +61,7 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
-    base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
+    base_types::{AuthorityName, ConciseableName, ObjectInfo, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AggregateAuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
     deny_list_v1::{check_coin_deny_list_v1, coin_types_for_denylist_check},
@@ -174,14 +174,14 @@ use crate::{
         reader::{CommitIndexedReader, DenyListAtCommit},
     },
     rpc_indexes::{
-        CachingLayoutResolver, CoinInfo, IndexStore, grpc_api::GrpcIndexesStore,
-        try_create_dynamic_field_info,
+        RpcIndexesStore,
+        jsonrpc_api::{CachingLayoutResolver, CoinInfo, try_create_dynamic_field_info},
+        schema::{IndexGroup, OwnerTypeFilter},
     },
     stake_aggregator::StakeAggregator,
     transaction_input_loader::TransactionInputLoader,
     transaction_outputs::TransactionOutputs,
     validator_tx_finalizer::ValidatorTxFinalizer,
-    verify_indexes::verify_indexes,
 };
 
 #[cfg(test)]
@@ -911,8 +911,8 @@ pub struct AuthorityState {
     /// that are executed but did not make into checkpoint.
     execution_lock: RwLock<EpochId>,
 
-    pub jsonrpc_indexes_store: Option<Arc<IndexStore>>,
-    pub grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
+    /// The RPC index store, absent when this node maintains no index group.
+    pub rpc_indexes_store: Option<Arc<RpcIndexesStore>>,
 
     pub checkpoint_store: Arc<CheckpointStore>,
 
@@ -2930,8 +2930,7 @@ impl AuthorityState {
         execution_cache_trait_pointers: ExecutionCacheTraitPointers,
         epoch_store: Arc<AuthorityPerEpochStore>,
         committee_store: Arc<CommitteeStore>,
-        jsonrpc_indexes_store: Option<Arc<IndexStore>>,
-        grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
+        rpc_indexes_store: Option<Arc<RpcIndexesStore>>,
         checkpoint_store: Arc<CheckpointStore>,
         prometheus_registry: &Registry,
         config: NodeConfig,
@@ -2974,8 +2973,7 @@ impl AuthorityState {
         let pruner = AuthorityStorePruner::new(
             store.perpetual_tables.clone(),
             checkpoint_store.clone(),
-            grpc_indexes_store.clone(),
-            jsonrpc_indexes_store.clone(),
+            rpc_indexes_store.clone(),
             config.authority_store_pruning_config.clone(),
             epoch_store.committee().authority_exists(&name),
             epoch_store.epoch_start_state().epoch_duration_ms(),
@@ -3002,8 +3000,7 @@ impl AuthorityState {
             epoch_store: ArcSwap::new(epoch_store.clone()),
             input_loader,
             execution_cache_trait_pointers,
-            jsonrpc_indexes_store,
-            grpc_indexes_store,
+            rpc_indexes_store,
             checkpoint_store,
             committee_store,
             execution_scheduler,
@@ -3425,13 +3422,6 @@ impl AuthorityState {
             self.expensive_check_is_consistent_state(state_hasher, cur_epoch_store);
         }
 
-        if expensive_safety_check_config.enable_secondary_index_checks() {
-            if let Some(indexes) = self.jsonrpc_indexes_store.clone() {
-                verify_indexes(self.get_global_state_hash_store().as_ref(), indexes)
-                    .expect("secondary indexes are inconsistent");
-            }
-        }
-
         Ok(())
     }
 
@@ -3817,6 +3807,8 @@ impl AuthorityState {
         Ok(layout)
     }
 
+    /// One page of `owner`'s objects; see
+    /// [`RpcIndexesStore::get_owner_objects`].
     #[instrument(level = "trace", skip_all)]
     pub fn get_owner_objects(
         &self,
@@ -3825,43 +3817,39 @@ impl AuthorityState {
         cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
-    ) -> IotaResult<Vec<ObjectInfo>> {
-        if let Some(indexes) = &self.jsonrpc_indexes_store {
-            indexes.get_owner_objects(owner, cursor, limit, filter)
-        } else {
-            Err(IotaError::IndexStoreNotAvailable)
-        }
+        max_read: usize,
+    ) -> IotaResult<(Vec<ObjectInfo>, Option<ObjectId>)> {
+        let indexes = self.require_jsonrpc_indexes()?;
+        indexes.get_owner_objects(
+            owner,
+            cursor,
+            limit,
+            filter,
+            max_read,
+            self.get_object_store().as_ref(),
+        )
     }
 
+    /// One page of `owner`'s coins in the owner index's order, of
+    /// `coin_type` alone when it is given. The returned type tag is the
+    /// coin's own `T`, not the `Coin<T>` the object carries.
     #[instrument(level = "trace", skip_all)]
-    pub fn get_owned_coins_iterator_with_cursor(
-        &self,
-        owner: Address,
-        // If `Some`, the query will start from the next item after the specified cursor
-        cursor: (String, ObjectId),
-        limit: usize,
-        one_coin_type_only: bool,
-    ) -> IotaResult<impl Iterator<Item = (String, ObjectId, CoinInfo)> + '_> {
-        if let Some(indexes) = &self.jsonrpc_indexes_store {
-            indexes.get_owned_coins_iterator_with_cursor(owner, cursor, limit, one_coin_type_only)
-        } else {
-            Err(IotaError::IndexStoreNotAvailable)
-        }
-    }
-
-    #[instrument(level = "trace", skip_all)]
-    pub fn get_owner_objects_iterator(
+    pub fn get_owned_coins_page(
         &self,
         owner: Address,
         // If `Some`, the query will start from the next item after the specified cursor
         cursor: Option<ObjectId>,
-        filter: Option<IotaObjectDataFilter>,
-    ) -> IotaResult<impl Iterator<Item = ObjectInfo> + '_> {
-        if let Some(indexes) = &self.jsonrpc_indexes_store {
-            indexes.get_owner_objects_iterator(owner, cursor, filter)
-        } else {
-            Err(IotaError::IndexStoreNotAvailable)
-        }
+        coin_type: Option<TypeTag>,
+        limit: usize,
+    ) -> IotaResult<Vec<(TypeTag, ObjectId, CoinInfo)>> {
+        let indexes = self.require_jsonrpc_indexes()?;
+        indexes.get_owned_coins(
+            owner,
+            cursor,
+            coin_type,
+            limit,
+            self.get_object_store().as_ref(),
+        )
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -3869,14 +3857,14 @@ impl AuthorityState {
     where
         T: DeserializeOwned,
     {
-        let object_ids = self
-            .get_owner_objects_iterator(owner, None, None)?
-            .filter(|o| match &o.object_type {
-                ObjectType::Struct(s) => *s == tag,
-                ObjectType::Package => false,
-            })
-            .map(|info| ObjectKey(info.object_id, info.version))
-            .collect::<Vec<_>>();
+        let indexes = self.require_jsonrpc_indexes()?;
+        // The filter matches the type's identifier only, so the exact type is
+        // checked per row.
+        let object_ids = indexes
+            .owner_iter(owner, None, OwnerTypeFilter::from_struct_tag(Some(&tag)))?
+            .filter_ok(|(_, info)| info.object_type == tag)
+            .map_ok(|(key, info)| ObjectKey(key.object_id, info.version))
+            .collect::<Result<Vec<_>, _>>()?;
         let mut move_objects = vec![];
 
         let objects = self
@@ -3913,9 +3901,7 @@ impl AuthorityState {
         cursor: Option<ObjectId>,
         limit: usize,
     ) -> IotaResult<Vec<(ObjectId, Option<DynamicFieldInfo>)>> {
-        let Some(indexes) = &self.jsonrpc_indexes_store else {
-            return Err(IotaError::IndexStoreNotAvailable);
-        };
+        let indexes = self.require_jsonrpc_indexes()?;
         let epoch_store = self.load_epoch_store_one_call_per_task();
         let mut base_resolver = epoch_store
             .executor()
@@ -3958,9 +3944,7 @@ impl AuthorityState {
         owner: ObjectId,
         limit: usize,
     ) -> IotaResult<Vec<(ObjectId, Option<Object>)>> {
-        let Some(indexes) = &self.jsonrpc_indexes_store else {
-            return Err(IotaError::IndexStoreNotAvailable);
-        };
+        let indexes = self.require_jsonrpc_indexes()?;
         let object_store = self.get_object_store();
         indexes
             .get_dynamic_field_ids_iterator(owner, None)?
@@ -4086,13 +4070,28 @@ impl AuthorityState {
             .map_err(Into::into)
     }
 
-    fn get_indexes(&self) -> IotaResult<Arc<IndexStore>> {
-        match &self.jsonrpc_indexes_store {
+    fn get_indexes(&self) -> IotaResult<Arc<RpcIndexesStore>> {
+        match self.jsonrpc_indexes() {
             Some(i) => Ok(i.clone()),
             None => Err(IotaError::UnsupportedFeature {
                 error: "extended object indexing is not enabled on this server".into(),
             }),
         }
+    }
+
+    /// The index store when this node maintains the JSON-RPC group's tables,
+    /// `None` when it maintains no index at all or only the gRPC group's.
+    fn jsonrpc_indexes(&self) -> Option<&Arc<RpcIndexesStore>> {
+        self.rpc_indexes_store
+            .as_ref()
+            .filter(|store| store.serves(IndexGroup::JsonRpc))
+    }
+
+    /// [`Self::jsonrpc_indexes`] for the reads that cannot be served without
+    /// it.
+    fn require_jsonrpc_indexes(&self) -> IotaResult<&Arc<RpcIndexesStore>> {
+        self.jsonrpc_indexes()
+            .ok_or(IotaError::IndexStoreNotAvailable)
     }
 
     pub async fn get_transactions_for_tests(
@@ -4311,16 +4310,65 @@ impl AuthorityState {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<IotaEvent>> {
+        let stored_events = match query {
+            // A transaction's own events answer this as soon as it has
+            // executed, without waiting for its checkpoint to be indexed.
+            EventFilter::Transaction(digest) => {
+                Self::transaction_events_page(kv_store, digest, cursor, limit, descending).await?
+            }
+            query => {
+                self.indexed_events_page(kv_store, query, cursor, limit, descending)
+                    .await?
+            }
+        };
+
+        let epoch_store = self.load_epoch_store_one_call_per_task();
+        let backing_store = self.get_backing_package_store().as_ref();
+        let mut layout_resolver = epoch_store
+            .executor()
+            .type_layout_resolver(Box::new(backing_store));
+        let mut events = vec![];
+        for (e, tx_digest, event_seq, timestamp) in stored_events.into_iter() {
+            events.push(IotaEvent::try_from(
+                e.clone(),
+                tx_digest,
+                event_seq as u64,
+                timestamp,
+                layout_resolver.get_annotated_layout(&e.struct_tag)?,
+            )?)
+        }
+        Ok(events)
+    }
+
+    /// The page of events matching `query` after `cursor`, from the RPC
+    /// index; at most `limit`.
+    async fn indexed_events_page(
+        &self,
+        kv_store: &Arc<TransactionKeyValueStore>,
+        query: EventFilter,
+        cursor: Option<EventID>,
+        limit: usize,
+        descending: bool,
+    ) -> IotaResult<Vec<(Event, TransactionDigest, usize, Option<u64>)>> {
         let index_store = self.get_indexes()?;
 
         // Get the tx_num from tx_digest
         let (tx_num, event_num) = if let Some(cursor) = cursor.as_ref() {
-            let tx_seq = index_store.get_transaction_seq(&cursor.tx_digest)?.ok_or(
-                IotaError::TransactionNotFound {
+            let tx_seq = index_store
+                .lookup_digest(&cursor.tx_digest)?
+                .map(|(seq, _)| seq)
+                .ok_or(IotaError::TransactionNotFound {
                     digest: cursor.tx_digest,
-                },
-            )?;
-            (tx_seq, cursor.event_seq as usize)
+                })?;
+            let event = (tx_seq, cursor.event_seq as usize);
+            // The page below drops its first row as the cursor's own, which is
+            // only right for an event the index holds.
+            if index_store.event_timestamp(event)?.is_none() {
+                return Err(IotaError::TransactionEventsNotFound {
+                    digest: cursor.tx_digest,
+                });
+            }
+            event
         } else if descending {
             (u64::MAX, usize::MAX)
         } else {
@@ -4340,9 +4388,6 @@ impl AuthorityState {
                         ),
                     });
                 }
-            }
-            EventFilter::Transaction(digest) => {
-                index_store.events_by_transaction(&digest, tx_num, event_num, limit, descending)?
             }
             EventFilter::MoveModule { package, module } => {
                 let module_id = ModuleId::new(
@@ -4365,8 +4410,13 @@ impl AuthorityState {
             EventFilter::TimeRange {
                 start_time,
                 end_time,
-            } => index_store
-                .event_iterator(start_time, end_time, tx_num, event_num, limit, descending)?,
+            } => index_store.event_iterator(
+                start_time,
+                end_time,
+                cursor.is_some().then_some((tx_num, event_num)),
+                limit,
+                descending,
+            )?,
             EventFilter::MoveEventModule { package, module } => index_store
                 .events_by_move_event_module(
                     &ModuleId::new(
@@ -4379,7 +4429,9 @@ impl AuthorityState {
                     descending,
                 )?,
             // not using "_ =>" because we want to make sure we remember to add new variants here
-            EventFilter::Package(_)
+            // Answered by `query_events` from the transaction's own events.
+            EventFilter::Transaction(_)
+            | EventFilter::Package(_)
             | EventFilter::MoveEventField { .. }
             | EventFilter::Any(_)
             | EventFilter::And(_, _)
@@ -4414,10 +4466,9 @@ impl AuthorityState {
             .multi_get_events_by_tx_digests(&transaction_digests)
             .await?;
 
-        let events_map: HashMap<_, _> =
-            transaction_digests.iter().zip(events.into_iter()).collect();
+        let events_map: HashMap<_, _> = transaction_digests.iter().zip(events).collect();
 
-        let stored_events = event_keys
+        event_keys
             .into_iter()
             .map(|k| {
                 (
@@ -4432,28 +4483,82 @@ impl AuthorityState {
             .map(
                 |((_event_digest, tx_digest, event_seq, timestamp), event)| {
                     event
-                        .map(|e| (e, tx_digest, event_seq, timestamp))
+                        .map(|e| (e, tx_digest, event_seq, Some(timestamp)))
                         .ok_or(IotaError::TransactionEventsNotFound { digest: tx_digest })
                 },
             )
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()
+    }
 
-        let epoch_store = self.load_epoch_store_one_call_per_task();
-        let backing_store = self.get_backing_package_store().as_ref();
-        let mut layout_resolver = epoch_store
-            .executor()
-            .type_layout_resolver(Box::new(backing_store));
-        let mut events = vec![];
-        for (e, tx_digest, event_seq, timestamp) in stored_events.into_iter() {
-            events.push(IotaEvent::try_from(
-                e.clone(),
-                tx_digest,
-                event_seq as u64,
-                Some(timestamp),
-                layout_resolver.get_annotated_layout(&e.struct_tag)?,
-            )?)
+    /// The page of `digest`'s events after `cursor`, which must name one of
+    /// them, read from the transaction's stored events; at most `limit`.
+    async fn transaction_events_page(
+        kv_store: &Arc<TransactionKeyValueStore>,
+        digest: TransactionDigest,
+        cursor: Option<EventID>,
+        limit: usize,
+        descending: bool,
+    ) -> IotaResult<Vec<(Event, TransactionDigest, usize, Option<u64>)>> {
+        let effects = kv_store.get_fx_by_tx_digest(digest).await?;
+        let events = match effects.events_digest() {
+            None => Vec::new(),
+            Some(_) => {
+                kv_store
+                    .multi_get_events_by_tx_digests(&[digest])
+                    .await?
+                    .into_iter()
+                    .next()
+                    .flatten()
+                    .ok_or(IotaError::TransactionEventsNotFound { digest })?
+                    .0
+            }
+        };
+        let after = match cursor {
+            None => None,
+            Some(cursor) if cursor.tx_digest != digest => {
+                return Err(IotaError::UserInput {
+                    error: UserInputError::Unsupported(
+                        "the cursor must name an event of the transaction the filter names"
+                            .to_string(),
+                    ),
+                });
+            }
+            Some(cursor) if cursor.event_seq as usize >= events.len() => {
+                return Err(IotaError::TransactionEventsNotFound { digest });
+            }
+            Some(cursor) => Some(cursor.event_seq as usize),
+        };
+        let page: Vec<usize> = if descending {
+            (0..after.unwrap_or(events.len()))
+                .rev()
+                .take(limit)
+                .collect()
+        } else {
+            (after.map_or(0, |seq| seq + 1)..events.len())
+                .take(limit)
+                .collect()
+        };
+        if page.is_empty() {
+            return Ok(Vec::new());
         }
-        Ok(events)
+        // The checkpoint's time, as the index records it; none before the
+        // transaction is in a checkpoint.
+        let timestamp = match kv_store
+            .get_transaction_perpetual_checkpoint(digest)
+            .await?
+        {
+            Some(checkpoint) => Some(
+                kv_store
+                    .get_checkpoint_summary(checkpoint)
+                    .await?
+                    .timestamp_ms,
+            ),
+            None => None,
+        };
+        Ok(page
+            .into_iter()
+            .map(|seq| (events[seq].clone(), digest, seq, timestamp))
+            .collect())
     }
 
     pub fn insert_genesis_object(&self, object: Object) {
