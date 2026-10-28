@@ -249,15 +249,18 @@ fn main() {
     // Stop the node's background work before its runtimes go away. A failed
     // or cancelled startup never sets the node, so the waits are bounded.
     let exit_code = runtimes.iota_node.block_on(async {
+        // Both waits share one deadline, so the whole stop fits in
+        // `SHUTDOWN_TIMEOUT`.
+        let deadline = tokio::time::Instant::now() + SHUTDOWN_TIMEOUT;
         tokio::select! {
             // A reported startup failure decides the exit code even if the
             // wait for the node times out in the same poll.
             biased;
             exit_code = startup_failure.get() => exit_code,
-            node = tokio::time::timeout(SHUTDOWN_TIMEOUT, node_once_cell_shutdown.get()) => {
+            node = tokio::time::timeout_at(deadline, node_once_cell_shutdown.get()) => {
                 match node {
                     Ok(node) => {
-                        if tokio::time::timeout(SHUTDOWN_TIMEOUT, node.shutdown())
+                        if tokio::time::timeout_at(deadline, node.shutdown())
                             .await
                             .is_err()
                         {
