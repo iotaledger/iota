@@ -23,7 +23,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
+    enable-jsonrpc-api: true
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -116,7 +116,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
+    enable-jsonrpc-api: true
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -209,7 +209,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
+    enable-jsonrpc-api: true
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -302,7 +302,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
+    enable-jsonrpc-api: true
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -395,7 +395,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
+    enable-jsonrpc-api: true
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -488,7 +488,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
+    enable-jsonrpc-api: true
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -581,7 +581,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
+    enable-jsonrpc-api: true
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
