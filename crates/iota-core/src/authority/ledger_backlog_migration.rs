@@ -135,7 +135,10 @@ struct LedgerBacklogMigration {
 
 #[derive(Default)]
 struct MigrationCounts {
+    /// Rows moved into the bucket of their epoch.
     moved: usize,
+    /// Rows of an epoch outside the retention, or of no known epoch, left
+    /// behind and deleted with the flat tables.
     expired: usize,
 }
 
@@ -157,7 +160,9 @@ struct LedgerRanges {
 /// totals, and whether one has failed, which stops the others.
 struct ParallelProgress {
     logger: Mutex<ProgressLogger>,
+    /// The threads' [`MigrationCounts::moved`] so far.
     moved: AtomicUsize,
+    /// The threads' [`MigrationCounts::expired`] so far.
     expired: AtomicUsize,
     failed: AtomicBool,
     /// The runtime of the calling thread, since the database starts tasks on
