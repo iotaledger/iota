@@ -295,8 +295,8 @@ pub(super) fn attestation_record(
                 || attestation::computation_units(effects.gas_cost_summary(), gas_price);
             // The claim is only measurable against a body that ran.
             let executed_units = outcome.body_ran.then(charged_units);
-            // A refuted authentication wasted the run execution charged and
-            // the judge's re-run.
+            // A refuted authentication wasted both runs: the one execution
+            // charged for and the judge's re-run.
             let refuted_units = outcome
                 .refuted
                 .map(|rerun_units| charged_units().saturating_add(rerun_units));
