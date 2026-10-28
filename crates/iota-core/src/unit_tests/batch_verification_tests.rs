@@ -30,6 +30,7 @@ use iota_types::{
     },
     messages_checkpoint::{CheckpointContentsExt, CheckpointSummaryExt, SignedCheckpointSummary},
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
+    signature::VerifyParams,
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{
         CertifiedTransaction, SignedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
@@ -161,9 +162,7 @@ async fn test_async_verifier() {
         committee.clone(),
         BTreeSet::new(),
         metrics,
-        true, // accept_passkey_in_multisig
-        true, // additional_multisig_checks
-        true, // reject_partially_signed_mixed_ed25519_multisig
+        VerifyParams::new(true, true, true),
     ));
 
     let tasks: Vec<_> = (0..32)
@@ -301,9 +300,7 @@ async fn test_async_verifier_batch_with_invalid_cert_accepts_passkey_multisig() 
             BTreeSet::new(),
             2,
             SignatureVerifierMetrics::new(&Registry::new()),
-            accept_passkey_in_multisig,
-            true, // additional_multisig_checks
-            true, // reject_partially_signed_mixed_ed25519_multisig
+            VerifyParams::new(accept_passkey_in_multisig, true, true),
         )
     };
 
@@ -359,9 +356,7 @@ fn test_authority_capabilities_cache_hit_still_checks_signature() {
             committee.clone(),
             BTreeSet::from([signer]),
             SignatureVerifierMetrics::new(&Registry::new()),
-            true, // accept_passkey_in_multisig
-            true, // additional_multisig_checks
-            true, // reject_partially_signed_mixed_ed25519_multisig
+            VerifyParams::new(true, true, true),
         )
     };
 

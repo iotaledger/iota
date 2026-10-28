@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use crate::error::{IotaError, IotaResult};
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct VerifyParams {
     pub accept_passkey_in_multisig: bool,
     pub additional_multisig_checks: bool,

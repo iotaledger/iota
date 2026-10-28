@@ -20,6 +20,7 @@ use iota_types::{
     effects::{SignedTransactionEffects, TestEffectsBuilder},
     error::IotaError,
     messages_consensus::ConsensusTransactionKind,
+    signature::VerifyParams,
     transaction::{
         CallArg, CertifiedTransaction, SenderSignedTransactionAPI, SignedTransaction,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
@@ -55,7 +56,10 @@ pub async fn send_and_confirm_transaction(
     let committee = authority.clone_committee_for_testing();
     let certificate = CertifiedTransaction::new(transaction.into_message(), vec![vote], &committee)
         .unwrap()
-        .try_into_verified_for_testing(&committee, &Default::default())
+        .try_into_verified_for_testing(
+            &committee,
+            &VerifyParams::from_protocol_config(epoch_store.protocol_config()),
+        )
         .unwrap();
 
     // Submit the confirmation. *Now* execution actually happens, and it should fail
@@ -303,8 +307,11 @@ pub fn make_cert_with_large_committee(
         .collect();
 
     let cert = CertifiedTransaction::new(transaction.clone().into_data(), sigs, committee).unwrap();
-    cert.verify_signatures_authenticated(committee, &Default::default())
-        .unwrap();
+    cert.verify_signatures_authenticated(
+        committee,
+        &VerifyParams::from_protocol_config(&ProtocolConfig::get_for_max_version_UNSAFE()),
+    )
+    .unwrap();
     cert
 }
 
