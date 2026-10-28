@@ -1196,11 +1196,11 @@ fn transaction_fetch_response(
 /// the payloads read reach `byte_budget`; the last one may pass it. Takes at
 /// least one ref.
 ///
-/// Payloads at or above the GC round are taken from the DAG state. A run of
-/// refs below it is looked up in the store, in groups of as many refs as the
-/// budget left holds at the maximum entry size: they are whatever the
-/// requester asked for, so a scan over the range they span would read entries
-/// no one wants.
+/// Payloads above the evicted transaction round of their author are taken from
+/// the DAG state. A run of evicted refs is looked up in the store, in groups of
+/// as many refs as the budget left holds at the maximum entry size: they are
+/// whatever the requester asked for, so a scan over the range they span would
+/// read entries no one wants.
 fn read_requested_transactions(
     context: &Context,
     store: &dyn Store,
@@ -1211,12 +1211,13 @@ fn read_requested_transactions(
     let max_entry_bytes = max_serialized_transactions_entry_bytes(context);
     let mut payloads = Vec::new();
     let mut total_bytes = 0;
-    let below_gc: Vec<TransactionRef> = {
+    let evicted: Vec<TransactionRef> = {
         let dag_state = dag_state.read();
-        let gc_round = dag_state.gc_round_for_last_solid_commit();
+        let is_evicted = |transaction_ref: &TransactionRef| {
+            transaction_ref.round <= dag_state.evicted_transaction_round(transaction_ref.author)
+        };
         while let Some(&transaction_ref) = refs.front() {
-            if transaction_ref.round < gc_round
-                || (!payloads.is_empty() && total_bytes >= byte_budget)
+            if is_evicted(&transaction_ref) || (!payloads.is_empty() && total_bytes >= byte_budget)
             {
                 break;
             }
@@ -1234,18 +1235,18 @@ fn read_requested_transactions(
             Vec::new()
         } else {
             refs.iter()
-                .take_while(|transaction_ref| transaction_ref.round < gc_round)
+                .take_while(|transaction_ref| is_evicted(transaction_ref))
                 .copied()
                 .collect()
         }
     };
 
-    let mut below_gc = below_gc.as_slice();
-    while !below_gc.is_empty() && (payloads.is_empty() || total_bytes < byte_budget) {
+    let mut evicted = evicted.as_slice();
+    while !evicted.is_empty() && (payloads.is_empty() || total_bytes < byte_budget) {
         let count =
-            (byte_budget.saturating_sub(total_bytes) / max_entry_bytes).clamp(1, below_gc.len());
-        let (group, rest) = below_gc.split_at(count);
-        below_gc = rest;
+            (byte_budget.saturating_sub(total_bytes) / max_entry_bytes).clamp(1, evicted.len());
+        let (group, rest) = evicted.split_at(count);
+        evicted = rest;
         let generic_refs: Vec<GenericTransactionRef> =
             group.iter().copied().map(Into::into).collect();
         let stored = store.read_serialized_transactions(&generic_refs)?;
@@ -6650,16 +6651,16 @@ mod tests {
     }
 
     /// Refs are taken until their payloads reach the budget, whether the
-    /// payloads come from the store below the GC round or from the DAG state.
+    /// payloads are evicted and come from the store or come from the DAG state.
     #[rstest]
     #[tokio::test]
     async fn requested_transactions_are_read_up_to_the_budget(
-        #[values(false, true)] below_gc: bool,
+        #[values(false, true)] evicted: bool,
     ) {
         let blocks = two_rounds_of_payloads();
         let context = context_with_budget(usize::MAX);
         let store = Arc::new(MemStore::new());
-        let dag_state = if below_gc {
+        let dag_state = if evicted {
             write_payloads(&store, &blocks);
             dag_state_reading_from_the_store(&context, store.clone())
         } else {
