@@ -399,6 +399,7 @@ impl Scenario {
         self.objects.clear();
 
         self.store.iter_live_object_set().for_each(|o| {
+            let o = o.unwrap();
             let id = o.object.id();
             // genesis objects are not managed by Scenario, ignore them
             if reverse_id_map.contains_key(&id) {
@@ -584,6 +585,7 @@ async fn test_committed() {
             .store
             .perpetual_tables
             .iter_live_object_set()
+            .map(|entry| entry.unwrap())
             .filter(|entry| tracked_ids.contains(&entry.object_id()))
             .map(|entry| (entry.object_id(), entry.previous_transaction_checkpoint))
             .collect();

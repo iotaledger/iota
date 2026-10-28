@@ -79,7 +79,15 @@ pub trait StateRead: Send + Sync {
         owner: ObjectId,
         cursor: Option<ObjectId>,
         limit: usize,
-    ) -> StateReadResult<Vec<(ObjectId, DynamicFieldInfo)>>;
+    ) -> StateReadResult<Vec<(ObjectId, Option<DynamicFieldInfo>)>>;
+
+    /// The objects of `owner`'s first `limit` dynamic fields, each read once;
+    /// `None` for a field whose object is gone.
+    fn get_dynamic_field_objects(
+        &self,
+        owner: ObjectId,
+        limit: usize,
+    ) -> StateReadResult<Vec<(ObjectId, Option<Object>)>>;
 
     fn get_cache_reader(&self) -> &Arc<dyn ObjectCacheRead>;
 
@@ -256,8 +264,16 @@ impl StateRead for AuthorityState {
         owner: ObjectId,
         cursor: Option<ObjectId>,
         limit: usize,
-    ) -> StateReadResult<Vec<(ObjectId, DynamicFieldInfo)>> {
+    ) -> StateReadResult<Vec<(ObjectId, Option<DynamicFieldInfo>)>> {
         Ok(self.get_dynamic_fields(owner, cursor, limit)?)
+    }
+
+    fn get_dynamic_field_objects(
+        &self,
+        owner: ObjectId,
+        limit: usize,
+    ) -> StateReadResult<Vec<(ObjectId, Option<Object>)>> {
+        Ok(self.get_dynamic_field_objects(owner, limit)?)
     }
 
     fn get_cache_reader(&self) -> &Arc<dyn ObjectCacheRead> {
@@ -399,7 +415,7 @@ impl StateRead for AuthorityState {
         owner: Address,
         coin_type: TypeTag,
     ) -> StateReadResult<TotalBalance> {
-        let indexes = self.indexes.clone();
+        let indexes = self.jsonrpc_indexes_store.clone();
         Ok(tokio::task::spawn_blocking(move || {
             indexes
                 .as_ref()
@@ -414,7 +430,7 @@ impl StateRead for AuthorityState {
         &self,
         owner: Address,
     ) -> StateReadResult<Arc<HashMap<TypeTag, TotalBalance>>> {
-        let indexes = self.indexes.clone();
+        let indexes = self.jsonrpc_indexes_store.clone();
         Ok(tokio::task::spawn_blocking(move || {
             indexes
                 .as_ref()
