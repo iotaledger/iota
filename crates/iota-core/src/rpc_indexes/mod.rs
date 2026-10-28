@@ -225,12 +225,13 @@ pub(crate) fn highest_checkpoint_with_committed_outputs(
 /// itself: another process holds it, or the host refuses its files or the
 /// space to write. Wiping the database fixes none of these.
 fn is_host_error(error: &dyn std::fmt::Display) -> bool {
-    const HOST_ERRORS: [&str; 6] = [
+    const HOST_ERRORS: [&str; 7] = [
         "While lock file",
         "lock hold by current process",
         "Too many open files",
         "Permission denied",
         "No space left on device",
+        "Disk quota exceeded",
         "Read-only file system",
     ];
     let message = error.to_string();
