@@ -9,8 +9,11 @@ use hyper_util::server::graceful::GracefulConnection;
 use tracing::{debug, trace};
 
 use crate::{
-    ActiveConnections, BoxError, ConnectionId, connection_info::PeerConnectionGuard, fuse::Fuse,
+    ActiveConnections, BoxError, ConnectionId,
+    connection_info::PeerConnectionGuard,
+    fuse::Fuse,
     idle_timer::IdleTimer,
+    metrics::{CloseReason, ListenerMetrics},
 };
 
 /// How long a connection asked to close is given to shut down.
@@ -25,6 +28,7 @@ pub async fn serve_connection<IO, S, B, C>(
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
     max_connection_age: Option<Duration>,
     idle_timer: Option<IdleTimer>,
+    metrics: Option<ListenerMetrics>,
     on_connection_close: C,
 ) where
     B: http_body::Body + Send + 'static,
@@ -43,6 +47,7 @@ pub async fn serve_connection<IO, S, B, C>(
             graceful_shutdown_token,
             max_connection_age,
             idle_timer,
+            metrics,
         )
         .await;
     } else {
@@ -51,6 +56,7 @@ pub async fn serve_connection<IO, S, B, C>(
             graceful_shutdown_token,
             max_connection_age,
             idle_timer,
+            metrics,
         )
         .await;
     }
@@ -67,6 +73,7 @@ async fn serve_until_closed(
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
     max_connection_age: Option<Duration>,
     idle_timer: Option<IdleTimer>,
+    metrics: Option<ListenerMetrics>,
 ) {
     let mut sig = pin!(Fuse::new(graceful_shutdown_token.cancelled_owned()));
 
@@ -84,8 +91,11 @@ async fn serve_until_closed(
     tokio::pin!(force_close);
 
     macro_rules! request_shutdown {
-        () => {{
+        ($reason:expr) => {{
             shutdown_requested = true;
+            if let Some(metrics) = &metrics {
+                metrics.record_close($reason);
+            }
             conn.as_mut().graceful_shutdown();
             force_close.set(sleep_or_pending(Some(SHUTDOWN_GRACE_PERIOD)));
         }};
@@ -94,7 +104,7 @@ async fn serve_until_closed(
     loop {
         tokio::select! {
             _ = &mut sig, if !shutdown_requested => {
-                request_shutdown!();
+                request_shutdown!(CloseReason::Shutdown);
             }
             rv = &mut conn => {
                 if let Err(err) = rv {
@@ -104,11 +114,11 @@ async fn serve_until_closed(
             },
             _ = &mut idle, if !shutdown_requested => {
                 debug!("closing a connection that has been idle past its deadline");
-                request_shutdown!();
+                request_shutdown!(CloseReason::Idle);
             }
             _ = &mut sleep, if !shutdown_requested => {
                 debug!("closing a connection that has reached its maximum age");
-                request_shutdown!();
+                request_shutdown!(CloseReason::MaxAge);
             }
             _ = &mut force_close => {
                 debug!("dropping a connection that did not close when asked");
