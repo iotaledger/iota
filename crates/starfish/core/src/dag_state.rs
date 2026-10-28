@@ -1130,66 +1130,6 @@ impl DagState {
         Ok(transactions)
     }
 
-    /// Gets serialized transactions by checking cached recent transactions in
-    /// memory, then storage. An element is None when the corresponding
-    /// transaction is not found.
-    pub(crate) fn get_serialized_transactions(
-        &self,
-        transactions_refs: &[GenericTransactionRef],
-    ) -> Vec<Option<Bytes>> {
-        let mut transactions = vec![None; transactions_refs.len()];
-        let mut missing = Vec::new();
-
-        for (index, transactions_ref) in transactions_refs.iter().enumerate() {
-            if transactions_ref.round() == GENESIS_ROUND {
-                if let Some(transaction) = self
-                    .get_genesis_block(*transactions_ref)
-                    .map(|block| block.verified_transactions.clone())
-                {
-                    transactions[index] = Some(transaction.serialized().clone());
-                }
-                continue;
-            }
-            if let Some(transaction) = self.recent_transactions_by_authority
-                [transactions_ref.author()]
-            .get(transactions_ref)
-            {
-                transactions[index] = Some(transaction.serialized().clone());
-                continue;
-            }
-            if let Some(empty) = self.context.empty_transactions_for_ref(*transactions_ref) {
-                transactions[index] = Some(empty.serialized().clone());
-                continue;
-            }
-            missing.push((index, transactions_ref));
-        }
-
-        if missing.is_empty() {
-            return transactions;
-        }
-
-        let missing_refs = missing
-            .iter()
-            .map(|(_, block_ref)| **block_ref)
-            .collect::<Vec<_>>();
-        let store_results = self
-            .store
-            .read_serialized_transactions(&missing_refs)
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
-        self.context
-            .metrics
-            .node_metrics
-            .dag_state_store_read_count
-            .with_label_values(&["get_serialized_transactions"])
-            .inc();
-
-        for ((index, _), result) in missing.into_iter().zip(store_results) {
-            transactions[index] = result;
-        }
-
-        transactions
-    }
-
     /// Gets a block header by checking cached recent blocks then storage.
     /// Returns None when the block is not found.
     pub(crate) fn get_verified_block_header(
@@ -2908,6 +2848,28 @@ impl DagState {
     pub(crate) fn evicted_transaction_round(&self, authority_index: AuthorityIndex) -> Round {
         self.evicted_transaction_rounds[authority_index]
     }
+
+    /// Serialized payload of `transaction_ref` if it is available without
+    /// reading the store: genesis, empty, or among the recent transactions
+    /// held here.
+    pub(crate) fn get_serialized_transactions_in_memory(
+        &self,
+        transaction_ref: GenericTransactionRef,
+    ) -> Option<Bytes> {
+        if transaction_ref.round() == GENESIS_ROUND {
+            return self
+                .get_genesis_block(transaction_ref)
+                .map(|block| block.verified_transactions.serialized().clone());
+        }
+        if let Some(transactions) =
+            self.recent_transactions_by_authority[transaction_ref.author()].get(&transaction_ref)
+        {
+            return Some(transactions.serialized().clone());
+        }
+        self.context
+            .empty_transactions_for_ref(transaction_ref)
+            .map(|empty| empty.serialized().clone())
+    }
 }
 #[cfg(test)]
 mod test {
@@ -4209,7 +4171,9 @@ mod test {
             empty_header.transaction_ref()
         );
         assert_eq!(
-            dag_state.get_serialized_transactions(&[tx_ref])[0].as_ref(),
+            dag_state
+                .get_serialized_transactions_in_memory(tx_ref)
+                .as_ref(),
             Some(transactions.serialized())
         );
 

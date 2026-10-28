@@ -813,32 +813,19 @@ fn read_transaction_payloads(
     let mut evicted = BTreeSet::new();
     let mut payloads = BTreeMap::new();
     {
-        // Payloads not evicted are handed out as clones of buffers the DAG
-        // state already holds, so they cost no new memory. They are taken
-        // under the same lock as the evicted rounds, before eviction can drop
-        // them and send the read to the store with no budget.
+        // Payloads above the evicted round are clones of buffers the DAG state
+        // already holds, read under the same lock as the evicted rounds. One
+        // not in memory is not in the store either, so the store is not read.
         let dag_state = dag_state.read();
-        let mut cached = Vec::new();
         for transaction_ref in refs {
             if transaction_ref.round <= dag_state.evicted_transaction_round(transaction_ref.author)
             {
                 evicted.insert(*transaction_ref);
-            } else {
-                cached.push(*transaction_ref);
+            } else if let Some(payload) =
+                dag_state.get_serialized_transactions_in_memory((*transaction_ref).into())
+            {
+                payloads.insert(*transaction_ref, payload);
             }
-        }
-        if !cached.is_empty() {
-            let generic_refs: Vec<GenericTransactionRef> =
-                cached.iter().copied().map(Into::into).collect();
-            payloads.extend(
-                dag_state
-                    .get_serialized_transactions(&generic_refs)
-                    .into_iter()
-                    .zip(cached)
-                    .filter_map(|(payload, transaction_ref)| {
-                        payload.map(|payload| (transaction_ref, payload))
-                    }),
-            );
         }
     }
 
@@ -863,38 +850,39 @@ fn take_payload(
 /// Fails when this node lacks a payload of the first commit a fast commit-sync
 /// response serves, since a response not covering it lets the requester make
 /// no progress. A commit at or below the last solid commit has all its payloads
-/// here, so it is not looked up. Payloads not in memory are looked up in the
-/// store after the DAG state lock is released.
+/// here, so it is not looked up. Payloads above the evicted transaction round
+/// of their author are looked up in memory only, and the rest in the store
+/// after the DAG state lock is released.
 fn check_first_commit_payloads(
     store: &dyn Store,
     dag_state: &RwLock<DagState>,
     commit_index: CommitIndex,
     transaction_refs: &[TransactionRef],
 ) -> ConsensusResult<()> {
-    let not_in_memory: Vec<TransactionRef> = {
+    let evicted: Vec<TransactionRef> = {
         let dag_state = dag_state.read();
         if commit_index <= dag_state.last_solid_commit_index() {
             return Ok(());
         }
-        transaction_refs
-            .iter()
-            .copied()
-            .filter(|&transaction_ref| {
-                !dag_state.contains_transactions_in_memory(transaction_ref.into())
-            })
-            .collect()
+        let mut evicted = Vec::new();
+        for &transaction_ref in transaction_refs {
+            if dag_state.contains_transactions_in_memory(transaction_ref.into()) {
+                continue;
+            }
+            if transaction_ref.round > dag_state.evicted_transaction_round(transaction_ref.author) {
+                return Err(ConsensusError::TransactionsNotAvailable { transaction_ref });
+            }
+            evicted.push(transaction_ref);
+        }
+        evicted
     };
-    if not_in_memory.is_empty() {
+    if evicted.is_empty() {
         return Ok(());
     }
     let generic_refs: Vec<GenericTransactionRef> =
-        not_in_memory.iter().copied().map(Into::into).collect();
+        evicted.iter().copied().map(Into::into).collect();
     let stored = store.contains_transactions(&generic_refs)?;
-    match not_in_memory
-        .into_iter()
-        .zip(stored)
-        .find(|(_, stored)| !stored)
-    {
+    match evicted.into_iter().zip(stored).find(|(_, stored)| !stored) {
         Some((transaction_ref, _)) => {
             Err(ConsensusError::TransactionsNotAvailable { transaction_ref })
         }
@@ -6273,43 +6261,49 @@ mod tests {
     }
 
     /// A first commit is looked up only when it is past the last solid
-    /// commit, in memory first and then in the store, and fails when this node
-    /// lacks one of its payloads.
+    /// commit, and fails when this node lacks one of its payloads. Payloads
+    /// above the evicted transaction round are looked up in memory only, and
+    /// the rest in the store.
     #[tokio::test]
     async fn a_first_commit_missing_a_payload_is_not_served() {
-        let (context, _) = Context::new_for_test(4);
-        let context = Arc::new(context);
+        let context = context_with_budget(MAX_FETCH_RESPONSE_BYTES);
         let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let mut dag_builder = DagBuilder::new(context);
-        dag_builder.layers(1..=1).build();
-        dag_builder.persist_all_blocks(dag_state.clone());
-        let in_memory = dag_builder.block_headers(1..=1)[0].transaction_ref();
-        // Written to the store only, so the DAG state does not hold it.
-        let stored_blocks = two_rounds_of_payloads();
-        write_payloads(&store, &stored_blocks);
-        let in_store = stored_blocks[4].verified_block_header.transaction_ref();
-        assert!(
-            !dag_state
-                .read()
-                .contains_transactions_in_memory(in_store.into())
-        );
-        // A round neither the DAG state nor the store has anything at.
-        let unknown_ref = TransactionRef {
-            round: 3,
-            author: AuthorityIndex::new_for_test(0),
-            transactions_commitment: TransactionsCommitment::DEFAULT_FOR_TEST,
-        };
+        let blocks = two_rounds_of_payloads();
+        // Only the first round is written, so the second is missing.
+        write_payloads(&store, &blocks[..4]);
+        let dag_state = dag_state_reading_from_the_store(&context, store.clone());
+        let in_store = blocks[0].verified_block_header.transaction_ref();
+        let not_in_store = blocks[4].verified_block_header.transaction_ref();
+        // Above every evicted round: one payload added to the DAG state, and
+        // one written to the store only.
+        let [in_memory, store_only] = [0u8, 1].map(|author| {
+            let header =
+                VerifiedBlockHeader::new_for_test(TestBlockHeader::new(11, author).build());
+            CommitmentVerifiedTransactions::new_for_test(
+                &header,
+                vec![Transaction::new(vec![author; 64])],
+            )
+        });
+        let in_memory_ref = in_memory.transaction_ref();
+        let store_only_ref = store_only.transaction_ref();
+        dag_state
+            .write()
+            .add_transactions(in_memory, DataSource::Test);
+        store
+            .write(WriteBatch::default().transactions(vec![store_only]))
+            .unwrap();
         let check = |refs: &[TransactionRef]| {
             check_first_commit_payloads(store.as_ref(), &dag_state, 1, refs)
         };
 
-        assert!(check(&[in_memory, in_store]).is_ok());
-        assert!(matches!(
-            check(&[in_memory, in_store, unknown_ref]),
-            Err(ConsensusError::TransactionsNotAvailable { transaction_ref })
-                if transaction_ref == unknown_ref
-        ));
+        assert!(check(&[in_store, in_memory_ref]).is_ok());
+        for missing in [not_in_store, store_only_ref] {
+            assert!(matches!(
+                check(&[in_store, in_memory_ref, missing]),
+                Err(ConsensusError::TransactionsNotAvailable { transaction_ref })
+                    if transaction_ref == missing
+            ));
+        }
 
         // At or below the last solid commit every payload is here.
         let leader = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 0).build());
@@ -6321,7 +6315,7 @@ mod tests {
             commit_ref: CommitRef::new(1, CommitDigest::MIN),
             reputation_scores_desc: vec![],
         });
-        assert!(check(&[unknown_ref]).is_ok());
+        assert!(check(&[not_in_store, store_only_ref]).is_ok());
     }
 
     /// A payload not flushed yet is read from memory even after the last solid
