@@ -3957,7 +3957,9 @@ impl AuthorityState {
         owner: ObjectId,
         limit: usize,
     ) -> IotaResult<Vec<(ObjectId, Option<Object>)>> {
-        let indexes = self.require_jsonrpc_indexes()?;
+        let Some(indexes) = &self.jsonrpc_indexes_store else {
+            return Err(IotaError::IndexStoreNotAvailable);
+        };
         let object_store = self.get_object_store();
         indexes
             .get_dynamic_field_ids_iterator(owner, None)?
@@ -3975,9 +3977,6 @@ impl AuthorityState {
         name_type: TypeTag,
         name_bcs_bytes: &[u8],
     ) -> IotaResult<Option<ObjectId>> {
-        let Some(indexes) = &self.jsonrpc_indexes_store else {
-            return Err(IotaError::IndexStoreNotAvailable);
-        };
         let derive = |name_type: &TypeTag| {
             dynamic_field::derive_dynamic_field_id(owner, name_type, name_bcs_bytes).map_err(|e| {
                 IotaError::Unknown(format!(
@@ -3986,8 +3985,15 @@ impl AuthorityState {
             })
         };
 
+        // A field's id is derived from its parent and name, so the object
+        // store alone says whether it exists, as soon as the transaction that
+        // created it has executed.
         let dynamic_field_id = derive(&name_type)?;
-        if indexes.dynamic_field_exists(owner, dynamic_field_id)? {
+        if self
+            .get_object_store()
+            .try_get_object(&dynamic_field_id)?
+            .is_some()
+        {
             let wrapped_name = matches!(
                 &name_type,
                 TypeTag::Struct(tag) if DynamicFieldInfo::is_dynamic_object_field_wrapper(tag)
@@ -4000,16 +4006,12 @@ impl AuthorityState {
             return self.dynamic_field_value_id(dynamic_field_id);
         }
 
-        // A dynamic object field is indexed under its `Field` wrapper, which
-        // stores the id of the value object the caller is after.
+        // A dynamic object field is stored under its `Field` wrapper, which
+        // holds the id of the value object the caller is after.
         let wrapper_type = TypeTag::Struct(Box::new(
             DynamicFieldInfo::dynamic_object_field_wrapper(name_type),
         ));
-        let wrapper_id = derive(&wrapper_type)?;
-        if !indexes.dynamic_field_exists(owner, wrapper_id)? {
-            return Ok(None);
-        }
-        self.dynamic_field_value_id(wrapper_id)
+        self.dynamic_field_value_id(derive(&wrapper_type)?)
     }
 
     /// The id a dynamic-field lookup resolves `field_id` to: the value
