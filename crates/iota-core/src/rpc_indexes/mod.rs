@@ -221,10 +221,10 @@ pub(crate) fn highest_checkpoint_with_committed_outputs(
     }
 }
 
-/// Whether an open failed for a reason outside the database itself: another
-/// process holds it, or the host refuses its files or the space to write.
-/// Wiping the database fixes none of these.
-fn is_host_error(error: &IotaError) -> bool {
+/// Whether an open or a replay failed for a reason outside the database
+/// itself: another process holds it, or the host refuses its files or the
+/// space to write. Wiping the database fixes none of these.
+fn is_host_error(error: &dyn std::fmt::Display) -> bool {
     const HOST_ERRORS: [&str; 6] = [
         "While lock file",
         "lock hold by current process",
@@ -804,8 +804,9 @@ impl RpcIndexesStore {
 
     /// Indexes the executed checkpoints `lost` again, through a store opened
     /// on `opened` for the purpose, and returns the database reopened. Returns
-    /// `None`, for a rebuild, when the replay fails short of a shutdown, as
-    /// when the data of a checkpoint is gone.
+    /// `None`, for a rebuild, when the replay fails for a reason a rebuild
+    /// fixes, as when the data of a checkpoint is gone; fails on a shutdown and
+    /// on an error of the host, which keeps the database.
     async fn replay_lost_checkpoints(
         opened: OpenedIndexDb,
         lost: RangeInclusive<CheckpointSequenceNumber>,
@@ -855,6 +856,12 @@ impl RpcIndexesStore {
                 .map(Some)
                 .map_err(StorageError::custom),
             Err(e) if is_cancelled(&e) => Err(e),
+            Err(e) if is_host_error(&e) => Err(StorageError::custom(format!(
+                "unable to index the checkpoints {}..={} again: {e}; a rebuild would not help, \
+                 so the database is kept",
+                lost.start(),
+                lost.end()
+            ))),
             Err(e) => {
                 warn!(
                     "unable to index the checkpoints {}..={} again, rebuilding the RPC index: {e}",
