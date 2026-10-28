@@ -36,7 +36,7 @@ use iota_types::{
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     layout_resolver::LayoutResolver,
     object::{Object, bounded_visitor::BoundedVisitor},
-    storage::{DynamicFieldKey, ObjectStore},
+    storage::{DynamicFieldKey, ObjectKey, ObjectStore},
 };
 use itertools::Itertools;
 use move_core_types::{annotated_value as A, language_storage::ModuleId};
@@ -921,24 +921,42 @@ impl RpcIndexesStore {
         if limit == 0 {
             return Ok(results);
         }
-        for item in self.owner_iter(owner, cursor_key.as_ref(), filter)? {
-            let (key, info) = item?;
-            if Some(key.object_id) == cursor {
-                continue;
+        let mut rows = self.owner_iter(owner, cursor_key.as_ref(), filter)?;
+        loop {
+            // The rows the page still needs, then their coins in one read.
+            let mut batch = Vec::new();
+            while batch.len() < limit - results.len() {
+                let Some(row) = rows.next() else {
+                    break;
+                };
+                let (key, info) = row?;
+                if Some(key.object_id) != cursor {
+                    batch.push((key, info));
+                }
             }
-            let Some(object) = object_store.try_get_object_by_key(&key.object_id, info.version)?
-            else {
-                continue;
-            };
-            let Some(coin) = CoinInfo::from_object(&object) else {
-                continue;
-            };
-            // A row the coin filters yield is a `Coin<T>`, so the inner type
-            // is always there.
-            let Some(coin_type) = info.object_type.opt_coin_type().cloned() else {
-                continue;
-            };
-            results.push((coin_type, key.object_id, coin));
+            if batch.is_empty() {
+                break;
+            }
+            let keys: Vec<ObjectKey> = batch
+                .iter()
+                .map(|(key, info)| ObjectKey(key.object_id, info.version))
+                .collect();
+            let objects = object_store.try_multi_get_objects_by_key(&keys)?;
+            for ((key, info), object) in batch.iter().zip(objects) {
+                // Gone since the row was read; the next rows fill its place.
+                let Some(object) = object else {
+                    continue;
+                };
+                let Some(coin) = CoinInfo::from_object(&object) else {
+                    continue;
+                };
+                // A row the coin filters yield is a `Coin<T>`, so the inner
+                // type is always there.
+                let Some(coin_type) = info.object_type.opt_coin_type().cloned() else {
+                    continue;
+                };
+                results.push((coin_type, key.object_id, coin));
+            }
             if results.len() >= limit {
                 break;
             }
