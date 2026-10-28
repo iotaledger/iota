@@ -306,11 +306,13 @@ impl IndexStoreTables {
         ))
     }
 
-    /// Opens the tables with bulk-ingestion options (WAL disabled, unordered
-    /// writes) for a full rebuild, deleting anything left under `path` first.
-    /// Writes must be flushed before the database closes, and serving queries
-    /// requires a reopen with default options.
-    fn open_for_bulk_ingestion(path: PathBuf) -> Self {
+    /// Opens the tables with bulk-ingestion options (unordered writes, no
+    /// automatic compaction) for a full rebuild, deleting anything left under
+    /// `path` first, and returns the column-family options every table is
+    /// open with, for the SST files written for them. Writes must be flushed
+    /// before the database closes, and serving queries requires a reopen with
+    /// default options.
+    fn open_for_bulk_ingestion(path: PathBuf) -> (Self, rocksdb::Options) {
         // Leftover column families would be opened with default options, and
         // `safe_drop_db` can leave files RocksDB does not recognize.
         if path.exists() && path.read_dir().is_ok_and(|mut dir| dir.next().is_some()) {
@@ -320,12 +322,13 @@ impl IndexStoreTables {
         }
         let bulk_options = bulk_ingestion_options();
         let table_config = bulk_options.table_config(Self::describe_tables().into_keys());
-        Self::open_tables_read_write(
+        let tables = Self::open_tables_read_write(
             path,
             MetricConf::new("rpc-index"),
             Some(bulk_options.db_options),
             Some(table_config),
-        )
+        );
+        (tables, bulk_options.column_family_options.options)
     }
 
     /// Seeds the `meta` row on the first open of an empty database, so a
@@ -712,7 +715,7 @@ impl RpcIndexesStore {
         }
         if needs_initialization {
             rebuild_gauge.set(1);
-            let init_tables = {
+            let (init_tables, table_options) = {
                 drop(opened);
                 // `DB::destroy` fails on a database it cannot parse, the very
                 // state a rebuild recovers from.
@@ -743,7 +746,12 @@ impl RpcIndexesStore {
                 let path = path.clone();
                 move || {
                     let mut init_tables = init_tables;
-                    let initialized = SstFiles::new(&path).and_then(|sst_files| {
+                    let initialized = SstFiles::new(
+                        &path,
+                        &table_options,
+                        crate::par_index_live_object_set::TASKS,
+                    )
+                    .and_then(|sst_files| {
                         init_tables.init(
                             &authority_store,
                             &checkpoint_store,

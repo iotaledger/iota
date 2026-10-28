@@ -110,7 +110,8 @@ pub(super) const BULK_INGESTION_SST_DIR: &str = "bulk_ingestion";
 /// more buffers than partitions indexed at once.
 pub(super) struct SstFiles {
     dir: PathBuf,
-    /// The bulk ingestion options the tables are open with.
+    /// The options the tables are open with, compressing with LZ4 on every
+    /// level.
     options: typed_store::rocksdb::Options,
     /// How much memory one set of buffers may take before it is written out.
     buffer_limit: usize,
@@ -123,19 +124,31 @@ pub(super) struct SstFiles {
 }
 
 impl SstFiles {
-    /// For a bulk ingestion into the database at `db_path`, with as many
-    /// partitions at once as the live object set scan runs.
-    pub(super) fn new(db_path: &Path) -> Result<Self, StorageError> {
+    /// For a bulk ingestion into the database at `db_path`, whose tables are
+    /// open with `table_options`, by `partitions_at_once` partitions indexing
+    /// at the same time, which share the memory budget.
+    pub(super) fn new(
+        db_path: &Path,
+        table_options: &typed_store::rocksdb::Options,
+        partitions_at_once: usize,
+    ) -> Result<Self, StorageError> {
         Self::with_buffer_limit(
             db_path,
-            bulk_ingestion_options().sst_buffer_limit(crate::par_index_live_object_set::TASKS),
+            table_options,
+            bulk_ingestion_options().sst_buffer_limit(partitions_at_once),
         )
     }
 
     pub(super) fn with_buffer_limit(
         db_path: &Path,
+        table_options: &typed_store::rocksdb::Options,
         buffer_limit: usize,
     ) -> Result<Self, StorageError> {
+        // Ingested files land in level 0 and are rewritten by compaction, so
+        // they only need to be quick to write. The SST writer would use the
+        // tables' Zstd for the bottommost level.
+        let mut options = table_options.clone();
+        options.set_bottommost_compression_type(typed_store::rocksdb::DBCompressionType::Lz4);
         let dir = db_path.join(BULK_INGESTION_SST_DIR);
         std::fs::create_dir_all(&dir).map_err(|e| {
             StorageError::custom(format!(
@@ -144,7 +157,7 @@ impl SstFiles {
         })?;
         Ok(Self {
             dir,
-            options: bulk_ingestion_options().column_family_options.options,
+            options,
             buffer_limit,
             next_file: AtomicUsize::new(0),
             idle: Mutex::new(Vec::new()),
@@ -360,8 +373,9 @@ impl RpcIndexesRestorer {
     /// node opening the store of an interrupted restore rebuilds it.
     pub fn open(path: PathBuf, groups: BTreeSet<IndexGroup>) -> Result<Self, StorageError> {
         // After the open, which clears a database directory it finds in use.
-        let tables = IndexStoreTables::open_for_bulk_ingestion(path.clone());
-        let sst_files = SstFiles::new(&path)?;
+        let (tables, table_options) = IndexStoreTables::open_for_bulk_ingestion(path.clone());
+        // The restore indexes one partition at a time.
+        let sst_files = SstFiles::new(&path, &table_options, 1)?;
         tables.meta.insert(
             &(),
             &MetadataInfo {

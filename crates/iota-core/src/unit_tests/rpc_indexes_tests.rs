@@ -241,8 +241,9 @@ async fn test_rebuild_is_not_adopted_before_the_flush() {
     let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
 
     let index_dir = dir.path().join("indexes");
-    let mut tables = super::IndexStoreTables::open_for_bulk_ingestion(index_dir.clone());
-    let sst_files = super::SstFiles::with_buffer_limit(&index_dir, 1024).unwrap();
+    let (mut tables, table_options) =
+        super::IndexStoreTables::open_for_bulk_ingestion(index_dir.clone());
+    let sst_files = super::SstFiles::with_buffer_limit(&index_dir, &table_options, 1024).unwrap();
     tables
         .init(
             &authority_store,
@@ -2700,9 +2701,9 @@ async fn test_restore_partitions_share_their_buffers() {
     }
 }
 
-/// A rebuild whose partitions write their rows out after every object, into
-/// many SST files that overlap in key range, builds the same tables as one
-/// writing a single file per table and partition, and leaves no files behind.
+/// A rebuild whose partitions write their rows out every few rows, into many
+/// SST files that overlap in key range, builds the same tables as one writing
+/// a single file per table and partition, and leaves no files behind.
 #[tokio::test]
 async fn test_rebuild_from_many_small_sst_files() {
     let dir = iota_common::tempdir();
@@ -2734,11 +2735,15 @@ async fn test_rebuild_from_many_small_sst_files() {
     let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
 
     let mut built = Vec::new();
-    for (name, buffer_limit) in [("one_file", usize::MAX), ("small_files", 1)] {
+    // A few rows of any table, so a file spans a range of keys.
+    const FEW_ROWS: usize = 600;
+    for (name, buffer_limit) in [("one_file", usize::MAX), ("small_files", FEW_ROWS)] {
         let index_dir = dir.path().join(name);
         let sst_dir = index_dir.join(super::live_scan::BULK_INGESTION_SST_DIR);
-        let mut tables = super::IndexStoreTables::open_for_bulk_ingestion(index_dir.clone());
-        let sst_files = super::SstFiles::with_buffer_limit(&index_dir, buffer_limit).unwrap();
+        let (mut tables, table_options) =
+            super::IndexStoreTables::open_for_bulk_ingestion(index_dir.clone());
+        let sst_files =
+            super::SstFiles::with_buffer_limit(&index_dir, &table_options, buffer_limit).unwrap();
         tables
             .init(
                 &authority_store,
@@ -2752,6 +2757,28 @@ async fn test_rebuild_from_many_small_sst_files() {
             !sst_dir.exists(),
             "the rebuild must remove its SST file directory once ingested"
         );
+        if buffer_limit == FEW_ROWS {
+            // Automatic compaction is off, so the ingested files are still
+            // apart.
+            let owner_files: Vec<_> = tables
+                .owner
+                .db
+                .live_files()
+                .unwrap()
+                .into_iter()
+                .filter(|file| file.column_family_name == "owner")
+                .collect();
+            let overlap = owner_files.iter().enumerate().any(|(i, a)| {
+                owner_files[i + 1..]
+                    .iter()
+                    .any(|b| a.start_key <= b.end_key && b.start_key <= a.end_key)
+            });
+            assert!(
+                overlap,
+                "the owner table's {} files must overlap in key range",
+                owner_files.len()
+            );
+        }
         built.push((
             tables
                 .owner
@@ -3817,7 +3844,7 @@ async fn test_bulk_ingestion_open_clears_leftover_files() {
     std::fs::create_dir_all(&index_dir).unwrap();
     std::fs::write(index_dir.join("stray"), b"leftover").unwrap();
 
-    let tables = super::IndexStoreTables::open_for_bulk_ingestion(index_dir.clone());
+    let (tables, _) = super::IndexStoreTables::open_for_bulk_ingestion(index_dir.clone());
     assert_eq!(tables.meta.get(&()).unwrap(), None);
     assert!(!index_dir.join("stray").exists());
 }
