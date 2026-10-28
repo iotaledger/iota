@@ -1564,14 +1564,14 @@ mod tests {
     #[test]
     fn fullnode_scoped_override_without_a_fullnode_fails() {
         let config_override: NodeConfigOverride =
-            "fullnode:enable-index-processing=false".parse().unwrap();
+            "fullnode:enable-jsonrpc-api=false".parse().unwrap();
         assert!(
             check_fullnode_override_scopes(std::slice::from_ref(&config_override), false).is_err()
         );
         check_fullnode_override_scopes(&[config_override], true).unwrap();
 
         // `all:` reaches the validators, so it stays allowed either way.
-        let all_scoped: NodeConfigOverride = "all:enable-index-processing=false".parse().unwrap();
+        let all_scoped: NodeConfigOverride = "all:enable-jsonrpc-api=false".parse().unwrap();
         check_fullnode_override_scopes(std::slice::from_ref(&all_scoped), false).unwrap();
     }
 

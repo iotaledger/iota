@@ -576,12 +576,12 @@ mod tests {
 
     #[test]
     fn parse_scopes() {
-        let all: NodeConfigOverride = "enable-index-processing=false".parse().unwrap();
+        let all: NodeConfigOverride = "enable-jsonrpc-api=false".parse().unwrap();
         assert_eq!(all.scope, OverrideScope::All);
-        assert_eq!(all.path, ["enable-index-processing"]);
+        assert_eq!(all.path, ["enable-jsonrpc-api"]);
         assert_eq!(all.value, Value::Bool(false));
 
-        let all: NodeConfigOverride = "all:enable-index-processing=false".parse().unwrap();
+        let all: NodeConfigOverride = "all:enable-jsonrpc-api=false".parse().unwrap();
         assert_eq!(all.scope, OverrideScope::All);
 
         let fullnode: NodeConfigOverride =
@@ -720,9 +720,8 @@ mod tests {
 
     #[test]
     fn parse_trims_whitespace_and_reads_empty_value_as_null() {
-        let config_override: NodeConfigOverride =
-            " enable-index-processing = false ".parse().unwrap();
-        assert_eq!(config_override.path, ["enable-index-processing"]);
+        let config_override: NodeConfigOverride = " enable-jsonrpc-api = false ".parse().unwrap();
+        assert_eq!(config_override.path, ["enable-jsonrpc-api"]);
         assert_eq!(config_override.value, Value::Bool(false));
 
         let config_override: NodeConfigOverride = "metrics=".parse().unwrap();
@@ -736,13 +735,12 @@ mod tests {
             // pins that the round trip preserves it.
             config.supported_protocol_versions = Some(SupportedProtocolVersions::SYSTEM_DEFAULT);
             let before = debug_with_keys_loaded(&config);
-            let enable_index_processing = config.enable_index_processing;
+            let enable_jsonrpc_api = config.enable_jsonrpc_api;
 
-            let config_override: NodeConfigOverride =
-                "enable-index-processing=false".parse().unwrap();
+            let config_override: NodeConfigOverride = "enable-jsonrpc-api=false".parse().unwrap();
             config_override.apply_to(&mut config).unwrap();
             // Undo the single intended change. Nothing else may have moved.
-            config.enable_index_processing = enable_index_processing;
+            config.enable_jsonrpc_api = enable_jsonrpc_api;
 
             assert_eq!(debug_with_keys_loaded(&config), before);
         }
@@ -1115,7 +1113,7 @@ mod tests {
         // and the error names the override at fault.
         let mut config = test_config();
         let before = debug_with_keys_loaded(&config);
-        let overrides: Vec<NodeConfigOverride> = ["enable-index-processing=false", "not-a-field=1"]
+        let overrides: Vec<NodeConfigOverride> = ["enable-jsonrpc-api=false", "not-a-field=1"]
             .iter()
             .map(|input| input.parse().unwrap())
             .collect();
@@ -1153,17 +1151,15 @@ mod tests {
         // An override that nests under a field an earlier override set to a
         // scalar is blamed itself, not the earlier valid one.
         let mut config = test_config();
-        let overrides: Vec<NodeConfigOverride> = [
-            "enable-index-processing=false",
-            "enable-index-processing.foo=1",
-        ]
-        .iter()
-        .map(|input| input.parse().unwrap())
-        .collect();
+        let overrides: Vec<NodeConfigOverride> =
+            ["enable-jsonrpc-api=false", "enable-jsonrpc-api.foo=1"]
+                .iter()
+                .map(|input| input.parse().unwrap())
+                .collect();
         let err = apply_node_config_overrides(&overrides, &mut config)
             .unwrap_err()
             .to_string();
-        assert!(err.contains("all:enable-index-processing.foo"), "{err}");
+        assert!(err.contains("all:enable-jsonrpc-api.foo"), "{err}");
     }
 
     #[test]
@@ -1331,8 +1327,8 @@ mod tests {
             ["p2p-config.seed-peers", "p2p-config.anemo-config"]
         );
 
-        let config_override: NodeConfigOverride = "enable-index-processing=false".parse().unwrap();
-        assert_eq!(config_override.field_paths(), ["enable-index-processing"]);
+        let config_override: NodeConfigOverride = "enable-jsonrpc-api=false".parse().unwrap();
+        assert_eq!(config_override.field_paths(), ["enable-jsonrpc-api"]);
 
         // An empty mapping still names the section itself.
         let config_override: NodeConfigOverride = "metrics={}".parse().unwrap();
