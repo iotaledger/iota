@@ -329,7 +329,6 @@ impl RpcIndexesStore {
         let cursor = cursor
             .map(|cursor| {
                 self.lookup_digest(&cursor)?
-                    .map(|(seq, _)| seq)
                     .ok_or(IotaError::TransactionNotFound { digest: cursor })
             })
             .transpose()?;

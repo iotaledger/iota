@@ -87,8 +87,8 @@ pub(crate) fn validate_get_transaction_requests(
 ///     - `events.events.json_contents` - the JSON-encoded contents of the event
 ///
 /// ## Timing Fields
-/// Both come from the gRPC indexes. On a node that runs without them, the
-/// request fails with a `FAILED_PRECONDITION` error; narrow the read mask.
+/// Both are read from the ledger, so a node without the gRPC indexes serves
+/// them too.
 /// - `checkpoint` - the checkpoint that included the transaction
 /// - `timestamp` - the timestamp of the checkpoint that included the transaction
 ///

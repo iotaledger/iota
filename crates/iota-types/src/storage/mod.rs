@@ -27,7 +27,7 @@ pub use object_store_trait::ObjectStore;
 pub use read_store::{
     AccountOwnedObjectInfo, CoinInfo, DynamicFieldIteratorItem, DynamicFieldKey, EpochInfo,
     EpochInfoV1Entry, EpochInfoV2, OwnedObjectCursor, OwnedObjectIteratorItem, PackageVersionInfo,
-    PackageVersionIteratorItem, PackageVersionKey, ReadStore, TransactionInfo,
+    PackageVersionIteratorItem, PackageVersionKey, ReadStore,
 };
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
