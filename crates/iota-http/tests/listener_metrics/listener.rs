@@ -320,6 +320,32 @@ async fn a_connection_refused_by_a_full_listener_is_counted() {
 }
 
 #[tokio::test]
+async fn a_connection_refused_for_its_client_ip_is_counted() {
+    let (reader, metrics) = setup();
+    let addr = serve(
+        Config::default().max_connections_per_client_ip(NonZeroUsize::MIN),
+        &metrics,
+        ok_app(),
+    );
+
+    let _first = TcpStream::connect(addr).await.unwrap();
+    wait_until("the first connection to be counted", || {
+        reader.value("inbound_connections", &[]) == 1.0
+    })
+    .await;
+    let _second = TcpStream::connect(addr).await.unwrap();
+
+    wait_until("the second connection to be refused", || {
+        reader.value(
+            "inbound_connections_refused",
+            &[("reason", "client_ip_limit")],
+        ) == 1.0
+    })
+    .await;
+    assert_eq!(reader.value("inbound_connections_accepted", &[]), 2.0);
+}
+
+#[tokio::test]
 async fn a_connection_closed_for_being_idle_is_counted() {
     let (reader, metrics) = setup();
     let addr = serve(
