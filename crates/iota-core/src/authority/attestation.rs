@@ -313,10 +313,10 @@ pub(super) fn attestation_record(
 
 /// Cuts each attestor's score by the squared units its refuted attestations
 /// wasted, relative to `max_fault_units`: a fault of that size takes the
-/// whole score, a smaller one the square of its fraction, and the sum
-/// saturates at zero. The totals are keyed by consensus committee index;
-/// `scores` and `committee_members` follow Move's `committee_members` order,
-/// where the cut must land.
+/// whole score, a smaller one the square of its fraction; the cuts add up
+/// and the score floors at zero. The totals are keyed by consensus committee
+/// index; `scores` and `committee_members` follow Move's `committee_members`
+/// order, where the cut must land.
 ///
 /// # Panics
 ///
