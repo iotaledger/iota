@@ -202,7 +202,8 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<BlockBundleStream>;
 
     /// Handles the request to fetch block headers by references from the peer.
-    /// Headers asked for by commit sync are read as the stream is polled.
+    /// Headers asked for by commit sync are read one response message at a
+    /// time, as the messages are sent.
     async fn handle_fetch_headers(
         &self,
         peer: AuthorityIndex,
@@ -237,7 +238,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
 
     /// Handles the request to fetch transactions by references from the peer.
     /// Results are truncated to the per-fetch transaction count cap, and are
-    /// read as the stream is polled.
+    /// read one response message at a time, as the messages are sent.
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
