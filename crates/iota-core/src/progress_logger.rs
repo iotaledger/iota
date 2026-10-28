@@ -13,6 +13,10 @@ pub(crate) const PROGRESS_REPORT_INTERVAL: Duration = Duration::from_secs(1);
 /// Cap on a reported time left, so a stalled pass cannot overflow `Duration`.
 const LONGEST_REPORTED_WAIT: f64 = u32::MAX as f64;
 
+/// Cap on a fraction measured by position, which is only an estimate, so that
+/// a pass short of its end is not shown as done.
+const MOST_REPORTED_FRACTION: f64 = 0.999;
+
 /// Writes a progress line every [`PROGRESS_REPORT_INTERVAL`] while a pass walks
 /// a table: rows done, rate, and estimated time left.
 ///
@@ -28,6 +32,11 @@ pub(crate) struct ProgressLogger {
     step: &'static str,
     total: u64,
     done: u64,
+    /// Where the pass stood when this logger was built and where it stands
+    /// now, as a fraction of its whole work, for a pass that can tell, such
+    /// as by its place in a key space. Measured that way, the progress lines
+    /// need no `total`.
+    position: Option<(f64, f64)>,
     started: Instant,
     last_line: Instant,
     /// Whether the opening line has been written. Held off until the step finds
@@ -43,6 +52,7 @@ impl ProgressLogger {
             step,
             total,
             done: 0,
+            position: None,
             started: now,
             last_line: now,
             announced: false,
@@ -52,6 +62,22 @@ impl ProgressLogger {
     /// The step this logger reports on.
     pub(crate) fn step(&self) -> &'static str {
         self.step
+    }
+
+    /// Measures progress by the pass's place in its work from now on:
+    /// `start` is where it stood when this logger was built, from 0 to 1.
+    pub(crate) fn measured_by_position(mut self, start: f64) -> Self {
+        let start = start.clamp(0.0, 1.0);
+        self.position = Some((start, start));
+        self
+    }
+
+    /// Records where the pass now stands, for a logger
+    /// [`Self::measured_by_position`].
+    pub(crate) fn set_position(&mut self, now: f64) {
+        if let Some((start, _)) = self.position {
+            self.position = Some((start, now.clamp(start, 1.0)));
+        }
     }
 
     /// Counts `rows` as done, writing a line if the last one is a second old.
@@ -95,18 +121,27 @@ impl ProgressLogger {
 
     fn write_line(&mut self) {
         let elapsed = self.started.elapsed();
-        let fraction = if self.total <= self.done {
-            0.0
-        } else {
-            (self.done as f64 / self.total as f64).min(1.0)
-        };
+        let (fraction, total) = self.measure();
         info!(
             "{}",
-            progress_line(
-                self.pass, self.step, fraction, self.done, self.total, elapsed,
-            )
+            progress_line(self.pass, self.step, fraction, self.done, total, elapsed)
         );
         self.last_line = Instant::now();
+    }
+
+    /// The fraction done and the total a progress line reports.
+    fn measure(&self) -> (f64, u64) {
+        match self.position {
+            // The share of what was left when this logger was built, so that
+            // the rate and time left cover this run only, also after a restart.
+            Some((start, now)) if now > start && start < 1.0 => {
+                let fraction = ((now - start) / (1.0 - start)).min(MOST_REPORTED_FRACTION);
+                (fraction, (self.done as f64 / fraction) as u64)
+            }
+            Some(_) => (0.0, 0),
+            None if self.total <= self.done => (0.0, self.total),
+            None => ((self.done as f64 / self.total as f64).min(1.0), self.total),
+        }
     }
 }
 
@@ -187,6 +222,21 @@ pub(crate) fn format_count(count: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A pass measured by position reports the share of what was left when it
+    /// started, and the total that share extrapolates to, however few rows a
+    /// key estimate counted.
+    #[test]
+    fn a_resumed_pass_measured_by_position_reports_its_own_share() {
+        let mut logger = ProgressLogger::new("pass", "rows", 0).measured_by_position(0.5);
+        assert_eq!(logger.measure(), (0.0, 0));
+
+        logger.done = 1_000;
+        logger.set_position(0.75);
+        let (fraction, total) = logger.measure();
+        assert!((fraction - 0.5).abs() < 1e-9, "{fraction}");
+        assert_eq!(total, 2_000);
+    }
 
     /// Pins the format of a progress line, which every pass shares.
     #[test]
