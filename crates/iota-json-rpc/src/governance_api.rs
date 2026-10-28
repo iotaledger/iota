@@ -16,8 +16,9 @@ use iota_json_rpc_types::{
     IotaSystemStateSummaryV1 as IotaSystemStateSummaryV1Schema, Stake, StakeStatus,
     TimelockedStake, ValidatorApy, ValidatorApys,
 };
-use iota_metrics::spawn_monitored_task;
+use iota_metrics::{spawn_monitored_blocking, spawn_monitored_task};
 use iota_open_rpc::Module;
+use iota_sdk_move_types::iota_framework::object::ID;
 use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
     MoveTypeTagTrait,
@@ -25,7 +26,6 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, get_dynamic_field_from_store},
     error::{IotaError, UserInputError},
     governance::StakedIota,
-    id::ID,
     iota_serde::BigInt,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate, get_validator_from_table,
@@ -38,6 +38,7 @@ use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};
 use serde::{Serialize, de::DeserializeOwned};
 use statrs::statistics::{Data, Median};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tracing::{info, instrument};
 
 use crate::{
@@ -49,21 +50,43 @@ use crate::{
 
 type ValidatorTable = (Address, ObjectId, ObjectId, u64, bool);
 
+/// Maximum number of stake reads that run at once. Each one reads every object
+/// the address owns on a thread of the shared blocking pool.
+const MAX_CONCURRENT_STAKE_READS: usize = 8;
+
 #[derive(Clone)]
 pub struct GovernanceReadApi {
     state: Arc<dyn StateRead>,
     pub metrics: Arc<JsonRpcMetrics>,
+    stake_read_permits: Arc<Semaphore>,
 }
 
 impl GovernanceReadApi {
     pub fn new(state: Arc<AuthorityState>, metrics: Arc<JsonRpcMetrics>) -> Self {
-        Self { state, metrics }
+        Self {
+            state,
+            metrics,
+            stake_read_permits: Arc::new(Semaphore::new(MAX_CONCURRENT_STAKE_READS)),
+        }
+    }
+
+    /// Waits until fewer than [`MAX_CONCURRENT_STAKE_READS`] stake reads run.
+    async fn acquire_stake_read_permit(&self) -> Result<OwnedSemaphorePermit, Error> {
+        self.stake_read_permits
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|e| Error::Internal(e.into()))
     }
 
     async fn get_staked_iota(&self, owner: Address) -> Result<Vec<StakedIota>, Error> {
         let state = self.state.clone();
-        let result =
-            spawn_monitored_task!(async move { state.get_staked_iota(owner).await }).await??;
+        let permit = self.acquire_stake_read_permit().await?;
+        let result = spawn_monitored_blocking!(move || {
+            let _permit = permit;
+            state.get_staked_iota(owner)
+        })
+        .await??;
 
         self.metrics
             .get_stake_iota_result_size
@@ -79,9 +102,12 @@ impl GovernanceReadApi {
         owner: Address,
     ) -> Result<Vec<TimelockedStakedIota>, Error> {
         let state = self.state.clone();
-        let result =
-            spawn_monitored_task!(async move { state.get_timelocked_staked_iota(owner).await })
-                .await??;
+        let permit = self.acquire_stake_read_permit().await?;
+        let result = spawn_monitored_blocking!(move || {
+            let _permit = permit;
+            state.get_timelocked_staked_iota(owner)
+        })
+        .await??;
 
         self.metrics
             .get_stake_iota_result_size

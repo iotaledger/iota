@@ -268,7 +268,7 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
                 }
             }
             Self::TransactionDenyRulesCreate => {
-                if !config.deny_rule_governance_on_chain() {
+                if !config.enable_pcool_flow() {
                     return Err(UserInputError::Unsupported(
                         "on-chain deny rule governance not supported at current protocol version"
                             .to_string(),
@@ -1024,7 +1024,7 @@ impl TransactionKindExt for TransactionKind {
             }
             TransactionKind::RandomnessStateUpdate(_) => (),
             TransactionKind::TransactionDenyRulesUpdate(_) => {
-                if !config.deny_rule_governance_on_chain() {
+                if !config.enable_pcool_flow() {
                     return Err(UserInputError::Unsupported(
                         "on-chain deny rule governance not supported at current protocol version"
                             .to_string(),
@@ -2052,7 +2052,8 @@ pub trait SenderSignedTransactionAPI {
     fn validity_check(&self, context: &TxValidityCheckContext<'_>) -> Result<usize, IotaError>;
 
     /// Returns all unique input objects including those from
-    /// `MoveAuthenticator`s if any for reading.
+    /// `MoveAuthenticator`s if any for reading, in the order the transaction
+    /// and then each authenticator name them.
     ///
     /// Although some shared objects(with a different mutability flag, for
     /// example) can be duplicated in the transaction and authenticators, we
@@ -2073,6 +2074,10 @@ pub trait SenderSignedTransactionAPI {
     /// Checks if [`SenderSignedTransaction`] contains at least one shared
     /// object. This function checks shared objects from the
     /// `MoveAuthenticator`s if any.
+    ///
+    /// Unlike [`Self::shared_input_objects`], it does not combine the shared
+    /// objects of the transaction and its authenticators, so it does not panic
+    /// when two of them name the same object with different initial versions.
     fn contains_shared_object(&self) -> bool;
 
     /// Returns an iterator over all shared input objects related to this
@@ -2184,19 +2189,18 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
     }
 
     fn collect_all_input_object_kind_for_reading(&self) -> IotaResult<Vec<InputObjectKind>> {
-        let mut input_objects_set = self
+        let mut seen = HashSet::new();
+        Ok(self
             .transaction()
             .input_objects()?
             .into_iter()
-            .collect::<HashSet<_>>();
-
-        self.move_authenticators()
-            .into_iter()
-            .for_each(|authenticator| {
-                input_objects_set.extend(authenticator.input_objects());
-            });
-
-        Ok(input_objects_set.into_iter().collect::<Vec<_>>())
+            .chain(
+                self.move_authenticators()
+                    .into_iter()
+                    .flat_map(|authenticator| authenticator.input_objects()),
+            )
+            .filter(|kind| seen.insert(*kind))
+            .collect())
     }
 
     fn split_input_objects_into_groups_for_reading(
@@ -2270,7 +2274,11 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
     }
 
     fn contains_shared_object(&self) -> bool {
-        !self.shared_input_objects().is_empty()
+        self.transaction().kind().contains_shared_object()
+            || self
+                .move_authenticators()
+                .iter()
+                .any(|move_authenticator| !move_authenticator.shared_objects().is_empty())
     }
 
     fn shared_input_objects(&self) -> Vec<SharedObjectReference> {
@@ -2761,6 +2769,20 @@ impl InputObjectKind {
         }
     }
 
+    /// The error for an input that a validator drops at the consensus commit
+    /// for good: every validator drops it there, and it cannot become
+    /// available later.
+    pub fn not_available_at_commit_error(&self) -> UserInputError {
+        let (object_id, version) = match *self {
+            Self::MovePackage(package_id) => (package_id, None),
+            Self::ImmOrOwnedMoveObject(object_ref) => {
+                (object_ref.object_id, Some(object_ref.version))
+            }
+            Self::SharedMoveObject { id, .. } => (id, None),
+        };
+        UserInputError::InputObjectNotAvailableAtCommit { object_id, version }
+    }
+
     pub fn is_shared_object(&self) -> bool {
         matches!(self, Self::SharedMoveObject { .. })
     }
@@ -2881,6 +2903,11 @@ pub enum ObjectReadResultKind {
     DeletedSharedObject(Version, TransactionDigest),
     // A shared object in a cancelled transaction. The sequence number embeds cancellation reason.
     CancelledTransactionObject(Version),
+    // A shared object that exists and is shared at the declared initial version, whose contents
+    // were not read. Only post-consensus validation lists it: the version and contents a
+    // validator holds there differ between validators, and execution reads the object at the
+    // version consensus assigned.
+    UnreadSharedObject,
 }
 
 impl std::fmt::Debug for ObjectReadResultKind {
@@ -2895,6 +2922,7 @@ impl std::fmt::Debug for ObjectReadResultKind {
             ObjectReadResultKind::CancelledTransactionObject(seq) => {
                 write!(f, "CancelledTransactionObject({seq})")
             }
+            ObjectReadResultKind::UnreadSharedObject => write!(f, "UnreadSharedObject"),
         }
     }
 }
@@ -2923,6 +2951,14 @@ impl ObjectReadResult {
             panic!("only shared objects can be CancelledTransactionObject");
         }
 
+        if let (
+            InputObjectKind::ImmOrOwnedMoveObject(_),
+            ObjectReadResultKind::UnreadSharedObject,
+        ) = (&input_object_kind, &object)
+        {
+            panic!("only shared objects can be UnreadSharedObject");
+        }
+
         Self {
             input_object_kind,
             object,
@@ -2938,6 +2974,7 @@ impl ObjectReadResult {
             ObjectReadResultKind::Object(object) => Some(object),
             ObjectReadResultKind::DeletedSharedObject(_, _) => None,
             ObjectReadResultKind::CancelledTransactionObject(_) => None,
+            ObjectReadResultKind::UnreadSharedObject => None,
         }
     }
 
@@ -2962,6 +2999,10 @@ impl ObjectReadResult {
             (
                 InputObjectKind::ImmOrOwnedMoveObject(_),
                 ObjectReadResultKind::CancelledTransactionObject(_),
+            ) => unreachable!(),
+            (
+                InputObjectKind::ImmOrOwnedMoveObject(_),
+                ObjectReadResultKind::UnreadSharedObject,
             ) => unreachable!(),
             (InputObjectKind::SharedMoveObject { mutable, .. }, _) => *mutable,
         }
@@ -3005,6 +3046,10 @@ impl ObjectReadResult {
                 InputObjectKind::ImmOrOwnedMoveObject(_),
                 ObjectReadResultKind::CancelledTransactionObject(_),
             ) => unreachable!(),
+            (
+                InputObjectKind::ImmOrOwnedMoveObject(_),
+                ObjectReadResultKind::UnreadSharedObject,
+            ) => unreachable!(),
             (InputObjectKind::SharedMoveObject { .. }, _) => None,
         }
     }
@@ -3025,6 +3070,9 @@ impl ObjectReadResult {
                 ObjectReadResultKind::CancelledTransactionObject(seq) => {
                     SharedInput::Cancelled((id, *seq))
                 }
+                ObjectReadResultKind::UnreadSharedObject => {
+                    unreachable!("an unread shared object has no version to execute at")
+                }
             }),
         }
     }
@@ -3034,6 +3082,7 @@ impl ObjectReadResult {
             ObjectReadResultKind::Object(obj) => Some(obj.previous_transaction),
             ObjectReadResultKind::DeletedSharedObject(_, digest) => Some(*digest),
             ObjectReadResultKind::CancelledTransactionObject(_) => None,
+            ObjectReadResultKind::UnreadSharedObject => None,
         }
     }
 }
@@ -3278,6 +3327,18 @@ impl InputObjects {
                         InputObjectKind::SharedMoveObject { .. },
                         ObjectReadResultKind::CancelledTransactionObject(_),
                     ) => None,
+                    (
+                        InputObjectKind::ImmOrOwnedMoveObject(_),
+                        ObjectReadResultKind::UnreadSharedObject,
+                    ) => {
+                        unreachable!()
+                    }
+                    (
+                        InputObjectKind::SharedMoveObject { .. },
+                        ObjectReadResultKind::UnreadSharedObject,
+                    ) => {
+                        unreachable!("an unread shared object has no version, digest or owner")
+                    }
                 },
             )
             .collect()
@@ -3296,6 +3357,9 @@ impl InputObjects {
                 }
                 ObjectReadResultKind::DeletedSharedObject(v, _) => Some(*v),
                 ObjectReadResultKind::CancelledTransactionObject(_) => None,
+                ObjectReadResultKind::UnreadSharedObject => {
+                    unreachable!("an unread shared object has no version to exceed")
+                }
             })
             .chain(
                 receiving_objects

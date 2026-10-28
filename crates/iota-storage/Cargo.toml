@@ -45,8 +45,10 @@ url.workspace = true
 zstd = "0.13"
 
 # internal dependencies
+iota-common.workspace = true
 iota-config.workspace = true
 iota-metrics.workspace = true
+iota-node-storage.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk-types.workspace = true
 iota-types.workspace = true
@@ -62,7 +64,6 @@ tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies
-iota-common.workspace = true
 iota-macros.workspace = true
 iota-test-transaction-builder.workspace = true
 

@@ -27,7 +27,7 @@ use jsonrpsee::{
 };
 use tap::TapFallible;
 
-use crate::{errors::IndexerError, read::IndexerReader};
+use crate::{apis::common, errors::IndexerError, read::IndexerReader};
 
 pub(crate) struct IndexerApi {
     inner: IndexerReader,
@@ -95,6 +95,7 @@ impl IndexerApi {
             data,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 
@@ -225,7 +226,7 @@ impl IndexerApiServer for IndexerApi {
         if limit == 0 {
             return Ok(TransactionBlocksPage::empty());
         }
-        let mut results = self
+        let (mut results, oldest_available_checkpoint) = self
             .inner
             .query_transaction_blocks_in_blocking_task(
                 query.filter,
@@ -243,6 +244,7 @@ impl IndexerApiServer for IndexerApi {
             data: results,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: Some(oldest_available_checkpoint.into()),
         })
     }
 
@@ -257,7 +259,7 @@ impl IndexerApiServer for IndexerApi {
         if limit == 0 {
             return Ok(TransactionBlocksPage::empty());
         }
-        let mut results = self
+        let (mut results, oldest_available_checkpoint) = self
             .inner
             .query_transaction_blocks_in_blocking_task_v2(
                 query.filter,
@@ -275,6 +277,7 @@ impl IndexerApiServer for IndexerApi {
             data: results,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: Some(oldest_available_checkpoint.into()),
         })
     }
 
@@ -286,12 +289,13 @@ impl IndexerApiServer for IndexerApi {
         limit: Option<usize>,
         descending_order: Option<bool>,
     ) -> RpcResult<EventPage> {
+        common::validate_cursor(cursor.map(|c| c.event_seq))?;
         let limit = cap_page_limit(limit);
         if limit == 0 {
             return Ok(EventPage::empty());
         }
         let descending_order = descending_order.unwrap_or(false);
-        let mut results = self
+        let (mut results, oldest_available_checkpoint) = self
             .inner
             .query_only_checkpointed_events_in_blocking_task(
                 query,
@@ -308,6 +312,7 @@ impl IndexerApiServer for IndexerApi {
             data: results,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: Some(oldest_available_checkpoint.into()),
         })
     }
 
@@ -333,6 +338,7 @@ impl IndexerApiServer for IndexerApi {
             data: results.into_iter().map(Into::into).collect(),
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 

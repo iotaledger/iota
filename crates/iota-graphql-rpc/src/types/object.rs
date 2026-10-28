@@ -1429,9 +1429,7 @@ impl FallbackObjectKey for ParentVersionKey {
 ///
 /// This function currently returns false for indexer restored from snapshot.
 fn objects_version_complete(db: &Db) -> bool {
-    db.inner
-        .ensure_data_not_pruned_for_checkpoint(0, &[CommitterTables::ObjectsVersion])
-        .is_ok()
+    !db.inner.is_pruned(CommitterTables::ObjectsVersion)
 }
 
 /// Fills the missing `results` entries with objects fetched from the

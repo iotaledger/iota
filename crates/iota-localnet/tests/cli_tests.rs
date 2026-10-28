@@ -549,6 +549,55 @@ async fn write_config_is_rejected_with_the_faucet() {
     );
 }
 
+/// The faucet reads from the fullnode's gRPC API, which a network without a
+/// fullnode does not serve.
+#[tokio::test]
+async fn the_faucet_is_rejected_without_a_fullnode() {
+    let tmp_dir = iota_common::tempdir();
+    let mut command = start_command(tmp_dir.path(), None, vec![]);
+    let LocalnetCommand::Start {
+        with_faucet,
+        no_full_node,
+        ..
+    } = &mut command
+    else {
+        unreachable!("start_command builds a start command")
+    };
+    *with_faucet = Some("0.0.0.0:9123".to_owned());
+    *no_full_node = true;
+
+    let err = format!("{:#}", command.execute().await.unwrap_err());
+    assert!(
+        err.contains("Cannot start the faucet without a fullnode"),
+        "{err}"
+    );
+}
+
+/// The faucet reads from the fullnode's gRPC API, which an override can turn
+/// off. The run stops before it launches the network.
+#[tokio::test]
+async fn the_faucet_is_rejected_while_the_fullnode_grpc_api_is_off() -> Result<(), anyhow::Error> {
+    let tmp_dir = iota_common::tempdir();
+    let working_dir = tmp_dir.path();
+    genesis_command(working_dir, 2).execute().await?;
+    let mut command = start_command(
+        working_dir,
+        None,
+        vec!["fullnode:enable-grpc-api=false".to_owned()],
+    );
+    let LocalnetCommand::Start { with_faucet, .. } = &mut command else {
+        unreachable!("start_command builds a start command")
+    };
+    *with_faucet = Some("0.0.0.0:9123".to_owned());
+
+    let err = format!("{:#}", command.execute().await.unwrap_err());
+    assert!(
+        err.contains("Cannot start the faucet while the fullnode's gRPC API is off"),
+        "{err}"
+    );
+    Ok(())
+}
+
 /// A `--with-indexer` run without `--data-ingestion-dir` keeps the fullnode's
 /// data ingestion directory in a temporary directory that is gone once the
 /// command exits.

@@ -231,6 +231,8 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
         metrics,
         EPOCH_DURATION_MS_FOR_TESTING,
         None,
+        None,
+        None,
     )
     .await?;
     Ok(())

@@ -295,6 +295,8 @@ pub struct IotaTransactionBlockResponse {
     #[serde_as(as = "Option<DisplayFromStr>")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checkpoint: Option<CheckpointSequenceNumber>,
+    /// Why a requested field could not be filled. In a batch read, an unknown
+    /// digest carries its not-found error here.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub errors: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]

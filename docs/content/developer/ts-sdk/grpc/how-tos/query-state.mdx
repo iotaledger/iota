@@ -1,0 +1,121 @@
+---
+description: 'How to list the objects and coins an address owns, the dynamic fields of an object and the versions of a package with IotaGrpcClient, one page at a time or all at once.'
+tags:
+  - how-to
+  - ts-sdk
+  - typescript
+  - grpc
+teams:
+  - iotaledger/tooling
+---
+
+# List Owned Objects, Coins and Dynamic Fields
+
+These methods read current state: what an address owns, the dynamic fields under an object, and the versions of a package. The examples use a testnet client:
+
+```ts
+import { IotaGrpcClient } from '@iota/grpc';
+
+const client = new IotaGrpcClient({ network: 'testnet' });
+```
+
+## Choose between one page and every page
+
+Each list comes in two forms:
+
+| One page                | Every page                 | Lists                                          |
+| ----------------------- | -------------------------- | ---------------------------------------------- |
+| `listOwnedObjects`      | `listAllOwnedObjects`      | Objects an address owns                        |
+| `listCoins`             | `listAllCoins`             | Coins an address owns, decoded                 |
+| `listDynamicFields`     | `listAllDynamicFields`     | Dynamic fields of a parent object              |
+| `listPackageVersions`   | `listAllPackageVersions`   | Every version of a Move package, oldest first  |
+
+The one-page form returns `{ items, nextPageToken }`. To get the next page, pass `nextPageToken` back as `pageToken`. When it comes back `undefined`, you have reached the end:
+
+```ts
+let pageToken: Uint8Array | undefined;
+
+do {
+    const { body: page } = await client.listOwnedObjects(owner, { pageSize: 50, pageToken });
+    console.log(page.items.length);
+    pageToken = page.nextPageToken;
+} while (pageToken !== undefined);
+```
+
+Don't stop just because a page is short. The node also caps each page at [`maxMessageSizeBytes`](../connect.mdx#set-the-message-size), so a page can hold fewer than `pageSize` items with more still to come.
+
+The every-page form follows the tokens for you and returns a plain array. Pass `limit` to stop after that many items:
+
+```ts
+const { body: objects } = await client.listAllOwnedObjects(owner, { limit: 500 });
+```
+
+Without `limit` it reads the whole list, which can be long for a busy address.
+
+## List owned objects
+
+Pass `objectType` to list only one type of object. Leave out the type parameters to match every instantiation: `0x2::coin::Coin` matches a `Coin<T>` of any `T`.
+
+```ts
+import { decodeObject } from '@iota/grpc';
+
+const { body: page } = await client.listOwnedObjects(owner, {
+    objectType: '0x2::coin::Coin<0x2::iota::IOTA>',
+});
+
+for (const object of page.items) {
+    console.log(object.reference?.version, decodeObject(object).owner);
+}
+```
+
+Each object comes with its reference and BCS by default. To get only references, pass `readMask: OwnedObjectField.REFERENCE`.
+
+## List coins
+
+`listCoins` and `listAllCoins` return coins already decoded, as `{ coinType, id, balance }` with `balance` as a `bigint`. Pass `coinType`, the `T` of `Coin<T>`, to list one kind of coin:
+
+```ts
+const { body: coins } = await client.listAllCoins(owner, { coinType: '0x2::iota::IOTA' });
+
+const total = coins.reduce((sum, coin) => sum + coin.balance, 0n);
+```
+
+`getCoinInfo` returns a coin type's metadata, treasury and regulation info:
+
+```ts
+const { body } = await client.getCoinInfo('0x2::iota::IOTA');
+
+console.log(body.metadata?.symbol, body.metadata?.decimals);
+```
+
+## List dynamic fields
+
+Pass the ID of the parent object. By default you get each field's parent and field ID. Use `DynamicFieldField` to also get its name, value, value type, or the field object itself:
+
+```ts
+import { DynamicFieldField } from '@iota/grpc';
+
+const { body: fields } = await client.listAllDynamicFields(parentId, {
+    readMask: [DynamicFieldField.FIELD_ID, DynamicFieldField.VALUE_TYPE, DynamicFieldField.VALUE],
+});
+
+for (const field of fields) {
+    console.log(field.valueType, field.value?.data);
+}
+```
+
+`name` and `value` are BCS. Decode them with the `@iota/bcs` schema that matches `valueType`.
+
+## List package versions
+
+Pass the ID of any version of a package to get all of its versions, oldest first. Each has an `originalId`, a `storageId` and a `version`:
+
+```ts
+import { toHex } from '@iota/bcs';
+
+const { body: versions } = await client.listAllPackageVersions(packageId);
+
+for (const { storageId, version } of versions) {
+    console.log(version, `0x${toHex(storageId!.objectId)}`);
+}
+```

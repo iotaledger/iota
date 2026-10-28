@@ -4,7 +4,7 @@
 // The TransactionDenyRules object and its accumulated state survive epoch
 // changes, and updates keep working in later epochs.
 
-//# init --simulator --deny-rule-governance true
+//# init --simulator
 
 //# advance-epoch --create-deny-rules-object
 

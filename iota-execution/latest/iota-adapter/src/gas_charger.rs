@@ -116,6 +116,18 @@ pub mod checked {
             self.gas_status.summary()
         }
 
+        /// Sets the first gas coin as the transaction's gas coin without merging
+        /// the other gas coins into it, for a transaction that charges nobody.
+        /// After this call, `gas_coin` returns its id, so the effects name it
+        /// as the gas object.
+        pub(crate) fn set_gas_coin_without_smashing(&mut self) {
+            self.smashed_gas_coin = self
+                .gas_coins
+                .first()
+                .map(|gas_coin| gas_coin.object_id)
+                .filter(|gas_coin_id| *gas_coin_id != ObjectId::ZERO);
+        }
+
         // This function is called when the transaction is about to be executed.
         // It will smash all gas coins into a single one and set the logical gas coin
         // to be the first one in the list.

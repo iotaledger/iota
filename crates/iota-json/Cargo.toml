@@ -16,6 +16,7 @@ serde.workspace = true
 serde_json.workspace = true
 
 # internal dependencies
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true

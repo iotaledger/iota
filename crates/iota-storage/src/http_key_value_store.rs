@@ -36,6 +36,8 @@ use crate::{
     key_value_store_metrics::KeyValueStoreMetrics,
 };
 
+/// Reads a trusted HTTP key-value store. Its checks catch data stored under the
+/// wrong key, not forged data: signatures are not verified.
 pub struct HttpKVStore {
     base_url: Url,
     client: Client,
@@ -353,6 +355,14 @@ impl HttpKVStore {
         Url::from_str(joined.as_str()).into_iota_result()
     }
 
+    fn evict(&self, keys: impl IntoIterator<Item = Key>) {
+        for key in keys {
+            if let Ok(url) = self.get_url(&key) {
+                self.cache.invalidate(&url);
+            }
+        }
+    }
+
     async fn multi_fetch(&self, uris: Vec<Key>) -> Vec<IotaResult<Option<Bytes>>> {
         let uris_vec = uris.to_vec();
         let fetches = stream::iter(uris_vec.into_iter().map(|url| self.fetch(url)));
@@ -442,24 +452,32 @@ fn multi_split_slice<'a, T>(slice: &'a [T], lengths: &'a [usize]) -> Vec<&'a [T]
         .collect()
 }
 
-fn deser_check_digest<T, D>(
-    digest: &D,
-    bytes: &Bytes,
-    get_expected_digest: impl FnOnce(&T) -> D,
-) -> Option<T>
+/// The keys whose fetch returned data that was then rejected.
+fn rejected_keys<'a, K: Copy, T>(
+    fetches: &'a [IotaResult<Option<Bytes>>],
+    keys: &'a [K],
+    values: &'a [Option<T>],
+) -> impl Iterator<Item = K> + 'a {
+    fetches
+        .iter()
+        .zip(keys)
+        .zip(values)
+        .filter(|((fetch, _), value)| matches!(fetch, Ok(Some(_))) && value.is_none())
+        .map(|((_, key), _)| *key)
+}
+
+/// Decodes `bytes` and keeps the value only if `key_of` gives back `key`.
+fn deser_check_key<T, K>(key: &K, bytes: &Bytes, key_of: impl FnOnce(&T) -> K) -> Option<T>
 where
-    D: std::fmt::Debug + PartialEq,
+    K: std::fmt::Debug + PartialEq,
     T: for<'de> Deserialize<'de>,
 {
-    deser(digest, bytes).and_then(|o: T| {
-        let expected_digest = get_expected_digest(&o);
-        if expected_digest == *digest {
+    deser(key, bytes).and_then(|o: T| {
+        let actual = key_of(&o);
+        if actual == *key {
             Some(o)
         } else {
-            error!(
-                "Digest mismatch - expected: {:?}, got: {:?}",
-                digest, expected_digest,
-            );
+            error!("Key mismatch - expected: {key:?}, got: {actual:?}");
             None
         }
     })
@@ -493,7 +511,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .map(map_fetch)
             .map(|maybe_bytes| {
                 maybe_bytes.and_then(|(bytes, digest)| {
-                    deser_check_digest(digest, bytes, |tx: &TransactionEnvelope| *tx.digest())
+                    deser_check_key(digest, bytes, |tx: &TransactionEnvelope| *tx.digest())
                 })
             })
             .collect::<Vec<_>>();
@@ -505,7 +523,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .map(map_fetch)
             .map(|maybe_bytes| {
                 maybe_bytes.and_then(|(bytes, digest)| {
-                    deser_check_digest(digest, bytes, |fx: &TransactionEffects| {
+                    deser_check_key(digest, bytes, |fx: &TransactionEffects| {
                         *fx.transaction_digest()
                     })
                 })
@@ -556,11 +574,13 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .zip(checkpoint_summaries.iter())
             .map(map_fetch)
             .map(|maybe_bytes| {
-                maybe_bytes
-                    .and_then(|(bytes, seq)| deser::<_, CertifiedCheckpointSummary>(seq, bytes))
+                maybe_bytes.and_then(|(bytes, seq)| {
+                    deser_check_key(seq, bytes, |s: &CertifiedCheckpointSummary| {
+                        s.data().sequence_number
+                    })
+                })
             })
             .collect::<Vec<_>>();
-
         let contents_results = result_slices[1]
             .iter()
             .zip(checkpoint_contents.iter())
@@ -576,10 +596,28 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .map(map_fetch)
             .map(|maybe_bytes| {
                 maybe_bytes.and_then(|(bytes, digest)| {
-                    deser_check_digest(digest, bytes, |s: &CertifiedCheckpointSummary| *s.digest())
+                    deser_check_key(digest, bytes, |s: &CertifiedCheckpointSummary| *s.digest())
                 })
             })
             .collect::<Vec<_>>();
+
+        // A rejected entry would otherwise stay cached and keep being rejected.
+        self.evict(
+            rejected_keys(result_slices[0], checkpoint_summaries, &summaries_results)
+                .map(Key::CheckpointSummary)
+                .chain(
+                    rejected_keys(result_slices[1], checkpoint_contents, &contents_results)
+                        .map(Key::CheckpointContents),
+                )
+                .chain(
+                    rejected_keys(
+                        result_slices[2],
+                        checkpoint_summaries_by_digest,
+                        &summaries_by_digest_results,
+                    )
+                    .map(Key::CheckpointSummaryByDigest),
+                ),
+        );
 
         Ok((
             summaries_results,
@@ -677,5 +715,17 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
                 maybe_bytes.and_then(|(bytes, key)| deser::<_, TransactionEvents>(&key, bytes))
             })
             .collect::<Vec<_>>())
+    }
+
+    async fn evict_objects(&self, object_keys: &[ObjectKey]) {
+        self.evict(object_keys.iter().map(|key| Key::ObjectKey(*key)));
+    }
+
+    async fn evict_events_by_tx_digests(&self, digests: &[TransactionDigest]) {
+        self.evict(
+            digests
+                .iter()
+                .map(|digest| Key::EventsByTransactionDigest(*digest)),
+        );
     }
 }

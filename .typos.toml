@@ -54,6 +54,7 @@ checkpoitn = "checkpoint"
 bimap = "bimap"
 # plurals
 pendings = "pendings"
+implicits = "implicits"
 
 [default.extend-identifiers]
 numer = "numer"

@@ -4,14 +4,20 @@
 
 use std::str::FromStr;
 
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_types::{
+    Command, ExecutionError, ExecutionStatus, ObjectId, TypeArgumentError, TypeTag,
+};
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::TEST_ONLY_GAS_UNIT_FOR_GENERIC,
 };
 
 use crate::authority::{
-    authority_tests::{TestCallArg, call_move, init_state_with_ids},
+    authority_tests::{
+        TestCallArg, call_move, execute_programmable_transaction, init_state_with_ids,
+    },
     move_integration_tests::build_and_publish_test_package,
 };
 
@@ -412,4 +418,71 @@ async fn test_nested_type_param_different_package() {
     .unwrap();
 
     assert!(effects.status().is_success());
+}
+
+#[tokio::test]
+#[cfg_attr(msim, ignore)]
+async fn test_self_type_name_in_move_call_type_argument() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas = ObjectId::random();
+    let authority = init_state_with_ids(vec![(sender, gas)]).await;
+
+    let effects = call_move(
+        &authority,
+        &gas,
+        &sender,
+        &sender_key,
+        &ObjectId::FRAMEWORK,
+        "coin",
+        "zero",
+        vec![self_type_tag()],
+        vec![],
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(effects.status(), &type_not_found_failure());
+}
+
+#[tokio::test]
+#[cfg_attr(msim, ignore)]
+async fn test_self_type_name_in_make_move_vec_type() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas = ObjectId::random();
+    let authority = init_state_with_ids(vec![(sender, gas)]).await;
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.command(Command::new_make_move_vector(Some(self_type_tag()), vec![]));
+
+    let effects = execute_programmable_transaction(
+        &authority,
+        &gas,
+        &sender,
+        &sender_key,
+        builder.finish(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_GENERIC,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(effects.status(), &type_not_found_failure());
+}
+
+/// `0x2::iota::<SELF>`: the SDK accepts `<SELF>` as an identifier, move-core
+/// rejects it.
+fn self_type_tag() -> TypeTag {
+    TypeTag::from_str("0x2::iota::<SELF>").unwrap()
+}
+
+/// The status of a transaction whose first command fails to load its first
+/// type argument.
+fn type_not_found_failure() -> ExecutionStatus {
+    ExecutionStatus::Failure {
+        error: ExecutionError::TypeArgumentError {
+            type_argument: 0,
+            kind: TypeArgumentError::TypeNotFound,
+        },
+        command: Some(0),
+    }
 }

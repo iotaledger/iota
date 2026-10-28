@@ -1218,6 +1218,11 @@ pub trait StateSyncAPI: Send + Sync {
 
 pub trait TestingAPI: Send + Sync {
     fn database_for_testing(&self) -> Arc<AuthorityStore>;
+
+    /// Drops the committed versions of `id` held in memory, so the next read
+    /// of a committed version goes to the database.
+    #[cfg(test)]
+    fn evict_committed_object_for_testing(&self, id: &ObjectId);
 }
 
 pub trait ExecutionCacheAPI:

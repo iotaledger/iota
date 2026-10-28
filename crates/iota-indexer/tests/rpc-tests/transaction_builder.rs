@@ -14,13 +14,13 @@ use iota_json_rpc_types::{
     RPCTransactionRequestParams, StakeStatus, TransactionBlockBytes, TransferObjectParams,
 };
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_move_types::iota_framework::object::UID;
 use iota_sdk_types::{
     Address, MoveStruct, ObjectData, ObjectId, Owner, StructTag, TransactionDigest,
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
-    id::UID,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     object::{MoveStructExt, OBJECT_START_VERSION, ObjectInner},
     timelock::{

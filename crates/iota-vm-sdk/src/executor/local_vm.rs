@@ -420,14 +420,9 @@ impl LocalVm {
         &self,
         signed: &SenderSignedTransaction,
     ) -> Result<(), VmSdkError> {
-        // Match the node's verifier, which derives these from the protocol
-        // config (see `AuthorityPerEpochStore`); `VerifyParams::default()` would
-        // hardcode both off and diverge for passkey-in-multisig / additional
-        // multisig checks.
-        let verify_params = VerifyParams::new(
-            self.protocol_config.accept_passkey_in_multisig(),
-            self.protocol_config.additional_multisig_checks(),
-        );
+        // Match the node's verifier, which also derives these from the protocol
+        // config; `VerifyParams::default()` would turn every check off.
+        let verify_params = VerifyParams::from_protocol_config(&self.protocol_config);
         verify_sender_signed_data_message_signatures(signed, &verify_params)
             .map_err(VmSdkError::SignatureVerification)
     }

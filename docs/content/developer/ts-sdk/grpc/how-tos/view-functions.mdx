@@ -1,0 +1,114 @@
+---
+description: 'How to call Move #[view] functions with IotaGrpcClient, pass their arguments, and read what they return.'
+tags:
+  - how-to
+  - ts-sdk
+  - typescript
+  - grpc
+  - move-sc
+teams:
+  - iotaledger/tooling
+---
+
+# Call Move View Functions
+
+`viewFunctionCall` runs a Move function marked `#[view]` and gives you its return values, with no transaction and no signature involved.
+
+The examples on this page use the `view_functions` package from [Call a View Function](../../../move/how-tos/call-a-view-function.mdx), which explains how to publish the package. [Define a View Function](../../../move/how-tos/define-a-view-function.mdx) explains how to write view functions. The package's `leaderboard` module has a shared `Leaderboard` object and views such as:
+
+```move
+#[view]
+public fun score_of(board: &Leaderboard, player: &address): Option<ScoreEntry>
+```
+
+Only devnet and local networks record the metadata that view calls need, so the examples connect to devnet.
+
+## Call a function
+
+Name the function as `<package>::<module>::<function>` and pass its arguments in the order they are declared. An object parameter, like `board` here, takes the object's ID:
+
+```ts
+import { decodeViewOutputs, IotaGrpcClient } from '@iota/grpc';
+
+const client = new IotaGrpcClient({ network: 'devnet' });
+
+const { body } = await client.viewFunctionCall({
+    fqFunctionName: `${packageId}::leaderboard::score_of`,
+    args: [leaderboardId, player],
+});
+
+const { returnValues, executionError } = decodeViewOutputs(body);
+
+if (returnValues) {
+    console.log(returnValues[0].json);
+} else {
+    console.error('aborted:', executionError?.source);
+}
+```
+
+Each return value has a `json` form, its `typeTag`, and its raw `bcs` bytes if you would rather decode it yourself with `@iota/bcs`.
+
+## Pass arguments
+
+Arguments are plain JSON values. The node converts each one to the parameter's Move type:
+
+| Parameter type                        | Pass                                                         |
+| ------------------------------------- | ------------------------------------------------------------ |
+| `bool`                                | `true` or `false`                                            |
+| `u8` to `u256`                        | A `number`, or a `bigint` if it is above `Number.MAX_SAFE_INTEGER` |
+| `address`, `ID`                       | A hex string                                                 |
+| `String`, `ascii::String`             | A string                                                     |
+| `vector<T>`                           | An array                                                     |
+| `Option<T>`                           | `[]` for `none`, `[value]` for `some`                        |
+| An object, by value or by reference   | The object's ID, as a hex string                             |
+| Anything, already BCS-encoded         | A `Uint8Array`                                               |
+
+The client sends every number as a string, so wide integers arrive intact. A `number` that is not a safe integer, a fraction, `null` and `undefined` all throw a `TypeError` before anything is sent.
+
+Generic functions also need their type arguments, as strings in declaration order. The package's `vault` module is generic over the item it locks:
+
+```ts
+const { body } = await client.viewFunctionCall({
+    fqFunctionName: `${packageId}::vault::beneficiary`,
+    typeArgs: ['0x2::coin::Coin<0x2::iota::IOTA>'],
+    args: [vaultId],
+});
+```
+
+## Handle failures
+
+There are two ways a view call can go wrong, and they look different:
+
+- **The function ran and aborted.** The call itself succeeds, and `decodeViewOutputs` returns an `executionError` describing the abort.
+- **The node refused to run it.** `viewFunctionCall` throws a `ServerError` with code `NotFound` if the package does not exist, and `InvalidArgument` if the module or function does not exist, the function is not marked `#[view]`, or an argument does not fit.
+
+For example, `auction::bid_at` reads a bid by index, so asking for a bid that does not exist aborts:
+
+```ts
+const { body } = await client.viewFunctionCall({
+    fqFunctionName: `${packageId}::auction::bid_at`,
+    args: [auctionId, 3],
+});
+
+const { executionError } = decodeViewOutputs(body);
+console.log(executionError?.error, executionError?.source);
+```
+
+## Call several functions at once
+
+`viewFunctionCalls` takes a list and returns one [`ItemResult`](../responses.mdx#batch-results) per call. Each call runs separately, so a refused call only fails its own slot, and an aborted one still comes back `ok`:
+
+```ts
+const { body } = await client.viewFunctionCalls([
+    { fqFunctionName: `${packageId}::leaderboard::total_entries`, args: [leaderboardId] },
+    { fqFunctionName: `${packageId}::leaderboard::highest_score`, args: [leaderboardId] },
+]);
+
+for (const result of body) {
+    if (result.ok) {
+        console.log(decodeViewOutputs(result.value).returnValues?.[0]?.json);
+    } else {
+        console.error(result.error.message);
+    }
+}
+```

@@ -507,6 +507,30 @@ mod tests {
         assert_eq!(aggregated.median_retry_after_secs(), None);
     }
 
+    /// A drop at the commit is final, so neither driver retries it. An input
+    /// not visible at the commit yet stays retriable.
+    #[test]
+    fn drop_at_the_commit_is_not_retried() {
+        use iota_sdk_types::{ObjectId, Version};
+        use iota_types::error::UserInputError;
+
+        let object_id = ObjectId::random();
+        let version = Some(Version::from_u64(3));
+        let dropped =
+            IotaError::from(UserInputError::InputObjectNotAvailableAtCommit { object_id, version });
+        let missing = IotaError::from(UserInputError::ObjectNotFound { object_id, version });
+
+        assert!(
+            !TransactionRequestError::RejectedAtValidator(dropped.clone())
+                .is_submission_retriable()
+        );
+        assert_eq!(dropped.is_retryable(), (false, true));
+        assert!(
+            TransactionRequestError::RejectedAtValidator(missing.clone()).is_submission_retriable()
+        );
+        assert_eq!(missing.is_retryable(), (true, true));
+    }
+
     /// Dominance requires overloaded stake to exceed all other error stake
     /// combined.
     #[test]

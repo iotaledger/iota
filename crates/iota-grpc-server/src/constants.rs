@@ -5,6 +5,15 @@ use iota_grpc_types::{google::rpc::bad_request::FieldViolation, v1::error_reason
 
 use crate::error::RpcError;
 
+/// Maximum number of nested `All`, `Any` and `Not` filters in a transaction or
+/// event filter. The event filter of a transaction filter adds one level.
+pub const MAX_FILTER_DEPTH: usize = 10;
+
+/// Maximum number of filters in a transaction or event filter, counting `All`,
+/// `Any` and `Not` themselves, every filter inside them, and every transaction
+/// kind of a `TransactionKind` filter.
+pub const MAX_FILTER_NODES: usize = 256;
+
 /// Default maximum message size for chunked responses (4MB)
 pub const DEFAULT_MAX_MESSAGE_SIZE_BYTES: usize = 4 * 1024 * 1024;
 

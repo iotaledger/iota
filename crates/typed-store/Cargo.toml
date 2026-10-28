@@ -38,7 +38,7 @@ once_cell.workspace = true
 rstest.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
-uint = "0.9"
+uint = "0.10"
 
 # Most packages should depend on iota-simulator instead of directly on msim, but for typed-store
 # that creates a circular dependency.

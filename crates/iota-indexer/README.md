@@ -261,7 +261,7 @@ The crate provides following tests currently:
 
 - unit tests for DB models (objects, events) which test the conversion between the database representation and the Rust representation of the objects and events.
 - unit tests for the DB query filters, which test the conversion of filters to the correct SQL queries.
-- integration tests (see [ingestion_tests](tests/ingestion_tests.rs)) to make sure the indexer correctly indexes transaction data from a full node by comparing the data in the database with the data received from the fullnode.
+- integration tests (see [ingestion_tests](tests/ingestion_tests/)) to make sure the indexer correctly indexes transaction data from a full node by comparing the data in the database with the data received from the fullnode.
 - rpc tests (see [rpc-tests](tests/rpc-tests/main.rs))
 
 > [!NOTE]
@@ -269,7 +269,7 @@ The crate provides following tests currently:
 
 ```sh
 # run tests requiring only postgres integration
-cargo test --features pg_integration -- --test-threads 1
+cargo test --features pg_integration
 # run rpc tests with shared runtime
 cargo test --profile simulator --features shared_test_runtime
 ```
@@ -285,5 +285,5 @@ For a better testing experience is possible to use [nextest](https://nexte.st/)
 
 ```sh
 # run tests requiring only postgres integration
-cargo nextest run --features pg_integration --test-threads 1
+cargo nextest run --features pg_integration
 ```

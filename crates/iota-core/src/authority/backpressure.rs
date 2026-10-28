@@ -15,6 +15,7 @@ use crate::checkpoints::CheckpointStore;
 struct Watermarks {
     executed: CheckpointSequenceNumber,
     certified: CheckpointSequenceNumber,
+    waiting_for_local_build: bool,
 }
 
 impl Watermarks {
@@ -22,8 +23,12 @@ impl Watermarks {
     // executed checkpoint. Otherwise, backpressure might prevent construction
     // of the next checkpoint, because it could stop consensus commits from
     // being processed.
+    //
+    // While the checkpoint executor waits for this node to build the next
+    // checkpoint, execution cannot advance until consensus commits are
+    // processed, so backpressure must not hold them back either.
     fn should_suppress_backpressure(&self) -> bool {
-        self.certified <= self.executed
+        self.certified <= self.executed || self.waiting_for_local_build
     }
 }
 
@@ -39,6 +44,16 @@ pub struct BackpressureManager {
 
     // used by the WritebackCache to notify us when it has too many pending transactions in memory.
     backpressure_sender: watch::Sender<bool>,
+}
+
+pub struct LocalBuildWaitGuard {
+    mgr: Arc<BackpressureManager>,
+}
+
+impl Drop for LocalBuildWaitGuard {
+    fn drop(&mut self) {
+        self.mgr.set_waiting_for_local_build(false);
+    }
 }
 
 pub struct BackpressureSubscriber {
@@ -76,6 +91,7 @@ impl BackpressureManager {
         Self::new_from_watermarks(Watermarks {
             executed,
             certified,
+            waiting_for_local_build: false,
         })
     }
 
@@ -115,6 +131,32 @@ impl BackpressureManager {
                 false
             }
         })
+    }
+
+    /// Suppresses backpressure until the returned guard is dropped. Held by
+    /// the checkpoint executor while it waits for this node to build a
+    /// checkpoint.
+    pub fn wait_for_local_build(self: &Arc<Self>) -> LocalBuildWaitGuard {
+        // The executor waits for at most one checkpoint at a time: the wait
+        // runs inside its pipeline stage that admits one checkpoint at once.
+        debug_assert!(
+            !self.watermarks_sender.borrow().waiting_for_local_build,
+            "only one wait for a local build may be active"
+        );
+        self.set_waiting_for_local_build(true);
+        LocalBuildWaitGuard { mgr: self.clone() }
+    }
+
+    fn set_waiting_for_local_build(&self, waiting: bool) {
+        self.watermarks_sender.send_if_modified(|watermarks| {
+            if watermarks.waiting_for_local_build != waiting {
+                debug!(?waiting, "updating waiting for local build");
+                watermarks.waiting_for_local_build = waiting;
+                true
+            } else {
+                false
+            }
+        });
     }
 
     pub fn subscribe(self: &Arc<Self>) -> BackpressureSubscriber {
@@ -201,6 +243,31 @@ mod tests {
 
         // backpressure should be suppressed because of watermarks.
         subscriber.await_no_backpressure().now_or_never().unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_backpressure_suppressed_while_waiting_for_local_build() {
+        let manager = Arc::new(BackpressureManager::new_for_tests());
+
+        // Certified ahead of executed: backpressure applies.
+        manager.update_highest_certified_checkpoint(5);
+        manager.set_backpressure(true);
+        let subscriber = manager.subscribe();
+        assert!(subscriber.await_no_backpressure().now_or_never().is_none());
+
+        // A waiter blocked before the executor starts waiting is released.
+        let waiter = tokio::spawn({
+            let subscriber = manager.subscribe();
+            async move { subscriber.await_no_backpressure().await }
+        });
+        tokio::task::yield_now().await;
+        let guard = manager.wait_for_local_build();
+        await_with_timeout(waiter).await;
+        subscriber.await_no_backpressure().now_or_never().unwrap();
+
+        // Backpressure applies again once the wait ends.
+        drop(guard);
+        assert!(subscriber.await_no_backpressure().now_or_never().is_none());
     }
 
     async fn await_with_timeout<R>(f: impl std::future::Future<Output = R>) {

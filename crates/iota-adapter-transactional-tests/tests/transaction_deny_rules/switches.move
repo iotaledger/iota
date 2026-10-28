@@ -5,7 +5,7 @@
 // transaction: switches set by one update are cleared by the next one that
 // does not carry them.
 
-//# init --simulator --deny-rule-governance true
+//# init --simulator
 
 //# advance-epoch --create-deny-rules-object
 

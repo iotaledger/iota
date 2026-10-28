@@ -121,7 +121,7 @@ impl ErrorExtensions for Error {
 impl From<IndexerError> for Error {
     fn from(e: IndexerError) -> Self {
         match e {
-            IndexerError::DataPruned(msg) => Error::DataPruned(msg),
+            IndexerError::DataPruned { message, .. } => Error::DataPruned(message),
             _ => Error::Internal(e.to_string()),
         }
     }

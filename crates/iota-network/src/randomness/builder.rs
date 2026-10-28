@@ -143,6 +143,7 @@ impl UnstartedRandomness {
                 future_epoch_partial_sigs: BTreeMap::new(),
                 received_partial_sigs: BTreeMap::new(),
                 completed_sigs: BTreeMap::new(),
+                full_sigs_from_checkpoints: BTreeMap::new(),
                 highest_completed_round: BTreeMap::new(),
             },
             handle,

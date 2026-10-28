@@ -193,14 +193,12 @@ pub async fn request_tokens_from_faucet_with_url(
         if text.contains("SUCCEEDED") {
             let resp_json: serde_json::Value = serde_json::from_str(&text).unwrap();
 
-            break <&str>::clone(
-                &resp_json
-                    .pointer("/status/transferred_gas_objects/sent/0/id")
-                    .unwrap()
-                    .as_str()
-                    .unwrap(),
-            )
-            .to_string();
+            break resp_json
+                .pointer("/status/transferred_gas_objects/sent/0/id")
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string();
         } else {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }

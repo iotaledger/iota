@@ -38,7 +38,10 @@ use std::{
 
 use derive_more::Display;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_move_types::iota_framework::vec_map::{Entry, VecMap};
+use iota_sdk_move_types::iota_framework::{
+    object::{ID, UID},
+    vec_map::{Entry, VecMap},
+};
 use iota_sdk_types::{
     Identifier, MovePackage, ObjectId, PackageUpgradeError, StructTag, TypeOrigin, TypeTag,
     UpgradeInfo, Version,
@@ -56,7 +59,6 @@ use serde_with::{Bytes, serde_as};
 use crate::{
     Address,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
-    id::{ID, UID},
     iota_sdk_types_conversions::identifier_core_to_sdk,
     iota_serde::TypeName,
 };

@@ -2265,6 +2265,12 @@ impl TestingAPI for WritebackCache {
     fn database_for_testing(&self) -> Arc<AuthorityStore> {
         self.store.clone()
     }
+
+    #[cfg(test)]
+    fn evict_committed_object_for_testing(&self, id: &ObjectId) {
+        self.cached.object_cache.invalidate(id);
+        self.object_by_id_cache.invalidate(id);
+    }
 }
 
 impl ObjectStore for WritebackCache {
@@ -2355,12 +2361,6 @@ impl GlobalStateHashStore for WritebackCache {
         epoch: EpochId,
     ) -> IotaResult<Option<(CheckpointSequenceNumber, GlobalStateHash)>> {
         self.store.get_root_state_hash_for_epoch(epoch)
-    }
-
-    fn get_root_state_hash_for_highest_epoch(
-        &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, GlobalStateHash))>> {
-        self.store.get_root_state_hash_for_highest_epoch()
     }
 
     fn insert_state_hash_for_epoch(

@@ -307,6 +307,12 @@ where
 
         let tx_digest = *transaction.digest();
 
+        // Responses built from the local store read the object versions the
+        // transaction superseded, which the objects pruner deletes once the
+        // checkpoint after the transaction's is executed.
+        let _object_retention = (include_input_objects || include_output_objects)
+            .then(|| self.validator_state.retain_objects());
+
         // A resubmission of an already-executed transaction is answered from
         // the local cache instead of being driven through the validators
         // again.
@@ -1837,6 +1843,10 @@ where
         self.validator_state
             .wait_for_checkpoint_inclusion(digests, timeout)
             .await
+    }
+
+    fn retain_cached_objects(&self) -> Box<dyn Send + Sync> {
+        Box::new(self.validator_state.retain_objects())
     }
 
     fn read_transaction_from_cache(

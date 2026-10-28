@@ -465,6 +465,9 @@ async fn execution_with_dependencies(use_execution_scheduler: bool) {
         );
     }
     for cert in executed_owned_certs.iter().rev() {
+        authorities[3]
+            .epoch_store_for_testing()
+            .assign_to_a_new_commit_for_testing(&[cert.key()]);
         authorities[3].execution_scheduler().enqueue(
             vec![(
                 Schedulable::Transaction(VerifiedExecutableTransaction::new_from_certificate(

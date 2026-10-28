@@ -14,13 +14,13 @@ use iota_json_rpc_types::{
     IotaSystemStateSummaryV1 as IotaSystemStateSummaryV1Schema, StakeStatus, ValidatorApys,
 };
 use iota_open_rpc::Module;
+use iota_sdk_move_types::iota_framework::object::ID;
 use iota_sdk_types::{Address, ObjectId, StructTag};
 use iota_types::{
     MoveTypeTagTrait,
     committee::EpochId,
     dynamic_field::DynamicFieldInfo,
     governance::StakedIota,
-    id::ID,
     iota_serde::BigInt,
     iota_system_state::{
         PoolTokenExchangeRate,

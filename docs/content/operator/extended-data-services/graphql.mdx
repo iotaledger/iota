@@ -104,6 +104,17 @@ The `--fallback-kv-multi-fetch-batch-size`, `--fallback-kv-concurrent-fetches`, 
 
 `--host` and `--port` set the address the GraphQL endpoint binds to (default `127.0.0.1:8000`). The interactive GraphiQL IDE is served on the same address; its page title comes from `--ide-title`.
 
+### Response headers
+
+Every response carries two headers that clients use to check compatibility:
+
+| Header                   | Value                                                                             |
+| ------------------------ | --------------------------------------------------------------------------------- |
+| `x-iota-rpc-version`     | Full version of the running binary, including the git sha.                        |
+| `x-iota-min-sdk-version` | Lowest `iota-sdk-graphql-client` version able to decode this service's responses. |
+
+The minimum SDK version is fixed at build time and cannot be configured. It is raised in releases whose responses an older SDK cannot decode, so clients on an older SDK reject the service instead of panicking on unknown values.
+
 ### Prometheus metrics
 
 The Prometheus endpoint exposes histograms and counters covering request rate, latency, errors, database pool utilisation, and watermark lag.

@@ -80,6 +80,12 @@ ignore = [
   "RUSTSEC-2026-0194",
   # Same as above
   "RUSTSEC-2026-0195",
+  # crypto-bigint timing side channels, fixed only in >=0.7.6. The 0.5 line
+  # comes in through elliptic-curve 0.13 (k256, p256, p384 via fastcrypto) and
+  # has no patched release. Validators sign with Ed25519 and BLS; secp256k1 and
+  # secp256r1 secret keys are only used client-side. Remove once fastcrypto
+  # moves to elliptic-curve 0.14.
+  "RUSTSEC-2026-0387",
   # `im` is unmaintained and its `OrdSet` insertion is unsound, together with
   # its `bitmaps` dependency. Only reachable through `fastcrypto-zkp`; remove
   # all three once that switches to `imbl`.

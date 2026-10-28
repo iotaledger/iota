@@ -92,9 +92,13 @@ pub struct EpochMetrics {
     /// Buffer stake current in effect for this epoch
     pub effective_buffer_stake: IntGauge,
 
-    /// Set to 1 if the random beacon DKG protocol failed for the most recent
-    /// epoch.
+    /// Set to 1 while the random beacon DKG protocol is unavailable after its
+    /// timeout.
     pub epoch_random_beacon_dkg_failed: IntGauge,
+
+    /// Set to 1 if the random beacon DKG protocol completed after its timeout.
+    /// Process-local: not restored after a mid-epoch restart.
+    pub epoch_random_beacon_dkg_completed_after_timeout: IntGauge,
 
     /// The number of shares held by this node after the random beacon DKG
     /// protocol completed.
@@ -122,6 +126,14 @@ pub struct EpochMetrics {
     /// The number of consensus output items in the quarantine.
     pub consensus_quarantine_queue_size: IntGauge,
 
+    /// The highest commit index such that it and every commit below it is
+    /// fully executed. Its lag behind consensus is `last_commit_index` minus
+    /// this.
+    pub handler_object_state_highest_fully_executed_commit: IntGauge,
+
+    /// The number of handler-processed rows held in memory, not yet durable.
+    pub handler_object_state_handler_processed_overlay_entries: IntGauge,
+
     /// The number of consensus commits that injected deny-rule update
     /// transactions.
     pub deny_rule_updates_injected: IntCounter,
@@ -129,10 +141,6 @@ pub struct EpochMetrics {
     /// The number of injected deny-rule update transactions (one per chunk
     /// of the delta).
     pub deny_rule_update_transactions_injected: IntCounter,
-
-    /// Whether deny-rule removals are unlocked: enough announced stake this
-    /// epoch and the grace round floor passed.
-    pub deny_rule_removals_unlocked: IntGauge,
 
     /// Set to 1, and never cleared, when the `TransactionDenyRules` object
     /// diverged from the mirrored state at an epoch boundary.
@@ -230,7 +238,13 @@ impl EpochMetrics {
             ).unwrap(),
             epoch_random_beacon_dkg_failed: register_int_gauge_with_registry!(
                 "epoch_random_beacon_dkg_failed",
-                "Set to 1 if the random beacon DKG protocol failed for the most recent epoch.",
+                "Set to 1 while the random beacon DKG protocol is unavailable after its timeout.",
+                registry
+            )
+            .unwrap(),
+            epoch_random_beacon_dkg_completed_after_timeout: register_int_gauge_with_registry!(
+                "epoch_random_beacon_dkg_completed_after_timeout",
+                "Set to 1 if the random beacon DKG protocol completed after its timeout.",
                 registry
             )
             .unwrap(),
@@ -271,6 +285,18 @@ impl EpochMetrics {
                 MetricLevel::Warn,
             )
             .unwrap(),
+            handler_object_state_highest_fully_executed_commit: register_int_gauge_with_registry!(
+                "handler_object_state_highest_fully_executed_commit",
+                "The highest commit index such that it and every commit below it is fully executed",
+                registry
+            )
+            .unwrap(),
+            handler_object_state_handler_processed_overlay_entries: register_int_gauge_with_registry!(
+                "handler_object_state_handler_processed_overlay_entries",
+                "The number of handler-processed rows held in memory, not yet durable",
+                registry
+            )
+            .unwrap(),
             deny_rule_updates_injected: register_int_counter_with_registry!(
                 "deny_rule_updates_injected",
                 "The number of consensus commits that injected deny-rule update transactions",
@@ -280,12 +306,6 @@ impl EpochMetrics {
             deny_rule_update_transactions_injected: register_int_counter_with_registry!(
                 "deny_rule_update_transactions_injected",
                 "The number of injected deny-rule update transactions",
-                registry
-            )
-            .unwrap(),
-            deny_rule_removals_unlocked: register_int_gauge_with_registry!(
-                "deny_rule_removals_unlocked",
-                "Whether deny-rule removals are currently unlocked",
                 registry
             )
             .unwrap(),

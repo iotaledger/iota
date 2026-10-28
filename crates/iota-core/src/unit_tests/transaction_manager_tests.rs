@@ -1167,6 +1167,7 @@ async fn transaction_manager_resolves_the_parked_key_from_commit_transaction() {
     let round = RandomnessRound::new(0);
     let key = TransactionKey::RandomnessRound(epoch_store.epoch(), round);
     let assigned_versions = randomness_assigned_versions(&epoch_store);
+    epoch_store.assign_to_a_new_commit_for_testing(&[key]);
     state.execution_scheduler().enqueue(
         vec![(
             Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round),

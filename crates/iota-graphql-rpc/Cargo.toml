@@ -83,6 +83,7 @@ expect-test.workspace = true
 hyper.workspace = true
 insta.workspace = true
 rand.workspace = true
+semver = "1.0"
 serde_json.workspace = true
 serial_test.workspace = true
 tower.workspace = true

@@ -11,8 +11,8 @@ use std::{
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_sdk_types::{Address, DenyRuleSet, ObjectId, TransactionDigest, Version};
 use iota_types::{
-    base_types::AuthorityName, committee::Committee, crypto::KeypairTraits,
-    messages_consensus::TransactionDenyRuleProposal,
+    base_types::AuthorityName, committee::Committee, crypto::KeypairTraits, error::IotaResult,
+    messages_consensus::TransactionDenyRuleProposal, transaction::TransactionKey,
 };
 use tokio::time::timeout;
 use typed_store::{Map, rocks::DBBatch};
@@ -23,6 +23,7 @@ use crate::authority::{
         AuthorityPerEpochStore, compute_deny_rule_update_chunks,
         consensus_quarantine::ConsensusCommitOutput,
     },
+    epoch_start_configuration::EpochStartConfiguration,
     test_authority_builder::TestAuthorityBuilder,
 };
 
@@ -35,7 +36,7 @@ fn flush_overload_notification(
     authority: AuthorityName,
     percentage: u8,
 ) {
-    let mut output = ConsensusCommitOutput::new(0);
+    let mut output = ConsensusCommitOutput::new(0, 0);
     output.record_overload_notification(authority, percentage);
     output.set_default_commit_stats_for_testing();
     let mut batch: DBBatch = store.db_batch_for_test();
@@ -442,10 +443,9 @@ fn rules_denying_address(address: Address) -> DenyRuleSet {
     }
 }
 
-/// Records a deny rule proposal through the same path
-/// `process_consensus_transaction` will use: buffer it in
-/// `ConsensusCommitOutput` and flush via `write_to_batch`. See
-/// `flush_overload_notification`.
+/// Sets one deny list entry or one switch on a rule set.
+type SetDenyRuleField = Box<dyn Fn(&mut DenyRuleSet)>;
+
 /// Reopens `store` with the deny-rules object present, as the epoch after its
 /// creation starts. The caller keeps a protocol config override alive for it.
 fn reopen_with_deny_rules_object(
@@ -456,26 +456,111 @@ fn reopen_with_deny_rules_object(
     let mut epoch_start_configuration = (*store.epoch_start_configuration).clone();
     epoch_start_configuration
         .set_transaction_deny_rules_for_testing(initial_shared_version, DenyRuleSet::default());
-    store.release_db_handles();
-    AuthorityPerEpochStore::new(
-        store.name,
-        store.committee().clone(),
-        &store.parent_path,
-        store.db_options.clone(),
-        store.metrics.clone(),
-        epoch_start_configuration,
-        authority_state.get_backing_package_store().clone(),
-        store.execution_component.metrics(),
-        store.signature_verifier.metrics.clone(),
-        &ExpensiveSafetyCheckConfig::default(),
-        store.chain,
-        0,
-    )
-    .unwrap()
+    reopen_with_config(authority_state, store, epoch_start_configuration)
 }
 
+/// Reopens `store` over the same epoch DB, as a restart does.
+pub(crate) fn reopen(
+    authority_state: &AuthorityState,
+    store: &AuthorityPerEpochStore,
+) -> Arc<AuthorityPerEpochStore> {
+    reopen_with_config(
+        authority_state,
+        store,
+        (*store.epoch_start_configuration).clone(),
+    )
+}
+
+/// [`reopen`], starting from `epoch_start_configuration` instead of the
+/// store's own.
+fn reopen_with_config(
+    authority_state: &AuthorityState,
+    store: &AuthorityPerEpochStore,
+    epoch_start_configuration: EpochStartConfiguration,
+) -> Arc<AuthorityPerEpochStore> {
+    store.release_db_handles();
+    wait_for_epoch_db_to_close();
+    // The closed DB's RocksDB file lock is occasionally still held when the
+    // open starts, which panics; over thousands of reopens in one process
+    // that happens, so the open is tried a few times.
+    const ATTEMPTS: u32 = 5;
+    for attempt in 1..=ATTEMPTS {
+        let opened = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            AuthorityPerEpochStore::new(
+                store.name,
+                store.committee().clone(),
+                &store.parent_path,
+                store.db_options.clone(),
+                store.metrics.clone(),
+                epoch_start_configuration.clone(),
+                authority_state.get_backing_package_store().clone(),
+                store.execution_component.metrics(),
+                store.signature_verifier.metrics.clone(),
+                &ExpensiveSafetyCheckConfig::default(),
+                store.chain,
+                0,
+            )
+            .unwrap()
+        }));
+        match opened {
+            Ok(reopened) => return reopened,
+            Err(panic) if attempt == ATTEMPTS => std::panic::resume_unwind(panic),
+            Err(_) => std::thread::sleep(Duration::from_millis(100)),
+        }
+    }
+    unreachable!("the last attempt returns or resumes its panic")
+}
+
+/// Blocks until no epoch DB is open in this process. Releasing the store's
+/// handles does not close the DB at once: each column family's metrics task
+/// holds it while a report is queued or running on a blocking thread, and
+/// opening it again before then fails on the RocksDB lock. The count is per
+/// process, which holds under nextest, one process per test.
+fn wait_for_epoch_db_to_close() {
+    let open_epoch_dbs = typed_store::DBMetrics::get()
+        .op_metrics
+        .rocksdb_num_active_db_handles
+        .with_label_values(&["epoch"]);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while open_epoch_dbs.get() > 0 {
+        assert!(
+            Instant::now() < deadline,
+            "the epoch DB should close once its metrics reports finish"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// Empties every table a run of P-COOL deterministic validation writes: the
+/// handler object state, the saved validation decisions, the owned-object locks, the
+/// processed consensus messages, the resume point and the commit the node
+/// switched to synced checkpoints after. A [`reopen`] after it
+/// starts from an empty epoch.
+#[cfg(not(msim))]
+pub(crate) fn clear_pcool_validation_tables(store: &AuthorityPerEpochStore) -> IotaResult {
+    let tables = store.tables()?;
+    tables.handler_processed_objects.schedule_delete_all()?;
+    tables.post_consensus_decisions.schedule_delete_all()?;
+    tables
+        .post_consensus_decision_candidates
+        .schedule_delete_all()?;
+    tables
+        .owned_object_locked_transactions
+        .schedule_delete_all()?;
+    tables.consensus_message_processed.schedule_delete_all()?;
+    tables.last_consensus_stats.schedule_delete_all()?;
+    tables
+        .last_commit_before_synced_checkpoint_execution
+        .schedule_delete_all()?;
+    Ok(())
+}
+
+/// Records a deny rule proposal through the same path
+/// `process_consensus_transaction` will use: buffer it in
+/// `ConsensusCommitOutput` and flush via `write_to_batch`. See
+/// `flush_overload_notification`.
 fn flush_deny_rule_proposal(store: &AuthorityPerEpochStore, proposal: TransactionDenyRuleProposal) {
-    let mut output = ConsensusCommitOutput::new(0);
+    let mut output = ConsensusCommitOutput::new(0, 0);
     output.record_deny_rule_proposal(proposal.clone());
     output.set_default_commit_stats_for_testing();
     let mut batch: DBBatch = store.db_batch_for_test();
@@ -857,11 +942,342 @@ async fn restart_seed_restores_persisted_deny_rules() {
     assert!(active.user_transaction_disabled);
 }
 
-/// `compute_deny_rule_update_chunks` decision table: no diff yields no
-/// chunks; additions and switch activations apply while removals are still
-/// locked; entry removals and switch deactivations wait for the unlock.
+/// `compute_removable_transaction_deny_rules` releases a mirrored entry only
+/// once 2f+1 stake has announced without it and a mirrored switch only once
+/// f+1 has; stake that has not announced counts neither way, non-members
+/// weigh 0. With 10 validators of 1000 stake each, 2f+1 is 7 validators
+/// and f+1 is 4. The address shows why a quorum of announcements is not
+/// enough: 7 announced with 1 supporter leave 3 silent validators that can
+/// still lift the entry to f+1.
 #[test]
-fn deny_rule_update_chunks_respect_removal_grace() {
+fn compute_removable_transaction_deny_rules_waits_for_explicit_non_support() {
+    let (committee, keys) = Committee::new_simple_test_committee_of_size(10);
+    let names: Vec<AuthorityName> = keys.iter().map(|key| key.public().into()).collect();
+    let address = Address::new([1u8; 32]);
+    let mirror = DenyRuleSet {
+        denied_addresses: [address].into(),
+        user_transaction_disabled: true,
+        ..Default::default()
+    };
+    // Validators 0..4 deny the address; validators 0..7 support the switch.
+    let proposal = |index: usize| {
+        deny_proposal(
+            names[index],
+            1,
+            DenyRuleSet {
+                denied_addresses: (index < 4).then_some(address).into_iter().collect(),
+                user_transaction_disabled: index < 7,
+                ..Default::default()
+            },
+        )
+    };
+    let active = |proposals: &BTreeMap<AuthorityName, TransactionDenyRuleProposal>| {
+        AuthorityPerEpochStore::compute_active_transaction_deny_rules(proposals, &committee)
+    };
+    let removable = |proposals: &BTreeMap<AuthorityName, TransactionDenyRuleProposal>| {
+        AuthorityPerEpochStore::compute_removable_transaction_deny_rules(
+            proposals, &committee, &mirror,
+        )
+    };
+
+    // No announcement yet: nothing is removable.
+    let mut proposals = BTreeMap::new();
+    assert_eq!(removable(&proposals), DenyRuleSet::default());
+
+    // Validators 3..10 announce first, one supporting the address and four
+    // the switch. Neither is removable: the 3 silent validators could still
+    // lift both. A non-member changes nothing.
+    for index in 3..10 {
+        let announced = proposal(index);
+        proposals.insert(announced.authority, announced);
+    }
+    proposals.insert(
+        AuthorityName::ZERO,
+        deny_proposal(AuthorityName::ZERO, 1, DenyRuleSet::default()),
+    );
+    let aggregate = active(&proposals);
+    assert!(!aggregate.denied_addresses.contains(&address));
+    assert!(!aggregate.user_transaction_disabled);
+    assert_eq!(removable(&proposals), DenyRuleSet::default());
+
+    // The silent validators announce: both reach their activation threshold.
+    for index in 0..3 {
+        let announced = proposal(index);
+        proposals.insert(announced.authority, announced);
+    }
+    let aggregate = active(&proposals);
+    assert!(aggregate.denied_addresses.contains(&address));
+    assert!(aggregate.user_transaction_disabled);
+    assert_eq!(removable(&proposals), DenyRuleSet::default());
+
+    // One supporter of each withdraws: 7 validators have announced without
+    // the address and 4 without the switch.
+    proposals.insert(
+        names[0],
+        deny_proposal(
+            names[0],
+            2,
+            DenyRuleSet {
+                user_transaction_disabled: true,
+                ..Default::default()
+            },
+        ),
+    );
+    proposals.insert(names[6], deny_proposal(names[6], 2, DenyRuleSet::default()));
+    let aggregate = active(&proposals);
+    assert!(!aggregate.denied_addresses.contains(&address));
+    assert!(!aggregate.user_transaction_disabled);
+    assert_eq!(removable(&proposals), mirror);
+}
+
+/// Each deny list and each switch becomes removable on its own at the exact
+/// stake cutoff: a list entry once 6667 stake has announced without it and
+/// not at 6666, a switch at 3334 and not at 3333. One field at a time, so a
+/// wiring mistake between fields cannot cancel out.
+#[test]
+fn compute_removable_transaction_deny_rules_cuts_over_per_field_at_the_exact_stake() {
+    let (members, keys) = Committee::new_simple_test_committee_of_size(3);
+    let names: Vec<AuthorityName> = keys.iter().map(|key| key.public().into()).collect();
+    let total = members.total_votes();
+    let quorum = members.quorum_threshold();
+    let validity = members.validity_threshold();
+
+    let fields: Vec<(u64, SetDenyRuleField)> = vec![
+        (
+            quorum,
+            Box::new(|rules| {
+                rules.denied_addresses.insert(Address::new([1u8; 32]));
+            }),
+        ),
+        (
+            quorum,
+            Box::new(|rules| {
+                rules.denied_objects.insert(ObjectId::new([2u8; 32]));
+            }),
+        ),
+        (
+            quorum,
+            Box::new(|rules| {
+                rules.denied_packages.insert(ObjectId::new([3u8; 32]));
+            }),
+        ),
+        (
+            validity,
+            Box::new(|rules| rules.package_publish_disabled = true),
+        ),
+        (
+            validity,
+            Box::new(|rules| rules.package_upgrade_disabled = true),
+        ),
+        (
+            validity,
+            Box::new(|rules| rules.shared_object_disabled = true),
+        ),
+        (
+            validity,
+            Box::new(|rules| rules.user_transaction_disabled = true),
+        ),
+        (
+            validity,
+            Box::new(|rules| rules.receiving_objects_disabled = true),
+        ),
+        (
+            validity,
+            Box::new(|rules| rules.move_authenticator_disabled = true),
+        ),
+    ];
+    for (cutoff, set) in fields {
+        let mut only = DenyRuleSet::default();
+        set(&mut only);
+        // The supporter holds the rest of the stake, so non-support reaches
+        // the cutoff exactly when the one-unit validator announces.
+        let committee = Committee::new_for_testing_with_normalized_voting_power(
+            members.epoch,
+            [
+                (names[0], cutoff - 1),
+                (names[1], 1),
+                (names[2], total - cutoff),
+            ]
+            .into(),
+        );
+        let removable = |proposals: &BTreeMap<AuthorityName, TransactionDenyRuleProposal>| {
+            AuthorityPerEpochStore::compute_removable_transaction_deny_rules(
+                proposals, &committee, &only,
+            )
+        };
+
+        let mut proposals = BTreeMap::new();
+        proposals.insert(names[2], deny_proposal(names[2], 1, only.clone()));
+        proposals.insert(names[0], deny_proposal(names[0], 1, DenyRuleSet::default()));
+        assert_eq!(
+            removable(&proposals),
+            DenyRuleSet::default(),
+            "one stake unit short of the cutoff must hold {only:?}"
+        );
+
+        proposals.insert(names[1], deny_proposal(names[1], 1, DenyRuleSet::default()));
+        assert_eq!(
+            removable(&proposals),
+            only,
+            "the cutoff must release exactly {only:?}"
+        );
+    }
+}
+
+/// Over random committees, stake splits and announcement sets, what is
+/// removable is not active and stays inactive even if every validator still
+/// to announce then supports it. What is held back could still be activated
+/// that way. Covers the normalized thresholds under rounding, which the
+/// equal-stake examples cannot.
+#[test]
+fn removable_deny_rules_cannot_be_reactivated_by_silent_stake() {
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
+
+    let mut rng = StdRng::seed_from_u64(7);
+    let address = Address::new([1u8; 32]);
+    let mirror = DenyRuleSet {
+        denied_addresses: [address].into(),
+        user_transaction_disabled: true,
+        ..Default::default()
+    };
+    let supporting = DenyRuleSet {
+        denied_addresses: [address].into(),
+        user_transaction_disabled: true,
+        ..Default::default()
+    };
+    for _ in 0..500 {
+        let size = rng.random_range(1..=12);
+        let (members, keys) = Committee::new_simple_test_committee_of_size(size);
+        let committee = Committee::new_for_testing_with_normalized_voting_power(
+            members.epoch,
+            keys.iter()
+                .map(|key| (AuthorityName::from(key.public()), rng.random_range(1..=100)))
+                .collect(),
+        );
+        let names: Vec<AuthorityName> = keys.iter().map(|key| key.public().into()).collect();
+
+        let mut proposals = BTreeMap::new();
+        let mut silent = Vec::new();
+        for name in &names {
+            match rng.random_range(0..3) {
+                0 => silent.push(*name),
+                1 => {
+                    proposals.insert(*name, deny_proposal(*name, 1, DenyRuleSet::default()));
+                }
+                _ => {
+                    proposals.insert(*name, deny_proposal(*name, 1, supporting.clone()));
+                }
+            }
+        }
+        let removable = AuthorityPerEpochStore::compute_removable_transaction_deny_rules(
+            &proposals, &committee, &mirror,
+        );
+        let active =
+            AuthorityPerEpochStore::compute_active_transaction_deny_rules(&proposals, &committee);
+        let entry_removable = removable.denied_addresses.contains(&address);
+        let switch_removable = removable.user_transaction_disabled;
+        assert!(!(entry_removable && active.denied_addresses.contains(&address)));
+        assert!(!(switch_removable && active.user_transaction_disabled));
+
+        for name in silent {
+            proposals.insert(name, deny_proposal(name, 1, supporting.clone()));
+        }
+        let active =
+            AuthorityPerEpochStore::compute_active_transaction_deny_rules(&proposals, &committee);
+        assert!(
+            !(entry_removable && active.denied_addresses.contains(&address)),
+            "a removable entry was reactivated by the silent stake"
+        );
+        assert!(
+            !(switch_removable && active.user_transaction_disabled),
+            "a removable switch was reactivated by the silent stake"
+        );
+        assert!(
+            entry_removable || active.denied_addresses.contains(&address),
+            "an entry was held back although the silent stake could not activate it"
+        );
+        assert!(
+            switch_removable || active.user_transaction_disabled,
+            "a switch was held back although the silent stake could not activate it"
+        );
+    }
+}
+
+/// `compute_deny_rule_update_chunks` removes each deny list and each switch
+/// on its own, so a swapped field in its wiring cannot cancel out. With the
+/// field in the mirror and removable, the one chunk removes exactly it. With
+/// nothing removable, no chunk is produced and the field stays.
+#[test]
+fn deny_rule_update_chunks_remove_each_field_on_its_own() {
+    let version = Version::from_u64(5);
+    let fields: Vec<SetDenyRuleField> = vec![
+        Box::new(|rules| {
+            rules.denied_addresses.insert(Address::new([1u8; 32]));
+        }),
+        Box::new(|rules| {
+            rules.denied_objects.insert(ObjectId::new([2u8; 32]));
+        }),
+        Box::new(|rules| {
+            rules.denied_packages.insert(ObjectId::new([3u8; 32]));
+        }),
+        Box::new(|rules| rules.package_publish_disabled = true),
+        Box::new(|rules| rules.package_upgrade_disabled = true),
+        Box::new(|rules| rules.shared_object_disabled = true),
+        Box::new(|rules| rules.user_transaction_disabled = true),
+        Box::new(|rules| rules.receiving_objects_disabled = true),
+        Box::new(|rules| rules.move_authenticator_disabled = true),
+    ];
+    let nothing = DenyRuleSet::default();
+    for set in fields {
+        let mut only = DenyRuleSet::default();
+        set(&mut only);
+
+        let (chunks, target) =
+            compute_deny_rule_update_chunks(&nothing, &only, &nothing, 1000, 7, 42, version);
+        assert!(chunks.is_empty(), "nothing removable must hold {only:?}");
+        assert_eq!(target, only);
+
+        let (chunks, target) =
+            compute_deny_rule_update_chunks(&nothing, &only, &only, 1000, 7, 42, version);
+        assert_eq!(chunks.len(), 1, "removing {only:?}");
+        let chunk = &chunks[0];
+        assert!(chunk.added_addresses.is_empty());
+        assert!(chunk.added_objects.is_empty());
+        assert!(chunk.added_packages.is_empty());
+        // Lists leave through the removed sets, switches through their
+        // absolute state in the chunk.
+        let removed = DenyRuleSet {
+            denied_addresses: chunk.removed_addresses.clone(),
+            denied_objects: chunk.removed_objects.clone(),
+            denied_packages: chunk.removed_packages.clone(),
+            ..Default::default()
+        };
+        let lists = DenyRuleSet {
+            denied_addresses: only.denied_addresses.clone(),
+            denied_objects: only.denied_objects.clone(),
+            denied_packages: only.denied_packages.clone(),
+            ..Default::default()
+        };
+        assert_eq!(removed, lists, "removing {only:?}");
+        let switches = DenyRuleSet {
+            package_publish_disabled: chunk.package_publish_disabled,
+            package_upgrade_disabled: chunk.package_upgrade_disabled,
+            shared_object_disabled: chunk.shared_object_disabled,
+            user_transaction_disabled: chunk.user_transaction_disabled,
+            receiving_objects_disabled: chunk.receiving_objects_disabled,
+            move_authenticator_disabled: chunk.move_authenticator_disabled,
+            ..Default::default()
+        };
+        assert_eq!(switches, nothing, "removing {only:?}");
+        assert_eq!(target, nothing);
+    }
+}
+
+/// `compute_deny_rule_update_chunks` decision table: no diff yields no
+/// chunks; additions and switch activations always apply; entry removals and
+/// switch deactivations apply only for the removable part of the mirror.
+#[test]
+fn deny_rule_update_chunks_remove_only_the_removable() {
     let staying = Address::new([1u8; 32]);
     let leaving = Address::new([2u8; 32]);
     let arriving = Address::new([3u8; 32]);
@@ -875,20 +1291,21 @@ fn deny_rule_update_chunks_respect_removal_grace() {
         shared_object_disabled: true,
         ..Default::default()
     };
+    let nothing = DenyRuleSet::default();
     let version = Version::from_u64(5);
 
-    // Object already up to date: nothing to inject, in either grace state.
-    for unlocked in [false, true] {
+    // Object already up to date: nothing to inject, whatever is removable.
+    for removable in [&nothing, &mirror] {
         let (chunks, target) =
-            compute_deny_rule_update_chunks(&mirror, &mirror, unlocked, 1000, 7, 42, version);
+            compute_deny_rule_update_chunks(&mirror, &mirror, removable, 1000, 7, 42, version);
         assert!(chunks.is_empty());
         assert_eq!(target, mirror);
     }
 
-    // Removals locked: the arriving address and the newly active switch go
+    // Nothing removable: the arriving address and the newly active switch go
     // out, but the leaving address stays and the mirrored switch stays on.
     let (chunks, target) =
-        compute_deny_rule_update_chunks(&aggregate, &mirror, false, 1000, 7, 42, version);
+        compute_deny_rule_update_chunks(&aggregate, &mirror, &nothing, 1000, 7, 42, version);
     assert_eq!(chunks.len(), 1);
     let chunk = &chunks[0];
     assert_eq!(chunk.epoch, 7);
@@ -902,10 +1319,11 @@ fn deny_rule_update_chunks_respect_removal_grace() {
     assert!(target.shared_object_disabled);
     assert!(target.user_transaction_disabled);
 
-    // Removals unlocked: the full diff applies and the object reaches the
-    // aggregate exactly.
+    // The whole mirror removable: the full diff applies and the object
+    // reaches the aggregate exactly. The staying address is removable too,
+    // but the aggregate still carries it.
     let (chunks, target) =
-        compute_deny_rule_update_chunks(&aggregate, &mirror, true, 1000, 7, 42, version);
+        compute_deny_rule_update_chunks(&aggregate, &mirror, &mirror, 1000, 7, 42, version);
     assert_eq!(chunks.len(), 1);
     let chunk = &chunks[0];
     assert_eq!(chunk.added_addresses, [arriving].into());
@@ -914,17 +1332,31 @@ fn deny_rule_update_chunks_respect_removal_grace() {
     assert!(!chunk.user_transaction_disabled);
     assert_eq!(target, aggregate);
 
-    // A switch deactivation alone is also held back until the unlock.
+    // Only the entries removable: the leaving address goes while the
+    // mirrored switch stays on.
+    let entries_only = DenyRuleSet {
+        denied_addresses: mirror.denied_addresses.clone(),
+        ..Default::default()
+    };
+    let (chunks, target) =
+        compute_deny_rule_update_chunks(&aggregate, &mirror, &entries_only, 1000, 7, 42, version);
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].removed_addresses, [leaving].into());
+    assert!(chunks[0].user_transaction_disabled);
+    assert_eq!(target.denied_addresses, [staying, arriving].into());
+    assert!(target.user_transaction_disabled);
+
+    // A switch deactivation alone is also held until the switch is removable.
     let switch_off = DenyRuleSet {
         denied_addresses: mirror.denied_addresses.clone(),
         ..Default::default()
     };
     let (chunks, target) =
-        compute_deny_rule_update_chunks(&switch_off, &mirror, false, 1000, 7, 42, version);
+        compute_deny_rule_update_chunks(&switch_off, &mirror, &nothing, 1000, 7, 42, version);
     assert!(chunks.is_empty());
     assert_eq!(target, mirror);
     let (chunks, _) =
-        compute_deny_rule_update_chunks(&switch_off, &mirror, true, 1000, 7, 42, version);
+        compute_deny_rule_update_chunks(&switch_off, &mirror, &mirror, 1000, 7, 42, version);
     assert_eq!(chunks.len(), 1);
     assert!(!chunks[0].user_transaction_disabled);
 }
@@ -948,7 +1380,7 @@ fn deny_rule_update_chunks_split_deterministically() {
 
     // 5 added addresses + 3 added objects + 2 removed packages = 10 entries.
     let (chunks, target) =
-        compute_deny_rule_update_chunks(&aggregate, &mirror, true, 3, 7, 42, version);
+        compute_deny_rule_update_chunks(&aggregate, &mirror, &mirror, 3, 7, 42, version);
     assert_eq!(chunks.len(), 4);
     assert_eq!(target, aggregate);
 
@@ -987,11 +1419,13 @@ fn deny_rule_update_chunks_split_deterministically() {
     assert_eq!(removed_packages, mirror.denied_packages);
 
     // Same inputs, same chunks.
-    let (again, _) = compute_deny_rule_update_chunks(&aggregate, &mirror, true, 3, 7, 42, version);
+    let (again, _) =
+        compute_deny_rule_update_chunks(&aggregate, &mirror, &mirror, 3, 7, 42, version);
     assert_eq!(chunks, again);
 
     // A zero limit is clamped to one entry per transaction.
-    let (chunks, _) = compute_deny_rule_update_chunks(&aggregate, &mirror, true, 0, 7, 42, version);
+    let (chunks, _) =
+        compute_deny_rule_update_chunks(&aggregate, &mirror, &mirror, 0, 7, 42, version);
     assert_eq!(chunks.len(), 10);
 }
 
@@ -1048,9 +1482,9 @@ async fn restart_recovers_the_deny_rule_mirror() {
 }
 
 /// Injection at the commit boundary: with the flag on and the object present,
-/// a recorded proposal makes the next commit inject a
-/// `TransactionDenyRulesUpdate`, advance the mirror in lockstep, and go quiet
-/// once the object is up to date. Without the object nothing is injected.
+/// the commit that records a proposal injects a `TransactionDenyRulesUpdate`
+/// and advances the mirror in lockstep, and later commits stay quiet while
+/// the object is up to date. Without the object nothing is injected.
 #[tokio::test]
 async fn commit_injects_deny_rule_updates_and_advances_mirror() {
     use std::collections::VecDeque;
@@ -1063,10 +1497,7 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_deny_rule_governance_for_testing(true);
-    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
     protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-    protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
     let authority_state = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config.clone())
         .build()
@@ -1079,8 +1510,9 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
     let address = Address::new([1u8; 32]);
 
     // The object does not exist this epoch: nothing to update.
-    let commit_info = ConsensusCommitInfo::new_for_test(1, 0, false);
+    let commit_info = ConsensusCommitInfo::new_for_test(1, 1, 0, false);
     let mut output = ConsensusCommitOutput::default();
+    output.record_deny_rule_proposal(deny_proposal(me, 1, rules_denying_address(address)));
     let mut transactions = VecDeque::new();
     let mut roots = std::collections::BTreeSet::new();
     store
@@ -1111,11 +1543,11 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
         0,
     )
     .unwrap();
-    flush_deny_rule_proposal(&store, deny_proposal(me, 1, rules_denying_address(address)));
-
-    // The single validator holds all stake and the grace floor is 0, so the
-    // first commit injects the full aggregate.
+    // The single validator holds all stake, so the commit recording its
+    // proposal injects the full aggregate.
+    let proposal = deny_proposal(me, 1, rules_denying_address(address));
     let mut output = ConsensusCommitOutput::default();
+    output.record_deny_rule_proposal(proposal.clone());
     let mut transactions = VecDeque::new();
     let mut roots = std::collections::BTreeSet::new();
     store
@@ -1144,33 +1576,50 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
         "the injected update must be registered as a checkpoint root"
     );
 
-    // The advanced mirror is persisted with the same commit output.
+    // The advanced mirror is persisted with the same commit output as the
+    // proposal.
     output.set_default_commit_stats_for_testing();
     let mut batch = store.db_batch_for_test();
     output.write_to_batch(&store, &mut batch).unwrap();
     batch.write().unwrap();
+    store.apply_deny_rule_proposal_to_cache_for_test(proposal);
+    // The recompute that follows the commit enforces the injected entry.
+    assert!(store.update_active_transaction_deny_rules().unwrap());
 
-    // The next commit finds the object up to date and injects nothing.
+    // A commit without a proposal derives nothing, and one re-announcing the
+    // same rules finds the object up to date: neither injects.
+    let re_announced = deny_proposal(me, 2, rules_denying_address(address));
+    for recorded in [None, Some(re_announced)] {
+        let mut output = ConsensusCommitOutput::default();
+        if let Some(proposal) = recorded {
+            output.record_deny_rule_proposal(proposal);
+        }
+        let mut transactions = VecDeque::new();
+        let mut roots = std::collections::BTreeSet::new();
+        store
+            .add_deny_rule_update_transactions(
+                &mut output,
+                &mut transactions,
+                &mut roots,
+                &commit_info,
+            )
+            .unwrap();
+        assert!(transactions.is_empty());
+        assert!(roots.is_empty());
+    }
+
+    // The commit recording the withdrawal injects the removal and drops the
+    // entry from the mirror. The recompute that follows the commit then
+    // drops it from the enforced active set.
     let mut output = ConsensusCommitOutput::default();
-    let mut transactions = VecDeque::new();
-    let mut roots = std::collections::BTreeSet::new();
-    store
-        .add_deny_rule_update_transactions(&mut output, &mut transactions, &mut roots, &commit_info)
-        .unwrap();
-    assert!(transactions.is_empty());
-    assert!(roots.is_empty());
-
-    // Withdrawing the proposal makes a later, proposal-free commit inject
-    // the removal; the mirror and the enforced active set must drop the
-    // entry in that same commit, not at the next proposal-driven recompute.
-    flush_deny_rule_proposal(&store, deny_proposal(me, 2, DenyRuleSet::default()));
+    let withdrawal = deny_proposal(me, 3, DenyRuleSet::default());
+    output.record_deny_rule_proposal(withdrawal.clone());
     assert!(
         store
             .get_active_transaction_deny_rules()
             .denied_addresses
             .contains(&address)
     );
-    let mut output = ConsensusCommitOutput::default();
     let mut transactions = VecDeque::new();
     let mut roots = std::collections::BTreeSet::new();
     store
@@ -1187,11 +1636,100 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
         *store.get_mirrored_transaction_deny_rules(),
         DenyRuleSet::default()
     );
+    assert_eq!(roots, [transactions[0].key()].into_iter().collect());
+    store.apply_deny_rule_proposal_to_cache_for_test(withdrawal);
+    assert!(store.update_active_transaction_deny_rules().unwrap());
     assert_eq!(
         *store.get_active_transaction_deny_rules(),
         DenyRuleSet::default()
     );
-    assert_eq!(roots, [transactions[0].key()].into_iter().collect());
+}
+
+/// The quarantine push carries a commit through: it records the proposal,
+/// keeps the mirror `add_deny_rule_update_transactions` advanced, and
+/// recomputes the active set from both. A proposal-free commit pushed
+/// afterwards changes none of the three.
+#[tokio::test]
+async fn pushed_commit_records_the_proposal_and_recomputes_enforcement() {
+    use std::collections::VecDeque;
+
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+
+    use crate::consensus_handler::ConsensusCommitInfo;
+
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+    let authority_state = TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config.clone())
+        .build()
+        .await;
+    // The builder's config override drops when `build` returns; keep one
+    // alive for the reopened epoch store below.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, _| protocol_config.clone());
+    let store = authority_state.epoch_store_for_testing();
+    let me = store.name;
+    let rules = rules_denying_address(Address::new([1u8; 32]));
+
+    let mut epoch_start_configuration = (*store.epoch_start_configuration).clone();
+    epoch_start_configuration
+        .set_transaction_deny_rules_for_testing(Version::from_u64(3), DenyRuleSet::default());
+    store.release_db_handles();
+    let store = AuthorityPerEpochStore::new(
+        store.name,
+        store.committee().clone(),
+        &store.parent_path,
+        store.db_options.clone(),
+        store.metrics.clone(),
+        epoch_start_configuration,
+        authority_state.get_backing_package_store().clone(),
+        store.execution_component.metrics(),
+        store.signature_verifier.metrics.clone(),
+        &ExpensiveSafetyCheckConfig::default(),
+        store.chain,
+        0,
+    )
+    .unwrap();
+
+    let commit_info = ConsensusCommitInfo::new_for_test(1, 1, 0, false);
+    let proposal = deny_proposal(me, 1, rules.clone());
+    let mut output = ConsensusCommitOutput::default();
+    output.record_deny_rule_proposal(proposal.clone());
+    let mut transactions = VecDeque::new();
+    let mut roots = std::collections::BTreeSet::new();
+    store
+        .add_deny_rule_update_transactions(&mut output, &mut transactions, &mut roots, &commit_info)
+        .unwrap();
+    assert_eq!(transactions.len(), 1);
+    assert_eq!(*store.get_mirrored_transaction_deny_rules(), rules);
+    // Enforcement follows only once the commit is pushed.
+    assert_eq!(
+        *store.get_active_transaction_deny_rules(),
+        DenyRuleSet::default()
+    );
+    output.set_default_commit_stats_for_testing();
+    store.push_consensus_output_for_tests(output);
+
+    assert_eq!(
+        store.recorded_deny_rule_proposal(&me),
+        Some(proposal.clone())
+    );
+    assert_eq!(*store.get_mirrored_transaction_deny_rules(), rules);
+    assert_eq!(*store.get_active_transaction_deny_rules(), rules);
+
+    let mut output = ConsensusCommitOutput::default();
+    let mut transactions = VecDeque::new();
+    let mut roots = std::collections::BTreeSet::new();
+    store
+        .add_deny_rule_update_transactions(&mut output, &mut transactions, &mut roots, &commit_info)
+        .unwrap();
+    assert!(transactions.is_empty());
+    output.set_default_commit_stats_for_testing();
+    store.push_consensus_output_for_tests(output);
+
+    assert_eq!(store.recorded_deny_rule_proposal(&me), Some(proposal));
+    assert_eq!(*store.get_mirrored_transaction_deny_rules(), rules);
+    assert_eq!(*store.get_active_transaction_deny_rules(), rules);
 }
 
 /// `process_consensus_transactions` builds the commit queue with two
@@ -1205,20 +1743,18 @@ async fn deny_rule_update_is_scheduled_right_after_the_prologue() {
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::TransactionKind;
     use iota_swarm_config::network_config_builder::ConfigBuilder;
-    use iota_types::transaction::TransactionAPI;
+    use iota_types::{messages_consensus::ConsensusTransaction, transaction::TransactionAPI};
 
     use crate::{
         checkpoints::CheckpointServiceNoop,
+        consensus_handler::{SequencedConsensusTransaction, SequencedConsensusTransactionKind},
         epoch::randomness::RandomnessManager,
         mock_consensus::{ConsensusMode, MockConsensusClient},
     };
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_deny_rule_governance_for_testing(true);
-    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
     protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-    protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
     // The validator's own key is needed below: the reopened store gets its own
     // randomness manager, and one is built from the committee member's key.
     let network_config = ConfigBuilder::new_with_temp_dir()
@@ -1251,14 +1787,23 @@ async fn deny_rule_update_is_scheduled_right_after_the_prologue() {
         .set_randomness_manager(randomness_manager)
         .await
         .unwrap();
-    flush_deny_rule_proposal(
-        &store,
-        deny_proposal(me, 1, rules_denying_address(Address::new([1u8; 32]))),
-    );
+    // The proposal arrives in this commit, authored by this validator.
+    let sequenced = SequencedConsensusTransaction {
+        certificate_author_index: 0,
+        certificate_author: me,
+        consensus_index: Default::default(),
+        transaction: SequencedConsensusTransactionKind::External(
+            ConsensusTransaction::new_transaction_deny_rule_proposal(deny_proposal(
+                me,
+                1,
+                rules_denying_address(Address::new([1u8; 32])),
+            )),
+        ),
+    };
 
     let (scheduled, _assigned_versions) = store
         .process_consensus_transactions_for_tests(
-            vec![],
+            vec![sequenced],
             &Arc::new(CheckpointServiceNoop {}),
             authority_state.get_object_cache_reader().as_ref(),
             &authority_state.metrics,
@@ -1301,10 +1846,7 @@ async fn skipped_deny_rule_chunks_hold_the_mirror_back() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_deny_rule_governance_for_testing(true);
-    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
     protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-    protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
     let authority_state = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config.clone())
         .build()
@@ -1336,13 +1878,14 @@ async fn skipped_deny_rule_chunks_hold_the_mirror_back() {
         0,
     )
     .unwrap();
-    flush_deny_rule_proposal(&store, deny_proposal(me, 1, rules_denying_address(address)));
-
-    // The epoch is closing: no transaction is accepted any more.
+    // Close the epoch before `add_deny_rule_update_transactions` runs.
+    // Production closes it only after that call, so no chunk is ignored
+    // there; this test forces that case.
     store.get_reconfig_state_write_lock_guard().close_all_tx();
 
-    let commit_info = ConsensusCommitInfo::new_for_test(1, 0, false);
+    let commit_info = ConsensusCommitInfo::new_for_test(1, 1, 0, false);
     let mut output = ConsensusCommitOutput::default();
+    output.record_deny_rule_proposal(deny_proposal(me, 1, rules_denying_address(address)));
     let mut transactions = VecDeque::new();
     let mut roots = std::collections::BTreeSet::new();
     store
@@ -1356,12 +1899,12 @@ async fn skipped_deny_rule_chunks_hold_the_mirror_back() {
         "an ignored chunk must hold the mirror back"
     );
 
-    // The held-back mirror re-derives the identical delta.
+    // The held-back mirror would derive the identical delta again.
     let mirror = store.get_mirrored_transaction_deny_rules();
     let (chunks, target) = compute_deny_rule_update_chunks(
         &rules_denying_address(address),
         &mirror,
-        true,
+        &DenyRuleSet::default(),
         1000,
         store.epoch(),
         1,
@@ -1385,12 +1928,9 @@ async fn every_injected_deny_rule_chunk_becomes_a_checkpoint_root() {
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_deny_rule_governance_for_testing(true);
-    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
     // One entry per transaction, so the four denied addresses below split
     // across four chunks.
     protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1);
-    protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
     let authority_state = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config.clone())
         .build()
@@ -1422,9 +1962,8 @@ async fn every_injected_deny_rule_chunk_becomes_a_checkpoint_root() {
         0,
     )
     .unwrap();
-    flush_deny_rule_proposal(&store, deny_proposal(me, 1, rules));
-
     let mut output = ConsensusCommitOutput::default();
+    output.record_deny_rule_proposal(deny_proposal(me, 1, rules));
     let mut transactions = VecDeque::new();
     let mut roots = BTreeSet::new();
     store
@@ -1432,7 +1971,7 @@ async fn every_injected_deny_rule_chunk_becomes_a_checkpoint_root() {
             &mut output,
             &mut transactions,
             &mut roots,
-            &ConsensusCommitInfo::new_for_test(1, 0, false),
+            &ConsensusCommitInfo::new_for_test(1, 1, 0, false),
         )
         .unwrap();
 
@@ -1835,6 +2374,7 @@ async fn verify_consensus_transaction_mirrors_feature_gates(
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
     use iota_types::{
+        attestation::AttestedTransaction,
         base_types::random_object_ref,
         crypto::{
             AccountPrivateKey, AuthoritySignature, IotaAuthoritySignature as _,
@@ -1858,7 +2398,6 @@ async fn verify_consensus_transaction_mirrors_feature_gates(
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
     protocol_config.set_enable_pcool_flow_for_testing(gated_features_enabled);
     protocol_config.set_calculate_validator_scores_for_testing(gated_features_enabled);
-    protocol_config.set_deny_rule_governance_for_testing(gated_features_enabled);
     let authority = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
         .build()
@@ -1926,7 +2465,9 @@ async fn verify_consensus_transaction_mirrors_feature_gates(
     let kinds = vec![
         (
             "UserTransactionV1",
-            ConsensusTransactionKind::UserTransactionV1(Box::new(user_tx)),
+            ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                user_tx, None,
+            ))),
         ),
         ("EndOfPublish", ConsensusTransactionKind::EndOfPublish(me)),
         (
@@ -1985,5 +2526,511 @@ async fn verify_consensus_transaction_mirrors_feature_gates(
             expected,
             "{name} with gated features enabled: {gated_features_enabled}",
         );
+    }
+}
+
+/// Starting to execute synced checkpoints is visible at once, and returns only
+/// once the consensus handler is between commits.
+#[tokio::test]
+async fn start_executing_synced_checkpoints_waits_for_the_commit_in_progress() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing().clone();
+    assert!(!store.is_executing_synced_checkpoints());
+
+    // The consensus handler is in the middle of a commit.
+    let commit_guard = store.lock_consensus_commit().await;
+    let start = tokio::spawn({
+        let store = store.clone();
+        async move { store.start_executing_synced_checkpoints().await }
+    });
+    timeout(
+        Duration::from_secs(5),
+        store.wait_for_synced_checkpoint_execution(),
+    )
+    .await
+    .unwrap();
+    assert!(store.is_executing_synced_checkpoints());
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(!start.is_finished());
+
+    drop(commit_guard);
+    timeout(Duration::from_secs(5), start)
+        .await
+        .unwrap()
+        .unwrap();
+}
+
+/// Starting to execute synced checkpoints saves the last commit the consensus
+/// handler finished, not the one it was processing, and a restart reads it
+/// back without being switched yet: the handler replays the commits up to it
+/// and switches at the next one.
+#[tokio::test]
+async fn start_executing_synced_checkpoints_saves_the_last_handled_commit() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing().clone();
+    assert_eq!(
+        store
+            .last_commit_before_synced_checkpoint_execution()
+            .unwrap(),
+        None
+    );
+
+    let commit_guard = store.lock_consensus_commit().await;
+    store.record_handled_commit(6);
+    store.record_handled_commit(7);
+    drop(commit_guard);
+    // Commit 8 is in progress when the switch starts and is abandoned.
+    let commit_guard = store.lock_consensus_commit().await;
+    let start = tokio::spawn({
+        let store = store.clone();
+        async move { store.start_executing_synced_checkpoints().await }
+    });
+    timeout(
+        Duration::from_secs(5),
+        store.wait_for_synced_checkpoint_execution(),
+    )
+    .await
+    .unwrap();
+    drop(commit_guard);
+    timeout(Duration::from_secs(5), start)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        store
+            .last_commit_before_synced_checkpoint_execution()
+            .unwrap(),
+        Some(7)
+    );
+
+    // A second start leaves the saved commit as it is.
+    store.record_handled_commit(9);
+    store.start_executing_synced_checkpoints().await;
+    let reopened = reopen(&authority_state, &store);
+    assert!(!reopened.is_executing_synced_checkpoints());
+    assert_eq!(
+        reopened
+            .last_commit_before_synced_checkpoint_execution()
+            .unwrap(),
+        Some(7)
+    );
+    reopened.resume_executing_synced_checkpoints();
+    assert!(reopened.is_executing_synced_checkpoints());
+}
+
+// === P-COOL deterministic validation: the handler object state ===
+//
+// A row is one entry of the handler object state. It records that a
+// transaction in some commit produced version `V` of object `id`: the commit,
+// the digest, and whether the object is live, deleted or wrapped at that
+// version. "The row at `(id, V)`" is that entry. Rows not yet written to the
+// table are held in memory.
+
+mod handler_object_state_storage {
+    use futures::FutureExt;
+    use iota_sdk_types::{
+        Address, ObjectDigest, ObjectReference, Owner, SenderSignedTransaction, TransactionEffects,
+    };
+    use iota_test_transaction_builder::TestTransactionBuilder;
+    use iota_types::{
+        effects::{TestEffectsBuilder, TransactionEffectsAPI},
+        storage::ObjectKey,
+    };
+
+    use super::*;
+    use crate::authority::authority_per_epoch_store::handler_object_state::{
+        CommitIndex, HandlerProcessedObject, HandlerProcessedObjectKind,
+    };
+
+    fn owned_inputs_tx(gas_version: u64) -> SenderSignedTransaction {
+        let tx_data = TestTransactionBuilder::new(
+            Address::ZERO,
+            ObjectReference::new(
+                ObjectId::random(),
+                Version::from_u64(gas_version),
+                ObjectDigest::random(),
+            ),
+            0,
+        )
+        .transfer_iota(None, Address::ZERO)
+        .build();
+        SenderSignedTransaction::new(tx_data, vec![])
+    }
+
+    /// The effects of a transaction consuming `(consumed, consumed_version)`
+    /// plus its gas coin.
+    fn executed_owned_tx_effects(
+        consumed: ObjectId,
+        consumed_version: u64,
+        gas_version: u64,
+    ) -> TransactionEffects {
+        let transaction = owned_inputs_tx(gas_version);
+        TestEffectsBuilder::new(&transaction)
+            .with_mutated_objects([(
+                consumed,
+                Version::from_u64(consumed_version),
+                Owner::Address(Address::ZERO),
+            )])
+            .build()
+    }
+
+    fn generate_live_entry(produced_at: CommitIndex) -> HandlerProcessedObject {
+        HandlerProcessedObject {
+            digest: ObjectDigest::random(),
+            kind: HandlerProcessedObjectKind::Live,
+            produced_at,
+            initial_shared_version: None,
+            replaced_version: None,
+            deleted_by: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn handler_processed_rows_are_read_by_exact_key_from_memory_and_the_table() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+        let id = ObjectId::random();
+        let key = |version: u64| ObjectKey(id, Version::from_u64(version));
+        let read_processed_object =
+            |version: u64| epoch_store.handler_processed_object(&key(version)).unwrap();
+
+        let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
+            epoch_store.assign_commit_to_transactions(index, vec![]);
+            epoch_store
+                .record_commit_fully_executed(index, rows)
+                .unwrap();
+        };
+
+        let v5 = generate_live_entry(1);
+        complete_commit(1, &[(key(5), v5)]);
+        assert_eq!(read_processed_object(5), Some(v5));
+        assert_eq!(read_processed_object(4), None);
+
+        // An earlier commit's row arriving later sits beside the newer one.
+        let v3 = generate_live_entry(0);
+        complete_commit(0, &[(key(3), v3)]);
+        assert_eq!(state.overlay_size_for_testing(), 2);
+        assert_eq!(read_processed_object(3), Some(v3));
+        assert_eq!(read_processed_object(5), Some(v5));
+
+        // Flushing the newer commit moves only its row from memory to the
+        // table, and the row stays readable throughout.
+        epoch_store
+            .flush_commit_rows_for_testing(1, vec![(key(5), v5)])
+            .unwrap();
+        assert_eq!(state.overlay_size_for_testing(), 1);
+        assert_eq!(read_processed_object(3), Some(v3));
+        assert_eq!(read_processed_object(5), Some(v5));
+
+        // The earlier commit flushing afterwards (out of commit order) adds
+        // its row to the table beside the newer one.
+        epoch_store
+            .flush_commit_rows_for_testing(0, vec![(key(3), v3)])
+            .unwrap();
+        assert_eq!(state.overlay_size_for_testing(), 0);
+        let tables = epoch_store.tables().unwrap();
+        assert_eq!(
+            tables.handler_processed_objects.get(&key(3)).unwrap(),
+            Some(v3)
+        );
+        assert_eq!(
+            tables.handler_processed_objects.get(&key(5)).unwrap(),
+            Some(v5)
+        );
+        assert_eq!(read_processed_object(3), Some(v3));
+        assert_eq!(read_processed_object(5), Some(v5));
+        assert_eq!(read_processed_object(4), None);
+
+        // A later commit's row is readable from memory while the rows in the
+        // table stay readable too.
+        let v7 = generate_live_entry(2);
+        complete_commit(2, &[(key(7), v7)]);
+        assert_eq!(read_processed_object(7), Some(v7));
+        assert_eq!(read_processed_object(5), Some(v5));
+    }
+
+    #[tokio::test]
+    async fn flushed_rows_for_one_id_keep_every_version() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+        let id = ObjectId::random();
+
+        // Two commits write the same id (a sender's gas coin used in
+        // consecutive commits); each flush writes only its own commit's row.
+        let key = |version: u64| ObjectKey(id, Version::from_u64(version));
+        let v3 = generate_live_entry(1);
+        let v5 = generate_live_entry(2);
+        epoch_store.assign_commit_to_transactions(1, vec![]);
+        epoch_store
+            .record_commit_fully_executed(1, &[(key(3), v3)])
+            .unwrap();
+        epoch_store.assign_commit_to_transactions(2, vec![]);
+        epoch_store
+            .record_commit_fully_executed(2, &[(key(5), v5)])
+            .unwrap();
+
+        // Commit 2's row for the same id lands beside commit 1's rather than
+        // replacing it: both versions stay durable and readable by their key.
+        epoch_store
+            .flush_commit_rows_for_testing(1, vec![(key(3), v3)])
+            .unwrap();
+        epoch_store
+            .flush_commit_rows_for_testing(2, vec![(key(5), v5)])
+            .unwrap();
+        assert_eq!(state.overlay_size_for_testing(), 0);
+        let tables = epoch_store.tables().unwrap();
+        assert_eq!(
+            tables.handler_processed_objects.get(&key(3)).unwrap(),
+            Some(v3)
+        );
+        assert_eq!(
+            tables.handler_processed_objects.get(&key(5)).unwrap(),
+            Some(v5)
+        );
+        assert_eq!(
+            epoch_store.handler_processed_object(&key(3)).unwrap(),
+            Some(v3)
+        );
+        assert_eq!(
+            epoch_store.handler_processed_object(&key(5)).unwrap(),
+            Some(v5)
+        );
+    }
+
+    /// The highest row of an id is found in memory alone, in the table
+    /// alone, and across both from whichever holds the higher version, never
+    /// from a neighbouring id.
+    #[tokio::test]
+    async fn highest_handler_processed_row_reads_from_memory_and_the_table() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+        let mut ids = [ObjectId::random(), ObjectId::random()];
+        ids.sort();
+        let [low, high] = ids;
+        let key = |id, version: u64| ObjectKey(id, Version::from_u64(version));
+        let highest = |id| epoch_store.highest_handler_processed_row(&id).unwrap();
+        let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
+            epoch_store.assign_commit_to_transactions(index, vec![]);
+            epoch_store
+                .record_commit_fully_executed(index, rows)
+                .unwrap();
+        };
+
+        assert_eq!(highest(low), None);
+
+        // In memory only.
+        let low_v3 = generate_live_entry(1);
+        let high_v9 = generate_live_entry(1);
+        let commit_1_rows = vec![(key(low, 3), low_v3), (key(high, 9), high_v9)];
+        complete_commit(1, &commit_1_rows);
+        assert_eq!(state.overlay_size_for_testing(), 2);
+        assert_eq!(highest(low), Some((key(low, 3), low_v3)));
+        assert_eq!(highest(high), Some((key(high, 9), high_v9)));
+
+        // Table only.
+        epoch_store
+            .flush_commit_rows_for_testing(1, commit_1_rows)
+            .unwrap();
+        assert_eq!(state.overlay_size_for_testing(), 0);
+        assert_eq!(highest(low), Some((key(low, 3), low_v3)));
+        assert_eq!(highest(high), Some((key(high, 9), high_v9)));
+
+        // Both, memory holding the higher version.
+        let low_v5 = generate_live_entry(2);
+        complete_commit(2, &[(key(low, 5), low_v5)]);
+        assert_eq!(highest(low), Some((key(low, 5), low_v5)));
+
+        // Both, the table holding the higher version.
+        epoch_store
+            .flush_commit_rows_for_testing(2, vec![(key(low, 5), low_v5)])
+            .unwrap();
+        let low_v4 = generate_live_entry(3);
+        complete_commit(3, &[(key(low, 4), low_v4)]);
+        assert_eq!(state.overlay_size_for_testing(), 1);
+        assert_eq!(highest(low), Some((key(low, 5), low_v5)));
+        assert_eq!(highest(high), Some((key(high, 9), high_v9)));
+    }
+
+    /// The lowest row of an id above a version is found in memory alone,
+    /// in the table alone, and across both from whichever holds the lower
+    /// version, never at the version itself or from a neighbouring id.
+    #[tokio::test]
+    async fn lowest_handler_processed_row_above_reads_from_memory_and_the_table() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+        let mut ids = [ObjectId::random(), ObjectId::random()];
+        ids.sort();
+        let [low, high] = ids;
+        let key = |id, version: u64| ObjectKey(id, Version::from_u64(version));
+        let lowest_above = |id, version: u64| {
+            epoch_store
+                .lowest_handler_processed_row_above(&id, Version::from_u64(version))
+                .unwrap()
+        };
+        let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
+            epoch_store.assign_commit_to_transactions(index, vec![]);
+            epoch_store
+                .record_commit_fully_executed(index, rows)
+                .unwrap();
+        };
+
+        assert_eq!(lowest_above(high, 0), None);
+
+        // In memory only.
+        let low_v9 = generate_live_entry(1);
+        let high_v5 = generate_live_entry(1);
+        let commit_1_rows = vec![(key(low, 9), low_v9), (key(high, 5), high_v5)];
+        complete_commit(1, &commit_1_rows);
+        assert_eq!(state.overlay_size_for_testing(), 2);
+        assert_eq!(lowest_above(high, 3), Some((key(high, 5), high_v5)));
+        assert_eq!(lowest_above(high, 5), None);
+        assert_eq!(lowest_above(low, 3), Some((key(low, 9), low_v9)));
+        assert_eq!(lowest_above(low, 9), None);
+
+        // Table only.
+        epoch_store
+            .flush_commit_rows_for_testing(1, commit_1_rows)
+            .unwrap();
+        assert_eq!(state.overlay_size_for_testing(), 0);
+        assert_eq!(lowest_above(high, 3), Some((key(high, 5), high_v5)));
+        assert_eq!(lowest_above(high, 5), None);
+        assert_eq!(lowest_above(low, 3), Some((key(low, 9), low_v9)));
+        assert_eq!(lowest_above(low, 9), None);
+
+        // Both, memory holding the lower version.
+        let high_v4 = generate_live_entry(2);
+        complete_commit(2, &[(key(high, 4), high_v4)]);
+        assert_eq!(lowest_above(high, 3), Some((key(high, 4), high_v4)));
+        assert_eq!(lowest_above(high, 4), Some((key(high, 5), high_v5)));
+
+        // Both, the table holding the lower version.
+        epoch_store
+            .flush_commit_rows_for_testing(2, vec![(key(high, 4), high_v4)])
+            .unwrap();
+        let high_v7 = generate_live_entry(3);
+        complete_commit(3, &[(key(high, 7), high_v7)]);
+        assert_eq!(state.overlay_size_for_testing(), 1);
+        assert_eq!(lowest_above(high, 3), Some((key(high, 4), high_v4)));
+        assert_eq!(lowest_above(high, 5), Some((key(high, 7), high_v7)));
+        assert_eq!(lowest_above(low, 3), Some((key(low, 9), low_v9)));
+        assert_eq!(lowest_above(low, 9), None);
+    }
+
+    /// Executing a transaction whose commit the handler has assigned puts its
+    /// rows in memory, produced at that commit.
+    #[tokio::test]
+    async fn executing_a_transaction_of_an_assigned_commit_records_its_rows_at_that_commit() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        let mutated = ObjectId::random();
+        let effects = executed_owned_tx_effects(mutated, 5, 1);
+
+        let key = TransactionKey::Digest(*effects.transaction_digest());
+        epoch_store.assign_commit_to_transactions(6, vec![key]);
+        epoch_store.record_executed_transaction(&key, &effects);
+
+        let row = epoch_store
+            .handler_processed_object(&ObjectKey(mutated, effects.lamport_version()))
+            .unwrap()
+            .expect("the transaction executed in assigned commit 6 has a handler-processed row");
+        assert_eq!(row.produced_at, 6);
+    }
+
+    /// An execution whose commit the handler has not assigned is a bug, until
+    /// this node executes synced checkpoints for the rest of the epoch; then
+    /// it writes nothing. The report is a `fatal!`, which panics, so the
+    /// first call runs under `catch_unwind`.
+    #[tokio::test]
+    async fn execution_without_an_assigned_commit_panics_unless_executing_synced_checkpoints() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        let mutated = ObjectId::random();
+        let effects = executed_owned_tx_effects(mutated, 5, 1);
+        let key = TransactionKey::Digest(*effects.transaction_digest());
+        let written = ObjectKey(mutated, effects.lamport_version());
+
+        let unassigned = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            epoch_store.record_executed_transaction(&key, &effects);
+        }));
+        assert!(unassigned.is_err(), "an unassigned execution is reported");
+        assert_eq!(
+            epoch_store.handler_processed_object(&written).unwrap(),
+            None
+        );
+
+        epoch_store.start_executing_synced_checkpoints().await;
+        epoch_store.record_executed_transaction(&key, &effects);
+        assert_eq!(
+            epoch_store.handler_processed_object(&written).unwrap(),
+            None
+        );
+        assert_eq!(
+            epoch_store
+                .handler_object_state_for_testing()
+                .overlay_size_for_testing(),
+            0
+        );
+    }
+
+    /// The highest fully executed commit starts at the durable resume point,
+    /// both on a fresh epoch and when the epoch store reopens mid-epoch, and
+    /// never moves down.
+    #[tokio::test]
+    async fn highest_fully_executed_commit_resumes_from_the_flushed_commit() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let store = authority.epoch_store_for_testing().clone();
+        let assert_highest = |store: &AuthorityPerEpochStore, index: CommitIndex| {
+            assert_eq!(
+                *store
+                    .subscribe_highest_fully_executed_commit()
+                    .unwrap()
+                    .borrow(),
+                index
+            );
+            assert_eq!(
+                store
+                    .metrics
+                    .handler_object_state_highest_fully_executed_commit
+                    .get(),
+                index as i64
+            );
+        };
+
+        assert_highest(&store, 0);
+        store
+            .wait_for_fully_executed_commit(0)
+            .now_or_never()
+            .expect("waiting for the resume point must return immediately");
+
+        // A waiter blocked before the flushes is released by the flush of its
+        // commit, not by an earlier one.
+        let mut waiter = std::pin::pin!(store.wait_for_fully_executed_commit(2));
+        assert!(futures::poll!(waiter.as_mut()).is_pending());
+        for index in [1, 2] {
+            store.assign_commit_to_transactions(index, vec![]);
+            store
+                .flush_commit_through_quarantine_for_testing(index, vec![])
+                .unwrap();
+            assert_highest(&store, index);
+            assert_eq!(futures::poll!(waiter.as_mut()).is_ready(), index == 2);
+        }
+
+        let reopened = reopen(&authority, &store);
+        reopened.set_effects_store(authority.get_transaction_cache_reader().clone());
+        assert_highest(&reopened, 2);
+
+        // Completing a later commit before an earlier one raises the value;
+        // the earlier completion arriving afterwards does not lower it.
+        reopened.assign_commit_to_transactions(3, vec![]);
+        reopened.assign_commit_to_transactions(4, vec![]);
+        reopened.record_commit_fully_executed(4, &[]).unwrap();
+        reopened.record_commit_fully_executed(3, &[]).unwrap();
+        assert_highest(&reopened, 4);
     }
 }

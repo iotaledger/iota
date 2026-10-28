@@ -114,6 +114,7 @@ impl SignatureVerifier {
         metrics: Arc<SignatureVerifierMetrics>,
         accept_passkey_in_multisig: bool,
         additional_multisig_checks: bool,
+        reject_partially_signed_mixed_ed25519_multisig: bool,
     ) -> Self {
         Self {
             committee,
@@ -138,6 +139,7 @@ impl SignatureVerifier {
             verify_params: VerifyParams::new(
                 accept_passkey_in_multisig,
                 additional_multisig_checks,
+                reject_partially_signed_mixed_ed25519_multisig,
             ),
         }
     }
@@ -148,6 +150,7 @@ impl SignatureVerifier {
         metrics: Arc<SignatureVerifierMetrics>,
         accept_passkey_in_multisig: bool,
         additional_multisig_checks: bool,
+        reject_partially_signed_mixed_ed25519_multisig: bool,
     ) -> Self {
         Self::new_with_batch_size(
             committee,
@@ -156,6 +159,7 @@ impl SignatureVerifier {
             metrics,
             accept_passkey_in_multisig,
             additional_multisig_checks,
+            reject_partially_signed_mixed_ed25519_multisig,
         )
     }
 

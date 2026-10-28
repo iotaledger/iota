@@ -668,6 +668,194 @@ mod tests {
         );
     }
 
+    /// A server that does not accept HTTP/1 refuses it on plaintext, and on
+    /// TLS whether or not the client chose HTTP/2 through ALPN. A plaintext
+    /// HTTP/2 request is still served.
+    #[tokio::test]
+    async fn a_server_without_http1_does_not_serve_an_http1_request() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let (server_tls_config, client_tls_config) = test_tls_configs();
+        let served = Arc::new(AtomicUsize::new(0));
+        let app = Router::new().route(
+            "/",
+            axum::routing::get({
+                let served = served.clone();
+                move || async move {
+                    served.fetch_add(1, Ordering::SeqCst);
+                    "served"
+                }
+            }),
+        );
+        let config = Config::default().accept_http1(false);
+        let plaintext = Builder::new()
+            .config(config.clone())
+            .serve(("localhost", 0), app.clone())
+            .unwrap();
+        let tls = Builder::new()
+            .config(config)
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), app)
+            .unwrap();
+
+        let connection = tokio::net::TcpStream::connect(plaintext.local_addr())
+            .await
+            .unwrap();
+        assert_http1_request_is_refused(connection).await;
+
+        for alpn_protocols in [vec![], vec![ALPN_H2.to_vec()]] {
+            let mut client_tls_config = client_tls_config.clone();
+            client_tls_config.alpn_protocols = alpn_protocols;
+            let connection = tokio::net::TcpStream::connect(tls.local_addr())
+                .await
+                .unwrap();
+            let connection = tokio_rustls::TlsConnector::from(Arc::new(client_tls_config))
+                .connect(
+                    rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap(),
+                    connection,
+                )
+                .await
+                .unwrap();
+            assert_http1_request_is_refused(connection).await;
+        }
+
+        assert_eq!(
+            served.load(Ordering::SeqCst),
+            0,
+            "no HTTP/1 request may reach the service"
+        );
+
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let response = reqwest::Client::builder()
+            .http2_prior_knowledge()
+            .build()
+            .unwrap()
+            .get(format!("http://{}", plaintext.local_addr()))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.text().await.unwrap(), "served");
+    }
+
+    /// Sends an HTTP/1 request and asserts that the server answers as HTTP/2
+    /// and closes the connection.
+    async fn assert_http1_request_is_refused(
+        mut connection: impl tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+    ) {
+        use tokio::io::AsyncWriteExt as _;
+
+        // The type of an HTTP/2 SETTINGS frame (RFC 9113, section 6.5).
+        const HTTP2_SETTINGS_FRAME: u8 = 0x4;
+
+        connection
+            .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+            .await
+            .unwrap();
+
+        let mut received = Vec::new();
+        let closed = read_until_done_or_closed(&mut connection, &mut received, |_| false).await;
+        assert_eq!(
+            frame_types(&received).first(),
+            Some(&HTTP2_SETTINGS_FRAME),
+            "the server must answer as HTTP/2, got {:?}",
+            String::from_utf8_lossy(&received)
+        );
+        assert!(closed, "the server must close the connection");
+    }
+
+    /// A served HTTP/2 connection gets a GOAWAY frame when the server shuts
+    /// down and when the connection reaches its maximum age, whether or not
+    /// the server accepts HTTP/1.
+    #[tokio::test]
+    async fn an_http2_connection_gets_goaway_on_shutdown_and_at_its_maximum_age() {
+        use tokio::io::AsyncWriteExt as _;
+
+        // The client connection preface: the fixed string and an empty
+        // SETTINGS frame (RFC 9113, section 3.4).
+        const HTTP2_CLIENT_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n\0\0\0\x04\0\0\0\0\0";
+        // The types of HTTP/2 SETTINGS and GOAWAY frames (RFC 9113, sections
+        // 6.5 and 6.8).
+        const HTTP2_SETTINGS_FRAME: u8 = 0x4;
+        const HTTP2_GOAWAY_FRAME: u8 = 0x7;
+
+        for accept_http1 in [true, false] {
+            for max_connection_age in [None, Some(Duration::from_millis(500))] {
+                let mut config = Config::default().accept_http1(accept_http1);
+                if let Some(max_connection_age) = max_connection_age {
+                    config = config.max_connection_age(max_connection_age);
+                }
+                let handle = Builder::new()
+                    .config(config)
+                    .serve(("localhost", 0), Router::new())
+                    .unwrap();
+                let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+                    .await
+                    .unwrap();
+                connection.write_all(HTTP2_CLIENT_PREFACE).await.unwrap();
+
+                let mut received = Vec::new();
+                read_until_done_or_closed(&mut connection, &mut received, |received| {
+                    !frame_types(received).is_empty()
+                })
+                .await;
+                assert_eq!(
+                    frame_types(&received).first(),
+                    Some(&HTTP2_SETTINGS_FRAME),
+                    "the server must serve the connection as HTTP/2"
+                );
+
+                if max_connection_age.is_none() {
+                    handle.trigger_shutdown();
+                }
+                read_until_done_or_closed(&mut connection, &mut received, |received| {
+                    frame_types(received).contains(&HTTP2_GOAWAY_FRAME)
+                })
+                .await;
+                assert!(
+                    frame_types(&received).contains(&HTTP2_GOAWAY_FRAME),
+                    "accept_http1: {accept_http1}, max_connection_age: {max_connection_age:?}, \
+                     frames: {:?}",
+                    frame_types(&received)
+                );
+            }
+        }
+    }
+
+    /// Reads from `connection` into `received` until `done(received)` holds or
+    /// the peer closes the connection. Returns `false` if neither happens
+    /// within 5 s.
+    async fn read_until_done_or_closed(
+        connection: &mut (impl tokio::io::AsyncRead + Unpin),
+        received: &mut Vec<u8>,
+        done: impl Fn(&[u8]) -> bool,
+    ) -> bool {
+        use tokio::io::AsyncReadExt as _;
+
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let mut buf = [0u8; 1024];
+            while !done(received) {
+                match connection.read(&mut buf).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => received.extend_from_slice(&buf[..n]),
+                }
+            }
+        })
+        .await
+        .is_ok()
+    }
+
+    /// The types of the HTTP/2 frames whose header is in `bytes`.
+    fn frame_types(bytes: &[u8]) -> Vec<u8> {
+        let mut types = Vec::new();
+        let mut rest = bytes;
+        while let Some((header, payload)) = rest.split_first_chunk::<9>() {
+            types.push(header[3]);
+            let length = u32::from_be_bytes([0, header[0], header[1], header[2]]) as usize;
+            rest = payload.get(length..).unwrap_or_default();
+        }
+        types
+    }
+
     /// A peer that completes the HTTP/2 preface and then falls silent is
     /// closed once it fails to answer the keepalive ping.
     #[tokio::test]
