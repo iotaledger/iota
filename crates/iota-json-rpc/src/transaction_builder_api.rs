@@ -127,9 +127,12 @@ impl DataReader for AuthorityStateDataReader {
 /// The first of `signer`'s `Coin<IOTA>` objects, largest balance first, that
 /// is not one of `input_objects`, if it holds at least `gas_budget`.
 ///
-/// The owner index lists a type's coins by balance, so no coin after the
-/// first one that is not an input holds more, and the read stops there. The
-/// index follows checkpoints, so a coin's current state decides, not its row.
+/// A coin's current state decides, not its row in the owner index, which
+/// follows checkpoints. The index lists a type's coins by the balance in their
+/// rows, so the read stops at the first row below `gas_budget`, once that
+/// coin's current balance has been checked. A coin further down whose balance
+/// grew past `gas_budget` since its row was written is missed until its
+/// checkpoint is indexed.
 fn select_gas_coin_by_balance(
     state: &dyn StateRead,
     signer: Address,
@@ -145,20 +148,19 @@ fn select_gas_coin_by_balance(
             GAS_SELECTION_PAGE,
         )?;
         for (coin, _) in &coins {
+            if !input_objects.contains(&coin.coin_object_id) {
+                if let ObjectRead::Exists(object_ref, object, _) =
+                    state.get_object_read(&coin.coin_object_id)?
+                {
+                    if object.owner == Owner::Address(signer)
+                        && GasCoin::try_from(&object).is_ok_and(|gas| gas.value() >= gas_budget)
+                    {
+                        return Ok(Some(object_ref));
+                    }
+                }
+            }
             if coin.balance < gas_budget {
                 return Ok(None);
-            }
-            if input_objects.contains(&coin.coin_object_id) {
-                continue;
-            }
-            if let ObjectRead::Exists(object_ref, object, _) =
-                state.get_object_read(&coin.coin_object_id)?
-            {
-                if object.owner == Owner::Address(signer)
-                    && GasCoin::try_from(&object).is_ok_and(|gas| gas.value() >= gas_budget)
-                {
-                    return Ok(Some(object_ref));
-                }
             }
         }
         if coins.len() < GAS_SELECTION_PAGE {
@@ -562,8 +564,10 @@ mod tests {
     #[test]
     fn no_coin_is_selected_when_the_largest_falls_short() {
         let signer = Address::random();
-        let rows = (0..100).map(|_| row(&gas_coin(signer, 10), 10)).collect();
-        let state = node(rows, vec![], 1, 0);
+        let largest = gas_coin(signer, 10);
+        let mut rows = vec![row(&largest, 10)];
+        rows.extend((0..99).map(|_| row(&gas_coin(signer, 10), 10)));
+        let state = node(rows, vec![largest], 1, 1);
 
         assert_eq!(
             select_gas_coin_by_balance(&state, signer, 500, &[]).unwrap(),
@@ -601,5 +605,18 @@ mod tests {
 
         let selected = select_gas_coin_by_balance(&state, signer, 500, &[]).unwrap();
         assert_eq!(selected, Some(fitting.object_ref()));
+    }
+
+    /// A coin that grew past the budget since its row was written is selected,
+    /// although its row is below the budget.
+    #[test]
+    fn a_coin_that_grew_since_its_row_is_selected() {
+        let signer = Address::random();
+        let merged_into = gas_coin(signer, 200);
+        let rows = vec![row(&merged_into, 100), row(&gas_coin(signer, 100), 100)];
+        let state = node(rows, vec![merged_into.clone()], 1, 1);
+
+        let selected = select_gas_coin_by_balance(&state, signer, 150, &[]).unwrap();
+        assert_eq!(selected, Some(merged_into.object_ref()));
     }
 }
