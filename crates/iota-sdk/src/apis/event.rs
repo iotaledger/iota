@@ -4,20 +4,16 @@
 
 use std::sync::Arc;
 
-use futures::{StreamExt, stream};
+use futures::stream;
 use futures_core::Stream;
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient};
 use iota_json_rpc_types::{EventFilter, EventPage, IotaEvent};
 use iota_sdk_types::TransactionDigest;
 use iota_types::event::EventID;
-use jsonrpsee::core::client::Subscription;
 
-use crate::{
-    RpcClient,
-    error::{Error, IotaRpcResult},
-};
+use crate::{RpcClient, error::IotaRpcResult};
 
-/// Defines methods to fetch, query, or subscribe to events on the IOTA network.
+/// Defines methods to fetch or query events on the IOTA network.
 #[derive(Clone)]
 pub struct EventApi {
     api: Arc<RpcClient>,
@@ -26,50 +22,6 @@ pub struct EventApi {
 impl EventApi {
     pub(crate) fn new(api: Arc<RpcClient>) -> Self {
         Self { api }
-    }
-
-    /// Subscribe to receive a stream of filtered events.
-    ///
-    /// Subscription is only possible via WebSockets.
-    /// For a list of possible event filters, see [EventFilter].
-    ///
-    /// # Examples
-    ///
-    /// ```rust, no_run
-    /// use std::str::FromStr;
-    ///
-    /// use futures::StreamExt;
-    /// use iota_sdk::{IotaClientBuilder, rpc_types::EventFilter};
-    ///
-    /// #[tokio::main]
-    /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default()
-    ///         .ws_url("wss://api.mainnet.iota.cafe")
-    ///         .build("https://api.mainnet.iota.cafe")
-    ///         .await?;
-    ///     let mut subscribe_all = iota
-    ///         .event_api()
-    ///         .subscribe_event(EventFilter::All(vec![]))
-    ///         .await?;
-    ///     loop {
-    ///         println!("{:?}", subscribe_all.next().await);
-    ///     }
-    ///     Ok(())
-    /// }
-    /// ```
-    pub async fn subscribe_event(
-        &self,
-        filter: EventFilter,
-    ) -> IotaRpcResult<impl Stream<Item = IotaRpcResult<IotaEvent>>> {
-        match &self.api.ws {
-            Some(c) => {
-                let subscription: Subscription<IotaEvent> = c.subscribe_event(filter).await?;
-                Ok(subscription.map(|item| Ok(item?)))
-            }
-            _ => Err(Error::Subscription(
-                "Subscription only supported by WebSocket client.".to_string(),
-            )),
-        }
     }
 
     /// Get a list of events for the given transaction digest.

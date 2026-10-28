@@ -10,7 +10,6 @@ use iota_core::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     execution_cache::ObjectCacheRead,
     jsonrpc_index::TotalBalance,
-    subscription_handler::SubscriptionHandler,
 };
 use iota_json_rpc_types::{
     Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, Page, TransactionFilter,
@@ -107,8 +106,6 @@ pub trait StateRead: Send + Sync {
     ) -> StateReadResult<SimulateTransactionResult>;
 
     // indexer_api
-    fn get_subscription_handler(&self) -> Arc<SubscriptionHandler>;
-
     /// Returns one page of the owner's objects that match `filter`. `cursor`
     /// is exclusive; `next_cursor` is `None` when there is no next page.
     ///
@@ -296,10 +293,6 @@ impl StateRead for AuthorityState {
         checks: VmChecks,
     ) -> StateReadResult<SimulateTransactionResult> {
         Ok(self.simulate_transaction_in_epoch(epoch_store, transaction, checks)?)
-    }
-
-    fn get_subscription_handler(&self) -> Arc<SubscriptionHandler> {
-        self.subscription_handler.clone()
     }
 
     fn get_owner_objects_page(

@@ -5,9 +5,8 @@
 use iota_json_rpc_types::{
     DynamicFieldNameSchema, DynamicFieldPage, EventFilter, EventPage, IotaDynamicFieldInfo,
     IotaEvent, IotaEventID, IotaNameRecord, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage, Page,
-    TransactionBlocksPage, TransactionFilter,
+    IotaObjectResponseQuery, IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
+    IotaTransactionBlockResponseQueryV2, ObjectsPage, Page, TransactionBlocksPage,
     iota_primitives::{
         Address as AddressSchema, Base58 as Base58Schema, ObjectId as ObjectIdSchema,
     },
@@ -15,13 +14,9 @@ use iota_json_rpc_types::{
 use iota_open_rpc_macros::open_rpc;
 use iota_sdk_types::{Address, ObjectId, TransactionDigest};
 use iota_types::{dynamic_field::DynamicFieldName, event::EventID};
-use jsonrpsee::{
-    core::{RpcResult, SubscriptionResult},
-    proc_macros::rpc,
-};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
-/// Provides methods to query transactions, events, or objects and allows to
-/// subscribe to data streams.
+/// Provides methods to query transactions, events, or objects.
 #[open_rpc(namespace = "iotax", tag = "Extended API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait IndexerApi {
@@ -102,21 +97,6 @@ pub trait IndexerApi {
         /// query result ordering, default to false (ascending order), oldest record first.
         descending_order: Option<bool>,
     ) -> RpcResult<EventPage>;
-
-    /// Subscribe to a stream of IOTA event
-    #[rustfmt::skip]
-    #[subscription(name = "subscribeEvent", item = IotaEvent)]
-    #[deprecated(note = "Use iotax_queryEvents instead")]
-    fn subscribe_event(
-        &self,
-        /// The filter criteria of the event stream. See [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters) documentation for examples.
-        filter: EventFilter,
-    ) -> SubscriptionResult;
-
-    /// Subscribe to a stream of IOTA transaction effects
-    #[subscription(name = "subscribeTransaction", item = IotaTransactionBlockEffects)]
-    #[deprecated(note = "Use iotax_queryTransactionBlocks instead")]
-    fn subscribe_transaction(&self, filter: TransactionFilter) -> SubscriptionResult;
 
     /// Return the list of dynamic field objects owned by an object.
     #[rustfmt::skip]

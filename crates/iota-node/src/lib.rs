@@ -2731,13 +2731,10 @@ pub async fn build_http_server(
             kv_store,
             metrics,
             iota_names_config,
-            config.indexer_max_subscriptions,
         ))?;
         server.register_module(MoveUtils::new(state.clone()))?;
 
-        let server_type = config.jsonrpc_server_type();
-
-        server.to_router(server_type).await?
+        server.to_router().await?
     };
 
     router = router.merge(json_rpc_router);

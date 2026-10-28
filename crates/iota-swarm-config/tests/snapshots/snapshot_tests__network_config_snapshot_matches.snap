@@ -24,7 +24,6 @@ validator_configs:
       max-submit-position: ~
       submit-delay-step-override-millis: ~
     enable-index-processing: true
-    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -60,7 +59,6 @@ validator_configs:
     checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -120,7 +118,6 @@ validator_configs:
       max-submit-position: ~
       submit-delay-step-override-millis: ~
     enable-index-processing: true
-    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -156,7 +153,6 @@ validator_configs:
     checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -216,7 +212,6 @@ validator_configs:
       max-submit-position: ~
       submit-delay-step-override-millis: ~
     enable-index-processing: true
-    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -252,7 +247,6 @@ validator_configs:
     checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -312,7 +306,6 @@ validator_configs:
       max-submit-position: ~
       submit-delay-step-override-millis: ~
     enable-index-processing: true
-    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -348,7 +341,6 @@ validator_configs:
     checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -408,7 +400,6 @@ validator_configs:
       max-submit-position: ~
       submit-delay-step-override-millis: ~
     enable-index-processing: true
-    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -444,7 +435,6 @@ validator_configs:
     checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -504,7 +494,6 @@ validator_configs:
       max-submit-position: ~
       submit-delay-step-override-millis: ~
     enable-index-processing: true
-    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -540,7 +529,6 @@ validator_configs:
     checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -600,7 +588,6 @@ validator_configs:
       max-submit-position: ~
       submit-delay-step-override-millis: ~
     enable-index-processing: true
-    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -636,7 +623,6 @@ validator_configs:
     checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
