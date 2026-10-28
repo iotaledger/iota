@@ -77,7 +77,6 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     fp_ensure,
-    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
@@ -85,7 +84,7 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
     },
-    layout_resolver::{LayoutResolver, into_struct_layout},
+    layout_resolver::into_struct_layout,
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointRequest, CheckpointResponse,
@@ -321,6 +320,10 @@ pub struct AuthorityMetrics {
     pub(crate) local_post_consensus_load_shedding_percentage: IntGauge,
 
     pub(crate) transaction_overload_sources: IntCounterVec,
+
+    /// Checkpoint-inclusion waits that timed out before the RPC indexes
+    /// caught up.
+    pub(crate) checkpoint_inclusion_index_wait_timeouts: IntCounter,
 
     // Consensus handler metrics
     pub consensus_handler_processed: IntCounterVec,
@@ -726,6 +729,12 @@ impl AuthorityMetrics {
             skipped_consensus_txns_cache_hit: register_int_counter_with_registry!(
                 "skipped_consensus_txns_cache_hit",
                 "Total number of consensus transactions skipped because of local cache hit",
+                registry,
+            )
+                .unwrap(),
+            checkpoint_inclusion_index_wait_timeouts: register_int_counter_with_registry!(
+                "checkpoint_inclusion_index_wait_timeouts",
+                "Total number of checkpoint-inclusion waits that returned before the RPC indexes had caught up",
                 registry,
             )
                 .unwrap(),

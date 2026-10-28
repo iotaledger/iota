@@ -525,16 +525,7 @@ impl CheckpointExecutor {
         self.state
             .record_executed_for_object_retention(ckpt_state.data.checkpoint.sequence_number());
 
-        if self.has_checkpoint_consumers() {
-            // The conversion of effects and event layouts for the
-            // subscribers reads RocksDB.
-            tokio::task::spawn_blocking({
-                let this = self.clone();
-                move || this.broadcast_checkpoint(&ckpt_state.data, ckpt_state.full_data.as_ref())
-            })
-            .await
-            .unwrap();
-        }
+        self.broadcast_checkpoint(&ckpt_state.data, ckpt_state.full_data.as_ref());
 
         finish_stage!(pipeline_handle, BumpHighestExecutedCheckpoint);
 
@@ -1330,50 +1321,33 @@ impl CheckpointExecutor {
         checkpoint.report_checkpoint_age(&self.metrics.last_executed_checkpoint_age);
     }
 
-    /// Whether a consumer of `broadcast_checkpoint` is present.
-    fn has_checkpoint_consumers(&self) -> bool {
-        self.data_sender.is_some()
-            || self
-                .state
-                .subscription_handler
-                .has_transaction_subscribers()
-            || self.state.subscription_handler.has_event_subscribers()
-    }
-
-    /// Send the finished checkpoint to the checkpoint data channel, if set,
-    /// and to the JSON-RPC transaction and event subscribers.
+    /// Send the finished checkpoint to the checkpoint data channel, if set.
     fn broadcast_checkpoint(
         &self,
         checkpoint_exec_data: &CheckpointExecutionData,
         checkpoint_data: Option<&CheckpointData>,
     ) {
-        let loaded;
-        let checkpoint_data = match checkpoint_data {
-            Some(data) => data,
-            None => {
-                // Not expected: subscribers are served by the JSON-RPC API,
-                // which comes with the RPC index store, so
-                // `checkpoint_data_enabled` covers every consumer. A fallback
-                // rather than a panic.
-                let (_, tx_data) =
-                    self.load_checkpoint_transactions(checkpoint_exec_data.checkpoint.clone());
-                loaded = load_checkpoint_data(
-                    checkpoint_exec_data,
-                    &tx_data,
-                    self.state.get_object_store(),
-                    self.state.get_historic_objects(),
-                    self.transaction_cache_reader.as_ref(),
-                )
-                .expect("Failed to load full CheckpointData");
-                &loaded
-            }
-        };
-
         if let Some(data_sender) = &self.data_sender {
+            let loaded;
+            let checkpoint_data = match checkpoint_data {
+                Some(data) => data,
+                None => {
+                    // Rare: a data channel without `checkpoint_data_enabled`.
+                    let (_, tx_data) =
+                        self.load_checkpoint_transactions(checkpoint_exec_data.checkpoint.clone());
+                    loaded = load_checkpoint_data(
+                        checkpoint_exec_data,
+                        &tx_data,
+                        self.state.get_object_store(),
+                        self.state.get_historic_objects(),
+                        self.transaction_cache_reader.as_ref(),
+                    )
+                    .expect("Failed to load full CheckpointData");
+                    &loaded
+                }
+            };
             data_sender(checkpoint_data);
         }
-        self.state
-            .notify_subscribers_of_checkpoint(checkpoint_data, &self.epoch_store);
 
         debug!(
             "[Fullnode] Full CheckpointData is available: seq={}",
