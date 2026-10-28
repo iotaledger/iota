@@ -9,7 +9,7 @@ pub use http;
 use http::{Request, Response};
 use hyper_util::service::TowerToHyperService;
 use io::ServerIo;
-use metrics::{HandshakeResult, TrackedIo};
+use metrics::{HandshakeResult, RefusedReason, TrackedIo};
 use tokio::task::JoinSet;
 use tokio_rustls::{TlsAcceptor, rustls};
 use tower::{Service, ServiceBuilder, ServiceExt};
@@ -321,6 +321,9 @@ where
         if self.is_full() {
             // Dropping the connection closes it, releasing its file descriptor.
             trace!("listener is already serving its maximum connections, closing the new one");
+            if let Some(metrics) = &self.config.metrics {
+                metrics.record_refused(RefusedReason::ListenerFull);
+            }
             return;
         }
         if let Some(tls) = self.tls_config.clone() {
@@ -369,6 +372,9 @@ where
             let Some(guard) = self.peer_connection_counts.register(&peer, max.get()) else {
                 // Dropping the connection closes it, releasing its file descriptor.
                 trace!("peer already holds {max} connections, closing the new one");
+                if let Some(metrics) = &self.config.metrics {
+                    metrics.record_refused(RefusedReason::PeerLimit);
+                }
                 return;
             };
             peer_connection_guard = Some(guard);
@@ -433,6 +439,7 @@ where
                 connection_shutdown_token,
                 self.config.max_connection_age,
                 idle_timer,
+                self.config.metrics.clone(),
                 on_connection_close,
             ));
     }
