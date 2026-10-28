@@ -434,7 +434,7 @@ impl CheckpointExecutor {
 
         finish_stage!(pipeline_handle, BuildDbBatch);
 
-        let mut ckpt_state = tokio::task::spawn_blocking({
+        let ckpt_state = tokio::task::spawn_blocking({
             let this = self.clone();
             move || {
                 // Before the outputs, so no durable object lacks its
@@ -487,11 +487,11 @@ impl CheckpointExecutor {
 
         finish_stage!(pipeline_handle, FinalizeCheckpoint);
 
-        if let Some(checkpoint_data) = ckpt_state.full_data.take() {
+        if self.state.rpc_indexes_store.is_some() {
             // The commit writes RocksDB and takes the caches' owner locks.
             tokio::task::spawn_blocking({
                 let this = self.clone();
-                move || this.commit_index_updates(checkpoint_data)
+                move || this.commit_index_updates(seq)
             })
             .await?;
         }
@@ -519,6 +519,8 @@ impl CheckpointExecutor {
 
         fail_point!("crash");
 
+        // Keep this after the index commit: `wait_for_checkpoint_inclusion`
+        // reads this bump as "the checkpoint is indexed".
         self.bump_highest_executed_checkpoint(&ckpt_state.data.checkpoint);
         self.state
             .record_executed_for_object_retention(ckpt_state.data.checkpoint.sequence_number());
@@ -534,7 +536,7 @@ impl CheckpointExecutor {
         // Important: code after the last pipeline stage is finished can run out of
         // checkpoint order.
 
-        Ok(ckpt_state.data.checkpoint.is_last_checkpoint_of_epoch())
+        Ok(is_final_checkpoint)
     }
 
     // On validators, checkpoints have often already been constructed locally, in
@@ -1319,31 +1321,32 @@ impl CheckpointExecutor {
         checkpoint.report_checkpoint_age(&self.metrics.last_executed_checkpoint_age);
     }
 
-    /// Helper to broadcast checkpoint summary and data if the
-    /// channels are set.
+    /// Send the finished checkpoint to the checkpoint data channel, if set.
     fn broadcast_checkpoint(
         &self,
         checkpoint_exec_data: &CheckpointExecutionData,
         checkpoint_data: Option<&CheckpointData>,
     ) {
         if let Some(data_sender) = &self.data_sender {
-            let checkpoint_data = if let Some(data) = checkpoint_data {
-                data.clone()
-            } else {
-                // Reconstruct checkpoint data if needed (rare case: data_sender configured but
-                // checkpoint_data_enabled is false)
-                let (_, tx_data) =
-                    self.load_checkpoint_transactions(checkpoint_exec_data.checkpoint.clone());
-                load_checkpoint_data(
-                    checkpoint_exec_data,
-                    &tx_data,
-                    self.state.get_object_store(),
-                    self.state.get_historic_objects(),
-                    self.transaction_cache_reader.as_ref(),
-                )
-                .expect("Failed to load full CheckpointData")
+            let loaded;
+            let checkpoint_data = match checkpoint_data {
+                Some(data) => data,
+                None => {
+                    // Rare: a data channel without `checkpoint_data_enabled`.
+                    let (_, tx_data) =
+                        self.load_checkpoint_transactions(checkpoint_exec_data.checkpoint.clone());
+                    loaded = load_checkpoint_data(
+                        checkpoint_exec_data,
+                        &tx_data,
+                        self.state.get_object_store(),
+                        self.state.get_historic_objects(),
+                        self.transaction_cache_reader.as_ref(),
+                    )
+                    .expect("Failed to load full CheckpointData");
+                    &loaded
+                }
             };
-            data_sender(&checkpoint_data);
+            data_sender(checkpoint_data);
         }
 
         debug!(
@@ -1352,11 +1355,9 @@ impl CheckpointExecutor {
         );
     }
 
-    /// If configured, commit the pending index updates for the provided
-    /// checkpoint
+    /// If configured, commit the pending index updates for the checkpoint.
     #[instrument(level = "info", skip_all)]
-    fn commit_index_updates(&self, checkpoint: CheckpointData) {
-        let sequence_number = checkpoint.checkpoint_summary.sequence_number;
+    fn commit_index_updates(&self, sequence_number: CheckpointSequenceNumber) {
         if let Some(rpc_indexes_store) = &self.state.rpc_indexes_store {
             rpc_indexes_store
                 .commit_update_for_checkpoint(sequence_number)

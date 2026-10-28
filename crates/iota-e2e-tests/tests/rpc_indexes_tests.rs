@@ -1,13 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Real-node coverage of the RPC index store: epoch-boundary history
-//! buckets and index pruning, which unit tests cannot exercise through a
-//! node's actual lifecycle. Restarting the fullnode under the simulator is
-//! not covered: a stopped fullnode's database locks are not released (the
-//! restarted instance fails on the RocksDB `LOCK` files), which needs a
-//! harness fix first; reopen semantics are pinned by the `rpc_indexes`
-//! unit tests instead.
+//! Tests of the RPC index store on a running node: history buckets across
+//! epoch boundaries, index pruning, and indexing of transactions reported as
+//! final.
+//!
+//! Restarting a fullnode under the simulator is not covered, since its RocksDB
+//! `LOCK` files are not released; the `rpc_indexes` unit tests cover reopening.
 
 use std::{num::NonZeroUsize, time::Duration};
 
@@ -24,9 +23,9 @@ use iota_macros::sim_test;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{Address, TransactionDigest};
 use iota_swarm::memory::Swarm;
-use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use prost_types::FieldMask;
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 
 /// Transfers an object between the wallet's first two accounts and returns
 /// the sender and the transaction digest.
@@ -131,8 +130,63 @@ async fn index_pruning_drops_expired_epochs_on_a_live_node() {
     );
 }
 
-/// A node serving the JSON-RPC API answers every index-backed endpoint,
-/// so a client needs no capability probe before using it.
+/// A transaction reported under `WaitForLocalExecution` is already visible to
+/// the index-backed reads.
+#[sim_test]
+async fn index_backed_reads_see_a_transaction_reported_as_executed_locally() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let client = cluster.rpc_client();
+
+    // Repeated to cover more than one checkpoint.
+    for _ in 0..5 {
+        let recipient = Address::random();
+        let txn = make_transfer_iota_transaction(&cluster.wallet, Some(recipient), Some(9)).await;
+        cluster.wallet.execute_transaction_must_succeed(txn).await;
+
+        let owned = client
+            .get_owned_objects(recipient, None, None, None)
+            .await
+            .expect("getOwnedObjects must be served");
+        assert_eq!(
+            owned.data.len(),
+            1,
+            "the transferred coin must be indexed by the time the execution is reported"
+        );
+    }
+}
+
+/// The same holds on the certificate-based flow, where the quorum driver
+/// serves `WaitForLocalExecution`.
+#[sim_test]
+async fn index_backed_reads_see_a_transaction_reported_by_the_quorum_driver() {
+    let _pcool_guard = override_pcool_flow(false);
+    let cluster = TestClusterBuilder::new().build().await;
+    let client = cluster.rpc_client();
+
+    // Repeated to cover more than one checkpoint.
+    for _ in 0..5 {
+        let recipient = Address::random();
+        let txn = make_transfer_iota_transaction(&cluster.wallet, Some(recipient), Some(9)).await;
+        let response = cluster.wallet.execute_transaction_must_succeed(txn).await;
+        assert_eq!(
+            response.confirmed_local_execution,
+            Some(true),
+            "the quorum driver path must confirm local execution"
+        );
+
+        let owned = client
+            .get_owned_objects(recipient, None, None, None)
+            .await
+            .expect("getOwnedObjects must be served");
+        assert_eq!(
+            owned.data.len(),
+            1,
+            "the transferred coin must be indexed by the time the execution is reported"
+        );
+    }
+}
+
+/// A node serving the JSON-RPC API answers every index-backed endpoint.
 #[sim_test]
 async fn jsonrpc_node_serves_every_index_backed_endpoint() {
     // Relies on the JSON-RPC API being on by default.
