@@ -17,8 +17,9 @@ use typed_store::{
 
 use super::{EMPTY_CHECKPOINT_CONTENTS_DIGEST, empty_checkpoint_contents};
 use crate::epoch_buckets::{
-    BucketPaths, BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_options,
-    bucket_metrics_label, dump_page, dump_retention_floor, dump_rows, extra_column_family_options,
+    BucketPaths, BucketReopen, EpochBuckets, PrunedBuckets, absent_if_dropped, bucket_cf_epoch,
+    bucket_cf_options, bucket_metrics_label, dump_page, dump_retention_floor, dump_rows,
+    extra_column_family_options,
 };
 
 /// Column-family prefix of the historic checkpoint buckets; a bucket's
@@ -198,18 +199,26 @@ impl HistoricCheckpoints {
 
     /// Drops the buckets of the epochs that have fallen outside
     /// `epochs_to_retain`, counted back from `current_epoch` and including
-    /// it, and returns the earliest epoch retained.
+    /// it, and returns the earliest epoch retained and how many buckets were
+    /// dropped.
     ///
     /// `current_epoch` must be the epoch this node is executing (see
     /// [`HistoricCheckpoints`]); buckets above it are left alone. Blocks while
     /// the drops run, so async callers must use `spawn_blocking`.
+    ///
+    /// `before_drop` runs before each bucket is dropped, once the earliest
+    /// epoch retained has moved past it, so that what advertises the retained
+    /// range can be moved first.
     pub fn prune(
         &self,
         current_epoch: EpochId,
         epochs_to_retain: u64,
-    ) -> Result<Option<EpochId>, TypedStoreError> {
-        self.buckets
-            .prune(current_epoch, epochs_to_retain, |_, _| Ok(()))
+        before_drop: &dyn Fn(),
+    ) -> Result<Option<PrunedBuckets>, TypedStoreError> {
+        self.buckets.prune(current_epoch, epochs_to_retain, |_, _| {
+            before_drop();
+            Ok(())
+        })
     }
 
     /// The contents stored under `digest`, newest bucket first, `None` if no

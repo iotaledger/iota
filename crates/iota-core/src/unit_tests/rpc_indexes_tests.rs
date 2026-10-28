@@ -35,7 +35,9 @@ use crate::{checkpoints::CheckpointStore, test_utils::executed_checkpoint};
 /// does.
 fn prune_at_newest_epoch(store: &RpcIndexesStore) -> iota_types::error::IotaResult<Option<u64>> {
     let newest = store.retained_history_epochs().last().copied().unwrap_or(0);
-    store.prune(newest)
+    store
+        .prune(newest)
+        .map(|pruned| pruned.map(|pruned| pruned.earliest_retained))
 }
 
 /// Opens an `RpcIndexesStore` at `path` without running the rebuild path,

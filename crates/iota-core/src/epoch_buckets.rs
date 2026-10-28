@@ -18,10 +18,11 @@ use std::{
         Arc,
         atomic::{AtomicU64, Ordering},
     },
+    time::{Duration, Instant},
 };
 
 use iota_types::committee::EpochId;
-use parking_lot::{RwLock, RwLockUpgradableReadGuard};
+use parking_lot::{Mutex, RwLock, RwLockUpgradableReadGuard};
 use tracing::{info, warn};
 use typed_store::{
     DbIterator, TypedStoreError,
@@ -323,6 +324,10 @@ pub(crate) fn absent_if_dropped<T: Default>(
     }
 }
 
+/// How long [`EpochBuckets::prune`] waits for the readers still holding a
+/// bucket it took out of the map before it drops the column family anyway.
+const READERS_DRAIN_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// Stands for "no bucket at all" in [`EpochBuckets::earliest_bucket_epoch`].
 /// No real epoch reaches it.
 const NO_BUCKET: EpochId = EpochId::MAX;
@@ -361,6 +366,16 @@ pub(crate) trait BucketReopen: Sized {
     }
 }
 
+/// What a prune of a store's buckets did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PrunedBuckets {
+    /// The earliest epoch retained; buckets below it are gone and are never
+    /// recreated.
+    pub earliest_retained: EpochId,
+    /// How many buckets this prune dropped.
+    pub dropped: usize,
+}
+
 /// The per-epoch buckets of one store, each viewed as a `B`.
 ///
 /// On-disk column-family names are the ground truth for which buckets exist;
@@ -382,9 +397,11 @@ pub(crate) struct EpochBuckets<B> {
     earliest_retained_table: DBMap<(), EpochId>,
     /// Mirrors the oldest epoch in `buckets` ([`NO_BUCKET`] when empty),
     /// updated under the map's write lock. Kept apart from the map so that
-    /// request-path readers do not block on a [`Self::prune`], which holds
-    /// the write lock throughout.
+    /// request-path readers do not take the map's lock.
     earliest_bucket_epoch: AtomicU64,
+    /// Held for the whole of a [`Self::prune`], so that two prunes never
+    /// expire the same bucket at once.
+    pruning: Mutex<()>,
 }
 
 impl<B: BucketReopen> EpochBuckets<B> {
@@ -460,6 +477,7 @@ impl<B: BucketReopen> EpochBuckets<B> {
             earliest_retained_epoch: AtomicU64::new(earliest_retained_epoch),
             earliest_retained_table,
             earliest_bucket_epoch: AtomicU64::new(earliest_bucket_epoch),
+            pruning: Mutex::new(()),
         })
     }
 
@@ -604,79 +622,116 @@ impl<B: BucketReopen> EpochBuckets<B> {
     /// `current_epoch` is passed in because state sync can write buckets
     /// ahead of execution, which must not count towards the retention.
     ///
-    /// Returns the earliest epoch to retain, `None` when there is no bucket at
-    /// all. It is persisted before the drops and never moves backwards, so
+    /// Returns the earliest epoch to retain and how many buckets this call
+    /// dropped, `None` when there is no bucket at all. The earliest epoch is
+    /// persisted before the drops and never moves backwards, so
     /// dropped epochs are never recreated, even after a reopen or a raised
     /// `epochs_to_retain`. An epoch whose drop failed is gone all the same,
     /// and the next open drops it.
     ///
-    /// Queries block for the duration of the drops, so callers on an async
-    /// runtime must use `spawn_blocking`.
+    /// Blocks for as long as `before_drop` and the drops take, so callers on
+    /// an async runtime must use `spawn_blocking`. Queries and [`Self::ensure`]
+    /// block only while the floor moves and while a bucket is taken out of
+    /// the map, not while its column family is dropped.
     ///
-    /// `before_drop` runs for each expiring epoch in ascending order, under
-    /// the write lock and before the drop. Its error stops the prune and keeps
-    /// that epoch's bucket, without rolling back what `before_drop` already
-    /// wrote, so it must be safe to run again on the same epoch and must not
-    /// durably change how a bucket may be read until it has made that safe.
+    /// `before_drop` runs for each expiring epoch in ascending order, before
+    /// the drop and without the lock, so queries still reach the bucket while
+    /// it runs. Its error stops the prune and keeps that epoch's bucket,
+    /// without rolling back what `before_drop` already wrote, so it must be
+    /// safe to run again on the same epoch and must not durably change how a
+    /// bucket may be read until it has made that safe.
     pub(crate) fn prune(
         &self,
         current_epoch: EpochId,
         epochs_to_retain: u64,
         mut before_drop: impl FnMut(EpochId, &Arc<B>) -> Result<(), TypedStoreError>,
-    ) -> Result<Option<EpochId>, TypedStoreError> {
-        // Runs once per executed checkpoint, usually with nothing to do, so
-        // it takes the write lock queries block on only when it has to.
-        let buckets = self.buckets.upgradable_read();
-        let persisted = self.earliest_retained();
-        let Some(earliest_retained) =
-            Self::earliest_epoch_to_retain(&buckets, current_epoch, epochs_to_retain, persisted)
-        else {
-            return Ok(None);
+    ) -> Result<Option<PrunedBuckets>, TypedStoreError> {
+        let _pruning = self.pruning.lock();
+        let (earliest_retained, expired) = {
+            // Usually has nothing to do, so it takes the write lock queries
+            // block on only when it has to.
+            let buckets = self.buckets.upgradable_read();
+            let persisted = self.earliest_retained();
+            let Some(earliest_retained) = Self::earliest_epoch_to_retain(
+                &buckets,
+                current_epoch,
+                epochs_to_retain,
+                persisted,
+            ) else {
+                return Ok(None);
+            };
+            let expired: Vec<(EpochId, Arc<B>)> = buckets
+                .range(..earliest_retained)
+                .map(|(&e, bucket)| (e, bucket.clone()))
+                .collect();
+            if earliest_retained == persisted && expired.is_empty() {
+                return Ok(Some(PrunedBuckets {
+                    earliest_retained,
+                    dropped: 0,
+                }));
+            }
+            if earliest_retained != persisted {
+                // Under the write lock, so `ensure` cannot hand out a bucket
+                // below the new floor.
+                let _buckets = RwLockUpgradableReadGuard::upgrade(buckets);
+                // Synced before any drop: RocksDB makes a column-family drop
+                // durable at once, and a lost floor would let a reopen
+                // backfill the dropped epochs again.
+                let mut batch = self.earliest_retained_table.batch();
+                batch.insert_batch(&self.earliest_retained_table, [((), earliest_retained)])?;
+                batch.write_opt(&synced_write_options())?;
+                self.earliest_retained_epoch
+                    .store(earliest_retained, Ordering::Relaxed);
+            }
+            (earliest_retained, expired)
         };
-        if earliest_retained == persisted && buckets.range(..earliest_retained).next().is_none() {
-            return Ok(Some(earliest_retained));
-        }
 
-        // Under the write lock, so `ensure` cannot hand out a bucket whose
-        // column family is about to be dropped.
-        let mut buckets = RwLockUpgradableReadGuard::upgrade(buckets);
-        if earliest_retained != persisted {
-            // Synced before any drop: RocksDB makes a column-family drop
-            // durable at once, and a lost floor would let a reopen backfill
-            // the dropped epochs again.
-            let mut batch = self.earliest_retained_table.batch();
-            batch.insert_batch(&self.earliest_retained_table, [((), earliest_retained)])?;
-            batch.write_opt(&synced_write_options())?;
-            self.earliest_retained_epoch
-                .store(earliest_retained, Ordering::Relaxed);
-        }
-        let expired: Vec<(EpochId, Arc<B>)> = buckets
-            .range(..earliest_retained)
-            .map(|(&e, bucket)| (e, bucket.clone()))
-            .collect();
+        let mut dropped = 0;
         for (epoch, bucket) in expired {
             before_drop(epoch, &bucket)?;
             info!(
                 store = self.name,
                 epoch, "dropping the bucket of an expired epoch"
             );
+            {
+                let mut buckets = self.buckets.write();
+                buckets.remove(&epoch);
+                // Per epoch, so an early `before_drop` error leaves the mirror
+                // matching the map.
+                self.publish_earliest_epoch(&buckets);
+            }
+            dropped += 1;
+            // A reader that took the bucket before it left the map finishes
+            // against the open column family rather than failing; no new
+            // reader can take it now.
+            let deadline = Instant::now() + READERS_DRAIN_TIMEOUT;
+            while Arc::strong_count(&bucket) > 1 && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            if Arc::strong_count(&bucket) > 1 {
+                warn!(
+                    store = self.name,
+                    epoch, "dropping an expired bucket that a reader still holds"
+                );
+            }
+            drop(bucket);
+            // Outside the lock: a large column family takes seconds to drop.
+            // A failed drop leaves a column family below the floor, which the
+            // next open drops.
             if let Err(e) = self.db.drop_cf(&bucket_cf_name(self.cf_prefix, epoch)) {
                 warn!(
                     store = self.name,
                     epoch, "failed to drop an expired bucket column family: {e}"
                 );
             }
-            // RocksDB unregisters the column family before it attempts the
-            // drop, so even after a failed drop the bucket cannot be read.
-            buckets.remove(&epoch);
-            // Per epoch, so an early `before_drop` error leaves the mirror
-            // matching the map.
-            self.publish_earliest_epoch(&buckets);
         }
         if let Some(paths) = &self.paths {
             paths.remove_empty_dirs_below(earliest_retained);
         }
-        Ok(Some(earliest_retained))
+        Ok(Some(PrunedBuckets {
+            earliest_retained,
+            dropped,
+        }))
     }
 
     /// The earliest epoch to retain when `current_epoch` is kept together
@@ -710,7 +765,8 @@ mod tests {
 
     use super::{
         Arc, BTreeMap, BucketPaths, BucketReopen, Database, EpochBuckets, EpochId, Map, Path,
-        PathBuf, TypedStoreError, bucket_cf_epoch, bucket_cf_name, bucket_cf_options, fs, rocksdb,
+        PathBuf, PrunedBuckets, TypedStoreError, bucket_cf_epoch, bucket_cf_name,
+        bucket_cf_options, fs, rocksdb,
     };
 
     /// The buckets of one store share one metrics label, so that a store
@@ -811,6 +867,46 @@ mod tests {
         let paths = BucketPaths::new(dir.path(), "test");
         paths.existing_cf_options(&rocksdb::Options::default(), 3);
         assert!(paths.bucket_dir(3).exists());
+    }
+
+    /// `before_drop` runs without the lock queries take, so they keep being
+    /// answered while it runs.
+    #[tokio::test]
+    async fn before_drop_runs_while_queries_can_take_the_lock() {
+        let (buckets, _dir) = test_buckets(&[0, 1, 2]);
+        let mut called = Vec::new();
+        buckets
+            .prune(2, 0, |epoch, _| {
+                assert!(buckets.buckets.try_write().is_some());
+                called.push(epoch);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(called, vec![0, 1]);
+    }
+
+    /// A reader holding an expired bucket keeps its column family open until
+    /// it lets go, and the prune drops it after.
+    #[tokio::test]
+    async fn a_held_bucket_is_dropped_once_its_reader_lets_go() {
+        let (buckets, _dir) = test_buckets(&[0, 1]);
+        let held = buckets.iter(false)[0].clone();
+        let cf_name = bucket_cf_name(TEST_CF_PREFIX, 0);
+
+        std::thread::scope(|scope| {
+            let reader = scope.spawn(|| {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                let open = buckets.db.cf_handle(&cf_name).is_some();
+                drop(held);
+                open
+            });
+            buckets.prune(1, 0, |_, _| Ok(())).unwrap();
+            assert!(
+                reader.join().unwrap(),
+                "the column family must stay open while a reader holds the bucket"
+            );
+        });
+        assert!(buckets.db.cf_handle(&cf_name).is_none());
     }
 
     /// The name mapping must round-trip and reject other stores' prefixes:
@@ -1059,13 +1155,19 @@ mod tests {
     async fn prune_calls_back_in_ascending_epoch_order() {
         let (buckets, _dir) = test_buckets(&[3, 4, 5, 6]);
         let seen = Mutex::new(Vec::new());
-        let earliest = buckets
+        let pruned = buckets
             .prune(6, 1, |epoch, _| {
                 seen.lock().unwrap().push(epoch);
                 Ok(())
             })
             .unwrap();
-        assert_eq!(earliest, Some(5));
+        assert_eq!(
+            pruned,
+            Some(PrunedBuckets {
+                earliest_retained: 5,
+                dropped: 2
+            })
+        );
         assert_eq!(*seen.lock().unwrap(), vec![3, 4]);
     }
 
@@ -1075,12 +1177,24 @@ mod tests {
     #[tokio::test]
     async fn prune_ignores_the_buckets_above_the_current_epoch() {
         let (buckets, _dir) = test_buckets(&[3, 4, 5, 6]);
-        let earliest = buckets.prune(4, 1, |_, _| Ok(())).unwrap();
-        assert_eq!(earliest, Some(3));
+        let pruned = buckets.prune(4, 1, |_, _| Ok(())).unwrap();
+        assert_eq!(
+            pruned,
+            Some(PrunedBuckets {
+                earliest_retained: 3,
+                dropped: 0
+            })
+        );
         assert_eq!(buckets.iter(false).len(), 4);
 
-        let earliest = buckets.prune(5, 1, |_, _| Ok(())).unwrap();
-        assert_eq!(earliest, Some(4));
+        let pruned = buckets.prune(5, 1, |_, _| Ok(())).unwrap();
+        assert_eq!(
+            pruned,
+            Some(PrunedBuckets {
+                earliest_retained: 4,
+                dropped: 1
+            })
+        );
         assert_eq!(buckets.earliest_epoch(), Some(4));
         assert_eq!(buckets.newest_epoch(), Some(6));
     }

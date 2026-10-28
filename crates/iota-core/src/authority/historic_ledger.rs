@@ -25,8 +25,9 @@ use typed_store::{
 };
 
 use crate::epoch_buckets::{
-    BucketPaths, BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_options,
-    bucket_metrics_label, dump_page, dump_retention_floor, dump_rows, extra_column_family_options,
+    BucketPaths, BucketReopen, EpochBuckets, PrunedBuckets, absent_if_dropped, bucket_cf_epoch,
+    bucket_cf_options, bucket_metrics_label, dump_page, dump_retention_floor, dump_rows,
+    extra_column_family_options,
 };
 
 /// Column-family prefix of the historic ledger buckets; a bucket's family
@@ -237,20 +238,29 @@ impl HistoricLedger {
     }
 
     /// Keeps the buckets of `current_epoch` and the `epochs_to_retain` epochs
-    /// below it, drops older ones, and returns the earliest epoch retained.
+    /// below it, drops older ones, and returns the earliest epoch retained and
+    /// how many buckets were dropped.
     ///
     /// `current_epoch` must be the epoch this node is executing, not the
     /// newest bucket (see [`HistoricLedger`]); buckets above it are left
     /// alone. Blocks for as long as the drops take, so a caller on an async
     /// runtime must use `spawn_blocking`.
+    ///
+    /// `before_drop` runs before each bucket is dropped, once the earliest
+    /// epoch retained has moved past it, so that what advertises the retained
+    /// range can be moved first.
     pub fn prune(
         &self,
         current_epoch: EpochId,
         epochs_to_retain: u64,
-    ) -> IotaResult<Option<EpochId>> {
+        before_drop: &dyn Fn(),
+    ) -> IotaResult<Option<PrunedBuckets>> {
         self.buckets
             // No live table holds rows that depend on a bucket.
-            .prune(current_epoch, epochs_to_retain, |_, _| Ok(()))
+            .prune(current_epoch, epochs_to_retain, |_, _| {
+                before_drop();
+                Ok(())
+            })
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 

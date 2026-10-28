@@ -80,7 +80,8 @@ use crate::{
     },
     checkpoints::CheckpointStore,
     epoch_buckets::{
-        self, BucketPaths, BucketReopen, EpochBuckets, absent_if_dropped, historic_root,
+        self, BucketPaths, BucketReopen, EpochBuckets, PrunedBuckets, absent_if_dropped,
+        historic_root,
     },
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
     par_index_live_object_set::par_index_live_object_set,
@@ -1239,17 +1240,17 @@ impl RpcIndexesStore {
     }
 
     /// Drops the history of expired epochs, in every history table. Returns
-    /// the earliest epoch to retain, `None` when index pruning is off or
-    /// there is no history at all.
+    /// the earliest epoch to retain and how many buckets were dropped, `None`
+    /// when index pruning is off or there is no history at all.
     ///
     /// The retention counts historic epochs on top of the current one: `0`
     /// keeps the current epoch only. The newest epoch's bucket is always
     /// kept, since [`Self::index_checkpoint`] reads its digests.
     ///
     /// A query racing a drop answers without the dropped epoch's rows.
-    /// Queries block for the duration of the drops, so callers on an async
-    /// runtime must use `spawn_blocking`.
-    pub fn prune(&self, current_epoch: EpochId) -> IotaResult<Option<EpochId>> {
+    /// Blocks for as long as the drops take, so callers on an async runtime
+    /// must use `spawn_blocking`.
+    pub fn prune(&self, current_epoch: EpochId) -> IotaResult<Option<PrunedBuckets>> {
         let Some(epochs_to_retain) = self.epochs_to_retain else {
             return Ok(None);
         };

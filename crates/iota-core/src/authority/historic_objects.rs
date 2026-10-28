@@ -36,7 +36,7 @@ use typed_store::{
 use crate::{
     authority::authority_store_types::{StoreObject, StoreObjectWrapper},
     epoch_buckets::{
-        BucketPaths, BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch,
+        BucketPaths, BucketReopen, EpochBuckets, PrunedBuckets, absent_if_dropped, bucket_cf_epoch,
         bucket_cf_name, bucket_cf_options, bucket_metrics_label, dump_page, dump_retention_floor,
         dump_rows, extra_column_family_options,
     },
@@ -86,11 +86,11 @@ pub struct HistoricObjectsBucket {
     /// epoch or an earlier one. Hence expiry goes oldest epoch first.
     ///
     /// A reader that also consults the live `objects` table must read it
-    /// **before** asking the buckets. Bucket handles outlive the buckets read
-    /// lock, so otherwise a bucket read could race an expiry that has already
-    /// deleted the tombstone covering those rows. Reading live first means
-    /// either the live read finds the tombstone, or the bucket read waits on
-    /// the lock until the expiry has taken the bucket out of the map.
+    /// **before** asking the buckets. An expiry marks the bucket expiring
+    /// before it deletes a single tombstone, and reads skip a bucket marked
+    /// expiring. Reading live first therefore means either the live read
+    /// finds the tombstone, or the deletion it missed came after the mark,
+    /// and the bucket read skips the bucket.
     pub(crate) tombstones: TaggedDBMap<ObjectKey, ()>,
 
     /// Present once this bucket is scheduled for expiry, after which reads
@@ -140,7 +140,9 @@ impl HistoricObjectsBucket {
     /// must no longer be served: its tombstones may already be deleted
     /// from the live `objects` table.
     fn is_expiring(&self) -> bool {
-        self.expiring_marked.load(Ordering::Relaxed)
+        // Pairs with the Release in `mark_expiring`: a reader that saw a tombstone
+        // deleted also sees the mark set before the deletion.
+        self.expiring_marked.load(Ordering::Acquire)
     }
 
     /// Durably marks this bucket expiring, then stops serving its rows.
@@ -152,7 +154,7 @@ impl HistoricObjectsBucket {
         let mut batch = self.expiring.batch();
         batch.insert_batch_tagged(&self.expiring, [((), ())])?;
         batch.write_opt(&synced_write_options())?;
-        self.expiring_marked.store(true, Ordering::Relaxed);
+        self.expiring_marked.store(true, Ordering::Release);
         Ok(())
     }
 }
@@ -439,16 +441,17 @@ impl HistoricObjects {
 
     /// Keeps the buckets of `current_epoch` and the `epochs_to_retain` epochs
     /// below it, drops older ones, and deletes the tombstones each
-    /// dropped epoch recorded. Returns the earliest epoch still retained,
-    /// `None` when there is no bucket at all.
+    /// dropped epoch recorded. Returns the earliest epoch still retained and
+    /// how many buckets were dropped, `None` when there is no bucket at all.
     ///
-    /// Blocks queries for the duration, so an async caller must use
-    /// `spawn_blocking`.
+    /// Blocks for as long as the deletions and drops take, so an async caller
+    /// must use `spawn_blocking`. Queries keep being answered meanwhile, from
+    /// the buckets not marked expiring.
     pub fn prune(
         &self,
         current_epoch: EpochId,
         epochs_to_retain: u64,
-    ) -> IotaResult<Option<EpochId>> {
+    ) -> IotaResult<Option<PrunedBuckets>> {
         self.buckets
             .prune(current_epoch, epochs_to_retain, |epoch, bucket| {
                 Self::expire_bucket(&self.objects, epoch, bucket).map_err(|e| {

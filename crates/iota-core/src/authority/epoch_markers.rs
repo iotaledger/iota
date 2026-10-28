@@ -25,8 +25,8 @@ use typed_store::{
 
 use crate::{
     epoch_buckets::{
-        BucketReopen, EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_metrics_label,
-        dump_page, dump_retention_floor, dump_rows,
+        BucketReopen, EpochBuckets, PrunedBuckets, absent_if_dropped, bucket_cf_epoch,
+        bucket_metrics_label, dump_page, dump_retention_floor, dump_rows,
     },
     progress_logger::ProgressLogger,
 };
@@ -264,11 +264,12 @@ impl EpochMarkers {
     }
 
     /// Drops every bucket below the epoch being entered, after making sure
-    /// that epoch has one. Returns the earliest epoch still retained.
+    /// that epoch has one. Returns the earliest epoch still retained and how
+    /// many buckets were dropped.
     ///
     /// Call only while execution is halted, as at reconfiguration: the drops
     /// take a write lock the execution path's reads contend on.
-    pub fn expire(&self, new_epoch: EpochId) -> IotaResult<Option<EpochId>> {
+    pub fn expire(&self, new_epoch: EpochId) -> IotaResult<Option<PrunedBuckets>> {
         self.ensure(new_epoch)?;
         self.buckets
             .prune(new_epoch, HISTORIC_EPOCHS_TO_RETAIN, |_, _| Ok(()))
