@@ -199,19 +199,16 @@ impl CommitObserver {
     /// Evicts linearizer, updates dag_state with the last solid subdag and
     /// makes flush to storage.
     fn update_with_solid_subdags_and_flush(&mut self, solid_subdags: &[CommittedSubDag]) {
-        let last_solid_subdag = solid_subdags.last();
-        if let Some(last_solid_subdag) = last_solid_subdag {
+        if let Some(last_solid_subdag) = solid_subdags.last() {
             // Evict linearizer up to the last solid subdag leader round
             self.linearizer
                 .evict_linearizer(last_solid_subdag.leader.round);
+            // Update dag_state with the last solid subdag base
+            self.dag_state
+                .write()
+                .update_last_solid_subdag_base(last_solid_subdag.base.clone());
         }
-        // Fetch handlers read refs below the solid GC round from the store only,
-        // so the new round must not become visible before the flush.
-        let mut dag_state = self.dag_state.write();
-        if let Some(last_solid_subdag) = last_solid_subdag {
-            dag_state.update_last_solid_subdag_base(last_solid_subdag.base.clone());
-        }
-        dag_state.flush();
+        self.dag_state.write().flush();
     }
 
     /// Finalizes solid subdags: updates state, flushes to storage, sends
