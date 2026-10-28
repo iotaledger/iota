@@ -715,16 +715,6 @@ pub trait ObjectCacheRead: Send + Sync {
             .expect("storage access failed")
     }
 
-    /// Return the watermark for the highest checkpoint for which we've pruned
-    /// objects.
-    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<Option<CheckpointSequenceNumber>>;
-
-    /// Non-fallible version of `try_get_highest_pruned_checkpoint`.
-    fn get_highest_pruned_checkpoint(&self) -> Option<CheckpointSequenceNumber> {
-        self.try_get_highest_pruned_checkpoint()
-            .expect("storage access failed")
-    }
-
     /// Given a list of input and receiving objects for a transaction,
     /// wait until all of them become available, so that the transaction
     /// can start execution.
@@ -1234,6 +1224,14 @@ pub trait TestingAPI: Send + Sync {
     /// of a committed version goes to the database.
     #[cfg(test)]
     fn evict_committed_object_for_testing(&self, id: &ObjectId);
+
+    /// Drops the cached copies of committed data, so that reads issued
+    /// afterwards answer from the store.
+    fn clear_caches_for_testing(&self);
+
+    /// The executed transactions whose outputs are not committed yet.
+    #[cfg(test)]
+    fn uncommitted_transactions_for_testing(&self) -> Vec<TransactionDigest>;
 }
 
 pub trait ExecutionCacheAPI:

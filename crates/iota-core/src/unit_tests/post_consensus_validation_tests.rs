@@ -2512,11 +2512,33 @@ impl HandlerObjectStateSetup {
         cache_commit.commit_transaction_outputs(epoch, batch, committed);
     }
 
+    /// [`Self::commit_outputs`] of every executed transaction not committed
+    /// yet, oldest first, and clears the execution caches, as after the
+    /// checkpoints holding them executed and a restart.
+    fn commit_all_executed_and_clear_caches(&self) {
+        let cache = self.authority.get_transaction_cache_reader();
+        let mut uncommitted: Vec<_> = self
+            .authority
+            .uncommitted_transactions_for_testing()
+            .into_iter()
+            .map(|digest| {
+                let effects = cache
+                    .get_executed_effects(&digest)
+                    .expect("an uncommitted transaction was executed");
+                (effects.lamport_version(), digest)
+            })
+            .collect();
+        uncommitted.sort();
+        let digests: Vec<_> = uncommitted.into_iter().map(|(_, digest)| digest).collect();
+        self.commit_outputs(&digests);
+        self.authority.clear_execution_caches_for_testing();
+    }
+
     /// [`Self::commit_outputs`] of `committed`, then removes every version
-    /// `consumer` consumed from the object store, as the pruner does once
-    /// the consumer's checkpoint is executed, and from the epoch's historic
-    /// objects bucket the commit moved it to. `consumer` must be one of
-    /// `committed`.
+    /// `consumer` consumed from the epoch's historic objects bucket the
+    /// commit moved it to, as on a validator that lost those bytes. The
+    /// removal from the live table finds nothing left there. `consumer` must
+    /// be one of `committed`.
     async fn prune_versions_consumed_by(
         &self,
         committed: &[TransactionDigest],
@@ -5192,9 +5214,17 @@ async fn receive_of_a_version_that_never_existed_is_not_kept() {
 /// is shared, as the consumption mutates an owned parent's version above the
 /// horizon, and another gas coin pays for the consumption, so every other
 /// input of the receive is live at the horizon.
+///
+/// With `committed`, the consumption's checkpoint has committed and the caches
+/// are cleared, so the received version is read from this epoch's bucket.
 #[tokio::test]
 async fn receive_of_a_version_consumed_above_the_horizon_is_kept_and_aborts() {
-    for consume in ["deleter", "wrapper"] {
+    for (consume, committed) in [
+        ("deleter", false),
+        ("deleter", true),
+        ("wrapper", false),
+        ("wrapper", true),
+    ] {
         let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
         let gas_id = ObjectId::random();
         let consumer_gas_id = ObjectId::random();
@@ -5219,10 +5249,22 @@ async fn receive_of_a_version_consumed_above_the_horizon_is_kept_and_aborts() {
             sender,
             &sender_key,
         );
+        let consumption_digest = *consumption.digest();
         s.epoch_store
-            .assign_commit_to_transactions(2, vec![TransactionKey::Digest(*consumption.digest())]);
+            .assign_commit_to_transactions(2, vec![TransactionKey::Digest(consumption_digest)]);
         s.execute_with_assigned_shared_versions(consumption);
         s.wait_for_fully_executed_commit(2).await;
+        if committed {
+            s.commit_outputs(&[*start_effects.transaction_digest(), consumption_digest]);
+            s.authority.clear_execution_caches_for_testing();
+            assert!(
+                s.authority
+                    .get_object_cache_reader()
+                    .get_object_by_key(&child.object_id, child.version)
+                    .is_none(),
+                "the commit moves the received version out of the live state"
+            );
+        }
 
         let commit = 1 + s.horizon_distance();
         assert!(
@@ -7910,8 +7952,8 @@ async fn replay_of_an_executed_durable_unflushed_commit_repeats_its_decisions() 
     assert_eq!(saved(&s), decisions);
 }
 
-/// Commit 1 keeps a transfer, which executes. The pruner then removes the
-/// version it consumed, and the node crashes before commit 1 flushes. The
+/// Commit 1 keeps a transfer, which executes. The version it consumed then
+/// loses its bytes, and the node crashes before commit 1 flushes. The
 /// replay of commit 1 keeps the transfer again from its saved decision,
 /// without the consumed version's bytes, which a fresh read would need.
 #[tokio::test]
@@ -8419,8 +8461,9 @@ async fn owned_row_horizon_follows_the_protocol_config_distance() {
 /// the child above that version decides: at or below the horizon the version
 /// drops, whether or not this validator still holds its bytes, and the
 /// loader drops a transaction naming it. Above the horizon it is kept, as on
-/// a validator that has not executed the receive. The pruning limit keeps its
-/// bytes; pruned by hand past that limit, the load fails with a storage error.
+/// a validator that has not executed the receive. This epoch's historic
+/// objects bucket keeps its bytes; removed by hand from there, the load fails
+/// with a storage error.
 #[tokio::test]
 async fn owned_received_version_drops_from_the_receive_row() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -8560,7 +8603,7 @@ async fn owned_dynamic_field_child_drops_from_the_row_of_its_removal() {
 
 /// Shared mutations write no rows, so a shared object's creation version
 /// named as owned drops from the creation row itself, before and after a
-/// mutation consumed it and the pruner removed it.
+/// mutation consumed it and its bytes were removed.
 #[tokio::test]
 async fn owned_read_of_a_shared_creation_version_drops() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -10129,16 +10172,36 @@ async fn setup_validators_with_a_shared_regulated_coin(
 /// naming the shared regulated coin, on a validator that has executed the
 /// coin's deletion and on one that has not. `deleting_commit` is the commit
 /// the deletion is assigned to on the first validator, above the horizon.
+/// With `commit_the_deletion`, the deletion's outputs are committed there,
+/// which moves the coin's last version into this epoch's bucket, and the
+/// caches are cleared.
 async fn run_shared_coin_deletion_verdict_comparison(
     options: RegulatedCoinOptions,
     deleting_commit: CommitIndex,
+    commit_the_deletion: bool,
 ) {
     let (deleted, not_deleted, coin) = setup_validators_with_a_shared_regulated_coin(options).await;
     let transaction =
         coin.destroy_shared_coin(&deleted, coin.denied, &coin.denied_key, &coin.denied_gas);
+    let last_version = deleted
+        .authority
+        .get_object(&coin.coin_id)
+        .unwrap()
+        .version();
 
     coin.delete_shared_coin(&deleted, deleting_commit);
     assert!(not_deleted.authority.get_object(&coin.coin_id).is_some());
+    if commit_the_deletion {
+        deleted.commit_all_executed_and_clear_caches();
+        assert!(
+            deleted
+                .authority
+                .get_object_cache_reader()
+                .get_object_by_key(&coin.coin_id, last_version)
+                .is_none(),
+            "the commit moves the coin's last version out of the live state"
+        );
+    }
 
     let on_deleted = deleted
         .validate_at(14, std::slice::from_ref(&transaction))
@@ -10164,7 +10227,15 @@ async fn run_shared_coin_deletion_verdict_comparison(
 /// keep or drop it alike, whether or not it has executed the deletion.
 #[tokio::test]
 async fn shared_coin_deleted_above_the_horizon_gets_one_verdict_on_every_validator() {
-    run_shared_coin_deletion_verdict_comparison(RegulatedCoinOptions::default(), 11).await;
+    run_shared_coin_deletion_verdict_comparison(RegulatedCoinOptions::default(), 11, false).await;
+}
+
+/// As [`shared_coin_deleted_above_the_horizon_gets_one_verdict_on_every_validator`],
+/// with the deletion's checkpoint committed and the caches cleared: the type
+/// read of the coin's last version finds it in this epoch's bucket.
+#[tokio::test]
+async fn shared_coin_deleted_and_committed_above_the_horizon_gets_one_verdict_on_every_validator() {
+    run_shared_coin_deletion_verdict_comparison(RegulatedCoinOptions::default(), 11, true).await;
 }
 
 /// A validator validates commit 12 after executing the deletion of a shared
@@ -10624,8 +10695,12 @@ async fn replay_after_the_final_round_survives_losing_an_uncommitted_producer() 
 /// it through its creation row.
 #[tokio::test]
 async fn shared_coin_created_this_epoch_and_deleted_above_the_horizon_gets_one_verdict() {
-    run_shared_coin_deletion_verdict_comparison(RegulatedCoinOptions { share_at: Some(5) }, 11)
-        .await;
+    run_shared_coin_deletion_verdict_comparison(
+        RegulatedCoinOptions { share_at: Some(5) },
+        11,
+        false,
+    )
+    .await;
 }
 
 /// As [`replay_after_losing_a_shared_coin_deletion_repeats_the_saved_decision`],
@@ -10945,8 +11020,10 @@ async fn frozen_regulated_coin_input_is_checked_at_the_commit() {
 /// uses for the deny list's dynamic fields, on a dynamic-field child created
 /// at commit 5 and deleted at commit 6. Below the horizon of the creation it
 /// is absent, at it the created version, and from the deletion on absent
-/// again. Once the pruner removes the created version, the read that needs
-/// it is a storage error, never an answer.
+/// again. Once the deletion's checkpoint commits, the created version is read
+/// from this epoch's bucket. Once its bytes are removed, the read that needs it
+/// is a storage error, never an answer, and after the epoch ended it abandons
+/// the commit.
 #[tokio::test]
 async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -10970,6 +11047,18 @@ async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes()
     assert_eq!(read(9), Some(field_ref), "created at horizon 5");
     assert_eq!(read(10), None, "deleted at horizon 6");
 
+    // The deletion's checkpoint commits: the created version leaves the live
+    // state for this epoch's bucket, and the read finds it there.
+    s.commit_outputs(&committed);
+    s.authority.clear_execution_caches_for_testing();
+    assert!(
+        s.authority
+            .get_object_cache_reader()
+            .get_object_by_key(&field_ref.object_id, field_ref.version)
+            .is_none()
+    );
+    assert_eq!(read(9), Some(field_ref), "read from this epoch's bucket");
+
     s.prune_versions_consumed_by(&committed, &remove_effects)
         .await;
     let result = s.reader_at(9).read_dynamic_field(field_ref.object_id);
@@ -10977,10 +11066,18 @@ async fn read_at_the_horizon_follows_a_dynamic_field_child_and_needs_its_bytes()
         matches!(result, Err(IotaError::Storage(_))),
         "unexpected result: {result:?}"
     );
+
+    // Once the epoch has ended, the same miss abandons the commit instead.
+    s.epoch_store.epoch_terminated().await;
+    let result = s.reader_at(9).read_dynamic_field(field_ref.object_id);
+    assert!(
+        matches!(result, Err(IotaError::EpochEnded(epoch)) if epoch == s.epoch_store.epoch()),
+        "unexpected result: {result:?}"
+    );
 }
 
 /// On a validator that lost the bytes of a dynamic-field child consumed
-/// without a lock, pruned by hand past the pruning limit, commit 9 holds a
+/// without a lock, removed by hand, commit 9 holds a
 /// transfer of the child paid with a gas coin named at a wrong digest. Every
 /// read of the transaction's inputs at commit 9 must end the same way: each
 /// validator reads them once, and a storage error saves no decision, so the
@@ -11035,17 +11132,13 @@ async fn reads_of_a_transaction_with_a_pruned_child_and_a_dropping_input_end_ali
 }
 
 /// Commits the outputs of the transactions `executed` names, oldest first,
-/// and executes them as one certified checkpoint, followed by an empty one,
-/// then runs the object pruner over the executed checkpoints as the node does
-/// with aggressive pruning, within the epoch store's object pruning limit.
+/// and executes them as one certified checkpoint, then expires every
+/// historic objects bucket but the running epoch's, as a node with
+/// aggressive retention does.
 async fn execute_checkpoint_and_prune(s: &HandlerObjectStateSetup, executed: &[TransactionDigest]) {
     use iota_types::{
         base_types::ExecutionData,
         messages_checkpoint::{FullCheckpointContents, VerifiedCheckpointContents},
-    };
-
-    use crate::authority::authority_store_pruner::{
-        AuthorityStorePruner, AuthorityStorePruningMetrics,
     };
 
     let epoch = s.epoch_store.epoch();
@@ -11086,9 +11179,8 @@ async fn execute_checkpoint_and_prune(s: &HandlerObjectStateSetup, executed: &[T
         4,
     );
     // The fixture's first checkpoint is its own genesis; checkpoint 1 holds
-    // the transactions and checkpoint 2, executed after it, lets the pruner
-    // reach checkpoint 1.
-    let (checkpoints, ..) = fixture.make_checkpoints(3, None, || contents.clone());
+    // the transactions.
+    let (checkpoints, ..) = fixture.make_checkpoints(2, None, || contents.clone());
     for checkpoint in checkpoints.iter().skip(1) {
         checkpoint_store
             .insert_certified_checkpoint(checkpoint)
@@ -11098,29 +11190,16 @@ async fn execute_checkpoint_and_prune(s: &HandlerObjectStateSetup, executed: &[T
             .unwrap();
     }
 
-    let config = iota_config::node::AuthorityStorePruningConfig {
-        num_epochs_to_retain: 0,
-        ..Default::default()
-    };
-    AuthorityStorePruner::prune_objects_for_eligible_epochs(
-        &s.authority.database_for_testing().perpetual_tables,
-        checkpoint_store,
-        config,
-        AuthorityStorePruningMetrics::new_for_test(),
-        0,
-        None,
-        None,
-        s.epoch_store.object_pruning_limit(),
-    )
-    .await
-    .unwrap();
+    s.authority
+        .database_for_testing()
+        .expire_historic_objects_and_compact_for_testing();
     for id in consumed {
         s.authority.evict_committed_object_for_testing(&id);
     }
 }
 
-/// A version that a commit above the horizon consumed keeps its bytes after
-/// the pruner runs over the consumer's executed checkpoint. A validation at a
+/// A version that a commit above the horizon consumed stays readable after
+/// the consumer's checkpoint commits and the earlier buckets expire. A validation at a
 /// commit less than the horizon distance above the consumer, or a replay of
 /// any commit after a restart before the consumer's output flushed, keeps the
 /// version, as on a validator that has not executed the consumer, and needs
@@ -11151,14 +11230,31 @@ async fn pruning_keeps_a_version_a_later_validation_can_still_keep() {
     assert_keeps(s.read_owned(8, named), named);
 
     execute_checkpoint_and_prune(&s, &[produce_digest, consume_digest]).await;
+    let key = ObjectKey(named.object_id, named.version);
+    assert!(
+        s.authority
+            .get_object_cache_reader()
+            .get_object_by_key(&key.0, key.1)
+            .is_none(),
+        "the commit moves the consumed version out of the live state"
+    );
+    assert!(
+        s.authority
+            .get_historic_objects()
+            .get_in_epoch(s.epoch_store.epoch(), &key)
+            .unwrap()
+            .is_some(),
+        "into this epoch's bucket"
+    );
     assert_keeps(s.read_owned(8, named), named);
 }
 
 /// A dynamic-field child is consumed through its parent at commit 6 without a
 /// lock, and commit 9 (horizon 5) holds a transaction naming the consumed
-/// version as an owned input. On one validator the pruner runs over the
-/// executed checkpoint of those commits, the other has not run it. The
-/// child's bytes stay, and both reach the same result: they drop the
+/// version as an owned input. On one validator the checkpoint of those
+/// commits executes and the earlier buckets expire, the other has not
+/// executed it. The child's bytes stay readable, and both reach the same
+/// result: they drop the
 /// transaction, since a child cannot be an owned input.
 #[tokio::test]
 async fn pruning_keeps_a_dynamic_field_child_a_later_validation_can_still_keep() {
@@ -11226,51 +11322,6 @@ async fn pruning_keeps_a_dynamic_field_child_a_later_validation_can_still_keep()
     let on_keeping = validate(&keeping).await.unwrap();
     assert_eq!(on_keeping.1.len(), 1, "{on_keeping:?}");
     assert_eq!(validate(&pruning).await, Ok(on_keeping));
-}
-
-/// The object pruning limit follows the flushed commits: a commit's
-/// checkpoints become prunable once it is at or below the last flushed commit
-/// plus one minus the horizon distance. Before that, none of the epoch's
-/// checkpoints is.
-#[tokio::test]
-async fn object_pruning_limit_follows_the_flushed_commits() {
-    use crate::authority::authority_store_pruner::ObjectPruningLimit;
-
-    let s = setup_handler_object_state(vec![], true).await;
-    let epoch = s.epoch_store.epoch();
-    let limit = |highest_prunable_checkpoint| {
-        Some(ObjectPruningLimit {
-            epoch,
-            highest_prunable_checkpoint,
-        })
-    };
-    assert_eq!(s.epoch_store.object_pruning_limit(), limit(None));
-
-    // Commit `i` flushes with checkpoint `i`; the horizon distance is 4.
-    for index in 1..=3 {
-        s.epoch_store
-            .flush_commit_through_quarantine_for_testing(index, vec![])
-            .unwrap();
-        assert_eq!(s.epoch_store.object_pruning_limit(), limit(None));
-    }
-    s.epoch_store
-        .flush_commit_through_quarantine_for_testing(4, vec![])
-        .unwrap();
-    assert_eq!(s.epoch_store.object_pruning_limit(), limit(Some(1)));
-    for index in 5..=8 {
-        s.epoch_store
-            .flush_commit_through_quarantine_for_testing(index, vec![])
-            .unwrap();
-    }
-    assert_eq!(s.epoch_store.object_pruning_limit(), limit(Some(5)));
-}
-
-/// A node outside the committee keeps no handler object state, so its object pruning
-/// has no limit.
-#[tokio::test]
-async fn object_pruning_limit_is_off_outside_the_committee() {
-    let s = setup_handler_object_state_outside_committee(vec![]).await;
-    assert_eq!(s.epoch_store.object_pruning_limit(), None);
 }
 
 // ---------------------------------------------------------------------------

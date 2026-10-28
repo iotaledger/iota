@@ -1120,8 +1120,9 @@ async fn test_validator_catches_up_across_randomness_rounds_without_fork() {
     assert_validators_reach_the_same_checkpoints(&test_cluster).await;
 }
 
-/// Validators prune every consumed object version as soon as its checkpoint is
-/// executed, which is the test-cluster default. Under double-spend traffic
+/// Validators move every consumed object version out of the live state when
+/// its checkpoint commits, and with the test cluster's default retention keep
+/// no earlier epoch's versions. Under double-spend traffic
 /// across several epoch changes, and with one validator stopped across an
 /// epoch change, every validator must reach the same checkpoints.
 #[sim_test]
@@ -1139,7 +1140,7 @@ async fn test_aggressive_pruning_across_epoch_changes_does_not_fork() {
                 .authority_store_pruning_config
                 .num_epochs_to_retain,
             0,
-            "validators must prune consumed object versions right away"
+            "validators must keep no earlier epoch's object versions"
         );
     }
     let stop = Arc::new(AtomicBool::new(false));

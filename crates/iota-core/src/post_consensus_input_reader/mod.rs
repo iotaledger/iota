@@ -55,12 +55,13 @@
 //!    epoch on this validator, so the store holds the version the epoch started with, and every
 //!    validator starts the epoch with the same state. A shared object is the exception: its
 //!    mutations write no rows, so the store can hold a later version of it, with the same owner.
-//! 3. The pruner removes only older versions that a newer one replaced, so the latest version of a
-//!    live object stays. A deleted or wrapped object is the exception: pruning the checkpoint that
-//!    deleted or wrapped it removes its tombstone too, so for an object deleted or wrapped in an
+//! 3. The commit moves only older versions that a newer one replaced out of the live state, so the
+//!    latest version of a live object stays. A deleted or wrapped object is the exception: its
+//!    tombstone leaves the live state when the bucket of the epoch that deleted or wrapped it
+//!    expires, at a different time on each validator, so for an object deleted or wrapped in an
 //!    earlier epoch some validators find the tombstone and others find nothing. The owned reader
 //!    then drops the input on a validator that still has the tombstone and answers missing on one
-//!    that pruned it. Both leave the transaction out of the commit, but the error reported differs
+//!    that expired it. Both leave the transaction out of the commit, but the error reported differs
 //!    (final or retryable). The shared reader, which reads only live objects, finds nothing in
 //!    both.
 //!

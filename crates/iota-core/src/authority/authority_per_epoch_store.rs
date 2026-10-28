@@ -90,7 +90,6 @@ use typed_store::{
 };
 
 use super::{
-    authority_store_pruner::ObjectPruningLimit,
     authority_store_tables::ENV_VAR_LOCKS_BLOCK_CACHE_SIZE,
     epoch_start_configuration::EpochStartConfigTrait,
     shared_object_congestion_tracker::{
@@ -1903,36 +1902,6 @@ impl AuthorityPerEpochStore {
     /// transaction it executes would have its commit assigned.
     pub fn pcool_bookkeeping_enabled(&self) -> bool {
         self.pcool_bookkeeping_enabled
-    }
-
-    /// How far the object pruner may go in this epoch's checkpoints. `None`
-    /// means no limit, and is returned when this node does not keep the
-    /// handler object state.
-    ///
-    /// Validation of commit `C` reads object state as of commit `C - K`, where
-    /// `K` is the protocol config's horizon distance. A version consumed by a
-    /// commit above `C - K` is still live in that state, so validation of `C`
-    /// can keep a transaction that uses it, which needs the version's bytes.
-    /// The commits still to be validated are those after the last flushed
-    /// commit, including the ones a restart replays. So only the versions
-    /// consumed by commits at or below `last flushed commit + 1 - K` may be
-    /// pruned, and the limit is the last checkpoint holding only such commits.
-    /// Checkpoints of earlier epochs are not limited: rows are per epoch, so
-    /// no validation keeps a version consumed in one.
-    pub fn object_pruning_limit(&self) -> Option<ObjectPruningLimit> {
-        if !self.pcool_bookkeeping_enabled {
-            return None;
-        }
-        let horizon_distance = self
-            .protocol_config()
-            .pcool_deterministic_validation_horizon_distance();
-        Some(ObjectPruningLimit {
-            epoch: self.epoch(),
-            highest_prunable_checkpoint: self
-                .consensus_quarantine
-                .read()
-                .last_checkpoint_of_prunable_commits(horizon_distance),
-        })
     }
 
     /// Makes the execution watcher's next commit completion fail with a
