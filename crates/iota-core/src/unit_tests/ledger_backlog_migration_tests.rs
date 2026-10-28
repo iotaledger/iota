@@ -22,8 +22,8 @@ use prometheus_filtered::Registry;
 use typed_store::{database::wait_for_database_close, traits::Map};
 
 use super::{
-    CheckpointBacklogMigrationProgress, KEY_RANGES, LedgerBacklogMigration,
-    LedgerBacklogMigrationProgress, LedgerRanges, RangeProgress,
+    CheckpointBacklogMigrationProgress, KEY_RANGES, LEDGER_SST_DIR, LedgerBacklogMigration,
+    LedgerBacklogMigrationProgress, LedgerRanges, PendingRows, RangeProgress,
 };
 use crate::{
     authority::{AuthorityStore, authority_store_tables::AuthorityPerpetualTables},
@@ -256,10 +256,13 @@ fn migration(
     migration
 }
 
-/// Writes the first slice of the key range holding the lowest seeded
-/// transaction digest, as a run stopped after that write leaves it, and
-/// returns that range.
-fn move_first_transactions_slice(migration: &LedgerBacklogMigration, seeded: &Seeded) -> usize {
+/// Ingests the first slice of the key range holding the lowest seeded
+/// transaction digest without recording the range's position, and returns
+/// that range and the position the slice ended at.
+fn ingest_first_transactions_slice(
+    migration: &LedgerBacklogMigration,
+    seeded: &Seeded,
+) -> (usize, RangeProgress<TransactionDigest>) {
     let lowest = seeded
         .transactions
         .iter()
@@ -267,13 +270,26 @@ fn move_first_transactions_slice(migration: &LedgerBacklogMigration, seeded: &Se
         .min()
         .expect("the seed holds transactions");
     let range = usize::from(lowest.bytes()[0]) * KEY_RANGES / 256;
-    let slice = migration.transactions_slice(range, None).unwrap();
+    let files = migration.ledger_sst_files().unwrap();
+    let mut pending = PendingRows::default();
+    let slice = migration
+        .transactions_slice(range, None, &mut pending)
+        .unwrap();
+    pending.ingest(&files).unwrap();
+    (range, slice.next)
+}
+
+/// Ingests the first slice of the key range holding the lowest seeded
+/// transaction digest and records the range's position, as a run stopped
+/// right after that leaves it, and returns that range.
+fn move_first_transactions_slice(migration: &LedgerBacklogMigration, seeded: &Seeded) -> usize {
+    let (range, next) = ingest_first_transactions_slice(migration, seeded);
     let mut ranges = LedgerRanges {
         transactions: vec![RangeProgress::At(None); KEY_RANGES],
         effects: vec![RangeProgress::At(None); KEY_RANGES],
     };
-    ranges.transactions[range] = slice.next;
-    migration.write_ledger_slice(slice.batch, &ranges).unwrap();
+    ranges.transactions[range] = next;
+    migration.write_ledger_progress(&ranges).unwrap();
     range
 }
 
@@ -642,6 +658,34 @@ async fn unlimited_retention_buckets_every_epoch() {
     );
 }
 
+/// A run whose ranges ingest their rows and record their position after
+/// every slice, and so ingest many files into each bucket, leaves the same
+/// state as one ingesting each range's rows at once, and removes its SST file
+/// directory.
+#[tokio::test]
+async fn a_migration_ingesting_after_every_slice_moves_every_row() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    let seeded = seed(&store, &checkpoint_store);
+
+    let mut migration = migration(&store, checkpoint_store.clone(), None, 1);
+    migration.sst_buffer_limit = 1;
+    migration.run().unwrap();
+
+    assert_migrated(&store, &checkpoint_store, &seeded, 0);
+    assert!(
+        !store
+            .perpetual_tables
+            .objects
+            .db
+            .path_for_pruning()
+            .join(LEDGER_SST_DIR)
+            .exists(),
+        "the migration must remove its SST file directory once done"
+    );
+}
+
 /// A run stopped part-way resumes from its recorded watermark across a
 /// restart and leaves the same state an uninterrupted run does.
 #[tokio::test]
@@ -731,6 +775,28 @@ async fn the_migration_resumes_from_its_watermark() {
         .unwrap();
 
     assert_migrated(&resumed_store, &resumed_checkpoints, &seeded, 0);
+}
+
+/// A run stopped after ingesting a slice but before recording its position
+/// ingests the slice's rows again on the next start, and every row still ends
+/// up in its bucket once.
+#[tokio::test]
+async fn a_run_stopped_between_an_ingestion_and_its_progress_write_resumes() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    let seeded = seed(&store, &checkpoint_store);
+
+    let interrupted = migration(&store, checkpoint_store.clone(), None, 1);
+    ingest_first_transactions_slice(&interrupted, &seeded);
+    assert_eq!(ledger_progress(&store), None);
+    drop(interrupted);
+
+    migration(&store, checkpoint_store.clone(), None, 5_000)
+        .run()
+        .unwrap();
+
+    assert_migrated(&store, &checkpoint_store, &seeded, 0);
 }
 
 /// Once both stores' flat tables are drained, a later start moves nothing
