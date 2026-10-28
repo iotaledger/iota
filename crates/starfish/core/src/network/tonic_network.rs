@@ -1116,13 +1116,10 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .handle_fetch_headers(peer_index, block_refs, highest_accepted_rounds)
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?
-            .map(|chunk| {
-                chunk
-                    .map(|block_headers| FetchBlockHeadersResponse {
-                        vec_serialized_block_header: block_headers,
-                    })
-                    .map_err(|e| tonic::Status::internal(format!("{e:?}")))
+            .map_ok(|block_headers| FetchBlockHeadersResponse {
+                vec_serialized_block_header: block_headers,
             })
+            .map_err(|e| tonic::Status::internal(format!("{e:?}")))
             .boxed();
         Ok(Response::new(stream))
     }
@@ -1306,15 +1303,10 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .handle_fetch_transactions(peer_index, committed_transactions_refs)
             .await
             .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?
-            .map(|chunk| {
-                chunk
-                    .map(|transactions| FetchTransactionsResponse {
-                        vec_serialized_transactions: transactions,
-                    })
-                    .map_err(|e| {
-                        tonic::Status::internal(format!("fetch_transactions failed: {e:?}"))
-                    })
+            .map_ok(|transactions| FetchTransactionsResponse {
+                vec_serialized_transactions: transactions,
             })
+            .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))
             .boxed();
         Ok(Response::new(stream))
     }
