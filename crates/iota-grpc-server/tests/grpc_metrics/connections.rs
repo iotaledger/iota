@@ -13,7 +13,7 @@ use crate::{
     harness::{MetricsReader, connect, start, start_with},
 };
 
-async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
+pub async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
     for _ in 0..1000 {
         if condition() {
             return;

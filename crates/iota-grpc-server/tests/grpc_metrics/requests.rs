@@ -5,6 +5,9 @@ use std::{sync::Arc, time::Duration};
 
 use iota_grpc_server::GrpcServerMetrics;
 use iota_grpc_types::v1::{
+    ledger_service::{
+        GetHealthRequest, StreamCheckpointsRequest, ledger_service_client::LedgerServiceClient,
+    },
     state_service::{ListOwnedObjectsRequest, state_service_client::StateServiceClient},
     transaction_execution_service::transaction_execution_service_client::TransactionExecutionServiceClient,
 };
@@ -19,7 +22,8 @@ use crate::{
         call_execute_transactions_with_grpc_timeout, execute_transactions_request,
         start_test_server_with,
     },
-    harness::{MetricsReader, PREFIX, connect, start_with_executor},
+    connections::wait_until,
+    harness::{MetricsReader, PREFIX, connect, requests_in_flight, start, start_with_executor},
 };
 
 /// A call that the server ends at its `grpc-timeout` is counted with the status
@@ -145,5 +149,69 @@ async fn a_request_that_traffic_control_refuses_is_counted() {
         (requests("InvalidArgument"), requests("ResourceExhausted")),
         (1.0, 1.0),
         "(InvalidArgument, ResourceExhausted)"
+    );
+}
+
+#[tokio::test]
+async fn a_unary_request_is_counted_and_ends() {
+    let (handle, metrics) = start(MockGrpcStateReader::new_from_iter(0..=10)).await;
+    let mut ledger = LedgerServiceClient::new(connect(&handle).await);
+
+    ledger
+        .get_health(GetHealthRequest::default().with_threshold_ms(u64::MAX))
+        .await
+        .unwrap();
+
+    wait_until("the request to end", || {
+        metrics
+            .histogram_totals("request_completion_latency", &[])
+            .count
+            == 1
+    })
+    .await;
+    assert_eq!(requests_in_flight(&metrics), 0);
+    let inflight_requests = metrics.histogram_totals("connection_inflight_requests", &[]);
+    assert_eq!(
+        (inflight_requests.count, inflight_requests.sum),
+        (1, 1.0),
+        "one request, alone"
+    );
+    assert_eq!(metrics.value("connection_inflight_requests_peak", &[]), 1.0);
+}
+
+#[tokio::test]
+async fn a_subscription_is_in_flight_until_the_stream_ends() {
+    let (handle, metrics) = start(MockGrpcStateReader::new_from_iter(0..=10)).await;
+    let mut ledger = LedgerServiceClient::new(connect(&handle).await);
+
+    let subscription = ledger
+        .stream_checkpoints(StreamCheckpointsRequest::default())
+        .await
+        .unwrap()
+        .into_inner();
+    wait_until("the subscription to start", || {
+        requests_in_flight(&metrics) == 1
+    })
+    .await;
+    // The subscription has no end by itself: the request stays in flight.
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    assert_eq!(requests_in_flight(&metrics), 1);
+    assert_eq!(
+        metrics
+            .histogram_totals("request_completion_latency", &[])
+            .count,
+        0
+    );
+
+    drop(subscription);
+    wait_until("the subscription to end", || {
+        requests_in_flight(&metrics) == 0
+    })
+    .await;
+    assert_eq!(
+        metrics
+            .histogram_totals("request_completion_latency", &[])
+            .count,
+        1
     );
 }
