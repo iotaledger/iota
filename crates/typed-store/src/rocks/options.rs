@@ -89,14 +89,6 @@ pub struct DBOptions {
     pub rw_options: ReadWriteOptions,
 }
 
-/// Write options tuned for one-shot bulk ingestion into a freshly created
-/// store.
-pub fn bulk_ingestion_write_options() -> rocksdb::WriteOptions {
-    let mut opts = rocksdb::WriteOptions::default();
-    opts.disable_wal(true);
-    opts
-}
-
 /// Write options for a record that must be on disk before the write returns,
 /// rather than in the operating system's cache until some later sync.
 pub fn synced_write_options() -> rocksdb::WriteOptions {
@@ -105,16 +97,28 @@ pub fn synced_write_options() -> rocksdb::WriteOptions {
     opts
 }
 
+/// The smallest SST file buffer limit, so a small memory budget does not
+/// split the rows into many tiny files.
+const MIN_SST_BUFFER_SIZE: usize = 64 << 20;
+
 /// RocksDB options tuned for one-shot bulk ingestion into a freshly created
 /// store, e.g. initial index building, inserting the genesis snapshot, or
 /// restoring a formal snapshot.
 pub struct BulkIngestionOptions {
     pub db_options: rocksdb::Options,
     pub column_family_options: DBOptions,
-    pub batch_size_limit: usize,
+    /// The memtable memory one column family may take.
+    cf_memory_budget: usize,
 }
 
 impl BulkIngestionOptions {
+    /// How much memory each of `writers` concurrent
+    /// [`SstFileBuffer`](crate::rocks::SstFileBuffer)s may fill before writing
+    /// a file: one column family's memtable budget, shared between them.
+    pub fn sst_buffer_limit(&self, writers: usize) -> usize {
+        (self.cf_memory_budget / writers.max(1)).max(MIN_SST_BUFFER_SIZE)
+    }
+
     /// Per-table config applying the bulk column-family options to every
     /// listed table.
     pub fn table_config(
@@ -204,24 +208,19 @@ pub fn bulk_ingestion_options() -> BulkIngestionOptions {
         .options
         .set_max_write_buffer_number(buffer_count);
 
-    // Calculate batch size limit: default to half the buffer size or 128MB,
-    // whichever is smaller
-    let batch_size_limit = (buffer_size / 2).min(1 << 27);
-
     debug!(
         total_memory_bytes,
         num_cpus,
         db_write_buffer_size,
         buffer_size,
         buffer_count,
-        batch_size_limit,
         "configured bulk ingestion options"
     );
 
     BulkIngestionOptions {
         db_options,
         column_family_options,
-        batch_size_limit,
+        cf_memory_budget,
     }
 }
 

@@ -64,7 +64,7 @@ use self::{
         BalanceCaches, CoinBalanceChanges, JsonRpcMetrics,
         invalidate_balance_caches_instead_of_updating,
     },
-    live_scan::LiveObjectSetIndexer,
+    live_scan::{LiveObjectSetIndexer, SstFiles},
     schema::{
         CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, HISTORY_BUCKET_DIR, HISTORY_CF_PREFIX,
         HistoryBucket, IndexStoreTables, IndexStoreTablesReadOnly, MetadataInfo, OwnerIndexKey,
@@ -91,6 +91,10 @@ const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "RPC_INDEX_HISTORY_BLOCK_CACHE
 const DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB: usize = 512;
 const ENV_VAR_OWNER_BLOCK_CACHE_SIZE_MB: &str = "OWNER_INDEX_BLOCK_CACHE_MB";
 const DEFAULT_OWNER_BLOCK_CACHE_SIZE_MB: usize = 2 * 1024;
+
+/// How many threads one compaction of the index database may be split
+/// across.
+const MAX_SUBCOMPACTIONS: u32 = 8;
 
 /// The index database directories of earlier releases, superseded by
 /// [`schema::RPC_INDEXES_DIR`].
@@ -302,11 +306,13 @@ impl IndexStoreTables {
         ))
     }
 
-    /// Opens the tables with bulk-ingestion options (WAL disabled, unordered
-    /// writes) for a full rebuild, deleting anything left under `path` first.
-    /// Writes must be flushed before the database closes, and serving queries
-    /// requires a reopen with default options.
-    fn open_for_bulk_ingestion(path: PathBuf) -> Self {
+    /// Opens the tables with bulk-ingestion options (unordered writes, no
+    /// automatic compaction) for a full rebuild, deleting anything left under
+    /// `path` first, and returns the column-family options every table is
+    /// open with, for the SST files written for them. Writes must be flushed
+    /// before the database closes, and serving queries requires a reopen with
+    /// default options.
+    fn open_for_bulk_ingestion(path: PathBuf) -> (Self, rocksdb::Options) {
         // Leftover column families would be opened with default options, and
         // `safe_drop_db` can leave files RocksDB does not recognize.
         if path.exists() && path.read_dir().is_ok_and(|mut dir| dir.next().is_some()) {
@@ -316,12 +322,13 @@ impl IndexStoreTables {
         }
         let bulk_options = bulk_ingestion_options();
         let table_config = bulk_options.table_config(Self::describe_tables().into_keys());
-        Self::open_tables_read_write(
+        let tables = Self::open_tables_read_write(
             path,
             MetricConf::new("rpc-index"),
             Some(bulk_options.db_options),
             Some(table_config),
-        )
+        );
+        (tables, bulk_options.column_family_options.options)
     }
 
     /// Seeds the `meta` row on the first open of an empty database, so a
@@ -413,7 +420,7 @@ impl IndexStoreTables {
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
         groups: &BTreeSet<IndexGroup>,
-        batch_size_limit: usize,
+        sst_files: SstFiles,
         cancelled: &AtomicBool,
     ) -> Result<Option<CheckpointSequenceNumber>, StorageError> {
         info!("Initializing RPC indexes");
@@ -438,7 +445,7 @@ impl IndexStoreTables {
         )?;
 
         // The history tables are filled later, by `backfill_history`.
-        let indexer = LiveObjectSetIndexer::new(self, groups, batch_size_limit);
+        let indexer = LiveObjectSetIndexer::new(self, groups, sst_files);
         par_index_live_object_set(authority_store, &indexer, cancelled)?;
         indexer.finish()?;
 
@@ -708,7 +715,7 @@ impl RpcIndexesStore {
         }
         if needs_initialization {
             rebuild_gauge.set(1);
-            let init_tables = {
+            let (init_tables, table_options) = {
                 drop(opened);
                 // `DB::destroy` fails on a database it cannot parse, the very
                 // state a rebuild recovers from.
@@ -728,7 +735,6 @@ impl RpcIndexesStore {
 
                 IndexStoreTables::open_for_bulk_ingestion(path.clone())
             };
-            let batch_size_limit = bulk_ingestion_options().batch_size_limit;
 
             // The rebuild scans and writes RocksDB for a long time; keep it
             // off the async runtime's worker threads.
@@ -737,15 +743,23 @@ impl RpcIndexesStore {
                 let checkpoint_store = checkpoint_store.clone();
                 let cancelled = cancelled.clone();
                 let groups = groups.clone();
+                let path = path.clone();
                 move || {
                     let mut init_tables = init_tables;
-                    let initialized = init_tables.init(
-                        &authority_store,
-                        &checkpoint_store,
-                        &groups,
-                        batch_size_limit,
-                        &cancelled,
-                    );
+                    let initialized = SstFiles::new(
+                        &path,
+                        &table_options,
+                        crate::par_index_live_object_set::TASKS,
+                    )
+                    .and_then(|sst_files| {
+                        init_tables.init(
+                            &authority_store,
+                            &checkpoint_store,
+                            &groups,
+                            sst_files,
+                            &cancelled,
+                        )
+                    });
                     (init_tables, initialized)
                 }
             })
@@ -1086,7 +1100,14 @@ impl RpcIndexesStore {
     /// Opens the index database, with every existing per-epoch history
     /// column family under its tuned options.
     fn open_index_db(path: &Path, historic_root: &Path) -> IotaResult<OpenedIndexDb> {
-        let db_options = default_db_options().disable_write_throttling();
+        let mut db_options = default_db_options().disable_write_throttling();
+        // A rebuild or a restore leaves the `owner` table as many overlapping
+        // L0 files, which slow its reads until they are merged. Splitting
+        // that compaction lets it use the background threads RocksDB is
+        // given (`increase_parallelism` in `default_db_options`).
+        db_options
+            .options
+            .set_max_subcompactions(MAX_SUBCOMPACTIONS);
         let history_cf_options = epoch_buckets::history_cf_options(
             &db_options,
             read_size_from_env(ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB)
