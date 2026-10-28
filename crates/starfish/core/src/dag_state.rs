@@ -328,6 +328,10 @@ pub(crate) struct DagState {
     /// Broadcast sender for DAG visualizer events.
     #[cfg(feature = "dag-visualizer")]
     dag_visualizer_sender: Option<tokio::sync::broadcast::Sender<DagVisualizerEvent>>,
+
+    /// Highest round evicted from `recent_transactions_by_authority`, per
+    /// authority. Transactions of round <= this round are read from the store.
+    evicted_transaction_rounds: Vec<Round>,
 }
 
 impl DagState {
@@ -452,6 +456,7 @@ impl DagState {
             cordial_knowledge_senders: None,
             #[cfg(feature = "dag-visualizer")]
             dag_visualizer_sender: None,
+            evicted_transaction_rounds: vec![0; num_authorities],
         };
 
         // Load cached data for each authority from storage
@@ -545,6 +550,7 @@ impl DagState {
     ) {
         let eviction_round = Self::eviction_round(committed_round, self.cached_rounds);
         self.evicted_rounds[authority_index] = eviction_round;
+        self.evicted_transaction_rounds[authority_index] = eviction_round;
 
         // Reload block headers from storage
         let block_headers = self
@@ -2266,8 +2272,8 @@ impl DagState {
         }
     }
 
-    /// Function removes stalled transactions that are older than the minimum
-    /// between "last solid leader round minus MAX_TRANSACTIONS_ACK_DEPTH
+    /// Function removes stalled transactions at or below the minimum between
+    /// "last solid leader round minus MAX_TRANSACTIONS_ACK_DEPTH
     /// (protocol_config.gc_depth) minus MAX_LINEARIZER_DEPTH
     /// (protocol_config.gc_depth)" and the eviction round of corresponding
     /// authority
@@ -2283,31 +2289,33 @@ impl DagState {
                 transaction_gc_round
             } else {
                 let eviction_round = self.calculate_authority_eviction_round(authority_index);
-                min(transaction_gc_round, eviction_round + 1)
+                min(transaction_gc_round, eviction_round)
             };
+            // Recovery loads only transactions above the evicted round, while
+            // the solid GC round stays at genesis until the first solid commit.
+            let transaction_eviction_round =
+                transaction_eviction_round.max(self.evicted_transaction_rounds[authority_index]);
 
             // Evict everything below split_key
             let split_key = GenericTransactionRef::from(TransactionRef {
-                round: transaction_eviction_round,
+                round: transaction_eviction_round + 1,
                 author: authority_index,
                 transactions_commitment: TransactionsCommitment::MIN,
             });
             self.recent_transactions_by_authority[authority_index] =
                 self.recent_transactions_by_authority[authority_index].split_off(&split_key);
+            self.evicted_transaction_rounds[authority_index] = transaction_eviction_round;
         }
     }
 
+    /// Evicts entries at or below the evicted transaction round of each
+    /// authority, so it must run after `evict_transactions`.
     pub(crate) fn evict_tx_ref_to_block_digests(&mut self) {
-        let fast_sync = self.fast_sync_ongoing();
-        let transaction_gc_round = self.gc_round_for_last_solid_commit();
         for (authority_index, _) in self.context.committee.authorities() {
-            let eviction_round = if fast_sync {
-                transaction_gc_round
-            } else {
-                let eviction_round = self.calculate_authority_eviction_round(authority_index);
-                min(transaction_gc_round, eviction_round + 1)
-            };
-            let split_key = (eviction_round, TransactionsCommitment::MIN);
+            let split_key = (
+                self.evicted_transaction_rounds[authority_index] + 1,
+                TransactionsCommitment::MIN,
+            );
             self.tx_ref_to_block_digests_by_authority[authority_index] =
                 self.tx_ref_to_block_digests_by_authority[authority_index].split_off(&split_key);
         }
@@ -4882,5 +4890,38 @@ mod test {
                     .contains(&block_ref(6, author))
             );
         }
+    }
+
+    /// Recovery leaves transactions at or below the evicted round out of
+    /// memory, so a flush before the first solid commit must keep that round.
+    #[tokio::test]
+    async fn test_flush_after_recovery_keeps_evicted_transaction_rounds() {
+        telemetry_subscribers::init_for_testing();
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.dag_state_cached_rounds = 5;
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        let num_rounds: u32 = 50;
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=num_rounds).build();
+        dag_state.accept_block_headers(dag_builder.block_headers(1..=num_rounds), DataSource::Test);
+        for verified_transactions in dag_builder.transactions(1..=num_rounds) {
+            dag_state.add_transactions(verified_transactions, DataSource::Test);
+        }
+        for (_, commit) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
+            dag_state.add_commit(commit);
+        }
+        dag_state.flush();
+        drop(dag_state);
+
+        let mut dag_state = DagState::new(context, store);
+        let recovered_rounds = dag_state.evicted_transaction_rounds.clone();
+        assert!(recovered_rounds.iter().all(|&round| round > GENESIS_ROUND));
+
+        dag_state.flush();
+
+        assert_eq!(dag_state.evicted_transaction_rounds, recovered_rounds);
     }
 }
