@@ -291,7 +291,8 @@ impl<B> EpochBuckets<B> {
     pub(crate) fn ensure(&self, epoch: EpochId) -> Result<Arc<B>, TypedStoreError> {
         self.ensure_retained(epoch)?.ok_or_else(|| {
             TypedStoreError::Pruned(format!(
-                "the bucket of epoch {epoch} was pruned: only epochs from {} on are retained",
+                "the {} bucket of epoch {epoch} was pruned: only epochs from {} on are retained",
+                self.name,
                 self.earliest_retained()
             ))
         })
