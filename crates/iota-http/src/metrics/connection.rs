@@ -10,6 +10,7 @@ use parking_lot::Mutex;
 
 use crate::metrics::{
     Inner,
+    clients::ClientKey,
     requests::IdleEnd,
     tls::{self, HandshakeGuard},
 };
@@ -22,9 +23,10 @@ use crate::metrics::{
 pub(crate) struct ConnectionGuard(Arc<ConnectionState>);
 
 impl ConnectionGuard {
-    pub(super) fn new(listener: Arc<Inner>) -> Self {
+    pub(super) fn new(listener: Arc<Inner>, client: ClientKey) -> Self {
         Self(Arc::new(ConnectionState {
             listener,
+            client,
             accepted_at: Instant::now(),
             requests: Mutex::new(ConnectionRequests::default()),
         }))
@@ -65,6 +67,7 @@ impl Drop for ConnectionGuard {
             .connection_lifetime_seconds
             .observe(lifetime.as_secs_f64());
         metrics.inbound_connections.dec();
+        state.listener.clients.remove_connection(state.client);
     }
 }
 
@@ -101,6 +104,7 @@ impl ConnectionMetrics {
 
 struct ConnectionState {
     listener: Arc<Inner>,
+    client: ClientKey,
     accepted_at: Instant,
     requests: Mutex<ConnectionRequests>,
 }
@@ -193,6 +197,7 @@ mod tests {
     /// was in flight at the close.
     fn assert_closed(reader: &MetricsReader) {
         assert_eq!(reader.value("inbound_connections", &[]), 0.0);
+        assert_eq!(reader.value("clients", &[("scope", "loopback")]), 0.0);
         assert_eq!(
             reader
                 .histogram_totals("connection_lifetime_seconds", &[])
@@ -216,6 +221,7 @@ mod tests {
         let connection = metrics.track_connection("127.0.0.1:1000".parse().unwrap());
         let request = connection.metrics().track_request();
         assert_eq!(reader.value("inbound_connections", &[]), 1.0);
+        assert_eq!(reader.value("clients", &[("scope", "loopback")]), 1.0);
 
         drop(connection);
         assert_closed(&reader);
