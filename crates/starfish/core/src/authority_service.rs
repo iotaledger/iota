@@ -1354,7 +1354,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         // 10. Add additional headers from bundle to dag, receive missing ancestors for
-        // them. Normally, there should be no missing ancestors, as the headers are
+        // them. Normally, there should be no missing ancestors: an ancestor inside
+        // the batch resolves in the block manager, and the headers are otherwise
         // sent in order of increasing rounds.
         let (mut missing_ancestors, mut missing_committed_txns) = self
             .core_dispatcher
@@ -1522,10 +1523,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     }
 
     /// Handles two types of fetch headers requests:
-    /// 1. Missing block headers for header sync (periodic or live):
+    /// 1. Missing block headers for periodic header sync:
     ///    - uses highest_accepted_rounds.
     ///    - at most max_headers_per_header_sync_fetch headers are returned.
-    /// 2. Committed block headers for commit sync:
+    /// 2. Block headers for commit sync and live header sync:
     ///    - does not use highest_accepted_rounds.
     ///    - at most max_headers_per_commit_sync_fetch headers are returned.
     async fn handle_fetch_headers(

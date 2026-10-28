@@ -15,10 +15,9 @@ pub trait Verifier {
     /// Create a new bytecode verifier meter.
     fn meter(&self, config: MeterConfig) -> Box<dyn Meter>;
 
-    /// Specifies whether or not
-    /// deprecate_global_storage_ops_during_deserialization should
-    /// be overridden for the `BinaryConfig`
-    fn override_deprecate_global_storage_ops_during_deserialization(&self) -> Option<bool>;
+    /// Specifies whether or not the `deprecate_global_storage_ops` protocol
+    /// flag should be overridden for the `BinaryConfig`
+    fn override_deprecate_global_storage_ops(&self) -> Option<bool>;
 
     /// Run the bytecode verifier with a meter limit
     ///
@@ -46,14 +45,15 @@ pub trait Verifier {
         };
         let modules = match deserialize(&to_binary_config(
             protocol_config,
-            self.override_deprecate_global_storage_ops_during_deserialization(),
+            self.override_deprecate_global_storage_ops(),
         )) {
             Ok(modules) => modules,
             Err(error) => {
-                // Execution deserializes without the override and would run the
-                // Move verifier, unmetered, on modules that only the override
-                // rejects. No such module can pass verification, so reject it here.
-                if deserialize(&to_binary_config(protocol_config, None)).is_ok() {
+                // The modules fail only because they use the deprecated global
+                // storage instructions or a non-empty `acquires` list. No such
+                // module can be published, so reject it here rather than at
+                // execution.
+                if deserialize(&to_binary_config(protocol_config, Some(false))).is_ok() {
                     return Err(IotaError::ModuleDeserializationFailure {
                         error: error.to_string(),
                     });

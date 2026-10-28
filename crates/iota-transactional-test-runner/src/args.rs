@@ -73,10 +73,6 @@ pub struct IotaInitArgs {
     pub default_gas_price: Option<u64>,
     #[clap(long = "move-auth")]
     pub move_auth: Option<bool>,
-    /// Enable the deny-rule governance feature flags (`deny_rule_governance`
-    /// and `deny_rule_governance_on_chain`).
-    #[clap(long = "deny-rule-governance")]
-    pub deny_rule_governance: Option<bool>,
     #[arg(long)]
     pub flavor: Option<Flavor>,
     /// The number of epochs to keep in the database. Epochs outside of this

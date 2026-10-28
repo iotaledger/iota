@@ -1314,7 +1314,7 @@ mod checked {
         // commands have run, against the coins the Move code received, with the
         // deny list as the epoch started, the same read as the check of the
         // written coins above.
-        if protocol_config.pcool_deterministic_validation() {
+        if protocol_config.enable_pcool_flow() {
             state_view.check_received_coin_deny_list(tx_context.sender(), received_coin_types)?;
         }
 

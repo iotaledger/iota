@@ -59,6 +59,7 @@ pub(crate) fn production_config() -> (VerifierConfig, MeterConfig) {
             check_cyclic_dependencies: true,
             meter_instantiation_loops: false,
             max_instantiation_loop_graph_edges: None,
+            deprecate_global_storage_ops: true,
         },
         MeterConfig::old_default(),
     )

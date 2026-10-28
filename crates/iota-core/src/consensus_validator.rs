@@ -142,7 +142,7 @@ impl IotaTxValidator {
                 // bounded by `max_transaction_size_bytes` (256 KiB), enforced
                 // on every received block by starfish's block verifier.
                 ConsensusTransactionKind::TransactionDenyRuleProposal(_) => {
-                    if !self.epoch_store.protocol_config().deny_rule_governance() {
+                    if !self.epoch_store.protocol_config().enable_pcool_flow() {
                         return Err(IotaError::UnsupportedFeature {
                             error: "TransactionDenyRuleProposal not supported at current protocol version"
                                 .into(),

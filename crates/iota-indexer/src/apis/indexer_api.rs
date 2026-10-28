@@ -5,13 +5,13 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use iota_json_rpc::IotaRpcModule;
+use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
 use iota_json_rpc_api::{IndexerApiServer, cap_page_limit, error_object_from_rpc, internal_error};
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectData, IotaObjectDataFilter,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
     IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage, Page,
-    TransactionBlocksPage, TransactionFilter,
+    TransactionBlocksPage,
 };
 use iota_names::{
     IotaNamesNft, NameRegistration, config::IotaNamesConfig, error::IotaNamesError, name::Name,
@@ -22,8 +22,8 @@ use iota_sdk_move_types::iota_framework::dynamic_field::Field;
 use iota_sdk_types::{Address, ObjectId, TransactionDigest, TypeTag};
 use iota_types::{dynamic_field::DynamicFieldName, event::EventID, object::ObjectRead};
 use jsonrpsee::{
-    PendingSubscriptionSink, RpcModule,
-    core::{RpcResult, SubscriptionResult, client::Error as RpcClientError},
+    RpcModule,
+    core::{RpcResult, client::Error as RpcClientError},
 };
 use tap::TapFallible;
 
@@ -50,6 +50,11 @@ impl IndexerApi {
         limit: usize,
     ) -> RpcResult<ObjectsPage> {
         let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
+        if let Some(filter) = &filter {
+            filter.check_size().map_err(|e| {
+                IotaRpcInputError::GenericInvalid(format!("invalid object filter: {e}"))
+            })?;
+        }
         let options = options.unwrap_or_default();
         let objects = self
             .inner
@@ -363,22 +368,6 @@ impl IndexerApiServer for IndexerApi {
     ) -> RpcResult<IotaObjectResponse> {
         self.get_dynamic_field_object(parent_object_id, name, options)
             .await
-    }
-
-    fn subscribe_event(
-        &self,
-        _sink: PendingSubscriptionSink,
-        _filter: EventFilter,
-    ) -> SubscriptionResult {
-        Err("empty subscription".into())
-    }
-
-    fn subscribe_transaction(
-        &self,
-        _sink: PendingSubscriptionSink,
-        _filter: TransactionFilter,
-    ) -> SubscriptionResult {
-        Err("empty subscription".into())
     }
 
     async fn iota_names_lookup(&self, name: &str) -> RpcResult<Option<IotaNameRecord>> {

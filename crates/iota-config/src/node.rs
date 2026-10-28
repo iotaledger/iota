@@ -97,14 +97,6 @@ pub struct NodeConfig {
     #[serde(default = "default_enable_index_processing")]
     pub enable_index_processing: bool,
 
-    // only allow websocket connections for jsonrpc traffic
-    #[serde(default)]
-    /// Determines the jsonrpc server type as either:
-    /// - 'websocket' for a websocket based service (deprecated)
-    /// - 'http' for an http based service
-    /// - 'both' for both a websocket and http based service (deprecated)
-    pub jsonrpc_server_type: Option<ServerType>,
-
     /// Flag to enable gRPC load shedding: requests over a service's
     /// concurrency limit are rejected immediately with `RESOURCE_EXHAUSTED`
     /// instead of waiting for a slot.
@@ -199,9 +191,6 @@ pub struct NodeConfig {
     /// Determines if snapshot should be uploaded to the remote storage.
     #[serde(default)]
     pub state_snapshot_write_config: StateSnapshotConfig,
-
-    #[serde(default)]
-    pub indexer_max_subscriptions: Option<usize>,
 
     #[serde(default = "default_transaction_kv_store_config")]
     pub transaction_kv_store_read_config: TransactionKeyValueStoreReadConfig,
@@ -650,14 +639,6 @@ impl WritebackCacheConfig {
     }
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ServerType {
-    WebSocket,
-    Http,
-    Both,
-}
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TransactionKeyValueStoreReadConfig {
@@ -819,10 +800,6 @@ impl NodeConfig {
 
     pub fn checkpoint_archive_config(&self) -> Option<&CheckpointArchiveConfig> {
         self.checkpoint_archive_config.as_ref()
-    }
-
-    pub fn jsonrpc_server_type(&self) -> ServerType {
-        self.jsonrpc_server_type.unwrap_or(ServerType::Http)
     }
 
     /// A config selects the validator role exactly when it has a consensus

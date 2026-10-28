@@ -204,7 +204,7 @@ impl SimulatorStore for PersistedStore {
         iota_types::iota_system_state::get_iota_system_state(self).expect("system state must exist")
     }
 
-    fn get_clock(&self) -> iota_types::clock::Clock {
+    fn get_clock(&self) -> iota_sdk_move_types::iota_framework::clock::Clock {
         SimulatorStore::get_object(self, &ObjectId::CLOCK)
             .expect("clock should exist")
             .to_rust()

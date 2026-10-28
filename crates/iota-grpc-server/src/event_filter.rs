@@ -6,7 +6,7 @@ use iota_metrics::monitored_scope;
 use iota_sdk_types::{Address, Event, Identifier, ObjectId, StructTag};
 use serde::{Deserialize, Serialize};
 
-const MAX_FILTER_DEPTH: usize = 10;
+use crate::constants::{MAX_FILTER_DEPTH, MAX_FILTER_NODES};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EventFilter {
@@ -219,8 +219,6 @@ impl EventFilter {
     /// Validates the total complexity of the filter including counting the
     /// number of total filter nodes to prevent resource exhaustion.
     pub fn validate_complexity(&self) -> Result<(), String> {
-        const MAX_FILTER_NODES: usize = 1000; // Maximum number of filter nodes
-
         let node_count = self.count_nodes();
         if node_count > MAX_FILTER_NODES {
             return Err(format!(
@@ -276,12 +274,11 @@ mod tests {
 
         // Deeply nested filter should fail
         let mut deep_filter = EventFilter::Sender(Address::random());
-        for _ in 0..=10 {
-            // MAX_FILTER_DEPTH
+        for _ in 0..=MAX_FILTER_DEPTH {
             deep_filter = EventFilter::Not(Box::new(deep_filter));
         }
         assert!(deep_filter.validate_depth().is_err());
-        assert!(deep_filter.max_depth() > 10);
+        assert!(deep_filter.max_depth() > MAX_FILTER_DEPTH);
     }
 
     #[test]

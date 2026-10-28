@@ -16,6 +16,7 @@ mod checked {
 
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_move_types::iota_framework::package::UpgradeTicket;
     use iota_sdk_types::{
         Address, Command, CommandArgumentError, Identifier, MovePackage, ObjectId,
         PackageUpgradeError, ProgrammableTransaction, StructTag, TypeTag,
@@ -34,7 +35,7 @@ mod checked {
         metrics::LimitsMetrics,
         move_package::{
             IotaAttributeV2, MovePackageExt, ProtocolBuildConfig, RuntimeModuleMetadata,
-            UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
+            UpgradeCap, UpgradePolicy, UpgradeReceipt,
             normalize_deserialized_modules_with_metadata, normalize_modules_with_metadata,
         },
         object::OBJECT_START_VERSION,
@@ -1345,6 +1346,14 @@ mod checked {
             (Visibility::Private | Visibility::Friend, false)
                 if Mode::allow_arbitrary_function_calls() =>
             {
+                // A non-public native trusts its Move callers to check its
+                // arguments.
+                if fdef.is_native() && !Mode::allow_non_public_native_calls() {
+                    return Err(ExecutionError::new_with_source(
+                        ExecutionErrorKind::NonEntryFunctionInvoked,
+                        "Cannot call a non-public native function directly",
+                    ));
+                }
                 FunctionKind::NonEntry
             }
             (Visibility::Private | Visibility::Friend, false) => {

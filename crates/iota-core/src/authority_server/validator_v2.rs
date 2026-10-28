@@ -330,17 +330,17 @@ impl ValidatorService {
         let local_deny_config = &state.config.transaction_deny_config;
         let governance_rules;
         let combined_deny_config;
-        let deny_config: &dyn DenyRuleConfig =
-            if epoch_store.protocol_config().deny_rule_governance() {
-                governance_rules = epoch_store.get_active_transaction_deny_rules();
-                combined_deny_config = DenyRuleUnion {
-                    first: local_deny_config,
-                    second: governance_rules.as_ref(),
-                };
-                &combined_deny_config
-            } else {
-                local_deny_config
+        let deny_config: &dyn DenyRuleConfig = if epoch_store.protocol_config().enable_pcool_flow()
+        {
+            governance_rules = epoch_store.get_active_transaction_deny_rules();
+            combined_deny_config = DenyRuleUnion {
+                first: local_deny_config,
+                second: governance_rules.as_ref(),
             };
+            &combined_deny_config
+        } else {
+            local_deny_config
+        };
         let owned_objects = if !checks_admitted_inputs() {
             Vec::new()
         } else {

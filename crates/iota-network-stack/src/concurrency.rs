@@ -250,6 +250,18 @@ where
     }
 }
 
+impl<B, D, E> Default for ReclaimableBody<B, D, E>
+where
+    B: Default + Send + 'static,
+    D: Send + 'static,
+{
+    /// A body with no deadline that hands over `B::default()` and holds no
+    /// `until_deadline` or `until_end`.
+    fn default() -> Self {
+        Self::new(B::default(), None, None)
+    }
+}
+
 impl<B, D, E> http_body::Body for ReclaimableBody<B, D, E>
 where
     B: http_body::Body<Data = Bytes> + Unpin,

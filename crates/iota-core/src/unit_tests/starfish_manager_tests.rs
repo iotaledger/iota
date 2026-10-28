@@ -213,6 +213,11 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
 
     // Set last_processed_commit_at_startup to 7
     let last_processed_commit_at_startup = 7;
+    // Commits up to it were processed and flushed before the restart, so they
+    // count as fully executed and later commits do not wait for them.
+    epoch_store
+        .handler_object_state_for_testing()
+        .mark_fully_executed_for_testing(last_processed_commit_at_startup.into());
 
     let (commit_sender, commit_receiver) = unbounded_channel("consensus_output");
     let commit_consumer = starfish_core::CommitConsumer::new(commit_sender.clone(), 0);
@@ -245,7 +250,7 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
 }
 
 #[test]
-fn replay_target_with_deterministic_validation_is_the_last_validated_commit() {
+fn replay_target_is_the_last_validated_commit() {
     assert_eq!(replay_target(Some(15), 13, None), 15);
 }
 

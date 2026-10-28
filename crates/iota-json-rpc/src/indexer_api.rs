@@ -2,11 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{collections::HashSet, sync::Arc};
 
-use anyhow::{anyhow, bail};
+use anyhow::anyhow;
 use async_trait::async_trait;
-use futures::{Stream, StreamExt};
 use iota_core::authority::AuthorityState;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{
@@ -18,9 +17,8 @@ use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
     IotaTransactionBlockResponseQueryV2, ObjectsPage, Page, TransactionBlocksPage,
-    TransactionFilter,
 };
-use iota_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_blocking;
 use iota_names::{
     IotaNamesNft, NameRegistration, config::IotaNamesConfig, error::IotaNamesError, name::Name,
     registry::NameRecord,
@@ -33,14 +31,9 @@ use iota_types::{
     dynamic_field::DynamicFieldName, error::UserInputError, event::EventID,
     iota_sdk_types_conversions::type_tag_sdk_to_core,
 };
-use jsonrpsee::{
-    PendingSubscriptionSink, RpcModule, SendTimeoutError, SubscriptionMessage,
-    core::{RpcResult, SubscriptionResult},
-};
+use jsonrpsee::{RpcModule, core::RpcResult};
 use move_bytecode_utils::layout::TypeLayoutBuilder;
-use serde::Serialize;
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
-use tracing::{debug, instrument};
+use tracing::instrument;
 
 use crate::{
     IotaRpcModule,
@@ -49,66 +42,12 @@ use crate::{
     logger::FutureWithTracing as _,
 };
 
-async fn pipe_from_stream<T: Serialize>(
-    pending: PendingSubscriptionSink,
-    mut stream: impl Stream<Item = T> + Unpin,
-) -> Result<(), anyhow::Error> {
-    let sink = pending.accept().await?;
-
-    loop {
-        tokio::select! {
-            _ = sink.closed() => break Ok(()),
-            maybe_item = stream.next() => {
-                let Some(item) = maybe_item else {
-                    break Ok(());
-                };
-
-                let msg = SubscriptionMessage::from_json(&item)?;
-
-                if let Err(e) = sink.send_timeout(msg, Duration::from_secs(60)).await {
-                    match e {
-                        // The subscription or connection was closed.
-                        SendTimeoutError::Closed(_) => break Ok(()),
-                        // The subscription send timeout expired
-                        // the message is returned and you could save that message
-                        // and retry again later.
-                        SendTimeoutError::Timeout(_) => break Err(anyhow::anyhow!("Subscription timeout expired")),
-                    }
-                }
-            }
-        }
-    }
-}
-
-pub fn spawn_subscription<S, T>(
-    pending: PendingSubscriptionSink,
-    rx: S,
-    permit: Option<OwnedSemaphorePermit>,
-) where
-    S: Stream<Item = T> + Unpin + Send + 'static,
-    T: Serialize + Send,
-{
-    spawn_monitored_task!(async move {
-        let _permit = permit;
-        match pipe_from_stream(pending, rx).await {
-            Ok(_) => {
-                debug!("Subscription completed.");
-            }
-            Err(err) => {
-                debug!("Subscription failed: {err:?}");
-            }
-        }
-    });
-}
-const DEFAULT_MAX_SUBSCRIPTIONS: usize = 100;
-
 pub struct IndexerApi<R> {
     state: Arc<dyn StateRead>,
     read_api: R,
     transaction_kv_store: Arc<TransactionKeyValueStore>,
     iota_names_config: IotaNamesConfig,
     pub metrics: Arc<JsonRpcMetrics>,
-    subscription_semaphore: Arc<Semaphore>,
 }
 
 impl<R: ReadApiServer> IndexerApi<R> {
@@ -118,16 +57,13 @@ impl<R: ReadApiServer> IndexerApi<R> {
         transaction_kv_store: Arc<TransactionKeyValueStore>,
         metrics: Arc<JsonRpcMetrics>,
         iota_names_config: IotaNamesConfig,
-        max_subscriptions: Option<usize>,
     ) -> Self {
-        let max_subscriptions = max_subscriptions.unwrap_or(DEFAULT_MAX_SUBSCRIPTIONS);
         Self {
             state,
             transaction_kv_store,
             read_api,
             metrics,
             iota_names_config,
-            subscription_semaphore: Arc::new(Semaphore::new(max_subscriptions)),
         }
     }
 
@@ -147,13 +83,6 @@ impl<R: ReadApiServer> IndexerApi<R> {
         let iota_json_value = IotaJsonValue::new(value)?;
         let name_bcs_value = iota_json_value.to_bcs_bytes(&layout)?;
         Ok((name_type, name_bcs_value))
-    }
-
-    fn acquire_subscribe_permit(&self) -> anyhow::Result<OwnedSemaphorePermit> {
-        match self.subscription_semaphore.clone().try_acquire_owned() {
-            Ok(p) => Ok(p),
-            Err(_) => bail!("Resources exhausted"),
-        }
     }
 
     async fn get_dynamic_field_object(
@@ -211,10 +140,17 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 validate_limit(limit, *QUERY_MAX_RESULT_LIMIT).map_err(IotaRpcInputError::from)?;
             self.metrics.get_owned_objects_limit.observe(limit as f64);
             let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
+            if let Some(filter) = &filter {
+                filter.check_size().map_err(|error| {
+                    IotaRpcInputError::GenericInvalid(format!("invalid object filter: {error}"))
+                })?;
+            }
             let options = options.unwrap_or_default();
-            let page = self
-                .state
-                .get_owner_objects_page(address, cursor, limit, filter)?;
+            let state = self.state.clone();
+            let page = spawn_monitored_blocking!(move || {
+                state.get_owner_objects_page(address, cursor, limit, filter)
+            })
+            .await??;
 
             let data = match options.is_not_in_object_info() {
                 true => {
@@ -385,44 +321,6 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         }
         .trace()
         .await
-    }
-
-    #[instrument(skip(self))]
-    fn subscribe_event(
-        &self,
-        sink: PendingSubscriptionSink,
-        filter: EventFilter,
-    ) -> SubscriptionResult {
-        let permit = self.acquire_subscribe_permit()?;
-        spawn_subscription(
-            sink,
-            self.state
-                .get_subscription_handler()
-                .subscribe_events(filter),
-            Some(permit),
-        );
-        Ok(())
-    }
-
-    fn subscribe_transaction(
-        &self,
-        sink: PendingSubscriptionSink,
-        filter: TransactionFilter,
-    ) -> SubscriptionResult {
-        // Validate unsupported filters
-        if matches!(filter, TransactionFilter::Checkpoint(_)) {
-            return Err("checkpoint filter is not supported".into());
-        }
-
-        let permit = self.acquire_subscribe_permit()?;
-        spawn_subscription(
-            sink,
-            self.state
-                .get_subscription_handler()
-                .subscribe_transactions(filter),
-            Some(permit),
-        );
-        Ok(())
     }
 
     #[instrument(skip(self, parent_object_id), fields(parent_object_id = %parent_object_id))]
@@ -618,5 +516,122 @@ impl<R: ReadApiServer> IotaRpcModule for IndexerApi<R> {
 
     fn rpc_doc_module() -> Module {
         IndexerApiOpenRpc::module_doc()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_json_rpc_types::MAX_FILTER_NODES;
+    use iota_sdk_types::{CheckpointDigest, TransactionEvents, Version};
+    use iota_storage::{
+        key_value_store::{
+            KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
+        },
+        key_value_store_metrics::KeyValueStoreMetrics,
+    };
+    use iota_types::{
+        error::IotaResult, messages_checkpoint::CheckpointSequenceNumber, object::Object,
+        storage::ObjectKey,
+    };
+    use jsonrpsee::{core::server::MethodsError, types::error::INVALID_PARAMS_CODE};
+    use mockall::mock;
+
+    use super::*;
+    use crate::{authority_state::MockStateRead, read_api::ReadApi};
+
+    mock! {
+        KeyValueStore {}
+        #[async_trait]
+        impl TransactionKeyValueStoreTrait for KeyValueStore {
+            async fn multi_get(
+                &self,
+                transaction_keys: &[TransactionDigest],
+                effects_keys: &[TransactionDigest],
+            ) -> IotaResult<KVStoreTransactionData>;
+            async fn multi_get_checkpoints(
+                &self,
+                checkpoint_summaries: &[CheckpointSequenceNumber],
+                checkpoint_contents: &[CheckpointSequenceNumber],
+                checkpoint_summaries_by_digest: &[CheckpointDigest],
+            ) -> IotaResult<KVStoreCheckpointData>;
+            async fn get_transaction_perpetual_checkpoint(
+                &self,
+                digest: TransactionDigest,
+            ) -> IotaResult<Option<CheckpointSequenceNumber>>;
+            async fn get_object(
+                &self,
+                object_id: ObjectId,
+                version: Version,
+            ) -> IotaResult<Option<Object>>;
+            async fn multi_get_objects(
+                &self,
+                object_keys: &[ObjectKey],
+            ) -> IotaResult<Vec<Option<Object>>>;
+            async fn multi_get_transactions_perpetual_checkpoints(
+                &self,
+                digests: &[TransactionDigest],
+            ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>>;
+            async fn multi_get_events_by_tx_digests(
+                &self,
+                digests: &[TransactionDigest],
+            ) -> IotaResult<Vec<Option<TransactionEvents>>>;
+        }
+    }
+
+    fn indexer_rpc_module() -> RpcModule<IndexerApi<ReadApi>> {
+        let state: Arc<dyn StateRead> = Arc::new(MockStateRead::new());
+        let transaction_kv_store = Arc::new(TransactionKeyValueStore::new(
+            "test",
+            KeyValueStoreMetrics::new_for_tests(),
+            Arc::new(MockKeyValueStore::new()),
+        ));
+        let metrics = Arc::new(JsonRpcMetrics::new_for_tests());
+        IndexerApi {
+            read_api: ReadApi {
+                state: state.clone(),
+                transaction_kv_store: transaction_kv_store.clone(),
+                metrics: metrics.clone(),
+            },
+            state,
+            transaction_kv_store,
+            metrics,
+            iota_names_config: IotaNamesConfig::default(),
+        }
+        .rpc()
+    }
+
+    fn assert_invalid_params(result: Result<impl std::fmt::Debug, MethodsError>, limit: &str) {
+        match result {
+            Err(MethodsError::JsonRpc(error)) => {
+                assert_eq!(error.code(), INVALID_PARAMS_CODE);
+                assert!(
+                    error.message().contains(limit),
+                    "message `{}` does not name the limit `{limit}`",
+                    error.message()
+                );
+            }
+            other => panic!("expected an invalid params error, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn get_owned_objects_refuses_too_large_filter() {
+        let module = indexer_rpc_module();
+        let query = IotaObjectResponseQuery::new(
+            Some(IotaObjectDataFilter::ObjectIds(vec![
+                ObjectId::ZERO;
+                MAX_FILTER_NODES
+            ])),
+            None,
+        );
+        assert_invalid_params(
+            module
+                .call::<_, ObjectsPage>(
+                    "iotax_getOwnedObjects",
+                    (Address::ZERO, query, None::<ObjectId>, None::<usize>),
+                )
+                .await,
+            &format!("{MAX_FILTER_NODES} nodes"),
+        );
     }
 }

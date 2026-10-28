@@ -30,8 +30,7 @@ use iota_config::{
 };
 use iota_framework::{BuiltInFramework, SystemPackage as FrameworkSystemPackage};
 use iota_json_rpc_types::{
-    EventFilter, IotaEvent, IotaMoveValue, IotaObjectDataFilter, IotaTransactionBlockEffects,
-    IotaTransactionBlockEvents, TransactionFilter,
+    EventFilter, IotaEvent, IotaMoveValue, IotaObjectDataFilter, TransactionFilter,
 };
 use iota_macros::{fail_point, fail_point_async, fail_point_if};
 use iota_metrics::{
@@ -182,7 +181,6 @@ use crate::{
         reader::{CommitIndexedReader, DenyListAtCommit},
     },
     stake_aggregator::StakeAggregator,
-    subscription_handler::SubscriptionHandler,
     transaction_input_loader::TransactionInputLoader,
     transaction_outputs::TransactionOutputs,
     validator_tx_finalizer::ValidatorTxFinalizer,
@@ -314,9 +312,7 @@ pub struct AuthorityMetrics {
     pub(crate) transaction_overload_sources: IntCounterVec,
 
     // Post processing metrics
-    post_processing_total_events_emitted: IntCounter,
     post_processing_total_tx_indexed: IntCounter,
-    post_processing_total_tx_had_event_processed: IntCounter,
     post_processing_total_failures: IntCounter,
 
     // Consensus handler metrics
@@ -712,21 +708,9 @@ impl AuthorityMetrics {
                 registry,
             )
                 .unwrap(),
-            post_processing_total_events_emitted: register_int_counter_with_registry!(
-                "post_processing_total_events_emitted",
-                "Total number of events emitted in post processing",
-                registry,
-            )
-                .unwrap(),
             post_processing_total_tx_indexed: register_int_counter_with_registry!(
                 "post_processing_total_tx_indexed",
                 "Total number of txes indexed in post processing",
-                registry,
-            )
-                .unwrap(),
-            post_processing_total_tx_had_event_processed: register_int_counter_with_registry!(
-                "post_processing_total_tx_had_event_processed",
-                "Total number of txes finished event processing in post processing",
                 registry,
             )
                 .unwrap(),
@@ -949,7 +933,6 @@ pub struct AuthorityState {
     pub indexes: Option<Arc<IndexStore>>,
     pub grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
 
-    pub subscription_handler: Arc<SubscriptionHandler>,
     pub checkpoint_store: Arc<CheckpointStore>,
 
     committee_store: Arc<CommitteeStore>,
@@ -1042,8 +1025,7 @@ impl AuthorityState {
     /// `deny_config` is the deny rule source to enforce, chosen per caller:
     /// the local config alone, the local config combined with the governance
     /// rules (admission), or the governance-derived active set alone
-    /// (post-consensus) — the latter two when `deny_rule_governance` is
-    /// enabled.
+    /// (post-consensus) — the latter two with `enable_pcool_flow`.
     ///
     /// `epoch_gated_coin_deny_list` selects how the coin deny list is read:
     /// `false` reads the latest value, so denials apply immediately - for
@@ -1066,7 +1048,7 @@ impl AuthorityState {
     ///   admission policy can limit how many deterministically-dropped transactions reach
     ///   consensus.
     ///
-    /// With `pcool_deterministic_validation`, post-consensus validation does
+    /// With `enable_pcool_flow`, post-consensus validation does
     /// not call this function: [`Self::handle_transaction_validation_checks_at_commit`]
     /// reads the deny list as of the commit's horizon, where a change made
     /// this epoch counts from the horizon distance after the commit that
@@ -1849,13 +1831,17 @@ impl AuthorityState {
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
     /// checking errors if the pre-conditions are not satisfied, and
-    /// executing change epoch transactions.
+    /// executing change epoch transactions. With the P-COOL flow, a committee
+    /// validator executes only transactions of commits its consensus handler
+    /// assigned, so a transaction the handler has not assigned is assigned to
+    /// a new commit first.
     pub fn try_execute_for_test(
         &self,
         certificate: &VerifiedCertificate,
         execution_env: ExecutionEnv,
     ) -> IotaResult<(VerifiedSignedTransactionEffects, Option<ExecutionError>)> {
         let epoch_store = self.epoch_store_for_testing();
+        epoch_store.assign_to_a_new_commit_for_testing(&[certificate.key()]);
         let (effects, execution_error_opt) = self.try_execute_immediately(
             &VerifiedExecutableTransaction::new_from_certificate(certificate.clone()),
             execution_env,
@@ -2391,7 +2377,7 @@ impl AuthorityState {
             // Under deterministic validation, a gas owner that cannot be resolved
             // did not authorize the transaction, so nobody pays; its own failure is
             // then the one reported.
-            let deterministic_validation = protocol_config.pcool_deterministic_validation();
+            let deterministic_validation = protocol_config.enable_pcool_flow();
             let mut first_resolution_error = None;
             let mut gas_owner_resolution_error = None;
             let mut resolved_authenticators = Vec::with_capacity(move_authenticators.len());
@@ -2527,6 +2513,11 @@ impl AuthorityState {
     /// [`max_tx_gas`](iota_protocol_config::ProtocolConfig::max_tx_gas).
     /// Anything the transaction does declare is metered as given, so a dry run
     /// still rejects the gas a validator would.
+    ///
+    /// Under either `checks`, the packages the transaction publishes are run
+    /// through the bytecode verifier with this node's signing-time limits, so a
+    /// package that signing would reject with
+    /// [`UserInputError::PackageVerificationTimedout`] is rejected here too.
     ///
     /// Whatever the budget resolves to, the gas coins have to cover it, since
     /// execution reserves the whole budget from them before running any command
@@ -2690,6 +2681,19 @@ impl AuthorityState {
                 input_objects,
                 receiving_objects,
             )?;
+
+            // Execution verifies the packages a transaction publishes with neither a
+            // limit nor a meter, trusting signing to have bounded them — so with the
+            // signing-time checks skipped here, this has to bound them. The node's
+            // own limits reject nothing that signing would accept. With the checks
+            // enabled, `check_transaction_input` covers it.
+            iota_transaction_checks::check_non_system_packages_to_be_published(
+                &transaction,
+                protocol_config,
+                &self.metrics.bytecode_verifier_metrics,
+                VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
+            )?;
+
             let gas_status = IotaGasStatus::new(
                 transaction.gas_budget(),
                 transaction.gas_price(),
@@ -3154,58 +3158,8 @@ impl AuthorityState {
                 .tap_ok(|_| self.metrics.post_processing_total_tx_indexed.inc())
                 .tap_err(|e| error!(?tx_digest, "Post processing - Couldn't index tx: {e}"))
                 .expect("Indexing tx should not fail");
-
-            let effects: IotaTransactionBlockEffects = effects.clone().try_into()?;
-            let events = self.make_transaction_block_events(
-                events.clone(),
-                *tx_digest,
-                timestamp_ms,
-                epoch_store,
-                inner_temporary_store,
-            )?;
-            // Emit events
-            self.subscription_handler
-                .process_tx(transaction.data().transaction(), &effects, &events)
-                .tap_ok(|_| {
-                    self.metrics
-                        .post_processing_total_tx_had_event_processed
-                        .inc()
-                })
-                .tap_err(|e| {
-                    warn!(
-                        ?tx_digest,
-                        "Post processing - Couldn't process events for tx: {}", e
-                    )
-                })?;
-
-            self.metrics
-                .post_processing_total_events_emitted
-                .inc_by(events.data.len() as u64);
         };
         Ok(())
-    }
-
-    fn make_transaction_block_events(
-        &self,
-        transaction_events: TransactionEvents,
-        digest: TransactionDigest,
-        timestamp_ms: u64,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-        inner_temporary_store: &InnerTemporaryStore,
-    ) -> IotaResult<IotaTransactionBlockEvents> {
-        let mut layout_resolver =
-            epoch_store
-                .executor()
-                .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
-                    inner_temporary_store,
-                    self.get_backing_package_store(),
-                )));
-        IotaTransactionBlockEvents::try_from(
-            transaction_events,
-            digest,
-            Some(timestamp_ms),
-            layout_resolver.as_mut(),
-        )
     }
 
     pub fn unixtime_now_ms() -> u64 {
@@ -3433,7 +3387,6 @@ impl AuthorityState {
             execution_cache_trait_pointers,
             indexes,
             grpc_indexes_store,
-            subscription_handler: Arc::new(SubscriptionHandler::new(prometheus_registry)),
             checkpoint_store,
             committee_store,
             execution_scheduler,
@@ -5593,9 +5546,7 @@ impl AuthorityState {
         // committee injects (or skips) the kind together. If this epoch
         // change falls into safe mode the creation is dropped with it, the
         // object stays absent, and the next epoch end injects it again.
-        if epoch_store
-            .protocol_config()
-            .deny_rule_governance_on_chain()
+        if epoch_store.protocol_config().enable_pcool_flow()
             && epoch_store
                 .epoch_start_config()
                 .transaction_deny_rules_obj_initial_shared_version()

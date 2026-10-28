@@ -5,7 +5,7 @@
 // shared TransactionDenyRules object at its reserved address 0xDE9, with all
 // deny tables empty and all switches off.
 
-//# init --simulator --deny-rule-governance true
+//# init --simulator
 
 //# view-object 0xDE9
 

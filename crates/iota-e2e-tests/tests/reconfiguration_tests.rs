@@ -665,21 +665,19 @@ async fn test_inactive_validator_pool_read() {
     })
 }
 
+/// A validator joins the committee, catches up and leaves it, without the
+/// P-COOL flow, as on Mainnet and Testnet.
 #[sim_test]
 async fn test_reconfig_with_committee_change_basic() {
+    let _pcool_guard = override_pcool_flow(false);
     run_reconfig_with_committee_change_basic().await;
 }
 
 /// The committee change of `test_reconfig_with_committee_change_basic` with
-/// `pcool_deterministic_validation`: the joining
-/// validator waits for its own checkpoints once in the committee, and executes
-/// synced checkpoints again after leaving it.
+/// the P-COOL flow: the joining validator waits for its own checkpoints once in
+/// the committee, and executes synced checkpoints again after leaving it.
 #[sim_test]
 async fn test_reconfig_with_committee_change_basic_skipping_synced_checkpoint_execution() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
-        config
-    });
     run_reconfig_with_committee_change_basic().await;
 }
 
@@ -1499,7 +1497,7 @@ async fn execute_add_validator_transactions(
     });
 }
 
-/// With `pcool_deterministic_validation`, a validator that is down while its
+/// With `enable_pcool_flow`, a validator that is down while its
 /// epoch ends, and restarts with the end of
 /// that epoch more than `max_checkpoints_ahead_of_execution` checkpoints
 /// ahead, still reaches the network's epoch. Its own consensus can no longer
@@ -1507,10 +1505,6 @@ async fn execute_add_validator_transactions(
 /// to fall back to executing synced checkpoints.
 #[sim_test]
 async fn validator_far_behind_catches_up_across_epoch_end() {
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
-        config
-    });
     let test_cluster = TestClusterBuilder::new()
         .with_num_validators(4)
         .with_epoch_duration_ms(15_000)
@@ -1543,53 +1537,91 @@ async fn validator_far_behind_catches_up_across_epoch_end() {
         .await;
 }
 
-/// With `pcool_deterministic_validation`, a validator
-/// killed after it certified its epoch's last checkpoint and marked it synced,
-/// but before it executed it, recovers on restart and reaches the next epochs. The
-/// transactions of its unexecuted checkpoints exist only in memory, so it has
-/// to replay its consensus commits and rebuild those checkpoints.
+/// With `enable_pcool_flow`, a validator killed after it certified its epoch's
+/// last checkpoint and marked it synced, but before it executed it, recovers
+/// on restart and reaches the next epochs. The transactions of its unexecuted
+/// checkpoints exist only in memory, so it has to replay its consensus commits
+/// and rebuild those checkpoints.
+///
+/// The test kills whichever validator marks the first epoch's last checkpoint
+/// synced before any other. Peers report only checkpoints they have marked
+/// synced, so that validator must have built and certified it itself.
 #[cfg(msim)]
 #[sim_test]
 async fn validator_restarted_after_certifying_epoch_end_reaches_next_epoch() {
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::OnceLock;
 
     use iota_macros::register_fail_point;
 
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.enable_pcool_deterministic_validation_for_testing();
-        config
-    });
     let test_cluster = TestClusterBuilder::new()
         .with_num_validators(4)
         .with_epoch_duration_ms(10_000)
         .build()
         .await;
-    let crashed = test_cluster.get_validator_pubkeys()[0];
-    let crashed_sim_id = test_cluster
-        .swarm
-        .node(&crashed)
-        .unwrap()
-        .get_node_handle()
-        .unwrap()
-        .with(|_| iota_simulator::current_simnode_id());
-    let killed = Arc::new(AtomicBool::new(false));
+    // Each validator as its simulator node id, its name, and a weak reference
+    // to its state that does not keep its store alive.
+    let validators: Vec<_> = test_cluster
+        .get_validator_pubkeys()
+        .into_iter()
+        .map(|name| {
+            test_cluster
+                .swarm
+                .node(&name)
+                .unwrap()
+                .get_node_handle()
+                .unwrap()
+                .with(|node| {
+                    (
+                        iota_simulator::current_simnode_id(),
+                        name,
+                        Arc::downgrade(&node.state()),
+                    )
+                })
+        })
+        .collect();
+    // The validator killed, and whether it had built the checkpoint.
+    let killed: Arc<OnceLock<(AuthorityName, bool)>> = Default::default();
     {
         let killed = killed.clone();
-        register_fail_point("synced-end-of-epoch-checkpoint-from-consensus", move || {
-            if iota_simulator::current_simnode_id() == crashed_sim_id
-                && !killed.swap(true, Ordering::SeqCst)
-            {
+        register_fail_point("synced-end-of-epoch-checkpoint", move || {
+            if killed.get().is_some() {
+                return;
+            }
+            let sim_id = iota_simulator::current_simnode_id();
+            let Some((_, name, state)) = validators.iter().find(|(id, ..)| *id == sim_id) else {
+                return;
+            };
+            let built = state.upgrade().is_some_and(|state| {
+                let store = state.get_checkpoint_store();
+                store
+                    .get_epoch_last_checkpoint_seq_number(0)
+                    .unwrap()
+                    .is_some_and(|last| {
+                        store
+                            .get_locally_computed_checkpoint(last)
+                            .unwrap()
+                            .is_some()
+                    })
+            });
+            if killed.set((*name, built)).is_ok() {
                 iota_simulator::task::kill_current_node(None);
             }
         });
     }
-    tokio::time::timeout(Duration::from_secs(60), async {
-        while !killed.load(Ordering::SeqCst) {
+    let (crashed, built) = tokio::time::timeout(Duration::from_secs(60), async {
+        loop {
+            if let Some(&killed) = killed.get() {
+                return killed;
+            }
             sleep(Duration::from_millis(100)).await;
         }
     })
     .await
-    .expect("the validator should certify the end of the first epoch");
+    .expect("a validator should mark the first epoch's last checkpoint synced");
+    assert!(
+        built,
+        "the validator killed should have built the checkpoint"
+    );
 
     // The simulator restarts a killed node on its own; stop and start it
     // explicitly to get a handle to the new instance.

@@ -20,7 +20,6 @@ use iota_macros::sim_test;
 use iota_sdk_types::Address;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use prost_types::FieldMask;
-use test_cluster::override_pcool_flow;
 
 use super::build_item;
 use crate::utils::{
@@ -614,13 +613,6 @@ async fn execute_transaction_batch_with_checkpoint_inclusion() {
 /// the handler rather than a successful response.
 #[sim_test]
 async fn execute_transaction_v1_skip_cert_rebuilds_from_cache() {
-    let _env_guard = override_pcool_flow(true);
-    let _proto_guard =
-        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config
-        });
-
     let (test_cluster, client) = setup_grpc_test(None, None).await;
     let mut exec_client = client.execution_service_client();
 
@@ -677,13 +669,6 @@ async fn execute_transaction_v1_skip_cert_rebuilds_from_cache() {
 /// "no successful response with uncertified data and no whole-RPC failure."
 #[sim_test]
 async fn execute_transaction_v1_skip_cert_no_quorum_yields_per_item_error() {
-    let _env_guard = override_pcool_flow(true);
-    let _proto_guard =
-        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config
-        });
-
     let (test_cluster, client) =
         setup_grpc_test_with_builder(|b| b.with_num_validators(4), None, None).await;
     let mut exec_client = client.execution_service_client();

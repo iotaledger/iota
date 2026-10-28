@@ -42,6 +42,11 @@ use crate::{
     },
 };
 
+/// The signature checks the newest protocol version applies.
+fn latest_verify_params() -> VerifyParams {
+    VerifyParams::from_protocol_config(&ProtocolConfig::get_for_max_version_UNSAFE())
+}
+
 #[test]
 fn test_signed_values() {
     let mut authorities: BTreeMap<AuthorityPublicKeyBytes, u64> = BTreeMap::new();
@@ -78,7 +83,7 @@ fn test_signed_values() {
         ),
         vec![&sender_sec],
     )
-    .try_into_verified_for_testing(&Default::default())
+    .try_into_verified_for_testing(&latest_verify_params())
     .unwrap();
 
     let bad_transaction =
@@ -101,7 +106,7 @@ fn test_signed_values() {
         AuthorityPublicKeyBytes::from(sec1.public()),
     );
     assert!(
-        v.try_into_verified_for_testing(&committee, &Default::default())
+        v.try_into_verified_for_testing(&committee, &latest_verify_params())
             .is_ok()
     );
 
@@ -112,7 +117,7 @@ fn test_signed_values() {
         AuthorityPublicKeyBytes::from(sec2.public()),
     );
     assert!(
-        v.try_into_verified_for_testing(&committee, &Default::default())
+        v.try_into_verified_for_testing(&committee, &latest_verify_params())
             .is_err()
     );
 
@@ -123,7 +128,7 @@ fn test_signed_values() {
         AuthorityPublicKeyBytes::from(sec3.public()),
     );
     assert!(
-        v.try_into_verified_for_testing(&committee, &Default::default())
+        v.try_into_verified_for_testing(&committee, &latest_verify_params())
             .is_err()
     );
 
@@ -134,7 +139,7 @@ fn test_signed_values() {
         AuthorityPublicKeyBytes::from(sec1.public()),
     );
     assert!(
-        v.try_into_verified_for_testing(&committee, &Default::default())
+        v.try_into_verified_for_testing(&committee, &latest_verify_params())
             .is_err()
     );
 }
@@ -172,7 +177,7 @@ fn test_certificates() {
         ),
         vec![&sender_sec],
     )
-    .try_into_verified_for_testing(&Default::default())
+    .try_into_verified_for_testing(&latest_verify_params())
     .unwrap();
 
     let v1 = SignedTransaction::new(
@@ -203,7 +208,7 @@ fn test_certificates() {
     let c =
         CertifiedTransaction::new(transaction.clone().into_message(), sigs, &committee).unwrap();
     assert!(
-        c.verify_signatures_authenticated(&committee, &Default::default(),)
+        c.verify_signatures_authenticated(&committee, &latest_verify_params(),)
             .is_ok()
     );
 
@@ -520,7 +525,7 @@ fn test_digest_caching() {
         ),
         vec![&ssec2],
     )
-    .try_into_verified_for_testing(&Default::default())
+    .try_into_verified_for_testing(&latest_verify_params())
     .unwrap();
 
     let mut signed_tx = SignedTransaction::new(
@@ -531,7 +536,7 @@ fn test_digest_caching() {
     );
     assert!(
         signed_tx
-            .verify_signatures_authenticated_for_testing(&committee, &Default::default())
+            .verify_signatures_authenticated_for_testing(&committee, &latest_verify_params())
             .is_ok()
     );
 
@@ -649,7 +654,7 @@ fn test_user_signature_committed_in_signed_transactions() {
         gas_price,
     );
     let transaction_a = TransactionEnvelope::from_data_and_signer(tx.clone(), vec![&sender_sec])
-        .try_into_verified_for_testing(&Default::default())
+        .try_into_verified_for_testing(&latest_verify_params())
         .unwrap();
     // transaction_b intentionally invalid (sender does not match signer).
     let transaction_b = VerifiedTransaction::new_unchecked(
@@ -754,7 +759,7 @@ fn test_sponsored_transaction_message() {
         tx.clone(),
         vec![sender_sig.clone(), sponsor_sig.clone()],
     )
-    .try_into_verified_for_testing(&Default::default())
+    .try_into_verified_for_testing(&latest_verify_params())
     .unwrap();
 
     assert_eq!(
@@ -770,13 +775,13 @@ fn test_sponsored_transaction_message() {
         tx.clone(),
         vec![sponsor_sig.clone(), sender_sig.clone()],
     )
-    .try_into_verified_for_testing(&Default::default())
+    .try_into_verified_for_testing(&latest_verify_params())
     .unwrap();
 
     // Test incomplete signature lists (missing sponsor sig)
     assert!(matches!(
         TransactionEnvelope::from_user_sig_data(tx.clone(), vec![sender_sig.clone()],)
-            .try_into_verified_for_testing(&Default::default())
+            .try_into_verified_for_testing(&latest_verify_params())
             .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
     ));
@@ -784,7 +789,7 @@ fn test_sponsored_transaction_message() {
     // Test incomplete signature lists (missing sender sig)
     assert!(matches!(
         TransactionEnvelope::from_user_sig_data(tx.clone(), vec![sponsor_sig.clone()],)
-            .try_into_verified_for_testing(&Default::default())
+            .try_into_verified_for_testing(&latest_verify_params())
             .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
     ));
@@ -798,7 +803,7 @@ fn test_sponsored_transaction_message() {
             tx.clone(),
             vec![sender_sig, sponsor_sig.clone(), third_party_sig.clone()],
         )
-        .try_into_verified_for_testing(&Default::default())
+        .try_into_verified_for_testing(&latest_verify_params())
         .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
     ));
@@ -806,7 +811,7 @@ fn test_sponsored_transaction_message() {
     // Test irrelevant sigs
     assert!(matches!(
         TransactionEnvelope::from_user_sig_data(tx, vec![sponsor_sig, third_party_sig],)
-            .try_into_verified_for_testing(&Default::default())
+            .try_into_verified_for_testing(&latest_verify_params())
             .unwrap_err(),
         IotaError::SignerSignatureAbsent { .. }
     ));
@@ -1133,18 +1138,11 @@ fn validity_check_rejects_randomness_state_in_move_authenticator() {
     }
 }
 
-/// Returns the max-version protocol config with deterministic validation on.
-fn config_with_deterministic_validation() -> ProtocolConfig {
-    let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
-    config.enable_pcool_deterministic_validation_for_testing();
-    config
-}
-
-/// With deterministic validation, a mutable shared call argument is refused
-/// from the transaction bytes alone. An immutable one passes.
+/// With the P-COOL flow, a mutable shared call argument is refused from the
+/// transaction bytes alone. An immutable one passes.
 #[test]
 fn validity_check_rejects_a_mutable_shared_call_argument_in_move_authenticator() {
-    let config = config_with_deterministic_validation();
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
     let context = TxValidityCheckContext {
         config: &config,
         epoch: 0,
@@ -1177,12 +1175,12 @@ fn validity_check_rejects_a_mutable_shared_call_argument_in_move_authenticator()
         .unwrap();
 }
 
-/// With deterministic validation, the authenticator state object is refused
-/// from the transaction bytes alone, as a call argument and as the object to
+/// With the P-COOL flow, the authenticator state object is refused from the
+/// transaction bytes alone, as a call argument and as the object to
 /// authenticate.
 #[test]
 fn validity_check_rejects_authenticator_state_in_move_authenticator() {
-    let config = config_with_deterministic_validation();
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
     let sender = Address::random();
     let state = SharedObjectReference::new(ObjectId::AUTHENTICATOR_STATE, Version::from(1), false);
     let account = SharedObjectReference::new(sender.into(), Version::from(1), false);
@@ -1207,13 +1205,13 @@ fn validity_check_rejects_authenticator_state_in_move_authenticator() {
     }
 }
 
-/// Without deterministic validation, the transaction bytes alone refuse
-/// neither the authenticator state object nor a mutable shared object as a
-/// `MoveAuthenticator` input: the checks on the loaded objects do.
+/// Without the P-COOL flow, as on Mainnet and Testnet, the transaction bytes
+/// alone refuse neither the authenticator state object nor a mutable shared
+/// object as a `MoveAuthenticator` input: the checks on the loaded objects do.
 #[test]
 fn validity_check_leaves_move_authenticator_input_kinds_to_the_loaded_objects() {
-    let config = ProtocolConfig::get_for_max_version_UNSAFE();
-    assert!(!config.pcool_deterministic_validation());
+    let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+    config.set_enable_pcool_flow_for_testing(false);
     let sender = Address::random();
     let account = SharedObjectReference::new(sender.into(), Version::from(1), false);
     let state = SharedObjectReference::new(ObjectId::AUTHENTICATOR_STATE, Version::from(1), false);
@@ -1329,7 +1327,7 @@ fn verify_sender_signature_correctly_with_flag() {
     tx_data_3.gas_data_mut().owner = tx_data_3.sender();
 
     let transaction = TransactionEnvelope::from_data_and_signer(tx, vec![&sender_kp])
-        .try_into_verified_for_testing(&Default::default())
+        .try_into_verified_for_testing(&latest_verify_params())
         .unwrap();
 
     // create tx also signed by authority
@@ -1360,7 +1358,7 @@ fn verify_sender_signature_correctly_with_flag() {
     );
 
     let transaction_1 = TransactionEnvelope::from_data_and_signer(tx_data_2, vec![&sender_kp_2])
-        .try_into_verified_for_testing(&Default::default())
+        .try_into_verified_for_testing(&latest_verify_params())
         .unwrap();
 
     let signed_tx_1 = SignedTransaction::new(
@@ -1407,11 +1405,11 @@ fn verify_sender_signature_correctly_with_flag() {
 
     // r1 signature tx verifies ok
     assert!(
-        tx_3.try_into_verified_for_testing(&Default::default())
+        tx_3.try_into_verified_for_testing(&latest_verify_params())
             .is_ok()
     );
     let verified_tx_3 = tx_31
-        .try_into_verified_for_testing(&Default::default())
+        .try_into_verified_for_testing(&latest_verify_params())
         .unwrap();
     // r1 signature verified and accepted by authority
     let signed_tx_3 = SignedTransaction::new(
@@ -1505,10 +1503,9 @@ fn test_transaction_deny_rules_update_transaction() {
 /// it on they are system transactions that users cannot submit.
 #[test]
 fn test_transaction_deny_rules_kinds_rejected_from_users() {
-    let flag_off = ProtocolConfig::get_for_max_version_UNSAFE();
-    let mut flag_on = ProtocolConfig::get_for_max_version_UNSAFE();
-    flag_on.set_deny_rule_governance_for_testing(true);
-    flag_on.set_deny_rule_governance_on_chain_for_testing(true);
+    let mut flag_off = ProtocolConfig::get_for_max_version_UNSAFE();
+    flag_off.set_enable_pcool_flow_for_testing(false);
+    let flag_on = ProtocolConfig::get_for_max_version_UNSAFE();
 
     let create =
         TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::TransactionDenyRulesCreate]);
@@ -1726,7 +1723,7 @@ fn test_certificate_digest() {
             ),
             vec![&sender_sec],
         )
-        .try_into_verified_for_testing(&Default::default())
+        .try_into_verified_for_testing(&latest_verify_params())
         .unwrap()
     };
 
@@ -1751,7 +1748,7 @@ fn test_certificate_digest() {
 
         let cert = CertifiedTransaction::new(transaction.clone().into_message(), sigs, &committee)
             .unwrap();
-        cert.verify_signatures_authenticated(&committee, &Default::default())
+        cert.verify_signatures_authenticated(&committee, &latest_verify_params())
             .unwrap();
         cert
     };

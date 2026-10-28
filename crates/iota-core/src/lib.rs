@@ -43,8 +43,6 @@ mod stake_aggregator;
 pub mod starfish_adapter;
 pub mod status_aggregator;
 pub mod storage;
-pub mod streamer;
-pub mod subscription_handler;
 pub mod test_utils;
 pub mod transaction_driver;
 mod transaction_input_loader;

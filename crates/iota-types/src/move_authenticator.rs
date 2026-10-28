@@ -267,7 +267,7 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
         // the same way on every validator, with or without the object there
         // to read. Without deterministic validation the checks on the loaded
         // objects apply these rules.
-        if config.pcool_deterministic_validation() {
+        if config.enable_pcool_flow() {
             for kind in &input_objects {
                 match *kind {
                     InputObjectKind::MovePackage(package_id) => {

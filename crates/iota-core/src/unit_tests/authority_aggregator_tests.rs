@@ -2226,6 +2226,57 @@ async fn test_byzantine_authority_sig_aggregation() {
     assert!(process_with_cert(3, 12).await.is_ok());
 }
 
+// Byzantine validators answer first with signatures that name honest
+// validators. The honest validators' own signatures, arriving later, must
+// still count towards the certificate.
+#[tokio::test(start_paused = true)]
+async fn test_byzantine_authority_impersonating_signer() {
+    telemetry_subscribers::init_for_testing();
+    let tx = create_fake_transaction();
+    let mut authorities = BTreeMap::new();
+    let mut clients = BTreeMap::new();
+    let mut authority_keys = Vec::new();
+    for i in 0..10 {
+        let (_, sec): (_, AuthorityKeyPair) =
+            get_key_pair_from_rng(&mut StdRng::from_seed([i; 32]));
+        let name: AuthorityName = sec.public().into();
+        authorities.insert(name, 1);
+        authority_keys.push((name, sec));
+        clients.insert(name, HandleTransactionTestAuthorityClient::new());
+    }
+
+    // Validators 0 and 1 impersonate validators 2 and 3.
+    let impersonated = [(0, 2), (1, 3)];
+    for (i, (name, secret)) in authority_keys.iter().enumerate() {
+        let client = clients.get_mut(name).unwrap();
+        let signer = match impersonated.iter().find(|(byzantine, _)| *byzantine == i) {
+            Some((_, victim)) => authority_keys[*victim].0,
+            None => {
+                let delay = if i == 2 || i == 3 { 20 } else { 40 };
+                client.set_sleep_duration_before_responding(Duration::from_millis(delay));
+                *name
+            }
+        };
+        let auth_signature = AuthoritySignInfo::new(
+            0,
+            tx.data(),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
+            signer,
+            secret,
+        );
+        client.set_tx_info_response(HandleTransactionResponse {
+            status: TransactionStatus::Signed(auth_signature),
+        });
+    }
+
+    let agg = get_agg_at_epoch(authorities, clients, 0);
+    let result = agg.process_transaction(tx, Some(make_socket_addr())).await;
+    assert!(
+        matches!(result, Ok(ProcessTransactionResult::Certified { .. })),
+        "{result:?}"
+    );
+}
+
 #[tokio::test]
 async fn test_fork_panic_process_cert_6_auths() {
     telemetry_subscribers::init_for_testing();

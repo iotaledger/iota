@@ -111,7 +111,6 @@ use jsonrpsee::{
     core::client::ClientT,
     http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder},
     rpc_params,
-    ws_client::{PingConfig, WsClient, WsClientBuilder},
 };
 use reqwest::header::HeaderName;
 use rustls::crypto::{CryptoProvider, ring};
@@ -145,9 +144,6 @@ pub const IOTA_MAINNET_GRPC_URL: &str = "https://grpc.mainnet.iota.cafe:443";
 /// By default `maximum concurrent requests` is set to 256 and `request timeout`
 /// is set to 60 seconds. These can be adjusted using
 /// [`Self::max_concurrent_requests()`], and the [`Self::request_timeout()`].
-/// If you use the WebSocket, consider setting `ws_ping_interval` appropriately
-/// to prevent an inactive WS subscription being disconnected due to proxy
-/// timeout.
 ///
 /// # Examples
 ///
@@ -167,8 +163,6 @@ pub const IOTA_MAINNET_GRPC_URL: &str = "https://grpc.mainnet.iota.cafe:443";
 pub struct IotaClientBuilder {
     request_timeout: Duration,
     max_concurrent_requests: Option<usize>,
-    ws_url: Option<String>,
-    ws_ping_interval: Option<Duration>,
     basic_auth: Option<(String, String)>,
     tls_config: Option<rustls::ClientConfig>,
     headers: Option<HashMap<String, String>>,
@@ -179,8 +173,6 @@ impl Default for IotaClientBuilder {
         Self {
             request_timeout: Duration::from_secs(60),
             max_concurrent_requests: None,
-            ws_url: None,
-            ws_ping_interval: None,
             basic_auth: None,
             tls_config: None,
             headers: None,
@@ -198,18 +190,6 @@ impl IotaClientBuilder {
     /// Set the max concurrent requests allowed.
     pub fn max_concurrent_requests(mut self, max_concurrent_requests: usize) -> Self {
         self.max_concurrent_requests = Some(max_concurrent_requests);
-        self
-    }
-
-    /// Set the WebSocket URL for the IOTA network.
-    pub fn ws_url(mut self, url: impl AsRef<str>) -> Self {
-        self.ws_url = Some(url.as_ref().to_string());
-        self
-    }
-
-    /// Set the WebSocket ping interval.
-    pub fn ws_ping_interval(mut self, duration: Duration) -> Self {
-        self.ws_ping_interval = Some(duration);
         self
     }
 
@@ -287,25 +267,6 @@ impl IotaClientBuilder {
             }
         }
 
-        let ws = if let Some(url) = self.ws_url {
-            let mut builder = WsClientBuilder::default()
-                .max_request_size(2 << 30)
-                .set_headers(headers.clone())
-                .request_timeout(self.request_timeout);
-
-            if let Some(duration) = self.ws_ping_interval {
-                builder = builder.enable_ws_ping(PingConfig::new().ping_interval(duration))
-            }
-
-            if let Some(max_concurrent_requests) = self.max_concurrent_requests {
-                builder = builder.max_concurrent_requests(max_concurrent_requests);
-            }
-
-            builder.build(url).await.ok()
-        } else {
-            None
-        };
-
         let mut http_builder = HttpClientBuilder::default()
             .max_request_size(2 << 30)
             .set_headers(headers)
@@ -321,9 +282,9 @@ impl IotaClientBuilder {
 
         let http = http_builder.build(http)?;
 
-        let info = Self::get_server_info(&http, &ws).await?;
+        let info = Self::get_server_info(&http).await?;
 
-        let rpc = RpcClient { http, ws, info };
+        let rpc = RpcClient { http, info };
         let api = Arc::new(rpc);
         let read_api = Arc::new(ReadApi::new(api.clone()));
         let quorum_driver_api = QuorumDriverApi::new(api.clone());
@@ -435,10 +396,7 @@ impl IotaClientBuilder {
     /// Return the server information as a `ServerInfo` structure.
     ///
     /// Fails with an error if it cannot call the RPC discover.
-    async fn get_server_info(
-        http: &HttpClient,
-        ws: &Option<WsClient>,
-    ) -> Result<ServerInfo, Error> {
+    async fn get_server_info(http: &HttpClient) -> Result<ServerInfo, Error> {
         let rpc_spec: Value = http.request("rpc.discover", rpc_params![]).await?;
         let version = rpc_spec
             .pointer("/info/version")
@@ -448,19 +406,10 @@ impl IotaClientBuilder {
             })?;
         let rpc_methods = Self::parse_methods(&rpc_spec)?;
 
-        let subscriptions = if let Some(ws) = ws {
-            match ws.request("rpc.discover", rpc_params![]).await {
-                Ok(rpc_spec) => Self::parse_methods(&rpc_spec)?,
-                Err(_) => Vec::new(),
-            }
-        } else {
-            Vec::new()
-        };
         let iota_system_state_v2_support =
             rpc_methods.contains(&"iotax_getLatestIotaSystemStateV2".to_string());
         Ok(ServerInfo {
             rpc_methods,
-            subscriptions,
             version: version.to_string(),
             iota_system_state_v2_support,
         })
@@ -504,7 +453,6 @@ impl IotaClientBuilder {
 ///         .await?;
 ///
 ///     println!("{:?}", iota.available_rpc_methods());
-///     println!("{:?}", iota.available_subscriptions());
 ///     println!("{:?}", iota.api_version());
 ///
 ///     let address = Address::from_str("0x0000....0000")?;
@@ -531,25 +479,19 @@ pub struct IotaClient {
 
 pub(crate) struct RpcClient {
     http: HttpClient,
-    ws: Option<WsClient>,
     info: ServerInfo,
 }
 
 impl Debug for RpcClient {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "RPC client. Http: {:?}, Websocket: {:?}",
-            self.http, self.ws
-        )
+        write!(f, "RPC client. Http: {:?}", self.http)
     }
 }
 
-/// Contains all the useful information regarding the API version, the available
-/// RPC calls, and subscriptions.
+/// Contains all the useful information regarding the API version and the
+/// available RPC calls.
 struct ServerInfo {
     rpc_methods: Vec<String>,
-    subscriptions: Vec<String>,
     version: String,
     iota_system_state_v2_support: bool,
 }
@@ -559,12 +501,6 @@ impl IotaClient {
     /// connected to.
     pub fn available_rpc_methods(&self) -> &Vec<String> {
         &self.api.info.rpc_methods
-    }
-
-    /// Return a list of streaming/subscription APIs supported by the node the
-    /// client is connected to.
-    pub fn available_subscriptions(&self) -> &Vec<String> {
-        &self.api.info.subscriptions
     }
 
     /// Return the API version information as a string.
@@ -624,11 +560,6 @@ impl IotaClient {
     pub fn http(&self) -> &HttpClient {
         &self.api.http
     }
-
-    /// Return a reference to the underlying WebSocket client, if any.
-    pub fn ws(&self) -> Option<&WsClient> {
-        self.api.ws.as_ref()
-    }
 }
 
 #[async_trait]
@@ -670,7 +601,7 @@ impl DataReader for ReadApi {
 pub trait PagedFn<O, C, F, E>: Sized + Fn(Option<C>) -> F
 where
     O: Send,
-    C: Send,
+    C: Send + Clone + PartialEq,
     F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
 {
     /// Get all items from the source and collect them into a vector.
@@ -691,7 +622,7 @@ impl<O, C, F, E, Fun> PagedFn<O, C, F, E> for Fun
 where
     Fun: Fn(Option<C>) -> F,
     O: Send,
-    C: Send,
+    C: Send + Clone + PartialEq,
     F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
 {
 }
@@ -703,7 +634,8 @@ pub struct PagedStream<O, C, F, E, Fun> {
     fut: Pin<Box<F>>,
     next: VecDeque<O>,
     has_next_page: bool,
-    _data: PhantomData<(E, C)>,
+    cursor: Option<C>,
+    _data: PhantomData<E>,
 }
 
 impl<O, C, F, E, Fun> PagedStream<O, C, F, E, Fun>
@@ -717,6 +649,7 @@ where
             fut: Box::pin(fut),
             next: Default::default(),
             has_next_page: true,
+            cursor: None,
             _data: PhantomData,
         }
     }
@@ -725,7 +658,7 @@ where
 impl<O, C, F, E, Fun> futures::Stream for PagedStream<O, C, F, E, Fun>
 where
     O: Send,
-    C: Send,
+    C: Send + Clone + PartialEq,
     F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
     Fun: Fn(Option<C>) -> F,
 {
@@ -738,19 +671,28 @@ where
         let this = unsafe { self.get_unchecked_mut() };
         if this.next.is_empty() && this.has_next_page {
             match this.fut.as_mut().poll(cx) {
-                Poll::Ready(res) => match res {
-                    Ok(mut page) => {
-                        this.next.extend(page.data);
-                        this.has_next_page = page.has_next_page;
-                        if this.has_next_page {
-                            this.fut.set((this.fun)(page.next_cursor.take()));
+                Poll::Ready(Ok(page)) => {
+                    this.next.extend(page.data);
+                    // Without a new cursor, the next request would repeat an
+                    // earlier one and never reach the end.
+                    this.has_next_page = page.has_next_page
+                        && page.next_cursor.is_some()
+                        && page.next_cursor != this.cursor;
+                    if this.has_next_page {
+                        this.cursor = page.next_cursor;
+                        this.fut.set((this.fun)(this.cursor.clone()));
+                        // A page can be empty and still have a next page. Poll
+                        // for it on the next turn instead of looping here.
+                        if this.next.is_empty() {
+                            cx.waker().wake_by_ref();
+                            return Poll::Pending;
                         }
                     }
-                    Err(e) => {
-                        this.has_next_page = false;
-                        return Poll::Ready(Some(Err(e)));
-                    }
-                },
+                }
+                Poll::Ready(Err(e)) => {
+                    this.has_next_page = false;
+                    return Poll::Ready(Some(Err(e)));
+                }
                 Poll::Pending => return Poll::Pending,
             }
         }
@@ -811,5 +753,59 @@ mod test {
         let mut bad_stream = PagedFn::stream(async |_| endpoint.get_page(Some(99999)).await);
 
         assert!(bad_stream.try_next().await.is_err());
+    }
+
+    #[tokio::test]
+    async fn paged_stream_continues_after_empty_pages() {
+        let pages = [vec![1], vec![], vec![], vec![2, 3], vec![]];
+        let get_page = |cursor: Option<usize>| {
+            let index = cursor.unwrap_or_default();
+            let page = Page {
+                data: pages[index].clone(),
+                next_cursor: Some(index + 1),
+                has_next_page: index + 1 < pages.len(),
+                oldest_available_checkpoint: None,
+            };
+            async move { anyhow::Ok(page) }
+        };
+
+        let items = PagedFn::stream(get_page)
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        assert_eq!(items, [1, 2, 3]);
+    }
+
+    #[tokio::test]
+    async fn paged_stream_ends_when_the_cursor_does_not_advance() {
+        // Every page claims a next page, but the cursor stays the same.
+        let repeating = |_: Option<usize>| async {
+            anyhow::Ok(Page {
+                data: vec![1],
+                next_cursor: Some(0),
+                has_next_page: true,
+                oldest_available_checkpoint: None,
+            })
+        };
+        let items = PagedFn::stream(repeating)
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        assert_eq!(items, [1, 1]);
+
+        // A next page without a cursor would restart from the first page.
+        let no_cursor = |_: Option<usize>| async {
+            anyhow::Ok(Page {
+                data: Vec::<i32>::new(),
+                next_cursor: None,
+                has_next_page: true,
+                oldest_available_checkpoint: None,
+            })
+        };
+        let items = PagedFn::stream(no_cursor)
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        assert!(items.is_empty());
     }
 }

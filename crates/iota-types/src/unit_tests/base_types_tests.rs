@@ -55,7 +55,7 @@ fn test_signatures() {
     let foox = IntentMessage::new(Intent::iota_transaction(), Foo("hellox".into()));
     let bar = IntentMessage::new(Intent::iota_transaction(), Bar("hello".into()));
 
-    let aux = VerifyParams::default();
+    let aux = VerifyParams::from_protocol_config(&ProtocolConfig::get_for_max_version_UNSAFE());
     let s: SimpleSignature = sec1.sign(&foo.signing_digest());
     assert!(s.verify_claims(&foo, addr1, &aux).is_ok());
     assert!(s.verify_claims(&foo, addr2, &aux).is_err());

@@ -200,7 +200,9 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         transaction: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
         let mut inner = self.inner.write().unwrap();
-        let transaction = transaction.try_into_verified_for_testing(&VerifyParams::default())?;
+        let transaction = transaction.try_into_verified_for_testing(
+            &VerifyParams::from_protocol_config(inner.epoch_state.protocol_config()),
+        )?;
 
         let (inner_temporary_store, _, effects, execution_error_opt) =
             inner.epoch_state.execute_transaction(
@@ -252,7 +254,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let (checkpoint, contents) = {
             let mut inner = self.inner.write().unwrap();
             let committee = CommitteeWithKeys::new(&inner.keystore, inner.epoch_state.committee());
-            let timestamp_ms = inner.store.get_clock().timestamp_ms();
+            let timestamp_ms = inner.store.get_clock().timestamp_ms;
             let (checkpoint, contents, _) =
                 inner.checkpoint_builder.build(&committee, timestamp_ms);
             inner.store.insert_checkpoint(checkpoint.clone());
@@ -273,7 +275,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let mut inner = self.inner.write().unwrap();
         let epoch = inner.epoch_state.epoch();
         let round = inner.epoch_state.next_consensus_round();
-        let timestamp_ms = inner.store.get_clock().timestamp_ms() + duration.as_millis() as u64;
+        let timestamp_ms = inner.store.get_clock().timestamp_ms + duration.as_millis() as u64;
         drop(inner);
 
         let consensus_commit_prologue_transaction =
@@ -302,7 +304,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     ///
     /// With `create_deny_rules_object`, the end-of-epoch transaction also
     /// creates the `TransactionDenyRules` object (requires the
-    /// `deny_rule_governance_on_chain` feature flag).
+    /// `enable_pcool_flow` feature flag).
     ///
     /// Returns the effects of the end-of-epoch transaction.
     ///
@@ -318,7 +320,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             .checkpoint_builder
             .epoch_rolling_gas_cost_summary()
             .clone();
-        let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms();
+        let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms;
         let pass_validator_scores = inner
             .epoch_state
             .protocol_config()
@@ -405,7 +407,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             let (checkpoint, contents, _) = {
                 let committee =
                     CommitteeWithKeys::new(&inner.keystore, inner.epoch_state.committee());
-                let timestamp_ms = inner.store.get_clock().timestamp_ms();
+                let timestamp_ms = inner.store.get_clock().timestamp_ms;
                 inner.checkpoint_builder.build_end_of_epoch(
                     &committee,
                     timestamp_ms,
@@ -1018,7 +1020,7 @@ mod tests {
         let start_time_ms = sim.with_store(|store| {
             let clock = store.get_clock();
             println!("clock: {clock:#?}");
-            clock.timestamp_ms()
+            clock.timestamp_ms
         });
 
         for _ in 0..steps {
@@ -1029,7 +1031,7 @@ mod tests {
                 println!("clock: {clock:#?}");
             });
         }
-        let end_time_ms = sim.with_store(|store| store.get_clock().timestamp_ms());
+        let end_time_ms = sim.with_store(|store| store.get_clock().timestamp_ms);
         assert_eq!(end_time_ms - start_time_ms, steps);
         sim.with_store(|store| {
             dbg!(store.get_highest_checkpoint());
@@ -1038,13 +1040,6 @@ mod tests {
 
     #[test]
     fn advance_epoch_creates_deny_rules_object() {
-        let _guard =
-            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_deny_rule_governance_for_testing(true);
-                config.set_deny_rule_governance_on_chain_for_testing(true);
-                config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-                config
-            });
         let sim = Simulacrum::new();
 
         assert!(sim.with_store(|store| {
@@ -1076,13 +1071,6 @@ mod tests {
             get_transaction_deny_rules, get_transaction_deny_rules_obj_initial_shared_version,
         };
 
-        let _guard =
-            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_deny_rule_governance_for_testing(true);
-                config.set_deny_rule_governance_on_chain_for_testing(true);
-                config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-                config
-            });
         let sim = Simulacrum::new();
         sim.advance_epoch(true);
 
@@ -1154,8 +1142,6 @@ mod tests {
 
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_deny_rule_governance_for_testing(true);
-                config.set_deny_rule_governance_on_chain_for_testing(true);
                 config.set_deny_rule_update_max_entries_per_tx_for_testing(CEILING);
                 config
             });

@@ -49,12 +49,10 @@
 //!
 //! # Which references get locked
 //!
-//! Step 5 probes every `ImmOrOwnedMoveObject` reference, but with
-//! `pcool_skip_immutable_object_locks` set only genuinely owned references are
-//! locked — an immutable input never takes a new version, so its lock would
-//! hold until the epoch ends. Step 7 filters via the loaded objects, step 3
-//! via the executed transaction's effects; without the flag both lock the raw
-//! probed set.
+//! Step 5 probes every `ImmOrOwnedMoveObject` reference, but only genuinely
+//! owned references are locked — an immutable input never takes a new
+//! version, so its lock would hold until the epoch ends. Step 7 filters via
+//! the loaded objects, step 3 via the executed transaction's effects.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -161,13 +159,13 @@ impl SavedPostConsensusDecision {
 /// For each `UserTransactionV1` in consensus order:
 /// - Runs deduplication, structural validity, lock conflict check, and deny checks (deny list, gas,
 ///   ownership, coin deny list, Move authenticator).
-/// - If all checks pass, acquires owned-object locks in a local tracking map; with
-///   `pcool_skip_immutable_object_locks` set, immutable inputs are not locked, as an immutable
-///   input never takes a new version and its lock would hold until the epoch ends.
+/// - If all checks pass, acquires owned-object locks in a local tracking map; immutable inputs are
+///   not locked, as an immutable input never takes a new version and its lock would hold until the
+///   epoch ends.
 /// - Drops the transaction (with an error) on any failure.
 /// - An already-executed transaction is **retained** (not dropped): it registers the locks its
-///   effects report (the raw input set without the flag) and skips re-validation. Dropping it would
-///   make this validator's checkpoints differ from those of the other validators.
+///   effects report and skips re-validation. Dropping it would make this validator's checkpoints
+///   differ from those of the other validators.
 /// - With deterministic validation, a transaction in `previously_deferred` is kept without checks
 ///   and takes no new locks: the locks it took at the commit that kept it stay in place.
 ///
@@ -191,8 +189,8 @@ impl SavedPostConsensusDecision {
 /// * `epoch_store` — Current epoch store (protocol config, lock storage, governance deny rules).
 /// * `commit_index` — The consensus commit being validated. With deterministic validation on,
 ///   inputs are read as of this commit.
-/// * `deterministic_validation` — The `pcool_deterministic_validation` flag, read once per commit
-///   by the caller so every step of the commit decides on the same value.
+/// * `deterministic_validation` — The `enable_pcool_flow` flag, read once per commit by the caller
+///   so every step of the commit decides on the same value.
 /// * `previously_deferred` — The transactions deferred at earlier commits and reloaded into
 ///   `transactions`, randomness-using ones included. Read only with deterministic validation.
 /// * `transactions` — All sequenced transactions for this consensus commit; modified in-place.
@@ -242,30 +240,12 @@ pub async fn validate_and_resolve_conflicts(
     // consensus-derived set — local config can differ between validators and
     // would fork the post-consensus decisions.
     let governance_deny_rules;
-    let deny_config: &dyn DenyRuleConfig = if epoch_store.protocol_config().deny_rule_governance() {
+    let deny_config: &dyn DenyRuleConfig = if epoch_store.protocol_config().enable_pcool_flow() {
         governance_deny_rules = epoch_store.get_active_transaction_deny_rules();
         governance_deny_rules.as_ref()
     } else {
         &authority_state.config.transaction_deny_config
     };
-
-    // Same concern as the deny rules above: the verifier limits decide whether
-    // a transaction that publishes a package stays in the commit, so with the
-    // flag set they come from the protocol config, not from this validator's
-    // own `VerifierSigningConfig`.
-    let verifier_limits_source = if epoch_store
-        .protocol_config()
-        .pcool_verifier_limits_from_protocol_config()
-    {
-        VerifierLimitsSource::ProtocolConfig
-    } else {
-        VerifierLimitsSource::NodeConfig(&authority_state.config.verifier_signing_config)
-    };
-
-    // Read once for the whole commit: the protocol config is fixed for the epoch.
-    let skip_immutable_locks = epoch_store
-        .protocol_config()
-        .pcool_skip_immutable_object_locks();
 
     // With deterministic validation, the decisions saved when this commit was
     // first validated, present only when it is replayed after a restart. A
@@ -433,12 +413,11 @@ pub async fn validate_and_resolve_conflicts(
                 .try_is_tx_already_executed(&digest)?
         {
             // Byte-based, so safe even though the inputs are already consumed.
-            let owned_inputs = extract_owned_input_objects(tx)?;
-            let owned_inputs = if skip_immutable_locks {
-                filter_locked_inputs_by_effects(authority_state, &digest, owned_inputs)?
-            } else {
-                owned_inputs
-            };
+            let owned_inputs = filter_locked_inputs_by_effects(
+                authority_state,
+                &digest,
+                extract_owned_input_objects(tx)?,
+            )?;
             for obj_ref in &owned_inputs {
                 // A winner cannot be out-locked: after the effects filter,
                 // every reference here was consumed by this transaction, so a
@@ -603,7 +582,7 @@ pub async fn validate_and_resolve_conflicts(
                     &verified_tx,
                     epoch_store,
                     deny_config,
-                    verifier_limits_source,
+                    VerifierLimitsSource::ProtocolConfig,
                 )
                 .and_then(|verdict| {
                     let verdicts = &authority_state
@@ -658,7 +637,9 @@ pub async fn validate_and_resolve_conflicts(
                         // whether the transaction stays in the committed set, so it
                         // must not depend on this validator's execution progress.
                         true,
-                        verifier_limits_source,
+                        // Whether a published package stays in the commit must
+                        // not depend on this validator's own signing limits.
+                        VerifierLimitsSource::ProtocolConfig,
                     )
                     .await
             }
@@ -692,20 +673,15 @@ pub async fn validate_and_resolve_conflicts(
         // byte-derived `owned_inputs` it excludes immutable inputs, which must
         // never be locked (see the module docs). It is a subset of `owned_inputs`,
         // so every reference locked here was probed by Check #4 first.
-        let locked_inputs: Vec<ObjectReference> = if skip_immutable_locks {
-            validated_owned_objects
-        } else {
-            owned_inputs
-        };
-        for obj_ref in &locked_inputs {
+        for obj_ref in &validated_owned_objects {
             current_commit_locks.insert(*obj_ref, digest);
         }
         // Log the acquired refs, not just their count, so the winner's locks
         // are attributable per (object_id, version).
         debug!(
             ?digest,
-            num_owned_inputs = locked_inputs.len(),
-            owned_inputs = ?locked_inputs,
+            num_owned_inputs = validated_owned_objects.len(),
+            owned_inputs = ?validated_owned_objects,
             "Transaction passed post-consensus validation, acquired all object locks"
         );
         decisions.decide(digest, PostConsensusDecision::Kept, None);

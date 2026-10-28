@@ -830,7 +830,7 @@ impl ConsensusOutputQuarantine {
                         highest_in_commit,
                         epoch_store
                             .protocol_config()
-                            .pcool_deterministic_validation_horizon_distance_or_default(),
+                            .pcool_deterministic_validation_horizon_distance(),
                     );
                 }
                 self.remove_shared_object_next_versions(&output);

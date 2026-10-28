@@ -998,7 +998,6 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
     // costs one unit under TotalTxCount), so exactly one transaction per
     // commit is scheduled and the other is deferred.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_per_object_congestion_control_mode_for_testing(
             PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -1252,7 +1251,6 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
     // one transaction can be scheduled per commit; no deferral allowance, so
     // the transaction that does not fit is cancelled immediately.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_per_object_congestion_control_mode_for_testing(
             PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -1401,6 +1399,9 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
             authority_2.get_object_cache_reader().as_ref(),
         )
         .unwrap();
+    // The second authority executes the transaction outside the consensus
+    // handler, so it is assigned a commit first, as the handler would.
+    epoch_store_2.assign_to_a_new_commit_for_testing(&[cancelled_tx.key()]);
     let (effects_2, _) = authority_2
         .try_execute_immediately(
             &cancelled_tx,
@@ -1426,9 +1427,6 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
     // by the worker limit alone and then cancelled (no deferral allowance).
     let default_tx_gas_budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
     let mut test_setup = TestSetup::new(default_tx_gas_budget, 0).await;
-    test_setup
-        .protocol_config
-        .set_enable_pcool_flow_for_testing(true);
     test_setup
         .protocol_config
         .set_max_concurrent_execution_workers_for_testing(1);
@@ -1594,7 +1592,6 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
     // Same setup as the owned-object-only cancellation test: one execution
     // worker, one transaction per commit, no deferral allowance.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_per_object_congestion_control_mode_for_testing(
             PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -1749,6 +1746,9 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
             authority_2.get_object_cache_reader().as_ref(),
         )
         .unwrap();
+    // The second authority executes the transaction outside the consensus
+    // handler, so it is assigned a commit first, as the handler would.
+    epoch_store_2.assign_to_a_new_commit_for_testing(&[cancelled_tx.key()]);
     let (effects_2, _) = authority_2
         .try_execute_immediately(
             &cancelled_tx,
