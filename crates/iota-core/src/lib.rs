@@ -38,6 +38,7 @@ pub(crate) mod post_consensus_input_reader;
 pub(crate) mod post_consensus_tx_reorder;
 pub(crate) mod post_consensus_validation;
 pub mod quorum_driver;
+pub(crate) mod rpc_index_history;
 pub mod safe_client;
 mod scoring_decision;
 mod stake_aggregator;
