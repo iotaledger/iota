@@ -112,7 +112,10 @@ impl<B> EpochBuckets<B> {
             );
             buckets.remove(&epoch);
             if let Err(e) = db.drop_cf(&bucket_cf_name(cf_prefix, epoch)) {
-                warn!(epoch, "failed to drop a pruned bucket column family: {e}");
+                warn!(
+                    store = name,
+                    epoch, "failed to drop a pruned bucket column family: {e}"
+                );
             }
         }
         Ok(Self {
@@ -269,7 +272,10 @@ impl<B> EpochBuckets<B> {
                 epoch, "dropping the bucket of an expired epoch"
             );
             if let Err(e) = self.db.drop_cf(&bucket_cf_name(self.cf_prefix, epoch)) {
-                warn!(epoch, "failed to drop an expired bucket column family: {e}");
+                warn!(
+                    store = self.name,
+                    epoch, "failed to drop an expired bucket column family: {e}"
+                );
             }
             // RocksDB unregisters the column family before it attempts the
             // drop, so a failed drop leaves a bucket that can neither be read
