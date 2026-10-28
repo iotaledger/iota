@@ -4136,6 +4136,7 @@ async fn test_rpc_index_rebuild_on_open() {
     let index_dir = iota_common::tempdir();
     let index_store = crate::rpc_indexes::RpcIndexesStore::new(
         index_dir.path().to_path_buf(),
+        None,
         &prometheus_filtered::Registry::default(),
         std::collections::BTreeSet::from([crate::rpc_indexes::IndexGroup::JsonRpc]),
         Some(128),
@@ -4229,6 +4230,7 @@ async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
     let index_dir = iota_common::tempdir();
     let index_store = crate::rpc_indexes::RpcIndexesStore::new(
         index_dir.path().to_path_buf(),
+        None,
         &prometheus_filtered::Registry::default(),
         std::collections::BTreeSet::from([crate::rpc_indexes::IndexGroup::JsonRpc]),
         Some(128),
@@ -4290,6 +4292,7 @@ async fn test_rpc_index_rebuild_skips_contents_pruned_checkpoints() {
     let index_dir = iota_common::tempdir();
     let index_store = crate::rpc_indexes::RpcIndexesStore::new(
         index_dir.path().to_path_buf(),
+        None,
         &prometheus_filtered::Registry::default(),
         std::collections::BTreeSet::from([crate::rpc_indexes::IndexGroup::JsonRpc]),
         Some(128),
