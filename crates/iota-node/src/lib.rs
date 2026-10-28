@@ -1629,6 +1629,11 @@ impl IotaNode {
         // while keeping a connection flood well inside the process fd limit,
         // which this listener shares with RocksDB and the other listeners.
         const VALIDATOR_GRPC_MAX_CONNECTIONS: NonZeroUsize = NonZeroUsize::new(4096).unwrap();
+        // Each fullnode and validator holds about one connection, so this
+        // leaves room for many nodes behind one address, while one address
+        // can take no more than a sixteenth of the listener.
+        const VALIDATOR_GRPC_MAX_CONNECTIONS_PER_CLIENT_IP: NonZeroUsize =
+            NonZeroUsize::new(256).unwrap();
         // Frees the connections of peers that stopped sending requests. A peer
         // that comes back reconnects, paying one TLS handshake, which is cheap
         // next to five minutes without a request.
@@ -1639,6 +1644,7 @@ impl IotaNode {
             .http2_keepalive_timeout(VALIDATOR_GRPC_KEEPALIVE)
             .max_concurrent_streams(VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS)
             .max_connections(VALIDATOR_GRPC_MAX_CONNECTIONS)
+            .max_connections_per_client_ip(VALIDATOR_GRPC_MAX_CONNECTIONS_PER_CLIENT_IP)
             .max_connection_idle(VALIDATOR_GRPC_MAX_CONNECTION_IDLE)
             .metrics(validator_server_listener_metrics(prometheus_registry));
         let server_builder = ServerBuilder::from_config(
@@ -2767,6 +2773,10 @@ pub async fn build_http_server(
     // only by this, well inside the process fd limit it shares with RocksDB and
     // the other listeners.
     const JSON_RPC_MAX_CONNECTIONS: NonZeroUsize = NonZeroUsize::new(4096).unwrap();
+    // A reverse proxy in front of the node shows as one address, and HTTP/1
+    // clients open a connection per request in flight, so one address may
+    // hold a quarter of the listener; it then takes four to fill it.
+    const JSON_RPC_MAX_CONNECTIONS_PER_CLIENT_IP: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
     // Longer than HTTP clients keep an unused pooled connection (90 s in Go and
     // hyper), so they close first and a request is not sent on a
     // connection this server is closing at the same moment.
@@ -2782,6 +2792,7 @@ pub async fn build_http_server(
         .config(
             iota_http::Config::default()
                 .max_connections(JSON_RPC_MAX_CONNECTIONS)
+                .max_connections_per_client_ip(JSON_RPC_MAX_CONNECTIONS_PER_CLIENT_IP)
                 .max_connection_idle(JSON_RPC_MAX_CONNECTION_IDLE)
                 .max_concurrent_streams(JSON_RPC_MAX_CONCURRENT_STREAMS)
                 .http2_keepalive_interval(JSON_RPC_HTTP2_KEEPALIVE)

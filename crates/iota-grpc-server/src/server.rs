@@ -120,6 +120,10 @@ pub async fn start_grpc_server(
     // well inside the process fd limit it shares with RocksDB and the other
     // listeners.
     const MAX_CONNECTIONS: NonZeroUsize = NonZeroUsize::new(4096).unwrap();
+    // A reverse proxy in front of the node shows as one address, so one
+    // address may hold a quarter of the listener; it then takes four to fill
+    // it.
+    const MAX_CONNECTIONS_PER_CLIENT_IP: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
     // Frees the connections of clients that stopped sending requests. A
     // checkpoint subscription counts as a request for as long as it streams.
     const MAX_CONNECTION_IDLE: Duration = Duration::from_secs(300);
@@ -137,6 +141,7 @@ pub async fn start_grpc_server(
         .accept_http1(false)
         .enable_connect_protocol(false)
         .max_connections(MAX_CONNECTIONS)
+        .max_connections_per_client_ip(MAX_CONNECTIONS_PER_CLIENT_IP)
         .max_connection_idle(MAX_CONNECTION_IDLE)
         .max_concurrent_streams(MAX_CONCURRENT_STREAMS)
         .http2_keepalive_interval(HTTP2_KEEPALIVE);
