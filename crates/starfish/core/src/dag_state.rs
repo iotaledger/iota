@@ -1977,7 +1977,7 @@ impl DagState {
         let mut missing = Vec::new();
 
         for (index, tx_ref) in transaction_refs.into_iter().enumerate() {
-            if self.contains_transactions_in_memory(tx_ref) {
+            if self.contains_cached_transactions(tx_ref) {
                 exist[index] = true;
             } else if tx_ref.round() != GENESIS_ROUND {
                 missing.push((index, tx_ref));
@@ -2171,7 +2171,7 @@ impl DagState {
             author: block_ref.author,
             transactions_commitment: header.transactions_commitment(),
         };
-        self.contains_transactions_in_memory(transaction_ref.into())
+        self.contains_cached_transactions(transaction_ref.into())
     }
 
     /// Clean up old cached data for each authority, all cached blocks
@@ -2823,7 +2823,7 @@ impl DagState {
 
     /// Whether the payload of `transaction_ref` is available without reading
     /// the store: genesis, empty, or among the recent transactions held here.
-    pub(crate) fn contains_transactions_in_memory(
+    pub(crate) fn contains_cached_transactions(
         &self,
         transaction_ref: GenericTransactionRef,
     ) -> bool {
@@ -2852,7 +2852,7 @@ impl DagState {
     /// Serialized payload of `transaction_ref` if it is available without
     /// reading the store: genesis, empty, or among the recent transactions
     /// held here.
-    pub(crate) fn get_serialized_transactions_in_memory(
+    pub(crate) fn get_cached_serialized_transactions(
         &self,
         transaction_ref: GenericTransactionRef,
     ) -> Option<Bytes> {
@@ -4172,7 +4172,7 @@ mod test {
         );
         assert_eq!(
             dag_state
-                .get_serialized_transactions_in_memory(tx_ref)
+                .get_cached_serialized_transactions(tx_ref)
                 .as_ref(),
             Some(transactions.serialized())
         );

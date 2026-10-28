@@ -822,7 +822,7 @@ fn read_transaction_payloads(
             {
                 evicted.insert(*transaction_ref);
             } else if let Some(payload) =
-                dag_state.get_serialized_transactions_in_memory((*transaction_ref).into())
+                dag_state.get_cached_serialized_transactions((*transaction_ref).into())
             {
                 payloads.insert(*transaction_ref, payload);
             }
@@ -866,7 +866,7 @@ fn check_first_commit_payloads(
         }
         let mut evicted = Vec::new();
         for &transaction_ref in transaction_refs {
-            if dag_state.contains_transactions_in_memory(transaction_ref.into()) {
+            if dag_state.contains_cached_transactions(transaction_ref.into()) {
                 continue;
             }
             if transaction_ref.round > dag_state.evicted_transaction_round(transaction_ref.author) {
