@@ -242,9 +242,9 @@ pub(crate) struct DagState {
     /// Keeps track of the highest round that has been evicted for each
     /// authority. Any block header that are of round <= evict_round should
     /// be considered evicted, and if any exist we should not consider the
-    /// causally complete in the order they appear. The `evicted_rounds`
+    /// causally complete in the order they appear. The `evicted_header_rounds`
     /// size should be the same as the committee size.
-    evicted_rounds: Vec<Round>,
+    evicted_header_rounds: Vec<Round>,
 
     /// Highest round evicted from `recent_transactions_by_authority`, per
     /// authority. Transactions of round <= this round are read from the store.
@@ -452,7 +452,7 @@ impl DagState {
             misbehavior_store,
             store: store.clone(),
             cached_rounds,
-            evicted_rounds: vec![0; num_authorities],
+            evicted_header_rounds: vec![0; num_authorities],
             evicted_transaction_rounds: vec![0; num_authorities],
             cordial_knowledge_senders: None,
             #[cfg(feature = "dag-visualizer")]
@@ -473,7 +473,7 @@ impl DagState {
         state.misbehavior_store.initialize_misbehavior_counts(
             recovered_misbehavior_counts,
             &state.recent_headers_refs_by_authority,
-            &state.evicted_rounds,
+            &state.evicted_header_rounds,
             state.threshold_clock_round(),
             &state.context,
         );
@@ -549,7 +549,7 @@ impl DagState {
         data_source: DataSource,
     ) {
         let eviction_round = Self::eviction_round(committed_round, self.cached_rounds);
-        self.evicted_rounds[authority_index] = eviction_round;
+        self.evicted_header_rounds[authority_index] = eviction_round;
         self.evicted_transaction_rounds[authority_index] = eviction_round;
 
         // Reload block headers from storage
@@ -627,7 +627,7 @@ impl DagState {
         self.misbehavior_store.initialize_misbehavior_counts(
             recovered_misbehavior_counts,
             &self.recent_headers_refs_by_authority,
-            &self.evicted_rounds,
+            &self.evicted_header_rounds,
             self.threshold_clock_round(),
             &self.context,
         );
@@ -1828,7 +1828,7 @@ impl DagState {
                 .to_authority_index(authority_index)
                 .unwrap();
 
-            let last_evicted_round = self.evicted_rounds[authority_index];
+            let last_evicted_round = self.evicted_header_rounds[authority_index];
             if end_round.saturating_sub(1) <= last_evicted_round {
                 panic!(
                     "Attempted to request for blocks of rounds < {end_round}, when the last evicted round is {last_evicted_round} for authority {authority_index}",
@@ -1889,7 +1889,7 @@ impl DagState {
                 .map(|(_, b)| (**b).clone());
         }
 
-        if slot.round <= self.evicted_rounds[slot.authority] {
+        if slot.round <= self.evicted_header_rounds[slot.authority] {
             return None;
         }
 
@@ -2192,7 +2192,7 @@ impl DagState {
             for block_ref in &evicted {
                 self.recent_block_headers.remove(block_ref);
             }
-            self.evicted_rounds[authority_index] = eviction_round;
+            self.evicted_header_rounds[authority_index] = eviction_round;
         }
     }
 
@@ -2705,7 +2705,7 @@ impl DagState {
         let mut metrics_to_write = BTreeMap::new();
         let threshold_clock_round = self.threshold_clock_round();
         for (authority_index, _) in self.context.committee.authorities() {
-            let last_eviction_round = self.evicted_rounds[authority_index];
+            let last_eviction_round = self.evicted_header_rounds[authority_index];
             let current_eviction_round = self.calculate_authority_eviction_round(authority_index);
             if let Some(metrics) = self
                 .misbehavior_store
@@ -2840,7 +2840,7 @@ impl DagState {
     /// Highest round of `authority_index` whose block headers are evicted
     /// from the DAG state and read from the store.
     pub(crate) fn evicted_header_round(&self, authority_index: AuthorityIndex) -> Round {
-        self.evicted_rounds[authority_index]
+        self.evicted_header_rounds[authority_index]
     }
 
     /// Highest round of `authority_index` whose transactions are evicted from
@@ -4277,7 +4277,7 @@ mod test {
         let expected_block_headers = all_block_headers
             .iter()
             .filter(|x| {
-                x.round() > dag_state.evicted_rounds[x.author().value()]
+                x.round() > dag_state.evicted_header_rounds[x.author().value()]
                     || x.round() == GENESIS_ROUND
             })
             .cloned()
@@ -4457,7 +4457,7 @@ mod test {
             .gc_round_for_last_commit()
             .min(last_accepted_round.saturating_sub(CACHED_ROUNDS));
         assert_eq!(
-            dag_state.evicted_rounds[authority_to_skip],
+            dag_state.evicted_header_rounds[authority_to_skip],
             expected_eviction_round
         );
 
