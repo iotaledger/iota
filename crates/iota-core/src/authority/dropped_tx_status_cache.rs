@@ -39,12 +39,10 @@ impl Inner {
         }
     }
 
-    fn insert(&mut self, digest: TransactionDigest, error: IotaError) -> IotaError {
-        if let Some(existing) = self.entries.get_mut(&digest) {
-            if existing.is_retryable().0 && !error.is_retryable().0 {
-                *existing = error;
-            }
-            return existing.clone();
+    fn insert(&mut self, digest: TransactionDigest, error: IotaError) {
+        // If the digest is already present, skip (don't update ordering).
+        if self.entries.contains_key(&digest) {
+            return;
         }
         // Evict oldest entries to make room. A digest removed when kept stays
         // in the order, so the order, not the entries, is what is bounded.
@@ -53,9 +51,8 @@ impl Inner {
                 self.entries.remove(&oldest);
             }
         }
-        self.entries.insert(digest, error.clone());
+        self.entries.insert(digest, error);
         self.insertion_order.push_back(digest);
-        error
     }
 }
 
@@ -69,20 +66,17 @@ impl DroppedTxStatusCache {
     }
 
     /// Record a batch of dropped transactions and notify any waiters.
-    /// A final error replaces a retryable error, while a final error already
-    /// recorded is retained and used for later notifications.
     /// When the cache is at capacity, the oldest entries are evicted first.
     pub(crate) fn insert_and_notify(&self, dropped: &[(TransactionDigest, IotaError)]) {
-        let notifications = {
+        {
             let mut inner = self.inner.write();
-            dropped
-                .iter()
-                .map(|(digest, error)| (*digest, inner.insert(*digest, error.clone())))
-                .collect::<Vec<_>>()
-        };
+            for (digest, error) in dropped {
+                inner.insert(*digest, error.clone());
+            }
+        }
         // Notify outside the lock — entries are already visible to readers,
         // so the register-then-check pattern in notify_read_dropped is safe.
-        self.notify_without_recording(&notifications);
+        self.notify_without_recording(dropped);
     }
 
     /// Notify the current waiters of transactions dropped from one commit
