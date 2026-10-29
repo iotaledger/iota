@@ -240,6 +240,10 @@ impl EffectsCertifier {
     /// to match `expected_tx_digest`; a mismatch indicates a byzantine
     /// submitter attempting to inject effects for an unrelated transaction
     /// and is rejected.
+    ///
+    /// A retriable rejection from the submitting validator is returned as
+    /// [`TransactionDriverError::Aborted`] without asking other validators;
+    /// any other fetch error is corroborated with them first.
     #[instrument(level = "debug", skip_all, err(level = "debug"))]
     pub(crate) async fn get_effects_without_certification<A>(
         &self,
@@ -270,6 +274,26 @@ impl EffectsCertifier {
                     .clone();
                 match self.get_full_effects(client, tx_digest, options).await {
                     Ok(details) => details,
+                    // The driver retries a retriable rejection either way, and
+                    // validators that did not record it would keep the
+                    // corroboration broadcast waiting until
+                    // `WAIT_FOR_EFFECTS_TIMEOUT`.
+                    Err(e @ TransactionRequestError::RejectedAtValidator(_))
+                        if e.is_submission_retriable() =>
+                    {
+                        let mut retriable_errors =
+                            StatusAggregator::new(authority_aggregator.committee.clone());
+                        retriable_errors.insert(current_target, e);
+                        return Err(TransactionDriverError::Aborted {
+                            submission_non_retriable_errors: aggregate_request_errors(vec![]),
+                            submission_retriable_errors: aggregate_request_errors(
+                                retriable_errors.status_by_authority(),
+                            ),
+                            observed_effects_digests: AggregatedEffectsDigests {
+                                digests: Vec::new(),
+                            },
+                        });
+                    }
                     Err(e) => {
                         return Err(self
                             .corroborate_single_validator_error(
@@ -1345,6 +1369,60 @@ mod tests {
             "expected SubmittedButFetchFailed, got {err:?}"
         );
         assert_eq!(metrics.skip_cert_corroboration_unreachable.get(), 1);
+    }
+
+    /// A retriable rejection from the submitting validator is returned without
+    /// asking the other validators, so the driver applies its overload backoff
+    /// instead of waiting for the corroboration broadcast.
+    #[tokio::test]
+    async fn get_effects_without_certification_returns_retriable_rejection_without_corroboration() {
+        let agg = make_aggregator(4);
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+        let digest = TransactionDigest::random();
+
+        let names: Vec<_> = agg.committee.names().copied().collect();
+        let initial = names[0];
+        set_validator_status(
+            &agg,
+            &initial,
+            digest,
+            TxStatusUpdate::Rejected {
+                error: IotaError::ValidatorOverloadedRetryAfter {
+                    retry_after_secs: 30,
+                },
+            },
+        );
+        // Corroboration would turn these into `RejectedByValidators`.
+        for name in &names[1..] {
+            set_validator_status(
+                &agg,
+                name,
+                digest,
+                TxStatusUpdate::Rejected {
+                    error: rejection_iota_error(),
+                },
+            );
+        }
+
+        let err = certifier
+            .get_effects_without_certification(
+                &agg,
+                &monitor,
+                Some(digest),
+                initial,
+                TxStatusUpdate::Submitted,
+                &options(),
+            )
+            .await
+            .expect_err("retriable rejection should propagate");
+        assert!(
+            matches!(err, TransactionDriverError::Aborted { .. }) && err.is_overload_dominated(),
+            "expected an overload-dominated Aborted, got {err:?}"
+        );
+        assert_eq!(metrics.skip_cert_corroborated_rejections.get(), 0);
+        assert_eq!(metrics.skip_cert_corroboration_unreachable.get(), 0);
     }
     /// A validator client where every validator acknowledges
     /// `acked_effects_digest`, and serves `executed_data` when full effects
