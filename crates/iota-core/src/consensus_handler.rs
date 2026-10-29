@@ -3249,6 +3249,7 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_load_shedding_dropped_transaction_retry_is_processed_after_restart() {
         use crate::{
+            authority_server::soft_lock::PreConsensusSoftLocks,
             consensus_adapter::{
                 ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
                 MockConsensusClient,
@@ -3398,6 +3399,14 @@ mod tests {
         blocks_b.extend((0..4u32).map(|i| notification_block(i, 201 + i, 2, 0)));
         let commit_b = make_commit(blocks_b, 2);
 
+        // Validator A is T's submitter and holds its pre-consensus soft lock.
+        let soft_locks = Arc::new(PreConsensusSoftLocks::new());
+        epoch_store_a.set_soft_locks(soft_locks.clone());
+        soft_locks
+            .try_acquire(tx_digest, &[owned_ref, gas_ref])
+            .unwrap();
+        assert_eq!(soft_locks.lock_count(), 2);
+
         let load_shed_waiter = epoch_store_a.notify_read_dropped_digests(tx_digest);
         pin_mut!(load_shed_waiter);
         assert!(futures::poll!(&mut load_shed_waiter).is_pending());
@@ -3411,6 +3420,11 @@ mod tests {
             .await
             .expect("a waiter present during load shedding must receive the rejection");
         assert!(load_shed_error.is_retryable_overload());
+        assert_eq!(
+            soft_locks.lock_count(),
+            0,
+            "a transaction dropped by load shedding must release its soft locks"
+        );
         for (epoch_store, metrics) in [(&epoch_store_a, &metrics_a), (&epoch_store_b, &metrics_b)] {
             assert_eq!(
                 epoch_store.get_quorum_load_shedding_percentage().unwrap(),
