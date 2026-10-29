@@ -10,29 +10,33 @@ use std::{
 
 use anyhow::{anyhow, bail, ensure};
 use colored::Colorize;
-use futures::{StreamExt, TryStreamExt, future};
+use futures::future;
 use getset::{Getters, MutGetters};
 use iota_config::{Config, PersistedConfig};
-use iota_json_rpc_types::{
-    IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-};
+use iota_grpc_client::read_mask_fields::{ObjectField, TransactionField};
+use iota_grpc_types::v1::transaction::ExecutedTransaction;
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, StructTag, Transaction, Version, crypto::Intent,
+    Address, Coin, ExecutionStatus, Object, ObjectId, ObjectReference, StructTag, Transaction,
+    Version, crypto::Intent,
 };
 use iota_types::{
-    gas_coin::GasCoin,
+    effects::TransactionEffectsAPI,
     transaction::{TransactionAPI, TransactionEnvelope},
 };
 use tokio::sync::RwLock;
 use tracing::warn;
 
 use crate::{
-    IotaClient, PagedFn,
+    IotaClient,
     iota_client_config::{IotaClientConfig, IotaEnv},
 };
+
+/// How long the fullnode's gRPC API is asked to wait for an executed
+/// transaction to be included in a checkpoint before returning, so subsequent
+/// reads on the fullnode observe its outputs.
+const CHECKPOINT_INCLUSION_TIMEOUT_MS: u64 = 60_000;
 
 /// Wallet for managing accounts, objects, and interact with client APIs.
 // Mainly used in the CLI and tests.
@@ -184,74 +188,59 @@ impl WalletContext {
         &self,
         object_id: ObjectId,
     ) -> Result<ObjectReference, anyhow::Error> {
-        let client = self.get_client().await?;
-        Ok(client
-            .read_api()
-            .get_object_with_options(object_id, IotaObjectDataOptions::new())
+        let client = self.get_grpc_client().await?;
+        let object = client
+            .objects([object_id])
+            .read_mask(ObjectField::REFERENCE)
             .await?
-            .into_object()?
-            .object_ref())
+            .into_inner()
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow!("object {object_id} not found"))??;
+        Ok(object.object_reference()?)
     }
 
     /// Get all the gas objects (and conveniently, gas amounts) for the address,
     /// each once.
-    pub async fn gas_objects(
-        &self,
-        address: Address,
-    ) -> Result<Vec<(u64, IotaObjectData)>, anyhow::Error> {
-        let client = self.get_client().await?;
-
-        let values_objects = PagedFn::stream(async |cursor| {
-            client
-                .read_api()
-                .get_owned_objects(
-                    address,
-                    IotaObjectResponseQuery::new(
-                        Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
-                        Some(IotaObjectDataOptions::full_content()),
-                    ),
-                    cursor,
-                    None,
-                )
-                .await
-        })
-        .filter_map(|res| async {
-            match res {
-                Ok(res) => {
-                    if let Some(o) = res.data {
-                        match GasCoin::try_from(&o) {
-                            Ok(gas_coin) => Some(Ok((gas_coin.value(), o))),
-                            Err(e) => Some(Err(anyhow!("{e}"))),
-                        }
-                    } else {
-                        None
-                    }
-                }
-                Err(e) => Some(Err(anyhow!("{e}"))),
-            }
-        })
-        .try_collect::<Vec<_>>()
-        .await?;
+    pub async fn gas_objects(&self, address: Address) -> Result<Vec<(u64, Object)>, anyhow::Error> {
+        let client = self.get_grpc_client().await?;
+        let values_objects = client
+            .owned_objects(address)
+            .object_type(StructTag::new_gas_coin())
+            .collect(None)
+            .await?
+            .into_inner()
+            .into_iter()
+            .map(|proto_object| {
+                let object = proto_object.object()?;
+                let balance = Coin::try_from_object(&object)?.balance();
+                anyhow::Ok((balance, object))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         // Pages are ordered by balance, so a coin whose balance changes while
         // they are read can come back on a later page, with a higher version.
         Ok(newest_versions(values_objects, |(_, object)| {
-            (object.object_id, object.version)
+            let object_ref = object.object_ref();
+            (*object_ref.object_id(), object_ref.version())
         }))
     }
 
     /// Get the address that owns the object of the provided [`ObjectId`].
     pub async fn get_object_owner(&self, id: &ObjectId) -> Result<Address, anyhow::Error> {
-        let client = self.get_client().await?;
+        let client = self.get_grpc_client().await?;
         let object = client
-            .read_api()
-            .get_object_with_options(*id, IotaObjectDataOptions::new().with_owner())
+            .objects([*id])
+            .read_mask(ObjectField::BCS)
             .await?
-            .into_object()?;
+            .into_inner()
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow!("object {id} not found"))??
+            .object()?;
         Ok(*object
-            .owner
-            .ok_or_else(|| anyhow!("Owner field is None"))?
+            .owner()
             .address_or_object()
-            .ok_or_else(|| anyhow::anyhow!("not an address or object owner"))?)
+            .ok_or_else(|| anyhow!("not an address or object owner"))?)
     }
 
     /// Get the address that owns the object, if an [`ObjectId`] is provided.
@@ -294,9 +283,9 @@ impl WalletContext {
         address: Address,
         budget: u64,
         forbidden_gas_objects: BTreeSet<ObjectId>,
-    ) -> Result<(u64, IotaObjectData), anyhow::Error> {
+    ) -> Result<(u64, Object), anyhow::Error> {
         for o in self.gas_objects(address).await? {
-            if o.0 >= budget && !forbidden_gas_objects.contains(&o.1.object_id) {
+            if o.0 >= budget && !forbidden_gas_objects.contains(o.1.object_ref().object_id()) {
                 return Ok((o.0, o.1));
             }
         }
@@ -324,41 +313,19 @@ impl WalletContext {
         limit: impl Into<Option<usize>>,
     ) -> anyhow::Result<Vec<ObjectReference>> {
         let limit = limit.into();
-        let client = self.get_client().await?;
-        let mut results = Vec::new();
-        let mut cursor = None;
-        // A page can hold fewer objects than requested, even none, while more
-        // pages follow.
-        loop {
-            let page = client
-                .read_api()
-                .get_owned_objects(
-                    address,
-                    IotaObjectResponseQuery::new(
-                        Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
-                        Some(IotaObjectDataOptions::full_content()),
-                    ),
-                    cursor,
-                    limit.map(|limit| limit.saturating_sub(results.len())),
-                )
-                .await?;
-            results.extend(
-                page.data
-                    .into_iter()
-                    .filter_map(|r| r.data.map(|o| o.object_ref())),
-            );
-            if let Some(limit) = limit {
-                results.truncate(limit);
-            }
-            let filled = limit.map_or(!results.is_empty(), |limit| results.len() >= limit);
-            // Without a new cursor, the next request would repeat an earlier
-            // one and never reach the end.
-            let advanced = page.next_cursor.is_some() && page.next_cursor != cursor;
-            if filled || !page.has_next_page || !advanced {
-                return Ok(results);
-            }
-            cursor = page.next_cursor;
-        }
+        let client = self.get_grpc_client().await?;
+        // `collect` auto-paginates and transparently skips the short or empty
+        // pages the owned-objects endpoint may return before the last page.
+        let objects = client
+            .owned_objects(address)
+            .object_type(StructTag::new_gas_coin())
+            .collect(limit.map(|limit| limit as u32))
+            .await?
+            .into_inner();
+        objects
+            .iter()
+            .map(|object| object.object_reference().map_err(|e| anyhow!("{e}")))
+            .collect()
     }
 
     /// Given an address, return one gas object owned by this address.
@@ -412,9 +379,8 @@ impl WalletContext {
     }
 
     pub async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
-        let client = self.get_client().await?;
-        let gas_price = client.governance_api().get_reference_gas_price().await?;
-        Ok(gas_price)
+        let client = self.get_grpc_client().await?;
+        Ok(client.reference_gas_price().await?.into_inner())
     }
 
     /// Add an account.
@@ -433,44 +399,62 @@ impl WalletContext {
         TransactionEnvelope::from_data(tx.clone(), vec![sig])
     }
 
-    /// Execute a transaction and wait for it to be locally executed on the
-    /// fullnode. Also expects the effects status to be
-    /// ExecutionStatus::Success.
+    /// Execute a transaction via the fullnode's gRPC API and wait for it to be
+    /// included in a checkpoint executed by the fullnode, so subsequent reads
+    /// on the fullnode observe its outputs. Also expects the effects status to
+    /// be `ExecutionStatus::Success`.
     pub async fn execute_transaction_must_succeed(
         &self,
         tx: TransactionEnvelope,
-    ) -> IotaTransactionBlockResponse {
+    ) -> ExecutedTransaction {
         tracing::debug!("Executing transaction: {:?}", tx);
-        let response = self.execute_transaction_may_fail(tx).await.unwrap();
+        let executed = self.execute_transaction_may_fail(tx).await.unwrap();
+        let effects = executed
+            .effects()
+            .expect("effects are requested in the read mask")
+            .effects()
+            .expect("effects BCS should deserialize");
         assert!(
-            response.status_ok().unwrap(),
-            "Transaction failed: {response:?}"
+            matches!(effects.status(), ExecutionStatus::Success),
+            "Transaction failed: {effects:?}"
         );
-        response
+        executed
     }
 
-    /// Execute a transaction and wait for it to be locally executed on the
-    /// fullnode. The transaction execution is not guaranteed to succeed and
-    /// may fail. This is usually only needed in non-test environment or the
-    /// caller is explicitly testing some failure behavior.
+    /// Execute a transaction via the fullnode's gRPC API and wait for it to be
+    /// included in a checkpoint executed by the fullnode. The transaction
+    /// execution is not guaranteed to succeed and may fail. This is usually
+    /// only needed in non-test environment or the caller is explicitly testing
+    /// some failure behavior.
     pub async fn execute_transaction_may_fail(
         &self,
         tx: TransactionEnvelope,
-    ) -> anyhow::Result<IotaTransactionBlockResponse> {
-        let client = self.get_client().await?;
-        Ok(client
-            .quorum_driver_api()
-            .execute_transaction_block(
-                tx,
-                IotaTransactionBlockResponseOptions::new()
-                    .with_effects()
-                    .with_input()
-                    .with_events()
-                    .with_object_changes()
-                    .with_balance_changes(),
-                iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution,
-            )
-            .await?)
+    ) -> anyhow::Result<ExecutedTransaction> {
+        let client = self.get_grpc_client().await?;
+        let tx_digest = *tx.digest();
+        let executed = client
+            .execute_transaction(tx.into())
+            .checkpoint_inclusion_timeout_ms(CHECKPOINT_INCLUSION_TIMEOUT_MS)
+            .read_mask([
+                TransactionField::TRANSACTION_DIGEST,
+                TransactionField::EFFECTS_BCS,
+                TransactionField::EVENTS_EVENTS_BCS,
+                TransactionField::OBJECT_CHANGES,
+                TransactionField::BALANCE_CHANGES,
+                TransactionField::CHECKPOINT,
+                TransactionField::TIMESTAMP,
+            ])
+            .await?
+            .into_inner();
+        // The server only sets `checkpoint` once the transaction has been
+        // included in a checkpoint within the timeout; treat its absence as a
+        // failure to finalize in time.
+        if executed.checkpoint.is_none() {
+            bail!(
+                "transaction {tx_digest} was executed but not included in a checkpoint within {CHECKPOINT_INCLUSION_TIMEOUT_MS}ms"
+            );
+        }
+        Ok(executed)
     }
 }
 

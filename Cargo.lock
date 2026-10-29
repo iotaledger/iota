@@ -7742,6 +7742,7 @@ dependencies = [
  "iota-move-build",
  "iota-sdk-crypto",
  "iota-sdk-grpc-client",
+ "iota-sdk-grpc-types",
  "iota-sdk-types",
  "iota-transaction-builder",
  "iota-types",
