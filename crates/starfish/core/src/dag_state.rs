@@ -247,7 +247,10 @@ pub(crate) struct DagState {
     evicted_header_rounds: Vec<Round>,
 
     /// Highest round evicted from `recent_transactions_by_authority`, per
-    /// authority. Transactions of round <= this round are read from the store.
+    /// authority. Payloads this node has above it are all held in
+    /// `recent_transactions_by_authority`, so reads above it skip the store.
+    /// Those at or below it are in the store, except one added after its round
+    /// was evicted, until the next flush writes it.
     evicted_transaction_rounds: Vec<Round>,
 
     /// Highest round of blocks accepted.
