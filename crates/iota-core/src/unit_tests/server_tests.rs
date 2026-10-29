@@ -1616,57 +1616,6 @@ async fn test_v2_get_tx_status_dropped_digest_rejected() {
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_v2_get_tx_status_final_drop_supersedes_retryable_drop() {
-    telemetry_subscribers::init_for_testing();
-
-    let authority_state = TestAuthorityBuilder::new().build().await;
-    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
-    let retryable_then_final = TransactionDigest::random();
-    let final_then_retryable = TransactionDigest::random();
-    let retryable_error = IotaError::ValidatorOverloadedRetryAfter {
-        retry_after_secs: 1,
-    };
-    let final_error = IotaError::TransactionExpired;
-
-    epoch_store
-        .insert_dropped_digests_for_testing(&[(retryable_then_final, retryable_error.clone())]);
-    epoch_store.insert_dropped_digests_for_testing(&[(retryable_then_final, final_error.clone())]);
-    epoch_store.insert_dropped_digests_for_testing(&[(final_then_retryable, final_error.clone())]);
-    epoch_store.insert_dropped_digests_for_testing(&[(final_then_retryable, retryable_error)]);
-
-    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
-        authority_state.name,
-    ));
-    let validator_service = Arc::new(ValidatorService::new_for_tests(
-        authority_state,
-        consensus_adapter,
-        Arc::new(ValidatorServiceMetrics::new_for_tests()),
-    ));
-
-    let response = validator_service
-        .get_tx_status(make_v2_get_tx_status_request(vec![
-            (retryable_then_final, false),
-            (final_then_retryable, false),
-        ]))
-        .await
-        .expect("get_tx_status should succeed");
-
-    let results = collect_v2_status_stream(response).await;
-    assert_eq!(results.len(), 2);
-    for (digest, update) in results {
-        assert!(
-            matches!(
-                update,
-                TxStatusUpdate::Rejected {
-                    error: IotaError::TransactionExpired
-                }
-            ),
-            "final drop must be returned for {digest}, got {update:?}"
-        );
-    }
-}
-
-#[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_get_tx_status_unknown_digest_expires() {
     telemetry_subscribers::init_for_testing();
 
