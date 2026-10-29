@@ -11,9 +11,7 @@ use move_binary_format::{
 /// Build a `BinaryConfig` from a `ProtocolConfig`
 ///
 /// `override_deprecate_global_storage_ops` takes precedence over the
-/// `deprecate_global_storage_ops` protocol flag. Metering a published package
-/// passes `Some(true)`, as the metered verifier does not support the deprecated
-/// global storage instructions.
+/// `deprecate_global_storage_ops` protocol flag.
 pub fn to_binary_config(
     protocol_config: &ProtocolConfig,
     override_deprecate_global_storage_ops: Option<bool>,

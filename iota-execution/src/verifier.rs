@@ -43,15 +43,15 @@ pub trait Verifier {
                 .map(|b| CompiledModule::deserialize_with_config(b, binary_config))
                 .collect::<Result<Vec<_>, _>>()
         };
-        // The metered verifier does not support the deprecated global storage
-        // instructions, so they are disallowed here whoever calls.
+        // The deprecated global storage instructions always fail
+        // deserialization here. With `deprecate_global_storage_ops` set, a
+        // module that fails only because of them is rejected below. Without
+        // it, the package is left to execution without being metered.
         let modules = match deserialize(&to_binary_config(protocol_config, Some(true))) {
             Ok(modules) => modules,
             Err(error) => {
-                // The modules fail only because they use the deprecated global
-                // storage instructions or a non-empty `acquires` list. No such
-                // module can be published, so reject it here rather than at
-                // execution.
+                // Such a module can never be published, so there is no point
+                // in leaving it to execution.
                 if self.deprecate_global_storage_ops()
                     && deserialize(&to_binary_config(protocol_config, Some(false))).is_ok()
                 {
