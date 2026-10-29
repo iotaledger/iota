@@ -27,9 +27,9 @@ use iota_types::{
 use move_binary_format::{
     CompiledModule,
     file_format::{
-        Bytecode, CodeUnit, FunctionDefinition, FunctionHandle, FunctionHandleIndex,
-        IdentifierIndex, Signature, SignatureIndex, SignatureToken, StructDefinitionIndex,
-        Visibility,
+        AbilitySet, Bytecode, CodeUnit, FunctionDefinition, FunctionHandle, FunctionHandleIndex,
+        FunctionInstantiation, FunctionInstantiationIndex, IdentifierIndex, Signature,
+        SignatureIndex, SignatureToken, StructDefinitionIndex, Visibility,
     },
     file_format_common::{BinaryConstants, VERSION_6},
 };
@@ -636,15 +636,7 @@ fn test_protocol_limits_reject_deprecated_bytes_modules_only_with_the_flag() {
             with_function_borrowing_two_vector_elements(&modules[0]),
         ),
     ] {
-        let (sender, _): (_, AccountPrivateKey) = get_key_pair();
-        let transaction = Transaction::new_module(
-            sender,
-            random_object_ref(),
-            vec![module],
-            BuiltInFramework::all_package_ids(),
-            TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-            1,
-        );
+        let transaction = publish_transaction(module);
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
         for flag in [false, true] {
             protocol_config.set_deprecate_global_storage_ops_for_testing(flag);
@@ -671,6 +663,52 @@ fn test_protocol_limits_reject_deprecated_bytes_modules_only_with_the_flag() {
     }
 }
 
+/// The protocol's limits cap the instantiation-loop graph at the protocol
+/// config's edge limit; the node's limits keep their own.
+#[test]
+#[cfg_attr(msim, ignore)]
+fn test_protocol_limits_cap_the_instantiation_loop_graph() {
+    let modules = build_test_package("object_owner", /* with_unpublished_deps */ false);
+    assert_eq!(modules.len(), 1);
+    let transaction = publish_transaction(with_generic_function_calling_itself(&modules[0]));
+    let metrics = Arc::new(BytecodeVerifierMetrics::new(&Registry::new()));
+    let node_limits = VerifierSigningConfig::default();
+    let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+
+    for (max_edges, rejected) in [(0, true), (1, false)] {
+        protocol_config.set_max_instantiation_loop_graph_edges_for_testing(max_edges);
+        let verdict = |source| {
+            check_non_system_packages_to_be_published(
+                &transaction,
+                &protocol_config,
+                &metrics,
+                source,
+            )
+        };
+
+        let node = verdict(VerifierLimitsSource::NodeConfig(&node_limits));
+        assert!(node.is_ok(), "limit {max_edges}: {node:?}");
+        let protocol = verdict(VerifierLimitsSource::ProtocolConfig);
+        assert_eq!(
+            protocol.is_err(),
+            rejected,
+            "limit {max_edges}: {protocol:?}"
+        );
+    }
+}
+
+fn publish_transaction(module: Vec<u8>) -> Transaction {
+    let (sender, _): (_, AccountPrivateKey) = get_key_pair();
+    Transaction::new_module(
+        sender,
+        random_object_ref(),
+        vec![module],
+        BuiltInFramework::all_package_ids(),
+        TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        1,
+    )
+}
+
 /// Return the module with a private function added that uses a deprecated
 /// global storage instruction.
 fn with_function_using_global_storage(module_bytes: &[u8]) -> Vec<u8> {
@@ -694,6 +732,7 @@ fn with_function_using_global_storage(module_bytes: &[u8]) -> Vec<u8> {
         "uses_global_storage",
         address,
         empty,
+        vec![],
         CodeUnit {
             locals: empty,
             code: vec![
@@ -733,6 +772,7 @@ fn with_function_borrowing_two_vector_elements(module_bytes: &[u8]) -> Vec<u8> {
         "borrows_two_vector_elements",
         vector,
         empty,
+        vec![],
         CodeUnit {
             locals: element_ref,
             code: vec![
@@ -767,11 +807,40 @@ fn signature_index(m: &mut CompiledModule, tokens: Vec<SignatureToken>) -> Signa
     SignatureIndex(idx as u16)
 }
 
+/// Return the module with a private generic function added that calls itself
+/// with its own type parameter, one edge in the instantiation-loop graph.
+fn with_generic_function_calling_itself(module_bytes: &[u8]) -> Vec<u8> {
+    let mut m = CompiledModule::deserialize_with_defaults(module_bytes).unwrap();
+
+    let empty = signature_index(&mut m, vec![]);
+    let type_parameter = signature_index(&mut m, vec![SignatureToken::TypeParameter(0)]);
+    let instantiation = FunctionInstantiationIndex(m.function_instantiations.len() as u16);
+    m.function_instantiations.push(FunctionInstantiation {
+        handle: FunctionHandleIndex(m.function_handles.len() as u16),
+        type_parameters: type_parameter,
+    });
+
+    add_private_function(
+        &mut m,
+        "calls_itself",
+        empty,
+        empty,
+        vec![AbilitySet::EMPTY],
+        CodeUnit {
+            locals: empty,
+            code: vec![Bytecode::CallGeneric(instantiation), Bytecode::Ret],
+            jump_tables: vec![],
+        },
+    );
+    serialize(&m)
+}
+
 fn add_private_function(
     m: &mut CompiledModule,
     name: &str,
     parameters: SignatureIndex,
     return_: SignatureIndex,
+    type_parameters: Vec<AbilitySet>,
     code: CodeUnit,
 ) {
     let name_idx = IdentifierIndex(m.identifiers.len() as u16);
@@ -784,7 +853,7 @@ fn add_private_function(
         name: name_idx,
         parameters,
         return_,
-        type_parameters: vec![],
+        type_parameters,
     });
     m.function_defs.push(FunctionDefinition {
         function,
