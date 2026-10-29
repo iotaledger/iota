@@ -2215,11 +2215,10 @@ impl DagState {
         }
     }
 
-    /// Function removes stalled transactions at or below the minimum between
-    /// "last solid leader round minus MAX_TRANSACTIONS_ACK_DEPTH
-    /// (protocol_config.gc_depth) minus MAX_LINEARIZER_DEPTH
-    /// (protocol_config.gc_depth)" and the eviction round of corresponding
-    /// authority
+    /// Sets each authority's evicted transaction round to
+    /// `max(current, min(solid GC round, header eviction round))`, using the
+    /// solid GC round alone during fast sync, and evicts its transactions at or
+    /// below it.
     pub(crate) fn evict_transactions(&mut self) {
         let fast_sync = self.fast_sync_ongoing();
         let transaction_gc_round = self.gc_round_for_last_solid_commit();
