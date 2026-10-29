@@ -4935,7 +4935,12 @@ impl AuthorityPerEpochStore {
             .max_concurrent_execution_workers()
             .is_some();
 
-        let mut soft_lock_release_tx_digests = Vec::new();
+        // Transactions dropped by load shedding never reach conflict
+        // resolution, so their soft locks are released from here.
+        let mut soft_lock_release_tx_digests: Vec<TransactionDigest> = load_shedding_dropped
+            .iter()
+            .map(|(digest, _)| *digest)
+            .collect();
         if enable_pcool {
             // Invariant: P-COOL flow categorization funnels all user transactions
             // (regular + randomness) into `sequenced_transactions`, leaving
