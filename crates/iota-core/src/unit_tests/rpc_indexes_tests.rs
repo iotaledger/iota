@@ -66,7 +66,7 @@ fn open_index_store_with_retention(
 /// Closes the store's database, waiting until every handle is released
 /// so the same path can be reopened.
 async fn close_index_store(index_store: impl std::borrow::Borrow<RpcIndexesStore>) {
-    let weak_db = std::sync::Arc::downgrade(&index_store.borrow().tables.meta.db);
+    let weak_db = index_store.borrow().tables.meta.db.close_handle();
     drop(index_store);
     assert!(super::wait_for_database_close(weak_db).await);
 }

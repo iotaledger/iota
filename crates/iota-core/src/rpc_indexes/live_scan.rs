@@ -12,10 +12,7 @@
 use std::{
     collections::{BTreeSet, HashMap},
     path::{Path, PathBuf},
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
+    sync::atomic::{AtomicUsize, Ordering},
 };
 
 use iota_sdk_types::Owner;
@@ -417,7 +414,7 @@ impl RpcIndexesRestorer {
         write_coin_metadata(&tables, coin_metadata)?;
         tables.adopt_bulk_ingestion(Some(restore_checkpoint))?;
 
-        let weak_db = Arc::downgrade(&tables.meta.db);
+        let weak_db = tables.meta.db.close_handle();
         drop(tables);
         if !wait_for_database_close(weak_db).await {
             return Err(StorageError::custom(
@@ -482,7 +479,7 @@ impl RpcIndexesRestorer {
             )));
         }
 
-        let weak_db = Arc::downgrade(&reopened.tables.meta.db);
+        let weak_db = reopened.tables.meta.db.close_handle();
         drop(reopened);
         if !wait_for_database_close(weak_db).await {
             return Err(StorageError::custom(

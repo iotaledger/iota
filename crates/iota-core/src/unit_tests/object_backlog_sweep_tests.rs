@@ -350,7 +350,7 @@ async fn the_sweep_resumes_from_its_watermark() {
         vec![ObjectKey(live_id(), 1.into())]
     );
 
-    let weak_db = Arc::downgrade(&interrupted.perpetual_tables.objects.db);
+    let weak_db = interrupted.perpetual_tables.objects.db.close_handle();
     drop(sweep);
     drop(interrupted);
     assert!(wait_for_database_close(weak_db).await);
@@ -413,7 +413,7 @@ async fn a_finished_sweep_records_the_epoch_it_swept_into() {
             store.get_historic_objects().backlog_sweep_epoch(),
             Some(SWEEP_EPOCH)
         );
-        let weak_db = Arc::downgrade(&store.perpetual_tables.objects.db);
+        let weak_db = store.perpetual_tables.objects.db.close_handle();
         drop(store);
         assert!(wait_for_database_close(weak_db).await);
     }

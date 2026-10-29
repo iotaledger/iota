@@ -799,7 +799,7 @@ impl RpcIndexesStore {
                 // Keyed on the error, not on the flag: a real failure that
                 // races the shutdown must stay a failure.
                 Err(e) if is_cancelled(&e) => {
-                    let weak_db = Arc::downgrade(&init_tables.meta.db);
+                    let weak_db = init_tables.meta.db.close_handle();
                     drop(init_tables);
                     if !wait_for_database_close(weak_db).await {
                         warn!("the cancelled RPC index rebuild left its database open");
@@ -815,7 +815,7 @@ impl RpcIndexesStore {
                 }
             }
 
-            let weak_db = Arc::downgrade(&init_tables.meta.db);
+            let weak_db = init_tables.meta.db.close_handle();
             drop(init_tables);
             if !wait_for_database_close(weak_db).await {
                 panic!("unable to reopen DB after indexing");
@@ -944,7 +944,7 @@ impl RpcIndexesStore {
         .await
         .expect("RPC index replay task failed");
 
-        let weak_db = Arc::downgrade(&store.tables.meta.db);
+        let weak_db = store.tables.meta.db.close_handle();
         drop(store);
         if !wait_for_database_close(weak_db).await {
             return Err(StorageError::custom(
