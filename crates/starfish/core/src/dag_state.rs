@@ -239,11 +239,11 @@ pub(crate) struct DagState {
     /// Keeps track of the threshold clock for proposing blocks.
     threshold_clock: ThresholdClock,
 
-    /// Keeps track of the highest round that has been evicted for each
-    /// authority. Any block header that are of round <= evict_round should
-    /// be considered evicted, and if any exist we should not consider the
-    /// causally complete in the order they appear. The `evicted_header_rounds`
-    /// size should be the same as the committee size.
+    /// Highest round evicted from `recent_block_headers`, per authority.
+    /// Accepted headers above it are all held in `recent_block_headers`, so
+    /// reads above it skip the store. Those at or below it are in the store,
+    /// except one accepted after its round was evicted, until the next flush
+    /// writes it.
     evicted_header_rounds: Vec<Round>,
 
     /// Highest round evicted from `recent_transactions_by_authority`, per
@@ -1307,57 +1307,6 @@ impl DagState {
             }
         }
         commitments
-    }
-
-    /// Gets serialized block headers by checking genesis, cached recent block
-    /// headers in memory, then storage. An element is None when the
-    /// corresponding block header is not found.
-    pub(crate) fn get_serialized_block_headers(
-        &self,
-        block_refs: &[BlockRef],
-    ) -> Vec<Option<Bytes>> {
-        let mut block_headers: Vec<Option<Bytes>> = vec![None; block_refs.len()];
-        let mut missing_headers = Vec::new();
-        for (index, block_ref) in block_refs.iter().enumerate() {
-            if block_ref.round == GENESIS_ROUND {
-                // Allow the caller to handle the invalid genesis ancestor error.
-                if let Some(block) = self.genesis.get(block_ref) {
-                    block_headers[index] = Some(block.verified_block_header.serialized().clone());
-                }
-                continue;
-            }
-            if let Some(block) = self.recent_block_headers.get(block_ref) {
-                block_headers[index] = Some(block.serialized().clone());
-                continue;
-            }
-            missing_headers.push((index, block_ref));
-        }
-
-        if missing_headers.is_empty() {
-            return block_headers;
-        }
-
-        let missing_refs = missing_headers
-            .iter()
-            .map(|(_, block_ref)| **block_ref)
-            .collect::<Vec<_>>();
-        let store_results = self
-            .store
-            .read_serialized_block_headers(&missing_refs)
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
-
-        self.context
-            .metrics
-            .node_metrics
-            .dag_state_store_read_count
-            .with_label_values(&["get_serialized_block_headers"])
-            .inc();
-
-        for ((index, _), result) in missing_headers.into_iter().zip(store_results) {
-            block_headers[index] = result;
-        }
-
-        block_headers
     }
 
     /// Gets block headers by checking genesis and then cached recent block
@@ -2692,10 +2641,12 @@ impl DagState {
             .last()
             .map(|block_ref| block_ref.round)
             .unwrap_or(GENESIS_ROUND);
-        // Keep at least cached_rounds of blocks, but never evict above the
-        // global GC round derived from the last commit.
+        // Keep at least cached_rounds of blocks and evict nothing above the GC
+        // round of the last commit. Never go below the current round: recovery
+        // loads no headers at or below it.
         self.gc_round_for_last_commit()
             .min(Self::eviction_round(last_round, self.cached_rounds))
+            .max(self.evicted_header_rounds[authority_index])
     }
 
     /// Calculates the last eviction round based on the provided `commit_round`.

@@ -834,6 +834,57 @@ fn read_transaction_payloads(
     Ok(payloads)
 }
 
+/// Reads the serialized headers of `block_refs` in their order, skipping those
+/// this node lacks. Headers at or below the evicted round of their author are
+/// read from the store, the others from the DAG state only.
+fn read_block_headers(
+    store: &dyn Store,
+    dag_state: &RwLock<DagState>,
+    block_refs: &[BlockRef],
+) -> ConsensusResult<Vec<Bytes>> {
+    let mut headers: Vec<Option<Bytes>> = vec![None; block_refs.len()];
+
+    // Separate indices for evicted/cached headers while preserving original order
+    let mut evicted_indices = Vec::new();
+    let mut evicted_refs = Vec::new();
+    {
+        let dag_state = dag_state.read();
+        let mut cached_indices = Vec::new();
+        let mut cached_refs = Vec::new();
+        for (i, block_ref) in block_refs.iter().enumerate() {
+            if block_ref.round <= dag_state.evicted_header_round(block_ref.author) {
+                evicted_indices.push(i);
+                evicted_refs.push(*block_ref);
+            } else {
+                cached_indices.push(i);
+                cached_refs.push(*block_ref);
+            }
+        }
+
+        // Read cached headers from dag_state under the lock that split them
+        if !cached_refs.is_empty() {
+            for (idx, header) in cached_indices
+                .iter()
+                .zip(dag_state.get_cached_block_headers(&cached_refs))
+            {
+                headers[*idx] = header.map(|header| header.serialized().clone());
+            }
+        }
+    }
+
+    // Read evicted headers from store
+    if !evicted_refs.is_empty() {
+        for (idx, header) in evicted_indices
+            .iter()
+            .zip(store.read_serialized_block_headers(&evicted_refs)?)
+        {
+            headers[*idx] = header;
+        }
+    }
+
+    Ok(headers.into_iter().flatten().collect())
+}
+
 /// Takes a payload out of `payloads`, falling back to the empty payload that
 /// every authority can reconstruct from the ref alone.
 fn take_payload(
@@ -1567,59 +1618,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Get requested block headers from store.
         let serialized_headers = if commit_sync_handle {
-            // For commit sync, optimize by fetching evicted headers from store
-            let mut headers: Vec<Option<Bytes>> = vec![None; block_refs.len()];
-
-            // Separate indices for evicted/cached headers while preserving original order
-            let mut evicted_indices = Vec::new();
-            let mut evicted_refs = Vec::new();
-            {
-                let dag_state = self.dag_state.read();
-                let mut cached_indices = Vec::new();
-                let mut cached_refs = Vec::new();
-                for (i, block_ref) in block_refs.iter().enumerate() {
-                    if block_ref.round <= dag_state.evicted_header_round(block_ref.author) {
-                        evicted_indices.push(i);
-                        evicted_refs.push(*block_ref);
-                    } else {
-                        cached_indices.push(i);
-                        cached_refs.push(*block_ref);
-                    }
-                }
-
-                // Read cached headers from dag_state under the lock that split them
-                if !cached_refs.is_empty() {
-                    for (idx, header) in cached_indices
-                        .iter()
-                        .zip(dag_state.get_serialized_block_headers(&cached_refs))
-                    {
-                        headers[*idx] = header;
-                    }
-                }
-            }
-
-            // Read evicted headers from store
-            if !evicted_refs.is_empty() {
-                for (idx, header) in evicted_indices
-                    .iter()
-                    .zip(self.store.read_serialized_block_headers(&evicted_refs)?)
-                {
-                    headers[*idx] = header;
-                }
-            }
-
-            headers.into_iter().flatten().collect()
+            read_block_headers(self.store.as_ref(), &self.dag_state, &block_refs)?
         } else {
             // For periodic or live synchronizer, we respond with requested blocks from the
             // store and with additional blocks from the cache
             block_refs.sort();
             block_refs.dedup();
+            let mut headers =
+                read_block_headers(self.store.as_ref(), &self.dag_state, &block_refs)?;
             let dag_state = self.dag_state.read();
-            let mut headers = dag_state
-                .get_serialized_block_headers(&block_refs)
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>();
 
             // Get additional blocks for authorities with missing block, if they are
             // available in cache. Compute the lowest missing round per
