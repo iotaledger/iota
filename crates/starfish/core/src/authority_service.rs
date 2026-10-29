@@ -1165,7 +1165,7 @@ fn header_fetch_response(
             // header size: a few hundred per read.
             let count = (byte_budget / max_header_bytes).clamp(1, refs.len());
             let batch: Vec<BlockRef> = refs.drain(..count).collect();
-            read_requested_block_headers(store.as_ref(), &dag_state, &batch)
+            read_block_headers(store.as_ref(), &dag_state, &batch)
         },
     );
     chunk_stream(move || cursor.next_chunk())
