@@ -2181,7 +2181,7 @@ impl DagState {
     /// are guaranteed to be persisted. Used after flushing.
     pub(crate) fn evict_headers(&mut self) {
         for (authority_index, _) in self.context.committee.authorities() {
-            let eviction_round = self.calculate_authority_eviction_round(authority_index);
+            let eviction_round = self.calculate_header_eviction_round(authority_index);
             let recent_refs = &mut self.recent_headers_refs_by_authority[authority_index];
 
             // Evict everything below split_key
@@ -2224,13 +2224,13 @@ impl DagState {
         let transaction_gc_round = self.gc_round_for_last_solid_commit();
         for (authority_index, _) in self.context.committee.authorities() {
             // During fast sync, recent_headers_refs_by_authority is frozen (no
-            // headers are added), so calculate_authority_eviction_round returns
+            // headers are added), so calculate_header_eviction_round returns
             // a stale value near GENESIS_ROUND. Use the commit-based GC round
             // directly — all transactions are persisted before eviction runs.
             let transaction_eviction_round = if fast_sync {
                 transaction_gc_round
             } else {
-                let eviction_round = self.calculate_authority_eviction_round(authority_index);
+                let eviction_round = self.calculate_header_eviction_round(authority_index);
                 min(transaction_gc_round, eviction_round)
             };
             // Recovery loads only transactions above the evicted round, while
@@ -2313,7 +2313,7 @@ impl DagState {
         if let Some((_, eviction_sender)) = &self.cordial_knowledge_senders {
             let mut eviction_rounds = vec![];
             for (authority_index, _) in self.context.committee.authorities() {
-                let eviction_round = self.calculate_authority_eviction_round(authority_index);
+                let eviction_round = self.calculate_header_eviction_round(authority_index);
                 eviction_rounds.push(eviction_round);
             }
             if eviction_sender
@@ -2684,7 +2684,7 @@ impl DagState {
     /// After this round we are guaranteed to have all the produced blocks
     /// from that authority. For any round that is <= `last_evicted_round`
     /// we don't have such guarantees as out of order blocks might exist.
-    fn calculate_authority_eviction_round(&self, authority_index: AuthorityIndex) -> Round {
+    fn calculate_header_eviction_round(&self, authority_index: AuthorityIndex) -> Round {
         let last_round = self.recent_headers_refs_by_authority[authority_index]
             .last()
             .map(|block_ref| block_ref.round)
@@ -2708,7 +2708,7 @@ impl DagState {
         let threshold_clock_round = self.threshold_clock_round();
         for (authority_index, _) in self.context.committee.authorities() {
             let last_eviction_round = self.evicted_header_rounds[authority_index];
-            let current_eviction_round = self.calculate_authority_eviction_round(authority_index);
+            let current_eviction_round = self.calculate_header_eviction_round(authority_index);
             if let Some(metrics) = self
                 .misbehavior_store
                 .update_misbehavior_counts_on_eviction(
