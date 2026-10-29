@@ -4785,6 +4785,19 @@ async fn test_local_dry_run_reports_the_same_gas_budget() -> Result<(), anyhow::
     );
     assert_same_dry_run(&node, &local);
 
+    // `pay-iota` without input coins estimates a budget to select coins with,
+    // from a dry run on the same backend, so both paths pick the same coins.
+    let (node, local) = dry_run_on_both_backends(context, |local| IotaClientCommands::PayIota {
+        input_coins: None,
+        recipients: vec![recipient.clone()],
+        amounts: vec![1],
+        gas_data: GasDataArgs::default(),
+        processing: dry_run(local),
+    })
+    .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_same_dry_run(&node, &local);
+
     // With no gas coin of its own each path funds the run with a coin of
     // its own making, and must still report the same run.
     let (node, local) = dry_run_on_both_backends(context, |local| {
@@ -4861,6 +4874,49 @@ async fn test_local_dry_run_matches_node_dry_run_for_shared_object_and_publish()
     // An uncongested chain suggests the reference gas price either way.
     assert_eq!(node.suggested_gas_price, Some(rgp));
     assert_same_dry_run(&node, &local);
+
+    Ok(())
+}
+
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_local_dry_run_matches_node_dry_run_for_move_abort() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, _, rgp, [gas_id, _, _], _, _) = test_cluster_helper().await;
+    let context = &mut test_cluster.wallet;
+
+    let package_id = published_package_id(
+        &created_by(
+            publish("clever_errors", gas_id, rgp, Default::default()),
+            context,
+        )
+        .await?,
+    );
+
+    for function in [
+        "aborter",
+        "aborter_line_no",
+        "clever_aborter",
+        "clever_aborter_not_a_string",
+        "clever_aborter_with_code",
+    ] {
+        let (node, local) = dry_run_on_both_backends(context, |local| {
+            call(
+                package_id,
+                "clever_errors",
+                function,
+                &[],
+                gas_id,
+                rgp,
+                dry_run(local),
+            )
+        })
+        .await?;
+        assert!(
+            matches!(node.effects.status(), IotaExecutionStatus::Failure { .. }),
+            "{function} must abort"
+        );
+        assert_same_dry_run(&node, &local);
+    }
 
     Ok(())
 }

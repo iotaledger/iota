@@ -5724,6 +5724,7 @@ dependencies = [
  "iota-multiaddr",
  "iota-names",
  "iota-package-management",
+ "iota-package-resolver",
  "iota-protocol-config",
  "iota-sdk",
  "iota-sdk-crypto",

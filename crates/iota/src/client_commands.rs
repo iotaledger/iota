@@ -111,7 +111,7 @@ use crate::{
     displays::{DryRunOutput, Pretty},
     key_identity::{KeyIdentity, get_identity_address, get_identity_address_from_keystore},
     keytool::{Key, lowercase_key_scheme},
-    local_simulation::execute_local_dry_run,
+    local_simulation::{estimate_local_gas_budget, execute_local_dry_run},
     signing::{SignData, get_shared_object_version, sign_secure, sign_transaction},
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
@@ -1464,6 +1464,8 @@ impl IotaClientCommands {
                     // Estimate the gas cost if needed
                     let gas_budget = if let Some(gas_budget) = gas_data.gas_budget {
                         gas_budget
+                    } else if processing.local {
+                        estimate_local_gas_budget(context, signer, tx_kind.clone()).await?
                     } else {
                         let gas_price = context.get_reference_gas_price().await?;
                         estimate_gas_budget(
@@ -1966,7 +1968,7 @@ impl IotaClientCommands {
                 }
             },
         };
-        ret.prerender_clever_errors(context).await
+        Ok(ret.prerender_clever_errors(context).await)
     }
 
     pub fn switch_env(config: &mut IotaClientConfig, env: &str) -> Result<(), anyhow::Error> {
@@ -2744,33 +2746,21 @@ impl IotaClientCommandResult {
         }
     }
 
-    pub async fn prerender_clever_errors(
-        mut self,
-        context: &mut WalletContext,
-    ) -> Result<Self, anyhow::Error> {
+    pub async fn prerender_clever_errors(mut self, context: &mut WalletContext) -> Self {
         match &mut self {
             IotaClientCommandResult::DryRun(DryRunTransactionBlockResponse { effects, .. })
-            | IotaClientCommandResult::LocalDryRun(DryRunTransactionBlockResponse {
-                effects,
-                ..
-            })
             | IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: Some(effects),
                 ..
             }) => {
-                // Only a failed run can carry a Move abort to render, so a
-                // successful `--local` dry run needs no JSON-RPC at all.
-                if matches!(effects.status(), IotaExecutionStatus::Failure { .. }) {
-                    let client = context.get_client().await.context(
-                        "rendering a Move abort needs the JSON-RPC endpoint; set `rpc` for the active env in client.yaml",
-                    )?;
-                    prerender_clever_errors(effects, client.read_api()).await
-                }
+                let client = context.get_client().await.expect("Cannot connect to RPC");
+                prerender_clever_errors(effects, client.read_api()).await
             }
             IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: None,
                 ..
-            }) => (),
+            })
+            | IotaClientCommandResult::LocalDryRun(_) => (),
             IotaClientCommandResult::ActiveAddress(_)
             | IotaClientCommandResult::ActiveEnv(_)
             | IotaClientCommandResult::AddAccount(_)
@@ -2797,7 +2787,7 @@ impl IotaClientCommandResult {
             | IotaClientCommandResult::VerifyBytecodeMeter { .. }
             | IotaClientCommandResult::VerifySource => (),
         }
-        Ok(self)
+        self
     }
 }
 

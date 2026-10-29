@@ -11,27 +11,41 @@
 //! the same display code.
 //!
 //! The gas price defaults to the reference gas price the gRPC endpoint
-//! reports, so only rendering a Move abort still goes through JSON-RPC.
+//! reports, and a Move abort is rendered from the packages the run fetched,
+//! so the run needs no JSON-RPC.
 //!
 //! Two checks a validator applies are out of reach here, so a transaction a
 //! node's dry run rejects can still succeed locally: the operator's
 //! transaction deny-list, and the network's signing verifier limits — this
 //! runs with an empty deny-list and the default limits.
 
+use std::sync::Arc;
+
 use anyhow::{Context, Result, anyhow};
+use async_trait::async_trait;
 use iota_json_rpc_types::{
-    DryRunTransactionBlockResponse, IotaTransactionBlockData, IotaTransactionBlockEvents,
+    DryRunTransactionBlockResponse, IotaExecutionStatus, IotaTransactionBlockData,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents,
+};
+use iota_package_resolver::{
+    Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{Address, ObjectReference, Transaction, TransactionKind};
+use iota_sdk_types::{
+    Address, ExecutionStatus, ObjectId, ObjectReference, Transaction, TransactionKind,
+};
 use iota_types::{
     effects::TransactionEffectsAPI,
     gas::{get_gas_balance, report_simulation_gas},
     transaction::TransactionAPI,
 };
-use iota_vm_sdk::{ExecuteOptions, ExecutionResult, LocalVm, grpc::GrpcStore};
+use iota_vm_sdk::{
+    ChainContext, ExecuteOptions, ExecutionResult, InMemoryStore, LocalVm, Store, grpc::GrpcStore,
+};
 
-use crate::client_commands::{IotaClientCommandResult, fallback_gas_budget};
+use crate::client_commands::{
+    IotaClientCommandResult, estimate_gas_budget_from_gas_cost, fallback_gas_budget,
+};
 
 /// Run a dry-run locally and assemble the node-shaped response.
 ///
@@ -46,14 +60,9 @@ pub(crate) async fn execute_local_dry_run(
     gas_payment: Vec<ObjectReference>,
     sponsor: Option<Address>,
 ) -> Result<IotaClientCommandResult> {
-    let client = context.get_grpc_client().await.context(
-        "local simulation needs a gRPC endpoint; set `grpc` for the active env in client.yaml",
-    )?;
-
-    let store = GrpcStore::new(client);
-    let chain_context = store.fetch_chain_context().await?;
-    let vm = LocalVm::new(chain_context, store)?;
-    let response = run_dry_run(
+    let (store, chain_context) = connect(context).await?;
+    let vm = LocalVm::new(chain_context, store.clone())?;
+    let (mut response, status) = run_dry_run(
         vm,
         signer,
         kind,
@@ -62,7 +71,53 @@ pub(crate) async fn execute_local_dry_run(
         gas_payment,
         sponsor,
     )?;
+
+    // Render a Move abort as the node does, from the packages the run fetched.
+    // Like the node, this cannot see a package the run itself published.
+    let resolver = Resolver::new(FetchedPackages(store.store()));
+    let IotaTransactionBlockEffects::V1(effects) = &mut response.effects;
+    effects.status = IotaExecutionStatus::from_native_with_clever_error(status, &resolver).await?;
     Ok(IotaClientCommandResult::LocalDryRun(response))
+}
+
+/// Estimate a gas budget from a local dry run, as
+/// [`estimate_gas_budget`](crate::client_commands::estimate_gas_budget) does
+/// from a node's.
+pub(crate) async fn estimate_local_gas_budget(
+    context: &WalletContext,
+    signer: Address,
+    kind: TransactionKind,
+) -> Result<u64> {
+    let (store, chain_context) = connect(context).await?;
+    let reference_gas_price = chain_context.reference_gas_price;
+    let vm = LocalVm::new(chain_context, store)?;
+    let (response, _) = run_dry_run(vm, signer, kind, None, None, Vec::new(), None)?;
+    Ok(estimate_gas_budget_from_gas_cost(
+        response.effects.gas_cost_summary(),
+        reference_gas_price,
+    ))
+}
+
+async fn connect(context: &WalletContext) -> Result<(GrpcStore, ChainContext)> {
+    let client = context.get_grpc_client().await.context(
+        "local simulation needs a gRPC endpoint; set `grpc` for the active env in client.yaml",
+    )?;
+    let store = GrpcStore::new(client);
+    let chain_context = store.fetch_chain_context().await?;
+    Ok((store, chain_context))
+}
+
+struct FetchedPackages(InMemoryStore);
+
+#[async_trait]
+impl PackageStore for FetchedPackages {
+    async fn fetch(&self, id: Address) -> Result<Arc<Package>, PackageResolverError> {
+        let id = ObjectId::new(id.into_bytes());
+        match self.0.get_object(&id, None) {
+            Ok(Some(object)) => Package::read_from_object(&object).map(Arc::new),
+            _ => Err(PackageResolverError::PackageNotFound(id.into())),
+        }
+    }
 }
 
 fn run_dry_run(
@@ -73,7 +128,7 @@ fn run_dry_run(
     gas_price: Option<u64>,
     gas_payment: Vec<ObjectReference>,
     sponsor: Option<Address>,
-) -> Result<DryRunTransactionBlockResponse> {
+) -> Result<(DryRunTransactionBlockResponse, ExecutionStatus)> {
     let gas_price = gas_price.unwrap_or_else(|| vm.reference_gas_price());
 
     let gas_budget = match gas_budget {
@@ -108,7 +163,8 @@ fn run_dry_run(
     );
 
     let result = vm.execute(tx_data.clone(), ExecuteOptions::dry_run())?;
-    dry_run_response(&vm, tx_data, result)
+    let status = result.effects.status().clone();
+    Ok((dry_run_response(&vm, tx_data, result)?, status))
 }
 
 /// Assemble a [`DryRunTransactionBlockResponse`] from a local run, resolving
