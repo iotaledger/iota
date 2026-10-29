@@ -82,10 +82,7 @@ impl DroppedTxStatusCache {
         };
         // Notify outside the lock — entries are already visible to readers,
         // so the register-then-check pattern in notify_read_dropped is safe.
-        for (digest, error) in &notifications {
-            self.notify_read.notify(digest, error);
-            self.any_drop_notify_read.notify(digest, error);
-        }
+        self.notify_without_recording(&notifications);
     }
 
     /// Notify the current waiters of transactions dropped from one commit
@@ -197,7 +194,7 @@ mod tests {
 
     /// A drop recorded before the same digest is kept is no longer answered
     /// once it is kept.
-    #[tokio::test(flavor = "current_thread")]
+    #[tokio::test]
     async fn test_keep_removes_an_earlier_drop() {
         let cache = DroppedTxStatusCache::new();
         let digest = TransactionDigest::random();
