@@ -1078,7 +1078,8 @@ struct RefCursor<R, F> {
     /// Maximum total size of the entries in one chunk. An entry larger than
     /// this is sent in a chunk of its own.
     chunk_bytes: usize,
-    /// Entries read but not sent yet.
+    /// Entries read but not sent yet. A read can pass the space left in the
+    /// chunk, and the entries that do not fit start the next chunk.
     read: VecDeque<Bytes>,
 }
 
