@@ -27,10 +27,14 @@ use iota_types::{
 use prometheus_filtered::default_registry;
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 use tokio::sync::RwLock;
+use typed_store::Map as _;
 
 use super::*;
 use crate::{
-    authority::{AuthorityState, AuthorityStore, test_authority_builder::TestAuthorityBuilder},
+    authority::{
+        AuthorityState, AuthorityStore, authority_store_types::get_store_object,
+        test_authority_builder::TestAuthorityBuilder,
+    },
     execution_cache::ExecutionCacheAPI,
 };
 
@@ -155,7 +159,7 @@ impl Scenario {
         }
     }
 
-    fn new_outputs() -> TransactionOutputs {
+    pub(crate) fn new_outputs() -> TransactionOutputs {
         let mut rng = StdRng::from_seed([0; 32]);
         let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
         let receiver = Address::random();
@@ -175,6 +179,7 @@ impl Scenario {
             transaction: Arc::new(tx),
             effects,
             events,
+            superseded: Default::default(),
             markers: Default::default(),
             wrapped: Default::default(),
             deleted: Default::default(),
@@ -399,6 +404,7 @@ impl Scenario {
         self.objects.clear();
 
         self.store.iter_live_object_set().for_each(|o| {
+            let o = o.unwrap();
             let id = o.object.id();
             // genesis objects are not managed by Scenario, ignore them
             if reverse_id_map.contains_key(&id) {
@@ -584,6 +590,7 @@ async fn test_committed() {
             .store
             .perpetual_tables
             .iter_live_object_set()
+            .map(|entry| entry.unwrap())
             .filter(|entry| tracked_ids.contains(&entry.object_id()))
             .map(|entry| (entry.object_id(), entry.previous_transaction_checkpoint))
             .collect();
@@ -883,6 +890,234 @@ async fn test_write_transaction_outputs_is_sync() {
         // assert that write_transaction_outputs is sync in non-simtest, which causes
         // the fail_point_async! macros above to be elided
         s.cache.write_transaction_outputs(1, outputs).unwrap();
+    })
+    .await;
+}
+
+/// Committing a transaction that supersedes a version moves that version out
+/// of the live table and into the current epoch's bucket.
+#[tokio::test]
+async fn test_commit_relocates_superseded_versions() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        let superseded = Object::immutable_with_id_for_testing(ObjectId::random());
+        let key = ObjectKey(superseded.id(), superseded.version());
+
+        s.store
+            .perpetual_tables
+            .objects
+            .insert(&key, &get_store_object(superseded.clone(), Some(0)))
+            .unwrap();
+
+        let mut outputs = Scenario::new_outputs();
+        outputs.superseded = vec![(key, superseded.clone())];
+        let digest = *outputs.transaction.digest();
+        s.cache().write_transaction_outputs(1, Arc::new(outputs));
+        s.commit(digest).await;
+
+        assert_eq!(
+            s.store.perpetual_tables.objects.get(&key).unwrap(),
+            None,
+            "the superseded version must leave the live table"
+        );
+        assert_eq!(
+            s.store.get_historic_objects().get(&key).unwrap().as_ref(),
+            Some(&superseded),
+            "and must arrive in a bucket"
+        );
+        let bucket = s.store.get_historic_objects().ensure(1).unwrap();
+        assert_eq!(
+            bucket.objects.get(&key).unwrap().as_ref(),
+            Some(&superseded),
+            "namely the bucket of the epoch that superseded it"
+        );
+    })
+    .await;
+}
+
+/// A version the commit moved out of the live table is read by exact key
+/// with the historic fallback from its epoch's bucket, and only from that
+/// epoch's bucket.
+#[tokio::test]
+async fn test_read_a_moved_version_from_its_epochs_bucket_only() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        let superseded = Object::immutable_with_id_for_testing(ObjectId::random());
+        let (id, version) = (superseded.id(), superseded.version());
+        s.store
+            .perpetual_tables
+            .objects
+            .insert(
+                &ObjectKey(id, version),
+                &get_store_object(superseded.clone(), Some(0)),
+            )
+            .unwrap();
+        let mut outputs = Scenario::new_outputs();
+        outputs.superseded = vec![(ObjectKey(id, version), superseded.clone())];
+        let digest = *outputs.transaction.digest();
+        s.cache().write_transaction_outputs(1, Arc::new(outputs));
+        s.commit(digest).await;
+        s.reset_cache();
+
+        let cache = s.cache();
+        assert_eq!(cache.try_get_object_by_key(&id, version).unwrap(), None);
+        assert_eq!(
+            cache
+                .try_get_object_by_key_with_historic_fallback(&id, version, 1)
+                .unwrap(),
+            Some(superseded)
+        );
+        assert_eq!(
+            cache
+                .try_get_object_by_key_with_historic_fallback(&id, version, 2)
+                .unwrap(),
+            None,
+            "another epoch's bucket is not read"
+        );
+    })
+    .await;
+}
+
+/// A superseded version whose pre-image execution did not capture is read from
+/// the live table at commit and still moved into the bucket, instead of being
+/// left live where a version-bounded read would serve it.
+#[tokio::test]
+async fn test_commit_moves_a_superseded_version_execution_missed() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        let mut rng = StdRng::from_seed([1; 32]);
+        let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
+        let missed = Scenario::new_object();
+        let key = ObjectKey(missed.id(), missed.version());
+        s.store
+            .perpetual_tables
+            .objects
+            .insert(&key, &get_store_object(missed.clone(), Some(0)))
+            .unwrap();
+
+        let tx = TestTransactionBuilder::new(sender, random_object_ref(), 100)
+            .transfer(missed.object_ref(), Address::random())
+            .build_and_sign(&sender_key);
+        let tx = VerifiedTransaction::new_unchecked(tx);
+        let mut outputs = Scenario::new_outputs();
+        outputs.effects = TestEffectsBuilder::new(tx.inner()).build();
+        outputs.transaction = Arc::new(tx);
+        assert!(
+            outputs
+                .effects
+                .modified_at_versions()
+                .iter()
+                .any(|modified| ObjectKey(*modified.object_id(), modified.version()) == key)
+        );
+        assert!(outputs.superseded.is_empty(), "the pre-image is missed");
+        let digest = *outputs.transaction.digest();
+        s.cache().write_transaction_outputs(1, Arc::new(outputs));
+        s.commit(digest).await;
+
+        assert_eq!(s.store.perpetual_tables.objects.get(&key).unwrap(), None);
+        assert_eq!(
+            s.store.get_historic_objects().get(&key).unwrap().as_ref(),
+            Some(&missed)
+        );
+    })
+    .await;
+}
+
+/// Writes `object` in one transaction, and then supersedes it in a second one
+/// whose pre-image execution missed. Returns both transactions' digests.
+fn write_and_supersede_missed(s: &mut Scenario, object: &Object) -> [TransactionDigest; 2] {
+    let mut writes = Scenario::new_outputs();
+    writes.written.insert(object.id(), object.clone());
+    let writer = *writes.transaction.digest();
+    s.cache().write_transaction_outputs(1, Arc::new(writes));
+
+    let mut rng = StdRng::from_seed([1; 32]);
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
+    let tx = TestTransactionBuilder::new(sender, random_object_ref(), 100)
+        .transfer(object.object_ref(), Address::random())
+        .build_and_sign(&sender_key);
+    let tx = VerifiedTransaction::new_unchecked(tx);
+    let mut outputs = Scenario::new_outputs();
+    outputs.effects = TestEffectsBuilder::new(tx.inner()).build();
+    outputs.transaction = Arc::new(tx);
+    assert!(outputs.superseded.is_empty(), "the pre-image is missed");
+    let superseder = *outputs.transaction.digest();
+    s.cache().write_transaction_outputs(1, Arc::new(outputs));
+    [writer, superseder]
+}
+
+fn assert_moved_into_bucket(s: &Scenario, object: &Object) {
+    let key = ObjectKey(object.id(), object.version());
+    assert_eq!(s.store.perpetual_tables.objects.get(&key).unwrap(), None);
+    assert_eq!(
+        s.store.get_historic_objects().get(&key).unwrap().as_ref(),
+        Some(object)
+    );
+}
+
+/// A missed pre-image written earlier in the same checkpoint is moved into the
+/// bucket.
+#[tokio::test]
+async fn test_commit_moves_a_missed_pre_image_written_in_the_same_batch() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        let object = Scenario::new_object();
+        let digests = write_and_supersede_missed(&mut s, &object);
+        let batch = s.cache().build_db_batch(1, 0, &digests);
+        s.cache().commit_transaction_outputs(1, batch, &digests);
+
+        assert_moved_into_bucket(&s, &object);
+    })
+    .await;
+}
+
+/// A missed pre-image written by the previous checkpoint is moved into the
+/// bucket even when this checkpoint's batch is built before that checkpoint
+/// is committed, as the checkpoint executor does.
+#[tokio::test]
+async fn test_commit_moves_a_missed_pre_image_the_previous_checkpoint_has_not_committed() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        let object = Scenario::new_object();
+        let [writer, superseder] = write_and_supersede_missed(&mut s, &object);
+        let first = s.cache().build_db_batch(1, 0, &[writer]);
+        let second = s.cache().build_db_batch(1, 1, &[superseder]);
+        s.cache().commit_transaction_outputs(1, first, &[writer]);
+        s.cache()
+            .commit_transaction_outputs(1, second, &[superseder]);
+
+        assert_moved_into_bucket(&s, &object);
+    })
+    .await;
+}
+
+/// Committing a transaction that deletes or wraps an object records a
+/// tombstone for each in the bucket of the committing epoch.
+#[tokio::test]
+async fn test_commit_records_tombstones() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        let deleted = Object::immutable_with_id_for_testing(ObjectId::random());
+        let wrapped = Object::immutable_with_id_for_testing(ObjectId::random());
+        let deleted_key = ObjectKey(deleted.id(), deleted.version());
+        let wrapped_key = ObjectKey(wrapped.id(), wrapped.version());
+
+        let mut outputs = Scenario::new_outputs();
+        outputs.deleted = vec![deleted_key];
+        outputs.wrapped = vec![wrapped_key];
+        let digest = *outputs.transaction.digest();
+        s.cache().write_transaction_outputs(1, Arc::new(outputs));
+        s.commit(digest).await;
+
+        let bucket = s.store.get_historic_objects().ensure(1).unwrap();
+        assert!(
+            bucket.tombstones.get(&deleted_key).unwrap().is_some(),
+            "a deleted object's tombstone must be recorded in the committing epoch's bucket"
+        );
+        assert!(
+            bucket.tombstones.get(&wrapped_key).unwrap().is_some(),
+            "a wrapped object's tombstone must be recorded in the committing epoch's bucket"
+        );
     })
     .await;
 }
@@ -1604,4 +1839,76 @@ async fn concurrent_latest_object_cache_collision_test() {
     );
     // but now we get a cache miss on object2 instead of getting the latest version
     assert!(cache.object_by_id_cache.get(&object2_id).is_none());
+}
+
+/// Effects dropped from the store with an expired ledger bucket read as
+/// absent even while their effects digest is still cached, without caching
+/// that absence over the cached effects digest.
+#[tokio::test]
+async fn test_read_effects_dropped_from_store_with_digest_still_cached() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        s.with_created(&[1]);
+        let digest = s.do_tx().await;
+        s.commit(digest).await;
+
+        let (_, bucket) = s
+            .store
+            .get_historic_ledger()
+            .find_epoch(&digest)
+            .unwrap()
+            .expect("the committed transaction must be in a bucket");
+        let effects_digest = bucket.executed_effects.get(&digest).unwrap().unwrap();
+        // What dropping an expired epoch's bucket leaves behind.
+        bucket.executed_effects.remove(&digest).unwrap();
+        bucket.effects.remove(&effects_digest).unwrap();
+
+        // Cache the effects digest but not the effects, whatever this
+        // iteration evicted.
+        s.cache
+            .cached
+            .executed_effects_digests
+            .insert(&digest, Some(effects_digest), Ticket::Write)
+            .unwrap();
+        s.cache
+            .cached
+            .transaction_effects
+            .invalidate(&effects_digest);
+
+        assert!(
+            s.cache.multi_get_executed_effects(&[digest])[0].is_none(),
+            "effects the store no longer holds must read as absent"
+        );
+    })
+    .await;
+}
+
+/// Asking whether a transaction ran in an epoch it did not run in does not
+/// make it read as not executed afterwards.
+#[tokio::test]
+async fn test_executed_effects_digest_miss_in_another_epoch_is_not_cached() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        s.with_created(&[1]);
+        let digest = s.do_tx().await;
+        s.commit(digest).await;
+        s.reset_cache();
+
+        let (epoch, _) = s
+            .store
+            .get_historic_ledger()
+            .find_epoch(&digest)
+            .unwrap()
+            .expect("the committed transaction must be in a bucket");
+        assert!(
+            s.cache
+                .multi_get_executed_effects_digests_in_epoch(epoch + 1, &[digest])[0]
+                .is_none()
+        );
+        assert!(
+            s.cache.multi_get_executed_effects_digests(&[digest])[0].is_some(),
+            "a miss in another epoch must not hide the transaction"
+        );
+    })
+    .await;
 }

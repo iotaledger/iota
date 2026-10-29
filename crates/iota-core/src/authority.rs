@@ -9,8 +9,11 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     pin::Pin,
-    sync::{Arc, atomic::Ordering},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    sync::{
+        Arc, Weak,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
     vec,
 };
 
@@ -29,20 +32,18 @@ use iota_config::{
     node::{AuthorityOverloadConfig, ExpensiveSafetyCheckConfig, StateDebugDumpConfig},
 };
 use iota_framework::{BuiltInFramework, SystemPackage as FrameworkSystemPackage};
-use iota_json_rpc_types::{
-    EventFilter, IotaEvent, IotaMoveValue, IotaObjectDataFilter, TransactionFilter,
-};
+use iota_json_rpc_types::{EventFilter, IotaEvent, IotaObjectDataFilter, TransactionFilter};
 use iota_macros::{fail_point, fail_point_async, fail_point_if};
 use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
-    CheckpointSummary, Digest, EndOfEpochTransactionKind, ExecutionStatus, GasCostSummary,
-    InputSharedObject, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
-    RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
-    TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
-    TransactionKind, TypeTag, Version, WriteKind,
+    CheckpointSummary, Digest, EndOfEpochTransactionKind, Event, ExecutionStatus, GasCostSummary,
+    InputSharedObject, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, RandomnessRound,
+    SenderSignedTransaction, StructTag, SystemPackage, Transaction, TransactionDigest,
+    TransactionEffects, TransactionEffectsDigest, TransactionEvents, TransactionKind, TypeTag,
+    Version,
     crypto::{Intent, IntentScope},
 };
 use iota_storage::{
@@ -63,13 +64,13 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
-    base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
+    base_types::{AuthorityName, ConciseableName, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AggregateAuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
     deny_list_v1::{check_coin_deny_list_v1, coin_types_for_denylist_check},
     deny_rule_governance::DenyRuleConfig,
     digests::ChainIdentifier,
-    dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
+    dynamic_field::{self, DynamicFieldInfo},
     effects::{
         SignedTransactionEffects, TransactionEffectsAPI, TransactionEffectsExt,
         VerifiedSignedTransactionEffects,
@@ -81,15 +82,12 @@ use iota_types::{
     fp_ensure,
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,
-    inner_temporary_store::{
-        InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TxCoins, WrittenObjects,
-    },
-    iota_sdk_types_conversions::type_tag_core_to_sdk,
+    inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
     },
-    layout_resolver::{LayoutResolver, into_struct_layout},
+    layout_resolver::into_struct_layout,
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointRequest, CheckpointResponse,
@@ -104,8 +102,11 @@ use iota_types::{
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticatorExt,
-    object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
-    storage::{BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore},
+    object::{Object, ObjectRead, ObjectSet, PastObjectRead},
+    storage::{
+        BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore,
+        OwnedObjectCursor, TrackingBackingStore,
+    },
     supported_protocol_versions::{
         ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
@@ -128,15 +129,13 @@ use prometheus_filtered::{
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tap::TapFallible;
 use tokio::{
-    sync::{RwLock, mpsc, mpsc::unbounded_channel, oneshot},
+    sync::{Notify, RwLock, mpsc, mpsc::unbounded_channel, oneshot, watch},
     task::JoinHandle,
 };
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::TypedStoreError;
 
-use self::{
-    authority_store::ExecutionLockWriteGuard, authority_store_pruner::AuthorityStorePruningMetrics,
-};
+use self::authority_store::ExecutionLockWriteGuard;
 #[cfg(msim)]
 pub use crate::checkpoints::checkpoint_executor::utils::{
     CheckpointTimeoutConfig, init_checkpoint_timeout_config,
@@ -146,18 +145,18 @@ use crate::{
         authority_per_epoch_store::{AuthorityPerEpochStore, TxGuard},
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
-        authority_store_pruner::{
-            AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING, ObjectRetentionGuard,
-        },
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
+        historic_ledger::HistoricLedger,
+        historic_objects::HistoricObjects,
+        object_retention::{ObjectRetention, ObjectRetentionGuard},
         shared_object_version_manager::{AssignedVersions, Schedulable},
     },
     authority_client::NetworkAuthorityClient,
-    checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{CheckpointBuilderError, CheckpointBuilderResult, CheckpointStore},
     congestion_tracker::CongestionTracker,
     consensus_adapter::ConsensusAdapter,
     epoch::committee_store::CommitteeStore,
+    epoch_buckets::PrunedBuckets,
     epoch_end_db_snapshot::{EpochEndDbSnapshotHandle, HandOver},
     execution_cache::{
         CheckpointCache, ExecutionCacheCommit, ExecutionCacheReconfigAPI,
@@ -167,8 +166,6 @@ use crate::{
     execution_driver::execution_process,
     execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
     global_state_hasher::{GlobalStateHashStore, GlobalStateHasher},
-    grpc_indexes::GrpcIndexesStore,
-    jsonrpc_index::{CoinInfo, IndexStore, ObjectIndexChanges},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{
@@ -180,11 +177,17 @@ use crate::{
         ValidationInputsAtCommit,
         reader::{CommitIndexedReader, DenyListAtCommit},
     },
+    rpc_indexes::{
+        RpcIndexesStore,
+        jsonrpc_api::{
+            CachingLayoutResolver, CoinInfo, OwnedObjectsPage, try_create_dynamic_field_info,
+        },
+        schema::{IndexGroup, OwnerTypeFilter},
+    },
     stake_aggregator::StakeAggregator,
     transaction_input_loader::TransactionInputLoader,
     transaction_outputs::TransactionOutputs,
     validator_tx_finalizer::ValidatorTxFinalizer,
-    verify_indexes::verify_indexes,
 };
 
 #[cfg(test)]
@@ -233,10 +236,15 @@ pub mod authority_test_utils;
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
 
-pub mod authority_store_pruner;
 pub mod authority_store_tables;
 pub mod authority_store_types;
+pub mod epoch_markers;
 pub mod epoch_start_configuration;
+pub mod historic_ledger;
+pub mod historic_objects;
+pub mod ledger_backlog_migration;
+pub mod object_backlog_sweep;
+pub mod object_retention;
 pub mod shared_object_congestion_tracker;
 pub mod shared_object_version_manager;
 pub mod suggested_gas_price_calculator;
@@ -298,8 +306,19 @@ pub struct AuthorityMetrics {
     pub(crate) prepare_cert_gas_latency_ratio: Histogram,
     pub(crate) execution_gas_latency_ratio: Histogram,
 
+    /// Modified objects whose pre-image was neither an input nor a read
+    /// object of the transaction, and so was not moved to the historic store.
+    pub(crate) superseded_capture_misses: IntCounter,
+
     pub(crate) skipped_consensus_txns: IntCounter,
     pub(crate) skipped_consensus_txns_cache_hit: IntCounter,
+
+    /// Per store, the oldest epoch whose history the node still holds,
+    /// published each time an expiry runs with retention on. Not advancing
+    /// across epochs means expiry is stuck.
+    pub(crate) historic_bucket_earliest_retained_epoch: IntGaugeVec,
+    /// Per store, how long the expiries that dropped a bucket took.
+    pub(crate) historic_bucket_expiry_duration: HistogramVec,
 
     pub(crate) authority_overload_status: IntGauge,
     /// Percentage of transactions shed due to consensus queue length.
@@ -311,9 +330,9 @@ pub struct AuthorityMetrics {
 
     pub(crate) transaction_overload_sources: IntCounterVec,
 
-    // Post processing metrics
-    post_processing_total_tx_indexed: IntCounter,
-    post_processing_total_failures: IntCounter,
+    /// Checkpoint-inclusion waits that timed out before the RPC indexes
+    /// caught up.
+    pub(crate) checkpoint_inclusion_index_wait_timeouts: IntCounter,
 
     // Consensus handler metrics
     pub consensus_handler_processed: IntCounterVec,
@@ -380,6 +399,19 @@ pub struct AuthorityMetrics {
     pub execution_rate_tracker: Arc<Mutex<RateTracker>>,
 }
 
+/// How long the historic bucket expiry waits, once a retention guard that kept
+/// a bucket is dropped, before it tries again.
+const HELD_BACK_EXPIRY_INTERVAL: Duration = Duration::from_secs(1);
+
+/// How far behind the network a node's newest executed checkpoint may be for
+/// the node to count as caught up; until then, closed buckets are not
+/// compacted.
+const CATCH_UP_LAG: Duration = Duration::from_secs(10 * 60);
+
+/// How often the background expiry checks again whether the node has caught
+/// up, while that holds back the compaction of closed buckets.
+const COMPACTION_RECHECK_INTERVAL: Duration = Duration::from_secs(5 * 60);
+
 // Override default Prom buckets for positive numbers in 0-10M range
 const POSITIVE_INT_BUCKETS: &[f64] = &[
     1., 2., 5., 7., 10., 20., 50., 70., 100., 200., 500., 700., 1000., 2000., 5000., 7000., 10000.,
@@ -396,6 +428,12 @@ const LATENCY_SEC_BUCKETS: &[f64] = &[
 const LOW_LATENCY_SEC_BUCKETS: &[f64] = &[
     0.00001, 0.00002, 0.00005, 0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1,
     0.2, 0.5, 1., 2., 5., 10., 20., 50., 100.,
+];
+
+// An expiry deletes the tombstones of the epochs it drops, which can take
+// minutes.
+const HISTORIC_BUCKET_EXPIRY_SEC_BUCKETS: &[f64] = &[
+    0.01, 0.05, 0.1, 0.5, 1., 2., 5., 10., 30., 60., 120., 300., 600., 1200., 1800.,
 ];
 
 const GAS_LATENCY_RATIO_BUCKETS: &[f64] = &[
@@ -595,6 +633,23 @@ impl AuthorityMetrics {
                 registry,
             )
                 .unwrap(),
+            historic_bucket_earliest_retained_epoch: register_int_gauge_vec_with_registry!(
+                "historic_bucket_earliest_retained_epoch",
+                "Earliest epoch whose history a store retains",
+                &["store"],
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+            historic_bucket_expiry_duration: register_histogram_vec_with_registry!(
+                "historic_bucket_expiry_duration_seconds",
+                "How long a store's expiries of historic buckets that dropped a bucket took",
+                &["store"],
+                HISTORIC_BUCKET_EXPIRY_SEC_BUCKETS.to_vec(),
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
             authority_overload_status: register_int_gauge_with_registry!(
                 "authority_overload_status",
                 "Whether authority is current experiencing overload and enters load shedding mode.",
@@ -696,6 +751,13 @@ impl AuthorityMetrics {
                 registry
             )
                 .unwrap(),
+            superseded_capture_misses: register_int_counter_with_registry!(
+                "superseded_capture_misses",
+                "Count of modified object versions whose pre-image could not be captured for relocation into the historic store",
+                registry;
+                MetricLevel::Warn,
+            )
+                .unwrap(),
             skipped_consensus_txns: register_int_counter_with_registry!(
                 "skipped_consensus_txns",
                 "Total number of consensus transactions skipped",
@@ -708,15 +770,9 @@ impl AuthorityMetrics {
                 registry,
             )
                 .unwrap(),
-            post_processing_total_tx_indexed: register_int_counter_with_registry!(
-                "post_processing_total_tx_indexed",
-                "Total number of txes indexed in post processing",
-                registry,
-            )
-                .unwrap(),
-            post_processing_total_failures: register_int_counter_with_registry!(
-                "post_processing_total_failures",
-                "Total number of failure in post processing",
+            checkpoint_inclusion_index_wait_timeouts: register_int_counter_with_registry!(
+                "checkpoint_inclusion_index_wait_timeouts",
+                "Total number of checkpoint-inclusion waits that returned before the RPC indexes had caught up",
                 registry,
             )
                 .unwrap(),
@@ -910,6 +966,54 @@ impl ExecutionEnv {
     }
 }
 
+/// `execute_transaction()`'s result. The last element holds every object read
+/// during execution, where the pre-image of a mutated object that is not a
+/// declared input, such as a dynamic field, is found.
+type TransactionExecutionResult = (
+    InnerTemporaryStore,
+    TransactionEffects,
+    Option<ExecutionError>,
+    ObjectSet,
+);
+
+/// Reads latest versions from the live object set, and exact versions from it
+/// or, after a miss there, from the historic buckets.
+struct ObjectStoreWithHistoricFallback<'a>(&'a AuthorityState);
+
+impl ObjectStore for ObjectStoreWithHistoricFallback<'_> {
+    fn try_get_object(
+        &self,
+        object_id: &ObjectId,
+    ) -> iota_types::storage::error::Result<Option<Object>> {
+        self.0.get_object_store().try_get_object(object_id)
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+    ) -> iota_types::storage::error::Result<Option<Object>> {
+        self.0
+            .get_object_with_historic_fallback(&ObjectKey(*object_id, version))
+            .map_err(iota_types::storage::error::Error::custom)
+    }
+
+    fn try_multi_get_objects_by_key(
+        &self,
+        object_keys: &[ObjectKey],
+    ) -> iota_types::storage::error::Result<Vec<Option<Object>>> {
+        let mut objects = self
+            .0
+            .get_object_store()
+            .try_multi_get_objects_by_key(object_keys)?;
+        self.0
+            .historic_objects
+            .fill_missing(object_keys, &mut objects, None)
+            .map_err(iota_types::storage::error::Error::custom)?;
+        Ok(objects)
+    }
+}
+
 pub struct AuthorityState {
     // Fixed size, static, identity of the authority
     /// The name of this authority.
@@ -930,8 +1034,14 @@ pub struct AuthorityState {
     /// that are executed but did not make into checkpoint.
     execution_lock: RwLock<EpochId>,
 
-    pub indexes: Option<Arc<IndexStore>>,
-    pub grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
+    /// The RPC index store, absent when this node maintains no index group.
+    pub rpc_indexes_store: Option<Arc<RpcIndexesStore>>,
+
+    /// Superseded object versions, bucketed by epoch.
+    historic_objects: Arc<HistoricObjects>,
+
+    /// Executed transactions keyed by checkpoint, bucketed by epoch.
+    historic_ledger: Arc<HistoricLedger>,
 
     pub checkpoint_store: Arc<CheckpointStore>,
 
@@ -945,11 +1055,16 @@ pub struct AuthorityState {
     tx_execution_shutdown: Mutex<Option<oneshot::Sender<()>>>,
 
     pub metrics: Arc<AuthorityMetrics>,
-    /// The store pruner. The checkpoint executor uses it to nudge the pruner
-    /// after each checkpoint.
-    pruner: AuthorityStorePruner,
     authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
-    checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
+    /// The checkpoints execution responses still read superseded object
+    /// versions from; bucket expiry keeps their epochs.
+    object_retention: ObjectRetention,
+
+    /// Announces each epoch entered to the task that expires the historic
+    /// buckets.
+    historic_bucket_expiry: watch::Sender<EpochId>,
+    /// Set by [`Self::stop_historic_bucket_work`].
+    historic_bucket_work_stopped: Arc<AtomicBool>,
 
     pub config: NodeConfig,
 
@@ -1963,13 +2078,14 @@ impl AuthorityState {
         // errors). However, all errors from this function occur before we have
         // written anything to the db, so we commit the tx guard and rely on the
         // client to retry the tx (if it was transient).
-        let (inner_temporary_store, effects, execution_error_opt) = match self.execute_transaction(
-            &execution_guard,
-            transaction,
-            tx_input_objects,
-            per_authenticator_inputs,
-            epoch_store,
-        ) {
+        let (inner_temporary_store, effects, execution_error_opt, read_objects) = match self
+            .execute_transaction(
+                &execution_guard,
+                transaction,
+                tx_input_objects,
+                per_authenticator_inputs,
+                epoch_store,
+            ) {
             Err(e) => {
                 info!(name = ?self.name, ?digest, "Error preparing transaction: {e}");
                 tx_guard.release();
@@ -2021,6 +2137,7 @@ impl AuthorityState {
             transaction,
             inner_temporary_store,
             &effects,
+            read_objects,
             tx_guard,
             execution_guard,
             expected_effects_digest,
@@ -2055,6 +2172,7 @@ impl AuthorityState {
         transaction: &VerifiedExecutableTransaction,
         inner_temporary_store: InnerTemporaryStore,
         effects: &TransactionEffects,
+        read_objects: ObjectSet,
         tx_guard: TxGuard,
         _execution_guard: ExecutionLockReadGuard<'_>,
         expected_effects_digest: Option<TransactionEffectsDigest>,
@@ -2069,14 +2187,6 @@ impl AuthorityState {
         let shared_object_count = effects.input_shared_objects().len();
 
         let output_keys = inner_temporary_store.get_output_keys(effects);
-
-        // index transaction
-        let _ = self
-            .post_process_one_tx(transaction, effects, &inner_temporary_store, epoch_store)
-            .tap_err(|e| {
-                self.metrics.post_processing_total_failures.inc();
-                error!(?tx_digest, "tx post processing failed: {e}");
-            });
 
         // The insertion to epoch_store is not atomic with the insertion to the
         // perpetual store. This is OK because we insert to the epoch store
@@ -2110,6 +2220,8 @@ impl AuthorityState {
             transaction.clone().into_unsigned(),
             effects.clone(),
             inner_temporary_store,
+            read_objects,
+            &self.metrics,
         );
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;
@@ -2206,11 +2318,7 @@ impl AuthorityState {
         tx_input_objects: InputObjects,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<(
-        InnerTemporaryStore,
-        TransactionEffects,
-        Option<ExecutionError>,
-    )> {
+    ) -> IotaResult<TransactionExecutionResult> {
         let _scope = monitored_scope("Execution::execute_certificate");
         let _metrics_guard = self.metrics.prepare_certificate_latency.start_timer();
         let prepare_transaction_start_time = tokio::time::Instant::now();
@@ -2225,7 +2333,8 @@ impl AuthorityState {
             .epoch_data()
             .epoch_start_timestamp();
 
-        let backing_store = self.get_backing_store().as_ref();
+        let tracking_store = TrackingBackingStore::new(self.get_backing_store().as_ref());
+        let backing_store = &tracking_store;
 
         let tx_digest = *transaction.digest();
 
@@ -2471,7 +2580,14 @@ impl AuthorityState {
                 .observe(effects.gas_cost_summary().computation_cost as f64 / elapsed);
         }
 
-        Ok((inner_temp_store, effects, execution_error_opt.err()))
+        let read_objects = tracking_store.into_read_objects();
+
+        Ok((
+            inner_temp_store,
+            effects,
+            execution_error_opt.err(),
+            read_objects,
+        ))
     }
 
     pub fn prepare_transaction_for_benchmark(
@@ -2494,6 +2610,9 @@ impl AuthorityState {
             vec![],
             epoch_store,
         )
+        .map(|(inner_temp_store, effects, execution_error, _)| {
+            (inner_temp_store, effects, execution_error)
+        })
     }
 
     /// Simulate a transaction without committing it.
@@ -2774,54 +2893,6 @@ impl AuthorityState {
             .expect("storage access failed")
     }
 
-    /// Indexes a transaction by updating various indexes in the `IndexStore`.
-    #[instrument(level = "debug", skip_all, err)]
-    fn index_tx(
-        &self,
-        indexes: &IndexStore,
-        digest: &TransactionDigest,
-        // TODO: index_tx really just need the transaction data here.
-        transaction: &VerifiedExecutableTransaction,
-        effects: &TransactionEffects,
-        events: &TransactionEvents,
-        timestamp_ms: u64,
-        tx_coins: Option<TxCoins>,
-        written: &WrittenObjects,
-        inner_temporary_store: &InnerTemporaryStore,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<u64> {
-        let changes = self
-            .process_object_index(effects, written, inner_temporary_store, epoch_store)
-            .tap_err(|e| warn!(tx_digest=?digest, "Failed to process object index, index_tx is skipped: {e}"))?;
-
-        indexes.index_tx(
-            transaction.data().transaction().sender(),
-            transaction
-                .data()
-                .transaction()
-                .input_objects()?
-                .iter()
-                .map(|o| o.object_id()),
-            effects
-                .all_changed_objects()
-                .into_iter()
-                .map(|(changed, _kind)| (*changed.reference(), *changed.owner())),
-            transaction
-                .data()
-                .transaction()
-                .move_calls()
-                .into_iter()
-                .map(|(package, module, function)| {
-                    (*package, module.to_owned(), function.to_owned())
-                }),
-            events,
-            changes,
-            digest,
-            timestamp_ms,
-            tx_coins,
-        )
-    }
-
     #[cfg(msim)]
     fn create_fail_state(
         &self,
@@ -2853,313 +2924,6 @@ impl AuthorityState {
                 });
             }
         }
-    }
-
-    fn process_object_index(
-        &self,
-        effects: &TransactionEffects,
-        written: &WrittenObjects,
-        inner_temporary_store: &InnerTemporaryStore,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<ObjectIndexChanges> {
-        let mut layout_resolver =
-            epoch_store
-                .executor()
-                .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
-                    inner_temporary_store,
-                    self.get_backing_package_store(),
-                )));
-
-        let modified_at_version = effects
-            .modified_at_versions()
-            .into_iter()
-            .map(|modified| (*modified.object_id(), modified.version()))
-            .collect::<HashMap<_, _>>();
-
-        let tx_digest = effects.transaction_digest();
-        let mut deleted_owners = vec![];
-        let mut deleted_dynamic_fields = vec![];
-        for object_ref in effects.deleted().into_iter().chain(effects.wrapped()) {
-            let old_version = modified_at_version.get(&object_ref.object_id).unwrap();
-            // When we process the index, the latest object hasn't been written yet so
-            // the old object must be present.
-            match self.get_owner_at_version(&object_ref.object_id, *old_version).unwrap_or_else(
-                |e| panic!("tx_digest={tx_digest}, error processing object owner index, cannot find owner for object {} at version {old_version:?}. Err: {e:?}", object_ref.object_id)
-            ) {
-                Owner::Address(addr) => deleted_owners.push((addr, object_ref.object_id)),
-                Owner::Object(object_id) => {
-                    deleted_dynamic_fields.push((object_id, object_ref.object_id))
-                }
-                _ => {}
-            }
-        }
-
-        let mut new_owners = vec![];
-        let mut new_dynamic_fields = vec![];
-
-        for (changed, kind) in effects.all_changed_objects() {
-            let (oref, owner) = (*changed.reference(), *changed.owner());
-            let id = &oref.object_id;
-            // For mutated objects, retrieve old owner and delete old index if there is a
-            // owner change.
-            if let WriteKind::Mutate = kind {
-                let Some(old_version) = modified_at_version.get(id) else {
-                    panic!(
-                        "tx_digest={tx_digest}, error processing object owner index, cannot find modified at version for mutated object [{id}]."
-                    );
-                };
-                // When we process the index, the latest object hasn't been written yet so
-                // the old object must be present.
-                let Some(old_object) = self
-                    .get_object_store()
-                    .try_get_object_by_key(id, *old_version)?
-                else {
-                    panic!(
-                        "tx_digest={tx_digest}, error processing object owner index, cannot find owner for object {id} at version {old_version:?}"
-                    );
-                };
-                if old_object.owner != owner {
-                    match old_object.owner {
-                        Owner::Address(addr) => {
-                            deleted_owners.push((addr, *id));
-                        }
-                        Owner::Object(object_id) => deleted_dynamic_fields.push((object_id, *id)),
-                        _ => {}
-                    }
-                }
-            }
-
-            match owner {
-                Owner::Address(addr) => {
-                    // TODO: We can remove the object fetching after we added ObjectType to
-                    // TransactionEffects
-                    let new_object = written.get(id).unwrap_or_else(
-                        || panic!("tx_digest={tx_digest}, error processing object owner index, written does not contain object {id}")
-                    );
-                    assert_eq!(
-                        new_object.version(),
-                        oref.version,
-                        "tx_digest={} error processing object owner index, object {} from written has mismatched version. Actual: {}, expected: {}",
-                        tx_digest,
-                        id,
-                        new_object.version(),
-                        oref.version
-                    );
-
-                    let object_type = new_object
-                        .data
-                        .opt_object_type()
-                        .map(|ty| ObjectType::Struct(ty.clone()))
-                        .unwrap_or(ObjectType::Package);
-
-                    new_owners.push((
-                        (addr, *id),
-                        ObjectInfo {
-                            object_id: *id,
-                            version: oref.version,
-                            digest: oref.digest,
-                            object_type,
-                            owner,
-                            previous_transaction: *effects.transaction_digest(),
-                        },
-                    ));
-                }
-                Owner::Object(owner) => {
-                    let new_object = written.get(id).unwrap_or_else(
-                        || panic!("tx_digest={tx_digest}, error processing object owner index, written does not contain object {id}")
-                    );
-                    assert_eq!(
-                        new_object.version(),
-                        oref.version,
-                        "tx_digest={} error processing object owner index, object {} from written has mismatched version. Actual: {}, expected: {}",
-                        tx_digest,
-                        id,
-                        new_object.version(),
-                        oref.version
-                    );
-
-                    let Some(df_info) = self
-                        .try_create_dynamic_field_info(new_object, written, layout_resolver.as_mut())
-                        .unwrap_or_else(|e| {
-                            error!(
-                                "try_create_dynamic_field_info should not fail, {}, new_object={}, new_object_type={}",
-                                e,
-                                new_object.id(),
-                                ObjectType::from(new_object)
-                            );
-                            None
-                        }
-                        )
-                    else {
-                        // Skip indexing for non dynamic field objects.
-                        continue;
-                    };
-                    new_dynamic_fields.push(((owner, *id), df_info))
-                }
-                _ => {}
-            }
-        }
-
-        Ok(ObjectIndexChanges {
-            deleted_owners,
-            deleted_dynamic_fields,
-            new_owners,
-            new_dynamic_fields,
-        })
-    }
-
-    fn try_create_dynamic_field_info(
-        &self,
-        o: &Object,
-        written: &WrittenObjects,
-        resolver: &mut dyn LayoutResolver,
-    ) -> IotaResult<Option<DynamicFieldInfo>> {
-        // Skip if not a move object
-        let Some(move_object) = o.data.as_opt_struct().cloned() else {
-            return Ok(None);
-        };
-
-        // We only index dynamic field objects
-        if !move_object.struct_tag().is_dynamic_field() {
-            return Ok(None);
-        }
-
-        let layout = match resolver.get_annotated_layout(move_object.struct_tag()) {
-            Ok(annotated_layout) => annotated_layout.into_layout(),
-            Err(e) => {
-                error!(
-                    "unable to load layout for type `{:?}`: {e}",
-                    move_object.struct_tag()
-                );
-                return Ok(None);
-            }
-        };
-
-        let field =
-            DFV::FieldVisitor::deserialize(move_object.contents(), &layout).map_err(|e| {
-                IotaError::ObjectDeserialization {
-                    error: e.to_string(),
-                }
-            })?;
-
-        let type_ = field.kind;
-        let name_type: TypeTag = type_tag_core_to_sdk(&field.name_layout.into());
-        let bcs_name = field.name_bytes.to_owned();
-
-        let name_value = BoundedVisitor::deserialize_value(field.name_bytes, field.name_layout)
-            .map_err(|e| {
-                warn!("{e}");
-                IotaError::ObjectDeserialization {
-                    error: e.to_string(),
-                }
-            })?;
-
-        let name = DynamicFieldName {
-            type_tag: name_type,
-            value: IotaMoveValue::from(name_value).to_json_value(),
-        };
-
-        let value_metadata = field.value_metadata().map_err(|e| {
-            warn!("{e}");
-            IotaError::ObjectDeserialization {
-                error: e.to_string(),
-            }
-        })?;
-
-        Ok(Some(match value_metadata {
-            DFV::ValueMetadata::DynamicField(object_type) => DynamicFieldInfo {
-                name,
-                bcs_name,
-                type_,
-                object_type: object_type.to_canonical_string(/* with_prefix */ true),
-                object_id: o.id(),
-                version: o.version(),
-                digest: o.digest(),
-            },
-
-            DFV::ValueMetadata::DynamicObjectField(object_id) => {
-                // Find the actual object from storage using the object id obtained from the
-                // wrapper.
-
-                // Try to find the object in the written objects first.
-                let (version, digest, object_type) = if let Some(object) = written.get(&object_id) {
-                    (
-                        object.version(),
-                        object.digest(),
-                        object.data.opt_object_type().unwrap().clone(),
-                    )
-                } else {
-                    // If not found, try to find it in the database.
-                    let object = self
-                        .get_object_store()
-                        .try_get_object_by_key(&object_id, o.version())?
-                        .ok_or_else(|| UserInputError::ObjectNotFound {
-                            object_id,
-                            version: Some(o.version()),
-                        })?;
-                    let version = object.version();
-                    let digest = object.digest();
-                    let object_type = object.data.opt_object_type().unwrap().clone();
-                    (version, digest, object_type)
-                };
-
-                DynamicFieldInfo {
-                    name,
-                    bcs_name,
-                    type_,
-                    object_type: object_type.to_string(),
-                    object_id,
-                    version,
-                    digest,
-                }
-            }
-        }))
-    }
-
-    #[instrument(level = "trace", skip_all, err)]
-    fn post_process_one_tx(
-        &self,
-        transaction: &VerifiedExecutableTransaction,
-        effects: &TransactionEffects,
-        inner_temporary_store: &InnerTemporaryStore,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult {
-        if self.indexes.is_none() {
-            return Ok(());
-        }
-
-        let _scope = monitored_scope("Execution::post_process_one_tx");
-
-        let tx_digest = transaction.digest();
-        let timestamp_ms = Self::unixtime_now_ms();
-        let events = &inner_temporary_store.events;
-        let written = &inner_temporary_store.written;
-        let tx_coins = self.fullnode_only_get_tx_coins_for_indexing(
-            effects,
-            inner_temporary_store,
-            epoch_store,
-        );
-
-        // Index tx
-        if let Some(indexes) = &self.indexes {
-            let _ = self
-                .index_tx(
-                    indexes.as_ref(),
-                    tx_digest,
-                    transaction,
-                    effects,
-                    events,
-                    timestamp_ms,
-                    tx_coins,
-                    written,
-                    inner_temporary_store,
-                    epoch_store,
-                )
-                .tap_ok(|_| self.metrics.post_processing_total_tx_indexed.inc())
-                .tap_err(|e| error!(?tx_digest, "Post processing - Couldn't index tx: {e}"))
-                .expect("Indexing tx should not fail");
-        };
-        Ok(())
     }
 
     pub fn unixtime_now_ms() -> u64 {
@@ -3208,9 +2972,10 @@ impl AuthorityState {
             ObjectInfoRequestKind::PastObjectInfoDebug(seq) => seq,
         };
 
+        // A `PastObjectInfoDebug` request names an older version, which may
+        // have been moved out of the live table.
         let object = self
-            .get_object_store()
-            .try_get_object_by_key(&request.object_id, requested_object_seq)?
+            .get_object_with_historic_fallback(&ObjectKey(request.object_id, requested_object_seq))?
             .ok_or_else(|| {
                 IotaError::from(UserInputError::ObjectNotFound {
                     object_id: request.object_id,
@@ -3312,15 +3077,12 @@ impl AuthorityState {
         execution_cache_trait_pointers: ExecutionCacheTraitPointers,
         epoch_store: Arc<AuthorityPerEpochStore>,
         committee_store: Arc<CommitteeStore>,
-        indexes: Option<Arc<IndexStore>>,
-        grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
+        rpc_indexes_store: Option<Arc<RpcIndexesStore>>,
         checkpoint_store: Arc<CheckpointStore>,
         prometheus_registry: &Registry,
-        genesis_objects: &[Object],
         config: NodeConfig,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
-        checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         policy_config: Option<PolicyConfig>,
         epoch_end_db_snapshots: Option<EpochEndDbSnapshotHandle>,
     ) -> Arc<Self> {
@@ -3354,21 +3116,35 @@ impl AuthorityState {
                 .num_latest_epoch_dbs_to_retain,
         )
         .await;
-        let pruner = AuthorityStorePruner::new(
-            store.perpetual_tables.clone(),
-            checkpoint_store.clone(),
-            grpc_indexes_store.clone(),
-            indexes.clone(),
-            config.authority_store_pruning_config.clone(),
-            epoch_store.committee().authority_exists(&name),
-            epoch_store.epoch_start_state().epoch_duration_ms(),
-            prometheus_registry,
-            checkpoint_progress_tracker.clone(),
-            epoch_store.object_pruning_limit(),
+        let object_retention = ObjectRetention::new(
+            checkpoint_store
+                .get_highest_executed_checkpoint_seq_number()
+                .ok()
+                .flatten()
+                .unwrap_or_default(),
         );
+        let num_epochs_to_retain = config.authority_store_pruning_config.num_epochs_to_retain;
+        if epoch_store.committee().authority_exists(&name)
+            && num_epochs_to_retain > 0
+            && num_epochs_to_retain < u64::MAX
+        {
+            warn!(
+                num_epochs_to_retain,
+                "this validator retains superseded object versions it does not serve, which \
+                 grows its database; lowering the retention later expires every epoch they \
+                 span at once, at the next start. Set 0 to retain none beyond the current epoch."
+            );
+        }
+        if let Some(delay_days) = config
+            .authority_store_pruning_config
+            .periodic_compaction_threshold_days
+        {
+            store.perpetual_tables.spawn_periodic_compaction(delay_days);
+        }
         let input_loader =
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
         let epoch = epoch_store.epoch();
+        let (historic_bucket_expiry, expiry_epochs) = watch::channel(epoch);
         let rgp = epoch_store.reference_gas_price();
         let traffic_controller_metrics =
             Arc::new(TrafficControllerMetrics::new(prometheus_registry));
@@ -3385,16 +3161,16 @@ impl AuthorityState {
             epoch_store: ArcSwap::new(epoch_store.clone()),
             input_loader,
             execution_cache_trait_pointers,
-            indexes,
-            grpc_indexes_store,
+            rpc_indexes_store,
+            historic_objects: store.get_historic_objects().clone(),
+            historic_ledger: store.get_historic_ledger().clone(),
             checkpoint_store,
             committee_store,
             execution_scheduler,
             tx_execution_shutdown: Mutex::new(Some(tx_execution_shutdown)),
             metrics,
-            pruner,
             authority_per_epoch_pruner,
-            checkpoint_progress_tracker,
+            object_retention,
             config,
             overload_info: AuthorityOverloadInfo::default(),
             validator_tx_finalizer,
@@ -3402,7 +3178,19 @@ impl AuthorityState {
             congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
             traffic_controller,
             epoch_end_db_snapshots,
+            historic_bucket_expiry,
+            historic_bucket_work_stopped: Arc::new(AtomicBool::new(false)),
         });
+        // An expiry cut short by a crash may not have recorded what it
+        // dropped.
+        Self::record_pruned_checkpoints(&state.historic_ledger, &state.checkpoint_store);
+
+        let expiry = Self::expire_historic_buckets_in_background(
+            Arc::downgrade(&state),
+            expiry_epochs,
+            state.object_retention.released(),
+        );
+        spawn_monitored_task!(expiry);
 
         // Start a task to execute ready transactions.
         let authority_state = Arc::downgrade(&state);
@@ -3411,16 +3199,22 @@ impl AuthorityState {
             rx_ready_transactions,
             rx_execution_shutdown,
         ));
-        // TODO: This doesn't belong to the constructor of AuthorityState.
-        state
-            .create_owner_index_if_empty(genesis_objects, &epoch_store)
-            .expect("Error indexing genesis objects.");
 
         state
     }
 
     pub fn epoch_db_pruner(&self) -> &AuthorityPerEpochStorePruner {
         &self.authority_per_epoch_pruner
+    }
+
+    /// Superseded object versions, bucketed by epoch.
+    pub fn get_historic_objects(&self) -> &Arc<HistoricObjects> {
+        &self.historic_objects
+    }
+
+    /// Executed transactions keyed by checkpoint, bucketed by epoch.
+    pub fn get_historic_ledger(&self) -> &Arc<HistoricLedger> {
+        &self.historic_ledger
     }
 
     // TODO: Consolidate our traits to reduce the number of methods here.
@@ -3483,21 +3277,20 @@ impl AuthorityState {
             .evict_committed_object_for_testing(id)
     }
 
-    pub async fn prune_checkpoints_for_eligible_epochs_for_testing(
-        &self,
-        config: NodeConfig,
-        metrics: Arc<AuthorityStorePruningMetrics>,
-    ) -> anyhow::Result<()> {
-        AuthorityStorePruner::prune_checkpoints_for_eligible_epochs(
-            &self.database_for_testing().perpetual_tables,
-            &self.checkpoint_store,
-            self.grpc_indexes_store.as_deref(),
-            config.authority_store_pruning_config,
-            metrics,
-            EPOCH_DURATION_MS_FOR_TESTING,
-            self.checkpoint_progress_tracker.as_ref(),
-        )
-        .await
+    /// Drops the execution cache's copies of committed data, so that reads
+    /// issued afterwards answer from the store.
+    pub fn clear_execution_caches_for_testing(&self) {
+        self.execution_cache_trait_pointers
+            .testing_api
+            .clear_caches_for_testing()
+    }
+
+    /// The executed transactions whose outputs are not committed yet.
+    #[cfg(test)]
+    pub fn uncommitted_transactions_for_testing(&self) -> Vec<TransactionDigest> {
+        self.execution_cache_trait_pointers
+            .testing_api
+            .uncommitted_transactions_for_testing()
     }
 
     pub fn execution_scheduler(&self) -> &Arc<ExecutionSchedulerWrapper> {
@@ -3508,69 +3301,6 @@ impl AuthorityState {
     /// `TransactionManager`.
     pub fn uses_execution_scheduler(&self) -> bool {
         self.execution_scheduler.uses_execution_scheduler()
-    }
-
-    fn create_owner_index_if_empty(
-        &self,
-        genesis_objects: &[Object],
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult {
-        let Some(index_store) = &self.indexes else {
-            return Ok(());
-        };
-        if !index_store.is_empty() {
-            return Ok(());
-        }
-
-        let mut new_owners = vec![];
-        let mut new_dynamic_fields = vec![];
-        let mut layout_resolver = epoch_store
-            .executor()
-            .type_layout_resolver(Box::new(self.get_backing_package_store().as_ref()));
-        for o in genesis_objects.iter() {
-            match o.owner {
-                Owner::Address(addr) => {
-                    new_owners.push(((addr, o.id()), ObjectInfo::new(&o.object_ref(), o)))
-                }
-                Owner::Object(object_id) => {
-                    let id = o.id();
-                    let info = match self.try_create_dynamic_field_info(
-                        o,
-                        &BTreeMap::new(),
-                        layout_resolver.as_mut(),
-                    ) {
-                        Ok(Some(info)) => info,
-                        Ok(None) => continue,
-                        Err(IotaError::UserInput {
-                            error:
-                                UserInputError::ObjectNotFound {
-                                    object_id: not_found_id,
-                                    version,
-                                },
-                        }) => {
-                            warn!(
-                                ?not_found_id,
-                                ?version,
-                                object_owner=?object_id,
-                                field=?id,
-                                "Skipping dynamic field: referenced genesis object not found"
-                            );
-                            continue;
-                        }
-                        Err(e) => return Err(e),
-                    };
-                    new_dynamic_fields.push(((object_id, id), info));
-                }
-                _ => {}
-            }
-        }
-
-        index_store.insert_genesis_objects(ObjectIndexChanges {
-            deleted_owners: vec![],
-            deleted_dynamic_fields: vec![],
-            new_owners,
-            new_dynamic_fields,
-        })
     }
 
     /// Attempts to acquire execution lock for an executable transaction.
@@ -3775,6 +3505,7 @@ impl AuthorityState {
             .await;
 
         let new_epoch = new_committee.epoch;
+        self.open_historic_buckets(new_epoch)?;
         let new_epoch_store = self
             .reopen_epoch_db(
                 cur_epoch_store,
@@ -3792,10 +3523,364 @@ impl AuthorityState {
             }
         }
         *execution_lock = new_epoch;
+        // Not before the lock reads the new epoch: `try_execute_immediately`
+        // reads a receiving object's marker before it takes the lock.
+        if let Err(err) = self
+            .get_reconfig_api()
+            .expire_epoch_markers(new_epoch, &execution_lock)
+        {
+            error!("Failed to expire the epoch marker buckets: {err:?}");
+        }
+        // The other histories expire in the background, so that execution
+        // resumes without waiting for their deletions.
+        self.historic_bucket_expiry.send_replace(new_epoch);
         // drop execution_lock after epoch store was updated
         // see also assert in AuthorityState::process_transaction
         // on the epoch store and execution lock epoch match
         Ok(new_epoch_store)
+    }
+
+    /// Opens `new_epoch`'s bucket in each per-epoch history, while execution
+    /// is stopped.
+    ///
+    /// # Errors
+    ///
+    /// Fails if a history cannot create its bucket for `new_epoch`.
+    fn open_historic_buckets(&self, new_epoch: EpochId) -> IotaResult<()> {
+        self.historic_objects.ensure(new_epoch)?;
+        self.historic_ledger.ensure(new_epoch)?;
+        self.checkpoint_store
+            .historic_checkpoints
+            .ensure(new_epoch)?;
+        // Not fatal: checkpoint ingest also creates this bucket on demand.
+        if let Some(indexes) = &self.rpc_indexes_store {
+            if let Err(err) = indexes.ensure_history_bucket_exists(new_epoch) {
+                error!("Failed to open the RPC index history bucket of {new_epoch}: {err:?}");
+            }
+        }
+        Ok(())
+    }
+
+    /// Opens `new_epoch`'s buckets and expires the ones outside their
+    /// retention, as an epoch change and the expiry task that follows it do.
+    #[cfg(test)]
+    async fn advance_historic_buckets(&self, new_epoch: EpochId) -> IotaResult<()> {
+        self.open_historic_buckets(new_epoch)?;
+        self.expire_historic_buckets(new_epoch).await;
+        Ok(())
+    }
+
+    /// Expires the buckets of every per-epoch history, the RPC index history
+    /// included, that fell outside their configured retention as counted from
+    /// `current_epoch`. A historic-object bucket from the epoch of a
+    /// checkpoint a [`Self::retain_objects`] guard still holds on is kept.
+    /// Returns whether such a guard kept a bucket that would otherwise have
+    /// expired.
+    ///
+    /// Errors are logged: an unfinished expiry is retried by the next one, or
+    /// at the next open.
+    async fn expire_historic_buckets(&self, current_epoch: EpochId) -> bool {
+        // Both count the epochs kept below the current one, as `prune` does.
+        // `None` turns retention off.
+        let pruning_config = &self.config.authority_store_pruning_config;
+        let configured_objects_to_retain = pruning_config.num_epochs_to_retain();
+        let objects_to_retain = configured_objects_to_retain.map(|epochs| {
+            self.oldest_epoch_retained_for_object_reads()
+                .map_or(epochs, |epoch| {
+                    epochs.max(current_epoch.saturating_sub(epoch))
+                })
+        });
+        let held_back = objects_to_retain != configured_objects_to_retain;
+        let checkpoints_to_retain = pruning_config.num_epochs_to_retain_for_checkpoints();
+
+        // Blocks for as long as the deletes and drops take.
+        let historic_objects = self.historic_objects.clone();
+        let historic_ledger = self.historic_ledger.clone();
+        let checkpoint_store = self.checkpoint_store.clone();
+        let rpc_indexes_store = self.rpc_indexes_store.clone();
+        let stopped = self.historic_bucket_work_stopped.clone();
+        let metrics = self.metrics.clone();
+        let expired = tokio::task::spawn_blocking(move || {
+            // The index first, so it never names a transaction the ledger has
+            // dropped, and the checkpoints before the ledger, so a checkpoint
+            // is never served without its transactions.
+            // Only runs that dropped a bucket: the ones that drop nothing, as at
+            // every start, would bury the durations of the ones that do.
+            let expire =
+                |store: &str, prune: &dyn Fn() -> Result<Option<PrunedBuckets>, String>| {
+                    if stopped.load(Ordering::Acquire) {
+                        return;
+                    }
+                    let started = Instant::now();
+                    match prune() {
+                        Ok(Some(pruned)) => {
+                            if pruned.dropped > 0 {
+                                metrics
+                                    .historic_bucket_expiry_duration
+                                    .with_label_values(&[store])
+                                    .observe(started.elapsed().as_secs_f64());
+                            }
+                            metrics
+                                .historic_bucket_earliest_retained_epoch
+                                .with_label_values(&[store])
+                                .set(pruned.earliest_retained as i64);
+                        }
+                        Ok(None) => {}
+                        Err(err) if stopped.load(Ordering::Acquire) => {
+                            info!(
+                                store,
+                                "Stopped expiring historic buckets for a shutdown: {err}"
+                            )
+                        }
+                        Err(err) => error!(store, "Failed to expire historic buckets: {err}"),
+                    }
+                };
+            if let Some(indexes) = &rpc_indexes_store {
+                expire("indexes", &|| {
+                    indexes.prune(current_epoch).map_err(|e| format!("{e:?}"))
+                });
+            }
+            if let Some(epochs_to_retain) = checkpoints_to_retain {
+                // Before each drop, so that no reader is told a checkpoint is
+                // available after its contents or transactions are gone.
+                let record =
+                    || Self::record_pruned_checkpoints(&historic_ledger, &checkpoint_store);
+                expire("checkpoints", &|| {
+                    checkpoint_store
+                        .historic_checkpoints
+                        .prune(current_epoch, epochs_to_retain, &record)
+                        .map_err(|e| format!("{e:?}"))
+                });
+                expire("ledger", &|| {
+                    historic_ledger
+                        .prune(current_epoch, epochs_to_retain, &record)
+                        .map_err(|e| format!("{e:?}"))
+                });
+                // Also when nothing was dropped, after a floor moved without a
+                // drop, as after a crash between the two.
+                record();
+            }
+            if let Some(epochs_to_retain) = objects_to_retain {
+                expire("objects", &|| {
+                    historic_objects
+                        .prune(current_epoch, epochs_to_retain)
+                        .map_err(|e| format!("{e:?}"))
+                });
+            }
+        })
+        .await;
+        if let Err(err) = expired {
+            error!("The historic bucket expiry task failed: {err:?}");
+        }
+        held_back
+    }
+
+    /// Stops the background expiry and compaction of historic buckets, for a
+    /// shutdown: an expiry stops before its next store or its next batch of
+    /// tombstones, and a compaction before its next bucket, as the blocking
+    /// task holds up the runtime's shutdown. A bucket already being compacted
+    /// is finished first, which for a large one can take minutes. What is cut
+    /// short is finished at the next start.
+    pub fn stop_historic_bucket_work(&self) {
+        self.historic_bucket_work_stopped
+            .store(true, Ordering::Release);
+        self.historic_objects.stop();
+    }
+
+    /// How far this node's newest executed checkpoint is behind the local
+    /// clock, `None` when nothing is executed yet.
+    fn execution_lag(&self) -> Option<Duration> {
+        let Ok(Some(executed)) = self.checkpoint_store.get_highest_executed_checkpoint() else {
+            return None;
+        };
+        let executed_at = UNIX_EPOCH + Duration::from_millis(executed.timestamp_ms);
+        Some(
+            SystemTime::now()
+                .duration_since(executed_at)
+                .unwrap_or_default(),
+        )
+    }
+
+    /// Whether this node is still catching up with the network: nothing is
+    /// executed yet, or its newest executed checkpoint is more than
+    /// [`CATCH_UP_LAG`] old.
+    fn is_catching_up(&self) -> bool {
+        self.execution_lag().is_none_or(|lag| lag > CATCH_UP_LAG)
+    }
+
+    /// Compacts the buckets of every store's closed epochs that are not
+    /// compacted yet, so a lookup that walks the buckets probes each of them
+    /// once. Stops before the next bucket once `epochs` announces a new epoch
+    /// or its sender is dropped, or `stopped` is set, which leaves the rest
+    /// for the next call.
+    async fn compact_closed_buckets(
+        current_epoch: EpochId,
+        historic_objects: Arc<HistoricObjects>,
+        historic_ledger: Arc<HistoricLedger>,
+        checkpoint_store: Arc<CheckpointStore>,
+        rpc_indexes_store: Option<Arc<RpcIndexesStore>>,
+        epochs: watch::Receiver<EpochId>,
+        stopped: Arc<AtomicBool>,
+    ) {
+        let compacted = tokio::task::spawn_blocking(move || {
+            let stop =
+                || stopped.load(Ordering::Acquire) || !matches!(epochs.has_changed(), Ok(false));
+            if let Some(indexes) = &rpc_indexes_store {
+                // The history backfill writes closed epochs' buckets until it
+                // is done; the next pass compacts them.
+                if indexes.is_history_backfill_running() {
+                    info!("Not compacting the RPC index history while its backfill runs");
+                } else if let Err(err) = indexes.compact_closed_buckets(current_epoch, &stop) {
+                    error!("Failed to compact the RPC index history: {err:?}");
+                }
+            }
+            if let Err(err) = checkpoint_store
+                .historic_checkpoints
+                .compact_closed_buckets(current_epoch, &stop)
+            {
+                error!("Failed to compact historic checkpoint buckets: {err:?}");
+            }
+            if let Err(err) = historic_ledger.compact_closed_buckets(current_epoch, &stop) {
+                error!("Failed to compact historic ledger buckets: {err:?}");
+            }
+            if let Err(err) = historic_objects.compact_closed_buckets(current_epoch, &stop) {
+                error!("Failed to compact historic object buckets: {err:?}");
+            }
+        })
+        .await;
+        if let Err(err) = compacted {
+            error!("The closed bucket compaction task failed: {err:?}");
+        }
+    }
+
+    /// Expires the historic buckets for each epoch `epochs` announces,
+    /// starting with the one it holds, and again once a retention guard is
+    /// dropped after one kept a bucket; then compacts the closed buckets.
+    /// Returns once `state` is dropped.
+    ///
+    /// Compaction waits while a guard keeps a bucket, which may expire at the
+    /// next run, and while the node catches up: epochs then close one after
+    /// another, the oldest expire soon after, and nothing on the catch-up path
+    /// walks the closed buckets. It is retried every
+    /// [`COMPACTION_RECHECK_INTERVAL`] until the node has caught up.
+    async fn expire_historic_buckets_in_background(
+        state: Weak<AuthorityState>,
+        mut epochs: watch::Receiver<EpochId>,
+        released: Arc<Notify>,
+    ) {
+        // Logged when it changes, so an operator can see why closed buckets
+        // are not compacted.
+        let mut compaction_held_back = None;
+        loop {
+            let epoch = *epochs.borrow_and_update();
+            let Some(this) = state.upgrade() else {
+                return;
+            };
+            if this.historic_bucket_work_stopped.load(Ordering::Acquire) {
+                return;
+            }
+            let held_back = this.expire_historic_buckets(epoch).await;
+            let catching_up = this.is_catching_up();
+            let state = (held_back, catching_up);
+            if compaction_held_back != Some(state) {
+                match state {
+                    (false, false) => info!("Compacting the buckets of closed epochs"),
+                    (true, _) => info!(
+                        "Not compacting the buckets of closed epochs while a read holds back the \
+                         expiry of historic objects"
+                    ),
+                    (false, true) => info!(
+                        lag_s = this.execution_lag().map(|lag| lag.as_secs()),
+                        "Not compacting the buckets of closed epochs while the node catches up: \
+                         its newest executed checkpoint is more than {} minutes old",
+                        CATCH_UP_LAG.as_secs() / 60
+                    ),
+                }
+                compaction_held_back = Some(state);
+            }
+            let compaction = (!held_back && !catching_up).then(|| {
+                (
+                    this.historic_objects.clone(),
+                    this.historic_ledger.clone(),
+                    this.checkpoint_store.clone(),
+                    this.rpc_indexes_store.clone(),
+                    this.historic_bucket_work_stopped.clone(),
+                )
+            });
+            drop(this);
+            if let Some((
+                historic_objects,
+                historic_ledger,
+                checkpoint_store,
+                rpc_indexes_store,
+                stopped,
+            )) = compaction
+            {
+                Self::compact_closed_buckets(
+                    epoch,
+                    historic_objects,
+                    historic_ledger,
+                    checkpoint_store,
+                    rpc_indexes_store,
+                    epochs.clone(),
+                    stopped,
+                )
+                .await;
+            }
+            tokio::select! {
+                changed = epochs.changed() => {
+                    if changed.is_err() {
+                        return;
+                    }
+                }
+                () = released.notified(), if held_back => {
+                    // Guards come and go with requests, so one expiry per
+                    // interval rather than one per dropped guard.
+                    tokio::time::sleep(HELD_BACK_EXPIRY_INTERVAL).await;
+                }
+                () = tokio::time::sleep(COMPACTION_RECHECK_INTERVAL), if catching_up && !held_back => {}
+            }
+        }
+    }
+
+    /// Moves `HighestPruned` up to the last checkpoint below the epochs both
+    /// the ledger and the checkpoint history still retain: a checkpoint whose
+    /// contents or transactions are gone can no longer be served to state-sync
+    /// peers or RPC clients. Either expiry can fail or be cut short without the
+    /// other, so this takes whichever floor is higher.
+    fn record_pruned_checkpoints(
+        historic_ledger: &HistoricLedger,
+        checkpoint_store: &CheckpointStore,
+    ) {
+        let floor = historic_ledger.earliest_retained_epoch().max(
+            checkpoint_store
+                .historic_checkpoints
+                .earliest_retained_epoch(),
+        );
+        if let Err(err) = checkpoint_store.advance_highest_pruned_checkpoint(floor) {
+            error!("Failed to record the pruned checkpoint range: {err:?}");
+        }
+    }
+
+    /// The oldest epoch whose historic-object bucket a [`Self::retain_objects`]
+    /// guard may still read from, `None` when no guard is held.
+    fn oldest_epoch_retained_for_object_reads(&self) -> Option<EpochId> {
+        let retained = self.object_retention.lowest_retained()?;
+        // A retained checkpoint was executed, so its summary is here; without
+        // it, nothing is known to be safe to drop.
+        match self
+            .checkpoint_store
+            .get_checkpoint_by_sequence_number(retained)
+        {
+            Ok(checkpoint) => Some(checkpoint.map_or(0, |checkpoint| checkpoint.epoch())),
+            Err(err) => {
+                error!(
+                    "Failed to read the epoch of retained checkpoint {retained}, keeping \
+                     every historic object bucket: {err:?}"
+                );
+                Some(0)
+            }
+        }
     }
 
     /// Advance the epoch store to the next epoch for testing only.
@@ -3876,13 +3961,6 @@ impl AuthorityState {
             self.expensive_check_is_consistent_state(state_hasher, cur_epoch_store);
         }
 
-        if expensive_safety_check_config.enable_secondary_index_checks() {
-            if let Some(indexes) = self.indexes.clone() {
-                verify_indexes(self.get_global_state_hash_store().as_ref(), indexes)
-                    .expect("secondary indexes are inconsistent");
-            }
-        }
-
         Ok(())
     }
 
@@ -3891,7 +3969,9 @@ impl AuthorityState {
         state_hasher: Arc<GlobalStateHasher>,
         cur_epoch_store: &AuthorityPerEpochStore,
     ) {
-        let live_object_set_hash = state_hasher.digest_live_object_set();
+        let live_object_set_hash = state_hasher
+            .digest_live_object_set()
+            .expect("Reading the live object set cannot fail");
 
         let root_state_hash: ECMHLiveObjectSetDigest = self
             .get_global_state_hash_store()
@@ -3992,12 +4072,19 @@ impl AuthorityState {
             .get_checkpoint_by_sequence_number(sequence_number)?)
     }
 
-    /// Wait for the given transactions to be included in a checkpoint.
+    /// Wait until the given transactions are in a checkpoint and the RPC
+    /// indexes include that checkpoint.
     ///
     /// Returns a mapping from transaction digest to
     /// `(checkpoint_sequence_number, checkpoint_timestamp_ms)`.
     /// On timeout, returns partial results for any transactions that were
     /// already checkpointed.
+    ///
+    /// If the timeout runs out before the indexes include a checkpointed
+    /// transaction, the transaction is returned all the same, as it is final,
+    /// and the wait is counted in `checkpoint_inclusion_index_wait_timeouts`.
+    /// A caller that promises a read right after to see the transaction checks
+    /// [`Self::is_checkpoint_indexed`] for it.
     ///
     /// The wait survives epoch boundaries: a transaction in flight at a
     /// boundary may only be checkpointed in the next epoch, and still resolves
@@ -4008,6 +4095,48 @@ impl AuthorityState {
         timeout: Duration,
     ) -> IotaResult<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>> {
         let deadline = tokio::time::Instant::now() + timeout;
+        let results = self.wait_for_checkpoint_mapping(digests, deadline).await?;
+
+        // The index commit precedes the `highest_executed_checkpoint` bump,
+        // in checkpoint order, so the bump means "indexed through this
+        // checkpoint". Nodes without indexes bump too, so this cannot hang.
+        if let Some(max_seq) = results.values().map(|(seq, _)| *seq).max() {
+            let indexed = self
+                .checkpoint_store
+                .notify_read_executed_checkpoint(max_seq);
+            let all_checkpointed = digests.iter().all(|digest| results.contains_key(digest));
+            // A partial result already reports a timeout to the caller.
+            if tokio::time::timeout_at(deadline, indexed).await.is_err() && all_checkpointed {
+                self.metrics.checkpoint_inclusion_index_wait_timeouts.inc();
+                warn!(
+                    checkpoint_seq = max_seq,
+                    "transactions are checkpointed but the RPC indexes have not caught up \
+                     within the timeout; reporting them without the read-after-write guarantee"
+                );
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Whether the RPC indexes include checkpoint `seq`, so that a read sent
+    /// now sees its transactions.
+    pub fn is_checkpoint_indexed(&self, seq: CheckpointSequenceNumber) -> IotaResult<bool> {
+        Ok(self
+            .checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()?
+            .is_some_and(|indexed| seq <= indexed))
+    }
+
+    /// Wait until each of `digests` is in a checkpoint, or until `deadline`
+    /// passes. Maps each found digest to `(checkpoint_sequence_number,
+    /// checkpoint_timestamp_ms)`. Unlike `wait_for_checkpoint_inclusion`, this
+    /// does not wait until the checkpoint is indexed.
+    pub(crate) async fn wait_for_checkpoint_mapping(
+        &self,
+        digests: &[TransactionDigest],
+        deadline: tokio::time::Instant,
+    ) -> IotaResult<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>> {
         let mut checkpoint_timestamp_cache = HashMap::<CheckpointSequenceNumber, u64>::new();
         let mut results = BTreeMap::new();
         let mut remaining = digests.to_vec();
@@ -4238,9 +4367,8 @@ impl AuthorityState {
         object_id: &ObjectId,
         version: Version,
     ) -> IotaResult<Option<(Object, Option<MoveStructLayout>)>> {
-        let Some(object) = self
-            .get_object_cache_reader()
-            .try_get_object_by_key(object_id, version)?
+        let Some(object) =
+            self.get_object_with_historic_fallback(&ObjectKey(*object_id, version))?
         else {
             return Ok(None);
         };
@@ -4249,7 +4377,31 @@ impl AuthorityState {
         Ok(Some((object, layout)))
     }
 
-    fn get_object_layout(&self, object: &Object) -> IotaResult<Option<MoveStructLayout>> {
+    /// The object at an exact version: the live table first, the buckets after
+    /// a miss there. See [`HistoricObjects::fill_missing`] for when a read may
+    /// do this.
+    pub(crate) fn get_object_with_historic_fallback(
+        &self,
+        key: &ObjectKey,
+    ) -> IotaResult<Option<Object>> {
+        match self
+            .get_object_cache_reader()
+            .try_get_object_by_key(&key.0, key.1)?
+        {
+            Some(object) => Ok(Some(object)),
+            None => self.historic_objects.get(key),
+        }
+    }
+
+    /// The object store for reads that resolve index rows: the row's version
+    /// leaves the live table when its checkpoint's outputs commit, which is
+    /// before the index update that replaces the row.
+    fn object_store_with_historic_fallback(&self) -> ObjectStoreWithHistoricFallback<'_> {
+        ObjectStoreWithHistoricFallback(self)
+    }
+
+    /// The layout of `object`'s Move struct, `None` for a package.
+    pub fn get_object_layout(&self, object: &Object) -> IotaResult<Option<MoveStructLayout>> {
         let layout = object
             .data
             .as_opt_struct()
@@ -4266,63 +4418,63 @@ impl AuthorityState {
         Ok(layout)
     }
 
-    fn get_owner_at_version(&self, object_id: &ObjectId, version: Version) -> IotaResult<Owner> {
-        self.get_object_store()
-            .try_get_object_by_key(object_id, version)?
-            .ok_or_else(|| {
-                IotaError::from(UserInputError::ObjectNotFound {
-                    object_id: *object_id,
-                    version: Some(version),
-                })
-            })
-            .map(|o| o.owner)
-    }
-
+    /// One page of `owner`'s objects; see
+    /// [`RpcIndexesStore::get_owner_objects`].
     #[instrument(level = "trace", skip_all)]
     pub fn get_owner_objects(
         &self,
         owner: Address,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectId>,
+        cursor: Option<&OwnedObjectCursor>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
-    ) -> IotaResult<Vec<ObjectInfo>> {
-        if let Some(indexes) = &self.indexes {
-            indexes.get_owner_objects(owner, cursor, limit, filter)
-        } else {
-            Err(IotaError::IndexStoreNotAvailable)
-        }
+        max_read: usize,
+    ) -> IotaResult<OwnedObjectsPage> {
+        let indexes = self.require_jsonrpc_indexes()?;
+        indexes.get_owner_objects(
+            owner,
+            cursor,
+            limit,
+            filter,
+            max_read,
+            &self.object_store_with_historic_fallback(),
+        )
     }
 
+    /// One page of `owner`'s coins in the owner index's order, of
+    /// `coin_type` alone when it is given. The returned type tag is the
+    /// coin's own `T`, not the `Coin<T>` the object carries.
     #[instrument(level = "trace", skip_all)]
-    pub fn get_owned_coins_iterator_with_cursor(
+    pub fn get_owned_coins_page(
         &self,
         owner: Address,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: (String, ObjectId),
+        cursor: Option<&OwnedObjectCursor>,
+        coin_type: Option<TypeTag>,
         limit: usize,
-        one_coin_type_only: bool,
-    ) -> IotaResult<impl Iterator<Item = (String, ObjectId, CoinInfo)> + '_> {
-        if let Some(indexes) = &self.indexes {
-            indexes.get_owned_coins_iterator_with_cursor(owner, cursor, limit, one_coin_type_only)
-        } else {
-            Err(IotaError::IndexStoreNotAvailable)
-        }
+    ) -> IotaResult<Vec<(TypeTag, ObjectId, CoinInfo, OwnedObjectCursor)>> {
+        let indexes = self.require_jsonrpc_indexes()?;
+        indexes.get_owned_coins(
+            owner,
+            cursor,
+            coin_type,
+            limit,
+            &self.object_store_with_historic_fallback(),
+        )
     }
 
+    /// The cursors of `owner`'s next rows of `Coin<coin_type>`; see
+    /// [`RpcIndexesStore::owned_coin_rows`].
     #[instrument(level = "trace", skip_all)]
-    pub fn get_owner_objects_iterator(
+    pub fn owned_coin_rows(
         &self,
         owner: Address,
-        // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectId>,
-        filter: Option<IotaObjectDataFilter>,
-    ) -> IotaResult<impl Iterator<Item = ObjectInfo> + '_> {
-        if let Some(indexes) = &self.indexes {
-            indexes.get_owner_objects_iterator(owner, cursor, filter)
-        } else {
-            Err(IotaError::IndexStoreNotAvailable)
-        }
+        cursor: Option<&OwnedObjectCursor>,
+        coin_type: TypeTag,
+        limit: usize,
+    ) -> IotaResult<Vec<OwnedObjectCursor>> {
+        self.require_jsonrpc_indexes()?
+            .owned_coin_rows(owner, cursor, coin_type, limit)
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -4330,18 +4482,18 @@ impl AuthorityState {
     where
         T: DeserializeOwned,
     {
-        let object_ids = self
-            .get_owner_objects_iterator(owner, None, None)?
-            .filter(|o| match &o.object_type {
-                ObjectType::Struct(s) => *s == tag,
-                ObjectType::Package => false,
-            })
-            .map(|info| ObjectKey(info.object_id, info.version))
-            .collect::<Vec<_>>();
+        let indexes = self.require_jsonrpc_indexes()?;
+        // The filter matches the type's identifier only, so the exact type is
+        // checked per row.
+        let object_ids = indexes
+            .owner_iter(owner, None, OwnerTypeFilter::from_struct_tag(Some(&tag)))?
+            .filter_ok(|(_, info)| info.object_type == tag)
+            .map_ok(|(key, info)| ObjectKey(key.object_id, info.version))
+            .collect::<Result<Vec<_>, _>>()?;
         let mut move_objects = vec![];
 
         let objects = self
-            .get_object_store()
+            .object_store_with_historic_fallback()
             .try_multi_get_objects_by_key(&object_ids)?;
 
         for (o, id) in objects.into_iter().zip(object_ids) {
@@ -4363,6 +4515,9 @@ impl AuthorityState {
         Ok(move_objects)
     }
 
+    /// Returns one entry per index row, in index order, for at most `limit`
+    /// rows. A `None` info marks a field that no longer resolves, so callers
+    /// can derive pagination cursors from the returned ids alone.
     #[instrument(level = "trace", skip_all)]
     pub fn get_dynamic_fields(
         &self,
@@ -4370,39 +4525,139 @@ impl AuthorityState {
         // If `Some`, the query will start from the next item after the specified cursor
         cursor: Option<ObjectId>,
         limit: usize,
-    ) -> IotaResult<Vec<(ObjectId, DynamicFieldInfo)>> {
-        Ok(self
-            .get_dynamic_fields_iterator(owner, cursor)?
-            .take(limit)
-            .collect::<Result<Vec<_>, _>>()?)
-    }
+    ) -> IotaResult<Vec<(ObjectId, Option<DynamicFieldInfo>)>> {
+        let indexes = self.require_jsonrpc_indexes()?;
+        let epoch_store = self.load_epoch_store_one_call_per_task();
+        let mut base_resolver = epoch_store
+            .executor()
+            .type_layout_resolver(Box::new(self.get_backing_package_store().clone()));
+        // One layout per distinct field type for the whole page.
+        let mut layout_resolver = CachingLayoutResolver::new(base_resolver.as_mut());
+        let object_store = self.get_object_store();
 
-    fn get_dynamic_fields_iterator(
-        &self,
-        owner: ObjectId,
-        // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectId>,
-    ) -> IotaResult<impl Iterator<Item = Result<(ObjectId, DynamicFieldInfo), TypedStoreError>> + '_>
-    {
-        if let Some(indexes) = &self.indexes {
-            indexes.get_dynamic_fields_iterator(owner, cursor)
-        } else {
-            Err(IotaError::IndexStoreNotAvailable)
+        let mut fields = Vec::new();
+        for field_id in indexes
+            .get_dynamic_field_ids_iterator(owner, cursor)?
+            .take(limit)
+        {
+            let field_id = field_id?;
+            let Some(field_object) = object_store.try_get_object(&field_id)? else {
+                fields.push((field_id, None));
+                continue;
+            };
+            match try_create_dynamic_field_info(
+                &field_object,
+                object_store.as_ref(),
+                &mut layout_resolver,
+            ) {
+                Ok(info) => fields.push((field_id, info)),
+                Err(e) => {
+                    warn!(?field_id, "failed to resolve dynamic field: {e}");
+                    fields.push((field_id, None));
+                }
+            }
         }
+        Ok(fields)
     }
 
     #[instrument(level = "trace", skip_all)]
+    /// The objects of `owner`'s first `limit` dynamic fields, in the order
+    /// [`Self::get_dynamic_fields`] lists them; `None` for a field whose
+    /// object is gone.
+    pub fn get_dynamic_field_objects(
+        &self,
+        owner: ObjectId,
+        limit: usize,
+    ) -> IotaResult<Vec<(ObjectId, Option<Object>)>> {
+        let indexes = self.require_jsonrpc_indexes()?;
+        let object_store = self.get_object_store();
+        indexes
+            .get_dynamic_field_ids_iterator(owner, None)?
+            .take(limit)
+            .map(|field_id| {
+                let field_id = field_id?;
+                Ok((field_id, object_store.try_get_object(&field_id)?))
+            })
+            .collect()
+    }
+
+    /// The id of the object `get_dynamic_field_object` returns.
     pub fn get_dynamic_field_object_id(
         &self,
         owner: ObjectId,
         name_type: TypeTag,
         name_bcs_bytes: &[u8],
     ) -> IotaResult<Option<ObjectId>> {
-        if let Some(indexes) = &self.indexes {
-            indexes.get_dynamic_field_object_id(owner, name_type, name_bcs_bytes)
-        } else {
-            Err(IotaError::IndexStoreNotAvailable)
+        Ok(self
+            .get_dynamic_field_object(owner, name_type, name_bcs_bytes)?
+            .map(|object| object.id()))
+    }
+
+    /// The object of `owner`'s dynamic field named `name_type` and
+    /// `name_bcs_bytes`: the value object for a dynamic object field, the
+    /// `Field` object otherwise; `None` when there is no such field.
+    pub fn get_dynamic_field_object(
+        &self,
+        owner: ObjectId,
+        name_type: TypeTag,
+        name_bcs_bytes: &[u8],
+    ) -> IotaResult<Option<Object>> {
+        let derive = |name_type: &TypeTag| {
+            dynamic_field::derive_dynamic_field_id(owner, name_type, name_bcs_bytes).map_err(|e| {
+                IotaError::Unknown(format!(
+                    "Unable to generate dynamic field id. Got error: {e:?}"
+                ))
+            })
+        };
+        let object_store = self.get_object_store();
+
+        // A field's id is derived from its parent and name, so the object
+        // store alone says whether it exists, as soon as the transaction that
+        // created it has executed.
+        if let Some(field) = object_store.try_get_object(&derive(&name_type)?)? {
+            let wrapped_name = matches!(
+                &name_type,
+                TypeTag::Struct(tag) if DynamicFieldInfo::is_dynamic_object_field_wrapper(tag)
+            );
+            if !wrapped_name {
+                return Ok(Some(field));
+            }
+            // An already-wrapped name type addresses a dynamic object field
+            // directly.
+            return self.dynamic_field_value(field);
         }
+
+        // A dynamic object field is stored under its `Field` wrapper, which
+        // holds the id of the value object the caller is after.
+        let wrapper_type = TypeTag::Struct(Box::new(
+            DynamicFieldInfo::dynamic_object_field_wrapper(name_type),
+        ));
+        match object_store.try_get_object(&derive(&wrapper_type)?)? {
+            Some(wrapper) => self.dynamic_field_value(wrapper),
+            None => Ok(None),
+        }
+    }
+
+    /// The object a dynamic-field lookup resolves `field` to: the value
+    /// object for a dynamic object field, `field` itself otherwise, or `None`
+    /// when the field no longer resolves.
+    fn dynamic_field_value(&self, field: Object) -> IotaResult<Option<Object>> {
+        let epoch_store = self.load_epoch_store_one_call_per_task();
+        let mut layout_resolver = epoch_store
+            .executor()
+            .type_layout_resolver(Box::new(self.get_backing_package_store().clone()));
+        let Some(info) = try_create_dynamic_field_info(
+            &field,
+            self.get_object_store().as_ref(),
+            layout_resolver.as_mut(),
+        )?
+        else {
+            return Ok(None);
+        };
+        if info.object_id == field.id() {
+            return Ok(Some(field));
+        }
+        Ok(self.get_object_store().try_get_object(&info.object_id)?)
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -4441,29 +4696,57 @@ impl AuthorityState {
             .ok_or(IotaError::TransactionEventsNotFound { digest: *digest })
     }
 
+    /// The transaction's input objects, reaching the historic buckets for
+    /// versions the live table no longer holds. Use for assembling responses
+    /// only — see [`HistoricObjects::fill_missing`].
     pub fn get_transaction_input_objects(
         &self,
         effects: &TransactionEffects,
     ) -> anyhow::Result<Vec<Object>> {
-        iota_types::storage::get_transaction_input_objects(self.get_object_store(), effects)
-            .map_err(Into::into)
+        historic_objects::get_transaction_input_objects(
+            self.get_object_store().as_ref(),
+            &self.historic_objects,
+            effects,
+        )
+        .map_err(Into::into)
     }
 
+    /// The transaction's output objects, reaching the historic buckets for
+    /// versions the live table no longer holds. Use for assembling responses
+    /// only — see [`HistoricObjects::fill_missing`].
     pub fn get_transaction_output_objects(
         &self,
         effects: &TransactionEffects,
     ) -> anyhow::Result<Vec<Object>> {
-        iota_types::storage::get_transaction_output_objects(self.get_object_store(), effects)
-            .map_err(Into::into)
+        historic_objects::get_transaction_output_objects(
+            self.get_object_store().as_ref(),
+            &self.historic_objects,
+            effects,
+        )
+        .map_err(Into::into)
     }
 
-    fn get_indexes(&self) -> IotaResult<Arc<IndexStore>> {
-        match &self.indexes {
+    fn get_indexes(&self) -> IotaResult<Arc<RpcIndexesStore>> {
+        match self.jsonrpc_indexes() {
             Some(i) => Ok(i.clone()),
             None => Err(IotaError::UnsupportedFeature {
                 error: "extended object indexing is not enabled on this server".into(),
             }),
         }
+    }
+
+    /// The index store, `None` unless this node maintains the JSON-RPC group.
+    fn jsonrpc_indexes(&self) -> Option<&Arc<RpcIndexesStore>> {
+        self.rpc_indexes_store
+            .as_ref()
+            .filter(|store| store.serves(IndexGroup::JsonRpc))
+    }
+
+    /// [`Self::jsonrpc_indexes`] for the reads that cannot be served without
+    /// it.
+    fn require_jsonrpc_indexes(&self) -> IotaResult<&Arc<RpcIndexesStore>> {
+        self.jsonrpc_indexes()
+            .ok_or(IotaError::IndexStoreNotAvailable)
     }
 
     pub async fn get_transactions_for_tests(
@@ -4517,19 +4800,23 @@ impl AuthorityState {
         &self.checkpoint_store
     }
 
-    /// The store pruner; the checkpoint executor uses it to nudge the pruner
-    /// after each checkpoint.
-    pub fn pruner(&self) -> &AuthorityStorePruner {
-        &self.pruner
-    }
-
     /// Keeps the object versions that transactions in the highest executed
     /// checkpoint, and in every later one, supersede readable until the
     /// returned guard is dropped. Take it before submitting a transaction whose
     /// input or output objects are read from the store once it is
     /// checkpointed.
     pub fn retain_objects(&self) -> ObjectRetentionGuard {
-        self.pruner.retain_objects()
+        self.object_retention.retain()
+    }
+
+    /// Records `executed_seq` as the highest executed checkpoint, which new
+    /// [`Self::retain_objects`] guards start from. Call it once the
+    /// checkpoint's outputs are readable.
+    pub(crate) fn record_executed_for_object_retention(
+        &self,
+        executed_seq: CheckpointSequenceNumber,
+    ) {
+        self.object_retention.record_executed(executed_seq);
     }
 
     pub fn get_latest_checkpoint_sequence_number(&self) -> IotaResult<CheckpointSequenceNumber> {
@@ -4538,17 +4825,6 @@ impl AuthorityState {
             .ok_or(IotaError::UserInput {
                 error: UserInputError::LatestCheckpointSequenceNumberNotFound,
             })
-    }
-
-    #[cfg(msim)]
-    pub fn get_highest_pruned_checkpoint_for_testing(
-        &self,
-    ) -> IotaResult<CheckpointSequenceNumber> {
-        self.database_for_testing()
-            .perpetual_tables
-            .get_highest_pruned_checkpoint()
-            .map(|c| c.unwrap_or(0))
-            .map_err(Into::into)
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -4682,16 +4958,64 @@ impl AuthorityState {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<IotaEvent>> {
+        let stored_events = match query {
+            // A transaction's own events answer this as soon as it has
+            // executed, without waiting for its checkpoint to be indexed.
+            EventFilter::Transaction(digest) => {
+                Self::transaction_events_page(kv_store, digest, cursor, limit, descending).await?
+            }
+            query => {
+                self.indexed_events_page(kv_store, query, cursor, limit, descending)
+                    .await?
+            }
+        };
+
+        let epoch_store = self.load_epoch_store_one_call_per_task();
+        let backing_store = self.get_backing_package_store().as_ref();
+        let mut layout_resolver = epoch_store
+            .executor()
+            .type_layout_resolver(Box::new(backing_store));
+        let mut events = vec![];
+        for (e, tx_digest, event_seq, timestamp) in stored_events.into_iter() {
+            events.push(IotaEvent::try_from(
+                e.clone(),
+                tx_digest,
+                event_seq as u64,
+                timestamp,
+                layout_resolver.get_annotated_layout(&e.struct_tag)?,
+            )?)
+        }
+        Ok(events)
+    }
+
+    /// The page of events matching `query` after `cursor`, from the RPC
+    /// index; at most `limit`.
+    async fn indexed_events_page(
+        &self,
+        kv_store: &Arc<TransactionKeyValueStore>,
+        query: EventFilter,
+        cursor: Option<EventID>,
+        limit: usize,
+        descending: bool,
+    ) -> IotaResult<Vec<(Event, TransactionDigest, usize, Option<u64>)>> {
         let index_store = self.get_indexes()?;
 
         // Get the tx_num from tx_digest
         let (tx_num, event_num) = if let Some(cursor) = cursor.as_ref() {
-            let tx_seq = index_store.get_transaction_seq(&cursor.tx_digest)?.ok_or(
+            let tx_seq = index_store.lookup_digest(&cursor.tx_digest)?.ok_or(
                 IotaError::TransactionNotFound {
                     digest: cursor.tx_digest,
                 },
             )?;
-            (tx_seq, cursor.event_seq as usize)
+            let event = (tx_seq, cursor.event_seq as usize);
+            // The page below drops its first row as the cursor's own, which is
+            // only right for an event the index holds.
+            if index_store.event_timestamp(event)?.is_none() {
+                return Err(IotaError::TransactionEventsNotFound {
+                    digest: cursor.tx_digest,
+                });
+            }
+            event
         } else if descending {
             (u64::MAX, usize::MAX)
         } else {
@@ -4711,9 +5035,6 @@ impl AuthorityState {
                         ),
                     });
                 }
-            }
-            EventFilter::Transaction(digest) => {
-                index_store.events_by_transaction(&digest, tx_num, event_num, limit, descending)?
             }
             EventFilter::MoveModule { package, module } => {
                 let module_id = ModuleId::new(
@@ -4736,8 +5057,13 @@ impl AuthorityState {
             EventFilter::TimeRange {
                 start_time,
                 end_time,
-            } => index_store
-                .event_iterator(start_time, end_time, tx_num, event_num, limit, descending)?,
+            } => index_store.event_iterator(
+                start_time,
+                end_time,
+                cursor.is_some().then_some((tx_num, event_num)),
+                limit,
+                descending,
+            )?,
             EventFilter::MoveEventModule { package, module } => index_store
                 .events_by_move_event_module(
                     &ModuleId::new(
@@ -4750,7 +5076,9 @@ impl AuthorityState {
                     descending,
                 )?,
             // not using "_ =>" because we want to make sure we remember to add new variants here
-            EventFilter::Package(_)
+            // Answered by `query_events` from the transaction's own events.
+            EventFilter::Transaction(_)
+            | EventFilter::Package(_)
             | EventFilter::MoveEventField { .. }
             | EventFilter::Any(_)
             | EventFilter::And(_, _)
@@ -4785,10 +5113,9 @@ impl AuthorityState {
             .multi_get_events_by_tx_digests(&transaction_digests)
             .await?;
 
-        let events_map: HashMap<_, _> =
-            transaction_digests.iter().zip(events.into_iter()).collect();
+        let events_map: HashMap<_, _> = transaction_digests.iter().zip(events).collect();
 
-        let stored_events = event_keys
+        event_keys
             .into_iter()
             .map(|k| {
                 (
@@ -4803,28 +5130,82 @@ impl AuthorityState {
             .map(
                 |((_event_digest, tx_digest, event_seq, timestamp), event)| {
                     event
-                        .map(|e| (e, tx_digest, event_seq, timestamp))
+                        .map(|e| (e, tx_digest, event_seq, Some(timestamp)))
                         .ok_or(IotaError::TransactionEventsNotFound { digest: tx_digest })
                 },
             )
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()
+    }
 
-        let epoch_store = self.load_epoch_store_one_call_per_task();
-        let backing_store = self.get_backing_package_store().as_ref();
-        let mut layout_resolver = epoch_store
-            .executor()
-            .type_layout_resolver(Box::new(backing_store));
-        let mut events = vec![];
-        for (e, tx_digest, event_seq, timestamp) in stored_events.into_iter() {
-            events.push(IotaEvent::try_from(
-                e.clone(),
-                tx_digest,
-                event_seq as u64,
-                Some(timestamp),
-                layout_resolver.get_annotated_layout(&e.struct_tag)?,
-            )?)
+    /// The page of `digest`'s events after `cursor`, which must name one of
+    /// them, read from the transaction's stored events; at most `limit`.
+    async fn transaction_events_page(
+        kv_store: &Arc<TransactionKeyValueStore>,
+        digest: TransactionDigest,
+        cursor: Option<EventID>,
+        limit: usize,
+        descending: bool,
+    ) -> IotaResult<Vec<(Event, TransactionDigest, usize, Option<u64>)>> {
+        let effects = kv_store.get_fx_by_tx_digest(digest).await?;
+        let events = match effects.events_digest() {
+            None => Vec::new(),
+            Some(_) => {
+                kv_store
+                    .multi_get_events_by_tx_digests(&[digest])
+                    .await?
+                    .into_iter()
+                    .next()
+                    .flatten()
+                    .ok_or(IotaError::TransactionEventsNotFound { digest })?
+                    .0
+            }
+        };
+        let after = match cursor {
+            None => None,
+            Some(cursor) if cursor.tx_digest != digest => {
+                return Err(IotaError::UserInput {
+                    error: UserInputError::Unsupported(
+                        "the cursor must name an event of the transaction the filter names"
+                            .to_string(),
+                    ),
+                });
+            }
+            Some(cursor) if cursor.event_seq as usize >= events.len() => {
+                return Err(IotaError::TransactionEventsNotFound { digest });
+            }
+            Some(cursor) => Some(cursor.event_seq as usize),
+        };
+        let page: Vec<usize> = if descending {
+            (0..after.unwrap_or(events.len()))
+                .rev()
+                .take(limit)
+                .collect()
+        } else {
+            (after.map_or(0, |seq| seq + 1)..events.len())
+                .take(limit)
+                .collect()
+        };
+        if page.is_empty() {
+            return Ok(Vec::new());
         }
-        Ok(events)
+        // The checkpoint's time, as the index records it; none before the
+        // transaction is in a checkpoint.
+        let timestamp = match kv_store
+            .get_transaction_perpetual_checkpoint(digest)
+            .await?
+        {
+            Some(checkpoint) => Some(
+                kv_store
+                    .get_checkpoint_summary(checkpoint)
+                    .await?
+                    .timestamp_ms,
+            ),
+            None => None,
+        };
+        Ok(page
+            .into_iter()
+            .map(|seq| (events[seq].clone(), digest, seq, timestamp))
+            .collect())
     }
 
     pub fn insert_genesis_object(&self, object: Object) {
@@ -5014,64 +5395,6 @@ impl AuthorityState {
         Ok(VerifiedSignedTransactionEffects::new_unchecked(
             signed_effects,
         ))
-    }
-
-    // Returns coin objects for indexing for fullnode if indexing is enabled.
-    #[instrument(level = "trace", skip_all)]
-    fn fullnode_only_get_tx_coins_for_indexing(
-        &self,
-        effects: &TransactionEffects,
-        inner_temporary_store: &InnerTemporaryStore,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> Option<TxCoins> {
-        if self.indexes.is_none() || self.is_committee_validator(epoch_store) {
-            return None;
-        }
-        let written_coin_objects = inner_temporary_store
-            .written
-            .iter()
-            .filter_map(|(k, v)| {
-                if v.is_coin() {
-                    Some((*k, v.clone()))
-                } else {
-                    None
-                }
-            })
-            .collect();
-        let mut input_coin_objects = inner_temporary_store
-            .input_objects
-            .iter()
-            .filter_map(|(k, v)| {
-                if v.is_coin() {
-                    Some((*k, v.clone()))
-                } else {
-                    None
-                }
-            })
-            .collect::<ObjectMap>();
-
-        // Check for receiving objects that were actually used and modified during
-        // execution. Their updated version will already showup in
-        // "written_coins" but their input isn't included in the set of input
-        // objects in a inner_temporary_store.
-        for modified in effects.modified_at_versions() {
-            let (object_id, version) = (*modified.object_id(), modified.version());
-            if inner_temporary_store
-                .loaded_runtime_objects
-                .contains_key(&object_id)
-            {
-                if let Some(object) = self
-                    .get_object_store()
-                    .get_object_by_key(&object_id, version)
-                {
-                    if object.is_coin() {
-                        input_coin_objects.insert(object_id, object);
-                    }
-                }
-            }
-        }
-
-        Some((input_coin_objects, written_coin_objects))
     }
 
     /// Get the transaction envelope that currently locks the given object, if
@@ -5755,7 +6078,7 @@ impl AuthorityState {
             epoch_store,
         )?;
 
-        let (temporary_store, effects, _execution_error_opt) = self.execute_transaction(
+        let (temporary_store, effects, _execution_error_opt, _) = self.execute_transaction(
             &execution_guard,
             &executable_tx,
             input_objects,
@@ -6356,6 +6679,7 @@ impl AuthorityState {
     ) -> impl Iterator<Item = authority_store_tables::LiveObject> + '_ {
         self.get_global_state_hash_store()
             .iter_cached_live_object_set_for_testing()
+            .map(|live_object| live_object.expect("reading the live object set cannot fail"))
     }
 
     #[cfg(test)]
@@ -6609,8 +6933,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         object_id: ObjectId,
         version: VersionNumber,
     ) -> IotaResult<Option<Object>> {
-        self.get_object_cache_reader()
-            .try_get_object_by_key(&object_id, version)
+        self.get_object_with_historic_fallback(&ObjectKey(object_id, version))
     }
 
     #[instrument(skip_all)]
@@ -6618,9 +6941,12 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         &self,
         object_keys: &[ObjectKey],
     ) -> IotaResult<Vec<Option<Object>>> {
-        Ok(self
+        let mut objects = self
             .get_object_cache_reader()
-            .multi_get_objects_by_key(object_keys))
+            .multi_get_objects_by_key(object_keys);
+        self.historic_objects
+            .fill_missing(object_keys, &mut objects, None)?;
+        Ok(objects)
     }
 
     async fn multi_get_transactions_perpetual_checkpoints(

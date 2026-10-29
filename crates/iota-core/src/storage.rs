@@ -27,9 +27,11 @@ use parking_lot::Mutex;
 use tracing::instrument;
 
 use crate::{
-    authority::AuthorityState, checkpoints::CheckpointStore,
-    epoch::committee_store::CommitteeStore, execution_cache::ExecutionCacheTraitPointers,
-    grpc_indexes::GrpcIndexesStore,
+    authority::AuthorityState,
+    checkpoints::CheckpointStore,
+    epoch::committee_store::CommitteeStore,
+    execution_cache::ExecutionCacheTraitPointers,
+    rpc_indexes::{RpcIndexesStore, schema::IndexGroup},
 };
 
 #[derive(Clone)]
@@ -190,41 +192,61 @@ impl ReadStore for RocksDbStore {
             return Ok(Some(contents.as_ref().clone()));
         }
 
-        // Otherwise gather it from the individual components.
-        self.checkpoint_store
-            .get_checkpoint_contents(digest)
+        // Otherwise gather it from the individual components: in two batched
+        // reads of the checkpoint's epoch, where a checkpoint's transactions
+        // and effects are stored, and one by one through every epoch for what
+        // those miss, such as a transaction still only in memory.
+        let Some((epoch, contents)) = self
+            .checkpoint_store
+            .get_checkpoint_contents_with_epoch(digest)
             .map_err(iota_types::storage::error::Error::custom)?
-            .map(|contents| {
-                let mut transactions = Vec::with_capacity(contents.len());
-                for tx in contents.iter() {
-                    if let (Some(t), Some(e)) = (
-                        self.try_get_transaction(&tx.transaction)?,
-                        self.cache_traits
-                            .transaction_cache_reader
-                            .try_get_effects(&tx.effects)
-                            .map_err(iota_types::storage::error::Error::custom)?,
-                    ) {
-                        transactions.push(iota_types::base_types::ExecutionData::new(
-                            (*t).clone().into_inner(),
-                            e,
-                        ))
-                    } else {
-                        return Result::<
-                            Option<FullCheckpointContents>,
-                            iota_types::storage::error::Error,
-                        >::Ok(None);
-                    }
-                }
-                FullCheckpointContents::from_contents_and_execution_data(
-                    contents,
-                    transactions.into_iter(),
-                )
-                .map(Some)
-                .map_err(iota_types::storage::error::Error::custom)
-            })
-            .transpose()
-            .map(|contents| contents.flatten())
-            .map_err(iota_types::storage::error::Error::custom)
+        else {
+            return Ok(None);
+        };
+        let reader = &self.cache_traits.transaction_cache_reader;
+        let tx_digests: Vec<_> = contents.iter().map(|tx| tx.transaction).collect();
+        let fx_digests: Vec<_> = contents.iter().map(|tx| tx.effects).collect();
+        let transactions = reader
+            .try_multi_get_transaction_blocks_in_epoch(epoch, &tx_digests)
+            .map_err(iota_types::storage::error::Error::custom)?;
+        let effects = reader
+            .try_multi_get_effects_in_epoch(epoch, &fx_digests)
+            .map_err(iota_types::storage::error::Error::custom)?;
+        let mut execution_data = Vec::with_capacity(contents.len());
+        for (((tx_digest, fx_digest), transaction), effects) in tx_digests
+            .iter()
+            .zip(&fx_digests)
+            .zip(transactions)
+            .zip(effects)
+        {
+            let transaction = match transaction {
+                Some(transaction) => transaction,
+                None => match self.try_get_transaction(tx_digest)? {
+                    Some(transaction) => transaction,
+                    None => return Ok(None),
+                },
+            };
+            let effects = match effects {
+                Some(effects) => effects,
+                None => match reader
+                    .try_get_effects(fx_digest)
+                    .map_err(iota_types::storage::error::Error::custom)?
+                {
+                    Some(effects) => effects,
+                    None => return Ok(None),
+                },
+            };
+            execution_data.push(iota_types::base_types::ExecutionData::new(
+                (*transaction).clone().into_inner(),
+                effects,
+            ));
+        }
+        FullCheckpointContents::from_contents_and_execution_data(
+            contents,
+            execution_data.into_iter(),
+        )
+        .map(Some)
+        .map_err(iota_types::storage::error::Error::custom)
     }
 
     fn try_get_committee(
@@ -370,6 +392,10 @@ impl WriteStore for RocksDbStore {
         checkpoint: &VerifiedCheckpoint,
         contents: VerifiedCheckpointContents,
     ) -> Result<(), iota_types::storage::error::Error> {
+        // Transactions go into the bucket of the epoch that executed them, the
+        // contents into that of the epoch that closed the checkpoint. State
+        // sync runs ahead of execution, so either may be an epoch this node
+        // has not begun executing.
         self.cache_traits
             .state_sync_store
             .try_multi_insert_transaction_and_effects(contents.transactions())
@@ -459,10 +485,15 @@ impl GrpcReadStore {
         Self { state, rocks }
     }
 
-    fn grpc_indexes_store(&self) -> iota_types::storage::error::Result<&GrpcIndexesStore> {
-        self.state.grpc_indexes_store.as_deref().ok_or_else(|| {
-            iota_types::storage::error::Error::custom("gRPC index store is disabled")
-        })
+    /// The index store when this node maintains the gRPC group's tables.
+    fn grpc_indexes_store(&self) -> iota_types::storage::error::Result<&RpcIndexesStore> {
+        self.state
+            .rpc_indexes_store
+            .as_deref()
+            .filter(|store| store.serves(IndexGroup::Grpc))
+            .ok_or_else(|| {
+                iota_types::storage::error::Error::custom("gRPC index store is disabled")
+            })
     }
 }
 
@@ -474,12 +505,18 @@ impl ObjectStore for GrpcReadStore {
         self.rocks.try_get_object(object_id)
     }
 
+    /// Unlike [`RocksDbStore`], falls back to the historic buckets on a live
+    /// miss, since gRPC responses read past versions by exact key and those
+    /// leave the live table when their checkpoint commits. `RocksDbStore` has
+    /// no fallback because state sync reads through it, where a miss is a bug.
     fn try_get_object_by_key(
         &self,
         object_id: &iota_sdk_types::ObjectId,
         version: iota_types::base_types::VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
-        self.rocks.try_get_object_by_key(object_id, version)
+        self.state
+            .get_object_with_historic_fallback(&ObjectKey(*object_id, version))
+            .map_err(StorageError::custom)
     }
 }
 
@@ -596,13 +633,14 @@ impl GrpcStateReader for GrpcReadStore {
     fn get_lowest_available_checkpoint_objects(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
-        Ok(self
-            .state
-            .get_object_cache_reader()
-            .try_get_highest_pruned_checkpoint()
-            .map_err(StorageError::custom)?
-            .map(|cp| cp + 1)
-            .unwrap_or(0))
+        self.rocks
+            .checkpoint_store
+            .lowest_checkpoint_with_retained_objects(
+                self.state.get_historic_objects().earliest_readable_epoch(),
+                self.state.get_historic_objects().objects_pruned_through,
+                self.state.get_historic_objects().backlog_sweep_epoch(),
+            )
+            .map_err(StorageError::custom)
     }
 
     fn get_chain_identifier(&self) -> Result<iota_types::digests::ChainIdentifier> {
@@ -631,6 +669,25 @@ impl GrpcStateReader for GrpcReadStore {
 
     fn grpc_indexes(&self) -> Option<&dyn GrpcIndexes> {
         self.grpc_indexes_store().ok().map(|index| index as _)
+    }
+
+    /// Answered from the ledger rather than the RPC index, so a node
+    /// retaining fewer index epochs than ledger epochs still reports
+    /// confirmation for every transaction it has. Reported only once the RPC
+    /// indexes have caught up with the checkpoint, so that an index-backed
+    /// read sent right after sees the transaction.
+    fn get_transaction_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+        let indexed_through = self.state.get_latest_checkpoint_sequence_number().ok();
+        Ok(self
+            .state
+            .get_checkpoint_cache()
+            .try_get_transaction_perpetual_checkpoint(digest)
+            .map_err(iota_types::storage::error::Error::custom)?
+            .map(|(_epoch, checkpoint)| checkpoint)
+            .filter(|checkpoint| indexed_through.is_some_and(|i| *checkpoint <= i)))
     }
 
     fn get_struct_layout(

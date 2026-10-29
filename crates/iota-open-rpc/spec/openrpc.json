@@ -3504,7 +3504,7 @@
           "name": "cursor",
           "description": "optional paging cursor",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/OwnedObjectCursor"
           }
         },
         {
@@ -3518,10 +3518,10 @@
         }
       ],
       "result": {
-        "name": "Page<Coin,ObjectIdSchema>",
+        "name": "Page<Coin,OwnedObjectCursor>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_Coin_and_OwnedObjectCursor"
         }
       },
       "examples": [
@@ -3779,7 +3779,7 @@
           "name": "cursor",
           "description": "optional paging cursor",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/OwnedObjectCursor"
           }
         },
         {
@@ -3793,10 +3793,10 @@
         }
       ],
       "result": {
-        "name": "Page<Coin,ObjectIdSchema>",
+        "name": "Page<Coin,OwnedObjectCursor>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_Coin_and_OwnedObjectCursor"
         }
       },
       "examples": [
@@ -4366,7 +4366,7 @@
           "name": "cursor",
           "description": "An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/OwnedObjectCursor"
           }
         },
         {
@@ -4380,10 +4380,10 @@
         }
       ],
       "result": {
-        "name": "Page<IotaObjectResponse,ObjectIdSchema>",
+        "name": "Page<IotaObjectResponse,OwnedObjectCursor>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_OwnedObjectCursor"
         }
       },
       "examples": [
@@ -4853,7 +4853,7 @@
         {
           "name": "cursor",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/OwnedObjectCursor"
           }
         },
         {
@@ -4872,10 +4872,10 @@
         }
       ],
       "result": {
-        "name": "Page<IotaObjectResponse,ObjectIdSchema>",
+        "name": "Page<IotaObjectResponse,OwnedObjectCursor>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_OwnedObjectCursor"
         }
       }
     },
@@ -10597,6 +10597,10 @@
           "ByValue"
         ]
       },
+      "OwnedObjectCursor": {
+        "description": "An opaque paging cursor. Pass back the `nextCursor` a page returned to read the page after it; its contents are not part of the API.",
+        "type": "string"
+      },
       "OwnedObjectRef": {
         "type": "object",
         "required": [
@@ -10708,7 +10712,7 @@
           }
         }
       },
-      "Page_for_Coin_and_ObjectID": {
+      "Page_for_Coin_and_OwnedObjectCursor": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -10728,7 +10732,7 @@
           "nextCursor": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/OwnedObjectCursor"
               },
               {
                 "type": "null"
@@ -10880,7 +10884,7 @@
           }
         }
       },
-      "Page_for_IotaObjectResponse_and_ObjectID": {
+      "Page_for_IotaObjectResponse_and_OwnedObjectCursor": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -10900,7 +10904,7 @@
           "nextCursor": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/OwnedObjectCursor"
               },
               {
                 "type": "null"

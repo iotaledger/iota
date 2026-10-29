@@ -33,6 +33,7 @@ use crate::{
     iota_sdk_types_conversions::type_tag_sdk_to_core,
     layout_resolver::LayoutResolver,
     move_package::MovePackageExt,
+    storage::ObjectKey,
     timelock::timelock::TimeLock,
 };
 
@@ -905,6 +906,29 @@ impl Display for PastObjectRead {
                 )
             }
         }
+    }
+}
+
+/// A collection of objects keyed by their `(id, version)`, so both the input
+/// and output versions of a mutated object can coexist.
+// For use in memory only; the assert below keeps it from being serialized.
+#[derive(Default, Clone, Debug)]
+pub struct ObjectSet(BTreeMap<ObjectKey, Object>);
+
+static_assertions::assert_not_impl_any!(ObjectSet: Serialize, serde::de::DeserializeOwned);
+
+impl ObjectSet {
+    pub fn get(&self, key: &ObjectKey) -> Option<&Object> {
+        self.0.get(key)
+    }
+
+    pub fn insert(&mut self, object: Object) {
+        self.0
+            .insert(ObjectKey(object.id(), object.version()), object);
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Object> {
+        self.0.values()
     }
 }
 

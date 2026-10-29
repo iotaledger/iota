@@ -4,7 +4,7 @@
 
 use std::{
     cmp::{Eq, min},
-    collections::{BTreeMap, BTreeSet, HashSet, btree_map::Entry},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, btree_map::Entry},
     fmt::{Debug, Display, Formatter, Write},
     fs,
     path::{Path, PathBuf},
@@ -26,7 +26,7 @@ use iota_json_rpc_types::{
     IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData, IotaObjectDataOptions,
     IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData, IotaProtocolConfigValue,
     IotaRawData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, OwnedObjectCursor,
     get_new_package_obj_from_response,
 };
 use iota_keys::keystore::{AccountKeystore, StoredKey};
@@ -829,21 +829,28 @@ impl IotaClientCommands {
                 let client = context.get_client().await?;
 
                 let objects =
-                    PagedFn::collect::<Vec<_>>(async |cursor: Option<ObjectId>| match coin_type {
-                        Some(ref coin_type) => {
-                            client
-                                .coin_read_api()
-                                .get_coins(address, Some(coin_type.clone()), cursor, None)
-                                .await
-                        }
-                        None => {
-                            client
-                                .coin_read_api()
-                                .get_all_coins(address, cursor, None)
-                                .await
+                    PagedFn::collect::<Vec<_>>(async |cursor: Option<OwnedObjectCursor>| {
+                        match coin_type {
+                            Some(ref coin_type) => {
+                                client
+                                    .coin_read_api()
+                                    .get_coins(address, Some(coin_type.clone()), cursor, None)
+                                    .await
+                            }
+                            None => {
+                                client
+                                    .coin_read_api()
+                                    .get_all_coins(address, cursor, None)
+                                    .await
+                            }
                         }
                     })
                     .await?;
+                // Pages are ordered by balance, so a coin whose balance changes
+                // while they are read can come back on a later page, with a
+                // higher version.
+                let objects =
+                    newest_versions(objects, |coin| Some((coin.coin_object_id, coin.version)));
 
                 fn canonicalize_type(type_: &str) -> Result<String, anyhow::Error> {
                     Ok(TypeTag::from_str(type_)
@@ -1514,20 +1521,30 @@ impl IotaClientCommands {
             IotaClientCommands::Objects { address } => {
                 let address = get_identity_address(address, context).await?;
                 let client = context.get_client().await?;
-                let objects = PagedFn::collect(async |cursor: Option<ObjectId>| {
-                    client
-                        .read_api()
-                        .get_owned_objects(
-                            address,
-                            Some(IotaObjectResponseQuery::new_with_options(
-                                IotaObjectDataOptions::full_content(),
-                            )),
-                            cursor,
-                            None,
-                        )
-                        .await
-                })
-                .await?;
+                let objects: Vec<IotaObjectResponse> =
+                    PagedFn::collect(async |cursor: Option<OwnedObjectCursor>| {
+                        client
+                            .read_api()
+                            .get_owned_objects(
+                                address,
+                                Some(IotaObjectResponseQuery::new_with_options(
+                                    IotaObjectDataOptions::full_content(),
+                                )),
+                                cursor,
+                                None,
+                            )
+                            .await
+                    })
+                    .await?;
+                // Coins are ordered by balance, so a coin whose balance changes
+                // while the pages are read can come back on a later page, with
+                // a higher version.
+                let objects = newest_versions(objects, |object| {
+                    object
+                        .data
+                        .as_ref()
+                        .map(|data| (data.object_id, data.version))
+                });
                 IotaClientCommandResult::Objects(objects)
             }
             IotaClientCommands::NewAddress {
@@ -3969,6 +3986,33 @@ async fn update_lock_file(
     )
 }
 
+/// `items` in their order, with each object once: an object that occurs more
+/// than once keeps the place of its first occurrence and the contents of its
+/// highest version. Items `key` gives no object for are all kept.
+fn newest_versions<T>(items: Vec<T>, key: impl Fn(&T) -> Option<(ObjectId, Version)>) -> Vec<T> {
+    let mut positions: HashMap<ObjectId, usize> = HashMap::new();
+    let mut kept: Vec<T> = Vec::with_capacity(items.len());
+    for item in items {
+        let Some((id, version)) = key(&item) else {
+            kept.push(item);
+            continue;
+        };
+        match positions.entry(id) {
+            std::collections::hash_map::Entry::Occupied(position) => {
+                let held = &mut kept[*position.get()];
+                if key(held).is_some_and(|(_, held_version)| version > held_version) {
+                    *held = item;
+                }
+            }
+            std::collections::hash_map::Entry::Vacant(position) => {
+                position.insert(kept.len());
+                kept.push(item);
+            }
+        }
+    }
+    kept
+}
+
 #[cfg(test)]
 mod tests_process_auth_args {
     use iota_sdk_types::Address;
@@ -4073,5 +4117,33 @@ mod tests_process_auth_args {
         let type_args = vec!["u64".to_string(), "bool".to_string()];
         let (types, _) = process_auth_args(None, Some(&type_args), signer).unwrap();
         assert_eq!(types.len(), 2);
+    }
+}
+
+#[cfg(test)]
+mod tests_newest_versions {
+    use super::*;
+
+    /// An object that occurs again with a higher version keeps its first place
+    /// with the newer contents; an older copy and items without an object are
+    /// kept as they are.
+    #[test]
+    fn an_object_keeps_its_first_place_and_its_highest_version() {
+        let (a, b) = (ObjectId::random(), ObjectId::random());
+        let items = vec![
+            Some((a, Version::from_u64(1), "a1")),
+            None,
+            Some((b, Version::from_u64(2), "b2")),
+            Some((a, Version::from_u64(3), "a3")),
+            Some((b, Version::from_u64(1), "b1")),
+            None,
+        ];
+
+        let kept = newest_versions(items, |item| item.map(|(id, version, _)| (id, version)));
+        let names: Vec<_> = kept
+            .iter()
+            .map(|item| item.map(|(_, _, name)| name))
+            .collect();
+        assert_eq!(names, [Some("a3"), None, Some("b2"), None]);
     }
 }

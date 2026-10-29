@@ -381,8 +381,9 @@ impl SharedReader<Dropped> {
 // any stored version gives it, and the latest store object is used even when
 // rows exist: that answer is the same on every validator. Once the object is
 // gone, the version its deletion replaced gives it. The deletion is above the
-// horizon, since one at or below it drops the input, so pruning still keeps
-// that version.
+// horizon, since one at or below it drops the input, so that version is in
+// the live state or, once the deletion commits, in this epoch's historic
+// objects bucket.
 
 /// A kept shared input whose type is wanted. Nothing read yet.
 pub struct TypeStart;
@@ -457,13 +458,10 @@ pub struct TypeNeedBytes {
 impl SharedState for TypeNeedBytes {}
 
 impl SharedReader<TypeNeedBytes> {
-    /// Loads the object at exactly that version. Pruning keeps it, so a
-    /// missing object is a storage error.
+    /// Loads the object at exactly that version, see
+    /// [`CommitIndexedReader::load_kept_version`].
     pub fn load_bytes(self, ctx: &CommitIndexedReader) -> IotaResult<Object> {
-        let key = ObjectKey(self.id, self.state.version);
-        ctx.cache
-            .try_get_object_by_key(&key.0, key.1)?
-            .ok_or_else(|| IotaError::Storage(format!("no bytes for {key:?} in the object store")))
+        ctx.load_kept_version(&ObjectKey(self.id, self.state.version))
     }
 }
 
