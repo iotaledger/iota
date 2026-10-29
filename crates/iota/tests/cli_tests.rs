@@ -21,7 +21,7 @@ use iota::{
     PrintableResult,
     client_commands::{
         DisplayOption, GasDataArgs, IotaClientCommandResult, IotaClientCommands, PaymentArgs,
-        SwitchResponse, TxProcessingArgs, estimate_gas_budget,
+        SwitchResponse, TxProcessingArgs, budget_took_the_gas_coins, estimate_gas_budget,
     },
     client_ptb::ptb::{PTB, PTBCommandResult},
     displays::DryRunOutput,
@@ -4830,6 +4830,51 @@ async fn test_local_dry_run_reports_the_same_gas_budget() -> Result<(), anyhow::
                 ..dry_run(local)
             },
         )
+    })
+    .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_same_dry_run(&node, &local);
+
+    Ok(())
+}
+
+// `pay-iota` with input coins below the maximum budget has nothing left to pay
+// with when the budget is unset, and is told to set one.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_dry_run_without_gas_budget_reserves_the_gas_coins() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, _, rgp, [gas_id, _, _], [recipient, _], _) = test_cluster_helper().await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+
+    let small_coin = IotaClientCommands::PayIota {
+        input_coins: Some(vec![gas_id]),
+        recipients: vec![KeyIdentity::Address(address)],
+        amounts: vec![1_000_000_000],
+        gas_data: gas_budget(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+        processing: TxProcessingArgs::default(),
+    }
+    .execute(context)
+    .await?;
+    let IotaClientCommandResult::TransactionBlock(response) = small_coin else {
+        panic!("expected a TransactionBlock result");
+    };
+    let small_coin = response.effects.unwrap().created()[0].reference.object_id;
+    let pay_from_small_coin = |local, gas_data| IotaClientCommands::PayIota {
+        input_coins: Some(vec![small_coin]),
+        recipients: vec![recipient.clone()],
+        amounts: vec![1],
+        gas_data,
+        processing: dry_run(local),
+    };
+    for local in [false, true] {
+        let result = pay_from_small_coin(local, GasDataArgs::default())
+            .execute(context)
+            .await?;
+        assert!(budget_took_the_gas_coins(&result, None, true), "{result}");
+    }
+    let (node, local) = dry_run_on_both_backends(context, |local| {
+        pay_from_small_coin(local, gas_budget(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER))
     })
     .await?;
     assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);

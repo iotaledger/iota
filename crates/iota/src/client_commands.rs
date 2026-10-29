@@ -3230,6 +3230,38 @@ pub async fn estimate_gas_budget(
     }
 }
 
+/// Whether a dry run without `--gas-budget` but with gas coins failed for lack
+/// of coin balance. An unset budget is filled in with the gas coins' whole
+/// balance (up to the protocol maximum: 50 IOTA), so nothing is left to split from the
+/// gas coin.
+pub fn budget_took_the_gas_coins(
+    result: &IotaClientCommandResult,
+    gas_budget: Option<u64>,
+    gas_coins_given: bool,
+) -> bool {
+    let IotaClientCommandResult::DryRun(DryRunOutput { response, .. }) = result else {
+        return false;
+    };
+    gas_budget.is_none()
+        && gas_coins_given
+        && matches!(
+            response.effects.status(),
+            IotaExecutionStatus::Failure { error } if error.contains("Insufficient coin balance")
+        )
+}
+
+fn warn_if_budget_took_the_gas_coins(
+    result: &IotaClientCommandResult,
+    gas_budget: Option<u64>,
+    gas_coins_given: bool,
+) {
+    if budget_took_the_gas_coins(result, gas_budget, gas_coins_given) {
+        let warn_msg = "Without --gas-budget the dry run uses the gas coins' whole balance as the budget, so none of it can be split from the gas coin. Provide a lower --gas-budget.";
+        warn!(warn_msg);
+        eprintln!("{}", warn_msg.yellow().bold());
+    }
+}
+
 pub fn estimate_gas_budget_from_gas_cost(
     gas_cost_summary: &GasCostSummary,
     reference_gas_price: u64,
@@ -3354,8 +3386,10 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         "--sponsor-auth-call-args and --sponsor-auth-type-args require --gas-sponsor with an address different from the sender."
     );
 
+    let gas_coins_given = !gas_payment.is_empty();
+
     if dry_run && local {
-        return execute_local_dry_run(
+        let result = execute_local_dry_run(
             context,
             signer,
             tx_kind,
@@ -3364,7 +3398,9 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             gas_payment,
             gas_sponsor,
         )
-        .await;
+        .await?;
+        warn_if_budget_took_the_gas_coins(&result, gas_budget, gas_coins_given);
+        return Ok(result);
     }
 
     let gas_price = if let Some(gas_price) = gas_price {
@@ -3388,7 +3424,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     }
 
     if dry_run {
-        return execute_dry_run(
+        let result = execute_dry_run(
             context,
             signer,
             tx_kind,
@@ -3397,7 +3433,9 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             gas_payment,
             gas_sponsor,
         )
-        .await;
+        .await?;
+        warn_if_budget_took_the_gas_coins(&result, gas_budget, gas_coins_given);
+        return Ok(result);
     }
 
     let gas_budget = match gas_budget {
