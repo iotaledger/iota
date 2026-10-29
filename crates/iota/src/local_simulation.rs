@@ -62,9 +62,7 @@ pub(crate) async fn execute_local_dry_run(
         gas_payment,
         sponsor,
     )?;
-    IotaClientCommandResult::LocalDryRun(response)
-        .prerender_clever_errors(context)
-        .await
+    Ok(IotaClientCommandResult::LocalDryRun(response))
 }
 
 fn run_dry_run(

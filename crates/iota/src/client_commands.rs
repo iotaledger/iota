@@ -3256,9 +3256,7 @@ pub async fn execute_dry_run(
     debug!("Executing dry run");
     let response = client.read_api().dry_run_transaction_block(tx).await?;
     debug!("Finished executing dry run {response:?}");
-    IotaClientCommandResult::DryRun(response)
-        .prerender_clever_errors(context)
-        .await
+    Ok(IotaClientCommandResult::DryRun(response))
 }
 
 /// Call a dry run with the transaction data to estimate the gas budget.
