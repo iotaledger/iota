@@ -2692,10 +2692,12 @@ impl DagState {
             .last()
             .map(|block_ref| block_ref.round)
             .unwrap_or(GENESIS_ROUND);
-        // Keep at least cached_rounds of blocks, but never evict above the
-        // global GC round derived from the last commit.
+        // Keep at least cached_rounds of blocks and evict nothing above the GC
+        // round of the last commit. Never go below the current round: recovery
+        // loads no headers at or below it.
         self.gc_round_for_last_commit()
             .min(Self::eviction_round(last_round, self.cached_rounds))
+            .max(self.evicted_header_rounds[authority_index])
     }
 
     /// Calculates the last eviction round based on the provided `commit_round`.
