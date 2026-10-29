@@ -92,25 +92,24 @@ pub(crate) struct CheckpointExecutionData {
 }
 
 impl CheckpointExecutionData {
-    /// The verdicts the summary certifies, one per transaction in contents
-    /// order; all `None` before summary version 2.
+    /// The records the summary certifies, one slot per transaction in contents
+    /// order; `None` where the attestation was valid or there was none.
     ///
     /// # Panics
     ///
-    /// If a version 2 summary does not carry exactly one slot per transaction,
-    /// which a certified checkpoint cannot do without a protocol bug.
+    /// If a certified entry lies outside the checkpoint, which a certified
+    /// checkpoint cannot do without a protocol bug.
     fn certified_attestations(&self) -> Vec<Option<AttestationRecord>> {
-        match &self.version_specific_data {
-            Some(CheckpointVersionSpecificData::V2(data)) => {
-                assert_eq!(
-                    data.attestations.len(),
-                    self.tx_digests.len(),
-                    "certified summary must carry one attestation slot per transaction"
-                );
-                data.attestations.clone()
+        let mut records = vec![None; self.tx_digests.len()];
+        if let Some(CheckpointVersionSpecificData::V2(data)) = &self.version_specific_data {
+            for entry in &data.attestation_entries {
+                let slot = records
+                    .get_mut(entry.position as usize)
+                    .expect("a certified entry position is within the checkpoint");
+                *slot = Some(entry.record);
             }
-            _ => vec![None; self.tx_digests.len()],
         }
+        records
     }
 }
 
@@ -906,7 +905,7 @@ impl CheckpointExecutor {
         }
     }
 
-    /// Compares the verdicts this node recorded for the already-executed
+    /// Compares the records this node recorded for the already-executed
     /// transactions with the certified ones.
     fn check_executed_attestation_records(
         &self,
@@ -914,11 +913,17 @@ impl CheckpointExecutor {
         executed_fx_digests: &[Option<TransactionEffectsDigest>],
         certified_attestations: &[Option<AttestationRecord>],
     ) {
+        // Without attestation no transaction has a record to read.
+        if !self
+            .epoch_store
+            .protocol_config()
+            .enable_validator_attestation()
+        {
+            return;
+        }
         let (digests, certified): (Vec<_>, Vec<_>) =
             itertools::izip!(tx_digests, executed_fx_digests, certified_attestations)
-                .filter_map(|(digest, executed, record)| {
-                    executed.and(*record).map(|record| (*digest, record))
-                })
+                .filter_map(|(digest, executed, record)| executed.map(|_| (*digest, *record)))
                 .unzip();
         if digests.is_empty() {
             return;
@@ -927,7 +932,7 @@ impl CheckpointExecutor {
             .transaction_cache_reader
             .multi_get_attestation_records(&digests);
         for (digest, certified, local) in itertools::izip!(digests, certified, local) {
-            if local != Some(certified) {
+            if attestation_record_differs(local, certified) {
                 self.metrics
                     .checkpoint_exec_attestation_verdict_mismatches
                     .inc();
@@ -1204,4 +1209,14 @@ impl CheckpointExecutor {
             }
         }
     }
+}
+
+/// Whether the record a node stored for an executed transaction disagrees
+/// with the certified one. Only records other than `Valid` are certified, so
+/// a valid local record matches no certified one.
+fn attestation_record_differs(
+    local: Option<AttestationRecord>,
+    certified: Option<AttestationRecord>,
+) -> bool {
+    local.filter(|record| !record.verdict.is_valid()) != certified
 }

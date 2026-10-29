@@ -1442,7 +1442,7 @@ pub struct ProtocolConfig {
     checkpoint_rate_window_size: Option<u64>,
 
     /// Version number to use for version_specific_data in `CheckpointSummary`.
-    /// 2 adds the per-transaction attestation records and is required by
+    /// 2 adds the attestation entries and totals and is required by
     /// `enable_validator_attestation`.
     checkpoint_summary_version_specific_data: Option<u64>,
 
@@ -1451,7 +1451,15 @@ pub struct ProtocolConfig {
     /// up to `gas_rounding_step` and capped at the budget on out-of-gas, and
     /// the check only applies when the transaction body ran. Unset disables
     /// it.
-    attestor_reward_accuracy_tolerance_percentage: Option<u64>,
+    attestor_accuracy_tolerance_percentage: Option<u64>,
+
+    /// Wasted authentication units at which one refuted attestation takes the
+    /// attestor's whole epoch reward, through its entry in the change-epoch
+    /// scores; a smaller fault takes the square of its fraction, and zero
+    /// takes the whole reward on the first refuted attestation. The cut
+    /// reaches the reward only under `adjust_rewards_by_score`. Unset
+    /// disables the penalty.
+    attestation_max_fault_units: Option<u64>,
 
     /// The max number of transactions that can be included in a single Soft
     /// Bundle.
@@ -2161,6 +2169,16 @@ impl ProtocolConfig {
                 "enable_validator_attestation requires checkpoint_summary_version_specific_data = 2"
             );
         }
+        if ret.attestation_max_fault_units.is_some() {
+            assert!(
+                ret.enable_validator_attestation(),
+                "attestation_max_fault_units requires enable_validator_attestation"
+            );
+            assert!(
+                ret.pass_validator_scores_to_advance_epoch(),
+                "attestation_max_fault_units requires pass_validator_scores_to_advance_epoch"
+            );
+        }
 
         // The on-chain mirror has no state to mirror without governance itself.
         assert!(
@@ -2712,7 +2730,8 @@ impl ProtocolConfig {
             checkpoint_rate_window_size: None,
 
             checkpoint_summary_version_specific_data: Some(1),
-            attestor_reward_accuracy_tolerance_percentage: None,
+            attestor_accuracy_tolerance_percentage: None,
+            attestation_max_fault_units: None,
 
             max_soft_bundle_size: Some(5),
 

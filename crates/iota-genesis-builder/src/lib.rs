@@ -871,6 +871,7 @@ fn create_genesis_checkpoint(
         parameters.chain_start_timestamp_ms,
         Vec::new(),
         Vec::new(),
+        Default::default(),
     );
 
     (checkpoint, contents)

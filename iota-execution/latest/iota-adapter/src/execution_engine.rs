@@ -493,7 +493,8 @@ mod checked {
     /// This function checks the authentication of a transaction without
     /// returning effects. It executes an authenticate function using the
     /// information of an authenticator. If the execution fails, it returns
-    /// an execution error; otherwise it returns an empty value.
+    /// an execution error; otherwise it returns an empty value. The gas
+    /// status the authentication was metered on is returned alongside.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
     pub fn authenticate_transaction(
         store: &dyn BackingStore,
@@ -522,8 +523,10 @@ mod checked {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
         move_vm: &Arc<MoveVM>,
-    ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
-    {
+    ) -> (
+        IotaGasStatus,
+        Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>,
+    ) {
         // Prepare the gas charger for authentication execution.
         let sponsor = resolve_sponsor(&gas_data, &transaction_signer);
         let gas_price = gas_status.gas_price();
@@ -580,7 +583,8 @@ mod checked {
             },
         );
 
-        report_authentication_error(authentication_execution_result, protocol_config)
+        let result = report_authentication_error(authentication_execution_result, protocol_config);
+        (gas_charger.into_gas_status(), result)
     }
 
     // This function implements the authentication execution. It checks that the

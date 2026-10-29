@@ -13,9 +13,12 @@ use iota_types::{
     account_abstraction::authenticator_function::{
         MoveAuthenticatorForExecution, MoveAuthenticatorsForExecution, extract_auth_fun_refs,
     },
-    attestation::{self, AttestationData, AttestationRecord, AttestationVerdict},
+    attestation::{
+        self, AttestationData, AttestationRecord, AttestationTotals, AttestationVerdict,
+    },
     auth_context::AuthContextData,
-    committee::EpochId,
+    base_types::AuthorityName,
+    committee::{Committee, EpochId},
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
@@ -29,8 +32,9 @@ use iota_types::{
 
 use crate::{
     authority::{
-        AuthorityState, ValidationOutputs, attestation_verdict::ExecutionOutcome,
-        authority_per_epoch_store::AuthorityPerEpochStore,
+        AuthorityState, ValidationOutputs,
+        attestation_verdict::ExecutionOutcome,
+        authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
     },
     execution_scheduler::transaction_manager::AttestationSource,
 };
@@ -273,8 +277,8 @@ impl AuthorityState {
     }
 }
 
-/// The record of an attested transaction's execution: the certified verdict
-/// when executing from a checkpoint, the judged one when executing from
+/// The record of an attested transaction's execution: the certified record
+/// when executing from a checkpoint, the judged verdict when executing from
 /// consensus, nothing for an unattested transaction.
 pub(super) fn attestation_record(
     source: &AttestationSource,
@@ -287,18 +291,56 @@ pub(super) fn attestation_record(
         AttestationSource::Unattested => None,
         AttestationSource::Certified(record) => *record,
         AttestationSource::Attestation(attestation) => {
+            let charged_units =
+                || attestation::computation_units(effects.gas_cost_summary(), gas_price);
             // The claim is only measurable against a body that ran.
-            let executed_units = outcome
-                .body_ran
-                .then(|| attestation::computation_units(effects.gas_cost_summary(), gas_price));
+            let executed_units = outcome.body_ran.then(charged_units);
+            // A refuted authentication wasted both runs: the one execution
+            // charged for and the judge's re-run.
+            let refuted_units = outcome
+                .refuted
+                .map(|rerun_units| charged_units().saturating_add(rerun_units));
             let verdict = AttestationVerdict::new(
-                outcome.refuted,
+                refuted_units,
                 attestation.computation_units(),
                 executed_units,
-                protocol_config.attestor_reward_accuracy_tolerance_percentage_as_option(),
+                protocol_config.attestor_accuracy_tolerance_percentage_as_option(),
             );
             Some(AttestationRecord::new(attestation, verdict))
         }
+    }
+}
+
+/// Cuts each attestor's score by the squared units its refuted attestations
+/// wasted, relative to `max_fault_units`: a fault of that size takes the
+/// whole score, a smaller one the square of its fraction, and zero takes the
+/// whole score on any fault; the cuts add up and the score floors at zero.
+/// The totals are keyed by consensus committee index; `scores` and
+/// `committee_members` follow Move's `committee_members` order, where the cut
+/// must land.
+///
+/// # Panics
+///
+/// If a refuted attestor is missing from `committee` or `committee_members`.
+/// Both come from the same epoch start state, so a certified index is in both.
+pub(crate) fn apply_fault_penalties(
+    scores: &mut [u64],
+    totals: &AttestationTotals,
+    max_fault_units: u64,
+    committee: &Committee,
+    committee_members: &[AuthorityName],
+) {
+    let full_cut = u128::from(max_fault_units).saturating_pow(2).max(1);
+    for (&attestor, &units_squared) in &totals.refuted_units_squared {
+        let name = committee
+            .authority_by_index(u32::from(attestor))
+            .expect("a certified attestor index is in the committee");
+        let position = committee_members
+            .iter()
+            .position(|member| member == name)
+            .expect("a committee member is in the epoch start state");
+        let cut = u128::from(MAX_SCORE) * u128::from(units_squared).min(full_cut) / full_cut;
+        scores[position] = scores[position].saturating_sub(u64::try_from(cut).unwrap_or(u64::MAX));
     }
 }
 
@@ -341,4 +383,45 @@ fn attestable_object_versions(
         .chain(account_object_refs)
         .filter(|oref| !tx_pinned_ids.contains(&oref.object_id))
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A fault of `max_fault_units` takes the whole score, a smaller one the
+    /// square of its fraction, and faults beyond that saturate. The totals are
+    /// keyed by the consensus index, in authority-name order; the cut lands at
+    /// the attestor's position in Move's order.
+    #[test]
+    fn fault_penalties_scale_with_the_square_of_the_wasted_units() {
+        const MAX_FAULT_UNITS: u64 = 10;
+        let (committee, _) = Committee::new_simple_test_committee();
+        // Move's order differs from the committee's: reversed here.
+        let mut committee_members: Vec<AuthorityName> = committee.names().copied().collect();
+        committee_members.reverse();
+        let record = |attestor, verdict| Some(AttestationRecord { attestor, verdict });
+        let refuted = |units| AttestationVerdict::Refuted { units };
+        let totals = AttestationTotals::default().with_records(&[
+            // A full fault: the whole score.
+            record(0, refuted(MAX_FAULT_UNITS)),
+            // Half a fault: a quarter of the score.
+            record(2, refuted(MAX_FAULT_UNITS / 2)),
+            // Far beyond a full fault: still the whole score, nothing more.
+            record(3, refuted(10 * MAX_FAULT_UNITS)),
+            record(1, AttestationVerdict::Valid),
+            None,
+        ]);
+
+        let mut scores = vec![MAX_SCORE; 4];
+        apply_fault_penalties(
+            &mut scores,
+            &totals,
+            MAX_FAULT_UNITS,
+            &committee,
+            &committee_members,
+        );
+        // Index 3 sits first in Move's order, index 0 last.
+        assert_eq!(scores, vec![0, MAX_SCORE - MAX_SCORE / 4, MAX_SCORE, 0]);
+    }
 }

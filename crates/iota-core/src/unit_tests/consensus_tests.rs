@@ -365,6 +365,7 @@ async fn submit_checkpoint_signature_to_consensus_adapter() {
         100,
         Vec::new(),
         Vec::new(),
+        Default::default(),
     );
 
     let authority_key = &keys[0];

@@ -1,6 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeMap;
+
 use iota_sdk_types::{GasCostSummary, ObjectReference, TransactionDigest};
 use serde::{Deserialize, Serialize};
 
@@ -108,23 +110,26 @@ pub enum AttestationVerdict {
     /// dynamic field the dry run read moved before execution, so this is not
     /// by itself evidence against the attestor.
     Inaccurate,
-    /// Authentication failed at the versions the attestor recorded.
-    Refuted,
+    /// Authentication failed at the versions the attestor recorded. `units`
+    /// is the computation the failed runs consumed: the one execution charged
+    /// plus the judge's re-run at the recorded versions, when one was needed.
+    Refuted { units: u64 },
 }
 
 impl AttestationVerdict {
-    /// `executed_units` is `None` when the transaction body never ran, so the
-    /// claim cannot be assessed. `tolerance_percentage` bounds
-    /// `|attested - executed|` as a percentage of the executed units; `None`
-    /// disables the accuracy check.
+    /// `refuted_units` carries the units of both failed runs when the failure
+    /// refutes the attestation. `executed_units` is `None` when the
+    /// transaction body never ran, so the claim cannot be assessed.
+    /// `tolerance_percentage` bounds `|attested - executed|` as a percentage
+    /// of the executed units; `None` disables the accuracy check.
     pub fn new(
-        refuted: bool,
+        refuted_units: Option<u64>,
         attested_units: u64,
         executed_units: Option<u64>,
         tolerance_percentage: Option<u64>,
     ) -> Self {
-        if refuted {
-            return Self::Refuted;
+        if let Some(units) = refuted_units {
+            return Self::Refuted { units };
         }
         let accurate = match (executed_units, tolerance_percentage) {
             (Some(executed), Some(tolerance)) => {
@@ -139,10 +144,14 @@ impl AttestationVerdict {
             Self::Inaccurate
         }
     }
+
+    pub fn is_valid(&self) -> bool {
+        matches!(self, Self::Valid)
+    }
 }
 
 /// The validator's verdict on an attested, executed transaction, certified in
-/// the checkpoint summary.
+/// the checkpoint summary unless `Valid`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AttestationRecord {
     /// Index of the attestor in the committee of the checkpoint's epoch.
@@ -159,6 +168,61 @@ impl AttestationRecord {
             attestor: *authority_index,
             verdict,
         }
+    }
+}
+
+/// A record other than `Valid`, certified in the checkpoint summary at its
+/// transaction's position in the checkpoint contents.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct AttestationEntry {
+    pub position: u32,
+    pub record: AttestationRecord,
+}
+
+impl AttestationEntry {
+    /// The records other than `Valid`, each at its position in `records`.
+    ///
+    /// # Panics
+    ///
+    /// If a position does not fit `u32`.
+    pub fn from_records(records: &[Option<AttestationRecord>]) -> Vec<Self> {
+        records
+            .iter()
+            .enumerate()
+            .filter_map(|(position, record)| {
+                let record = (*record).filter(|record| !record.verdict.is_valid())?;
+                Some(Self {
+                    position: u32::try_from(position).expect("checkpoint positions fit u32"),
+                    record,
+                })
+            })
+            .collect()
+    }
+}
+
+/// Per-attestor totals of refuted attestations for the epoch so far,
+/// certified in every checkpoint summary. An attestor without refuted
+/// attestations has no entry.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AttestationTotals {
+    /// Committee index to the sum of the squared units of its `Refuted`
+    /// verdicts since the epoch started; saturating.
+    pub refuted_units_squared: BTreeMap<AuthorityIndex, u64>,
+}
+
+impl AttestationTotals {
+    /// These totals plus the `Refuted` records of one more checkpoint.
+    pub fn with_records(mut self, records: &[Option<AttestationRecord>]) -> Self {
+        for record in records.iter().flatten() {
+            if let AttestationVerdict::Refuted { units } = record.verdict {
+                let sum = self
+                    .refuted_units_squared
+                    .entry(record.attestor)
+                    .or_default();
+                *sum = sum.saturating_add(units.saturating_pow(2));
+            }
+        }
+        self
     }
 }
 
@@ -213,7 +277,7 @@ mod tests {
     fn verdict_accuracy_band() {
         const STEP: u64 = 1_000;
         let judge = |attested, executed, tolerance| {
-            AttestationVerdict::new(false, attested, Some(executed), tolerance)
+            AttestationVerdict::new(None, attested, Some(executed), tolerance)
         };
 
         // Under ten steps a tenth of the executed units is less than one step,
@@ -259,13 +323,39 @@ mod tests {
         assert_eq!(judge(50 * STEP, STEP, None), AttestationVerdict::Valid);
         // A body that never ran cannot be assessed.
         assert_eq!(
-            AttestationVerdict::new(false, 50 * STEP, None, Some(10)),
+            AttestationVerdict::new(None, 50 * STEP, None, Some(10)),
             AttestationVerdict::Valid
         );
-        // A refutation wins over accuracy.
+        // A refutation wins over accuracy and keeps the units of both runs.
         assert_eq!(
-            AttestationVerdict::new(true, 3 * STEP, Some(3 * STEP), Some(10)),
-            AttestationVerdict::Refuted
+            AttestationVerdict::new(Some(7 * STEP), 3 * STEP, Some(3 * STEP), Some(10)),
+            AttestationVerdict::Refuted { units: 7 * STEP }
+        );
+    }
+
+    #[test]
+    fn totals_sum_the_squared_units_of_refuted_records() {
+        let record = |attestor, verdict| Some(AttestationRecord { attestor, verdict });
+        let refuted = |units| AttestationVerdict::Refuted { units };
+        let totals = AttestationTotals::default().with_records(&[
+            record(2, refuted(3)),
+            record(1, AttestationVerdict::Valid),
+            record(1, AttestationVerdict::Inaccurate),
+            None,
+            record(2, refuted(25)),
+        ]);
+        assert_eq!(totals.refuted_units_squared, BTreeMap::from([(2, 9 + 625)]));
+
+        // A later checkpoint adds to the running sums.
+        let totals = totals.with_records(&[record(0, refuted(1)), record(2, refuted(2))]);
+        assert_eq!(
+            totals.refuted_units_squared,
+            BTreeMap::from([(0, 1), (2, 9 + 625 + 4)])
+        );
+        assert_eq!(
+            bcs::to_bytes(&AttestationTotals::default()).unwrap(),
+            vec![0],
+            "empty totals cost one byte"
         );
     }
 
