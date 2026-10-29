@@ -2505,6 +2505,7 @@ impl AuthorityPerEpochStore {
             0,
             Vec::new(),
             Vec::new(),
+            iota_types::attestation::AttestationTotals::default(),
         );
         self.process_constructed_checkpoint(height, NonEmpty::new((summary.clone(), contents)));
         summary

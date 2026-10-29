@@ -249,7 +249,7 @@ impl executor::Executor for Executor {
         auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> Result<(), ExecutionError> {
+    ) -> (IotaGasStatus, Result<(), ExecutionError>) {
         authenticate_transaction(
             store,
             protocol_config,
