@@ -58,6 +58,7 @@ use iota_core::{
     consensus_handler::ConsensusHandlerInitializer,
     consensus_manager::{ConsensusManager, ConsensusManagerTrait, UpdatableConsensusClient},
     consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
+    db_sync::Switch,
     epoch::{
         committee_store::CommitteeStore, consensus_store_pruner::ConsensusStorePruner,
         epoch_metrics::EpochMetrics, randomness::RandomnessManager,
@@ -423,6 +424,24 @@ impl IotaNode {
 
         // Initialize metrics to track db usage before creating any stores
         DBMetrics::init(&prometheus_registry);
+
+        // Turned on before any database is opened, so that every write a
+        // switch covers is synced from the first one.
+        if config.enable_db_sync_handler_object_state == Some(true) {
+            Switch::HandlerObjectState.enable();
+        }
+        if config.enable_db_sync_checkpoint_outputs == Some(true) {
+            Switch::CheckpointOutputs.enable();
+        }
+        if config.enable_db_sync_transactions_and_effects == Some(true) {
+            Switch::TransactionsAndEffects.enable();
+        }
+        info!(
+            handler_object_state = Switch::HandlerObjectState.is_on(),
+            checkpoint_outputs = Switch::CheckpointOutputs.is_on(),
+            transactions_and_effects = Switch::TransactionsAndEffects.is_on(),
+            "database writes synced to disk"
+        );
 
         // Initialize IOTA metrics.
         iota_metrics::init_metrics(&prometheus_registry);

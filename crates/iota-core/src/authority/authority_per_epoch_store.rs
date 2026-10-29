@@ -121,6 +121,7 @@ use crate::{
         ConsensusCommitInfo, SequencedConsensusTransaction, SequencedConsensusTransactionKey,
         SequencedConsensusTransactionKind, VerifiedSequencedConsensusTransaction,
     },
+    db_sync::Switch,
     epoch::{
         epoch_metrics::EpochMetrics,
         randomness::{
@@ -2232,7 +2233,7 @@ impl AuthorityPerEpochStore {
         }
         let mut batch = tables.handler_processed_objects.batch();
         handler_object_state.write_checkpoint_rows_to_batch(&tables, &mut batch, &rows)?;
-        batch.write()?;
+        batch.write_with_sync(Switch::HandlerObjectState)?;
         // Lets a test crash the node with the checkpoint's rows written and
         // its outputs not.
         fail_point!("crash-after-checkpoint-bookkeeping-write");
@@ -2814,9 +2815,11 @@ impl AuthorityPerEpochStore {
 
         let mut quarantine = self.consensus_quarantine.write();
         let flushed = quarantine.update_highest_executed_checkpoint(seq, self, &mut batch)?;
-        // No fsync: the write-then-evict order below, and the order against the
-        // effects the rows were derived from, hold across a process crash
-        // only; see the `handler_object_state` module docs.
+        // Not synced. The rows in this batch are derived from effects that
+        // `commit_transaction_outputs` wrote to the perpetual database before.
+        // After a power loss this batch can be on disk without those effects,
+        // unless the checkpoint outputs switch of `crate::db_sync` synced
+        // them; see the `handler_object_state` module docs.
         batch.write()?;
         // Evict only after the corresponding entries are flushed to disk.
         self.evict_flushed_commit_rows(&flushed);

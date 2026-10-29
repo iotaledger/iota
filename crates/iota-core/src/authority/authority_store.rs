@@ -51,6 +51,7 @@ use crate::{
         historic_ledger::{HistoricLedger, HistoricLedgerBucket},
         historic_objects::{HistoricObjects, HistoricObjectsBucket},
     },
+    db_sync::Switch,
     global_state_hasher::GlobalStateHashStore,
     transaction_outputs::TransactionOutputs,
 };
@@ -1389,7 +1390,7 @@ impl AuthorityStore {
                 [(transaction_effects.digest(), transaction_effects)],
             )?;
 
-        write_batch.write()?;
+        write_batch.write_with_sync(Switch::TransactionsAndEffects)?;
         Ok(())
     }
 
@@ -1430,7 +1431,13 @@ impl AuthorityStore {
                 .insert_batch_tagged(&bucket.effects, [(tx.effects.digest(), &tx.effects)])?;
         }
 
-        write_batch.write()?;
+        // State sync writes the checkpoint contents rows and the highest synced
+        // checkpoint to the checkpoint database after this batch, and relies on
+        // the transactions and effects in it being on disk whenever those rows
+        // are. Unless this batch is synced, a power loss can keep the rows and
+        // lose the transactions and effects, and the node then fails on every
+        // restart; see `crate::db_sync`.
+        write_batch.write_with_sync(Switch::TransactionsAndEffects)?;
         Ok(())
     }
 
