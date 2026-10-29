@@ -24,6 +24,7 @@ use iota::{
         SwitchResponse, TxProcessingArgs, estimate_gas_budget,
     },
     client_ptb::ptb::{PTB, PTBCommandResult},
+    displays::DryRunOutput,
     iota_commands::{IotaCommand, IotaEnvConfig},
     key_identity::{KeyIdentity, get_identity_address},
 };
@@ -4312,7 +4313,7 @@ async fn key_identity_test() {
 }
 
 fn assert_dry_run(dry_run: IotaClientCommandResult, object_id: ObjectId, command: &str) {
-    if let IotaClientCommandResult::DryRun(response) = dry_run {
+    if let IotaClientCommandResult::DryRun(DryRunOutput { response, .. }) = dry_run {
         assert_eq!(
             *response.effects.status(),
             IotaExecutionStatus::Success,
@@ -4398,7 +4399,7 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     .execute(context)
     .await?;
 
-    if let IotaClientCommandResult::DryRun(response) = pay_dry_run {
+    if let IotaClientCommandResult::DryRun(DryRunOutput { response, .. }) = pay_dry_run {
         assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
         assert_ne!(response.effects.gas_object().object_id(), object_id);
     } else {
@@ -4587,11 +4588,25 @@ async fn dry_run_on_both_backends(
 > {
     let node = command(false).execute(context).await?;
     let local = command(true).execute(context).await?;
-    let (IotaClientCommandResult::DryRun(node), IotaClientCommandResult::LocalDryRun(local)) =
-        (node, local)
+    let json = (serde_json::to_value(&node)?, serde_json::to_value(&local)?);
+    let (
+        IotaClientCommandResult::DryRun(DryRunOutput {
+            response: node,
+            local: false,
+        }),
+        IotaClientCommandResult::DryRun(DryRunOutput {
+            response: local,
+            local: true,
+        }),
+    ) = (node, local)
     else {
         panic!("expected DryRun results");
     };
+    // `--json` prints the response alone, whichever backend ran it.
+    assert_eq!(
+        json,
+        (serde_json::to_value(&node)?, serde_json::to_value(&local)?)
+    );
     Ok((node, local))
 }
 
@@ -4916,7 +4931,62 @@ async fn test_local_dry_run_matches_node_dry_run_for_move_abort() -> Result<(), 
             "{function} must abort"
         );
         assert_same_dry_run(&node, &local);
+        // Equal effects alone would also pass if neither path rendered.
+        if function == "clever_aborter" {
+            let IotaExecutionStatus::Failure { error } = local.effects.status() else {
+                unreachable!();
+            };
+            assert!(error.contains("Element not found in vector"), "{error}");
+        }
     }
+
+    Ok(())
+}
+
+// A local run needs only gRPC, rendering a Move abort included.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_local_dry_run_renders_move_abort_without_json_rpc() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, _, rgp, [gas_id, _, _], _, _) = test_cluster_helper().await;
+    let package_id = published_package_id(
+        &created_by(
+            publish("clever_errors", gas_id, rgp, Default::default()),
+            &mut test_cluster.wallet,
+        )
+        .await?,
+    );
+
+    // A fresh context, so no JSON-RPC client is cached. Nothing listens on
+    // port 1.
+    let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
+    let mut context = WalletContext::new(&config_path)?.with_env_override("no-rpc".into());
+    context.config_mut().add_env(
+        iota_sdk::iota_client_config::IotaEnv::new("no-rpc", "http://127.0.0.1:1")
+            .with_grpc(test_cluster.grpc_url()),
+    );
+
+    // `iota client call` builds its transaction over JSON-RPC; a PTB builds
+    // it over gRPC.
+    let ptb = iota::client_ptb::ptb::PTB {
+        args: shlex::split(&format!(
+            "--move-call {package_id}::clever_errors::clever_aborter \
+             --gas-budget {} --dry-run --local",
+            rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        ))
+        .unwrap(),
+        display: HashSet::new(),
+    };
+    let IotaClientCommandResult::DryRun(DryRunOutput {
+        response,
+        local: true,
+    }) = IotaClientCommands::PTB(ptb).execute(&mut context).await?
+    else {
+        panic!("expected a local DryRun result");
+    };
+    let IotaExecutionStatus::Failure { error } = response.effects.status() else {
+        panic!("clever_aborter must abort");
+    };
+    assert!(error.contains("Element not found in vector"), "{error}");
 
     Ok(())
 }
@@ -4954,8 +5024,16 @@ async fn test_ptb_local_dry_run() -> Result<(), anyhow::Error> {
     else {
         panic!("expected a dry-run result");
     };
-    let (IotaClientCommandResult::DryRun(node), IotaClientCommandResult::LocalDryRun(local)) =
-        (*node_result, *local_result)
+    let (
+        IotaClientCommandResult::DryRun(DryRunOutput {
+            response: node,
+            local: false,
+        }),
+        IotaClientCommandResult::DryRun(DryRunOutput {
+            response: local,
+            local: true,
+        }),
+    ) = (*node_result, *local_result)
     else {
         panic!("expected DryRun results");
     };

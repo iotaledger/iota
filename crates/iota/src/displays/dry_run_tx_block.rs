@@ -8,6 +8,7 @@ use iota_json_rpc_types::{
     DryRunTransactionBlockResponse, IotaTransactionBlockDataAPI, IotaTransactionBlockEffectsAPI,
     ObjectChange,
 };
+use serde::Serialize;
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
@@ -15,13 +16,17 @@ use tabled::{
 
 use crate::{client_commands::estimate_gas_budget_from_gas_cost, displays::Pretty};
 
-/// A dry run's response and where it ran, so the summary line can say so.
-pub struct DryRunOutput<'a> {
-    pub response: &'a DryRunTransactionBlockResponse,
+/// A dry run's response and whether it ran locally. Serializes as the
+/// response alone.
+#[derive(Serialize)]
+#[serde(transparent)]
+pub struct DryRunOutput {
+    pub response: DryRunTransactionBlockResponse,
+    #[serde(skip)]
     pub local: bool,
 }
 
-impl Display for Pretty<'_, DryRunOutput<'_>> {
+impl Display for Pretty<'_, DryRunOutput> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(DryRunOutput { response, local }) = self;
 

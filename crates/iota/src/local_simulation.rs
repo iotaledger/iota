@@ -43,8 +43,11 @@ use iota_vm_sdk::{
     ChainContext, ExecuteOptions, ExecutionResult, InMemoryStore, LocalVm, Store, grpc::GrpcStore,
 };
 
-use crate::client_commands::{
-    IotaClientCommandResult, estimate_gas_budget_from_gas_cost, fallback_gas_budget,
+use crate::{
+    client_commands::{
+        IotaClientCommandResult, estimate_gas_budget_from_gas_cost, fallback_gas_budget,
+    },
+    displays::DryRunOutput,
 };
 
 /// Run a dry-run locally and assemble the node-shaped response.
@@ -77,7 +80,10 @@ pub(crate) async fn execute_local_dry_run(
     let resolver = Resolver::new(FetchedPackages(store.store()));
     let IotaTransactionBlockEffects::V1(effects) = &mut response.effects;
     effects.status = IotaExecutionStatus::from_native_with_clever_error(status, &resolver).await?;
-    Ok(IotaClientCommandResult::LocalDryRun(response))
+    Ok(IotaClientCommandResult::DryRun(DryRunOutput {
+        response,
+        local: true,
+    }))
 }
 
 /// Estimate a gas budget from a local dry run, as

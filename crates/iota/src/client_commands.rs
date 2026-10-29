@@ -2669,19 +2669,8 @@ impl Display for IotaClientCommandResult {
                 writeln!(f, "{table}")?;
             }
             IotaClientCommandResult::NoOutput => {}
-            IotaClientCommandResult::DryRun(response) => {
-                let output = DryRunOutput {
-                    response,
-                    local: false,
-                };
-                writeln!(f, "{}", Pretty(&output))?;
-            }
-            IotaClientCommandResult::LocalDryRun(response) => {
-                let output = DryRunOutput {
-                    response,
-                    local: true,
-                };
-                writeln!(f, "{}", Pretty(&output))?;
+            IotaClientCommandResult::DryRun(output) => {
+                writeln!(f, "{}", Pretty(output))?;
             }
             IotaClientCommandResult::DevInspect(response) => {
                 writeln!(f, "{}", Pretty(response))?;
@@ -2748,7 +2737,10 @@ impl IotaClientCommandResult {
 
     pub async fn prerender_clever_errors(mut self, context: &mut WalletContext) -> Self {
         match &mut self {
-            IotaClientCommandResult::DryRun(DryRunTransactionBlockResponse { effects, .. })
+            IotaClientCommandResult::DryRun(DryRunOutput {
+                response: DryRunTransactionBlockResponse { effects, .. },
+                local: false,
+            })
             | IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: Some(effects),
                 ..
@@ -2756,11 +2748,11 @@ impl IotaClientCommandResult {
                 let client = context.get_client().await.expect("Cannot connect to RPC");
                 prerender_clever_errors(effects, client.read_api()).await
             }
-            IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
+            IotaClientCommandResult::DryRun(DryRunOutput { local: true, .. })
+            | IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: None,
                 ..
-            })
-            | IotaClientCommandResult::LocalDryRun(_) => (),
+            }) => (),
             IotaClientCommandResult::ActiveAddress(_)
             | IotaClientCommandResult::ActiveEnv(_)
             | IotaClientCommandResult::AddAccount(_)
@@ -2941,8 +2933,7 @@ pub enum IotaClientCommandResult {
     ChainIdentifier(String),
     ComputeTransactionDigest(Transaction),
     DynamicFieldQuery(DynamicFieldPage),
-    DryRun(DryRunTransactionBlockResponse),
-    LocalDryRun(DryRunTransactionBlockResponse),
+    DryRun(DryRunOutput),
     DevInspect(DevInspectResults),
     Envs(Vec<IotaEnv>, Option<String>),
     Gas(Vec<GasCoin>),
@@ -3246,7 +3237,10 @@ pub async fn execute_dry_run(
     debug!("Executing dry run");
     let response = client.read_api().dry_run_transaction_block(tx).await?;
     debug!("Finished executing dry run {response:?}");
-    Ok(IotaClientCommandResult::DryRun(response))
+    Ok(IotaClientCommandResult::DryRun(DryRunOutput {
+        response,
+        local: false,
+    }))
 }
 
 /// Call a dry run with the transaction data to estimate the gas budget.
@@ -3271,7 +3265,10 @@ pub async fn estimate_gas_budget(
     let dry_run =
         execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await;
 
-    if let Ok(IotaClientCommandResult::DryRun(dry_run)) = dry_run {
+    if let Ok(IotaClientCommandResult::DryRun(DryRunOutput {
+        response: dry_run, ..
+    })) = dry_run
+    {
         let rgp = client.read_api().get_reference_gas_price().await?;
         Ok(estimate_gas_budget_from_gas_cost(
             dry_run.effects.gas_cost_summary(),
