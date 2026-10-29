@@ -4767,8 +4767,7 @@ async fn test_local_dry_run_reports_the_same_gas_budget() -> Result<(), anyhow::
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
 
-    // Without a budget both paths fall back to the balance of the gas
-    // coins they were given, so the budget they report must agree.
+    // Without a budget both paths report the gas the run used.
     let (node, local) = dry_run_on_both_backends(context, |local| {
         transfer(
             recipient.clone(),
@@ -4780,6 +4779,11 @@ async fn test_local_dry_run_reports_the_same_gas_budget() -> Result<(), anyhow::
     })
     .await?;
     assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_eq!(
+        node.input.gas_data().budget,
+        node.effects.gas_cost_summary().gas_used(),
+        "an unset budget must be reported as the gas the run used"
+    );
     assert_same_dry_run(&node, &local);
 
     // A budget of zero asks both paths to report the gas the run used.

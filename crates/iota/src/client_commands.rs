@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cmp::{Eq, min},
+    cmp::Eq,
     collections::{BTreeMap, BTreeSet, HashSet, btree_map::Entry},
     fmt::{Debug, Display, Formatter, Write},
     fs,
@@ -70,7 +70,6 @@ use iota_types::{
     digests::ChainIdentifier,
     dynamic_field::DynamicFieldInfo,
     error::IotaError,
-    gas::get_gas_balance,
     gas_coin::GasCoin,
     iota_serde,
     message_envelope::Envelope,
@@ -660,7 +659,8 @@ pub struct TxProcessingArgs {
     #[arg(long)]
     pub dev_inspect: bool,
     /// Run the simulation locally through the Move VM instead of on the node.
-    /// Supported with --dry-run.
+    /// Supported with --dry-run. Skips the node's transaction deny-list and uses the default
+    /// signing verifier limits, so a transaction the node rejects can still succeed locally.
     #[arg(long, requires = "dry_run", conflicts_with = "dev_inspect")]
     pub local: bool,
     /// Instead of executing the transaction, serialize the bcs bytes of the
@@ -3163,26 +3163,6 @@ fn format_balance(
     format!("{whole}.{fractional}{suffix}")
 }
 
-/// The gas budget for a simulation that was given no explicit `--gas-budget`:
-/// the protocol maximum, capped at the total balance of the gas coins the
-/// transaction carries, or that maximum outright when it carries none. Warns
-/// when the cap binds, since a budget equal to the whole balance leaves
-/// nothing to split off.
-pub(crate) fn fallback_gas_budget(payment_balance: Option<u64>, max_gas_budget: u64) -> u64 {
-    let Some(balance) = payment_balance else {
-        return max_gas_budget;
-    };
-    let gas_budget = min(balance, max_gas_budget);
-    if gas_budget == balance {
-        let warn_msg = format!(
-            "Gas budget is equal to the total gas balance of the provided gas coins: {balance}. Manually provide a lower --gas-budget if you need to split a coin from the gas coin."
-        );
-        warn!("{warn_msg}");
-        eprintln!("{}", warn_msg.yellow().bold());
-    }
-    gas_budget
-}
-
 /// Helper function to reduce code duplication for executing dry run
 pub async fn execute_dry_run(
     context: &mut WalletContext,
@@ -3194,43 +3174,11 @@ pub async fn execute_dry_run(
     sponsor: Option<Address>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
     let client = context.get_client().await?;
-    let gas_budget = match gas_budget {
-        Some(gas_budget) => gas_budget,
-        None => {
-            let max_gas_budget = max_gas_budget(&client).await?;
-            let payment_balance = if gas_payment.is_empty() {
-                None
-            } else {
-                let mut balance = 0;
-                let gas_coins = client
-                    .read_api()
-                    .multi_get_object_with_options(
-                        gas_payment
-                            .iter()
-                            .map(|object_ref| object_ref.object_id)
-                            .collect(),
-                        IotaObjectDataOptions::bcs_lossless(),
-                    )
-                    .await?;
-                for gas_coin in gas_coins {
-                    balance += get_gas_balance(
-                        &gas_coin
-                            .into_object()?
-                            .try_into()
-                            .expect("couldn't convert gas coin into object"),
-                    )?
-                }
-                Some(balance)
-            };
-            fallback_gas_budget(payment_balance, max_gas_budget)
-        }
-    };
-    debug!("Gas budget for dry run: {gas_budget}");
     let tx = Transaction::new_with_gas_coins_allow_sponsor(
         kind,
         signer,
         gas_payment,
-        gas_budget,
+        gas_budget.unwrap_or_default(),
         gas_price,
         sponsor.unwrap_or(signer),
     );
@@ -3291,18 +3239,6 @@ pub fn estimate_gas_budget_from_gas_cost(
 
     let gas_usage = gas_cost_summary.net_gas_usage() + safe_overhead as i64;
     computation_cost_with_overhead.max(if gas_usage < 0 { 0 } else { gas_usage as u64 })
-}
-
-/// Queries the protocol config for the maximum gas allowed in a transaction.
-pub async fn max_gas_budget(client: &IotaClient) -> Result<u64, anyhow::Error> {
-    let cfg = client.read_api().get_protocol_config(None).await?;
-    Ok(match cfg.attributes.get("max_tx_gas") {
-        Some(Some(iota_json_rpc_types::IotaProtocolConfigValue::U64(y))) => *y,
-        _ => bail!(
-            "Could not automatically find the maximum gas allowed in a transaction from the \
-            protocol config. Please provide a gas budget with the --gas-budget flag."
-        ),
-    })
 }
 
 /// The gas coins paying for a transaction, either as object IDs to be resolved

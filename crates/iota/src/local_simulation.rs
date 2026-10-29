@@ -21,7 +21,7 @@
 
 use std::sync::Arc;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use iota_json_rpc_types::{
     DryRunTransactionBlockResponse, IotaExecutionStatus, IotaTransactionBlockData,
@@ -35,18 +35,14 @@ use iota_sdk_types::{
     Address, ExecutionStatus, ObjectId, ObjectReference, Transaction, TransactionKind,
 };
 use iota_types::{
-    effects::TransactionEffectsAPI,
-    gas::{get_gas_balance, report_simulation_gas},
-    transaction::TransactionAPI,
+    effects::TransactionEffectsAPI, gas::report_simulation_gas, transaction::TransactionAPI,
 };
 use iota_vm_sdk::{
     ChainContext, ExecuteOptions, ExecutionResult, InMemoryStore, LocalVm, Store, grpc::GrpcStore,
 };
 
 use crate::{
-    client_commands::{
-        IotaClientCommandResult, estimate_gas_budget_from_gas_cost, fallback_gas_budget,
-    },
+    client_commands::{IotaClientCommandResult, estimate_gas_budget_from_gas_cost},
     displays::DryRunOutput,
 };
 
@@ -138,33 +134,11 @@ fn run_dry_run(
 ) -> Result<(DryRunTransactionBlockResponse, ExecutionStatus)> {
     let gas_price = gas_price.unwrap_or_else(|| vm.reference_gas_price());
 
-    let gas_budget = match gas_budget {
-        Some(gas_budget) => gas_budget,
-        // The same fallback as the node-backed path, resolved from the
-        // protocol config and the store instead of RPC calls.
-        None => {
-            let payment_balance = if gas_payment.is_empty() {
-                None
-            } else {
-                let mut balance = 0;
-                for object_ref in &gas_payment {
-                    let coin = vm
-                        .store()
-                        .get_object(&object_ref.object_id, None)?
-                        .ok_or_else(|| anyhow!("gas coin {} not found", object_ref.object_id))?;
-                    balance += get_gas_balance(&coin)?;
-                }
-                Some(balance)
-            };
-            fallback_gas_budget(payment_balance, vm.protocol_config().max_tx_gas())
-        }
-    };
-
     let tx_data = Transaction::new_with_gas_coins_allow_sponsor(
         kind,
         signer,
         gas_payment,
-        gas_budget,
+        gas_budget.unwrap_or_default(),
         gas_price,
         sponsor.unwrap_or(signer),
     );
