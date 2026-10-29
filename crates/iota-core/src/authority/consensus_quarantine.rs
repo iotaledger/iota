@@ -1380,6 +1380,7 @@ mod tests {
             0,
             vec![],
             vec![],
+            iota_types::attestation::AttestationTotals::default(),
         );
         let builder_summary = BuilderCheckpointSummary {
             summary,

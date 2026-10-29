@@ -26,7 +26,7 @@ use tracing::instrument;
 use tracing::warn;
 
 use crate::{
-    attestation::AttestationRecord,
+    attestation::{AttestationEntry, AttestationTotals},
     base_types::{ExecutionData, ExecutionDigests, VerifiedExecutionData, random_object_ref},
     committee::{Committee, EpochId},
     crypto::{
@@ -122,14 +122,14 @@ mod checkpoint_summary_ext {
 /// `iota_sdk_types`. These live on an extension trait because inherent methods
 /// cannot be added to a type that is foreign to this crate.
 pub trait CheckpointSummaryExt: Sized + checkpoint_summary_ext::Sealed {
-    /// `attestations` holds one verdict slot per transaction in `transactions`
-    /// order, or nothing when no transaction was attested. It is certified from
-    /// summary version 2 on and ignored before.
+    /// `attestation_entries` are the attestation records other than `Valid`,
+    /// each at its transaction's position in `transactions`, and
+    /// `attestation_totals` the epoch's totals through this checkpoint. Both
+    /// are certified from summary version 2 on and ignored before.
     ///
     /// # Panics
     ///
-    /// Under summary version 2, if `attestations` is neither empty nor one slot
-    /// per transaction.
+    /// Under summary version 2, if an entry lies outside `transactions`.
     fn new_with_protocol_config(
         protocol_config: &ProtocolConfig,
         epoch: EpochId,
@@ -141,7 +141,8 @@ pub trait CheckpointSummaryExt: Sized + checkpoint_summary_ext::Sealed {
         end_of_epoch_data: Option<EndOfEpochData>,
         timestamp_ms: CheckpointTimestamp,
         randomness_rounds: Vec<RandomnessRound>,
-        attestations: Vec<Option<AttestationRecord>>,
+        attestation_entries: Vec<AttestationEntry>,
+        attestation_totals: AttestationTotals,
     ) -> Self;
 
     fn verify_epoch(&self, epoch: EpochId) -> IotaResult;
@@ -169,7 +170,8 @@ impl CheckpointSummaryExt for CheckpointSummary {
         end_of_epoch_data: Option<EndOfEpochData>,
         timestamp_ms: CheckpointTimestamp,
         randomness_rounds: Vec<RandomnessRound>,
-        attestations: Vec<Option<AttestationRecord>>,
+        attestation_entries: Vec<AttestationEntry>,
+        attestation_totals: AttestationTotals,
     ) -> Self {
         let contents_digest = transactions.digest();
 
@@ -181,20 +183,17 @@ impl CheckpointSummaryExt for CheckpointSummary {
                 ))
                 .expect("version specific data should serialize"),
                 Some(2) => {
-                    let attestations = if attestations.is_empty() {
-                        vec![None; transactions.len()]
-                    } else {
-                        assert_eq!(
-                            attestations.len(),
-                            transactions.len(),
-                            "one attestation slot per transaction"
-                        );
-                        attestations
-                    };
+                    assert!(
+                        attestation_entries
+                            .iter()
+                            .all(|entry| (entry.position as usize) < transactions.len()),
+                        "attestation entries lie within the checkpoint"
+                    );
                     bcs::to_bytes(&CheckpointVersionSpecificData::V2(
                         CheckpointVersionSpecificDataV2 {
                             randomness_rounds,
-                            attestations,
+                            attestation_entries,
+                            attestation_totals,
                         },
                     ))
                     .expect("version specific data should serialize")
@@ -836,10 +835,18 @@ impl CheckpointVersionSpecificData {
     }
 
     /// Empty for V1.
-    pub fn attestations(&self) -> &[Option<AttestationRecord>] {
+    pub fn attestation_entries(&self) -> &[AttestationEntry] {
         match self {
             Self::V1(_) => &[],
-            Self::V2(v) => &v.attestations,
+            Self::V2(v) => &v.attestation_entries,
+        }
+    }
+
+    /// `None` for V1.
+    pub fn attestation_totals(&self) -> Option<&AttestationTotals> {
+        match self {
+            Self::V1(_) => None,
+            Self::V2(v) => Some(&v.attestation_totals),
         }
     }
 
@@ -862,9 +869,12 @@ pub struct CheckpointVersionSpecificDataV2 {
     /// Lists the rounds for which RandomnessStateUpdate transactions are
     /// present in the checkpoint.
     pub randomness_rounds: Vec<RandomnessRound>,
-    /// One entry per transaction in checkpoint-contents order; `None` for
-    /// unattested transactions.
-    pub attestations: Vec<Option<AttestationRecord>>,
+    /// The attestation records other than `Valid`, each at its transaction's
+    /// position in checkpoint-contents order.
+    pub attestation_entries: Vec<AttestationEntry>,
+    /// The epoch's attestation totals through this checkpoint: the previous
+    /// summary's totals plus this checkpoint's `Refuted` records.
+    pub attestation_totals: AttestationTotals,
 }
 
 #[cfg(test)]
@@ -880,8 +890,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        attestation::AttestationVerdict, object::OBJECT_START_VERSION,
-        transaction::VerifiedTransaction, utils::make_committee_key,
+        attestation::{AttestationRecord, AttestationVerdict},
+        object::OBJECT_START_VERSION,
+        transaction::VerifiedTransaction,
+        utils::make_committee_key,
     };
 
     // TODO use the file name as a seed
@@ -919,6 +931,7 @@ mod tests {
                         0,
                         Vec::new(),
                         Vec::new(),
+                        AttestationTotals::default(),
                     ),
                     k,
                     name,
@@ -956,6 +969,7 @@ mod tests {
             0,
             Vec::new(),
             Vec::new(),
+            AttestationTotals::default(),
         );
 
         let sign_infos: Vec<_> = keys
@@ -1000,6 +1014,7 @@ mod tests {
                         0,
                         Vec::new(),
                         Vec::new(),
+                        AttestationTotals::default(),
                     ),
                     k,
                     name,
@@ -1040,6 +1055,7 @@ mod tests {
                 0,
                 Vec::new(),
                 Vec::new(),
+                AttestationTotals::default(),
             )
         };
         let certify = |summary: CheckpointSummary| {
@@ -1107,6 +1123,7 @@ mod tests {
             100,
             Vec::new(),
             Vec::new(),
+            AttestationTotals::default(),
         )
     }
 
@@ -1368,10 +1385,13 @@ mod tests {
         });
         let v2 = CheckpointVersionSpecificData::V2(CheckpointVersionSpecificDataV2 {
             randomness_rounds: vec![RandomnessRound::new(3)],
-            attestations: vec![
-                None,
-                Some(attestation_record(2, AttestationVerdict::Refuted)),
-            ],
+            attestation_entries: vec![AttestationEntry {
+                position: 1,
+                record: attestation_record(2, AttestationVerdict::Refuted { units: 5 }),
+            }],
+            attestation_totals: AttestationTotals {
+                refuted_units_squared: BTreeMap::from([(2, 16)]),
+            },
         });
 
         let v1_bytes = bcs::to_bytes(&v1).unwrap();
@@ -1395,7 +1415,10 @@ mod tests {
             ExecutionDigests::random(),
             ExecutionDigests::random(),
         ]);
-        let parsed_for = |version: u64, attestations: Vec<Option<AttestationRecord>>| {
+        let totals = || AttestationTotals {
+            refuted_units_squared: BTreeMap::from([(1, 9)]),
+        };
+        let parsed_for = |version: u64, attestation_entries: Vec<AttestationEntry>| {
             let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
             config.set_checkpoint_summary_version_specific_data_for_testing(version);
             CheckpointSummary::new_with_protocol_config(
@@ -1409,24 +1432,26 @@ mod tests {
                 None,
                 100,
                 vec![RandomnessRound::new(5)],
-                attestations,
+                attestation_entries,
+                totals(),
             )
             .parse_version_specific_data(&config)
             .unwrap()
             .expect("version specific data is present from version 1")
         };
-        let attestations = vec![None, Some(attestation_record(0, AttestationVerdict::Valid))];
+        let entries = vec![AttestationEntry {
+            position: 1,
+            record: attestation_record(1, AttestationVerdict::Refuted { units: 3 }),
+        }];
 
-        let v1 = parsed_for(1, attestations.clone());
+        let v1 = parsed_for(1, entries.clone());
         assert_eq!(v1.randomness_rounds(), &[RandomnessRound::new(5)]);
-        assert!(v1.attestations().is_empty());
+        assert!(v1.attestation_entries().is_empty());
+        assert!(v1.attestation_totals().is_none());
 
-        let v2 = parsed_for(2, attestations.clone());
+        let v2 = parsed_for(2, entries.clone());
         assert_eq!(v2.randomness_rounds(), &[RandomnessRound::new(5)]);
-        assert_eq!(v2.attestations(), attestations.as_slice());
-
-        // No attested transactions still yields one slot per transaction.
-        let v2 = parsed_for(2, Vec::new());
-        assert_eq!(v2.attestations(), &[None, None]);
+        assert_eq!(v2.attestation_entries(), entries.as_slice());
+        assert_eq!(v2.attestation_totals(), Some(&totals()));
     }
 }
