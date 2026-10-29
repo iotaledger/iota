@@ -2349,7 +2349,7 @@
           "name": "Read API"
         }
       ],
-      "description": "Return the transaction response object. The method will throw an error if the node does not have the transaction, or its effects when they are needed for the requested fields. A requested field that can't be loaded otherwise, such as events or balance changes, is left out and the reason is added to `errors`. Balance and object changes are derived from the object versions the transaction read, so they can only be returned while the node still keeps those versions; by default, nodes keep past object versions for fewer epochs than transactions.",
+      "description": "Return the transaction response object. The method will throw an error if the node does not have the transaction, or its effects when they are needed for the requested fields, or if the requested transaction or effects can't be converted. A requested field that can't be loaded otherwise, such as events or balance changes, is left out and the reason is added to `errors`. `timestampMs` is left out when the node no longer has the checkpoint's summary. Balance and object changes are derived from the object versions the transaction read, so they can only be returned while the node still keeps those versions; by default, nodes keep past object versions for fewer epochs than transactions.",
       "params": [
         {
           "name": "digest",
@@ -2754,7 +2754,7 @@
           "name": "Read API"
         }
       ],
-      "description": "Returns an ordered list of transaction responses The method will throw an error if the input contains any duplicate or the input size exceeds QUERY_MAX_RESULT_LIMIT. Data missing for one transaction does not fail the request: if the node does not have a transaction or its effects, or a requested field such as events or balance changes can't be loaded, the response for that digest leaves out the affected fields and the reason is added to its `errors`. Balance and object changes are derived from the object versions the transaction read, so they can only be returned while the node still keeps those versions; by default, nodes keep past object versions for fewer epochs than transactions.",
+      "description": "Returns an ordered list of transaction responses The method will throw an error if the input contains any duplicate or the input size exceeds QUERY_MAX_RESULT_LIMIT. On a fullnode, the list has one response per digest, in the order of the input, and data missing for one transaction does not fail the request: if the node does not have a transaction or its effects, or a requested field such as events or balance changes can't be loaded or converted, the response for that digest leaves out the affected fields and the reason is added to its `errors`. Balance and object changes are derived from the object versions the transaction read, so they can only be returned while the node still keeps those versions; by default, nodes keep past object versions for fewer epochs than transactions.",
       "params": [
         {
           "name": "digests",

@@ -45,7 +45,7 @@ use jsonrpsee::{RpcModule, core::RpcResult};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveValue};
 use tap::TapFallible;
-use tracing::{debug, error, instrument, trace, warn};
+use tracing::{Instrument, debug, error, instrument, trace, warn};
 
 use crate::{
     IotaRpcModule, ObjectProvider, ObjectProviderCache,
@@ -119,7 +119,7 @@ async fn add_balance_and_object_changes<P>(
             Ok(balance_changes) => cache_entry.balance_changes = Some(balance_changes),
             Err(e) => cache_entry
                 .errors
-                .push(format!("Cannot retrieve balance changes: {e}")),
+                .push(format!("cannot retrieve balance changes: {e}")),
         }
     }
 
@@ -136,7 +136,7 @@ async fn add_balance_and_object_changes<P>(
             Ok(object_changes) => cache_entry.object_changes = Some(object_changes),
             Err(e) => cache_entry
                 .errors
-                .push(format!("Cannot retrieve object changes: {e}")),
+                .push(format!("cannot retrieve object changes: {e}")),
         }
     }
 }
@@ -268,7 +268,13 @@ impl ReadApi {
 
         let converted_tx_block_resps = self
             .load_transaction_block_responses(temp_response, &opts)
-            .await?;
+            .await?
+            .into_iter()
+            .map(|(mut response, conversion_errors)| {
+                response.errors.extend(conversion_errors);
+                response
+            })
+            .collect::<Vec<_>>();
 
         self.metrics
             .get_tx_blocks_result_size
@@ -282,26 +288,27 @@ impl ReadApi {
         Ok(converted_tx_block_resps)
     }
 
-    /// Loads what `opts` asks for into each entry and returns the responses in
-    /// the same order. Transactions and effects already in an entry are not
-    /// loaded again. Data missing or failing to convert for one transaction is
-    /// reported in that transaction's `errors`; only a failing store read
-    /// fails the whole call.
+    /// Loads what `opts` asks for into each entry and returns, in the same
+    /// order, each response with the errors from converting its fields.
+    /// Transactions and effects already in an entry are not loaded again. A
+    /// failing read of transactions, effects, checkpoints or events fails the
+    /// whole call; anything else missing or failing for one transaction is
+    /// reported in that transaction's `errors`.
     async fn load_transaction_block_responses(
         &self,
         mut temp_response: IndexMap<TransactionDigest, IntermediateTransactionResponse>,
         opts: &IotaTransactionBlockResponseOptions,
-    ) -> Result<Vec<IotaTransactionBlockResponse>, Error> {
+    ) -> Result<Vec<(IotaTransactionBlockResponse, Vec<String>)>, Error> {
         // The transaction is always read: existence is determined from the
         // transaction, never from the effects.
         trace!("getting transactions and effects");
-        let transaction_digests = temp_response
+        let transaction_keys = temp_response
             .values()
             .filter(|cache_entry| cache_entry.transaction.is_none())
             .map(|cache_entry| cache_entry.digest)
             .collect::<Vec<_>>();
         // Fetch effects when `show_events` is true because events relies on effects
-        let effects_digests = if opts.require_effects() {
+        let effects_keys = if opts.require_effects() {
             temp_response
                 .values()
                 .filter(|cache_entry| cache_entry.effects.is_none())
@@ -310,36 +317,41 @@ impl ReadApi {
         } else {
             vec![]
         };
-        if !transaction_digests.is_empty() || !effects_digests.is_empty() {
+        if !transaction_keys.is_empty() || !effects_keys.is_empty() {
             let (transactions, effects_list) = self
                 .transaction_kv_store
-                .multi_get(&transaction_digests, &effects_digests)
+                .multi_get(&transaction_keys, &effects_keys)
                 .await
                 .tap_err(|err| {
                     debug!(
-                        ?transaction_digests,
-                        ?effects_digests,
+                        ?transaction_keys,
+                        ?effects_keys,
                         "Failed to multi get transactions and effects: {err:?}"
                     )
                 })?;
-            for (digest, transaction) in transaction_digests.iter().zip(transactions) {
+            check_result_count(transaction_keys.len(), transactions.len(), "transactions")?;
+            check_result_count(effects_keys.len(), effects_list.len(), "effects")?;
+            for (digest, transaction) in transaction_keys.iter().zip(transactions) {
                 if let Some(cache_entry) = temp_response.get_mut(digest) {
                     cache_entry.transaction = transaction;
                 }
             }
-            for (digest, effects) in effects_digests.iter().zip(effects_list) {
+            for (digest, effects) in effects_keys.iter().zip(effects_list) {
                 if let Some(cache_entry) = temp_response.get_mut(digest) {
                     cache_entry.effects = effects;
                 }
             }
         }
 
-        // One error per entry, the one the single-digest endpoint reports. The
-        // fields that can't be derived without the transaction or its effects
-        // are then left out without further errors.
+        // One error per entry for a missing transaction or missing effects; the
+        // fields that can't be derived without them are then left out without
+        // further errors.
         for cache_entry in temp_response.values_mut() {
             let digest = cache_entry.digest;
             if cache_entry.transaction.is_none() {
+                // Effects can still be found when the fallback store answers the
+                // two reads differently; an unknown transaction reports none.
+                cache_entry.effects = None;
                 cache_entry
                     .errors
                     .push(IotaError::TransactionNotFound { digest }.to_string());
@@ -351,17 +363,31 @@ impl ReadApi {
         }
 
         trace!("getting checkpoint sequence numbers");
-        let digests = temp_response.keys().copied().collect::<Vec<_>>();
-        let checkpoint_seq_list = self
-            .transaction_kv_store
-            .multi_get_transactions_perpetual_checkpoints(&digests)
-            .await
-            .tap_err(
-                |err| debug!(digests=?digests, "Failed to multi get checkpoint sequence number: {:?}", err))?;
-        let indexed_through = self.indexed_through();
-        for ((_digest, cache_entry), seq) in temp_response.iter_mut().zip(checkpoint_seq_list) {
-            cache_entry.checkpoint_seq =
-                seq.filter(|seq| indexed_through.is_some_and(|i| *seq <= i));
+        let known_digests = temp_response
+            .values()
+            .filter(|cache_entry| cache_entry.transaction.is_some())
+            .map(|cache_entry| cache_entry.digest)
+            .collect::<Vec<_>>();
+        if !known_digests.is_empty() {
+            let checkpoint_seq_list = self
+                .transaction_kv_store
+                .multi_get_transactions_perpetual_checkpoints(&known_digests)
+                .await
+                .tap_err(|err| {
+                    debug!(digests = ?known_digests, "Failed to multi get checkpoint sequence number: {err:?}")
+                })?;
+            check_result_count(
+                known_digests.len(),
+                checkpoint_seq_list.len(),
+                "checkpoint sequence numbers",
+            )?;
+            let indexed_through = self.indexed_through();
+            for (digest, seq) in known_digests.iter().zip(checkpoint_seq_list) {
+                if let Some(cache_entry) = temp_response.get_mut(digest) {
+                    cache_entry.checkpoint_seq =
+                        seq.filter(|seq| indexed_through.is_some_and(|i| *seq <= i));
+                }
+            }
         }
 
         let unique_checkpoint_numbers = temp_response
@@ -372,84 +398,84 @@ impl ReadApi {
             .unique()
             .collect::<Vec<CheckpointSequenceNumber>>();
 
-        // fetch timestamp from the DB
-        trace!("getting checkpoint summaries");
-        let timestamps = self
-            .transaction_kv_store
-            .multi_get_checkpoints_summaries(&unique_checkpoint_numbers)
-            .await
-            .map_err(|e| {
-                Error::Unexpected(format!("Failed to fetch checkpoint summaries by these checkpoint ids: {unique_checkpoint_numbers:?} with error: {e:?}"))
-            })?
-            .into_iter()
-            .map(|c| c.map(|checkpoint| checkpoint.timestamp_ms));
-
-        // construct a hashmap of checkpoint -> timestamp for fast lookup
-        let checkpoint_to_timestamp = unique_checkpoint_numbers
-            .into_iter()
-            .zip(timestamps)
-            .collect::<HashMap<_, _>>();
-
-        // fill cache with the timestamp
-        for cache_entry in temp_response.values_mut() {
-            cache_entry.timestamp = cache_entry.checkpoint_seq.and_then(|checkpoint_seq| {
-                checkpoint_to_timestamp
-                    .get(&checkpoint_seq)
-                    .copied()
-                    .flatten()
-            });
+        if !unique_checkpoint_numbers.is_empty() {
+            trace!("getting checkpoint summaries");
+            let summaries = self
+                .transaction_kv_store
+                .multi_get_checkpoints_summaries(&unique_checkpoint_numbers)
+                .await
+                .tap_err(|err| {
+                    debug!(checkpoints = ?unique_checkpoint_numbers, "Failed to multi get checkpoint summaries: {err:?}")
+                })?;
+            check_result_count(
+                unique_checkpoint_numbers.len(),
+                summaries.len(),
+                "checkpoint summaries",
+            )?;
+            let checkpoint_to_timestamp = unique_checkpoint_numbers
+                .into_iter()
+                .zip(
+                    summaries
+                        .into_iter()
+                        .map(|summary| summary.map(|summary| summary.timestamp_ms)),
+                )
+                .collect::<HashMap<_, _>>();
+            for cache_entry in temp_response.values_mut() {
+                cache_entry.timestamp = cache_entry.checkpoint_seq.and_then(|checkpoint_seq| {
+                    checkpoint_to_timestamp
+                        .get(&checkpoint_seq)
+                        .copied()
+                        .flatten()
+                });
+            }
         }
 
         if opts.show_events {
             trace!("getting events");
-            let has_events = |cache_entry: &IntermediateTransactionResponse| {
-                cache_entry.transaction.is_some()
-                    && cache_entry
+            let digests_with_events = temp_response
+                .values()
+                .filter(|cache_entry| {
+                    cache_entry
                         .effects
                         .as_ref()
                         .is_some_and(|effects| effects.events_digest().is_some())
-            };
-            let events_digests = temp_response
-                .values()
-                .filter(|cache_entry| has_events(cache_entry))
+                })
                 .map(|cache_entry| cache_entry.digest)
                 .collect::<Vec<_>>();
-            let events = if events_digests.is_empty() {
-                vec![]
-            } else {
-                self.transaction_kv_store
-                    .multi_get_events_by_tx_digests(&events_digests)
+            if !digests_with_events.is_empty() {
+                let events = self
+                    .transaction_kv_store
+                    .multi_get_events_by_tx_digests(&digests_with_events)
                     .await
-                    .map_err(|e| {
-                        Error::Unexpected(format!(
-                            "failed to fetch events for transactions {}: {e}",
-                            events_digests.iter().join(", ")
-                        ))
-                    })?
-            };
-
-            let entries_with_events = temp_response
-                .values_mut()
-                .filter(|cache_entry| has_events(cache_entry));
-            for (cache_entry, events) in entries_with_events.zip(events) {
-                let digest = cache_entry.digest;
-                match events {
-                    Some(events) => match to_iota_transaction_events(self, digest, events) {
-                        Ok(events) => cache_entry.events = Some(events),
-                        Err(e) => cache_entry.errors.push(e.to_string()),
-                    },
-                    None => cache_entry
-                        .errors
-                        .push(IotaError::TransactionEventsNotFound { digest }.to_string()),
+                    .tap_err(|err| {
+                        debug!(digests = ?digests_with_events, "Failed to multi get events: {err:?}")
+                    })?;
+                check_result_count(digests_with_events.len(), events.len(), "events")?;
+                for (digest, events) in digests_with_events.iter().zip(events) {
+                    let Some(cache_entry) = temp_response.get_mut(digest) else {
+                        continue;
+                    };
+                    match events {
+                        Some(events) => match to_iota_transaction_events(self, *digest, events) {
+                            Ok(events) => cache_entry.events = Some(events),
+                            Err(e) => cache_entry.errors.push(e.to_string()),
+                        },
+                        None => {
+                            warn!(tx_digest = %digest, "events listed in the transaction's effects are missing");
+                            cache_entry.errors.push(
+                                IotaError::TransactionEventsNotFound { digest: *digest }
+                                    .to_string(),
+                            )
+                        }
+                    }
                 }
             }
             // The effects show that these transactions have no events.
             for cache_entry in temp_response.values_mut().filter(|cache_entry| {
-                cache_entry.transaction.is_some()
-                    && cache_entry
-                        .effects
-                        .as_ref()
-                        .is_some_and(|effects| effects.events_digest().is_none())
+                cache_entry
+                    .effects
+                    .as_ref()
+                    .is_some_and(|effects| effects.events_digest().is_none())
             }) {
                 cache_entry.events = Some(IotaTransactionBlockEvents::default());
             }
@@ -484,6 +510,18 @@ impl ReadApi {
             .buffered(FUTURES_BUFFERED_SIZE)
             .collect()
             .await)
+    }
+}
+
+/// Fails when a store read returned a different number of results than it was
+/// given keys, so that no entry is silently left without its data or an error.
+fn check_result_count(keys: usize, results: usize, what: &str) -> Result<(), Error> {
+    if keys == results {
+        Ok(())
+    } else {
+        Err(Error::Unexpected(format!(
+            "the store returned {results} {what} for {keys} keys"
+        )))
     }
 }
 
@@ -732,62 +770,68 @@ impl ReadApiServer for ReadApi {
             let opts = opts.unwrap_or_default();
             let mut temp_response = IntermediateTransactionResponse::new(digest);
 
-            // Unlike in the multi-get, a missing transaction or missing effects
-            // fail the request.
+            // Unlike in the multi-get, a missing transaction, or missing effects
+            // when they are needed, fail the request.
             let transaction_kv_store = self.transaction_kv_store.clone();
-            temp_response.transaction = Some(
-                spawn_monitored_task!(async move {
-                    let ret = transaction_kv_store.get_tx(digest).await.map_err(|err| {
-                        debug!(tx_digest=?digest, "Failed to get transaction: {:?}", err);
+            let effects_keys = if opts.require_effects() {
+                vec![digest]
+            } else {
+                vec![]
+            };
+            let (transactions, effects_list) = spawn_monitored_task!(async move {
+                let ret = transaction_kv_store
+                    .multi_get(&[digest], &effects_keys)
+                    .await
+                    .map_err(|err| {
+                        debug!(tx_digest=?digest, "Failed to get transaction and effects: {:?}", err);
                         Error::from(err)
                     });
-                    add_server_timing("tx_kv_lookup");
-                    ret
-                })
-                .await
-                .map_err(Error::from)??,
+                add_server_timing("tx_kv_lookup");
+                ret
+            })
+            .await
+            .map_err(Error::from)??;
+            temp_response.transaction = Some(
+                transactions
+                    .into_iter()
+                    .next()
+                    .flatten()
+                    .ok_or(IotaError::TransactionNotFound { digest })?,
             );
-
             if opts.require_effects() {
-                let transaction_kv_store = self.transaction_kv_store.clone();
                 temp_response.effects = Some(
-                    spawn_monitored_task!(async move {
-                        transaction_kv_store
-                            .get_fx_by_tx_digest(digest)
-                            .await
-                            .map_err(|err| {
-                                debug!(tx_digest=?digest, "Failed to get effects: {:?}", err);
-                                Error::from(err)
-                            })
-                    })
-                    .await
-                    .map_err(Error::from)??,
+                    effects_list
+                        .into_iter()
+                        .next()
+                        .flatten()
+                        .ok_or(IotaError::TransactionNotFound { digest })?,
                 );
             }
 
             let read_api = self.clone();
             let load_opts = opts.clone();
-            let response = spawn_monitored_task!(async move {
-                read_api
-                    .load_transaction_block_responses(
-                        IndexMap::from([(digest, temp_response)]),
-                        &load_opts,
-                    )
-                    .await
-            })
+            let (response, conversion_errors) = spawn_monitored_task!(
+                async move {
+                    read_api
+                        .load_transaction_block_responses(
+                            IndexMap::from([(digest, temp_response)]),
+                            &load_opts,
+                        )
+                        .await
+                }
+                .in_current_span()
+            )
             .await
             .map_err(Error::from)??
             .pop()
             .ok_or_else(|| Error::Unexpected(format!("no response for transaction {digest}")))?;
 
-            // The transaction and effects were found above, so if one of them is
-            // missing here it failed to convert.
-            if (opts.show_input && response.transaction.is_none())
-                || (opts.show_effects && response.effects.is_none())
-            {
+            // The requested transaction and effects were found above, so a field
+            // that fails to convert fails the request.
+            if !conversion_errors.is_empty() {
                 return Err(Error::Unexpected(format!(
-                    "failed to load transaction {digest}: {}",
-                    response.errors.join("; ")
+                    "failed to convert transaction {digest}: {}",
+                    conversion_errors.join("; ")
                 )));
             }
             Ok(response)
@@ -1269,40 +1313,43 @@ fn get_value_from_move_struct(
     }
 }
 
-/// Converts `cache` to a response with the fields `opts` asks for. A field that
-/// fails to convert is left out and the failure is added to `errors`.
-/// `module_cache` is only needed when `opts.show_input` is set.
+/// Converts `cache` to a response with the fields `opts` asks for, and returns
+/// it with the errors from fields that failed to convert; those fields are left
+/// out. `module_cache` is needed when `opts.show_input` is set.
 async fn convert_to_response<S: PackageStore>(
     cache: IntermediateTransactionResponse,
     opts: &IotaTransactionBlockResponseOptions,
     module_cache: Option<&impl GetModule>,
     resolver: &Resolver<S>,
-) -> IotaTransactionBlockResponse {
+) -> (IotaTransactionBlockResponse, Vec<String>) {
     let mut response = IotaTransactionBlockResponse::new(cache.digest);
     response.errors = cache.errors;
+    let mut conversion_errors = vec![];
 
     if opts.show_raw_input {
         if let Some(transaction) = &cache.transaction {
             match bcs::to_bytes(transaction.data()) {
                 Ok(raw_tx) => response.raw_transaction = raw_tx,
-                Err(e) => response
-                    .errors
-                    .push(format!("failed to serialize raw transaction: {e}")),
+                Err(e) => {
+                    conversion_errors.push(format!("failed to serialize raw transaction: {e}"))
+                }
             }
         }
     }
 
     if opts.show_input {
-        if let (Some(transaction), Some(module_cache)) = (cache.transaction, module_cache) {
-            match IotaTransactionBlock::try_from(
-                transaction.into_data(),
-                module_cache,
-                cache.digest,
-            ) {
-                Ok(tx_block) => response.transaction = Some(tx_block),
-                Err(e) => response
-                    .errors
-                    .push(format!("failed to convert transaction: {e}")),
+        if let Some(transaction) = cache.transaction {
+            match module_cache {
+                Some(module_cache) => match IotaTransactionBlock::try_from(
+                    transaction.into_data(),
+                    module_cache,
+                    cache.digest,
+                ) {
+                    Ok(tx_block) => response.transaction = Some(tx_block),
+                    Err(e) => conversion_errors.push(format!("failed to convert transaction: {e}")),
+                },
+                None => conversion_errors
+                    .push("failed to convert transaction: no module cache".to_string()),
             }
         }
     }
@@ -1311,9 +1358,7 @@ async fn convert_to_response<S: PackageStore>(
         if let Some(effects) = &cache.effects {
             match bcs::to_bytes(effects) {
                 Ok(raw_effects) => response.raw_effects = raw_effects,
-                Err(e) => response
-                    .errors
-                    .push(format!("failed to serialize raw effects: {e}")),
+                Err(e) => conversion_errors.push(format!("failed to serialize raw effects: {e}")),
             }
         }
     }
@@ -1324,9 +1369,7 @@ async fn convert_to_response<S: PackageStore>(
                 .await
             {
                 Ok(effects) => response.effects = Some(effects),
-                Err(e) => response
-                    .errors
-                    .push(format!("failed to convert effects: {e}")),
+                Err(e) => conversion_errors.push(format!("failed to convert effects: {e}")),
             }
         }
     }
@@ -1346,7 +1389,7 @@ async fn convert_to_response<S: PackageStore>(
         response.object_changes = cache.object_changes;
     }
 
-    response
+    (response, conversion_errors)
 }
 
 fn calculate_checkpoint_numbers(
@@ -1730,7 +1773,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_multi_get_reports_missing_transaction_and_effects_per_entry() {
+    async fn multi_get_reports_missing_transaction_and_effects_per_entry() {
         let without_effects = TransactionDigest::new([1; 32]);
         let unknown = TransactionDigest::new([2; 32]);
         let read_api = test_read_api(
@@ -1769,7 +1812,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_multi_get_reports_missing_events_per_entry() {
+    async fn multi_get_reports_missing_events_per_entry() {
         let transaction = test_transaction();
         let events_digest = TransactionEventsDigest::new([3; 32]);
         let with_events = TransactionDigest::new([1; 32]);
@@ -1816,7 +1859,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_transaction_block_reports_missing_events() {
+    async fn get_transaction_block_reports_missing_events() {
         let transaction = test_transaction();
         let events_digest = TransactionEventsDigest::new([3; 32]);
         let digest = TransactionDigest::new([1; 32]);
@@ -1842,6 +1885,56 @@ mod tests {
         assert_eq!(
             response.errors,
             vec![IotaError::TransactionEventsNotFound { digest }.to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn multi_get_reports_no_effects_for_an_unknown_transaction() {
+        let transaction = test_transaction();
+        let unknown = TransactionDigest::new([1; 32]);
+        let read_api = test_read_api(
+            HashMap::new(),
+            HashMap::from([(unknown, TestEffectsBuilder::new(transaction.data()).build())]),
+        );
+        let options = IotaTransactionBlockResponseOptions::default()
+            .with_effects()
+            .with_raw_effects()
+            .with_events();
+
+        let responses = read_api
+            .multi_get_transaction_blocks_internal(vec![unknown], Some(options))
+            .await
+            .unwrap();
+
+        assert!(responses[0].effects.is_none());
+        assert!(responses[0].raw_effects.is_empty());
+        assert!(responses[0].events.is_none());
+        assert_eq!(
+            responses[0].errors,
+            vec![IotaError::TransactionNotFound { digest: unknown }.to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn get_transaction_block_fails_for_an_unknown_transaction() {
+        let unknown = TransactionDigest::new([1; 32]);
+        let read_api = test_read_api(HashMap::new(), HashMap::new());
+
+        let error = read_api
+            .get_transaction_block(
+                unknown,
+                Some(IotaTransactionBlockResponseOptions::default().with_effects()),
+            )
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error.code(),
+            iota_json_rpc_api::TRANSACTION_NOT_FOUND_ERROR_CODE
+        );
+        assert_eq!(
+            error.message(),
+            IotaError::TransactionNotFound { digest: unknown }.to_string()
         );
     }
 }
