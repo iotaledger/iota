@@ -1186,7 +1186,7 @@ fn transaction_fetch_response(
         transaction_refs,
         MAX_FETCH_RESPONSE_BYTES,
         move |refs: &mut VecDeque<TransactionRef>, byte_budget: usize| {
-            read_requested_transactions(&context, store.as_ref(), &dag_state, refs, byte_budget)
+            read_transactions_up_to_budget(&context, store.as_ref(), &dag_state, refs, byte_budget)
         },
     );
     chunk_stream(move || cursor.next_chunk())
@@ -1201,7 +1201,7 @@ fn transaction_fetch_response(
 /// looked up in the store, in groups of as many refs as the budget left holds
 /// at the maximum entry size: they are whatever the requester asked for, so a
 /// scan over the range they span would read entries no one wants.
-fn read_requested_transactions(
+fn read_transactions_up_to_budget(
     context: &Context,
     store: &dyn Store,
     dag_state: &RwLock<DagState>,
@@ -2414,8 +2414,8 @@ mod tests {
             AuthorityService, BroadcastedBlockStream, FilterForHeaders, MAX_FILTER_SIZE, RefCursor,
             SubscriptionCounter, TransactionCursor, check_first_commit_payloads, chunk_stream,
             fast_sync_search_bound, filtered_header_info, header_fetch_response,
-            read_requested_transactions, read_transaction_payloads, serialize_transactions_entry,
-            transaction_fetch_response,
+            read_transaction_payloads, read_transactions_up_to_budget,
+            serialize_transactions_entry, transaction_fetch_response,
         },
         block_header::{
             BlockHeaderAPI, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions,
@@ -6677,7 +6677,7 @@ mod tests {
         let payload_bytes = blocks[0].verified_transactions.serialized().len();
         let mut refs: VecDeque<TransactionRef> = transaction_refs.iter().copied().collect();
 
-        let entries = read_requested_transactions(
+        let entries = read_transactions_up_to_budget(
             &context,
             store.as_ref(),
             &dag_state,
