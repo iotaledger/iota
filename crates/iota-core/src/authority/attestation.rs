@@ -262,18 +262,41 @@ impl AuthorityState {
         Ok(())
     }
 
-    pub(crate) fn check_transaction_inputs_exist(
+    /// Loads the inputs of an attested (`UserTransactionV2`) transaction at
+    /// their pinned versions and runs the input checks execution would
+    /// otherwise fail on: the transaction's own inputs (ownership, digest,
+    /// duplicate use), each Move authenticator's inputs, and their union.
+    /// Returns the owned references to lock. Gas balance, receiving objects
+    /// and the account object stay at execution.
+    pub(crate) fn check_transaction_inputs_for_attested_tx(
         &self,
         transaction: &VerifiedTransaction,
         epoch: EpochId,
-    ) -> IotaResult<()> {
-        self.input_loader.read_objects_for_signing(
+    ) -> IotaResult<Vec<ObjectReference>> {
+        let (input_objects, _) = self.input_loader.read_objects_for_signing(
             Some(transaction.digest()),
             &transaction.collect_all_input_object_kind_for_reading()?,
             &[],
             epoch,
         )?;
-        Ok(())
+        let (tx_input_objects, per_authenticator_inputs) =
+            transaction.split_input_objects_into_groups_for_reading(input_objects)?;
+        let per_authenticator_checked = per_authenticator_inputs
+            .into_iter()
+            .map(|(objects, _account)| {
+                iota_transaction_checks::check_move_authenticator_input_for_validation(objects)
+            })
+            .collect::<IotaResult<Vec<_>>>()?;
+        iota_transaction_checks::check_objects(
+            transaction.data().transaction(),
+            &tx_input_objects,
+        )?;
+        let owned = tx_input_objects.filter_owned_objects();
+        per_authenticator_checked.iter().try_fold(
+            CheckedInputObjects::new_with_checked_transaction_inputs(tx_input_objects),
+            iota_transaction_checks::checked_input_objects_union,
+        )?;
+        Ok(owned)
     }
 }
 

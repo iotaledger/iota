@@ -509,7 +509,7 @@ mod checked {
     /// Check all the objects used in the transaction against the database, and
     /// ensure that they are all the correct version and number.
     #[instrument(level = "trace", skip_all)]
-    fn check_objects(transaction: &Transaction, objects: &InputObjects) -> UserInputResult<()> {
+    pub fn check_objects(transaction: &Transaction, objects: &InputObjects) -> UserInputResult<()> {
         // We require that mutable objects cannot show up more than once.
         let mut used_objects: HashSet<Address> = HashSet::new();
         for object in objects.iter() {

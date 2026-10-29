@@ -9,8 +9,8 @@
 //! 1. **Semantic validation** — deduplication, already-executed check,
 //!    structural validity, attestor verification, and deny checks (deny lists,
 //!    gas, ownership, coin deny list, Move authenticator) — the full set for
-//!    `UserTransactionV1`, a payload-only subset for `UserTransactionV2`; see
-//!    Check #6.
+//!    `UserTransactionV1`; for `UserTransactionV2` the deny list, the gas
+//!    bounds and the input check (existence, ownership, digest); see Check #6.
 //! 2. **Owned-object conflict resolution** (white-flag) — three-tier lock check
 //!    and lock acquisition.
 //!
@@ -37,9 +37,9 @@
 //!   expensive checks.
 //! - Check #6: `handle_transaction_validation_checks()` for
 //!   `UserTransactionV1`; for attested `UserTransactionV2` a payload-only
-//!   gas-bounds check, the `TransactionDenyConfig` re-check, and an
-//!   input-existence check. Drop with error. Only reached when all locks are
-//!   free.
+//!   gas-bounds check, the `TransactionDenyConfig` re-check, and an input check
+//!   (existence, ownership, digest). Drop with error. Only reached when all
+//!   locks are free.
 //! - All passed — acquire locks in the local tracking map, keep transaction.
 //!
 //! # Which references get locked
@@ -89,8 +89,8 @@ use crate::{
 /// - Runs deduplication, already-executed check, structural validity, attestor
 ///   verification (V2 only), lock conflict check, and deny checks (deny list,
 ///   gas, ownership, coin deny list, Move authenticator) — the last group in
-///   full for `UserTransactionV1`, as a payload-only subset for
-///   `UserTransactionV2`.
+///   full for `UserTransactionV1`; for `UserTransactionV2` the deny list, the
+///   gas bounds and the input check (existence, ownership, digest).
 /// - If all checks pass, acquires owned-object locks in a local tracking map;
 ///   with `pcool_skip_immutable_object_locks` set, immutable inputs are not
 ///   locked (issue #12602).
@@ -293,11 +293,9 @@ pub async fn validate_and_resolve_conflicts(
         //
         // Locks are keyed by full ObjectReference (id + version + digest), not just
         // ObjectID, so two transactions referencing the same object at different
-        // versions do NOT conflict here. Version freshness is validated elsewhere:
-        // in Check #6 for `UserTransactionV1`, whose deny checks load objects from
-        // DB and verify the input refs against current state, and at execution
-        // (`check_certificate_input`) for `UserTransactionV2`, whose Check #6 is
-        // payload-only.
+        // versions do NOT conflict here. Version freshness is validated in Check #6
+        // on both paths, whose input checks load the objects from DB and verify the
+        // input refs against current state.
         //
         // Probing the raw set is safe though immutable inputs are never
         // locked: acquisition never inserts one, and the lock tables are
@@ -352,19 +350,19 @@ pub async fn validate_and_resolve_conflicts(
         //
         // `UserTransactionV1` runs the full
         // `handle_transaction_validation_checks`. For `UserTransactionV2`
-        // (attested transactions) only a payload-only gas-bounds check, the
-        // `TransactionDenyConfig` deny-list check, and an input-existence check
-        // run (see below). The rest of `handle_transaction_validation_checks`
-        // deliberately stays at execution, where a failure is a chargeable
-        // effect instead of a free drop:
+        // (attested transactions) a payload-only gas-bounds check, the
+        // `TransactionDenyConfig` deny-list check, and an input check (existence,
+        // ownership, digest) run (see below). The rest of
+        // `handle_transaction_validation_checks` deliberately stays at
+        // execution, where a failure is a chargeable effect instead of a free
+        // drop:
         //   - Receiving-object validity: the Move runtime fails the `receive()` call
         //     when the ref doesn't match current state.
         //   - Move bytecode verifier on publish: the Move VM re-verifies every newly
         //     published package; the signing-time variant only adds a stricter meter as
         //     a DoS gate.
-        //   - Gas balance, ownership, coin deny list, `MoveAuthenticator` execution:
-        //     re-applied in the execution pipeline; the payload-only gas bounds are
-        //     checked below.
+        //   - Gas balance, coin deny list, `MoveAuthenticator` execution: re-applied in
+        //     the execution pipeline; the payload-only gas bounds are checked below.
         //
         // The user signature is verified pre-consensus in the block verifier
         // (`IotaTxValidator::validate_transactions`) for both `UserTransactionV1`
@@ -451,47 +449,43 @@ pub async fn validate_and_resolve_conflicts(
             }
             // Input existence at the referenced versions (owned and gas
             // objects, shared objects or their deletion markers, authenticator
-            // accounts).
+            // accounts), then the input checks execution would otherwise fail
+            // on: the transaction's own inputs (ownership, digest, duplicate
+            // use), each Move authenticator's inputs, and their union. All of
+            // it is fixed by the object bytes at the pinned version, so the
+            // drop is as deterministic as the existence read it follows.
             //
-            // TODO: this drop is a known fork source — the read follows this
+            // TODO: the existence read is a known fork source — it follows this
             // validator's execution progress, so an input created by an
             // earlier not-yet-executed transaction is missed here but seen by
             // an up-to-date validator. Kept as a placeholder against the
             // never-existing-input stall until the PCOOL redesign decides
             // input availability against consensus-derived state.
-            if let Err(e) =
-                authority_state.check_transaction_inputs_exist(&verified_tx, epoch_store.epoch())
+            match authority_state
+                .check_transaction_inputs_for_attested_tx(&verified_tx, epoch_store.epoch())
             {
-                if e.is_storage_or_epoch_error() {
-                    return Err(e);
+                Ok(owned) => owned,
+                Err(e) => {
+                    if e.is_storage_or_epoch_error() {
+                        return Err(e);
+                    }
+                    warn!(
+                        ?digest,
+                        error = ?e,
+                        "UserTransactionV2 failed post-consensus input check, dropping"
+                    );
+                    dropped.push((digest, e));
+                    keep[i] = false;
+                    continue;
                 }
-                warn!(
-                    ?digest,
-                    error = ?e,
-                    "UserTransactionV2 failed post-consensus input-existence check, dropping"
-                );
-                dropped.push((digest, e));
-                keep[i] = false;
-                continue;
             }
-            // TODO: filter out immutable references for `UserTransactionV2`.
-            // `UserTransactionV1` gets its owner-filtered set for free from
-            // `handle_transaction_validation_checks`; V2 skips that call and
-            // the attestation's `object_versions` deliberately excludes
-            // references pinned by the signed transaction, so no owner
-            // information is available without a store read. Until that read
-            // exists, V2 locks the probed set — immutable inputs included —
-            // even with `pcool_skip_immutable_object_locks` set, which can
-            // drop a later V2 transaction sharing the same immutable input.
-            owned_inputs.clone()
         };
 
         // All checks passed — acquire owned-object locks in local tracking.
-        // For `UserTransactionV1` the validated set comes from loaded objects, so
-        // unlike the byte-derived `owned_inputs` it excludes immutable inputs, which
-        // must never be locked (issue #12602). `UserTransactionV2` has no loaded set
-        // and falls back to the probed references. Either way the set is a subset of
-        // `owned_inputs`, so every reference locked here was probed by Check #4 first.
+        // On both paths the validated set comes from loaded objects, so unlike the
+        // byte-derived `owned_inputs` it excludes immutable inputs, which must never
+        // be locked (issue #12602). It is a subset of `owned_inputs`, so every
+        // reference locked here was probed by Check #4 first.
         let locked_inputs: Vec<ObjectReference> = if skip_immutable_locks {
             validated_owned_objects
         } else {

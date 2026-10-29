@@ -2544,6 +2544,42 @@ async fn test_immutable_object_input_not_locked() {
     );
 }
 
+/// The same for attested transactions: their lock set comes from the loaded
+/// objects as well, so an immutable input is never locked (issue #12809).
+#[tokio::test]
+async fn test_v2_immutable_object_input_not_locked() {
+    telemetry_subscribers::init_for_testing();
+    let s = setup_immutable_input(true).await;
+    let protocol_config = s.epoch_store.protocol_config();
+    let min_units = protocol_config
+        .base_tx_cost_fixed()
+        .min(protocol_config.gas_rounding_step());
+
+    let tx1 = s.read_immutable(s.gas1_ref);
+    let tx2 = s.read_immutable(s.gas2_ref);
+    let mut transactions = vec![
+        make_user_tx_v2(tx1.into_inner(), 0, min_units),
+        make_user_tx_v2(tx2.into_inner(), 0, min_units),
+    ];
+
+    let (dropped, locks) = s.resolve(&mut transactions).await;
+
+    assert!(
+        dropped.is_empty(),
+        "no attested transaction may be dropped over an immutable input: {dropped:?}"
+    );
+    assert_eq!(transactions.len(), 2, "both transactions must be kept");
+    assert!(
+        !locks.contains_key(&s.immutable_ref),
+        "immutable object must not be locked"
+    );
+    assert_eq!(
+        locks.len(),
+        2,
+        "only the two gas coins may be locked, got {locks:?}"
+    );
+}
+
 /// The gate itself: with the flag off, the first reader locks the immutable
 /// object and the second is dropped against it.
 #[tokio::test]
