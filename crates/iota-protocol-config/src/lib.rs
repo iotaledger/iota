@@ -1168,7 +1168,8 @@ pub struct ProtocolConfig {
     max_meter_ticks_regex_reference_safety: Option<u64>,
 
     /// Maximum number of edges in the instantiation-loop graph of a Move
-    /// module. Signing uses a limit set in the binary instead.
+    /// module, checked only by post-consensus validation. Signing uses a limit
+    /// set in the binary instead, and execution does not check it.
     max_instantiation_loop_graph_edges: Option<u64>,
 
     // === Object runtime internal operation limits ====
@@ -3918,13 +3919,23 @@ impl ProtocolConfig {
     /// protocol's sign-time limits, with `deprecate_global_storage_ops`, the
     /// instantiation-loop graph edge limit and the metering of that check
     /// taken from the protocol config rather than set as at signing.
+    ///
+    /// # Panics
+    ///
+    /// Panics before protocol version 35, which has no
+    /// `max_meter_ticks_regex_reference_safety`.
     pub fn post_consensus_verifier_config(&self) -> VerifierConfig {
-        // Before protocol version 40 sets the edge limit, the check is
-        // metered and capped at 100,000 edges, the values signing used then.
+        // Before protocol version 40, the check is metered and capped at
+        // 100,000 edges, the values signing used then.
         let (meter_instantiation_loops, max_instantiation_loop_graph_edges) =
-            match self.max_instantiation_loop_graph_edges_as_option() {
-                Some(edges) => (self.meter_instantiation_loops(), Some(edges as usize)),
-                None => (true, Some(100_000)),
+            if self.version < ProtocolVersion::new(40) {
+                (true, Some(100_000))
+            } else {
+                (
+                    self.meter_instantiation_loops(),
+                    self.max_instantiation_loop_graph_edges_as_option()
+                        .map(|edges| edges as usize),
+                )
             };
         VerifierConfig {
             deprecate_global_storage_ops: self.deprecate_global_storage_ops(),
@@ -4422,6 +4433,22 @@ mod test {
         let signing = prot.verifier_config(Some((0, 0, 0)));
         assert!(signing.meter_instantiation_loops);
         assert_eq!(signing.max_instantiation_loop_graph_edges, Some(100_000));
+    }
+
+    #[test]
+    fn signing_and_post_consensus_instantiation_loop_limits_match() {
+        let prot = ProtocolConfig::get_for_max_version_UNSAFE();
+        let signing = prot.verifier_config(Some(prot.verifier_signing_limits()));
+        let post_consensus = prot.post_consensus_verifier_config();
+
+        assert_eq!(
+            signing.meter_instantiation_loops,
+            post_consensus.meter_instantiation_loops
+        );
+        assert_eq!(
+            signing.max_instantiation_loop_graph_edges,
+            post_consensus.max_instantiation_loop_graph_edges
+        );
     }
 
     #[test]
