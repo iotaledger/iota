@@ -1741,13 +1741,16 @@ mod tests {
 
         let tiny_amount = gas_coins
             .iter()
-            .find(|gas| gas.1.object_id == tiny_coin_id)
+            .find(|gas| *gas.1.object_ref().object_id() == tiny_coin_id)
             .unwrap()
             .0;
         assert_eq!(tiny_amount, tiny_value);
 
-        let gas_coins: HashSet<ObjectId> =
-            HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.1.object_id));
+        let gas_coins: HashSet<ObjectId> = HashSet::from_iter(
+            gas_coins
+                .into_iter()
+                .map(|gas| *gas.1.object_ref().object_id()),
+        );
 
         let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();

@@ -586,6 +586,26 @@ pub fn get_new_package_ref(tx: &ExecutedTransaction) -> Option<ObjectReference> 
     })
 }
 
+/// The reference of the `UpgradeCap` created by this transaction, if any.
+pub fn get_new_upgrade_cap_ref(tx: &ExecutedTransaction) -> Option<ObjectReference> {
+    let changes = tx.object_changes().ok()?;
+    changes.object_changes.iter().find_map(|c| {
+        let ProtoObjectChangeKind::Created(created) = c.kind.as_ref()? else {
+            return None;
+        };
+        let owner = created.owner().ok()?;
+        let object_type = created.object_type().ok()?;
+        if !owner.is_address() || !object_type.as_opt_struct_tag()?.is_upgrade_cap() {
+            return None;
+        }
+        Some(ObjectReference::new(
+            created.object_id().ok()?,
+            Version::from_u64(created.version?),
+            created.digest().ok()?,
+        ))
+    })
+}
+
 pub async fn publish_package(context: &WalletContext, path: PathBuf) -> ObjectReference {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();

@@ -21,6 +21,7 @@ use iota_sdk_types::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
     transaction::TransactionEnvelope,
     utils::make_upgraded_multisig_tx,
@@ -282,7 +283,10 @@ async fn test_multisig_e2e() {
         .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[0], &keys[1]], 0b011);
     let res = context.execute_transaction_must_succeed(tx1).await;
-    assert!(res.status_ok().unwrap());
+    assert!(matches!(
+        res.effects().unwrap().effects().unwrap().status(),
+        iota_sdk_types::ExecutionStatus::Success
+    ));
 
     // 2. sign with key 1 and 2 executes successfully.
     let gas = test_cluster
@@ -292,7 +296,10 @@ async fn test_multisig_e2e() {
         .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[1], &keys[2]], 0b110);
     let res = context.execute_transaction_must_succeed(tx2).await;
-    assert!(res.status_ok().unwrap());
+    assert!(matches!(
+        res.effects().unwrap().effects().unwrap().status(),
+        iota_sdk_types::ExecutionStatus::Success
+    ));
 
     // 3. signature 2 and 1 swapped fails to execute.
     let gas = test_cluster
@@ -413,7 +420,10 @@ async fn test_multisig_mixed_ed25519_requires_all_signatures() {
         .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk, &[&keys[0], &keys[1], &keys[2]], 0b111);
     let res = context.execute_transaction_must_succeed(tx2).await;
-    assert!(res.status_ok().unwrap());
+    assert!(matches!(
+        res.effects().unwrap().effects().unwrap().status(),
+        iota_sdk_types::ExecutionStatus::Success
+    ));
 
     // A committee of Ed25519 keys only still executes with signatures from a
     // subset of its members.
@@ -442,7 +452,10 @@ async fn test_multisig_mixed_ed25519_requires_all_signatures() {
             0b101,
         );
     let res = context.execute_transaction_must_succeed(tx3).await;
-    assert!(res.status_ok().unwrap());
+    assert!(matches!(
+        res.effects().unwrap().effects().unwrap().status(),
+        iota_sdk_types::ExecutionStatus::Success
+    ));
 }
 
 #[sim_test]
