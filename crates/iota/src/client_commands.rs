@@ -3232,8 +3232,8 @@ pub async fn estimate_gas_budget(
 
 /// Whether a dry run without `--gas-budget` but with gas coins failed for lack
 /// of coin balance. An unset budget is filled in with the gas coins' balance,
-/// up to the protocol maximum (50 IOTA), which can leave too little to split
-/// from the gas coin.
+/// up to the protocol maximum (`max_tx_gas`), which can leave too little to
+/// split from the gas coin.
 pub fn budget_took_the_gas_coins(
     result: &IotaClientCommandResult,
     gas_budget: Option<u64>,
