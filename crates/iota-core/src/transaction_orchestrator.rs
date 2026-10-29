@@ -79,10 +79,6 @@ use crate::{
     validator_client_monitor::ValidatorClientMetrics,
 };
 
-// How long to wait for local execution (including parents) before a timeout
-// is returned to client.
-const LOCAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(10);
-
 const WAIT_FOR_FINALITY_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// The submission flow for a transaction, selected per request by the
@@ -466,11 +462,16 @@ where
             // The response is already 2f+1 certified — from the QuorumDriver,
             // or inherited by a duplicate submission from an in-flight
             // certifying submission — so just confirm local execution
-            // finished.
+            // finished. Both waits share one deadline: a fullnode often
+            // executes the transaction only with its checkpoint, so a shorter
+            // limit on the first wait would give up before the second could
+            // succeed.
+            let deadline = tokio::time::Instant::now() + WAIT_FOR_FINALITY_TIMEOUT;
             let executed = Self::wait_for_finalized_tx_executed_locally_with_timeout(
                 &self.validator_state,
                 &transaction,
                 &self.metrics,
+                deadline,
             )
             .await
             .is_ok();
@@ -480,7 +481,10 @@ where
             executed
                 && self
                     .validator_state
-                    .wait_for_checkpoint_inclusion(&[tx_digest], WAIT_FOR_FINALITY_TIMEOUT)
+                    .wait_for_checkpoint_inclusion(
+                        &[tx_digest],
+                        deadline.saturating_duration_since(tokio::time::Instant::now()),
+                    )
                     .await
                     .is_ok_and(|inclusion| self.is_indexed(&inclusion, &tx_digest))
         };
@@ -1222,6 +1226,7 @@ where
         validator_state: &Arc<AuthorityState>,
         transaction: &VerifiedTransaction,
         metrics: &TransactionOrchestratorMetrics,
+        deadline: tokio::time::Instant,
     ) -> IotaResult {
         let tx_digest = *transaction.digest();
         metrics.local_execution_in_flight.inc();
@@ -1239,8 +1244,8 @@ where
             ?tx_digest,
             "Waiting for finalized tx to be executed locally."
         );
-        match timeout(
-            LOCAL_EXECUTION_TIMEOUT,
+        match tokio::time::timeout_at(
+            deadline,
             validator_state
                 .get_transaction_cache_reader()
                 .try_notify_read_executed_effects_digests(
@@ -1254,8 +1259,7 @@ where
             Err(_elapsed) => {
                 debug!(
                     ?tx_digest,
-                    "Waiting for finalized tx to be executed locally timed out within {:?}.",
-                    LOCAL_EXECUTION_TIMEOUT
+                    "Waiting for finalized tx to be executed locally timed out."
                 );
                 metrics.local_execution_timeout.inc();
                 Err(IotaError::Timeout)
