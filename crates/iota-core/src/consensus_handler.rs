@@ -3242,39 +3242,19 @@ mod tests {
     ///   the same handler; validator B's handler loses its LRU first, modeling a restart after
     ///   commit A was flushed (the epoch store's consensus-derived state is the same either way —
     ///   only the handler's LRU is lost).
+    ///
+    /// The drop must also be transient for the submitter: a waiter present at commit A gets the
+    /// rejection, and a retry of T through validator A's consensus adapter is submitted to
+    /// consensus rather than answered from that rejection.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_load_shedding_dropped_transaction_retry_is_processed_after_restart() {
-        use std::sync::atomic::{AtomicUsize, Ordering};
-
-        use tokio::sync::Notify;
-
         use crate::{
             consensus_adapter::{
-                BlockStatusReceiver, ConnectionMonitorStatusForTests, ConsensusAdapter,
-                ConsensusAdapterMetrics, ConsensusClient,
+                ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
+                MockConsensusClient,
             },
             mock_consensus::with_block_status,
         };
-
-        struct CountingConsensusClient {
-            submissions: AtomicUsize,
-            submitted: Notify,
-        }
-
-        #[async_trait::async_trait]
-        impl ConsensusClient for CountingConsensusClient {
-            async fn submit(
-                &self,
-                _transactions: &[ConsensusTransaction],
-                _epoch_store: &Arc<AuthorityPerEpochStore>,
-            ) -> IotaResult<BlockStatusReceiver> {
-                self.submissions.fetch_add(1, Ordering::SeqCst);
-                self.submitted.notify_one();
-                Ok(with_block_status(starfish_core::BlockStatus::Sequenced(
-                    starfish_core::GenericTransactionRef::BlockRef(starfish_core::BlockRef::MIN),
-                )))
-            }
-        }
 
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_consensus_dedup_only_recorded_messages_for_testing(true);
@@ -3447,12 +3427,19 @@ mod tests {
 
         // A retry submitted through the adapter must reach consensus rather than
         // complete from the earlier load-shedding notification.
-        let counting_client = Arc::new(CountingConsensusClient {
-            submissions: AtomicUsize::new(0),
-            submitted: Notify::new(),
-        });
+        let (submitted_tx, mut submitted_rx) = tokio::sync::mpsc::channel(1);
+        let mut consensus_client = MockConsensusClient::new();
+        consensus_client
+            .expect_submit()
+            .times(1)
+            .returning(move |_, _| {
+                submitted_tx.try_send(()).unwrap();
+                Ok(with_block_status(starfish_core::BlockStatus::Sequenced(
+                    starfish_core::GenericTransactionRef::BlockRef(starfish_core::BlockRef::MIN),
+                )))
+            });
         let adapter = Arc::new(ConsensusAdapter::new(
-            counting_client.clone(),
+            Arc::new(consensus_client),
             state_a.checkpoint_store.clone(),
             state_a.name,
             Arc::new(ConnectionMonitorStatusForTests {}),
@@ -3466,10 +3453,9 @@ mod tests {
         let retry_waiter = adapter
             .submit(consensus_tx, None, &epoch_store_a)
             .expect("retry must be persisted");
-        tokio::time::timeout(Duration::from_secs(5), counting_client.submitted.notified())
+        tokio::time::timeout(Duration::from_secs(5), submitted_rx.recv())
             .await
             .expect("retry after load shedding must reach consensus submission");
-        assert_eq!(counting_client.submissions.load(Ordering::SeqCst), 1);
 
         // Validator B restarts before the retry arrives: the handler's LRU is
         // gone, the epoch store's consensus-derived state remains. A new
