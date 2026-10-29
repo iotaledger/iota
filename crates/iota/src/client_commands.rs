@@ -1595,7 +1595,9 @@ impl IotaClientCommands {
                     .await?
                     .iter()
                     // Ok to unwrap() since `get_gas_objects` guarantees gas
-                    .map(|(_val, object)| GasCoin::try_from(object).unwrap())
+                    .map(|(balance, object)| {
+                        GasCoin::new(*object.object_ref().object_id(), *balance)
+                    })
                     .collect();
                 IotaClientCommandResult::Gas(coins)
             }
@@ -1834,13 +1836,31 @@ impl IotaClientCommands {
                 }
                 let transaction = TransactionEnvelope::from_user_sig_data(data, sigs);
 
-                let response = context.execute_transaction_may_fail(transaction).await?;
+                let response = context
+                    .get_client()
+                    .await?
+                    .quorum_driver_api()
+                    .execute_transaction_block(
+                        transaction,
+                        IotaTransactionBlockResponseOptions::full_content(),
+                        Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                    )
+                    .await?;
                 IotaClientCommandResult::TransactionBlock(response)
             }
             IotaClientCommands::ExecuteCombinedSignedTx { signed_tx_bytes } => {
                 let tx = SenderSignedTransaction::from_base64(&signed_tx_bytes).map_err(|_| anyhow!("Failed to parse SenderSignedTransaction bytes, check if it matches the output of iota client commands with --serialize-signed-transaction"))?;
                 let transaction = Envelope::<SenderSignedTransaction, EmptySignInfo>::new(tx);
-                let response = context.execute_transaction_may_fail(transaction).await?;
+                let response = context
+                    .get_client()
+                    .await?
+                    .quorum_driver_api()
+                    .execute_transaction_block(
+                        transaction,
+                        IotaTransactionBlockResponseOptions::full_content(),
+                        Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                    )
+                    .await?;
                 IotaClientCommandResult::TransactionBlock(response)
             }
             IotaClientCommands::Sign {
@@ -3771,7 +3791,7 @@ async fn select_coins_for_amount(
         .await?
         .iter()
         // Ok to unwrap() since `gas_objects` guarantees gas
-        .map(|(_val, object)| GasCoin::try_from(object).unwrap())
+        .map(|(balance, object)| GasCoin::new(*object.object_ref().object_id(), *balance))
         .collect::<Vec<_>>();
     // Sort in ascending order
     gas_coins.sort_unstable_by_key(|c| c.value());
