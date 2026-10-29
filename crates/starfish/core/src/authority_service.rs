@@ -837,7 +837,7 @@ fn read_transaction_payloads(
 /// Reads the serialized headers of `block_refs` in their order, skipping those
 /// this node lacks. Headers at or below the evicted round of their author are
 /// read from the store, the others from the DAG state only.
-fn read_requested_block_headers(
+fn read_block_headers(
     store: &dyn Store,
     dag_state: &RwLock<DagState>,
     block_refs: &[BlockRef],
@@ -1618,14 +1618,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Get requested block headers from store.
         let serialized_headers = if commit_sync_handle {
-            read_requested_block_headers(self.store.as_ref(), &self.dag_state, &block_refs)?
+            read_block_headers(self.store.as_ref(), &self.dag_state, &block_refs)?
         } else {
             // For periodic or live synchronizer, we respond with requested blocks from the
             // store and with additional blocks from the cache
             block_refs.sort();
             block_refs.dedup();
             let mut headers =
-                read_requested_block_headers(self.store.as_ref(), &self.dag_state, &block_refs)?;
+                read_block_headers(self.store.as_ref(), &self.dag_state, &block_refs)?;
             let dag_state = self.dag_state.read();
 
             // Get additional blocks for authorities with missing block, if they are
