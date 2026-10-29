@@ -239,11 +239,11 @@ pub(crate) struct DagState {
     /// Keeps track of the threshold clock for proposing blocks.
     threshold_clock: ThresholdClock,
 
-    /// Keeps track of the highest round that has been evicted for each
-    /// authority. Any block header that are of round <= evict_round should
-    /// be considered evicted, and if any exist we should not consider the
-    /// causally complete in the order they appear. The `evicted_header_rounds`
-    /// size should be the same as the committee size.
+    /// Highest round evicted from `recent_block_headers`, per authority.
+    /// Accepted headers above it are all held in `recent_block_headers`, so
+    /// reads above it skip the store. Those at or below it are in the store,
+    /// except one accepted after its round was evicted, until the next flush
+    /// writes it.
     evicted_header_rounds: Vec<Round>,
 
     /// Highest round evicted from `recent_transactions_by_authority`, per
