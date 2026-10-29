@@ -800,7 +800,7 @@ struct FeatureFlags {
     // vector element borrows with the same rule as calls, and fails if a
     // deprecated instruction reaches it. This applies to every module the VM
     // verifies, including published packages it loads. Signing always runs
-    // with it on.
+    // with it on; post-consensus validation follows this flag.
     #[serde(skip_serializing_if = "is_false")]
     deprecate_global_storage_ops: bool,
 }
@@ -3891,6 +3891,16 @@ impl ProtocolConfig {
         }
     }
 
+    /// The bytecode verifier config for post-consensus validation: the
+    /// protocol's sign-time limits, with `deprecate_global_storage_ops`
+    /// following the protocol flag rather than always on as at signing.
+    pub fn post_consensus_verifier_config(&self) -> VerifierConfig {
+        VerifierConfig {
+            deprecate_global_storage_ops: self.deprecate_global_storage_ops(),
+            ..self.verifier_config(Some(self.verifier_signing_limits()))
+        }
+    }
+
     /// The sign-time verifier limits as protocol parameters, in the shape
     /// `verifier_config` takes: back edges per function, back edges per module,
     /// and the meter limit of the regex-based reference safety check.
@@ -4332,6 +4342,29 @@ mod test {
         let execution = prot.verifier_config(None);
         assert_eq!(execution.max_instantiation_loop_graph_edges, None);
         assert!(!execution.meter_instantiation_loops);
+    }
+
+    #[test]
+    fn post_consensus_verifier_config_follows_deprecate_global_storage_ops() {
+        let mut prot = ProtocolConfig::get_for_max_version_UNSAFE();
+        prot.set_deprecate_global_storage_ops_for_testing(false);
+
+        assert!(
+            prot.verifier_config(Some((0, 0, 0)))
+                .deprecate_global_storage_ops
+        );
+        let post_consensus = prot.post_consensus_verifier_config();
+        assert!(!post_consensus.deprecate_global_storage_ops);
+        assert_eq!(
+            post_consensus.max_back_edges_per_function,
+            Some(prot.max_back_edges_per_function() as usize)
+        );
+
+        prot.set_deprecate_global_storage_ops_for_testing(true);
+        assert!(
+            prot.post_consensus_verifier_config()
+                .deprecate_global_storage_ops
+        );
     }
 
     #[test]

@@ -2,19 +2,23 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, env, fs::File, io::Read, path::PathBuf};
+use std::{collections::HashSet, env, fs::File, io::Read, path::PathBuf, sync::Arc};
 
 use expect_test::expect;
+use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_framework::BuiltInFramework;
 use iota_move_build::{BuildConfig, check_unpublished_dependencies, gather_published_ids};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     ExecutionError, ExecutionStatus, Identifier, ObjectData, ObjectId, Owner, Transaction,
 };
+use iota_transaction_checks::{VerifierLimitsSource, check_non_system_packages_to_be_published};
 use iota_types::{
+    base_types::random_object_ref,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
+    metrics::BytecodeVerifierMetrics,
     object::ObjectRead,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionAPI},
@@ -30,6 +34,7 @@ use move_binary_format::{
     file_format_common::{BinaryConstants, VERSION_6},
 };
 use move_package::source_package::manifest_parser;
+use prometheus_filtered::Registry;
 
 use crate::authority::{
     authority_tests::{call_move, init_state_with_ids, send_and_confirm_transaction},
@@ -592,83 +597,10 @@ async fn publish_module_using_global_storage() -> Result<ExecutionStatus, IotaEr
         .1;
     assert_eq!(result.status(), &ExecutionStatus::Success);
 
-    // give the module a private function that uses a deprecated global storage
-    // instruction
     let gas_object = authority.get_object(&gas);
     let gas_object_ref = gas_object.unwrap().object_ref();
     let mut modules = correct_modules.clone();
-    let new_bytes = {
-        let mut m = CompiledModule::deserialize_with_defaults(&modules[0]).unwrap();
-
-        // `exists` needs a struct with `key` and no type parameters, so that the
-        // non-generic form of the instruction applies
-        let key_struct = m
-            .struct_defs
-            .iter()
-            .position(|def| {
-                let handle = m.datatype_handle_at(def.struct_handle);
-                handle.abilities.has_key() && handle.type_parameters.is_empty()
-            })
-            .expect("test package must declare a non-generic object");
-
-        // reuse the signatures if they are already there: `DuplicationChecker`
-        // rejects a module with two identical ones
-        let empty = match m.signatures.iter().position(|sig| sig.0.is_empty()) {
-            Some(idx) => idx,
-            None => {
-                m.signatures.push(Signature(vec![]));
-                m.signatures.len() - 1
-            }
-        };
-        let empty = SignatureIndex(empty as u16);
-        let address = match m
-            .signatures
-            .iter()
-            .position(|sig| sig.0.len() == 1 && sig.0[0] == SignatureToken::Address)
-        {
-            Some(idx) => idx,
-            None => {
-                m.signatures.push(Signature(vec![SignatureToken::Address]));
-                m.signatures.len() - 1
-            }
-        };
-        let address = SignatureIndex(address as u16);
-
-        let name = IdentifierIndex(m.identifiers.len() as u16);
-        m.identifiers
-            .push(move_core_types::identifier::Identifier::new("uses_global_storage").unwrap());
-
-        let function = FunctionHandleIndex(m.function_handles.len() as u16);
-        m.function_handles.push(FunctionHandle {
-            module: m.self_module_handle_idx,
-            name,
-            parameters: address,
-            return_: empty,
-            type_parameters: vec![],
-        });
-        m.function_defs.push(FunctionDefinition {
-            function,
-            visibility: Visibility::Private,
-            is_entry: false,
-            // `exists` does not acquire the resource it looks up
-            acquires_global_resources: vec![],
-            code: Some(CodeUnit {
-                locals: empty,
-                code: vec![
-                    Bytecode::CopyLoc(0),
-                    Bytecode::ExistsDeprecated(StructDefinitionIndex(key_struct as u16)),
-                    Bytecode::Pop,
-                    Bytecode::Ret,
-                ],
-                jump_tables: vec![],
-            }),
-        });
-
-        let mut buf = vec![];
-        m.serialize_with_version(m.version, &mut buf).unwrap();
-        buf
-    };
-    modules[0] = new_bytes;
+    modules[0] = with_function_using_global_storage(&modules[0]);
     let tx = Transaction::new_module(
         sender,
         gas_object_ref,
@@ -681,6 +613,192 @@ async fn publish_module_using_global_storage() -> Result<ExecutionStatus, IotaEr
     send_and_confirm_transaction(&authority, transaction)
         .await
         .map(|(_, effects)| effects.status().clone())
+}
+
+/// The node's limits reject these modules whatever the protocol flag; the
+/// protocol's limits, used in post-consensus validation, only once
+/// `deprecate_global_storage_ops` is set.
+#[test]
+#[cfg_attr(msim, ignore)]
+fn test_protocol_limits_reject_deprecated_bytes_modules_only_with_the_flag() {
+    let modules = build_test_package("object_owner", /* with_unpublished_deps */ false);
+    assert_eq!(modules.len(), 1);
+    let metrics = Arc::new(BytecodeVerifierMetrics::new(&Registry::new()));
+    let node_limits = VerifierSigningConfig::default();
+
+    for (case, module) in [
+        (
+            "global storage",
+            with_function_using_global_storage(&modules[0]),
+        ),
+        (
+            "vector element borrows",
+            with_function_borrowing_two_vector_elements(&modules[0]),
+        ),
+    ] {
+        let (sender, _): (_, AccountPrivateKey) = get_key_pair();
+        let transaction = Transaction::new_module(
+            sender,
+            random_object_ref(),
+            vec![module],
+            BuiltInFramework::all_package_ids(),
+            TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+            1,
+        );
+        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        for flag in [false, true] {
+            protocol_config.set_deprecate_global_storage_ops_for_testing(flag);
+            let verdict = |source| {
+                check_non_system_packages_to_be_published(
+                    &transaction,
+                    &protocol_config,
+                    &metrics,
+                    source,
+                )
+            };
+
+            let node = verdict(VerifierLimitsSource::NodeConfig(&node_limits));
+            assert!(
+                matches!(
+                    node,
+                    Err(UserInputError::PackageVerificationTimedout { .. })
+                ),
+                "{case}, flag {flag}: {node:?}"
+            );
+            let protocol = verdict(VerifierLimitsSource::ProtocolConfig);
+            assert_eq!(protocol.is_err(), flag, "{case}, flag {flag}: {protocol:?}");
+        }
+    }
+}
+
+/// Return the module with a private function added that uses a deprecated
+/// global storage instruction.
+fn with_function_using_global_storage(module_bytes: &[u8]) -> Vec<u8> {
+    let mut m = CompiledModule::deserialize_with_defaults(module_bytes).unwrap();
+
+    // `exists` needs a struct with `key` and no type parameters, so that the
+    // non-generic form of the instruction applies
+    let key_struct = m
+        .struct_defs
+        .iter()
+        .position(|def| {
+            let handle = m.datatype_handle_at(def.struct_handle);
+            handle.abilities.has_key() && handle.type_parameters.is_empty()
+        })
+        .expect("test package must declare a non-generic object");
+    let empty = signature_index(&mut m, vec![]);
+    let address = signature_index(&mut m, vec![SignatureToken::Address]);
+
+    add_private_function(
+        &mut m,
+        "uses_global_storage",
+        address,
+        empty,
+        CodeUnit {
+            locals: empty,
+            code: vec![
+                Bytecode::CopyLoc(0),
+                Bytecode::ExistsDeprecated(StructDefinitionIndex(key_struct as u16)),
+                Bytecode::Pop,
+                Bytecode::Ret,
+            ],
+            jump_tables: vec![],
+        },
+    );
+    serialize(&m)
+}
+
+/// Return the module with a private function added that mutably borrows two
+/// elements of one vector at once, which both vector borrow rules reject.
+fn with_function_borrowing_two_vector_elements(module_bytes: &[u8]) -> Vec<u8> {
+    let mut m = CompiledModule::deserialize_with_defaults(module_bytes).unwrap();
+
+    let empty = signature_index(&mut m, vec![]);
+    let element = signature_index(&mut m, vec![SignatureToken::U64]);
+    let vector = signature_index(
+        &mut m,
+        vec![SignatureToken::MutableReference(Box::new(
+            SignatureToken::Vector(Box::new(SignatureToken::U64)),
+        ))],
+    );
+    let element_ref = signature_index(
+        &mut m,
+        vec![SignatureToken::MutableReference(Box::new(
+            SignatureToken::U64,
+        ))],
+    );
+
+    add_private_function(
+        &mut m,
+        "borrows_two_vector_elements",
+        vector,
+        empty,
+        CodeUnit {
+            locals: element_ref,
+            code: vec![
+                Bytecode::CopyLoc(0),
+                Bytecode::LdU64(0),
+                Bytecode::VecMutBorrow(element),
+                Bytecode::StLoc(1),
+                Bytecode::MoveLoc(0),
+                Bytecode::LdU64(1),
+                Bytecode::VecMutBorrow(element),
+                Bytecode::Pop,
+                Bytecode::MoveLoc(1),
+                Bytecode::Pop,
+                Bytecode::Ret,
+            ],
+            jump_tables: vec![],
+        },
+    );
+    serialize(&m)
+}
+
+/// Return the index of the signature with these tokens, adding it if missing:
+/// `DuplicationChecker` rejects duplicate signatures.
+fn signature_index(m: &mut CompiledModule, tokens: Vec<SignatureToken>) -> SignatureIndex {
+    let idx = match m.signatures.iter().position(|sig| sig.0 == tokens) {
+        Some(idx) => idx,
+        None => {
+            m.signatures.push(Signature(tokens));
+            m.signatures.len() - 1
+        }
+    };
+    SignatureIndex(idx as u16)
+}
+
+fn add_private_function(
+    m: &mut CompiledModule,
+    name: &str,
+    parameters: SignatureIndex,
+    return_: SignatureIndex,
+    code: CodeUnit,
+) {
+    let name_idx = IdentifierIndex(m.identifiers.len() as u16);
+    m.identifiers
+        .push(move_core_types::identifier::Identifier::new(name).unwrap());
+
+    let function = FunctionHandleIndex(m.function_handles.len() as u16);
+    m.function_handles.push(FunctionHandle {
+        module: m.self_module_handle_idx,
+        name: name_idx,
+        parameters,
+        return_,
+        type_parameters: vec![],
+    });
+    m.function_defs.push(FunctionDefinition {
+        function,
+        visibility: Visibility::Private,
+        is_entry: false,
+        acquires_global_resources: vec![],
+        code: Some(code),
+    });
+}
+
+fn serialize(m: &CompiledModule) -> Vec<u8> {
+    let mut buf = vec![];
+    m.serialize_with_version(m.version, &mut buf).unwrap();
+    buf
 }
 
 #[tokio::test]
