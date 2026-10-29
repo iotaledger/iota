@@ -761,8 +761,12 @@ async fn the_migration_resumes_from_its_watermark() {
 
     // Release every handle on both databases before reopening the same paths,
     // as a restart does.
-    let weak_ledger = Arc::downgrade(&store.perpetual_tables.objects.db);
-    let weak_checkpoints = Arc::downgrade(&checkpoint_store.tables.certified_checkpoints.db);
+    let weak_ledger = store.perpetual_tables.objects.db.close_handle();
+    let weak_checkpoints = checkpoint_store
+        .tables
+        .certified_checkpoints
+        .db
+        .close_handle();
     drop(interrupted);
     drop(store);
     drop(checkpoint_store);

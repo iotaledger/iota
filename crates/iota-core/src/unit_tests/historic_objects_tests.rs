@@ -126,7 +126,7 @@ async fn test_relocated_version_survives_a_reopen() {
         .unwrap();
     batch.write().unwrap();
 
-    let weak_db = Arc::downgrade(&perpetual.objects.db);
+    let weak_db = perpetual.objects.db.close_handle();
     drop(bucket);
     drop(historic);
     drop(historic_ledger);
@@ -157,7 +157,7 @@ async fn test_recorded_tombstones_survive_a_reopen() {
         .unwrap();
     batch.write().unwrap();
 
-    let weak_db = Arc::downgrade(&perpetual.objects.db);
+    let weak_db = perpetual.objects.db.close_handle();
     drop(bucket);
     drop(historic);
     drop(historic_ledger);
@@ -370,7 +370,7 @@ async fn test_an_interrupted_expiry_is_finished_at_open() {
         .unwrap();
     batch.write().unwrap();
 
-    let weak_db = Arc::downgrade(&perpetual.objects.db);
+    let weak_db = perpetual.objects.db.close_handle();
     drop(bucket);
     drop(historic);
     drop(historic_ledger);
@@ -423,7 +423,7 @@ async fn test_a_bucket_below_the_retention_floor_is_expired_at_open() {
     earliest_retained_table.insert(&(), &2).unwrap();
     assert!(bucket.expiring.get(&()).unwrap().is_none());
 
-    let weak_db = Arc::downgrade(&perpetual.objects.db);
+    let weak_db = perpetual.objects.db.close_handle();
     drop(earliest_retained_table);
     drop(bucket);
     drop(historic);

@@ -1391,7 +1391,7 @@ mod tests {
                 } else {
                     perpetual_db.mark_object_backlog_swept().unwrap();
                 }
-                let weak_db = Arc::downgrade(&perpetual_db.objects.db);
+                let weak_db = perpetual_db.objects.db.close_handle();
                 drop(perpetual_db);
                 assert!(typed_store::database::wait_for_database_close(weak_db).await);
             }

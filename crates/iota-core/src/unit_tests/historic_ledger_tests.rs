@@ -1,8 +1,6 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
-
 use iota_sdk_types::{TransactionDigest, TransactionEvents};
 use iota_types::{base_types::VerifiedExecutionData, effects::TestEffectsBuilder};
 use typed_store::{database::wait_for_database_close, traits::Map};
@@ -35,7 +33,7 @@ async fn ledger_rows_survive_a_reopen() {
     batch.write().unwrap();
 
     // Release every handle on the database before reopening it.
-    let weak_db = Arc::downgrade(&perpetual.objects.db);
+    let weak_db = perpetual.objects.db.close_handle();
     drop(bucket);
     drop(historic);
     drop(epoch_markers);

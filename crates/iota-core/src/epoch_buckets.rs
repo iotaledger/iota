@@ -1304,7 +1304,7 @@ mod tests {
                     .any(|name| name.to_string_lossy().ends_with(".sst")),
                 "the bucket's table file belongs in its epoch directory: {files:?}"
             );
-            let weak_db = Arc::downgrade(&db);
+            let weak_db = db.close_handle();
             drop((buckets, table, db));
             assert!(wait_for_database_close(weak_db).await);
         }
@@ -1366,14 +1366,14 @@ mod tests {
             let table = bucket_table(&db, 3);
             table.insert(&1, &2).unwrap();
             table.flush().unwrap();
-            let weak_db = Arc::downgrade(&db);
+            let weak_db = db.close_handle();
             drop((buckets, table, db));
             assert!(wait_for_database_close(weak_db).await);
         }
         {
             let (buckets, db) = placed_buckets_without(&db_path, &paths, &[], &[3]);
             assert!(paths.bucket_dir(3).exists());
-            let weak_db = Arc::downgrade(&db);
+            let weak_db = db.close_handle();
             drop((buckets, db));
             assert!(wait_for_database_close(weak_db).await);
         }

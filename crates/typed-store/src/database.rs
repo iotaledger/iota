@@ -153,7 +153,13 @@ const CF_METRICS_REPORT_PERIOD_SECS: u64 = 30;
 pub struct Database {
     pub(crate) storage: Storage,
     pub(crate) metric_conf: MetricConf,
+    /// Declared after `storage`: fields are dropped in declaration order, so
+    /// this goes only once RocksDB has closed and released its `LOCK` file.
+    closed: Arc<()>,
 }
+
+/// What [`wait_for_database_close`] waits on; see [`Database::close_handle`].
+pub struct DatabaseClose(Weak<()>);
 
 impl Drop for Database {
     fn drop(&mut self) {
@@ -162,11 +168,18 @@ impl Drop for Database {
 }
 
 impl Database {
+    /// A handle for [`wait_for_database_close`]. Take it while the database
+    /// is still open, before its last handle is dropped.
+    pub fn close_handle(&self) -> DatabaseClose {
+        DatabaseClose(Arc::downgrade(&self.closed))
+    }
+
     pub(crate) fn new(storage: Storage, metric_conf: MetricConf) -> Self {
         DBMetrics::get().increment_num_active_dbs(&metric_conf.db_name);
         Self {
             storage,
             metric_conf,
+            closed: Arc::new(()),
         }
     }
 
@@ -2004,14 +2017,14 @@ where
     }
 }
 
-/// Waits until every handle to the database has been dropped, so its
-/// directory can be reopened, moved, or deleted. Returns `false` if handles
-/// remain after 30 seconds.
-pub async fn wait_for_database_close(db: Weak<Database>) -> bool {
+/// Waits until the database of `db` has been closed, every handle to it
+/// dropped and RocksDB's files released, so its directory can be reopened,
+/// moved, or deleted. Returns `false` if it is still open after 30 seconds.
+pub async fn wait_for_database_close(db: DatabaseClose) -> bool {
     // The deadline is read off the same clock the sleep advances, so a test
     // pausing time does not turn the wait into a busy loop.
     let deadline = Instant::now() + Duration::from_secs(30);
-    while db.strong_count() != 0 {
+    while db.0.strong_count() != 0 {
         if Instant::now() > deadline {
             return false;
         }
