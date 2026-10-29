@@ -9,8 +9,9 @@
 //! 1. **Semantic validation** — deduplication, already-executed check,
 //!    structural validity, attestor verification, and deny checks (deny lists,
 //!    gas, ownership, coin deny list, Move authenticator) — the full set for
-//!    `UserTransactionV1`; for `UserTransactionV2` the deny list, the gas
-//!    bounds and the input check (existence, ownership, digest); see Check #6.
+//!    `UserTransactionV1`; for `UserTransactionV2` the deny list and the
+//!    execution-time input checks (existence, gas, ownership, digest,
+//!    authenticator inputs); see Check #6.
 //! 2. **Owned-object conflict resolution** (white-flag) — three-tier lock check
 //!    and lock acquisition.
 //!
@@ -37,9 +38,10 @@
 //!   expensive checks.
 //! - Check #6: `handle_transaction_validation_checks()` for
 //!   `UserTransactionV1`; for attested `UserTransactionV2` a payload-only
-//!   gas-bounds check, the `TransactionDenyConfig` re-check, and an input check
-//!   (existence, ownership, digest). Drop with error. Only reached when all
-//!   locks are free.
+//!   gas-bounds check, the `TransactionDenyConfig` re-check, and the
+//!   execution-time input checks (existence, gas, ownership, digest,
+//!   authenticator inputs). Drop with error. Only reached when all locks are
+//!   free.
 //! - All passed — acquire locks in the local tracking map, keep transaction.
 //!
 //! # Which references get locked
@@ -89,8 +91,9 @@ use crate::{
 /// - Runs deduplication, already-executed check, structural validity, attestor
 ///   verification (V2 only), lock conflict check, and deny checks (deny list,
 ///   gas, ownership, coin deny list, Move authenticator) — the last group in
-///   full for `UserTransactionV1`; for `UserTransactionV2` the deny list, the
-///   gas bounds and the input check (existence, ownership, digest).
+///   full for `UserTransactionV1`; for `UserTransactionV2` the deny list and
+///   the execution-time input checks (existence, gas, ownership, digest,
+///   authenticator inputs).
 /// - If all checks pass, acquires owned-object locks in a local tracking map;
 ///   with `pcool_skip_immutable_object_locks` set, immutable inputs are not
 ///   locked (issue #12602).
@@ -351,18 +354,18 @@ pub async fn validate_and_resolve_conflicts(
         // `UserTransactionV1` runs the full
         // `handle_transaction_validation_checks`. For `UserTransactionV2`
         // (attested transactions) a payload-only gas-bounds check, the
-        // `TransactionDenyConfig` deny-list check, and an input check (existence,
-        // ownership, digest) run (see below). The rest of
-        // `handle_transaction_validation_checks` deliberately stays at
-        // execution, where a failure is a chargeable effect instead of a free
-        // drop:
+        // `TransactionDenyConfig` deny-list check, and the execution-time input
+        // checks (existence, gas, ownership, digest, authenticator inputs) run
+        // (see below). The rest of `handle_transaction_validation_checks`
+        // deliberately stays at execution, where a failure is a chargeable
+        // effect instead of a free drop:
         //   - Receiving-object validity: the Move runtime fails the `receive()` call
         //     when the ref doesn't match current state.
         //   - Move bytecode verifier on publish: the Move VM re-verifies every newly
         //     published package; the signing-time variant only adds a stricter meter as
         //     a DoS gate.
-        //   - Gas balance, coin deny list, `MoveAuthenticator` execution: re-applied in
-        //     the execution pipeline; the payload-only gas bounds are checked below.
+        //   - Coin deny list and `MoveAuthenticator` execution: re-applied in the
+        //     execution pipeline.
         //
         // The user signature is verified pre-consensus in the block verifier
         // (`IotaTxValidator::validate_transactions`) for both `UserTransactionV1`
@@ -405,12 +408,9 @@ pub async fn validate_and_resolve_conflicts(
                 }
             }
         } else {
-            // Payload-only gas bounds/price: a pure function of the transaction and
-            // epoch constants, so the drop is deterministic before version assignment.
-            // The balance is checked at execution instead — it depends on the gas coins'
-            // values at the versions this commit assigns, which are not applied yet, so
-            // a read here would follow this validator's execution progress rather than
-            // the state the transaction executes against.
+            // Payload-only gas bounds/price first: a pure function of the transaction
+            // and epoch constants, so this drop needs no store read. The full gas
+            // check (owner, coin type, balance) runs with the loaded coins below.
             let txn = transaction.data().transaction();
             if let Err(e) = check_gas_bounds(
                 epoch_store.protocol_config(),
@@ -449,11 +449,12 @@ pub async fn validate_and_resolve_conflicts(
             }
             // Input existence at the referenced versions (owned and gas
             // objects, shared objects or their deletion markers, authenticator
-            // accounts), then the input checks execution would otherwise fail
-            // on: the transaction's own inputs (ownership, digest, duplicate
-            // use), each Move authenticator's inputs, and their union. All of
-            // it is fixed by the object bytes at the pinned version, so the
-            // drop is as deterministic as the existence read it follows.
+            // accounts), then the input checks execution runs, through the same
+            // function: Move-authenticator inputs, gas (owner, coin type,
+            // balance), the transaction's own inputs (ownership, digest,
+            // duplicate use) and their union. All of it is fixed by the object
+            // bytes at the pinned version, so the drop is as deterministic as
+            // the existence read it follows.
             //
             // TODO: the existence read is a known fork source — it follows this
             // validator's execution progress, so an input created by an
@@ -462,7 +463,7 @@ pub async fn validate_and_resolve_conflicts(
             // never-existing-input stall until the PCOOL redesign decides
             // input availability against consensus-derived state.
             match authority_state
-                .check_transaction_inputs_for_attested_tx(&verified_tx, epoch_store.epoch())
+                .check_transaction_inputs_for_attested_tx(&verified_tx, epoch_store)
             {
                 Ok(owned) => owned,
                 Err(e) => {

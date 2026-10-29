@@ -244,19 +244,20 @@ mod checked {
         Ok(aggregated_authenticator_input_objects)
     }
 
-    /// Checks certificate and Move-authenticator inputs, returning an
-    /// execution-mode gas status plus the checked input objects.
+    /// Checks the inputs of a transaction bound for execution: the Move
+    /// authenticator inputs, gas, the transaction's own inputs and their
+    /// union. Returns an execution-mode gas status plus the checked input
+    /// objects. Post-consensus validation of an attested transaction runs
+    /// this same function, so the two cannot drift.
     #[instrument(level = "trace", skip_all)]
     pub fn check_certificate_and_move_authenticator_input(
-        cert: &VerifiedExecutableTransaction,
+        transaction: &Transaction,
         tx_input_objects: InputObjects,
         per_authenticator_input_objects: Vec<InputObjects>,
         authenticator_gas_budget: u64,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
     ) -> IotaResult<(IotaGasStatus, Vec<CheckedInputObjects>, CheckedInputObjects)> {
-        let transaction = cert.data().transaction();
-
         // Check Move authenticator inputs first.
         per_authenticator_input_objects
             .iter()
@@ -509,7 +510,7 @@ mod checked {
     /// Check all the objects used in the transaction against the database, and
     /// ensure that they are all the correct version and number.
     #[instrument(level = "trace", skip_all)]
-    pub fn check_objects(transaction: &Transaction, objects: &InputObjects) -> UserInputResult<()> {
+    fn check_objects(transaction: &Transaction, objects: &InputObjects) -> UserInputResult<()> {
         // We require that mutable objects cannot show up more than once.
         let mut used_objects: HashSet<Address> = HashSet::new();
         for object in objects.iter() {

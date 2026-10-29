@@ -18,7 +18,7 @@ use iota_types::{
     },
     auth_context::AuthContextData,
     base_types::AuthorityName,
-    committee::{Committee, EpochId},
+    committee::Committee,
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
@@ -263,40 +263,45 @@ impl AuthorityState {
     }
 
     /// Loads the inputs of an attested (`UserTransactionV2`) transaction at
-    /// their pinned versions and runs the input checks execution would
-    /// otherwise fail on: the transaction's own inputs (ownership, digest,
-    /// duplicate use), each Move authenticator's inputs, and their union.
-    /// Returns the owned references to lock. Gas balance, receiving objects
-    /// and the account object stay at execution.
+    /// their pinned versions and runs the input checks execution runs, through
+    /// the same function: Move-authenticator inputs, gas, the transaction's
+    /// own inputs and their union. Returns the owned references to lock.
+    /// Receiving objects and the account object stay at execution.
     pub(crate) fn check_transaction_inputs_for_attested_tx(
         &self,
         transaction: &VerifiedTransaction,
-        epoch: EpochId,
+        epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult<Vec<ObjectReference>> {
+        let protocol_config = epoch_store.protocol_config();
         let (input_objects, _) = self.input_loader.read_objects_for_signing(
             Some(transaction.digest()),
             &transaction.collect_all_input_object_kind_for_reading()?,
             &[],
-            epoch,
+            epoch_store.epoch(),
         )?;
         let (tx_input_objects, per_authenticator_inputs) =
             transaction.split_input_objects_into_groups_for_reading(input_objects)?;
-        let per_authenticator_checked = per_authenticator_inputs
+        let per_authenticator_input_objects: Vec<_> = per_authenticator_inputs
             .into_iter()
-            .map(|(objects, _account)| {
-                iota_transaction_checks::check_move_authenticator_input_for_validation(objects)
-            })
-            .collect::<IotaResult<Vec<_>>>()?;
-        iota_transaction_checks::check_objects(
-            transaction.data().transaction(),
-            &tx_input_objects,
-        )?;
-        let owned = tx_input_objects.filter_owned_objects();
-        per_authenticator_checked.iter().try_fold(
-            CheckedInputObjects::new_with_checked_transaction_inputs(tx_input_objects),
-            iota_transaction_checks::checked_input_objects_union,
-        )?;
-        Ok(owned)
+            .map(|(objects, _account)| objects)
+            .collect();
+        // Execution meters authentication against `max_auth_gas` only when
+        // there is something to authenticate.
+        let authenticator_gas_budget = if per_authenticator_input_objects.is_empty() {
+            0
+        } else {
+            protocol_config.max_auth_gas()
+        };
+        let (_, _, checked_input_objects) =
+            iota_transaction_checks::check_certificate_and_move_authenticator_input(
+                transaction.data().transaction(),
+                tx_input_objects,
+                per_authenticator_input_objects,
+                authenticator_gas_budget,
+                protocol_config,
+                epoch_store.reference_gas_price(),
+            )?;
+        Ok(checked_input_objects.inner().filter_owned_objects())
     }
 }
 

@@ -1153,7 +1153,7 @@ impl LocalExec {
             let authenticator_gas_budget = protocol_config.max_auth_gas();
             let (gas_status, per_authenticator_checked_input_objects, union_checked_input_objects) =
                 iota_transaction_checks::check_certificate_and_move_authenticator_input(
-                    &executable,
+                    executable.data().transaction(),
                     tx_input_objects,
                     per_authenticator_input_objects,
                     authenticator_gas_budget,
