@@ -821,11 +821,12 @@ mod tests {
 
     use super::*;
     use crate::{
-        block_header::{BlockHeaderDigest, BlockRef},
-        commit::{Commit, CommitV3},
+        block_header::{BlockHeaderAPI, BlockHeaderDigest, BlockRef},
+        commit::{Commit, CommitAPI, CommitV3},
         context::Context,
         dag_state::{DagState, DataSource},
         error::ConsensusError,
+        leader_scoring::ReputationScores,
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
     };
@@ -1639,5 +1640,107 @@ mod tests {
         let peer_counts = store.in_memory.snapshot(1);
         assert_eq!(peer_counts.faulty_blocks_provable, 0);
         assert_eq!(peer_counts.faulty_blocks_unprovable, 2);
+    }
+
+    /// An author whose last committed header is not fetched for
+    /// reinitialization after fast sync has no header in memory. Its rounds
+    /// must still count at most once, and never when its header is stored.
+    #[tokio::test]
+    async fn test_no_double_counting_after_fast_sync() {
+        const CACHED_ROUNDS: Round = 5;
+        const GC_DEPTH: Round = 2;
+        let committee_size = 4;
+        let (mut context, _) = Context::new_for_test(committee_size);
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context.protocol_config.set_gc_depth_for_testing(GC_DEPTH);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        // Authority 3 skips rounds 3-4 and is offline for rounds 21-40.
+        let offline = AuthorityIndex::new_for_test(3);
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=2).build();
+        dag_builder
+            .layers(3..=4)
+            .authorities(vec![offline])
+            .skip_block()
+            .build();
+        dag_builder.layers(5..=20).build();
+        dag_builder
+            .layers(21..=40)
+            .authorities(vec![offline])
+            .skip_block()
+            .build();
+        dag_builder.layers(41..=60).build();
+
+        let mut commits_before_sync = Vec::new();
+        let mut synced_commits = Vec::new();
+        let mut commits_after_sync = Vec::new();
+        for (_, commit) in dag_builder.get_sub_dag_and_commits(1..=60) {
+            match commit.leader().round {
+                ..=10 => commits_before_sync.push(commit),
+                11..=40 => synced_commits.push(commit),
+                _ => commits_after_sync.push(commit),
+            }
+        }
+
+        // The node follows the DAG up to round 10.
+        dag_state.accept_block_headers(dag_builder.block_headers(1..=10), DataSource::Test);
+        for commit in commits_before_sync {
+            dag_state.add_commit(commit);
+        }
+        dag_state.flush();
+
+        // Fast sync stores the commits up to round 40 without their headers.
+        // The leader schedule was last updated at the last synced commit.
+        dag_state.set_fast_sync_ongoing_flag(true);
+        for commit in synced_commits {
+            dag_state.add_commit(commit);
+        }
+        dag_state.add_commit_info(ReputationScores::default());
+        dag_state.flush();
+
+        // Reinitialization fetches the headers of the last commits, which hold
+        // none of authority 3.
+        let fetched_refs: BTreeSet<BlockRef> = dag_state
+            .get_block_refs_for_recent_commits(10)
+            .into_iter()
+            .collect();
+        assert!(fetched_refs.iter().all(|r| r.author != offline));
+        let fetched_headers = dag_builder
+            .block_headers(11..=40)
+            .into_iter()
+            .filter(|header| fetched_refs.contains(&header.reference()))
+            .collect();
+        dag_state.accept_block_headers(fetched_headers, DataSource::FastCommitSyncer);
+        dag_state.set_fast_sync_ongoing_flag(false);
+        dag_state.flush();
+        dag_state.reinitialize();
+        let evicted_after_reinitialize = dag_state.evicted_header_round(offline);
+        dag_state.flush();
+        let evicted_after_next_flush = dag_state.evicted_header_round(offline);
+
+        // Authority 3 is back.
+        dag_state.accept_block_headers(dag_builder.block_headers(41..=60), DataSource::Test);
+        for commit in commits_after_sync {
+            dag_state.add_commit(commit);
+        }
+        dag_state.flush();
+
+        let evicted_round = dag_state.evicted_header_round(offline);
+        let stored_rounds = dag_builder
+            .block_headers(1..=10)
+            .into_iter()
+            .chain(dag_builder.block_headers(41..=60))
+            .filter(|header| header.author() == offline && header.round() <= evicted_round)
+            .count() as u64;
+        let missing = dag_state.misbehavior_store().persisted_missing_proposals()[offline];
+        assert!(
+            missing <= evicted_round as u64 - stored_rounds,
+            "{missing} missing proposals in rounds 1-{evicted_round}, {stored_rounds} of which \
+             have a stored header; evicted round {evicted_after_reinitialize} after \
+             reinitialization, {evicted_after_next_flush} after the next flush"
+        );
     }
 }
