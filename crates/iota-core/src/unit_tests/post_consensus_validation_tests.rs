@@ -14,6 +14,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     attestation::{Attestation, AttestationData, AttestedTransaction},
+    base_types::random_object_ref,
     crypto::{AccountPrivateKey, get_key_pair},
     error::{IotaError, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
@@ -2117,6 +2118,267 @@ async fn test_v2_gas_bounds_out_of_range_dropped() {
         );
         assert_eq!(user_tx_digests, vec![digest]);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Input checks for attested transactions
+// ---------------------------------------------------------------------------
+
+/// The input of a transfer that its signer does not own.
+#[derive(Clone, Copy, Debug)]
+enum ForeignInput {
+    /// The transferred object.
+    Object,
+    /// The gas coin.
+    Gas,
+}
+
+/// Turns validator attestation on while the guard lives.
+fn enable_validator_attestation() -> OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config
+    })
+}
+
+/// A fresh authority holding `object` and `gas`, with their live references.
+async fn setup_transfer_inputs(
+    object: Object,
+    gas: Object,
+) -> (
+    Arc<crate::authority::AuthorityState>,
+    ObjectReference,
+    ObjectReference,
+) {
+    let (object_id, gas_id) = (object.id(), gas.id());
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![object, gas]).await;
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+    (authority, object_ref, gas_ref)
+}
+
+/// A transfer validly signed by its sender whose `foreign` input belongs to
+/// another address, referenced at its live version and digest.
+async fn setup_foreign_input(
+    foreign: ForeignInput,
+) -> (Arc<crate::authority::AuthorityState>, TransactionEnvelope) {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let other_owner = Address::random();
+    let (object_owner, gas_owner) = match foreign {
+        ForeignInput::Object => (other_owner, sender),
+        ForeignInput::Gas => (sender, other_owner),
+    };
+    let (authority, object_ref, gas_ref) = setup_transfer_inputs(
+        Object::with_id_owner_for_testing(ObjectId::random(), object_owner),
+        Object::with_id_owner_for_testing(ObjectId::random(), gas_owner),
+    )
+    .await;
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let tx = make_transfer_object_transaction(
+        object_ref,
+        gas_ref,
+        sender,
+        &sender_key,
+        Address::random(),
+        rgp,
+    );
+    (authority, tx)
+}
+
+/// `tx` attested by the block author of
+/// `SequencedConsensusTransaction::new_test` (index 0) with the minimum units
+/// Check #3 accepts.
+fn attested_by_block_author(
+    tx: TransactionEnvelope,
+    protocol_config: &ProtocolConfig,
+) -> ConsensusTransaction {
+    let computation_units = protocol_config
+        .base_tx_cost_fixed()
+        .min(protocol_config.gas_rounding_step());
+    ConsensusTransaction::new_user_transaction_v2(AttestedTransaction::new(
+        tx,
+        Attestation::Authority {
+            payload: AttestationData::V1 {
+                computation_units,
+                object_versions: vec![],
+            },
+            authority_index: 0,
+        },
+    ))
+}
+
+/// Runs one commit holding `consensus_tx` through the consensus handler and
+/// returns the error `digest` was dropped with. Fails if it was scheduled.
+async fn dropped_by_consensus_handler(
+    authority: &crate::authority::AuthorityState,
+    consensus_tx: ConsensusTransaction,
+    digest: TransactionDigest,
+) -> IotaError {
+    let epoch_store = authority.epoch_store_for_testing();
+    let scheduled = epoch_store
+        .process_consensus_transactions_for_tests(
+            vec![SequencedConsensusTransaction::new_test(consensus_tx)],
+            &Arc::new(CheckpointServiceNoop {}),
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            // skip_consensus_commit_prologue_in_test
+            true,
+            authority,
+        )
+        .await
+        .unwrap();
+    assert!(
+        scheduled
+            .iter()
+            .all(|executable| *executable.digest() != digest),
+        "transaction {digest:?} must not be scheduled"
+    );
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        epoch_store.notify_read_dropped_digests(digest),
+    )
+    .await
+    .expect("a dropped transaction has its error recorded")
+}
+
+/// An attested transaction spending another address's object or gas coin is
+/// dropped post-consensus. At execution the same error is `fatal!`.
+#[tokio::test]
+async fn attested_tx_with_foreign_owned_input_is_dropped() {
+    let _guard = enable_validator_attestation();
+
+    for foreign in [ForeignInput::Object, ForeignInput::Gas] {
+        let (authority, tx) = setup_foreign_input(foreign).await;
+        let digest = *tx.digest();
+        let consensus_tx =
+            attested_by_block_author(tx, authority.epoch_store_for_testing().protocol_config());
+
+        let error = dropped_by_consensus_handler(&authority, consensus_tx, digest).await;
+
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::IncorrectUserSignature { .. }
+                }
+            ),
+            "{foreign:?}: expected an ownership error, got {error:?}"
+        );
+    }
+}
+
+/// Without an attestation the same transactions are dropped by the
+/// `UserTransactionV1` checks, with the same error.
+#[tokio::test]
+async fn unattested_tx_with_foreign_owned_input_is_dropped() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    for foreign in [ForeignInput::Object, ForeignInput::Gas] {
+        let (authority, tx) = setup_foreign_input(foreign).await;
+        let digest = *tx.digest();
+
+        let error = dropped_by_consensus_handler(
+            &authority,
+            ConsensusTransaction::new_user_transaction_v1(tx),
+            digest,
+        )
+        .await;
+
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::IncorrectUserSignature { .. }
+                }
+            ),
+            "{foreign:?}: expected an ownership error, got {error:?}"
+        );
+    }
+}
+
+/// An attested transaction naming an input at its live version with another
+/// digest is dropped post-consensus.
+#[tokio::test]
+async fn attested_tx_with_mismatched_digest_is_dropped() {
+    let _guard = enable_validator_attestation();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (authority, object_ref, gas_ref) = setup_transfer_inputs(
+        Object::with_id_owner_for_testing(ObjectId::random(), sender),
+        Object::with_id_owner_for_testing(ObjectId::random(), sender),
+    )
+    .await;
+    let mismatched_ref = ObjectReference::new(
+        object_ref.object_id,
+        object_ref.version,
+        random_object_ref().digest,
+    );
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let tx = make_transfer_object_transaction(
+        mismatched_ref,
+        gas_ref,
+        sender,
+        &sender_key,
+        Address::random(),
+        rgp,
+    );
+    let digest = *tx.digest();
+    let consensus_tx =
+        attested_by_block_author(tx, authority.epoch_store_for_testing().protocol_config());
+
+    let error = dropped_by_consensus_handler(&authority, consensus_tx, digest).await;
+
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::InvalidObjectDigest { .. }
+            }
+        ),
+        "expected a digest error, got {error:?}"
+    );
+}
+
+/// An attested transaction whose gas coin cannot cover its budget is dropped
+/// post-consensus.
+#[tokio::test]
+async fn attested_tx_with_underfunded_gas_is_dropped() {
+    let _guard = enable_validator_attestation();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (authority, object_ref, gas_ref) = setup_transfer_inputs(
+        Object::with_id_owner_for_testing(ObjectId::random(), sender),
+        Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 1),
+    )
+    .await;
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let tx = make_transfer_object_transaction(
+        object_ref,
+        gas_ref,
+        sender,
+        &sender_key,
+        Address::random(),
+        rgp,
+    );
+    let digest = *tx.digest();
+    let consensus_tx =
+        attested_by_block_author(tx, authority.epoch_store_for_testing().protocol_config());
+
+    let error = dropped_by_consensus_handler(&authority, consensus_tx, digest).await;
+
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::GasBalanceTooLow { .. }
+            }
+        ),
+        "expected a balance error, got {error:?}"
+    );
 }
 
 // ---------------------------------------------------------------------------
