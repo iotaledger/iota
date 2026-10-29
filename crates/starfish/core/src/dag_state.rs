@@ -1309,57 +1309,6 @@ impl DagState {
         commitments
     }
 
-    /// Gets serialized block headers by checking genesis, cached recent block
-    /// headers in memory, then storage. An element is None when the
-    /// corresponding block header is not found.
-    pub(crate) fn get_serialized_block_headers(
-        &self,
-        block_refs: &[BlockRef],
-    ) -> Vec<Option<Bytes>> {
-        let mut block_headers: Vec<Option<Bytes>> = vec![None; block_refs.len()];
-        let mut missing_headers = Vec::new();
-        for (index, block_ref) in block_refs.iter().enumerate() {
-            if block_ref.round == GENESIS_ROUND {
-                // Allow the caller to handle the invalid genesis ancestor error.
-                if let Some(block) = self.genesis.get(block_ref) {
-                    block_headers[index] = Some(block.verified_block_header.serialized().clone());
-                }
-                continue;
-            }
-            if let Some(block) = self.recent_block_headers.get(block_ref) {
-                block_headers[index] = Some(block.serialized().clone());
-                continue;
-            }
-            missing_headers.push((index, block_ref));
-        }
-
-        if missing_headers.is_empty() {
-            return block_headers;
-        }
-
-        let missing_refs = missing_headers
-            .iter()
-            .map(|(_, block_ref)| **block_ref)
-            .collect::<Vec<_>>();
-        let store_results = self
-            .store
-            .read_serialized_block_headers(&missing_refs)
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
-
-        self.context
-            .metrics
-            .node_metrics
-            .dag_state_store_read_count
-            .with_label_values(&["get_serialized_block_headers"])
-            .inc();
-
-        for ((index, _), result) in missing_headers.into_iter().zip(store_results) {
-            block_headers[index] = result;
-        }
-
-        block_headers
-    }
-
     /// Gets block headers by checking genesis and then cached recent block
     /// headers in memory. Storage is not checked in this method. An element
     /// is None when the corresponding block header is not found.
