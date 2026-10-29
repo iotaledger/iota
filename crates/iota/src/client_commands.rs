@@ -3256,7 +3256,7 @@ fn warn_if_budget_took_the_gas_coins(
     gas_coins_given: bool,
 ) {
     if budget_took_the_gas_coins(result, gas_budget, gas_coins_given) {
-        let warn_msg = "Without --gas-budget the dry run uses the gas coins' whole balance as the budget, so none of it can be split from the gas coin. Provide a lower --gas-budget.";
+        let warn_msg = "Without --gas-budget the dry run sets the budget to the gas coins' balance, up to the maximum budget, which leaves too little to split from the gas coin. Provide a lower --gas-budget.";
         warn!(warn_msg);
         eprintln!("{}", warn_msg.yellow().bold());
     }
