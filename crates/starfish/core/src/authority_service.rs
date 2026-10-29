@@ -1197,10 +1197,10 @@ fn transaction_fetch_response(
 /// least one ref.
 ///
 /// Payloads above the evicted transaction round of their author are taken from
-/// the DAG state. A run of evicted refs is looked up in the store, in groups of
-/// as many refs as the budget left holds at the maximum entry size: they are
-/// whatever the requester asked for, so a scan over the range they span would
-/// read entries no one wants.
+/// the DAG state, which holds all this node has. A run of evicted refs is
+/// looked up in the store, in groups of as many refs as the budget left holds
+/// at the maximum entry size: they are whatever the requester asked for, so a
+/// scan over the range they span would read entries no one wants.
 fn read_requested_transactions(
     context: &Context,
     store: &dyn Store,
@@ -1222,10 +1222,8 @@ fn read_requested_transactions(
                 break;
             }
             refs.pop_front();
-            if let Some(payload) = dag_state
-                .get_serialized_transactions(&[transaction_ref.into()])
-                .pop()
-                .flatten()
+            if let Some(payload) =
+                dag_state.get_cached_serialized_transactions(transaction_ref.into())
             {
                 total_bytes += payload.len();
                 payloads.push((transaction_ref, payload));
