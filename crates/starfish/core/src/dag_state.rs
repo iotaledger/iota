@@ -246,6 +246,10 @@ pub(crate) struct DagState {
     /// size should be the same as the committee size.
     evicted_rounds: Vec<Round>,
 
+    /// Highest round evicted from `recent_transactions_by_authority`, per
+    /// authority. Transactions of round <= this round are read from the store.
+    evicted_transaction_rounds: Vec<Round>,
+
     /// Highest round of blocks accepted.
     highest_accepted_round: Round,
 
@@ -328,10 +332,6 @@ pub(crate) struct DagState {
     /// Broadcast sender for DAG visualizer events.
     #[cfg(feature = "dag-visualizer")]
     dag_visualizer_sender: Option<tokio::sync::broadcast::Sender<DagVisualizerEvent>>,
-
-    /// Highest round evicted from `recent_transactions_by_authority`, per
-    /// authority. Transactions of round <= this round are read from the store.
-    evicted_transaction_rounds: Vec<Round>,
 }
 
 impl DagState {
@@ -453,10 +453,10 @@ impl DagState {
             store: store.clone(),
             cached_rounds,
             evicted_rounds: vec![0; num_authorities],
+            evicted_transaction_rounds: vec![0; num_authorities],
             cordial_knowledge_senders: None,
             #[cfg(feature = "dag-visualizer")]
             dag_visualizer_sender: None,
-            evicted_transaction_rounds: vec![0; num_authorities],
         };
 
         // Load cached data for each authority from storage
