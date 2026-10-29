@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, path::Path, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashMap, hash_map::Entry},
+    path::Path,
+    sync::Arc,
+};
 
 use anyhow::{anyhow, bail, ensure};
 use colored::Colorize;
@@ -15,7 +19,9 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, StructTag, Transaction, crypto::Intent};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, StructTag, Transaction, Version, crypto::Intent,
+};
 use iota_types::{
     gas_coin::GasCoin,
     transaction::{TransactionAPI, TransactionEnvelope},
@@ -187,7 +193,8 @@ impl WalletContext {
             .object_ref())
     }
 
-    /// Get all the gas objects (and conveniently, gas amounts) for the address.
+    /// Get all the gas objects (and conveniently, gas amounts) for the address,
+    /// each once.
     pub async fn gas_objects(
         &self,
         address: Address,
@@ -225,8 +232,11 @@ impl WalletContext {
         })
         .try_collect::<Vec<_>>()
         .await?;
-
-        Ok(values_objects)
+        // Pages are ordered by balance, so a coin whose balance changes while
+        // they are read can come back on a later page, with a higher version.
+        Ok(newest_versions(values_objects, |(_, object)| {
+            (object.object_id, object.version)
+        }))
     }
 
     /// Get the address that owns the object of the provided [`ObjectId`].
@@ -306,30 +316,49 @@ impl WalletContext {
 
     /// Get a limited amount of [`ObjectReference`]s for gas objects owned by
     /// the provided address. Max limit is RPC_QUERY_MAX_RESULT_LIMIT (50 by
-    /// default).
+    /// default). Without a limit, returns the first page that holds gas
+    /// objects.
     pub async fn get_gas_objects_owned_by_address(
         &self,
         address: Address,
         limit: impl Into<Option<usize>>,
     ) -> anyhow::Result<Vec<ObjectReference>> {
+        let limit = limit.into();
         let client = self.get_client().await?;
-        let results: Vec<_> = client
-            .read_api()
-            .get_owned_objects(
-                address,
-                IotaObjectResponseQuery::new(
-                    Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
-                    Some(IotaObjectDataOptions::full_content()),
-                ),
-                None,
-                limit,
-            )
-            .await?
-            .data
-            .into_iter()
-            .filter_map(|r| r.data.map(|o| o.object_ref()))
-            .collect();
-        Ok(results)
+        let mut results = Vec::new();
+        let mut cursor = None;
+        // A page can hold fewer objects than requested, even none, while more
+        // pages follow.
+        loop {
+            let page = client
+                .read_api()
+                .get_owned_objects(
+                    address,
+                    IotaObjectResponseQuery::new(
+                        Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
+                        Some(IotaObjectDataOptions::full_content()),
+                    ),
+                    cursor,
+                    limit.map(|limit| limit.saturating_sub(results.len())),
+                )
+                .await?;
+            results.extend(
+                page.data
+                    .into_iter()
+                    .filter_map(|r| r.data.map(|o| o.object_ref())),
+            );
+            if let Some(limit) = limit {
+                results.truncate(limit);
+            }
+            let filled = limit.map_or(!results.is_empty(), |limit| results.len() >= limit);
+            // Without a new cursor, the next request would repeat an earlier
+            // one and never reach the end.
+            let advanced = page.next_cursor.is_some() && page.next_cursor != cursor;
+            if filled || !page.has_next_page || !advanced {
+                return Ok(results);
+            }
+            cursor = page.next_cursor;
+        }
     }
 
     /// Given an address, return one gas object owned by this address.
@@ -442,5 +471,51 @@ impl WalletContext {
                 iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution,
             )
             .await?)
+    }
+}
+
+/// `items` in their order, with each object once: an object that occurs more
+/// than once keeps the place of its first occurrence and the contents of its
+/// highest version.
+fn newest_versions<T>(items: Vec<T>, key: impl Fn(&T) -> (ObjectId, Version)) -> Vec<T> {
+    let mut positions: HashMap<ObjectId, usize> = HashMap::new();
+    let mut kept: Vec<T> = Vec::with_capacity(items.len());
+    for item in items {
+        let (id, version) = key(&item);
+        match positions.entry(id) {
+            Entry::Occupied(position) => {
+                let held = &mut kept[*position.get()];
+                if version > key(held).1 {
+                    *held = item;
+                }
+            }
+            Entry::Vacant(position) => {
+                position.insert(kept.len());
+                kept.push(item);
+            }
+        }
+    }
+    kept
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An object that occurs again with a higher version keeps its first place
+    /// with the newer contents, and an older copy is left out.
+    #[test]
+    fn an_object_keeps_its_first_place_and_its_highest_version() {
+        let (a, b) = (ObjectId::random(), ObjectId::random());
+        let items = vec![
+            (a, Version::from_u64(1), "a1"),
+            (b, Version::from_u64(2), "b2"),
+            (a, Version::from_u64(3), "a3"),
+            (b, Version::from_u64(1), "b1"),
+        ];
+
+        let kept = newest_versions(items, |(id, version, _)| (*id, *version));
+        let names: Vec<_> = kept.iter().map(|(_, _, name)| *name).collect();
+        assert_eq!(names, ["a3", "b2"]);
     }
 }

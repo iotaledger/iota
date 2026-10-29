@@ -6682,7 +6682,6 @@ async fn test_new_env() -> Result<(), anyhow::Error> {
     let alias = "network-alias".to_string();
     let rpc = "http://127.0.0.1:9009".to_string();
     let graphql = Some("http://127.0.0.1:8000".to_string());
-    let ws = Some("ws://127.0.0.1:9000".to_string());
     let grpc = Some("http://127.0.0.1:9000".to_string());
     let basic_auth = Some("username:password".to_string());
     let faucet = Some("http://127.0.0.1:9123/v1/gas".to_string());
@@ -6691,7 +6690,6 @@ async fn test_new_env() -> Result<(), anyhow::Error> {
         alias: alias.clone(),
         rpc: rpc.clone(),
         graphql: graphql.clone(),
-        ws: ws.clone(),
         grpc: grpc.clone(),
         basic_auth: basic_auth.clone(),
         faucet: faucet.clone(),
@@ -6710,7 +6708,6 @@ async fn test_new_env() -> Result<(), anyhow::Error> {
     assert_eq!(*new_env.alias(), alias);
     assert_eq!(*new_env.rpc(), rpc);
     assert_eq!(*new_env.graphql(), graphql);
-    assert_eq!(*new_env.ws(), ws);
     assert_eq!(*new_env.grpc(), grpc);
     assert_eq!(*new_env.basic_auth(), basic_auth);
     assert_eq!(*new_env.faucet(), faucet);

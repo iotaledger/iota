@@ -1,12 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::iota_framework::object::UID;
 use iota_sdk_types::ObjectId;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    committee::EpochId, error::IotaError, governance::StakedIota, id::UID, object::Object,
-};
+use crate::{committee::EpochId, error::IotaError, governance::StakedIota, object::Object};
 
 /// Rust version of the Move
 /// stardust::timelocked_staked_iota::TimelockedStakedIota type.

@@ -3,8 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
-use iota_types::{error::IotaResult, execution_config_utils::to_binary_config};
-use move_binary_format::CompiledModule;
+use iota_types::{
+    error::{IotaError, IotaResult},
+    execution_config_utils::to_binary_config,
+};
+use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
 use move_bytecode_verifier_meter::Meter;
 use move_vm_config::verifier::MeterConfig;
 
@@ -12,10 +15,9 @@ pub trait Verifier {
     /// Create a new bytecode verifier meter.
     fn meter(&self, config: MeterConfig) -> Box<dyn Meter>;
 
-    /// Specifies whether or not
-    /// deprecate_global_storage_ops_during_deserialization should
-    /// be overridden for the `BinaryConfig`
-    fn override_deprecate_global_storage_ops_during_deserialization(&self) -> Option<bool>;
+    /// Whether `meter_module_bytes` rejects a module that uses the deprecated
+    /// global storage instructions, rather than leaving it to execution.
+    fn deprecate_global_storage_ops(&self) -> bool;
 
     /// Run the bytecode verifier with a meter limit
     ///
@@ -35,17 +37,31 @@ pub trait Verifier {
         module_bytes: &[Vec<u8>],
         meter: &mut dyn Meter,
     ) -> IotaResult<()> {
-        let binary_config = to_binary_config(
-            protocol_config,
-            self.override_deprecate_global_storage_ops_during_deserialization(),
-        );
-        let Ok(modules) = module_bytes
-            .iter()
-            .map(|b| CompiledModule::deserialize_with_config(b, &binary_config))
-            .collect::<Result<Vec<_>, _>>()
-        else {
-            // Although we failed, we don't care since it wasn't because of a timeout.
-            return Ok(());
+        let deserialize = |binary_config: &BinaryConfig| {
+            module_bytes
+                .iter()
+                .map(|b| CompiledModule::deserialize_with_config(b, binary_config))
+                .collect::<Result<Vec<_>, _>>()
+        };
+        // The deprecated global storage instructions always fail
+        // deserialization here. With `deprecate_global_storage_ops` set, a
+        // module that fails only because of them is rejected below. Without
+        // it, the package is left to execution without being metered.
+        let modules = match deserialize(&to_binary_config(protocol_config, Some(true))) {
+            Ok(modules) => modules,
+            Err(error) => {
+                // Such a module can never be published, so there is no point
+                // in leaving it to execution.
+                if self.deprecate_global_storage_ops()
+                    && deserialize(&to_binary_config(protocol_config, Some(false))).is_ok()
+                {
+                    return Err(IotaError::ModuleDeserializationFailure {
+                        error: error.to_string(),
+                    });
+                }
+                // Although we failed, we don't care since it wasn't because of a timeout.
+                return Ok(());
+            }
         };
 
         for module in &modules {

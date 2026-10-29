@@ -12,10 +12,10 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::event_filter::EventFilter;
-
-/// Maximum allowed depth for nested filters to prevent DoS attacks
-const MAX_FILTER_DEPTH: usize = 10;
+use crate::{
+    constants::{MAX_FILTER_DEPTH, MAX_FILTER_NODES},
+    event_filter::EventFilter,
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum TransactionKind {
@@ -453,8 +453,6 @@ impl TransactionFilter {
     /// Validates the total complexity of the filter including counting the
     /// number of total filter nodes to prevent resource exhaustion.
     pub fn validate_complexity(&self) -> Result<(), String> {
-        const MAX_FILTER_NODES: usize = 1000; // Maximum number of filter nodes
-
         let node_count = self.count_nodes();
         if node_count > MAX_FILTER_NODES {
             return Err(format!(
@@ -472,6 +470,8 @@ impl TransactionFilter {
             }
             TransactionFilter::Not(filter) => 1 + filter.count_nodes(),
             TransactionFilter::Events(event_filter) => 1 + event_filter.count_nodes(),
+            // Matching compares the transaction against every kind.
+            TransactionFilter::TransactionKind(kinds) => 1 + kinds.len(),
             // Atomic filters count as 1 node
             _ => 1,
         }
@@ -530,6 +530,14 @@ mod tests {
         ]);
         assert!(complex_filter.validate_complexity().is_ok());
         assert_eq!(complex_filter.count_nodes(), 5); // All + Sender + Any + Receiver + AffectedObject = 5 nodes
+    }
+
+    #[test]
+    fn filter_complexity_counts_transaction_kinds() {
+        let kinds = |n| TransactionFilter::TransactionKind(vec![TransactionKind::Programmable; n]);
+        assert_eq!(kinds(3).count_nodes(), 4);
+        assert!(kinds(MAX_FILTER_NODES - 1).validate_complexity().is_ok());
+        assert!(kinds(MAX_FILTER_NODES).validate_complexity().is_err());
     }
 
     #[test]

@@ -61,7 +61,8 @@ pub trait Reducer<Mapper: Worker>: Send + Sync {
     /// - The commit succeeds, returning `CommitStatus::Success`.
     /// - A cancellation signal is received via the [`CancellationToken`], returning
     ///   `CommitStatus::Shutdown`.
-    /// - All retry attempts are exhausted within backoff's maximum elapsed time, causing a panic.
+    /// - All retry attempts are exhausted within backoff's maximum elapsed time: the pool is
+    ///   cancelled and `CommitStatus::Shutdown` is returned.
     ///
     /// # Retry Mechanism:
     /// - Uses [`ExponentialBackoff`](backoff::ExponentialBackoff) to introduce increasing delays
@@ -69,10 +70,6 @@ pub trait Reducer<Mapper: Worker>: Send + Sync {
     /// - Checks for cancellation both before and after each commit attempt.
     /// - If a cancellation signal is received during a backoff delay, the function exits
     ///   immediately with `CommitStatus::Shutdown`.
-    ///
-    /// # Panics:
-    /// - If all retry attempts are exhausted within backoff's the maximum elapsed time, indicating
-    ///   a persistent failure.
     async fn commit_with_retry(
         &self,
         batch: &[Mapper::Message],
@@ -96,10 +93,15 @@ pub trait Reducer<Mapper: Worker>: Send + Sync {
                     }
                 }
             }
-            // get next backoff duration or panic if max retries exceeded
-            let duration = backoff
-                .next_backoff()
-                .expect("max retry attempts exceeded: commit operation failed");
+            // Retrying the same batch any further cannot help, and a panic
+            // would abort the whole process in release builds, so stop the pool.
+            let Some(duration) = backoff.next_backoff() else {
+                tracing::error!(
+                    "reducer commit failed and the retries are exhausted, shutting down"
+                );
+                token.cancel();
+                return CommitStatus::Shutdown;
+            };
             // if cancellation occurs during backoff wait, exit early with Shutdown.
             // Otherwise (if timeout expires), continue with the next retry attempt
             if tokio::time::timeout(duration, token.cancelled())

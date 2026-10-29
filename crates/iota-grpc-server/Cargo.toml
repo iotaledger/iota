@@ -26,17 +26,18 @@ prost-types.workspace = true
 serde.workspace = true
 strum.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
-tokio-stream.workspace = true
 tokio-util.workspace = true
-tonic = { workspace = true, features = ["tls-ring"] }
+tonic.workspace = true
 tower.workspace = true
 tracing.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
 iota-grpc-types.workspace = true
+iota-http.workspace = true
 iota-json.workspace = true
 iota-metrics.workspace = true
+iota-network-stack.workspace = true
 iota-node-storage.workspace = true
 iota-node-transaction-builder.workspace = true
 iota-protocol-config.workspace = true
@@ -53,9 +54,13 @@ prometheus-filtered.workspace = true
 # external dependencies
 async-trait.workspace = true
 http-body-util.workspace = true
+hyper = { workspace = true, features = ["client", "http2"] }
+hyper-util.workspace = true
 rcgen.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
+tokio-stream.workspace = true
+tonic = { workspace = true, features = ["tls-ring"] }
 
 # internal dependencies
 iota-grpc-client.workspace = true

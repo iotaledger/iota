@@ -227,8 +227,13 @@ mod checked {
         meter.enter_scope(module.self_id().name().as_str(), Scope::Module);
 
         if let Err(e) = verify_module_with_config_metered(verifier_config, module, meter) {
-            // Check that the status indicates metering timeout.
-            if check_for_verifier_timeout(&e.major_status()) {
+            // Check that the status indicates metering timeout. Under the old
+            // vector borrow rule this status is left to execution.
+            if check_for_verifier_timeout(&e.major_status())
+                && (verifier_config.deprecate_global_storage_ops
+                    || e.major_status()
+                        != move_core_types::vm_status::StatusCode::VEC_BORROW_ELEMENT_EXISTS_MUTABLE_BORROW_ERROR)
+            {
                 if e.major_status()
                     == move_core_types::vm_status::StatusCode::REFERENCE_SAFETY_INCONSISTENT
                 {

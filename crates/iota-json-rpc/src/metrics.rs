@@ -2,20 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, net::SocketAddr};
+use std::collections::HashSet;
 
-use http_body::Body;
-use iota_json_rpc_api::{
-    CLIENT_SDK_TYPE_HEADER, CLIENT_TARGET_API_VERSION_HEADER, TRANSIENT_ERROR_CODE,
-};
-use jsonrpsee::{MethodKind, server::HttpRequest, types::Params};
+use iota_json_rpc_api::TRANSIENT_ERROR_CODE;
+use jsonrpsee::{MethodKind, types::Params};
 use prometheus_filtered::{
     HistogramVec, IntCounterVec, IntGaugeVec, MetricLevel, register_histogram_vec_with_registry,
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
 };
 use tokio::time::Instant;
 
-use crate::logger::{Logger, TransportProtocol};
+use crate::logger::Logger;
 
 const SPAM_LABEL: &str = "SPAM";
 const LATENCY_SEC_BUCKETS: &[f64] = &[
@@ -36,14 +33,6 @@ pub struct Metrics {
     server_errors_by_route: IntCounterVec,
     client_errors_by_route: IntCounterVec,
     transient_errors_by_route: IntCounterVec,
-    /// Client info
-    client: IntCounterVec,
-    /// Connection count
-    inflight_connection: IntGaugeVec,
-    /// Request size
-    rpc_request_size: HistogramVec,
-    /// Response size
-    rpc_response_size: HistogramVec,
 }
 
 #[derive(Clone)]
@@ -117,41 +106,6 @@ impl MetricsLogger {
                 MetricLevel::Warn,
             )
             .unwrap(),
-            client: register_int_counter_vec_with_registry!(
-                "rpc_client",
-                "Connected RPC client's info",
-                &["client_type", "api_version"],
-                registry,
-            )
-            .unwrap(),
-            inflight_connection: register_int_gauge_vec_with_registry!(
-                "rpc_inflight_connection",
-                "Number of inflight RPC connection by protocol",
-                &["protocol"],
-                registry;
-                MetricLevel::Warn,
-            )
-            .unwrap(),
-            rpc_request_size: register_histogram_vec_with_registry!(
-                "rpc_request_size",
-                "Request size of rpc requests",
-                &["protocol"],
-                prometheus_filtered::exponential_buckets(32.0, 2.0, 19)
-                    .unwrap()
-                    .to_vec(),
-                registry,
-            )
-            .unwrap(),
-            rpc_response_size: register_histogram_vec_with_registry!(
-                "rpc_response_size",
-                "Response size of rpc requests",
-                &["protocol"],
-                prometheus_filtered::exponential_buckets(1024.0, 2.0, 20)
-                    .unwrap()
-                    .to_vec(),
-                registry,
-            )
-            .unwrap(),
         };
 
         Self {
@@ -164,49 +118,11 @@ impl MetricsLogger {
 impl Logger for MetricsLogger {
     type Instant = Instant;
 
-    fn on_connect(&self, _remote_addr: SocketAddr, request: &HttpRequest, t: TransportProtocol) {
-        let client_type = request
-            .headers()
-            .get(CLIENT_SDK_TYPE_HEADER)
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("Unknown");
-
-        let api_version = request
-            .headers()
-            .get(CLIENT_TARGET_API_VERSION_HEADER)
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("Unknown");
-        self.metrics
-            .client
-            .with_label_values(&[client_type, api_version])
-            .inc();
-        self.metrics
-            .inflight_connection
-            .with_label_values(&[&t.to_string()])
-            .inc();
-
-        self.metrics
-            .rpc_request_size
-            .with_label_values(&[&t.to_string()])
-            .observe(
-                request
-                    .size_hint()
-                    .exact()
-                    .unwrap_or_else(|| request.size_hint().lower()) as f64,
-            );
-    }
-
-    fn on_request(&self, _transport: TransportProtocol) -> Self::Instant {
+    fn on_request(&self) -> Self::Instant {
         Instant::now()
     }
 
-    fn on_call(
-        &self,
-        method_name: &str,
-        _params: Params,
-        _kind: MethodKind,
-        _transport: TransportProtocol,
-    ) {
+    fn on_call(&self, method_name: &str, _params: Params, _kind: MethodKind) {
         let method_name = self.check_spam(method_name);
         self.metrics
             .inflight_requests_by_route
@@ -224,7 +140,6 @@ impl Logger for MetricsLogger {
         _success: bool,
         error_code: Option<i32>,
         started_at: Self::Instant,
-        _transport: TransportProtocol,
     ) {
         let method_name = self.check_spam(method_name);
         self.metrics
@@ -261,19 +176,5 @@ impl Logger for MetricsLogger {
                 .with_label_values(&[method_name])
                 .inc();
         }
-    }
-
-    fn on_response(&self, result: &str, _started_at: Self::Instant, t: TransportProtocol) {
-        self.metrics
-            .rpc_response_size
-            .with_label_values(&[&t.to_string()])
-            .observe(std::mem::size_of_val(result) as f64)
-    }
-
-    fn on_disconnect(&self, _remote_addr: SocketAddr, t: TransportProtocol) {
-        self.metrics
-            .inflight_connection
-            .with_label_values(&[&t.to_string()])
-            .dec();
     }
 }

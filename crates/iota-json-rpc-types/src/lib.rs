@@ -29,8 +29,10 @@ pub use iota_transaction::*;
 use iota_types::{
     crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
+    iota_serde::BigInt,
 };
 pub use object_changes::*;
+pub use owned_object_cursor::OwnedObjectCursor;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeAs, SerializeAs, serde_as};
@@ -57,6 +59,7 @@ mod iota_protocol;
 mod iota_system_state_summary;
 mod iota_transaction;
 mod object_changes;
+mod owned_object_cursor;
 
 pub type DynamicFieldPage = Page<IotaDynamicFieldInfo, ObjectId>;
 
@@ -69,6 +72,16 @@ pub struct Page<T, C> {
     pub data: Vec<T>,
     pub next_cursor: Option<C>,
     pub has_next_page: bool,
+    /// The oldest checkpoint this response can contain data from.
+    ///
+    /// Anything before it has been pruned and may be missing from the
+    /// response.
+    ///
+    /// Absent for methods that do not return historical data, and for servers
+    /// that do not report it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
+    pub oldest_available_checkpoint: Option<BigInt<u64>>,
 }
 
 impl<T, C> Page<T, C> {
@@ -77,6 +90,27 @@ impl<T, C> Page<T, C> {
             data: vec![],
             next_cursor: None,
             has_next_page: false,
+            oldest_available_checkpoint: None,
+        }
+    }
+}
+
+/// Data attached to a JSON-RPC error raised for data that may have been
+/// pruned.
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DataPrunedErrorData {
+    /// The oldest checkpoint the request could have found data in.
+    ///
+    /// Anything before it has been pruned and is no longer served.
+    #[schemars(with = "String")]
+    pub oldest_available_checkpoint: BigInt<u64>,
+}
+
+impl DataPrunedErrorData {
+    pub fn new(oldest_available_checkpoint: u64) -> Self {
+        Self {
+            oldest_available_checkpoint: oldest_available_checkpoint.into(),
         }
     }
 }

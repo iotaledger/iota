@@ -67,12 +67,12 @@ Moderators work within a multisig environment, meaning key actions—such as rem
 To implement multisig for moderators, follow these steps:
 
 ### 1. Create Keys for Each Moderator
-Each moderator requires a unique key and corresponding IOTA address. To generate these keys and addresses, you can use any of the following key types: `ed25519`, `secp256k1`, or `secp256r1`. Use the following commands to create a key and address for each moderator:
+Each moderator requires a unique key and corresponding IOTA address. This tutorial uses `ed25519` keys for all moderators. You can use `secp256k1` or `secp256r1` keys instead, but don't combine `ed25519` keys with keys of the other schemes in one multisig: such a multisig is only valid when every moderator signs. Use the following commands to create a key and address for each moderator:
 
 ```shell
 iota client new-address --key-scheme ed25519
-iota client new-address --key-scheme secp256k1
-iota client new-address --key-scheme secp256r1
+iota client new-address --key-scheme ed25519
+iota client new-address --key-scheme ed25519
 ```
 ### 2. Add Keys to IOTA Keystore
 
@@ -97,16 +97,16 @@ expected output :
 │ │ iotaAddress             │  <IOTA-ADDRESS>                                                      │ │
 │ │ publicBase64Key         │  <PUBLIC-KEY>                                                        │ │
 │ │ publicBase64KeyWithFlag │  <PUBLIC-KEY-WITH-FLAG>                                              │ │
-│ │ keyScheme               │  secp256k1                                                           │ │
-│ │ flag                    │  1                                                                   │ │
+│ │ keyScheme               │  ed25519                                                             │ │
+│ │ flag                    │  0                                                                   │ │
 │ │ peerId                  │  <PEER-ID>                                                           │ │
 │ ╰─────────────────────────┴──────────────────────────────────────────────────────────────────────╯ │
 │ ╭─────────────────────────┬──────────────────────────────────────────────────────────────────────╮ │
 │ │ iotaAddress             │  <IOTA-ADDRESS>                                                      │ │
 │ │ publicBase64Key         │  <PUBLIC-KEY>                                                        │ │
 │ │ publicBase64KeyWithFlag │  <PUBLIC-KEY-WITH-FLAG>                                              │ │
-│ │ keyScheme               │  secp256r1                                                           │ │
-│ │ flag                    │  2                                                                   │ │
+│ │ keyScheme               │  ed25519                                                             │ │
+│ │ flag                    │  0                                                                   │ │
 │ │ peerId                  │  <PEER-ID>                                                           │ │
 │ ╰─────────────────────────┴──────────────────────────────────────────────────────────────────────╯ │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────╯
@@ -433,7 +433,7 @@ MOVE_PACKAGE_PATH=.
 Replace `iota-network-url` and `iota-network-faucet-url` with the IOTA network URL and faucet for tokens.
 
 ### 2.  Run the `publish.sh` Script
-The `publish.sh` script automates the process of deploying a Move contract to the IOTA Alphanet. Here’s how you can run it:
+The `publish.sh` script automates the process of deploying a Move contract to an IOTA network. Here’s how you can run it:
 
 ```shell
 sh publish.sh

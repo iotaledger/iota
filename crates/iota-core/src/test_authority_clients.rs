@@ -265,6 +265,7 @@ impl LocalAuthorityClient {
                     .signature_verifier
                     .verify_cert(request.certificate)
                     .await?;
+                epoch_store.assign_to_a_new_commit_for_testing(&[certificate.key()]);
                 state.execution_scheduler().enqueue(
                     vec![(
                         VerifiedExecutableTransaction::new_from_certificate(certificate.clone())

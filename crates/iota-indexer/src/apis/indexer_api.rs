@@ -5,13 +5,13 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use iota_json_rpc::IotaRpcModule;
+use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
 use iota_json_rpc_api::{IndexerApiServer, cap_page_limit, error_object_from_rpc, internal_error};
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectData, IotaObjectDataFilter,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
-    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage, Page,
-    TransactionBlocksPage, TransactionFilter,
+    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage,
+    OwnedObjectCursor, Page, TransactionBlocksPage,
 };
 use iota_names::{
     IotaNamesNft, NameRegistration, config::IotaNamesConfig, error::IotaNamesError, name::Name,
@@ -22,8 +22,8 @@ use iota_sdk_move_types::iota_framework::dynamic_field::Field;
 use iota_sdk_types::{Address, ObjectId, TransactionDigest, TypeTag};
 use iota_types::{dynamic_field::DynamicFieldName, event::EventID, object::ObjectRead};
 use jsonrpsee::{
-    PendingSubscriptionSink, RpcModule,
-    core::{RpcResult, SubscriptionResult, client::Error as RpcClientError},
+    RpcModule,
+    core::{RpcResult, client::Error as RpcClientError},
 };
 use tap::TapFallible;
 
@@ -46,14 +46,24 @@ impl IndexerApi {
         &self,
         address: Address,
         query: Option<IotaObjectResponseQuery>,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: usize,
     ) -> RpcResult<ObjectsPage> {
         let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
+        if let Some(filter) = &filter {
+            filter.check_size().map_err(|e| {
+                IotaRpcInputError::GenericInvalid(format!("invalid object filter: {e}"))
+            })?;
+        }
         let options = options.unwrap_or_default();
         let objects = self
             .inner
-            .get_owned_objects_in_blocking_task(address, filter, cursor, limit + 1)
+            .get_owned_objects_in_blocking_task(
+                address,
+                filter,
+                cursor.map(common::resolve_object_id_cursor).transpose()?,
+                limit + 1,
+            )
             .await?;
 
         let mut object_futures = vec![];
@@ -76,7 +86,9 @@ impl IndexerApi {
         let has_next_page = objects.len() > limit;
         objects.truncate(limit);
 
-        let next_cursor = objects.last().map(|o_read| o_read.object_id());
+        let next_cursor = objects
+            .last()
+            .map(|o_read| OwnedObjectCursor::from_object_id(o_read.object_id()));
         let construct_response_tasks = objects.into_iter().map(|object| {
             tokio::task::spawn(construct_object_response(
                 object,
@@ -95,6 +107,7 @@ impl IndexerApi {
             data,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 
@@ -203,7 +216,7 @@ impl IndexerApiServer for IndexerApi {
         &self,
         address: Address,
         query: Option<IotaObjectResponseQuery>,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage> {
         let limit = cap_page_limit(limit);
@@ -225,7 +238,7 @@ impl IndexerApiServer for IndexerApi {
         if limit == 0 {
             return Ok(TransactionBlocksPage::empty());
         }
-        let mut results = self
+        let (mut results, oldest_available_checkpoint) = self
             .inner
             .query_transaction_blocks_in_blocking_task(
                 query.filter,
@@ -243,6 +256,7 @@ impl IndexerApiServer for IndexerApi {
             data: results,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: Some(oldest_available_checkpoint.into()),
         })
     }
 
@@ -257,7 +271,7 @@ impl IndexerApiServer for IndexerApi {
         if limit == 0 {
             return Ok(TransactionBlocksPage::empty());
         }
-        let mut results = self
+        let (mut results, oldest_available_checkpoint) = self
             .inner
             .query_transaction_blocks_in_blocking_task_v2(
                 query.filter,
@@ -275,6 +289,7 @@ impl IndexerApiServer for IndexerApi {
             data: results,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: Some(oldest_available_checkpoint.into()),
         })
     }
 
@@ -292,7 +307,7 @@ impl IndexerApiServer for IndexerApi {
             return Ok(EventPage::empty());
         }
         let descending_order = descending_order.unwrap_or(false);
-        let mut results = self
+        let (mut results, oldest_available_checkpoint) = self
             .inner
             .query_only_checkpointed_events_in_blocking_task(
                 query,
@@ -309,6 +324,7 @@ impl IndexerApiServer for IndexerApi {
             data: results,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: Some(oldest_available_checkpoint.into()),
         })
     }
 
@@ -334,6 +350,7 @@ impl IndexerApiServer for IndexerApi {
             data: results.into_iter().map(Into::into).collect(),
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 
@@ -358,22 +375,6 @@ impl IndexerApiServer for IndexerApi {
     ) -> RpcResult<IotaObjectResponse> {
         self.get_dynamic_field_object(parent_object_id, name, options)
             .await
-    }
-
-    fn subscribe_event(
-        &self,
-        _sink: PendingSubscriptionSink,
-        _filter: EventFilter,
-    ) -> SubscriptionResult {
-        Err("empty subscription".into())
-    }
-
-    fn subscribe_transaction(
-        &self,
-        _sink: PendingSubscriptionSink,
-        _filter: TransactionFilter,
-    ) -> SubscriptionResult {
-        Err("empty subscription".into())
     }
 
     async fn iota_names_lookup(&self, name: &str) -> RpcResult<Option<IotaNameRecord>> {
@@ -482,7 +483,7 @@ impl IndexerApiServer for IndexerApi {
     async fn iota_names_find_all_registration_nfts(
         &self,
         address: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage> {

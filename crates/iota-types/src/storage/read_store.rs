@@ -13,7 +13,7 @@ use typed_store_error::TypedStoreError;
 
 use super::{ObjectStore, error::Result};
 use crate::{
-    base_types::{EpochId, ObjectType},
+    base_types::EpochId,
     committee::Committee,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemState, IotaSystemStateTrait},
@@ -21,7 +21,6 @@ use crate::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
         FullCheckpointContents, VerifiedCheckpoint,
     },
-    object::Object,
     storage::{get_transaction_input_objects, get_transaction_output_objects},
     transaction::VerifiedTransaction,
 };
@@ -868,31 +867,6 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub struct TransactionInfo {
-    pub checkpoint: u64,
-    pub object_types: HashMap<ObjectId, ObjectType>,
-}
-
-impl TransactionInfo {
-    pub fn new(
-        input_objects: &[Object],
-        output_objects: &[Object],
-        checkpoint: u64,
-    ) -> TransactionInfo {
-        let object_types = input_objects
-            .iter()
-            .chain(output_objects)
-            .map(|object| (object.id(), ObjectType::from(object)))
-            .collect();
-
-        TransactionInfo {
-            checkpoint,
-            object_types,
-        }
-    }
-}
-
 /// Epoch information structure for indexing.
 ///
 /// Contains metadata about an epoch including timing, checkpoints, protocol
@@ -995,7 +969,7 @@ pub struct AccountOwnedObjectInfo {
 }
 
 /// Opaque cursor for seeking in the `owner` index.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OwnedObjectCursor {
     pub object_type_identifier: u64,
     pub object_type_params: u64,

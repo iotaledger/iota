@@ -14,6 +14,7 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_move_types::iota_framework::object::UID;
 use iota_sdk_types::{MoveStruct, ObjectData, ObjectId, Owner, StructTag, TransactionDigest};
 use iota_swarm_config::genesis_config::{
     AccountConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
@@ -21,7 +22,6 @@ use iota_swarm_config::genesis_config::{
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::deterministic_random_account_private_key,
-    id::UID,
     iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
     object::{MoveStructExt, OBJECT_START_VERSION, ObjectInner},
     quorum_driver_types::ExecuteTransactionRequestType,

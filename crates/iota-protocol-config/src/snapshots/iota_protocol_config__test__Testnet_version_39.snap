@@ -65,6 +65,11 @@ feature_flags:
   check_cyclic_dependencies: true
   validate_ptb_argument_indices: true
   allow_dkg_completion_after_timeout: true
+  consensus_dedup_only_recorded_messages: true
+  reject_partially_signed_mixed_ed25519_multisig: true
+  limit_groth16_pvk_inputs: true
+  check_groth16_pvk_length: true
+  deprecate_global_storage_ops: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -360,8 +365,8 @@ auth_context_replace_cost_per_byte: 2
 auth_context_authenticator_function_info_v1_cost_base: 270
 min_validator_count: 4
 max_validator_count: 150
-min_validator_joining_stake: 2000000000000000
-validator_low_stake_threshold: 1500000000000000
-validator_very_low_stake_threshold: 1000000000000000
+min_validator_joining_stake: 6000000000000000
+validator_low_stake_threshold: 5500000000000000
+validator_very_low_stake_threshold: 5000000000000000
 validator_low_stake_grace_period: 7
 max_move_system_package_size: 204800

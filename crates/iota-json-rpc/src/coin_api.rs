@@ -8,9 +8,11 @@ use anyhow::Result;
 use async_trait::async_trait;
 use cached::{SizedCache, proc_macro::cached};
 use chrono::DateTime;
-use iota_core::{authority::AuthorityState, jsonrpc_index::TotalBalance};
+use iota_core::{authority::AuthorityState, rpc_indexes::TotalBalance};
 use iota_json_rpc_api::{CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics, cap_page_limit};
-use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaSupply};
+use iota_json_rpc_types::{
+    Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaSupply, OwnedObjectCursor,
+};
 use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
@@ -27,6 +29,7 @@ use iota_types::{
     },
     object::Object,
     parse_iota_struct_tag,
+    storage::OwnedObjectCursor as IndexCursor,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 #[cfg(test)]
@@ -51,6 +54,26 @@ pub fn parse_to_type_tag(coin_type: Option<String>) -> Result<TypeTag, IotaRpcIn
         Some(c) => parse_to_struct_tag(&c)?,
         None => StructTag::new_gas(),
     })))
+}
+
+/// The index position a cursor names.
+///
+/// A cursor carrying only an object id, as the indexer issues, is refused:
+/// this node's owner index is ordered by object type and balance first, so
+/// seeking by object id alone would skip or repeat rows.
+pub(crate) fn cursor_position(
+    cursor: Option<OwnedObjectCursor>,
+) -> Result<Option<IndexCursor>, IotaRpcInputError> {
+    match cursor {
+        None => Ok(None),
+        Some(cursor) => cursor.position().copied().map(Some).ok_or_else(|| {
+            IotaRpcInputError::GenericInvalid(
+                "this cursor was not issued by this node and cannot be resumed here; \
+                 request the page again without a cursor"
+                    .to_string(),
+            )
+        }),
+    }
 }
 
 pub struct CoinReadApi {
@@ -94,23 +117,14 @@ impl CoinReadApiServer for CoinReadApi {
         owner: Address,
         coin_type: Option<String>,
         // exclusive cursor if `Some`, otherwise start from the beginning
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
     ) -> RpcResult<CoinPage> {
         async move {
             let coin_type_tag = parse_to_type_tag(coin_type)?;
 
-            let cursor = match cursor {
-                Some(c) => (coin_type_tag.to_string(), c),
-                // If cursor is not specified, we need to start from the beginning of the coin
-                // type, which is the minimal possible ObjectId.
-                None => (coin_type_tag.to_string(), ObjectId::ZERO),
-            };
-
             self.internal
-                .get_coins_iterator(
-                    owner, cursor, limit, true, // only care about one type of coin
-                )
+                .get_coins_iterator(owner, cursor_position(cursor)?, Some(coin_type_tag), limit)
                 .await
         }
         .trace()
@@ -122,39 +136,15 @@ impl CoinReadApiServer for CoinReadApi {
         &self,
         owner: Address,
         // exclusive cursor if `Some`, otherwise start from the beginning
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
     ) -> RpcResult<CoinPage> {
         async move {
-            let cursor = match cursor {
-                Some(object_id) => {
-                    let obj = self.internal.get_object(&object_id).await?;
-                    match obj {
-                        Some(obj) => {
-                            if let Some(coin_type) = obj.opt_coin_type() {
-                                Ok((coin_type.to_string(), object_id))
-                            } else {
-                                Err(IotaRpcInputError::GenericInvalid(
-                                    "cursor is not a coin".to_string(),
-                                ))
-                            }
-                        }
-                        None => Err(IotaRpcInputError::GenericInvalid(
-                            "cursor not found".to_string(),
-                        )),
-                    }
-                }
-                None => {
-                    // If cursor is None, start from the beginning
-                    Ok((String::from_utf8([0u8].to_vec()).unwrap(), ObjectId::ZERO))
-                }
-            }?;
-
+            // The cursor carries its index position, so a coin spent since
+            // needs no lookup here.
             let coins = self
                 .internal
-                .get_coins_iterator(
-                    owner, cursor, limit, false, // return all types of coins
-                )
+                .get_coins_iterator(owner, cursor_position(cursor)?, None, limit)
                 .await?;
 
             Ok(coins)
@@ -345,6 +335,10 @@ async fn find_package_object_id(
     kv_store: Arc<TransactionKeyValueStore>,
 ) -> RpcInterimResult<ObjectId> {
     spawn_monitored_task!(async move {
+        // The publish transaction below can have expired with its epoch.
+        if let Some(object_id) = state.find_coin_object_id(&object_struct_tag)? {
+            return Ok(object_id);
+        }
         let publish_txn_digest = state.find_publish_txn_digest(package_id)?;
 
         let (_, effect) = state
@@ -462,9 +456,9 @@ pub trait CoinReadInternal {
     async fn get_coins_iterator(
         &self,
         owner: Address,
-        cursor: (String, ObjectId),
+        cursor: Option<IndexCursor>,
+        coin_type: Option<TypeTag>,
         limit: Option<usize>,
-        one_coin_type_only: bool,
     ) -> RpcInterimResult<CoinPage>;
 }
 
@@ -529,15 +523,15 @@ impl CoinReadInternal for CoinReadInternalImpl {
     async fn get_coins_iterator(
         &self,
         owner: Address,
-        cursor: (String, ObjectId),
+        cursor: Option<IndexCursor>,
+        coin_type: Option<TypeTag>,
         limit: Option<usize>,
-        one_coin_type_only: bool,
     ) -> RpcInterimResult<CoinPage> {
         let limit = cap_page_limit(limit);
         self.metrics.get_coins_limit.observe(limit as f64);
         let state = self.get_state();
         let mut data = spawn_monitored_task!(async move {
-            state.get_owned_coins(owner, cursor, limit + 1, one_coin_type_only)
+            state.get_owned_coins(owner, cursor, coin_type, limit + 1)
         })
         .await??;
 
@@ -550,11 +544,17 @@ impl CoinReadInternal for CoinReadInternalImpl {
         self.metrics
             .get_coins_result_size_total
             .inc_by(data.len() as u64);
-        let next_cursor = data.last().map(|coin| coin.coin_object_id);
+        // Only with a next page, as `getOwnedObjects` does, so that a client
+        // that reads the cursor as an object id can still parse a response
+        // that has a single page.
+        let next_cursor = has_next_page
+            .then(|| data.last().map(|(_, cursor)| *cursor))
+            .flatten();
         Ok(CoinPage {
-            data,
+            data: data.into_iter().map(|(coin, _)| coin).collect(),
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 }
@@ -563,6 +563,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
 mod tests {
     use expect_test::expect;
     use iota_json_rpc_types::Coin;
+    use iota_sdk_move_types::iota_framework::object::UID;
     use iota_sdk_types::{
         CheckpointDigest, ObjectDigest, StructTag, TransactionDigest, TransactionEffects,
         TransactionEvents, TypeTag, Version,
@@ -578,7 +579,6 @@ mod tests {
         coin::TreasuryCap,
         effects::TransactionEffectsExtForTesting,
         error::{IotaError, IotaResult},
-        id::UID,
         messages_checkpoint::CheckpointSequenceNumber,
         object::{MoveStructExt, Object},
         parse_iota_struct_tag,
@@ -677,6 +677,23 @@ mod tests {
         Usdc,
     }
 
+    /// An owner index position; its type and balance fields do not matter to
+    /// these tests.
+    fn position(object_id: ObjectId) -> IndexCursor {
+        IndexCursor {
+            object_type_identifier: 0,
+            object_type_params: 0,
+            inverted_balance: None,
+            object_id,
+        }
+    }
+
+    /// Pairs a coin with the cursor naming it, the way the store returns it.
+    fn with_cursor(coin: Coin) -> (Coin, OwnedObjectCursor) {
+        let cursor = OwnedObjectCursor::from_position(position(coin.coin_object_id));
+        (coin, cursor)
+    }
+
     fn get_test_coin(id_hex_literal: Option<&str>, coin_type: CoinType) -> Coin {
         let (arr, coin_type_string, balance, default_hex) = match coin_type {
             CoinType::Gas => ([0; 32], StructTag::new_gas().to_string(), 42, "0xA"),
@@ -736,14 +753,17 @@ mod tests {
             let gas_coin_clone = gas_coin.clone();
             let mut mock_state = MockStateRead::new();
             mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
+            mock_state
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((StructTag::new_gas().to_string(), ObjectId::ZERO)),
+                    predicate::eq(None),
+                    predicate::eq(Some(TypeTag::Struct(Box::new(StructTag::new_gas())))),
                     predicate::eq(51),
-                    predicate::eq(true),
                 )
-                .return_once(move |_, _, _, _| Ok(vec![gas_coin_clone]));
+                .return_once(move |_, _, _, _| Ok(vec![with_cursor(gas_coin_clone)]));
 
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api.get_coins(owner, None, None, None).await;
@@ -753,8 +773,9 @@ mod tests {
                 result,
                 CoinPage {
                     data: vec![gas_coin.clone()],
-                    next_cursor: Some(gas_coin.coin_object_id),
+                    next_cursor: None,
                     has_next_page: false,
+                    oldest_available_checkpoint: None,
                 }
             );
         }
@@ -771,18 +792,30 @@ mod tests {
             let coins_clone = coins.clone();
             let mut mock_state = MockStateRead::new();
             mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
+            mock_state
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((StructTag::new_gas().to_string(), coins[0].coin_object_id)),
+                    predicate::eq(Some(position(coins[0].coin_object_id))),
+                    predicate::eq(Some(TypeTag::Struct(Box::new(StructTag::new_gas())))),
                     predicate::eq(limit + 1),
-                    predicate::eq(true),
                 )
-                .return_once(move |_, _, _, _| Ok(coins_clone));
+                .return_once(move |_, _, _, _| {
+                    Ok(coins_clone.into_iter().map(with_cursor).collect())
+                });
 
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api
-                .get_coins(owner, None, Some(coins[0].coin_object_id), Some(limit))
+                .get_coins(
+                    owner,
+                    None,
+                    Some(OwnedObjectCursor::from_position(position(
+                        coins[0].coin_object_id,
+                    ))),
+                    Some(limit),
+                )
                 .await;
             assert!(response.is_ok());
             let result = response.unwrap();
@@ -790,8 +823,11 @@ mod tests {
                 result,
                 CoinPage {
                     data: coins[..limit].to_vec(),
-                    next_cursor: Some(coins[limit - 1].coin_object_id),
+                    next_cursor: Some(OwnedObjectCursor::from_position(position(
+                        coins[limit - 1].coin_object_id,
+                    ))),
                     has_next_page: true,
+                    oldest_available_checkpoint: None,
                 }
             );
         }
@@ -808,14 +844,17 @@ mod tests {
                 TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin.coin_type).unwrap()));
             let mut mock_state = MockStateRead::new();
             mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
+            mock_state
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((coin_type_tag.to_string(), ObjectId::ZERO)),
+                    predicate::eq(None),
+                    predicate::eq(Some(coin_type_tag.clone())),
                     predicate::eq(51),
-                    predicate::eq(true),
                 )
-                .return_once(move |_, _, _, _| Ok(vec![coin_clone]));
+                .return_once(move |_, _, _, _| Ok(vec![with_cursor(coin_clone)]));
 
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api
@@ -828,8 +867,9 @@ mod tests {
                 result,
                 CoinPage {
                     data: vec![coin.clone()],
-                    next_cursor: Some(coin.coin_object_id),
+                    next_cursor: None,
                     has_next_page: false,
+                    oldest_available_checkpoint: None,
                 }
             );
         }
@@ -845,7 +885,7 @@ mod tests {
             // Build request params
             let owner = get_test_owner();
             let coin_type = coins[0].coin_type.clone();
-            let cursor = coins[0].coin_object_id;
+            let cursor = position(coins[0].coin_object_id);
             let limit = 2;
 
             let coin_type_tag = TypeTag::Struct(Box::new(
@@ -853,18 +893,28 @@ mod tests {
             ));
             let mut mock_state = MockStateRead::new();
             mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
+            mock_state
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((coin_type_tag.to_string(), coins[0].coin_object_id)),
+                    predicate::eq(Some(cursor)),
+                    predicate::eq(Some(coin_type_tag.clone())),
                     predicate::eq(limit + 1),
-                    predicate::eq(true),
                 )
-                .return_once(move |_, _, _, _| Ok(coins_clone));
+                .return_once(move |_, _, _, _| {
+                    Ok(coins_clone.into_iter().map(with_cursor).collect())
+                });
 
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api
-                .get_coins(owner, Some(coin_type), Some(cursor), Some(limit))
+                .get_coins(
+                    owner,
+                    Some(coin_type),
+                    Some(OwnedObjectCursor::from_position(cursor)),
+                    Some(limit),
+                )
                 .await;
 
             assert!(response.is_ok());
@@ -873,8 +923,11 @@ mod tests {
                 result,
                 CoinPage {
                     data: coins[..limit].to_vec(),
-                    next_cursor: Some(coins[limit - 1].coin_object_id),
+                    next_cursor: Some(OwnedObjectCursor::from_position(position(
+                        coins[limit - 1].coin_object_id,
+                    ))),
                     has_next_page: true,
+                    oldest_available_checkpoint: None,
                 }
             );
         }
@@ -926,6 +979,9 @@ mod tests {
             let coin_type = get_test_coin_type(get_test_package_id());
             let mut mock_state = MockStateRead::new();
             mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
+            mock_state
                 .expect_get_owned_coins()
                 .returning(move |_, _, _, _| {
                     Err(StateReadError::Client(
@@ -952,6 +1008,9 @@ mod tests {
             let owner = get_test_owner();
             let coin_type = get_test_coin_type(get_test_package_id());
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state
                 .expect_get_owned_coins()
                 .returning(move |_, _, _, _| {
@@ -986,14 +1045,17 @@ mod tests {
             let gas_coin_clone = gas_coin.clone();
             let mut mock_state = MockStateRead::new();
             mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
+            mock_state
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((String::from_utf8([0u8].to_vec()).unwrap(), ObjectId::ZERO)),
+                    predicate::eq(None),
+                    predicate::eq(None),
                     predicate::eq(51),
-                    predicate::eq(false),
                 )
-                .return_once(move |_, _, _, _| Ok(vec![gas_coin_clone]));
+                .return_once(move |_, _, _, _| Ok(vec![with_cursor(gas_coin_clone)]));
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api
                 .get_all_coins(owner, None, Some(51))
@@ -1025,72 +1087,64 @@ mod tests {
             );
             let mut mock_state = MockStateRead::new();
             mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
+            mock_state
                 .expect_get_object()
                 .return_once(move |_| Ok(Some(coin_object)));
             mock_state
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((coins[0].coin_type.clone(), coins[0].coin_object_id)),
+                    predicate::eq(Some(position(coins[0].coin_object_id))),
+                    predicate::eq(None),
                     predicate::eq(limit + 1),
-                    predicate::eq(false),
                 )
-                .return_once(move |_, _, _, _| Ok(coins_clone));
+                .return_once(move |_, _, _, _| {
+                    Ok(coins_clone.into_iter().map(with_cursor).collect())
+                });
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api
-                .get_all_coins(owner, Some(coins[0].coin_object_id), Some(limit))
+                .get_all_coins(
+                    owner,
+                    Some(OwnedObjectCursor::from_position(position(
+                        coins[0].coin_object_id,
+                    ))),
+                    Some(limit),
+                )
                 .await
                 .unwrap();
             assert_eq!(response.data.len(), limit);
             assert_eq!(response.data, coins[..limit].to_vec());
         }
 
-        // Expected error scenarios
+        /// A page resumes after a cursor whose object has since been spent.
         #[tokio::test]
-        async fn test_object_is_not_coin() {
+        async fn test_cursor_of_a_spent_object_still_returns_a_page() {
             let owner = get_test_owner();
-            let object_id = get_test_package_id();
-            let (_, _, _, _, treasury_cap_object) = get_test_treasury_cap_peripherals(object_id);
+            let spent = get_test_package_id();
+            let coin = get_test_coin(None, CoinType::Gas);
+            let coin_clone = coin.clone();
             let mut mock_state = MockStateRead::new();
-            mock_state.expect_get_object().returning(move |obj_id| {
-                if obj_id == &object_id {
-                    Ok(Some(treasury_cap_object.clone()))
-                } else {
-                    panic!("should not be called with any other object id")
-                }
-            });
-            let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
-            let response = coin_read_api
-                .get_all_coins(owner, Some(object_id), None)
-                .await;
-
-            assert!(response.is_err());
-            let error_result = response.unwrap_err();
-            assert_eq!(error_result.code(), -32602);
-            let expected = expect!["-32602"];
-            expected.assert_eq(&error_result.code().to_string());
-            let expected = expect!["cursor is not a coin"];
-            expected.assert_eq(error_result.message());
-        }
-
-        #[tokio::test]
-        async fn test_object_not_found() {
-            let owner = get_test_owner();
-            let object_id = get_test_package_id();
-            let mut mock_state = MockStateRead::new();
-            mock_state.expect_get_object().returning(move |_| Ok(None));
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
+            // The store is never asked for the cursor's object.
+            mock_state
+                .expect_get_owned_coins()
+                .return_once(move |_, _, _, _| Ok(vec![with_cursor(coin_clone)]));
 
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api
-                .get_all_coins(owner, Some(object_id), None)
+                .get_all_coins(
+                    owner,
+                    Some(OwnedObjectCursor::from_position(position(spent))),
+                    None,
+                )
                 .await;
 
-            assert!(response.is_err());
-            let error_result = response.unwrap_err();
-            let expected = expect!["-32602"];
-            expected.assert_eq(&error_result.code().to_string());
-            let expected = expect!["cursor not found"];
-            expected.assert_eq(error_result.message());
+            assert!(response.is_ok(), "{response:?}");
+            assert_eq!(response.unwrap().data, vec![coin]);
         }
     }
 
@@ -1104,6 +1158,9 @@ mod tests {
             let gas_coin = get_test_coin(None, CoinType::Gas);
             let gas_coin_clone = gas_coin.clone();
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state
                 .expect_get_balance()
                 .with(
@@ -1137,6 +1194,9 @@ mod tests {
             let coin = get_test_coin(None, CoinType::Usdc);
             let coin_clone = coin.clone();
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state
                 .expect_get_balance()
                 .with(
@@ -1193,6 +1253,9 @@ mod tests {
             let owner = get_test_owner();
             let coin_type = get_test_coin_type(get_test_package_id());
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state.expect_get_balance().returning(move |_, _| {
                 Err(StateReadError::Client(
                     IotaError::IndexStoreNotAvailable.into(),
@@ -1220,6 +1283,9 @@ mod tests {
             let owner = get_test_owner();
             let coin_type = get_test_coin_type(get_test_package_id());
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state.expect_get_balance().returning(move |_, _| {
                 Err(IotaError::Execution("mock db error".to_string()).into())
             });
@@ -1252,6 +1318,9 @@ mod tests {
             let usdc_coin = get_test_coin(None, CoinType::Usdc);
             let usdc_coin_type_tag = get_test_coin_type_tag(usdc_coin.coin_type.clone());
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state
                 .expect_get_all_balance()
                 .with(predicate::eq(owner))
@@ -1307,6 +1376,9 @@ mod tests {
         async fn test_index_store_not_available() {
             let owner = get_test_owner();
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state.expect_get_all_balance().returning(move |_| {
                 Err(StateReadError::Client(
                     IotaError::IndexStoreNotAvailable.into(),
@@ -1327,7 +1399,7 @@ mod tests {
     }
 
     mod get_coin_metadata_tests {
-        use iota_types::{coin::CoinMetadata, id::UID};
+        use iota_types::coin::CoinMetadata;
         use mockall::predicate;
 
         use super::{super::*, *};
@@ -1381,6 +1453,9 @@ mod tests {
                 TransactionEffects::new_empty_v1_for_testing(transaction_digest);
 
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state
                 .expect_find_publish_txn_digest()
                 .return_once(move |_| Ok(transaction_digest));
@@ -1437,13 +1512,12 @@ mod tests {
 
     mod get_total_supply_tests {
         use iota_sdk_move_types::{
-            iota_framework::{bag::Bag, vec_map::VecMap},
+            iota_framework::{bag::Bag, object::UID, vec_map::VecMap},
             iota_system::iota_system_state_inner::SystemParametersV1,
         };
         use iota_types::{
             coin::CoinMetadata,
             gas_coin::IotaTreasuryCap,
-            id::UID,
             iota_system_state::{
                 IotaSystemState,
                 iota_system_state_inner_v1::StorageFundV1,
@@ -1459,6 +1533,9 @@ mod tests {
             let coin_type = "0x2::iota::IOTA";
 
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state.expect_get_system_state().returning(move || {
                 let mut state = default_system_state();
                 state.iota_treasury_cap.inner.total_supply.value = 42;
@@ -1512,6 +1589,9 @@ mod tests {
                 TransactionEffects::new_empty_v1_for_testing(transaction_digest);
 
             let mut mock_state = MockStateRead::new();
+            mock_state
+                .expect_find_coin_object_id()
+                .returning(|_| Ok(None));
             mock_state
                 .expect_find_publish_txn_digest()
                 .times(2)

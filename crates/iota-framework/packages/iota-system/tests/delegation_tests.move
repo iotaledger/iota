@@ -949,8 +949,8 @@ fun test_request_add_validator_below_protocol_config_min_stake_fails() {
         scenario,
     );
     // One IOTA short of the min_validator_joining_stake protocol config
-    // value (2M IOTA).
-    stake_with(NEW_VALIDATOR_ADDR, NEW_VALIDATOR_ADDR, 1_999_999, scenario);
+    // value (6M IOTA).
+    stake_with(NEW_VALIDATOR_ADDR, NEW_VALIDATOR_ADDR, 5_999_999, scenario);
 
     scenario.next_tx(NEW_VALIDATOR_ADDR);
     let mut system_state = scenario.take_shared<IotaSystemState>();
@@ -973,7 +973,7 @@ fun test_request_add_validator_at_protocol_config_min_stake() {
         NEW_VALIDATOR_POP,
         scenario,
     );
-    stake_with(NEW_VALIDATOR_ADDR, NEW_VALIDATOR_ADDR, 2_000_000, scenario);
+    stake_with(NEW_VALIDATOR_ADDR, NEW_VALIDATOR_ADDR, 6_000_000, scenario);
 
     scenario.next_tx(NEW_VALIDATOR_ADDR);
     let mut system_state = scenario.take_shared<IotaSystemState>();

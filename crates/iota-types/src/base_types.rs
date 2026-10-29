@@ -26,12 +26,11 @@ use serde::{Deserialize, Serialize, ser::Error};
 
 pub use crate::committee::EpochId;
 use crate::{
-    MOVE_STDLIB_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
     crypto::{AuthorityPublicKeyBytes, DefaultHash, PublicKey},
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind},
-    id::RESOLVED_IOTA_ID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     iota_serde::to_iota_struct_tag_string,
     messages_checkpoint::CheckpointTimestamp,
@@ -333,6 +332,12 @@ pub const RESOLVED_TX_CONTEXT: (&AccountAddress, &IdentStr, &IdentStr) = (
     &crate::IOTA_FRAMEWORK_ADDRESS,
     ident_str!("tx_context"),
     ident_str!("TxContext"),
+);
+
+pub const RESOLVED_IOTA_ID: (&AccountAddress, &IdentStr, &IdentStr) = (
+    &IOTA_FRAMEWORK_ADDRESS,
+    ident_str!("object"),
+    ident_str!("ID"),
 );
 
 pub fn move_ascii_str_layout() -> A::MoveStructLayout {

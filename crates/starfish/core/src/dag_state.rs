@@ -229,11 +229,12 @@ pub(crate) struct DagState {
     /// Vec position corresponds to the authority index.
     recent_headers_refs_by_authority: Vec<BTreeSet<BlockRef>>,
 
-    /// Maps (round, transactions_commitment) -> BlockHeaderDigest per
-    /// authority. Used to look up block digests from TransactionRef
-    /// components. Evicted based on solid commits, same as transactions.
-    tx_ref_to_block_digest_by_authority:
-        Vec<BTreeMap<(Round, TransactionsCommitment), BlockHeaderDigest>>,
+    /// Maps (round, transactions_commitment) -> digests of every accepted
+    /// header with that round and commitment, per authority. Used to look up
+    /// block digests from TransactionRef components. Evicted based on solid
+    /// commits, same as transactions.
+    tx_ref_to_block_digests_by_authority:
+        Vec<BTreeMap<(Round, TransactionsCommitment), Vec<BlockHeaderDigest>>>,
 
     /// Keeps track of the threshold clock for proposing blocks.
     threshold_clock: ThresholdClock,
@@ -426,7 +427,7 @@ impl DagState {
             recent_transactions_by_authority: vec![BTreeMap::new(); num_authorities],
             recent_shards_by_authority: vec![BTreeMap::new(); num_authorities],
             recent_headers_refs_by_authority: vec![BTreeSet::new(); num_authorities],
-            tx_ref_to_block_digest_by_authority: vec![BTreeMap::new(); num_authorities],
+            tx_ref_to_block_digests_by_authority: vec![BTreeMap::new(); num_authorities],
             threshold_clock,
             highest_accepted_round: 0,
             last_commit,
@@ -593,7 +594,7 @@ impl DagState {
         self.recent_transactions_by_authority = vec![BTreeMap::new(); num_authorities];
         self.recent_shards_by_authority = vec![BTreeMap::new(); num_authorities];
         self.recent_headers_refs_by_authority = vec![BTreeSet::new(); num_authorities];
-        self.tx_ref_to_block_digest_by_authority = vec![BTreeMap::new(); num_authorities];
+        self.tx_ref_to_block_digests_by_authority = vec![BTreeMap::new(); num_authorities];
         self.pending_commit_votes.clear();
         self.pending_acknowledgments.clear();
         self.misbehavior_store.reset();
@@ -845,10 +846,12 @@ impl DagState {
         self.recent_block_headers
             .insert(block_ref, block_header.clone());
         self.recent_headers_refs_by_authority[block_ref.author].insert(block_ref);
-        self.tx_ref_to_block_digest_by_authority[block_ref.author].insert(
-            (block_ref.round, block_header.transactions_commitment()),
-            block_ref.digest,
-        );
+        let digests = self.tx_ref_to_block_digests_by_authority[block_ref.author]
+            .entry((block_ref.round, block_header.transactions_commitment()))
+            .or_default();
+        if !digests.contains(&block_ref.digest) {
+            digests.push(block_ref.digest);
+        }
         #[cfg(feature = "dag-visualizer")]
         let clock_before = self.threshold_clock.get_round();
         if self.threshold_clock.add_block_header(block_ref) {
@@ -1211,13 +1214,13 @@ impl DagState {
             }
 
             // Check recent block headers. We are guaranteed to have the block
-            // digest in tx_ref_to_block_digest_by_authority if the header is
+            // digest in tx_ref_to_block_digests_by_authority if the header is
             // still in recent_block_headers, because both are inserted together
             // and headers are evicted first.
             results[index] = self
-                .resolve_block_ref(tx_ref)
-                .and_then(|block_ref| self.recent_block_headers.get(&block_ref))
-                .is_some();
+                .resolve_block_refs(tx_ref)
+                .iter()
+                .any(|block_ref| self.recent_block_headers.contains_key(block_ref));
         }
 
         // Collect refs that weren't found in memory
@@ -1232,7 +1235,11 @@ impl DagState {
             // Look up block digests from in-memory map
             let refs_with_indices: Vec<_> = missing
                 .iter()
-                .filter_map(|(idx, tx)| self.resolve_block_ref(tx).map(|br| (*idx, br)))
+                .flat_map(|(idx, tx)| {
+                    self.resolve_block_refs(tx)
+                        .into_iter()
+                        .map(move |br| (*idx, br))
+                })
                 .collect();
 
             if !refs_with_indices.is_empty() {
@@ -1429,17 +1436,23 @@ impl DagState {
         block_headers
     }
 
-    /// Resolves a `TransactionRef` to a `BlockRef` using the in-memory
-    /// `tx_ref_to_block_digest_by_authority` lookup table.
-    pub(crate) fn resolve_block_ref(&self, tx_ref: &TransactionRef) -> Option<BlockRef> {
-        self.tx_ref_to_block_digest_by_authority[tx_ref.author]
+    /// Resolves a `TransactionRef` to the `BlockRef` of every accepted header
+    /// carrying it; more than one header can share a `TransactionRef`.
+    pub(crate) fn resolve_block_refs(&self, tx_ref: &TransactionRef) -> Vec<BlockRef> {
+        let Some(digests) = self.tx_ref_to_block_digests_by_authority[tx_ref.author]
             .get(&(tx_ref.round, tx_ref.transactions_commitment))
+        else {
+            return Vec::new();
+        };
+        digests
+            .iter()
             .map(|&digest| BlockRef::new(tx_ref.round, tx_ref.author, digest))
+            .collect()
     }
 
     /// Gets cached block headers for a list of TransactionRefs by first looking
-    /// up the block digest from the in-memory tx_ref_to_block_digest map, then
-    /// fetching the cached block header.
+    /// up the block digests from the in-memory tx_ref_to_block_digests map,
+    /// then fetching a cached block header.
     pub(crate) fn get_cached_block_headers_for_transaction_refs(
         &self,
         tx_refs: &[TransactionRef],
@@ -1452,12 +1465,12 @@ impl DagState {
                 }
                 continue;
             }
-            let Some(block_ref) = self.resolve_block_ref(tx_ref) else {
-                continue;
-            };
-            if let Some(block) = self.recent_block_headers.get(&block_ref) {
-                block_headers[index] = Some(block.clone());
-            }
+            block_headers[index] = self
+                .resolve_block_refs(tx_ref)
+                .into_iter()
+                .max()
+                .and_then(|block_ref| self.recent_block_headers.get(&block_ref))
+                .cloned();
         }
         block_headers
     }
@@ -2295,8 +2308,8 @@ impl DagState {
                 min(transaction_gc_round, eviction_round + 1)
             };
             let split_key = (eviction_round, TransactionsCommitment::MIN);
-            self.tx_ref_to_block_digest_by_authority[authority_index] =
-                self.tx_ref_to_block_digest_by_authority[authority_index].split_off(&split_key);
+            self.tx_ref_to_block_digests_by_authority[authority_index] =
+                self.tx_ref_to_block_digests_by_authority[authority_index].split_off(&split_key);
         }
     }
 
@@ -2376,7 +2389,10 @@ impl DagState {
         let block_ref = if let Some(digest) = block_digest {
             BlockRef::new(transaction_ref.round, transaction_ref.author, digest)
         } else {
-            let Some(br) = self.resolve_block_ref(&transaction_ref) else {
+            // More than one header can carry this payload and share its
+            // TransactionRef; acknowledge the one with the largest digest,
+            // which is also the one picked as an ancestor.
+            let Some(br) = self.resolve_block_refs(&transaction_ref).into_iter().max() else {
                 error!(
                     "block_digest not found for {transaction_ref:?} when adding pending acknowledgment, source: {source:?}"
                 );
@@ -2621,7 +2637,7 @@ impl DagState {
         // Clean up old transactions depending on the last solid leader round.
         self.evict_transactions();
 
-        // Evict tx_ref_to_block_digest entries aligned with transaction eviction.
+        // Evict tx_ref_to_block_digests entries aligned with transaction eviction.
         self.evict_tx_ref_to_block_digests();
 
         // Clean up old acknowledgments.

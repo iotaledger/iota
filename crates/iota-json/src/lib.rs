@@ -10,15 +10,16 @@ use std::{
 
 use anyhow::{anyhow, bail};
 use fastcrypto::encoding::{Encoding, Hex};
+use iota_sdk_move_types::iota_framework::object::ID;
 use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag};
 use iota_types::{
     base_types::{
-        RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TxContext, TxContextKind,
-        is_primitive_type_tag, move_ascii_str_layout, move_utf8_str_layout,
+        RESOLVED_ASCII_STR, RESOLVED_IOTA_ID, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TxContext,
+        TxContextKind, is_primitive_type_tag, move_ascii_str_layout, move_utf8_str_layout,
     },
     error::IotaError,
-    id::{self, RESOLVED_IOTA_ID},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
+    move_layout::MoveLayout,
     move_package::{
         IotaAttributeV2, ProtocolBuildConfig, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
     },
@@ -613,7 +614,7 @@ pub fn primitive_type(
                 // u8
                 MoveTypeLayout::Struct(Box::new(move_utf8_str_layout()))
             } else if resolved_struct == RESOLVED_IOTA_ID {
-                MoveTypeLayout::Struct(Box::new(id::ID::layout()))
+                MoveTypeLayout::Struct(Box::new(ID::layout()))
             } else {
                 return None;
             }
@@ -663,7 +664,7 @@ fn layout_of_primitive_typetag(tag: &TypeTag) -> Option<MoveTypeLayout> {
             );
             // is id or..
             if resolved_struct == RESOLVED_IOTA_ID {
-                MTL::Struct(Box::new(id::ID::layout()))
+                MTL::Struct(Box::new(ID::layout()))
             } else if resolved_struct == RESOLVED_ASCII_STR {
                 MTL::Struct(Box::new(move_ascii_str_layout()))
             } else if resolved_struct == RESOLVED_UTF8_STR {

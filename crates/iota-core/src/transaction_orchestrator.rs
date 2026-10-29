@@ -79,10 +79,6 @@ use crate::{
     validator_client_monitor::ValidatorClientMetrics,
 };
 
-// How long to wait for local execution (including parents) before a timeout
-// is returned to client.
-const LOCAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(10);
-
 const WAIT_FOR_FINALITY_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// The submission flow for a transaction, selected per request by the
@@ -306,10 +302,14 @@ where
         let include_output_objects = request.include_output_objects;
 
         let tx_digest = *transaction.digest();
+        let wait_for_local_execution = matches!(
+            request_type,
+            ExecuteTransactionRequestType::WaitForLocalExecution
+        );
 
         // Responses built from the local store read the object versions the
-        // transaction superseded, which the objects pruner deletes once the
-        // checkpoint after the transaction's is executed.
+        // transaction superseded, which the expiry of historic object buckets
+        // drops once their epoch falls out of the object retention.
         let _object_retention = (include_input_objects || include_output_objects)
             .then(|| self.validator_state.retain_objects());
 
@@ -328,7 +328,21 @@ where
                 ?tx_digest,
                 "Returning cached results for already-executed transaction"
             );
-            return Ok((response, true));
+            // Executed here. A caller waiting for local execution also gets
+            // the read-after-write guarantee, so for them it is only confirmed
+            // once its checkpoint is indexed too, as below. A transaction
+            // executed in an earlier epoch has its checkpoint indexed already:
+            // an epoch ends only once all its checkpoints are executed, each
+            // after its index commit. The current epoch's table knows only the
+            // current epoch's transactions, so it is not asked for those.
+            let executed_locally = !wait_for_local_execution
+                || (response.effects.effects.epoch() < epoch_store.epoch()
+                    || self
+                        .validator_state
+                        .wait_for_checkpoint_inclusion(&[tx_digest], WAIT_FOR_FINALITY_TIMEOUT)
+                        .await
+                        .is_ok_and(|inclusion| self.is_indexed(&inclusion, &tx_digest)));
+            return Ok((response, executed_locally));
         }
 
         // Reject malformed transactions before either driver inspects shared
@@ -340,10 +354,6 @@ where
             .validity_check(&epoch_store.tx_validity_check_context())
             .map_err(QuorumDriverError::InvalidTransaction)?;
 
-        let wait_for_local_execution = matches!(
-            request_type,
-            ExecuteTransactionRequestType::WaitForLocalExecution
-        );
         let (mut response, seq) =
             match (self.select_driver(&epoch_store)?, wait_for_local_execution) {
                 (Driver::Transaction(td), true) => {
@@ -443,21 +453,40 @@ where
                     )?);
                 }
             }
-            true
+            // The checkpoint is final, but a read right after the response
+            // sees the transaction only once the indexes include it.
+            self.validator_state
+                .is_checkpoint_indexed(seq)
+                .unwrap_or(false)
         } else {
             // The response is already 2f+1 certified — from the QuorumDriver,
             // or inherited by a duplicate submission from an in-flight
             // certifying submission — so just confirm local execution
-            // finished.
-            let ok = Self::wait_for_finalized_tx_executed_locally_with_timeout(
+            // finished. Both waits share one deadline: a fullnode often
+            // executes the transaction only with its checkpoint, so a shorter
+            // limit on the first wait would give up before the second could
+            // succeed.
+            let deadline = tokio::time::Instant::now() + WAIT_FOR_FINALITY_TIMEOUT;
+            let executed = Self::wait_for_finalized_tx_executed_locally_with_timeout(
                 &self.validator_state,
                 &transaction,
                 &self.metrics,
+                deadline,
             )
             .await
             .is_ok();
             add_server_timing("local_execution");
-            ok
+            // Only the checkpoint indexes the transaction, so wait for it too
+            // for an index-backed read after the response to see it.
+            executed
+                && self
+                    .validator_state
+                    .wait_for_checkpoint_inclusion(
+                        &[tx_digest],
+                        deadline.saturating_duration_since(tokio::time::Instant::now()),
+                    )
+                    .await
+                    .is_ok_and(|inclusion| self.is_indexed(&inclusion, &tx_digest))
         };
 
         let response = response.expect("response must be populated before return");
@@ -551,10 +580,25 @@ where
         Ok(())
     }
 
+    /// Whether `inclusion`, from `wait_for_checkpoint_inclusion`, puts
+    /// `digest` in a checkpoint the RPC indexes include, so that a read sent
+    /// right after sees it.
+    fn is_indexed(
+        &self,
+        inclusion: &BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>,
+        digest: &TransactionDigest,
+    ) -> bool {
+        inclusion.get(digest).is_some_and(|&(seq, _)| {
+            self.validator_state
+                .is_checkpoint_indexed(seq)
+                .unwrap_or(false)
+        })
+    }
+
     /// Build a skip-effect-certification response entirely from the local
     /// cache. The caller must have already obtained `checkpoint_seq` via
-    /// `wait_for_checkpoint_inclusion`, which is supposed to guarantee both
-    /// the effects write and the checkpoint-mapping write have landed. A
+    /// `wait_for_checkpoint_inclusion`, which is supposed to guarantee that
+    /// the effects write and the checkpoint-mapping write have both landed. A
     /// missing cache entry here would mean a transient races we observed in
     /// practice; mapped to `TimeoutBeforeFinality` so the client retries
     /// rather than seeing a misleading `QuorumDriverInternal`.
@@ -1182,6 +1226,7 @@ where
         validator_state: &Arc<AuthorityState>,
         transaction: &VerifiedTransaction,
         metrics: &TransactionOrchestratorMetrics,
+        deadline: tokio::time::Instant,
     ) -> IotaResult {
         let tx_digest = *transaction.digest();
         metrics.local_execution_in_flight.inc();
@@ -1199,8 +1244,8 @@ where
             ?tx_digest,
             "Waiting for finalized tx to be executed locally."
         );
-        match timeout(
-            LOCAL_EXECUTION_TIMEOUT,
+        match tokio::time::timeout_at(
+            deadline,
             validator_state
                 .get_transaction_cache_reader()
                 .try_notify_read_executed_effects_digests(
@@ -1214,8 +1259,7 @@ where
             Err(_elapsed) => {
                 debug!(
                     ?tx_digest,
-                    "Waiting for finalized tx to be executed locally timed out within {:?}.",
-                    LOCAL_EXECUTION_TIMEOUT
+                    "Waiting for finalized tx to be executed locally timed out."
                 );
                 metrics.local_execution_timeout.inc();
                 Err(IotaError::Timeout)

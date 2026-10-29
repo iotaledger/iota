@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::iota_framework::object::UID;
 use iota_sdk_types::{ObjectId, TypeTag};
 use move_core_types::{
     account_address::AccountAddress,
@@ -12,8 +13,8 @@ use move_core_types::{
 
 use super::{DynamicFieldInfo, DynamicFieldType};
 use crate::{
-    id::UID,
     iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
+    move_layout::MoveLayout,
 };
 
 /// Visitor to deserialize the outer structure of a `0x2::dynamic_field::Field`

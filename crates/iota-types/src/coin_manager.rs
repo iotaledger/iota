@@ -1,13 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::iota_framework::object::UID;
 use iota_sdk_types::ObjectData;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     coin::{CoinMetadata, TreasuryCap},
     error::IotaError,
-    id::UID,
     object::Object,
 };
 

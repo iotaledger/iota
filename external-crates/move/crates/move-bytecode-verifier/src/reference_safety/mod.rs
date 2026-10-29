@@ -16,7 +16,7 @@ use std::{
     num::NonZeroU64,
 };
 
-use abstract_state::{AbstractState, AbstractValue};
+use abstract_state::{AbstractState, AbstractValue, ValueKind};
 use move_abstract_stack::AbstractStack;
 use move_binary_format::{
     CompiledModule,
@@ -113,7 +113,29 @@ fn call(
         None => BTreeSet::new(),
     };
     let return_ = verifier.module.signature_at(function_handle.return_);
-    let values = state.call(offset, arguments, &acquired_resources, return_, meter)?;
+    let values = if verifier.config.deprecate_global_storage_ops {
+        safe_assert!(acquired_resources.is_empty());
+        let return_kinds = return_
+            .0
+            .iter()
+            .map(|ty| match ty {
+                SignatureToken::Reference(_) => {
+                    ValueKind::Reference(/* is_mut */ false)
+                }
+                SignatureToken::MutableReference(_) => ValueKind::Reference(/* is_mut */ true),
+                _ => ValueKind::NonReference,
+            })
+            .collect::<Vec<_>>();
+        state.call_v2(
+            offset,
+            arguments,
+            &return_kinds,
+            meter,
+            StatusCode::CALL_BORROWED_MUTABLE_REFERENCE_ERROR,
+        )?
+    } else {
+        state.call(offset, arguments, &acquired_resources, return_, meter)?
+    };
     for value in values {
         verifier.push(value)?
     }
@@ -265,33 +287,39 @@ fn execute_inner(
         }
 
         Bytecode::MutBorrowGlobalDeprecated(idx) => {
+            safe_assert!(!verifier.config.deprecate_global_storage_ops);
             safe_assert!(safe_unwrap_err!(verifier.stack.pop()).is_value());
             let value = state.borrow_global(offset, true, *idx, meter)?;
             verifier.push(value)?
         }
         Bytecode::MutBorrowGlobalGenericDeprecated(idx) => {
+            safe_assert!(!verifier.config.deprecate_global_storage_ops);
             safe_assert!(safe_unwrap_err!(verifier.stack.pop()).is_value());
             let struct_inst = verifier.module.struct_instantiation_at(*idx);
             let value = state.borrow_global(offset, true, struct_inst.def, meter)?;
             verifier.push(value)?
         }
         Bytecode::ImmBorrowGlobalDeprecated(idx) => {
+            safe_assert!(!verifier.config.deprecate_global_storage_ops);
             safe_assert!(safe_unwrap_err!(verifier.stack.pop()).is_value());
             let value = state.borrow_global(offset, false, *idx, meter)?;
             verifier.push(value)?
         }
         Bytecode::ImmBorrowGlobalGenericDeprecated(idx) => {
+            safe_assert!(!verifier.config.deprecate_global_storage_ops);
             safe_assert!(safe_unwrap_err!(verifier.stack.pop()).is_value());
             let struct_inst = verifier.module.struct_instantiation_at(*idx);
             let value = state.borrow_global(offset, false, struct_inst.def, meter)?;
             verifier.push(value)?
         }
         Bytecode::MoveFromDeprecated(idx) => {
+            safe_assert!(!verifier.config.deprecate_global_storage_ops);
             safe_assert!(safe_unwrap_err!(verifier.stack.pop()).is_value());
             let value = state.move_from(offset, *idx, meter)?;
             verifier.push(value)?
         }
         Bytecode::MoveFromGenericDeprecated(idx) => {
+            safe_assert!(!verifier.config.deprecate_global_storage_ops);
             safe_assert!(safe_unwrap_err!(verifier.stack.pop()).is_value());
             let struct_inst = verifier.module.struct_instantiation_at(*idx);
             let value = state.move_from(offset, struct_inst.def, meter)?;
@@ -326,14 +354,16 @@ fn execute_inner(
         | Bytecode::CastU64
         | Bytecode::CastU128
         | Bytecode::CastU256
-        | Bytecode::Not
-        | Bytecode::ExistsDeprecated(_)
-        | Bytecode::ExistsGenericDeprecated(_) => (),
+        | Bytecode::Not => (),
+        Bytecode::ExistsDeprecated(_) | Bytecode::ExistsGenericDeprecated(_) => {
+            safe_assert!(!verifier.config.deprecate_global_storage_ops);
+        }
 
         Bytecode::BrTrue(_) | Bytecode::BrFalse(_) | Bytecode::Abort => {
             safe_assert!(safe_unwrap_err!(verifier.stack.pop()).is_value());
         }
         Bytecode::MoveToDeprecated(_) | Bytecode::MoveToGenericDeprecated(_) => {
+            safe_assert!(!verifier.config.deprecate_global_storage_ops);
             // resource value
             safe_assert!(safe_unwrap_err!(verifier.stack.pop()).is_value());
             // signer reference
@@ -412,13 +442,45 @@ fn execute_inner(
             verifier.push(state.value_for(&SignatureToken::U64))?
         }
 
+        Bytecode::VecImmBorrow(_) if verifier.config.deprecate_global_storage_ops => {
+            safe_assert!(safe_unwrap_err!(verifier.stack.pop()).is_value());
+            let vec_ref = safe_unwrap_err!(verifier.stack.pop());
+            let values = state.call_v2(
+                offset,
+                vec![vec_ref],
+                &[ValueKind::Reference(false)],
+                meter,
+                StatusCode::VEC_BORROW_ELEMENT_EXISTS_MUTABLE_BORROW_ERROR,
+            )?;
+            debug_assert!(values.len() == 1);
+            for value in values.into_iter() {
+                verifier.push(value)?
+            }
+        }
+        Bytecode::VecMutBorrow(_) if verifier.config.deprecate_global_storage_ops => {
+            safe_assert!(safe_unwrap_err!(verifier.stack.pop()).is_value());
+            let vec_ref = safe_unwrap_err!(verifier.stack.pop());
+            let values = state.call_v2(
+                offset,
+                vec![vec_ref],
+                &[ValueKind::Reference(true)],
+                meter,
+                StatusCode::VEC_BORROW_ELEMENT_EXISTS_MUTABLE_BORROW_ERROR,
+            )?;
+            debug_assert!(values.len() == 1);
+            for value in values.into_iter() {
+                verifier.push(value)?
+            }
+        }
         Bytecode::VecImmBorrow(_) => {
+            safe_assert!(!verifier.config.deprecate_global_storage_ops);
             safe_assert!(safe_unwrap_err!(verifier.stack.pop()).is_value());
             let vec_ref = safe_unwrap_err!(verifier.stack.pop());
             let elem_ref = state.vector_element_borrow(offset, vec_ref, false, meter)?;
             verifier.push(elem_ref)?
         }
         Bytecode::VecMutBorrow(_) => {
+            safe_assert!(!verifier.config.deprecate_global_storage_ops);
             safe_assert!(safe_unwrap_err!(verifier.stack.pop()).is_value());
             let vec_ref = safe_unwrap_err!(verifier.stack.pop());
             let elem_ref = state.vector_element_borrow(offset, vec_ref, true, meter)?;

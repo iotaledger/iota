@@ -263,6 +263,39 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
             );
         }
 
+        // Read only the declaration, so validation at a commit decides them
+        // the same way on every validator, with or without the object there
+        // to read. Without deterministic validation the checks on the loaded
+        // objects apply these rules.
+        if config.enable_pcool_flow() {
+            for kind in &input_objects {
+                match *kind {
+                    InputObjectKind::MovePackage(package_id) => {
+                        return Err(UserInputError::PackageIsInMoveAuthenticatorInput {
+                            package_id,
+                        });
+                    }
+                    InputObjectKind::SharedMoveObject {
+                        id: ObjectId::AUTHENTICATOR_STATE,
+                        ..
+                    } => {
+                        return Err(UserInputError::InaccessibleSystemObject {
+                            object_id: ObjectId::AUTHENTICATOR_STATE,
+                        });
+                    }
+                    InputObjectKind::SharedMoveObject {
+                        id, mutable: true, ..
+                    } => {
+                        return Err(UserInputError::MutableSharedIsInMoveAuthenticatorInput {
+                            object_id: id,
+                        });
+                    }
+                    InputObjectKind::SharedMoveObject { .. }
+                    | InputObjectKind::ImmOrOwnedMoveObject(_) => {}
+                }
+            }
+        }
+
         let mut used = HashSet::new();
         fp_ensure!(
             input_objects.iter().all(|o| used.insert(o.object_id())),

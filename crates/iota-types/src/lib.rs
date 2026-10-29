@@ -19,8 +19,7 @@ use move_core_types::{account_address::AccountAddress, language_storage::ModuleI
 use object::OBJECT_START_VERSION;
 
 use crate::{
-    base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
-    id::RESOLVED_IOTA_ID,
+    base_types::{RESOLVED_ASCII_STR, RESOLVED_IOTA_ID, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
 };
 
@@ -28,6 +27,7 @@ use crate::{
 pub mod error;
 
 pub mod account_abstraction;
+pub mod attestation;
 pub mod auth_context;
 pub mod balance;
 pub mod base_types;
@@ -41,7 +41,6 @@ pub mod crypto;
 pub mod deny_list_v1;
 pub mod deny_rule_governance;
 pub mod digests;
-pub mod display;
 pub mod dynamic_field;
 pub mod effects;
 pub mod epoch_data;
@@ -55,7 +54,6 @@ pub mod gas_coin;
 pub mod gas_model;
 pub mod global_state_hash;
 pub mod governance;
-pub mod id;
 pub mod in_memory_storage;
 pub mod inner_temporary_store;
 pub mod iota_sdk_types_conversions;
@@ -74,6 +72,7 @@ pub mod messages_safe_client;
 pub mod metrics;
 pub mod mock_checkpoint_builder;
 pub mod move_authenticator;
+pub mod move_layout;
 pub mod move_package;
 pub mod multisig;
 pub mod object;

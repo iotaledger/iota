@@ -23,8 +23,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
-    jsonrpc-server-type: ~
+    enable-jsonrpc-api: true
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -37,6 +36,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      num-epochs-to-retain-for-checkpoints: 18446744073709551615
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -47,7 +47,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -60,7 +59,6 @@ validator_configs:
     checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -119,8 +117,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
-    jsonrpc-server-type: ~
+    enable-jsonrpc-api: true
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -133,6 +130,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      num-epochs-to-retain-for-checkpoints: 18446744073709551615
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -143,7 +141,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -156,7 +153,6 @@ validator_configs:
     checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -215,8 +211,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
-    jsonrpc-server-type: ~
+    enable-jsonrpc-api: true
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -229,6 +224,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      num-epochs-to-retain-for-checkpoints: 18446744073709551615
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -239,7 +235,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -252,7 +247,6 @@ validator_configs:
     checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -311,8 +305,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
-    jsonrpc-server-type: ~
+    enable-jsonrpc-api: true
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -325,6 +318,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      num-epochs-to-retain-for-checkpoints: 18446744073709551615
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -335,7 +329,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -348,7 +341,6 @@ validator_configs:
     checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -407,8 +399,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
-    jsonrpc-server-type: ~
+    enable-jsonrpc-api: true
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -421,6 +412,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      num-epochs-to-retain-for-checkpoints: 18446744073709551615
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -431,7 +423,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -444,7 +435,6 @@ validator_configs:
     checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -503,8 +493,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
-    jsonrpc-server-type: ~
+    enable-jsonrpc-api: true
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -517,6 +506,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      num-epochs-to-retain-for-checkpoints: 18446744073709551615
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -527,7 +517,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -540,7 +529,6 @@ validator_configs:
     checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -599,8 +587,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
-    jsonrpc-server-type: ~
+    enable-jsonrpc-api: true
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
     p2p-config:
@@ -613,6 +600,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      num-epochs-to-retain-for-checkpoints: 18446744073709551615
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -623,7 +611,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -636,7 +623,6 @@ validator_configs:
     checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
