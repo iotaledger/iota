@@ -333,14 +333,16 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             )
                             .await;
                         match result {
-                            // A block accepted after the lag cleared references the
+                            // A block forwarded after the lag cleared references the
                             // rejected ones as ancestors, so the header synchronizer
                             // fetches them.
+                            Ok(BlockBundleOutcome::ForwardedToCore) => {
+                                resubscribe_when_solid = false;
+                            }
                             Ok(
-                                BlockBundleOutcome::ForwardedToCore
-                                | BlockBundleOutcome::DroppedFarFuture,
-                            ) => resubscribe_when_solid = false,
-                            Ok(BlockBundleOutcome::RejectedCommitLag) => {}
+                                BlockBundleOutcome::DroppedFarFuture
+                                | BlockBundleOutcome::RejectedCommitLag,
+                            ) => {}
                             Ok(BlockBundleOutcome::RejectedSolidCommitLag) => {
                                 resubscribe_when_solid = true;
                             }
@@ -822,6 +824,69 @@ mod test {
                 commit_ref: CommitRef::new(12, CommitDigest::MIN),
                 reputation_scores_desc: vec![],
             });
+        wait_for_subscription_attempts(&f.network_client, 2).await;
+        assert_eq!(f.network_client.last_received_rounds(), vec![7, 7]);
+        f.subscriber.stop();
+    }
+
+    /// A far-future block dropped after the solid commit lag cleared does not
+    /// reach the core, so the blocks rejected during the lag are still
+    /// requested again.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn subscriber_resubscribes_after_far_future_drop_once_solid_commit_lag_clears() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context.with_parameters(Parameters {
+            solid_commit_lag_threshold: 10,
+            ..Default::default()
+        }));
+        let (service, gate) = TestService::with_bundle_handler_gate();
+        let service = TestService {
+            block_bundle_outcome: BlockBundleOutcome::RejectedSolidCommitLag,
+            ..service
+        };
+        let f = fixture(context, service, StreamMode::BufferedOnceThenOpen);
+        {
+            let mut dag_state = f.dag_state.write();
+            for index in 1..=12 {
+                dag_state.add_commit(TrustedCommit::new_for_test(
+                    &f.context,
+                    index,
+                    CommitDigest::MIN,
+                    0,
+                    BlockRef::new(
+                        index,
+                        AuthorityIndex::new_for_test(0),
+                        BlockHeaderDigest::MIN,
+                    ),
+                    vec![],
+                    vec![],
+                ));
+            }
+            dag_state
+                .accept_block_headers(vec![header_for(f.peer, 7)], DataSource::BlockBundleStream);
+        }
+        f.subscriber.subscribe(f.peer);
+
+        for _ in 0..9 {
+            gate.started.notified().await;
+            gate.release.notify_one();
+        }
+        // The lag clears while the last bundle is in flight, and that bundle's
+        // block is dropped as far-future.
+        gate.started.notified().await;
+        f.dag_state
+            .write()
+            .update_last_solid_subdag_base(SubDagBase {
+                leader: BlockRef::new(12, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+                headers: vec![],
+                committed_header_refs: vec![],
+                timestamp_ms: 0,
+                commit_ref: CommitRef::new(12, CommitDigest::MIN),
+                reputation_scores_desc: vec![],
+            });
+        f.authority_service.lock().block_bundle_outcome = BlockBundleOutcome::DroppedFarFuture;
+        gate.release.notify_one();
+
         wait_for_subscription_attempts(&f.network_client, 2).await;
         assert_eq!(f.network_client.last_received_rounds(), vec![7, 7]);
         f.subscriber.stop();

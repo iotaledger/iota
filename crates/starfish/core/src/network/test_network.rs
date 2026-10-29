@@ -111,21 +111,22 @@ impl NetworkService for Mutex<TestService> {
         _encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
         _last_streamed_block: &mut StreamPosition,
     ) -> ConsensusResult<BlockBundleOutcome> {
-        let (release, outcome) = {
+        let release = {
             let mut state = self.lock();
             state
                 .handle_subscribed_block_bundle
                 .push((peer, serialized_block_bundle));
-            let release = state.block_bundle_handler_gate.as_ref().map(|gate| {
+            state.block_bundle_handler_gate.as_ref().map(|gate| {
                 gate.started.notify_one();
                 gate.release.clone()
-            });
-            (release, state.block_bundle_outcome)
+            })
         };
         if let Some(release) = release {
             release.notified().await;
         }
-        Ok(outcome)
+        // Read after the gate opens, so a test can choose the outcome of the
+        // bundle in flight.
+        Ok(self.lock().block_bundle_outcome)
     }
 
     async fn handle_subscribe_block_bundles_request(
