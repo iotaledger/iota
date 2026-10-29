@@ -50,7 +50,8 @@ use crate::{
     displays::DryRunOutput,
 };
 
-/// Run a dry-run locally and assemble the node-shaped response.
+/// Run a dry run locally and return the same
+/// [`DryRunTransactionBlockResponse`] a node returns.
 ///
 /// The run blocks the calling thread until it is done. Resolving an object
 /// the run asks for needs a multi-threaded Tokio runtime.
