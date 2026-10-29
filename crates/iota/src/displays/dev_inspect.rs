@@ -8,18 +8,25 @@ use iota_json_rpc_types::{DevInspectResults, IotaTransactionBlockEffectsAPI};
 
 use crate::displays::Pretty;
 
-impl Display for Pretty<'_, DevInspectResults> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let Pretty(response) = self;
+/// A dev-inspect's results and where they ran, so the summary line can say so.
+pub struct DevInspectOutput<'a> {
+    pub response: &'a DevInspectResults,
+    pub local: bool,
+}
 
+impl Display for Pretty<'_, DevInspectOutput<'_>> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let Pretty(DevInspectOutput { response, local }) = self;
+
+        let locally = if *local { " locally" } else { "" };
         if let Some(error) = &response.error {
-            writeln!(f, "Dev inspect failed: {error}")?;
+            writeln!(f, "Dev inspect failed{locally}: {error}")?;
             return Ok(());
         }
 
         writeln!(
             f,
-            "Dev inspect completed, execution status: {}",
+            "Dev inspect completed{locally}, execution status: {}",
             response.effects.status()
         )?;
 
