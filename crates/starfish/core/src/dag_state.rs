@@ -2181,12 +2181,15 @@ impl DagState {
     /// are guaranteed to be persisted. Used after flushing.
     pub(crate) fn evict_headers(&mut self) {
         for (authority_index, _) in self.context.committee.authorities() {
-            let eviction_round = self.calculate_header_eviction_round(authority_index);
+            let header_eviction_round = self.calculate_header_eviction_round(authority_index);
             let recent_refs = &mut self.recent_headers_refs_by_authority[authority_index];
 
             // Evict everything below split_key
-            let split_key =
-                BlockRef::new(eviction_round + 1, authority_index, BlockHeaderDigest::MIN);
+            let split_key = BlockRef::new(
+                header_eviction_round + 1,
+                authority_index,
+                BlockHeaderDigest::MIN,
+            );
 
             let to_keep = recent_refs.split_off(&split_key);
             let evicted = std::mem::replace(recent_refs, to_keep);
@@ -2195,7 +2198,7 @@ impl DagState {
             for block_ref in &evicted {
                 self.recent_block_headers.remove(block_ref);
             }
-            self.evicted_header_rounds[authority_index] = eviction_round;
+            self.evicted_header_rounds[authority_index] = header_eviction_round;
         }
     }
 
@@ -2230,8 +2233,8 @@ impl DagState {
             let transaction_eviction_round = if fast_sync {
                 transaction_gc_round
             } else {
-                let eviction_round = self.calculate_header_eviction_round(authority_index);
-                min(transaction_gc_round, eviction_round)
+                let header_eviction_round = self.calculate_header_eviction_round(authority_index);
+                min(transaction_gc_round, header_eviction_round)
             };
             // Recovery loads only transactions above the evicted round, while
             // the solid GC round stays at genesis until the first solid commit.
@@ -2311,14 +2314,14 @@ impl DagState {
     /// eviction happens.
     pub(crate) fn evict_cordial_knowledge(&mut self) {
         if let Some((_, eviction_sender)) = &self.cordial_knowledge_senders {
-            let mut eviction_rounds = vec![];
+            let mut header_eviction_rounds = vec![];
             for (authority_index, _) in self.context.committee.authorities() {
-                let eviction_round = self.calculate_header_eviction_round(authority_index);
-                eviction_rounds.push(eviction_round);
+                let header_eviction_round = self.calculate_header_eviction_round(authority_index);
+                header_eviction_rounds.push(header_eviction_round);
             }
             if eviction_sender
                 .send(EvictionRounds {
-                    headers: eviction_rounds,
+                    headers: header_eviction_rounds,
                     shards: self.gc_round_for_last_commit(),
                 })
                 .is_err()
