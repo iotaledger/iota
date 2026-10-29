@@ -20,8 +20,7 @@ use crate::{
     context::Context,
     dag_state::DagState,
     encoder::create_encoder,
-    error::ConsensusError,
-    network::{NetworkClient, NetworkService, StreamPosition},
+    network::{BlockBundleOutcome, NetworkClient, NetworkService, StreamPosition},
 };
 
 /// Returns whether the reset channel closed; otherwise records the reset and
@@ -337,18 +336,12 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             // A block accepted after the lag cleared references the
                             // rejected ones as ancestors, so the header synchronizer
                             // fetches them.
-                            Ok(()) => resubscribe_when_solid = false,
-                            Err(ConsensusError::BlockRejected { block_ref, reason }) => {
-                                debug!(
-                                    "Failed to process block from peer {} {} for block {:?}: {}",
-                                    peer, peer_hostname, block_ref, reason
-                                );
-                            }
-                            Err(e @ ConsensusError::SolidCommitLagging { .. }) => {
-                                debug!(
-                                    "Failed to process block from peer {} {}: {}",
-                                    peer, peer_hostname, e
-                                );
+                            Ok(
+                                BlockBundleOutcome::ForwardedToCore
+                                | BlockBundleOutcome::DroppedFarFuture,
+                            ) => resubscribe_when_solid = false,
+                            Ok(BlockBundleOutcome::RejectedCommitLag) => {}
+                            Ok(BlockBundleOutcome::RejectedSolidCommitLag) => {
                                 resubscribe_when_solid = true;
                             }
                             Err(e) => {
@@ -778,7 +771,7 @@ mod test {
             ..Default::default()
         }));
         let service = TestService {
-            reject_bundles_for_solid_commit_lag: true,
+            block_bundle_outcome: BlockBundleOutcome::RejectedSolidCommitLag,
             ..TestService::new()
         };
         let f = fixture(context, service, StreamMode::BufferedOnceThenOpen);

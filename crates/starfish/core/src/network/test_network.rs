@@ -17,10 +17,10 @@ use crate::{
     commit::{CommitRange, TrustedCommit},
     commit_syncer::CommitSyncType,
     encoder::ShardEncoder,
-    error::{ConsensusError, ConsensusResult},
+    error::ConsensusResult,
     network::{
-        BlockBundleStream, FetchedCommitsAndTransactions, NetworkService, SerializedBlockBundle,
-        StreamPosition,
+        BlockBundleOutcome, BlockBundleStream, FetchedCommitsAndTransactions, NetworkService,
+        SerializedBlockBundle, StreamPosition,
     },
     transaction_ref::TransactionRef,
 };
@@ -56,8 +56,8 @@ pub(crate) struct TestService {
     pub(crate) fetch_latest_block_headers_response: Vec<Bytes>,
     /// Served as the commits of every regular commit-sync fetch.
     pub(crate) fetch_commits_response: Vec<TrustedCommit>,
-    /// Rejects every streamed bundle for solid commit lag.
-    pub(crate) reject_bundles_for_solid_commit_lag: bool,
+    /// Returned for every streamed bundle.
+    pub(crate) block_bundle_outcome: BlockBundleOutcome,
 }
 
 impl TestService {
@@ -92,7 +92,7 @@ impl TestService {
             fetch_transactions_response: Vec::new(),
             fetch_latest_block_headers_response: Vec::new(),
             fetch_commits_response: Vec::new(),
-            reject_bundles_for_solid_commit_lag: false,
+            block_bundle_outcome: BlockBundleOutcome::ForwardedToCore,
         }
     }
 
@@ -110,8 +110,8 @@ impl NetworkService for Mutex<TestService> {
         serialized_block_bundle: SerializedBlockBundle,
         _encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
         _last_streamed_block: &mut StreamPosition,
-    ) -> ConsensusResult<()> {
-        let (release, reject) = {
+    ) -> ConsensusResult<BlockBundleOutcome> {
+        let (release, outcome) = {
             let mut state = self.lock();
             state
                 .handle_subscribed_block_bundle
@@ -120,18 +120,12 @@ impl NetworkService for Mutex<TestService> {
                 gate.started.notify_one();
                 gate.release.clone()
             });
-            (release, state.reject_bundles_for_solid_commit_lag)
+            (release, state.block_bundle_outcome)
         };
         if let Some(release) = release {
             release.notified().await;
         }
-        if reject {
-            return Err(ConsensusError::SolidCommitLagging {
-                block_ref: BlockRef::MIN,
-                lag: 1,
-            });
-        }
-        Ok(())
+        Ok(outcome)
     }
 
     async fn handle_subscribe_block_bundles_request(
