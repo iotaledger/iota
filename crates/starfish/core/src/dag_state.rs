@@ -2838,13 +2838,13 @@ impl DagState {
     }
 
     /// Highest round of `authority_index` whose block headers are evicted
-    /// from memory and read from the store.
+    /// from the DAG state and read from the store.
     pub(crate) fn evicted_header_round(&self, authority_index: AuthorityIndex) -> Round {
         self.evicted_rounds[authority_index]
     }
 
     /// Highest round of `authority_index` whose transactions are evicted from
-    /// memory and read from the store.
+    /// the DAG state and read from the store.
     pub(crate) fn evicted_transaction_round(&self, authority_index: AuthorityIndex) -> Round {
         self.evicted_transaction_rounds[authority_index]
     }
@@ -4869,8 +4869,8 @@ mod test {
         }
     }
 
-    /// Recovery leaves transactions at or below the evicted round out of
-    /// memory, so a flush before the first solid commit must keep that round.
+    /// Recovery loads into the DAG state only transactions above the evicted
+    /// round, so a flush before the first solid commit must keep that round.
     #[tokio::test]
     async fn test_flush_after_recovery_keeps_evicted_transaction_rounds() {
         telemetry_subscribers::init_for_testing();

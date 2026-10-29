@@ -815,7 +815,8 @@ fn read_transaction_payloads(
     {
         // Payloads above the evicted round are clones of buffers the DAG state
         // already holds, read under the same lock as the evicted rounds. One
-        // not in memory is not in the store either, so the store is not read.
+        // the DAG state does not hold is not in the store either, so the store
+        // is not read.
         let dag_state = dag_state.read();
         for transaction_ref in refs {
             if transaction_ref.round <= dag_state.evicted_transaction_round(transaction_ref.author)
@@ -851,8 +852,8 @@ fn take_payload(
 /// response serves, since a response not covering it lets the requester make
 /// no progress. A commit at or below the last solid commit has all its payloads
 /// here, so it is not looked up. Payloads above the evicted transaction round
-/// of their author are looked up in memory only, and the rest in the store
-/// after the DAG state lock is released.
+/// of their author are looked up only among those the DAG state holds, and the
+/// rest in the store after the DAG state lock is released.
 fn check_first_commit_payloads(
     store: &dyn Store,
     dag_state: &RwLock<DagState>,
@@ -6262,8 +6263,8 @@ mod tests {
 
     /// A first commit is looked up only when it is past the last solid
     /// commit, and fails when this node lacks one of its payloads. Payloads
-    /// above the evicted transaction round are looked up in memory only, and
-    /// the rest in the store.
+    /// above the evicted transaction round are looked up only among those the
+    /// DAG state holds, and the rest in the store.
     #[tokio::test]
     async fn a_first_commit_missing_a_payload_is_not_served() {
         let context = context_with_budget(MAX_FETCH_RESPONSE_BYTES);
@@ -6318,10 +6319,11 @@ mod tests {
         assert!(check(&[not_in_store, store_only_ref]).is_ok());
     }
 
-    /// A payload not flushed yet is read from memory even after the last solid
-    /// commit has moved its GC round past the payload's round.
+    /// A payload not flushed yet is served from the DAG state, which holds it,
+    /// even after the last solid commit has moved its GC round past the
+    /// payload's round.
     #[tokio::test]
-    async fn a_payload_not_flushed_yet_is_read_from_memory() {
+    async fn a_payload_not_flushed_yet_is_served_from_the_dag_state() {
         let (mut context, _) = Context::new_for_test(4);
         context.protocol_config.set_gc_depth_for_testing(5);
         let context = Arc::new(context);
