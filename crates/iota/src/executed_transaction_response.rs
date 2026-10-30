@@ -3,11 +3,15 @@
 
 //! Converts a gRPC `ExecutedTransaction` into the JSON-RPC
 //! `IotaTransactionBlockResponse` so the CLI's `--json` output keeps the
-//! historical shape (`effects.status`, `objectChanges`, `balanceChanges`).
+//! historical shape (`effects.status`, `objectChanges`, `balanceChanges`,
+//! `events`).
 //!
 //! This lives in the CLI crate because it bridges `iota-grpc-types` and
 //! `iota-json-rpc-types`; keeping it here avoids giving the shared
 //! `iota-json-rpc-types` crate a dependency on `iota-grpc-types`.
+//!
+//! Events are built from the proto event fields, including the server-rendered
+//! `json_contents`, so no Move type resolver is needed here.
 
 use anyhow::{Context, Result};
 use iota_grpc_types::v1::transaction::{
@@ -15,16 +19,19 @@ use iota_grpc_types::v1::transaction::{
     object_change::Kind as ProtoObjectChangeKind,
 };
 use iota_json_rpc_types::{
-    BalanceChange, IotaTransactionBlockEffects, IotaTransactionBlockResponse, ObjectChange,
+    BalanceChange, BcsEvent, IotaEvent, IotaTransactionBlockEffects, IotaTransactionBlockEvents,
+    IotaTransactionBlockResponse, ObjectChange,
 };
-use iota_sdk_types::{StructTag, TypeTag, Version};
+use iota_sdk_types::{StructTag, TransactionDigest, TypeTag, Version};
+use iota_types::event::EventID;
 
 /// Converts a gRPC `ExecutedTransaction` into the JSON-RPC
 /// `IotaTransactionBlockResponse` the CLI serializes for `--json`.
 ///
 /// Every proto accessor is guarded, since the server's read mask may omit
-/// fields. `events` is always left unset: the JSON-RPC events conversion needs
-/// a Move type resolver that is not available here.
+/// fields. `events` are taken from the proto event fields (including the
+/// server-rendered `json_contents`), so no Move type resolver is needed; they
+/// stay unset only when the read mask omits them.
 pub(crate) fn executed_transaction_to_response(
     executed: &ExecutedTransaction,
 ) -> Result<IotaTransactionBlockResponse> {
@@ -73,7 +80,7 @@ pub(crate) fn executed_transaction_to_response(
         transaction: None,
         raw_transaction: vec![],
         effects,
-        events: None,
+        events: executed_events_to_json_rpc(executed, digest),
         object_changes,
         balance_changes,
         timestamp_ms: executed.timestamp_ms().ok(),
@@ -82,6 +89,39 @@ pub(crate) fn executed_transaction_to_response(
         errors: vec![],
         raw_effects,
     })
+}
+
+/// Builds the JSON-RPC events from the proto event fields.
+///
+/// Returns `None` when the read mask omitted events entirely. Individual events
+/// whose required fields are missing are skipped. The `parsed_json` value is the
+/// server-rendered `json_contents`, so no Move type resolver is needed.
+fn executed_events_to_json_rpc(
+    executed: &ExecutedTransaction,
+    tx_digest: TransactionDigest,
+) -> Option<IotaTransactionBlockEvents> {
+    let events = executed.events.as_ref()?.events.as_ref()?;
+    let data = events
+        .events
+        .iter()
+        .enumerate()
+        .filter_map(|(i, event)| {
+            Some(IotaEvent {
+                id: EventID {
+                    tx_digest,
+                    event_seq: i as u64,
+                },
+                package_id: event.package_id().ok()?,
+                transaction_module: event.module_name().ok()?,
+                sender: event.sender().ok()?,
+                struct_tag: event.type_name().ok()?,
+                parsed_json: event.json_contents().ok()?,
+                bcs: BcsEvent::new(event.bcs_contents().ok()?.to_vec()),
+                timestamp_ms: None,
+            })
+        })
+        .collect();
+    Some(IotaTransactionBlockEvents { data })
 }
 
 /// Serialize an `ExecutedTransaction` field as an `IotaTransactionBlockResponse`
