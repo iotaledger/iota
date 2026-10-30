@@ -4,7 +4,7 @@
 use std::num::NonZeroUsize;
 
 use async_graphql::{Context, ErrorExtensions, OutputType, SimpleObject, Subscription, Union};
-use futures::{Stream, StreamExt, TryStreamExt, future};
+use futures::{Stream, StreamExt, TryStreamExt, future, stream};
 use iota_indexer::read::IndexerReader;
 use iota_indexer_streaming::{
     error::IndexerStreamingError,
@@ -166,23 +166,24 @@ impl GraphQLStream {
             .map_err(|_| Error::Client("too many active subscriptions, retry later".to_string()))
     }
 
-    /// Sends the first error to the client and terminates the stream after it.
-    /// The permit is held as long as the stream is alive.
+    /// Sends the first error to the client and ends the stream right after
+    /// it, without waiting for another item. The permit is held as long as
+    /// the stream is alive.
     fn terminate_on_error<'a, T: 'a>(
         stream: impl Stream<Item = Result<T, Error>> + 'a,
         permit: SemaphorePermit<'a>,
     ) -> impl Stream<Item = Result<T, Error>> + 'a {
-        stream.scan(
-            (false, permit),
-            |(should_terminate_stream, _permit), subscription_item| {
-                if *should_terminate_stream {
-                    return future::ready(None);
+        Box::pin(stream::unfold(
+            (Box::pin(stream), permit, false),
+            |(mut stream, permit, failed)| async move {
+                if failed {
+                    return None;
                 }
-                future::ready(Some(
-                    subscription_item.inspect_err(|_| *should_terminate_stream = true),
-                ))
+                let item = stream.next().await?;
+                let failed = item.is_err();
+                Some((item, (stream, permit, failed)))
             },
-        )
+        ))
     }
 
     /// Checks if the provided filter matches the item.
@@ -266,6 +267,7 @@ mod tests {
     use std::time::Duration;
 
     use diesel::r2d2::{ConnectionManager, Pool};
+    use futures::FutureExt;
 
     use super::*;
 
@@ -309,6 +311,23 @@ mod tests {
         let stream = GraphQLStream::terminate_on_error(items, permit);
         assert_eq!(active.available_permits(), 0);
 
+        drop(stream);
+        assert_eq!(active.available_permits(), 1);
+    }
+
+    #[tokio::test]
+    async fn stream_ends_right_after_an_error_without_waiting_for_another_item() {
+        let active = Semaphore::new(1);
+        let permit = active.try_acquire().unwrap();
+
+        let items = stream::once(future::ready(Err::<(), _>(Error::Internal("boom".into()))))
+            .chain(stream::pending());
+        let mut stream = GraphQLStream::terminate_on_error(items, permit);
+
+        assert!(matches!(stream.next().await, Some(Err(Error::Internal(_)))));
+        // the inner stream would block forever here, the wrapper must not poll it
+        assert!(matches!(stream.next().now_or_never(), Some(None)));
+        assert_eq!(active.available_permits(), 0);
         drop(stream);
         assert_eq!(active.available_permits(), 1);
     }
