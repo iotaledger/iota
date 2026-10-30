@@ -140,6 +140,14 @@ async fn process_raw_request<L: Logger>(
             ClientIpStatus::Ok(client) => Some(client),
             status => {
                 error!("{status}");
+                if status.should_refuse_request() {
+                    let err_obj = ErrorObject::owned(
+                        ErrorCode::InvalidRequest.code(),
+                        status.to_string(),
+                        None::<()>,
+                    );
+                    return MethodResponse::error(Id::Null, err_obj);
+                }
                 None
             }
         },
