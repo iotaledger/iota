@@ -1419,15 +1419,15 @@ mod tests {
         let ack_authors =
             linearizer.get_transaction_ack_authors(commits[0].committed_transaction_refs.clone());
 
-        let leader_generic = ack_authors
+        let leader_ack_authors = ack_authors
             .iter()
             .find(|(r, _)| r.round == leader_ref.round && r.author == leader_ref.author)
             .map(|(_, authors)| authors)
             .expect("leader ref must be present in ack tracker");
         assert!(
-            strong_voters.is_subset(leader_generic),
+            strong_voters.is_subset(leader_ack_authors),
             "leader ref tracker should record the strong-voter authorities; \
-             got {leader_generic:?}, expected superset of {strong_voters:?}"
+             got {leader_ack_authors:?}, expected superset of {strong_voters:?}"
         );
 
         for ack_ref in &leader_ack_refs {
