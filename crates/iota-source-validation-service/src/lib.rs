@@ -24,6 +24,7 @@ use hyper::{
     HeaderMap, StatusCode,
     http::{HeaderName, HeaderValue, Method},
 };
+use iota_grpc_client::GrpcClient;
 use iota_metrics::RegistryService;
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{BuildConfig, IotaPackageHooks, ProtocolBuildConfig, implicit_deps};
@@ -174,7 +175,14 @@ pub async fn verify_package(
     };
     let compiled_package = build_config.build(package_path.as_ref())?;
 
-    BytecodeSourceVerifier::new(client.read_api())
+    let grpc_client = match network {
+        Network::Mainnet => GrpcClient::new_mainnet(),
+        Network::Testnet => GrpcClient::new_testnet(),
+        Network::Devnet => GrpcClient::new_devnet(),
+        Network::Localnet => GrpcClient::new_localnet(),
+    }?;
+
+    BytecodeSourceVerifier::new(&grpc_client)
         .verify(&compiled_package, ValidationMode::root())
         .await
         .map_err(|e| anyhow!("Network {network}: {e}"))?;

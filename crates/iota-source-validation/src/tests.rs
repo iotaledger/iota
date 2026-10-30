@@ -53,8 +53,8 @@ async fn successful_verification() -> anyhow::Result<()> {
         )
     };
 
-    let client = context.get_client().await?;
-    let verifier = BytecodeSourceVerifier::new(client.read_api());
+    let grpc_client = context.get_grpc_client().await?;
+    let verifier = BytecodeSourceVerifier::new(&grpc_client);
 
     // Verify root without updating the address
     verifier
@@ -100,8 +100,8 @@ async fn successful_verification_unpublished_deps() -> anyhow::Result<()> {
     let a_pkg = compile_package(a_src.clone());
     let a_ref = publish_package_and_deps(context, a_src).await;
 
-    let client = context.get_client().await?;
-    let verifier = BytecodeSourceVerifier::new(client.read_api());
+    let grpc_client = context.get_grpc_client().await?;
+    let verifier = BytecodeSourceVerifier::new(&grpc_client);
 
     // Verify the root package which now includes dependency modules
     verifier
@@ -139,8 +139,8 @@ async fn successful_verification_module_ordering() -> anyhow::Result<()> {
         compile_package(z_src)
     };
 
-    let client = context.get_client().await?;
-    BytecodeSourceVerifier::new(client.read_api())
+    let grpc_client = context.get_grpc_client().await?;
+    BytecodeSourceVerifier::new(&grpc_client)
         .verify(&z_pkg, ValidationMode::root())
         .await
         .unwrap();
@@ -178,8 +178,8 @@ async fn successful_verification_upgrades() -> anyhow::Result<()> {
         (compile_package(b_src), compile_package(e_src))
     };
 
-    let client = context.get_client().await?;
-    let verifier = BytecodeSourceVerifier::new(client.read_api());
+    let grpc_client = context.get_grpc_client().await?;
+    let verifier = BytecodeSourceVerifier::new(&grpc_client);
 
     // Verify the upgraded package b-v2 as the root.
     verifier
@@ -215,10 +215,10 @@ async fn fail_verification_bad_address() -> anyhow::Result<()> {
         compile_package(a_src)
     };
 
-    let client = context.get_client().await?;
+    let grpc_client = context.get_grpc_client().await?;
     let expected = expect!["On-chain address cannot be zero"];
     expected.assert_eq(
-        &BytecodeSourceVerifier::new(client.read_api())
+        &BytecodeSourceVerifier::new(&grpc_client)
             .verify(&a_pkg, ValidationMode::root_and_deps_at(Address::ZERO))
             .await
             .unwrap_err()
@@ -239,13 +239,13 @@ async fn fail_to_verify_unpublished_root() -> anyhow::Result<()> {
         compile_package(b_src)
     };
 
-    let client = context.get_client().await?;
+    let grpc_client = context.get_grpc_client().await?;
 
     // Trying to verify the root package, which hasn't been published -- this is
     // going to fail because there is no on-chain package to verify against.
     let expected = expect!["Invalid module b with error: Can't verify unpublished source"];
     expected.assert_eq(
-        &BytecodeSourceVerifier::new(client.read_api())
+        &BytecodeSourceVerifier::new(&grpc_client)
             .verify(&b_pkg, ValidationMode::root())
             .await
             .unwrap_err()
@@ -274,8 +274,8 @@ async fn rpc_call_failed_during_verify() -> anyhow::Result<()> {
     };
     let _a_addr: Address = a_ref.object_id.into();
 
-    let client = context.get_client().await?;
-    let _verifier = BytecodeSourceVerifier::new(client.read_api());
+    let grpc_client = context.get_grpc_client().await?;
+    let _verifier = BytecodeSourceVerifier::new(&grpc_client);
 
     // TODO: Dropping cluster no longer stops the network. Need to look into this
     // and see what we want to do with it.
@@ -320,8 +320,8 @@ async fn package_not_found() -> anyhow::Result<()> {
         compile_package(a_src)
     };
 
-    let client = context.get_client().await?;
-    let verifier = BytecodeSourceVerifier::new(client.read_api());
+    let grpc_client = context.get_grpc_client().await?;
+    let verifier = BytecodeSourceVerifier::new(&grpc_client);
 
     let Err(err) = verifier.verify(&a_pkg, ValidationMode::deps()).await else {
         panic!("Expected verification to fail");
@@ -375,12 +375,12 @@ async fn dependency_is_an_object() -> anyhow::Result<()> {
         compile_package(a_src)
     };
 
-    let client = context.get_client().await?;
+    let grpc_client = context.get_grpc_client().await?;
     let expected = expect![
         "Dependency ID contains an IOTA object, not a Move package: 0x0000000000000000000000000000000000000000000000000000000000000005"
     ];
     expected.assert_eq(
-        &BytecodeSourceVerifier::new(client.read_api())
+        &BytecodeSourceVerifier::new(&grpc_client)
             .verify(&a_pkg, ValidationMode::deps())
             .await
             .unwrap_err()
@@ -409,8 +409,8 @@ async fn module_not_found_on_chain() -> anyhow::Result<()> {
         compile_package(a_src)
     };
 
-    let client = context.get_client().await?;
-    let Err(err) = BytecodeSourceVerifier::new(client.read_api())
+    let grpc_client = context.get_grpc_client().await?;
+    let Err(err) = BytecodeSourceVerifier::new(&grpc_client)
         .verify(&a_pkg, ValidationMode::deps())
         .await
     else {
@@ -445,8 +445,8 @@ async fn module_not_found_locally() -> anyhow::Result<()> {
         compile_package(a_src)
     };
 
-    let client = context.get_client().await?;
-    let Err(err) = BytecodeSourceVerifier::new(client.read_api())
+    let grpc_client = context.get_grpc_client().await?;
+    let Err(err) = BytecodeSourceVerifier::new(&grpc_client)
         .verify(&a_pkg, ValidationMode::deps())
         .await
     else {
@@ -499,8 +499,8 @@ async fn module_bytecode_mismatch() -> anyhow::Result<()> {
     let a_addr: Address = a_ref.object_id.into();
     stable_addrs.insert(a_addr, "<a_addr>");
 
-    let client = context.get_client().await?;
-    let verifier = BytecodeSourceVerifier::new(client.read_api());
+    let grpc_client = context.get_grpc_client().await?;
+    let verifier = BytecodeSourceVerifier::new(&grpc_client);
 
     let Err(err) = verifier.verify(&a_pkg, ValidationMode::deps()).await else {
         panic!("Expected verification to fail");
@@ -580,14 +580,14 @@ async fn linkage_differs() -> anyhow::Result<()> {
         compile_package(e_src)
     };
 
-    let client = context.get_client().await?;
+    let grpc_client = context.get_grpc_client().await?;
     let stable_ids = HashMap::from_iter([
         (b_v1.object_id.into(), "<b1>"),
         (b_v2.object_id.into(), "<b2>"),
         (b_v3.object_id.into(), "<b3>"),
     ]);
 
-    let error = BytecodeSourceVerifier::new(client.read_api())
+    let error = BytecodeSourceVerifier::new(&grpc_client)
         .verify(&e_pkg, ValidationMode::root())
         .await
         .unwrap_err()
@@ -640,8 +640,8 @@ async fn multiple_failures() -> anyhow::Result<()> {
         compile_package(d_src)
     };
 
-    let client = context.get_client().await?;
-    let Err(err) = BytecodeSourceVerifier::new(client.read_api())
+    let grpc_client = context.get_grpc_client().await?;
+    let Err(err) = BytecodeSourceVerifier::new(&grpc_client)
         .verify(&d_pkg, ValidationMode::deps())
         .await
     else {
@@ -677,10 +677,10 @@ async fn successful_versioned_dependency_verification() -> anyhow::Result<()> {
         compile_package(a_src)
     };
 
-    let client = context.get_client().await?;
+    let grpc_client = context.get_grpc_client().await?;
 
     // Verify versioned dependency
-    BytecodeSourceVerifier::new(client.read_api())
+    BytecodeSourceVerifier::new(&grpc_client)
         .verify(&a_pkg, ValidationMode::deps())
         .await
         .unwrap();
@@ -717,8 +717,8 @@ async fn successful_verification_with_bytecode_dep() -> anyhow::Result<()> {
         !a_pkg.bytecode_deps.is_empty(),
         "Invalid test setup: expected bytecode deps to be present."
     );
-    let client = context.get_client().await?;
-    let verifier = BytecodeSourceVerifier::new(client.read_api());
+    let grpc_client = context.get_grpc_client().await?;
+    let verifier = BytecodeSourceVerifier::new(&grpc_client);
     // Verify deps but skip root
     verifier
         .verify(&a_pkg, ValidationMode::deps())

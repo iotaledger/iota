@@ -4,9 +4,7 @@
 
 use std::fmt;
 
-use iota_json_rpc_types::{IotaObjectResponseError, IotaRawMoveObject};
 use iota_package_management::PublishedAtError;
-use iota_sdk::error::Error as SdkError;
 use iota_sdk_types::{Address, ObjectId};
 use move_symbol_pool::Symbol;
 
@@ -19,7 +17,7 @@ pub enum Error {
     CannotCheckLocalModules { package: Symbol, message: String },
 
     #[error("Could not read a dependency's on-chain object: {0}")]
-    DependencyObjectReadFailure(SdkError),
+    DependencyObjectReadFailure(String),
 
     #[error("On-chain package {0} is empty")]
     EmptyOnChainPackage(Address),
@@ -45,8 +43,8 @@ pub enum Error {
         module: Symbol,
     },
 
-    #[error("Dependency ID contains an IOTA object, not a Move package: {}", .0.0)]
-    ObjectFoundWhenPackageExpected(Box<(ObjectId, IotaRawMoveObject)>),
+    #[error("Dependency ID contains an IOTA object, not a Move package: {0}")]
+    ObjectFoundWhenPackageExpected(ObjectId),
 
     #[error("Could not deserialize on-chain dependency {address}::{module}.")]
     OnChainDependencyDeserializationError { address: Address, module: Symbol },
@@ -57,8 +55,8 @@ pub enum Error {
     #[error("{0}. Please supply an explicit on-chain address for the package")]
     PublishedAt(#[from] PublishedAtError),
 
-    #[error("Dependency object does not exist or was deleted: {0}")]
-    IotaObjectRefFailure(IotaObjectResponseError),
+    #[error("Dependency object does not exist or was deleted: Object {0} does not exist")]
+    ObjectNotFound(ObjectId),
 
     #[error("On-chain address cannot be zero")]
     ZeroOnChainAddressSpecifiedFailure,

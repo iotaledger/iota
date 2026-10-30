@@ -11,7 +11,6 @@ use iota_grpc_client::GrpcClient;
 use iota_json::{is_receiving_argument, primitive_type};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::CompiledPackage;
-use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_transaction_builder::TransactionBuilderLedgerClient;
 use iota_sdk_types::{
     Address, Argument, Command, Identifier, MovePackage, Object, ObjectData, ObjectId, Owner,
@@ -237,9 +236,6 @@ pub struct PTBBuilder<'a> {
     /// The arguments that we have resolved. This is a map from identifiers to
     /// the actual transaction arguments.
     resolved_arguments: BTreeMap<String, Argument>,
-    /// Wallet context, used to create a JSON-RPC client on demand for the
-    /// package compilation paths of the publish and upgrade commands.
-    context: &'a WalletContext,
     /// gRPC client for reading objects from chain. Needed for object
     /// resolution.
     grpc_client: &'a GrpcClient,
@@ -301,7 +297,6 @@ impl ArgWithHistory {
 impl<'a> PTBBuilder<'a> {
     pub fn new(
         starting_env: BTreeMap<String, AccountAddress>,
-        context: &'a WalletContext,
         grpc_client: &'a GrpcClient,
     ) -> Self {
         Self {
@@ -310,7 +305,6 @@ impl<'a> PTBBuilder<'a> {
             arguments_to_resolve: BTreeMap::new(),
             resolved_arguments: BTreeMap::new(),
             ptb: ProgrammableTransactionBuilder::new(),
-            context,
             grpc_client,
             last_command: None,
             errors: Vec::new(),
@@ -963,11 +957,6 @@ impl<'a> PTBBuilder<'a> {
                     );
                 }
 
-                let client = self
-                    .context
-                    .get_client()
-                    .await
-                    .map_err(|e| err!(pkg_loc, "{e}"))?;
                 let chain_id = fetch_chain_id(self.grpc_client).await.ok();
                 let initial_dir = std::env::current_dir()
                     .map_err(|e| err!(pkg_loc, "Failed to get current directory: {e}"))?;
@@ -988,7 +977,6 @@ impl<'a> PTBBuilder<'a> {
 
                 let compile_result = compile_package(
                     self.grpc_client,
-                    client.read_api(),
                     build_config.clone(),
                     package_path,
                     false, // with_unpublished_dependencies
@@ -1206,11 +1194,6 @@ impl<'a> PTBBuilder<'a> {
             .canonicalize()
             .map_err(|e| err!(path_loc, "Failed to canonicalize package path: {e}"))?;
 
-        let client = self
-            .context
-            .get_client()
-            .await
-            .map_err(|e| err!(path_loc, "{e}"))?;
         let chain_id = fetch_chain_id(self.grpc_client).await.ok();
         let build_config = MoveBuildConfig::default();
 
@@ -1232,7 +1215,6 @@ impl<'a> PTBBuilder<'a> {
 
         let upgrade_result = upgrade_package(
             self.grpc_client,
-            client.read_api(),
             build_config.clone(),
             &package_path,
             ObjectId::new(upgrade_cap_id.into_bytes()),

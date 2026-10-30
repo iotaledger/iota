@@ -31,8 +31,8 @@ use iota_grpc_types::{
 };
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    IotaData, IotaExecutionStatus, IotaObjectDataOptions, IotaTransactionBlockEffects,
-    IotaTransactionBlockResponse, get_new_package_obj_from_response,
+    IotaExecutionStatus, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
+    get_new_package_obj_from_response,
 };
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
@@ -980,7 +980,6 @@ impl IotaClientCommands {
                     check_dep_verification_flags(skip_dependency_verification, verify_deps)?;
                 let upgrade_result = upgrade_package(
                     &grpc_client,
-                    read_api,
                     build_config.clone(),
                     &package_path,
                     upgrade_capability,
@@ -1144,7 +1143,6 @@ impl IotaClientCommands {
                     check_dep_verification_flags(skip_dependency_verification, verify_deps)?;
                 let compile_result = compile_package(
                     &grpc_client,
-                    read_api,
                     build_config.clone(),
                     &package_path,
                     with_unpublished_dependencies,
@@ -1987,8 +1985,7 @@ impl IotaClientCommands {
                 }
                 .build(&package_path)?;
 
-                let client = context.get_client().await?;
-                BytecodeSourceVerifier::new(client.read_api())
+                BytecodeSourceVerifier::new(&grpc_client)
                     .verify(&compiled_package, mode)
                     .await?;
 
@@ -2149,7 +2146,6 @@ async fn compile_package_simple(
 
 pub(crate) async fn upgrade_package(
     grpc_client: &GrpcClient,
-    read_api: &ReadApi,
     build_config: MoveBuildConfig,
     package_path: &Path,
     upgrade_capability: ObjectId,
@@ -2159,7 +2155,6 @@ pub(crate) async fn upgrade_package(
 ) -> Result<(u8, CompiledPackage), anyhow::Error> {
     let mut compiled_package = compile_package(
         grpc_client,
-        read_api,
         build_config,
         package_path,
         with_unpublished_dependencies,
@@ -2199,23 +2194,20 @@ pub(crate) async fn upgrade_package(
         }
     })?;
 
-    let resp = read_api
-        .get_object_with_options(
-            upgrade_capability,
-            IotaObjectDataOptions::default().with_bcs().with_owner(),
-        )
-        .await?;
+    let object = grpc_client
+        .objects([upgrade_capability])
+        .read_mask(ObjectField::BCS)
+        .await?
+        .into_inner()
+        .into_iter()
+        .next()
+        .ok_or_else(|| anyhow!("Could not find upgrade capability at {upgrade_capability}"))??
+        .object()?;
 
-    let Some(data) = resp.data else {
-        bail!("Could not find upgrade capability at {upgrade_capability}");
+    let upgrade_cap: UpgradeCap = match object.data() {
+        ObjectData::Struct(move_struct) => bcs::from_bytes(move_struct.contents())?,
+        _ => bail!("Upgrade capability is not a Move Object"),
     };
-
-    let upgrade_cap: UpgradeCap = data
-        .bcs
-        .ok_or_else(|| anyhow!("Fetch upgrade capability object but no data was returned"))?
-        .try_as_move()
-        .ok_or_else(|| anyhow!("Upgrade capability is not a Move Object"))?
-        .deserialize()?;
     // We keep the existing policy -- no fancy policies or changing the upgrade
     // policy at the moment. To change the policy you can call a Move function in
     // the `package` module to change this policy.
@@ -2226,7 +2218,6 @@ pub(crate) async fn upgrade_package(
 
 pub(crate) async fn compile_package(
     grpc_client: &GrpcClient,
-    read_api: &ReadApi,
     mut build_config: MoveBuildConfig,
     package_path: &Path,
     with_unpublished_dependencies: bool,
@@ -2328,7 +2319,7 @@ pub(crate) async fn compile_package(
         compiled_package.verify_unpublished_dependencies(&dependencies.unpublished)?;
     }
     if !skip_dependency_verification {
-        let verifier = BytecodeSourceVerifier::new(read_api);
+        let verifier = BytecodeSourceVerifier::new(grpc_client);
         if let Err(e) = verifier
             .verify(&compiled_package, ValidationMode::deps())
             .await
