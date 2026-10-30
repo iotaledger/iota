@@ -848,9 +848,34 @@ impl NodeConfig {
     /// not start with. They also reject the known cases where a node would
     /// start and ignore part of the config.
     pub fn validate(&self) -> Result<()> {
+        // Archive-only sync turns off both peer paths, so without an archive
+        // to read the node would advance no further and say so only in a log
+        // line every few seconds.
+        let archive_only = self
+            .p2p_config
+            .state_sync
+            .as_ref()
+            .is_some_and(|state_sync| state_sync.sync_from_archive_only());
+        if archive_only && self.checkpoint_archive_config.is_none() {
+            anyhow::bail!(
+                "`sync-from-archive-only` is set, but no `checkpoint-archive-config` is \
+                 configured; the node would have no source to sync from"
+            );
+        }
+
         // The settings a validator must not carry: it never starts the gRPC
         // server, and snapshot publication is a fullnode role.
         if self.is_validator() {
+            // A validator that stops syncing from peers cannot reach the tip,
+            // and so cannot rejoin consensus. The archive trails the network,
+            // so it is a source for history, not for catching up.
+            if archive_only {
+                anyhow::bail!(
+                    "`sync-from-archive-only` is set on a validator, which would leave it \
+                     unable to reach the tip and rejoin consensus; turn it off, or run the \
+                     node as a fullnode"
+                );
+            }
             if self.enable_grpc_api {
                 anyhow::bail!(
                     "`enable-grpc-api` is set, but validators do not expose the gRPC API; turn \
@@ -1773,11 +1798,14 @@ mod tests {
     use serde_yaml::Value;
 
     use super::{
-        AuthorityStorePruningConfig, DEFAULT_NUM_EPOCHS_TO_RETAIN_FOR_CHECKPOINTS, Genesis,
-        GrpcApiConfig, ObjectStoreConfig, default_grpc_api_config,
-        default_periodic_compaction_threshold_days, default_traffic_controller_policy_config,
+        AuthorityStorePruningConfig, CheckpointArchiveConfig,
+        DEFAULT_NUM_EPOCHS_TO_RETAIN_FOR_CHECKPOINTS, Genesis, GrpcApiConfig, ObjectStoreConfig,
+        default_grpc_api_config, default_periodic_compaction_threshold_days,
+        default_traffic_controller_policy_config,
     };
-    use crate::{ConsensusConfig, NodeConfig, object_storage_config::ObjectStoreType};
+    use crate::{
+        ConsensusConfig, NodeConfig, object_storage_config::ObjectStoreType, p2p::StateSyncConfig,
+    };
 
     const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
 
@@ -2058,6 +2086,46 @@ mod tests {
         config.consensus_config = Some(consensus_config());
         let err = config.validate().unwrap_err().to_string();
         assert!(err.contains("snapshot upload"), "{err}");
+    }
+
+    fn archive_only_state_sync() -> StateSyncConfig {
+        StateSyncConfig {
+            sync_from_archive_only: Some(true),
+            ..Default::default()
+        }
+    }
+
+    fn checkpoint_archive_config() -> CheckpointArchiveConfig {
+        serde_yaml::from_str("url: https://archive.example/checkpoints").unwrap()
+    }
+
+    #[test]
+    fn validate_requires_an_archive_when_syncing_from_it_only() {
+        let mut config = template_config();
+        config.p2p_config.state_sync = Some(archive_only_state_sync());
+
+        let err = config.validate().unwrap_err().to_string();
+        assert!(err.contains("no source to sync from"), "{err}");
+
+        config.checkpoint_archive_config = Some(checkpoint_archive_config());
+        config.validate().unwrap();
+    }
+
+    #[test]
+    fn validate_rejects_archive_only_sync_on_a_validator() {
+        let mut config = template_config();
+        config.p2p_config.state_sync = Some(archive_only_state_sync());
+        config.checkpoint_archive_config = Some(checkpoint_archive_config());
+        config.validate().unwrap();
+
+        config.consensus_config = Some(consensus_config());
+        let err = config.validate().unwrap_err().to_string();
+        assert!(err.contains("rejoin consensus"), "{err}");
+
+        // An archive a validator reads history from is fine; only cutting off
+        // the peer paths is not.
+        config.p2p_config.state_sync = None;
+        config.validate().unwrap();
     }
 
     #[test]
