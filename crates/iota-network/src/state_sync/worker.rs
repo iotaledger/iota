@@ -193,7 +193,7 @@ impl<S: WriteStore + Clone> StateSyncReducer<S> {
             return;
         };
         if !message.payloads_verified {
-            self.metrics.checkpoint_from_archive_left_to_the_executor();
+            self.metrics.checkpoint_from_archive_failed_verification();
             return;
         }
         if !cache.cache_checkpoint_results(message.data.clone()) {
