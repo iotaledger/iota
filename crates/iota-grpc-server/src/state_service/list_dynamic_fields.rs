@@ -18,7 +18,7 @@ use prost::Message;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    constants::validate_max_message_size,
+    constants::effective_max_message_size,
     error::RpcError,
     metrics::{RequestMetrics, ResponseItemKind},
     types::GrpcReader,
@@ -226,20 +226,24 @@ fn load_dynamic_field(
 pub(crate) fn list_dynamic_fields(
     reader: Arc<GrpcReader>,
     metrics: &RequestMetrics,
+    operator_max_message_size_bytes: u32,
     ListDynamicFieldsRequest {
         parent,
         page_size,
         page_token,
         read_mask,
-        max_message_size_bytes,
+        max_message_size_bytes: client_max_message_size_bytes,
         ..
     }: ListDynamicFieldsRequest,
 ) -> Result<ListDynamicFieldsResponse, RpcError> {
-    metrics.record_requested_max_message_size(max_message_size_bytes);
+    metrics.record_requested_max_message_size(client_max_message_size_bytes);
     let parent_id = require_object_id(&parent, "parent")?;
     let read_mask = validate_read_mask::<DynamicField>(read_mask, LIST_DYNAMIC_FIELDS_READ_MASK)?;
     let page_size = validate_page_size(page_size, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
-    let max_message_size = validate_max_message_size(max_message_size_bytes)?;
+    let max_message_size = effective_max_message_size(
+        client_max_message_size_bytes,
+        operator_max_message_size_bytes,
+    )?;
 
     let page_token: Option<PageToken> = decode_page_token(&page_token)?;
     if let Some(ref t) = page_token {

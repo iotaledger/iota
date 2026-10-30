@@ -56,7 +56,7 @@ enable-grpc-api: true
 grpc-api-config:
   address: "0.0.0.0:50051"
   broadcast-buffer-size: 100
-  max-message-size-bytes: 134217728
+  max-message-size-bytes: 31457280
   max-json-move-value-size: 1048576
   max-execute-transaction-batch-size: 20
   max-simulate-transaction-batch-size: 20

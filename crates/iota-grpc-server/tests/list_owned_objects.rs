@@ -460,6 +460,102 @@ async fn message_size_triggers_pagination() {
     }
 }
 
+/// The operator config must bound the response size even when the client
+/// asks for far more.
+#[tokio::test]
+async fn message_size_clamped_by_operator_config() {
+    // Below what the client asks for, but strictly above both the
+    // client-omitted default (4 MiB) and the floor
+    // `GrpcApiConfig::max_message_size_bytes` applies to any configured value
+    // (also 4 MiB). A value at or below that floor would be indistinguishable
+    // from "the operator config was never consulted".
+    const OPERATOR_MAX_MESSAGE_SIZE_BYTES: u32 = 8 * 1024 * 1024;
+    const CLIENT_REQUESTED_MAX_MESSAGE_SIZE_BYTES: u32 = 128 * 1024 * 1024;
+
+    let owner = Address::random();
+    let coin_type: MoveObjectType = StructTag::new_gas_coin().into();
+    let type_id_hash = 42u64;
+    let params_hash = 99u64;
+
+    // 60 objects of ~200 KB each (~12 MB total) clearly exceed the 8 MiB
+    // operator cap.
+    const NUM_OBJECTS: u64 = 60;
+    const PADDING: usize = 200_000;
+
+    let mut objects = HashMap::new();
+    let mut owned_objects = Vec::new();
+    for i in 0..NUM_OBJECTS {
+        let id = ObjectId::random();
+        let obj = make_large_gas_coin(owner, id, 1000 - i, PADDING);
+        objects.insert(id, obj);
+        owned_objects.push(make_owned_entry(
+            owner,
+            id,
+            coin_type.clone(),
+            type_id_hash,
+            params_hash,
+            Some(1000 - i),
+        ));
+    }
+    owned_objects.sort_by(|(_, a), (_, b)| {
+        (
+            a.object_type_identifier,
+            a.object_type_params,
+            a.inverted_balance,
+            a.object_id,
+        )
+            .cmp(&(
+                b.object_type_identifier,
+                b.object_type_params,
+                b.inverted_balance,
+                b.object_id,
+            ))
+    });
+
+    let mock = MockGrpcStateReader {
+        objects,
+        owned_objects,
+        ..Default::default()
+    };
+
+    let (handle, _reader) = start_test_server(Arc::new(mock), |config| {
+        config.max_message_size_bytes = OPERATOR_MAX_MESSAGE_SIZE_BYTES;
+    })
+    .await;
+    // The default tonic client decode limit (4 MiB) is below the operator cap
+    // used here, so raise it to isolate what this test checks: the server's
+    // encode-side clamp against the operator config, not the client's own
+    // decode limit.
+    let channel = tonic::transport::Channel::from_shared(format!("http://{}", handle.address()))
+        .unwrap()
+        .connect()
+        .await
+        .expect("connect");
+    let mut client = StateServiceClient::new(channel).max_decoding_message_size(128 * 1024 * 1024);
+
+    let request = ListOwnedObjectsRequest::default()
+        .with_owner(owner_proto(owner))
+        .with_page_size(1000) // large enough that the size limit is the only constraint
+        .with_max_message_size_bytes(CLIENT_REQUESTED_MAX_MESSAGE_SIZE_BYTES)
+        .with_read_mask(FieldMask::from_str("reference,bcs"));
+
+    let resp = client
+        .list_owned_objects(request)
+        .await
+        .expect(
+            "the server must accept the client's request and clamp the response to the \
+             operator config instead of erroring",
+        )
+        .into_inner();
+
+    assert!(
+        resp.next_page_token.is_some(),
+        "the operator cap ({OPERATOR_MAX_MESSAGE_SIZE_BYTES} bytes) must force pagination even \
+         though the client asked for {CLIENT_REQUESTED_MAX_MESSAGE_SIZE_BYTES}"
+    );
+    common::assert_messages_within_limit(&[resp], OPERATOR_MAX_MESSAGE_SIZE_BYTES);
+}
+
 /// Two types of objects with a type filter: only the matching type should
 /// be returned across paginated calls.
 #[tokio::test]

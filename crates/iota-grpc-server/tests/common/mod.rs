@@ -389,6 +389,8 @@ pub struct MockGrpcStateReader {
 
     // -- Objects --
     pub objects: HashMap<ObjectId, Object>,
+    /// Layouts returned by `get_struct_layout`.
+    pub struct_layouts: HashMap<StructTag, move_core_types::annotated_value::MoveTypeLayout>,
 
     // -- Owned objects (for list_owned_objects pagination tests) --
     /// Pre-sorted in owner index key order. The iterator respects cursor-based
@@ -672,9 +674,9 @@ impl GrpcStateReader for MockGrpcStateReader {
 
     fn get_struct_layout(
         &self,
-        _type_tag: &StructTag,
+        type_tag: &StructTag,
     ) -> StorageResult<Option<move_core_types::annotated_value::MoveTypeLayout>> {
-        Ok(None)
+        Ok(self.struct_layouts.get(type_tag).cloned())
     }
 }
 

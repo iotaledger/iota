@@ -20,35 +20,33 @@ pub const DEFAULT_MAX_MESSAGE_SIZE_BYTES: usize = 4 * 1024 * 1024;
 /// Minimum allowed message size (1MB)
 pub const MIN_MESSAGE_SIZE_BYTES: usize = 1024 * 1024;
 
-/// Maximum allowed message size (128MB)
-pub const MAX_MESSAGE_SIZE_BYTES: usize = 128 * 1024 * 1024;
-
-/// Validates and converts the max_message_size_bytes parameter.
+/// Returns the message size to use for a response: the client-requested
+/// `client_max_message_size_bytes`, or [`DEFAULT_MAX_MESSAGE_SIZE_BYTES`] when
+/// the client sets none, at most the operator-configured ceiling
+/// (`GrpcApiConfig::max_message_size_bytes`).
 ///
 /// Accepts `Option<u32>` (the proto field type) and converts internally.
-pub fn validate_max_message_size(max_message_size_bytes: Option<u32>) -> Result<usize, RpcError> {
-    match max_message_size_bytes {
+/// Rejects a client value below [`MIN_MESSAGE_SIZE_BYTES`]; a value above the
+/// operator ceiling is clamped down rather than rejected, so a client asking
+/// for more than the operator allows still gets a response instead of an
+/// error.
+pub fn effective_max_message_size(
+    client_max_message_size_bytes: Option<u32>,
+    operator_max_message_size_bytes: u32,
+) -> Result<usize, RpcError> {
+    match client_max_message_size_bytes {
         Some(size) => {
             let size = size as usize;
 
-            match size {
-                s if s < MIN_MESSAGE_SIZE_BYTES => {
-                    Err(FieldViolation::new("max_message_size_bytes")
-                        .with_description(format!(
-                            "must be at least {MIN_MESSAGE_SIZE_BYTES} bytes"
-                        ))
-                        .with_reason(ErrorReason::FieldInvalid)
-                        .into())
-                }
-                s if s > MAX_MESSAGE_SIZE_BYTES => {
-                    Err(FieldViolation::new("max_message_size_bytes")
-                        .with_description(format!("must be at most {MAX_MESSAGE_SIZE_BYTES} bytes"))
-                        .with_reason(ErrorReason::FieldInvalid)
-                        .into())
-                }
-                s => Ok(s),
+            if size < MIN_MESSAGE_SIZE_BYTES {
+                return Err(FieldViolation::new("max_message_size_bytes")
+                    .with_description(format!("must be at least {MIN_MESSAGE_SIZE_BYTES} bytes"))
+                    .with_reason(ErrorReason::FieldInvalid)
+                    .into());
             }
+
+            Ok(size.min(operator_max_message_size_bytes as usize))
         }
-        None => Ok(DEFAULT_MAX_MESSAGE_SIZE_BYTES),
+        None => Ok(DEFAULT_MAX_MESSAGE_SIZE_BYTES.min(operator_max_message_size_bytes as usize)),
     }
 }

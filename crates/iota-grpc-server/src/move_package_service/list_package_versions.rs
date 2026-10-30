@@ -12,7 +12,7 @@ use prost::Message;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    constants::validate_max_message_size,
+    constants::effective_max_message_size,
     error::RpcError,
     metrics::RequestMetrics,
     types::GrpcReader,
@@ -35,18 +35,22 @@ struct PageToken {
 pub(crate) fn list_package_versions(
     reader: Arc<GrpcReader>,
     metrics: &RequestMetrics,
+    operator_max_message_size_bytes: u32,
     ListPackageVersionsRequest {
         package_id,
         page_size,
         page_token,
-        max_message_size_bytes,
+        max_message_size_bytes: client_max_message_size_bytes,
         ..
     }: ListPackageVersionsRequest,
 ) -> Result<ListPackageVersionsResponse, RpcError> {
-    metrics.record_requested_max_message_size(max_message_size_bytes);
+    metrics.record_requested_max_message_size(client_max_message_size_bytes);
     let pkg_id = require_object_id(&package_id, "package_id")?;
     let page_size = validate_page_size(page_size, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
-    let max_message_size = validate_max_message_size(max_message_size_bytes)?;
+    let max_message_size = effective_max_message_size(
+        client_max_message_size_bytes,
+        operator_max_message_size_bytes,
+    )?;
 
     // Resolve the original package ID so we can list all versions across
     // different storage IDs (relevant for upgraded user packages).
