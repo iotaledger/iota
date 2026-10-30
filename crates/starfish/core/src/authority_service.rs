@@ -41,10 +41,10 @@ use crate::{
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
     network::{
-        BlockBundleStream, FetchedCommitsAndTransactions, NetworkService, SerializedBlock,
-        SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
-        SerializedTransactionsV2, StreamPosition, TransactionChunkStream,
-        tonic_network::MAX_FETCH_RESPONSE_BYTES,
+        BlockBundleOutcome, BlockBundleStream, FetchedCommitsAndTransactions, NetworkService,
+        SerializedBlock, SerializedBlockBundle, SerializedBlockBundleParts,
+        SerializedHeaderAndTransactions, SerializedTransactionsV2, StreamPosition,
+        TransactionChunkStream, tonic_network::MAX_FETCH_RESPONSE_BYTES,
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -546,11 +546,13 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .inc_by(verified_shards.len() as u64);
         Ok(verified_shards)
     }
-    fn ensure_commit_lag_within_threshold(
+    /// Returns whether the block is rejected because the last commit lags the
+    /// quorum commit too far.
+    fn exceeds_commit_lag_threshold(
         &self,
         block_ref: BlockRef,
         last_commit_index: CommitIndex,
-    ) -> ConsensusResult<()> {
+    ) -> bool {
         let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
         // The threshold to ignore block should be larger than commit_sync_batch_size,
         // to avoid excessive block rejections and synchronizations.
@@ -569,14 +571,9 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 "Block {:?} is rejected because last commit index is lagging quorum commit index too much ({} < {})",
                 block_ref, last_commit_index, quorum_commit_index,
             );
-            return Err(ConsensusError::BlockRejected {
-                block_ref,
-                reason: format!(
-                    "Last commit index is lagging quorum commit index too much ({last_commit_index} < {quorum_commit_index})",
-                ),
-            });
+            return true;
         }
-        Ok(())
+        false
     }
     async fn add_digests_to_filter(
         &self,
@@ -767,18 +764,18 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         }
     }
 
-    /// Rejects the block when local commits run too far ahead of the last
-    /// solid commit, i.e. transaction payloads are not keeping up. New headers
-    /// would only widen the round window in which shards and payloads are
-    /// retained, so ingestion pauses until the transactions synchronizer
-    /// closes the gap.
-    fn ensure_solid_commit_lag_within_threshold(
+    /// Returns whether the block is rejected because local commits run too far
+    /// ahead of the last solid commit, i.e. transaction payloads are not
+    /// keeping up. New headers would only widen the round window in which
+    /// shards and payloads are retained, so ingestion pauses until the
+    /// transactions synchronizer closes the gap.
+    fn exceeds_solid_commit_lag_threshold(
         &self,
         block_ref: BlockRef,
         solid_commit_lag: Option<Round>,
-    ) -> ConsensusResult<()> {
+    ) -> bool {
         let Some(solid_commit_lag) = solid_commit_lag else {
-            return Ok(());
+            return false;
         };
         self.context
             .metrics
@@ -789,12 +786,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         debug!(
             "Block {block_ref:?} is rejected because the last solid commit is lagging the last commit by {solid_commit_lag} rounds",
         );
-        Err(ConsensusError::BlockRejected {
-            block_ref,
-            reason: format!(
-                "Last solid commit is lagging the last commit by {solid_commit_lag} rounds",
-            ),
-        })
+        true
     }
 }
 
@@ -1095,7 +1087,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         serialized_block_bundle: SerializedBlockBundle,
         encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
         last_streamed_block: &mut StreamPosition,
-    ) -> ConsensusResult<()> {
+    ) -> ConsensusResult<BlockBundleOutcome> {
         fail_point_async!("consensus-rpc-response");
         let _s = self
             .context
@@ -1302,8 +1294,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .then(|| dag_state.solid_commit_lag_rounds());
             (dag_state.last_commit_index(), solid_commit_lag)
         };
-        self.ensure_commit_lag_within_threshold(block_ref, last_commit_index)?;
-        self.ensure_solid_commit_lag_within_threshold(block_ref, solid_commit_lag)?;
+        if self.exceeds_commit_lag_threshold(block_ref, last_commit_index) {
+            return Ok(BlockBundleOutcome::RejectedCommitLag);
+        }
+        if self.exceeds_solid_commit_lag_threshold(block_ref, solid_commit_lag) {
+            return Ok(BlockBundleOutcome::RejectedSolidCommitLag);
+        }
 
         self.context
             .metrics
@@ -1448,7 +1444,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 );
             }
         }
-        Ok(())
+        Ok(if primary_block_far_future {
+            BlockBundleOutcome::DroppedFarFuture
+        } else {
+            BlockBundleOutcome::ForwardedToCore
+        })
     }
 
     async fn handle_subscribe_block_bundles_request(
@@ -2281,10 +2281,10 @@ mod tests {
         leader_schedule::LeaderSchedule,
         misbehavior_store::MisbehaviorStore,
         network::{
-            BlockBundle, BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient,
-            NetworkService, SerializedBlock, SerializedBlockBundle, SerializedBlockBundleParts,
-            SerializedHeaderAndTransactions, SerializedTransactionsV2, StreamPosition,
-            tonic_network::MAX_FETCH_RESPONSE_BYTES,
+            BlockBundle, BlockBundleOutcome, BlockBundleStream, FetchedCommitsAndTransactions,
+            NetworkClient, NetworkService, SerializedBlock, SerializedBlockBundle,
+            SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV2,
+            StreamPosition, tonic_network::MAX_FETCH_RESPONSE_BYTES,
         },
         shard_reconstructor::TransactionMessage,
         storage::{Store, WriteBatch, mem_store::MemStore},
@@ -2525,7 +2525,7 @@ mod tests {
         );
         let bundle = SerializedBlockBundle::try_from(input_block).unwrap();
 
-        authority_service
+        let outcome = authority_service
             .handle_subscribed_block_bundle(
                 peer,
                 bundle,
@@ -2534,6 +2534,7 @@ mod tests {
             )
             .await
             .unwrap();
+        assert_eq!(outcome, BlockBundleOutcome::DroppedFarFuture);
 
         // The far-future block is dropped at ingress: counted, not forwarded to
         // the core, and not sent to the shard reconstructor.
@@ -3070,18 +3071,16 @@ mod tests {
         );
         let bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
 
-        let result = authority_service
+        let outcome = authority_service
             .handle_subscribed_block_bundle(
                 peer,
                 bundle.clone(),
                 &mut encoder,
                 &mut StreamPosition::default(),
             )
-            .await;
-        assert!(
-            matches!(result, Err(ConsensusError::BlockRejected { .. })),
-            "expected BlockRejected while solidification lags, got {result:?}"
-        );
+            .await
+            .unwrap();
+        assert_eq!(outcome, BlockBundleOutcome::RejectedSolidCommitLag);
         assert!(
             tx_message_receiver.try_recv().is_err(),
             "a rejected bundle must not feed the shard reconstructor"
@@ -3111,7 +3110,7 @@ mod tests {
             reputation_scores_desc: vec![],
         });
 
-        authority_service
+        let outcome = authority_service
             .handle_subscribed_block_bundle(
                 peer,
                 bundle,
@@ -3120,6 +3119,7 @@ mod tests {
             )
             .await
             .unwrap();
+        assert_eq!(outcome, BlockBundleOutcome::ForwardedToCore);
         assert_eq!(core_dispatcher.get_blocks(), vec![input_block]);
     }
 

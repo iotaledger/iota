@@ -446,8 +446,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // the error that rejects the delivery carrying it is not charged again.
         ConsensusError::BlockHeaderEquivocation { .. }
 
-        // Not attributable as misbehavior from a signed block alone: subjective
-        // rejections, commit-sync inconsistencies, fetch-shape mismatches,
+        // Not attributable as misbehavior from a signed block alone:
+        // commit-sync inconsistencies, fetch-shape mismatches,
         // reconstruction and encoder failures, storage, network
         // transport, request-shape checks, local lifecycle signals, and version
         // mismatches that may stem from a benign upgrade misconfiguration rather
@@ -466,7 +466,6 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::TransactionCommitmentMismatch { .. }
         | ConsensusError::SynchronizerSaturated(_)
         | ConsensusError::TransactionSynchronizerSaturated
-        | ConsensusError::BlockRejected { .. }
         | ConsensusError::EmptyMerkleTree
         | ConsensusError::MissingBlockHeader { .. }
         | ConsensusError::CommitRangeExceededAfterScanning { .. }
@@ -1477,15 +1476,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_untracked_errors() {
-        // Subjective rejections, commit lists an honest server can send, and
-        // fetch-shape errors are not block header faults — they belong to
-        // separate metrics and should not increment the faulty_blocks counters.
+        // Commit lists an honest server can send and fetch-shape errors are
+        // not block header faults — they belong to separate metrics and should
+        // not increment the faulty_blocks counters.
         let authority = AuthorityIndex::new_for_test(1);
         let cases: &[ConsensusError] = &[
-            ConsensusError::BlockRejected {
-                block_ref: BlockRef::MIN,
-                reason: "test".to_string(),
-            },
             // Commit lists an honest server can send.
             ConsensusError::NoCommitReceived { peer: authority },
             ConsensusError::TooManyCommitBytes {
