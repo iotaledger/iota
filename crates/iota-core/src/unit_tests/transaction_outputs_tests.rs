@@ -1,18 +1,30 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashSet},
+    sync::Arc,
+};
 
-use iota_sdk_types::{Address, ObjectId, ObjectVersion};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, ObjectVersion, OwnedObjectReference, Owner,
+    TransactionEffects,
+};
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     executable_transaction::{
         CertificateProof, ExecutableTransaction, VerifiedExecutableTransaction,
     },
     full_checkpoint_content::CheckpointTransaction,
+    inner_temporary_store::InnerTemporaryStore,
     object::{Object, ObjectSet},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::{MarkerValue, ObjectKey},
-    transaction::TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+    transaction::{
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
+        VerifiedTransaction,
+    },
 };
 
 use super::{build_superseded, build_superseded_counting};
@@ -21,7 +33,11 @@ use crate::{
         AuthorityState,
         authority_per_epoch_store::TxLockGuard,
         authority_test_utils::{init_state_with_ids, init_transfer_transaction},
+        authority_tests::{build_programmable_transaction, execute_programmable_transaction},
+        move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
+        test_authority_builder::TestAuthorityBuilder,
     },
+    move_call,
     transaction_outputs::TransactionOutputs,
 };
 
@@ -84,7 +100,7 @@ fn test_superseded_counts_what_it_cannot_capture() {
 /// Executes a transfer without committing it, and returns the authority it ran
 /// on, the outputs execution produced, and the checkpoint data a node would
 /// receive for the same transaction.
-pub(crate) async fn execute_transfer_both_ways_on() -> (
+async fn execute_transfer_both_ways_on() -> (
     Arc<AuthorityState>,
     TransactionOutputs,
     CheckpointTransaction,
@@ -124,31 +140,186 @@ pub(crate) async fn execute_transfer_both_ways_on() -> (
             &epoch_store,
         )
         .unwrap();
-    let (inner_store, effects, error) = authority
+    let (inner_store, effects, error, read_objects) = authority
         .prepare_transaction_for_benchmark(&executable, input_objects, &epoch_store)
         .unwrap();
     assert!(error.is_none(), "the transfer must execute successfully");
 
-    // The same results a checkpoint would carry for this transaction.
-    let checkpoint_tx = CheckpointTransaction {
-        transaction: transaction.clone().into_inner(),
-        effects: effects.clone(),
-        events: (!inner_store.events.is_empty()).then(|| inner_store.events.clone()),
-        input_objects: inner_store.input_objects.values().cloned().collect(),
-        output_objects: inner_store.written.values().cloned().collect(),
-    };
-
+    let checkpoint_tx =
+        checkpoint_transaction_for(&authority, &transaction, &effects, &inner_store);
     let executed = TransactionOutputs::build_transaction_outputs(
         transaction,
         effects,
         inner_store,
-        // A transfer modifies only objects it declares as inputs, so execution
-        // recovers no pre-image from the objects it read.
-        ObjectSet::default(),
+        read_objects,
         &authority.metrics,
     );
 
     (authority, executed, checkpoint_tx)
+}
+
+/// Shapes the checkpoint data the way the archive shapes it:
+/// `get_transaction_input_objects` selects by `modified_at_versions` and reads
+/// the pre-execution objects from the store, and
+/// `get_transaction_output_objects` selects by the writes the effects record.
+///
+/// Reading the inputs back from the store is what makes the comparison mean
+/// anything. Taking the execution store's own map instead would hand the
+/// applying path the same objects execution derived its answer from, and a
+/// transaction that receives an object would then agree by construction.
+fn checkpoint_transaction_for(
+    authority: &AuthorityState,
+    transaction: &VerifiedTransaction,
+    effects: &TransactionEffects,
+    inner_store: &InnerTemporaryStore,
+) -> CheckpointTransaction {
+    let input_objects = effects
+        .modified_at_versions()
+        .into_iter()
+        .map(|modified| {
+            authority
+                .get_object_store()
+                .get_object_by_key(modified.object_id(), modified.version())
+                .expect("the pre-execution object is still in the store")
+        })
+        .collect();
+    let output_objects = effects
+        .all_changed_objects()
+        .into_iter()
+        .map(|(owned, _)| {
+            inner_store
+                .written
+                .get(&owned.reference().object_id)
+                .expect("a recorded write must have been written")
+                .clone()
+        })
+        .collect();
+    CheckpointTransaction {
+        transaction: transaction.clone().into_inner(),
+        effects: effects.clone(),
+        events: (!inner_store.events.is_empty()).then(|| inner_store.events.clone()),
+        input_objects,
+        output_objects,
+    }
+}
+
+/// Runs a transaction that takes a `Receiving` argument, and returns both
+/// constructors' results for it.
+///
+/// This is the one shape where the two paths disagree about which objects the
+/// transaction took: execution reaches its list through the transaction's
+/// declared inputs, which never name a received object, while the effects
+/// record it among the objects modified. A transfer exercises neither side of
+/// that, so it cannot show the difference.
+async fn execute_receive_both_ways() -> (TransactionOutputs, CheckpointTransaction) {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let authority = TestAuthorityBuilder::new().build().await;
+    let gas_object_id = ObjectId::random();
+    authority.insert_genesis_object(Object::with_id_owner_for_testing(gas_object_id, sender));
+
+    let (package, _) = build_and_publish_test_package_with_upgrade_cap(
+        &authority,
+        &sender,
+        &sender_key,
+        &gas_object_id,
+        "tto",
+        false,
+    )
+    .await;
+
+    // Creates the parent and sends the child to it, so the child can be
+    // received below. This one is committed; only the receive is held back.
+    let effects = execute_programmable_transaction(
+        &authority,
+        &gas_object_id,
+        &sender,
+        &sender_key,
+        {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            move_call! { builder, (package.object_id)::M1::start() };
+            builder.finish()
+        },
+        TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+    )
+    .await
+    .unwrap();
+    let (parent, child) = parent_and_child(effects.created());
+
+    let transaction = build_programmable_transaction(
+        &authority,
+        &gas_object_id,
+        &sender,
+        &sender_key,
+        {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let parent = builder.obj(CallArg::ImmutableOrOwned(parent)).unwrap();
+            let child = builder.obj(CallArg::Receiving(child)).unwrap();
+            move_call! { builder, (package.object_id)::M1::receiver(parent, child) };
+            builder.finish()
+        },
+        TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+    )
+    .await
+    .unwrap();
+    let transaction = VerifiedTransaction::new_unchecked(transaction);
+
+    let epoch_store = authority.load_epoch_store_one_call_per_task().clone();
+    let executable =
+        VerifiedExecutableTransaction::new_unchecked(ExecutableTransaction::new_from_data_and_sig(
+            transaction.data().clone(),
+            CertificateProof::Checkpoint(0, 0),
+        ));
+    let (input_objects, _) = authority
+        .read_objects_for_execution(
+            &TxLockGuard::guard_for_tests(),
+            &executable,
+            // Receiving a child touches no shared objects.
+            Vec::new(),
+            &epoch_store,
+        )
+        .unwrap();
+    let (inner_store, effects, error, read_objects) = authority
+        .prepare_transaction_for_benchmark(&executable, input_objects, &epoch_store)
+        .unwrap();
+    assert!(error.is_none(), "the receive must execute successfully");
+    assert!(
+        !transaction.transaction().receiving_objects().is_empty(),
+        "the fixture must carry a receiving argument, or it proves nothing"
+    );
+
+    let checkpoint_tx =
+        checkpoint_transaction_for(&authority, &transaction, &effects, &inner_store);
+    let executed = TransactionOutputs::build_transaction_outputs(
+        transaction,
+        effects,
+        inner_store,
+        read_objects,
+        &authority.metrics,
+    );
+
+    (executed, checkpoint_tx)
+}
+
+/// Picks the created object owned by another created object, and that owner.
+fn parent_and_child(created: Vec<OwnedObjectReference>) -> (ObjectReference, ObjectReference) {
+    let created_ids: HashSet<_> = created
+        .iter()
+        .map(|created| created.reference().object_id)
+        .collect();
+    let (child, parent_id) = created
+        .iter()
+        .find_map(|created| match created.owner() {
+            Owner::Address(owner) if created_ids.contains(&ObjectId::from(*owner)) => {
+                Some((*created.reference(), ObjectId::from(*owner)))
+            }
+            _ => None,
+        })
+        .expect("`start` creates a child owned by the parent it creates");
+    let parent = created
+        .iter()
+        .find(|created| created.reference().object_id == parent_id)
+        .expect("the owner is one of the created objects");
+    (*parent.reference(), child)
 }
 
 /// The two constructors' results for a transfer, without the authority.
@@ -181,7 +352,26 @@ fn sorted_markers(mut v: Vec<(ObjectKey, MarkerValue)>) -> Vec<(ObjectKey, Marke
 async fn build_from_checkpoint_transaction_matches_execution() {
     let (executed, checkpoint_tx) = execute_transfer_both_ways().await;
 
-    let applied = TransactionOutputs::build_from_checkpoint_transaction(&checkpoint_tx);
+    assert_applied_matches_executed(&checkpoint_tx, &executed);
+}
+
+/// The same equality for a transaction that receives an object. Execution
+/// derives its input list from the transaction's declared inputs, which never
+/// name a received object, while the applying path derives it from the
+/// effects, which do record one. Without the filter that reconciles them, the
+/// received object is listed twice and this fails.
+#[tokio::test]
+async fn build_from_checkpoint_transaction_matches_execution_for_a_received_object() {
+    let (executed, checkpoint_tx) = execute_receive_both_ways().await;
+
+    assert_applied_matches_executed(&checkpoint_tx, &executed);
+}
+
+fn assert_applied_matches_executed(
+    checkpoint_tx: &CheckpointTransaction,
+    executed: &TransactionOutputs,
+) {
+    let applied = TransactionOutputs::build_from_checkpoint_transaction(checkpoint_tx);
 
     assert_eq!(applied.transaction.digest(), executed.transaction.digest());
     assert_eq!(applied.effects, executed.effects);
@@ -189,23 +379,37 @@ async fn build_from_checkpoint_transaction_matches_execution() {
     assert_eq!(applied.written, executed.written);
     assert_eq!(
         sorted_markers(applied.markers),
-        sorted_markers(executed.markers)
+        sorted_markers(executed.markers.clone())
     );
-    assert_eq!(sorted(applied.wrapped), sorted(executed.wrapped));
-    assert_eq!(sorted(applied.deleted), sorted(executed.deleted));
+    assert_eq!(sorted(applied.wrapped), sorted(executed.wrapped.clone()));
+    assert_eq!(sorted(applied.deleted), sorted(executed.deleted.clone()));
+    // Execution reaches this list through the transaction's declared inputs,
+    // the applying path through the effects' record of what was modified.
+    // The two disagree about received objects, which the effects record and
+    // the declared inputs do not, so a duplicate here is the shape that
+    // divergence takes.
+    let mut seen = std::collections::HashSet::new();
+    assert!(
+        applied
+            .live_object_markers_to_delete
+            .iter()
+            .all(|reference| seen.insert(*reference)),
+        "the applying path listed a live object marker twice"
+    );
+
     assert_eq!(
         sorted(applied.live_object_markers_to_delete),
-        sorted(executed.live_object_markers_to_delete),
+        sorted(executed.live_object_markers_to_delete.clone()),
         "the input owner is resolved from the effects rather than the loaded \
          input objects, so this is where the two constructors can diverge"
     );
     assert_eq!(
         sorted(applied.new_live_object_markers_to_init),
-        sorted(executed.new_live_object_markers_to_init)
+        sorted(executed.new_live_object_markers_to_init.clone())
     );
     assert_eq!(
         sorted_superseded(applied.superseded),
-        sorted_superseded(executed.superseded),
+        sorted_superseded(executed.superseded.clone()),
         "the pre-images come from the checkpoint's input objects rather than \
          from execution, so this is where the two constructors can diverge"
     );
