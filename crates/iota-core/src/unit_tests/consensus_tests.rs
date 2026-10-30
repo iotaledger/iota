@@ -21,6 +21,7 @@ use iota_types::{
     object::Object,
     transaction::{
         CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI,
+        VerifiedTransaction,
     },
     utils::{make_committee_key_num, to_sender_signed_transaction},
 };
@@ -57,51 +58,59 @@ pub fn test_gas_objects() -> Vec<Object> {
     GAS_OBJECTS.with(|v| v.clone())
 }
 
+/// Fixture: one signed transaction per test gas object, each creating an
+/// object through a mutable use of `shared_object`.
+pub fn test_shared_object_transactions(
+    authority: &AuthorityState,
+    shared_object: &Object,
+) -> Vec<VerifiedTransaction> {
+    let epoch_store = authority.load_epoch_store_one_call_per_task();
+    let (sender, sender_key) = deterministic_random_account_private_key();
+    let rgp = epoch_store.reference_gas_price();
+
+    let shared_object_arg = CallArg::Shared(SharedObjectReference::new(
+        shared_object.id(),
+        shared_object.version(),
+        true,
+    ));
+    test_gas_objects()
+        .into_iter()
+        .map(|gas_object| {
+            // Object digest may be different in genesis than originally generated.
+            let gas_object = authority.get_object(&gas_object.id()).unwrap();
+            let tx = Transaction::new_move_call(
+                sender,
+                ObjectId::FRAMEWORK,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("create"),
+                // type_args
+                vec![],
+                gas_object.object_ref(),
+                // args
+                vec![
+                    shared_object_arg.clone(),
+                    CallArg::Pure(16u64.to_le_bytes().to_vec()),
+                    CallArg::pure(&AccountAddress::new(sender.into_bytes())),
+                ],
+                rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+                rgp,
+            )
+            .unwrap();
+            epoch_store
+                .verify_transaction(to_sender_signed_transaction(tx, &sender_key))
+                .unwrap()
+        })
+        .collect()
+}
+
 /// Fixture: a few test certificates containing a shared object.
 pub async fn test_certificates(
     authority: &AuthorityState,
     shared_object: Object,
 ) -> Vec<CertifiedTransaction> {
     let epoch_store = authority.load_epoch_store_one_call_per_task();
-    let (sender, sender_key) = deterministic_random_account_private_key();
-    let rgp = epoch_store.reference_gas_price();
-
     let mut certificates = Vec::new();
-    let shared_object_arg = CallArg::Shared(SharedObjectReference::new(
-        shared_object.id(),
-        shared_object.version(),
-        true,
-    ));
-    for gas_object in test_gas_objects() {
-        // Object digest may be different in genesis than originally generated.
-        let gas_object = authority.get_object(&gas_object.id()).unwrap();
-        // Make a sample transaction.
-        let module = "object_basics";
-        let function = "create";
-
-        let tx = Transaction::new_move_call(
-            sender,
-            ObjectId::FRAMEWORK,
-            Identifier::from_static(module),
-            Identifier::from_static(function),
-            // type_args
-            vec![],
-            gas_object.object_ref(),
-            // args
-            vec![
-                shared_object_arg.clone(),
-                CallArg::Pure(16u64.to_le_bytes().to_vec()),
-                CallArg::pure(&AccountAddress::new(sender.into_bytes())),
-            ],
-            rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-            rgp,
-        )
-        .unwrap();
-
-        let transaction = epoch_store
-            .verify_transaction(to_sender_signed_transaction(tx, &sender_key))
-            .unwrap();
-
+    for transaction in test_shared_object_transactions(authority, &shared_object) {
         // Submit the transaction and assemble a certificate.
         let response = authority
             .handle_transaction(&epoch_store, transaction.clone())
@@ -117,6 +126,39 @@ pub async fn test_certificates(
         certificates.push(certificate);
     }
     certificates
+}
+
+/// Fixture: the transactions of `test_certificates` as consensus messages, as
+/// certificates or as `UserTransactionV1`s, with the digest of each.
+pub async fn test_consensus_transactions(
+    authority: &AuthorityState,
+    shared_object: Object,
+    user_transactions: bool,
+) -> Vec<(ConsensusTransaction, TransactionDigest)> {
+    if user_transactions {
+        test_shared_object_transactions(authority, &shared_object)
+            .into_iter()
+            .map(|transaction| {
+                let digest = *transaction.digest();
+                (
+                    ConsensusTransaction::new_user_transaction(transaction.into()),
+                    digest,
+                )
+            })
+            .collect()
+    } else {
+        test_certificates(authority, shared_object)
+            .await
+            .into_iter()
+            .map(|certificate| {
+                let digest = *certificate.digest();
+                (
+                    ConsensusTransaction::new_certificate_message(&authority.name, certificate),
+                    digest,
+                )
+            })
+            .collect()
+    }
 }
 
 pub fn make_consensus_adapter_for_test(
@@ -246,8 +288,9 @@ pub fn make_consensus_adapter_for_test(
     ))
 }
 
+#[rstest::rstest]
 #[tokio::test]
-async fn submit_transaction_to_consensus_adapter() {
+async fn submit_transaction_to_consensus_adapter(#[values(false, true)] user_transactions: bool) {
     telemetry_subscribers::init_for_testing();
 
     // Initialize an authority with a (owned) gas object and a shared object; then
@@ -256,7 +299,7 @@ async fn submit_transaction_to_consensus_adapter() {
     let shared_object = Object::shared_for_testing();
     objects.push(shared_object.clone());
     let state = init_state_with_objects(objects).await;
-    let certificate = test_certificates(&state, shared_object)
+    let (transaction, _) = test_consensus_transactions(&state, shared_object, user_transactions)
         .await
         .pop()
         .unwrap();
@@ -287,7 +330,6 @@ async fn submit_transaction_to_consensus_adapter() {
     // Submit the transaction and ensure the adapter reports success to the caller.
     // Note that consensus may drop some transactions (so we may need to
     // resubmit them).
-    let transaction = ConsensusTransaction::new_certificate_message(&state.name, certificate);
     let waiter = adapter
         .submit(
             transaction.clone(),
@@ -298,8 +340,11 @@ async fn submit_transaction_to_consensus_adapter() {
     waiter.await.unwrap();
 }
 
+#[rstest::rstest]
 #[tokio::test]
-async fn submit_multiple_transactions_to_consensus_adapter() {
+async fn submit_multiple_transactions_to_consensus_adapter(
+    #[values(false, true)] user_transactions: bool,
+) {
     telemetry_subscribers::init_for_testing();
 
     // Initialize an authority with a (owned) gas object and a shared object; then
@@ -308,16 +353,17 @@ async fn submit_multiple_transactions_to_consensus_adapter() {
     let shared_object = Object::shared_for_testing();
     objects.push(shared_object.clone());
     let state = init_state_with_objects(objects).await;
-    let certificates = test_certificates(&state, shared_object).await;
+    let consensus_transactions =
+        test_consensus_transactions(&state, shared_object, user_transactions).await;
     let epoch_store = state.epoch_store_for_testing();
 
     // Mark the first two transactions to be "executed via checkpoint" and the other
     // two to appear via consensus output.
-    assert_eq!(certificates.len(), 4);
+    assert_eq!(consensus_transactions.len(), 4);
 
     let mut process_via_checkpoint = HashSet::new();
-    process_via_checkpoint.insert(*certificates[0].digest());
-    process_via_checkpoint.insert(*certificates[1].digest());
+    process_via_checkpoint.insert(consensus_transactions[0].1);
+    process_via_checkpoint.insert(consensus_transactions[1].1);
 
     // Make a new consensus adapter instance.
     let adapter = make_consensus_adapter_for_test(
@@ -332,9 +378,9 @@ async fn submit_multiple_transactions_to_consensus_adapter() {
     // Submit the transaction and ensure the adapter reports success to the caller.
     // Note that consensus may drop some transactions (so we may need to
     // resubmit them).
-    let transactions = certificates
+    let transactions = consensus_transactions
         .into_iter()
-        .map(|certificate| ConsensusTransaction::new_certificate_message(&state.name, certificate))
+        .map(|(transaction, _)| transaction)
         .collect::<Vec<_>>();
 
     let waiter = adapter

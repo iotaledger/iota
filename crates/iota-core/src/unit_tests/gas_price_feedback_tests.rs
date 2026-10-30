@@ -18,7 +18,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TransactionAPI, TransactionEnvelope, VerifiedCertificate},
+    transaction::{CallArg, TransactionAPI, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
 use rand::seq::SliceRandom;
@@ -27,7 +27,8 @@ use crate::{
     authority::{
         AuthorityState, ExecutionEnv,
         authority_tests::{
-            certify_transaction, send_and_confirm_transaction_, send_batch_consensus_no_execution,
+            TestTransaction, send_and_confirm_transaction_, send_test_transactions_no_execution,
+            sequence_past_executed_transactions,
         },
         move_integration_tests::build_and_publish_test_package,
         shared_object_version_manager::{AssignedTxAndVersions, Schedulable},
@@ -62,6 +63,7 @@ impl GasDataForTests {
 }
 
 struct GasPriceFeedbackTester {
+    pcool: bool,
     authority_state: Arc<AuthorityState>,
     protocol_config: ProtocolConfig,
     sender: Address,
@@ -79,6 +81,7 @@ impl GasPriceFeedbackTester {
     /// objects needed to send test transactions, and deploy a package with
     /// two shared counters and simple Move calls operating on those counters.
     async fn new(
+        pcool: bool,
         max_deferral_rounds_for_congestion_control: u64,
         per_object_congestion_control_mode: PerObjectCongestionControlMode,
         max_execution_duration_per_commit: Option<u64>,
@@ -90,6 +93,12 @@ impl GasPriceFeedbackTester {
 
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config.set_enable_pcool_flow_for_testing(pcool);
+        if pcool {
+            // Consecutive commits here reuse the objects the previous commit
+            // executed, so validation must see that commit's results.
+            protocol_config.set_pcool_deterministic_validation_horizon_distance_for_testing(1);
+        }
         protocol_config.set_max_deferral_rounds_for_congestion_control_for_testing(
             max_deferral_rounds_for_congestion_control,
         );
@@ -158,7 +167,12 @@ impl GasPriceFeedbackTester {
         )
         .await;
 
+        if pcool {
+            sequence_past_executed_transactions(&authority_state).await;
+        }
+
         Self {
+            pcool,
             authority_state,
             protocol_config,
             sender,
@@ -241,19 +255,18 @@ impl GasPriceFeedbackTester {
         to_sender_signed_transaction(tx, &self.sender_key)
     }
 
-    /// Certify a transaction signed by the user.
-    async fn certify_transaction(&self, transaction: TransactionEnvelope) -> VerifiedCertificate {
-        certify_transaction(&self.authority_state, transaction)
-            .await
-            .unwrap()
+    /// Certify a transaction signed by the user, or keep it as a
+    /// `UserTransactionV1` for the P-COOL flow.
+    async fn prepare_transaction(&self, transaction: TransactionEnvelope) -> TestTransaction {
+        TestTransaction::prepare(&self.authority_state, self.pcool, transaction).await
     }
 
-    /// Send certificates to consensus for scheduling.
-    async fn send_certificates_to_consensus_for_scheduling(
+    /// Send transactions to consensus for scheduling.
+    async fn send_transactions_to_consensus_for_scheduling(
         &self,
-        certificates: &[VerifiedCertificate],
+        transactions: &[TestTransaction],
     ) -> (Vec<Schedulable>, AssignedTxAndVersions) {
-        send_batch_consensus_no_execution(&self.authority_state, certificates, false).await
+        send_test_transactions_no_execution(&self.authority_state, transactions, false).await
     }
 
     /// Enqueue scheduled transactions and execute them to effects.
@@ -389,7 +402,7 @@ impl GasPriceFeedbackTester {
         self.build_programmable_transaction(pt, gas_data).await
     }
 
-    async fn create_certificates_for_non_trivial_case(&self) -> Vec<VerifiedCertificate> {
+    async fn create_transactions_for_non_trivial_case(&self) -> Vec<TestTransaction> {
         let max_gp = self.protocol_config.max_gas_price();
         // (gas price, gas budget, counter_1_mutable, counter_2_mutable)
         let data = [
@@ -408,7 +421,7 @@ impl GasPriceFeedbackTester {
             (1_000, 9_000_000_000, Some(false), Some(true)),  // 12
         ];
 
-        let mut certificates = vec![];
+        let mut transactions = vec![];
         for (index, data) in data.into_iter().enumerate() {
             let gas_data = GasDataForTests::new(self.gas_object_ids[index], data.0, data.1);
 
@@ -428,10 +441,10 @@ impl GasPriceFeedbackTester {
                 _ => panic!("At least one counter must be accessed in transactions."),
             };
 
-            certificates.push(self.certify_transaction(transaction).await);
+            transactions.push(self.prepare_transaction(transaction).await);
         }
 
-        certificates
+        transactions
     }
 }
 
@@ -439,8 +452,18 @@ impl GasPriceFeedbackTester {
 // cancelled) if per-object congestion control mode is None.
 #[sim_test]
 async fn per_object_congestion_control_mode_is_none() {
+    per_object_congestion_control_mode_is_none_for_flow(false).await;
+}
+
+#[sim_test]
+async fn per_object_congestion_control_mode_is_none_pcool() {
+    per_object_congestion_control_mode_is_none_for_flow(true).await;
+}
+
+async fn per_object_congestion_control_mode_is_none_for_flow(pcool: bool) {
     let num_gas_objects = 10;
     let tester = GasPriceFeedbackTester::new(
+        pcool,
         0,                                    // max_deferral_rounds_for_congestion_control
         PerObjectCongestionControlMode::None, // per_object_congestion_control_mode
         Some(1),                              // max_execution_duration_per_commit
@@ -450,8 +473,8 @@ async fn per_object_congestion_control_mode_is_none() {
     )
     .await;
 
-    // Prepare certificates
-    let mut certificates = vec![];
+    // Prepare transactions
+    let mut transactions = vec![];
     for (i, gas_object_id) in tester.gas_object_ids.iter().enumerate() {
         let gas_price = REFERENCE_GAS_PRICE_FOR_TESTS + i as u64;
         let gas_data = GasDataForTests::new(
@@ -462,22 +485,22 @@ async fn per_object_congestion_control_mode_is_none() {
         let transaction = tester
             .build_access_both_counters_transaction(gas_data, true, true)
             .await;
-        let certificate = tester.certify_transaction(transaction).await;
+        let transaction = tester.prepare_transaction(transaction).await;
 
-        certificates.push(certificate);
+        transactions.push(transaction);
     }
-    // Shuffle certificates so that they do not have any specific order in
+    // Shuffle transactions so that they do not have any specific order in
     // terms of gas price.
-    certificates.shuffle(&mut rand::rng());
-    assert_eq!(certificates.len(), num_gas_objects);
+    transactions.shuffle(&mut rand::rng());
+    assert_eq!(transactions.len(), num_gas_objects);
 
     let (scheduled_transactions, assigned_versions) = tester
-        .send_certificates_to_consensus_for_scheduling(&certificates)
+        .send_transactions_to_consensus_for_scheduling(&transactions)
         .await;
     assert_eq!(
         scheduled_transactions.len(),
         // +1 because of consensus commit prologue transaction
-        certificates.len() + 1,
+        transactions.len() + 1,
     );
     assert!(matches!(
         scheduled_transactions[0]
@@ -504,7 +527,7 @@ async fn per_object_congestion_control_mode_is_none() {
     assert_eq!(
         effects_vec.len(),
         // +1 because of consensus commit prologue transaction
-        certificates.len() + 1,
+        transactions.len() + 1,
     );
 
     // All transactions should be successfully executed.
@@ -517,8 +540,18 @@ async fn per_object_congestion_control_mode_is_none() {
 // cancelled) if `max_execution_duration_per_commit` is set None.
 #[sim_test]
 async fn max_execution_duration_per_commit_is_none() {
+    max_execution_duration_per_commit_is_none_for_flow(false).await;
+}
+
+#[sim_test]
+async fn max_execution_duration_per_commit_is_none_pcool() {
+    max_execution_duration_per_commit_is_none_for_flow(true).await;
+}
+
+async fn max_execution_duration_per_commit_is_none_for_flow(pcool: bool) {
     let num_gas_objects = 10;
     let tester = GasPriceFeedbackTester::new(
+        pcool,
         0,                                            // max_deferral_rounds_for_congestion_control
         PerObjectCongestionControlMode::TotalTxCount, // per_object_congestion_control_mode
         None,                                         // max_execution_duration_per_commit
@@ -528,8 +561,8 @@ async fn max_execution_duration_per_commit_is_none() {
     )
     .await;
 
-    // Prepare certificates
-    let mut certificates = vec![];
+    // Prepare transactions
+    let mut transactions = vec![];
     for (i, gas_object_id) in tester.gas_object_ids.iter().enumerate() {
         let gas_price = REFERENCE_GAS_PRICE_FOR_TESTS + i as u64;
         let gas_data = GasDataForTests::new(
@@ -540,22 +573,22 @@ async fn max_execution_duration_per_commit_is_none() {
         let transaction = tester
             .build_access_both_counters_transaction(gas_data, true, true)
             .await;
-        let certificate = tester.certify_transaction(transaction).await;
+        let transaction = tester.prepare_transaction(transaction).await;
 
-        certificates.push(certificate);
+        transactions.push(transaction);
     }
-    // Shuffle certificates so that they do not have any specific order in
+    // Shuffle transactions so that they do not have any specific order in
     // terms of gas price.
-    certificates.shuffle(&mut rand::rng());
-    assert_eq!(certificates.len(), num_gas_objects);
+    transactions.shuffle(&mut rand::rng());
+    assert_eq!(transactions.len(), num_gas_objects);
 
     let (scheduled_transactions, assigned_versions) = tester
-        .send_certificates_to_consensus_for_scheduling(&certificates)
+        .send_transactions_to_consensus_for_scheduling(&transactions)
         .await;
     assert_eq!(
         scheduled_transactions.len(),
         // +1 because of consensus commit prologue transaction
-        certificates.len() + 1,
+        transactions.len() + 1,
     );
     assert!(matches!(
         scheduled_transactions[0]
@@ -582,7 +615,7 @@ async fn max_execution_duration_per_commit_is_none() {
     assert_eq!(
         effects_vec.len(),
         // +1 because of consensus commit prologue transaction
-        certificates.len() + 1,
+        transactions.len() + 1,
     );
 
     // All transactions should be successfully executed.
@@ -597,21 +630,31 @@ async fn max_execution_duration_per_commit_is_none() {
 // be scheduled.
 #[sim_test]
 async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
+    transaction_duration_exceeds_max_execution_duration_per_commit_for_flow(false).await;
+}
+
+#[sim_test]
+async fn transaction_duration_exceeds_max_execution_duration_per_commit_pcool() {
+    transaction_duration_exceeds_max_execution_duration_per_commit_for_flow(true).await;
+}
+
+async fn transaction_duration_exceeds_max_execution_duration_per_commit_for_flow(pcool: bool) {
     let num_gas_objects = 3;
     let gas_budget_of_scheduled_tx =
         (REFERENCE_GAS_PRICE_FOR_TESTS + 2) * DEFAULT_GAS_UNITS_FOR_TESTS;
     let tester = GasPriceFeedbackTester::new(
-        0,                                              // max_deferral_rounds_for_congestion_control
+        pcool,
+        0, // max_deferral_rounds_for_congestion_control
         PerObjectCongestionControlMode::TotalGasBudget, // per_object_congestion_control_mode
-        Some(gas_budget_of_scheduled_tx),               // max_execution_duration_per_commit
-        true,                                           // assign_min_free_execution_slot
-        true,                                           // enable_gas_price_feedback_mechanism
+        Some(gas_budget_of_scheduled_tx), // max_execution_duration_per_commit
+        true, // assign_min_free_execution_slot
+        true, // enable_gas_price_feedback_mechanism
         num_gas_objects,
     )
     .await;
 
-    // Prepare certificates
-    let mut certificates = vec![];
+    // Prepare transactions
+    let mut transactions = vec![];
     // Should be cancelled as it does not fit, suggested gas price must be equal
     // the reference gas price as there are no congested objects.
     let gas_data = GasDataForTests::new(
@@ -622,7 +665,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
     let transaction = tester
         .build_access_both_counters_transaction(gas_data, true, true)
         .await;
-    certificates.push(tester.certify_transaction(transaction).await);
+    transactions.push(tester.prepare_transaction(transaction).await);
     // Should be scheduled.
     let gas_data = GasDataForTests::new(
         tester.gas_object_ids[1],
@@ -632,7 +675,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
     let transaction = tester
         .build_access_both_counters_transaction(gas_data, true, true)
         .await;
-    certificates.push(tester.certify_transaction(transaction).await);
+    transactions.push(tester.prepare_transaction(transaction).await);
     // Should be cancelled as it does not fit, suggested gas price must be equal
     // gas price of the scheduled transaction + 1.
     let gas_data = GasDataForTests::new(
@@ -643,15 +686,15 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
     let transaction = tester
         .build_access_both_counters_transaction(gas_data, true, true)
         .await;
-    certificates.push(tester.certify_transaction(transaction).await);
+    transactions.push(tester.prepare_transaction(transaction).await);
 
     let (scheduled_transactions, assigned_versions) = tester
-        .send_certificates_to_consensus_for_scheduling(&certificates)
+        .send_transactions_to_consensus_for_scheduling(&transactions)
         .await;
     assert_eq!(
         scheduled_transactions.len(),
         // +1 because of consensus commit prologue transaction
-        certificates.len() + 1,
+        transactions.len() + 1,
     );
 
     // Checks that there are no deferred transactions
@@ -736,7 +779,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
     assert_eq!(
         effects_vec.len(),
         // +1 because of consensus commit prologue transaction
-        certificates.len() + 1,
+        transactions.len() + 1,
     );
 
     // `ConsensusCommitPrologueV1` should be successfully executed
@@ -848,8 +891,18 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
 // and `Version::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK` should appear.
 #[sim_test]
 async fn gas_price_feedback_mechanism_is_turned_off() {
+    gas_price_feedback_mechanism_is_turned_off_for_flow(false).await;
+}
+
+#[sim_test]
+async fn gas_price_feedback_mechanism_is_turned_off_pcool() {
+    gas_price_feedback_mechanism_is_turned_off_for_flow(true).await;
+}
+
+async fn gas_price_feedback_mechanism_is_turned_off_for_flow(pcool: bool) {
     let num_gas_objects = 2;
     let tester = GasPriceFeedbackTester::new(
+        pcool,
         0,                                            // max_deferral_rounds_for_congestion_control
         PerObjectCongestionControlMode::TotalTxCount, // per_object_congestion_control_mode
         Some(1),                                      // max_execution_duration_per_commit
@@ -859,8 +912,8 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
     )
     .await;
 
-    // Prepare certificates
-    let mut certificates = vec![];
+    // Prepare transactions
+    let mut transactions = vec![];
     for (i, gas_object_id) in tester.gas_object_ids.iter().enumerate() {
         let gas_price = REFERENCE_GAS_PRICE_FOR_TESTS + i as u64;
         let gas_data = GasDataForTests::new(
@@ -871,22 +924,22 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
         let transaction = tester
             .build_access_both_counters_transaction(gas_data, true, true)
             .await;
-        let certificate = tester.certify_transaction(transaction).await;
+        let transaction = tester.prepare_transaction(transaction).await;
 
-        certificates.push(certificate);
+        transactions.push(transaction);
     }
-    // Shuffle certificates so that they do not have any specific order in
+    // Shuffle transactions so that they do not have any specific order in
     // terms of gas price.
-    certificates.shuffle(&mut rand::rng());
-    assert_eq!(certificates.len(), num_gas_objects);
+    transactions.shuffle(&mut rand::rng());
+    assert_eq!(transactions.len(), num_gas_objects);
 
     let (scheduled_transactions, assigned_versions) = tester
-        .send_certificates_to_consensus_for_scheduling(&certificates)
+        .send_transactions_to_consensus_for_scheduling(&transactions)
         .await;
     assert_eq!(
         scheduled_transactions.len(),
         // +1 because of consensus commit prologue transaction
-        certificates.len() + 1,
+        transactions.len() + 1,
     );
 
     // Checks that there are no deferred transactions
@@ -956,7 +1009,7 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
     assert_eq!(
         effects_vec.len(),
         // +1 because of consensus commit prologue transaction
-        certificates.len() + 1,
+        transactions.len() + 1,
     );
 
     // `ConsensusCommitPrologueV1` should be successfully executed
@@ -1010,21 +1063,31 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
 // the protocol.
 #[sim_test]
 async fn gas_price_feedback_mechanism_with_max_gas_price() {
+    gas_price_feedback_mechanism_with_max_gas_price_for_flow(false).await;
+}
+
+#[sim_test]
+async fn gas_price_feedback_mechanism_with_max_gas_price_pcool() {
+    gas_price_feedback_mechanism_with_max_gas_price_for_flow(true).await;
+}
+
+async fn gas_price_feedback_mechanism_with_max_gas_price_for_flow(pcool: bool) {
     let max_gas_price = 100_000;
     let num_gas_objects = 2;
     let tester = GasPriceFeedbackTester::new(
-        0,                                                 // max_deferral_rounds_for_congestion_control
-        PerObjectCongestionControlMode::TotalGasBudget,    // per_object_congestion_control_mode
+        pcool,
+        0, // max_deferral_rounds_for_congestion_control
+        PerObjectCongestionControlMode::TotalGasBudget, // per_object_congestion_control_mode
         Some(max_gas_price * DEFAULT_GAS_UNITS_FOR_TESTS), // max_execution_duration_per_commit
-        true,                                              // assign_min_free_execution_slot
-        true,                                              // enable_gas_price_feedback_mechanism
+        true, // assign_min_free_execution_slot
+        true, // enable_gas_price_feedback_mechanism
         num_gas_objects,
     )
     .await;
     assert_eq!(max_gas_price, tester.protocol_config.max_gas_price());
 
-    // Prepare certificates
-    let mut certificates = vec![];
+    // Prepare transactions
+    let mut transactions = vec![];
     for gas_object_id in tester.gas_object_ids.iter() {
         let gas_data = GasDataForTests::new(
             *gas_object_id,
@@ -1034,22 +1097,22 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
         let transaction = tester
             .build_access_both_counters_transaction(gas_data, true, false)
             .await;
-        let certificate = tester.certify_transaction(transaction).await;
+        let transaction = tester.prepare_transaction(transaction).await;
 
-        certificates.push(certificate);
+        transactions.push(transaction);
     }
-    // Shuffle certificates so that they do not have any specific order in
+    // Shuffle transactions so that they do not have any specific order in
     // terms of gas price.
-    certificates.shuffle(&mut rand::rng());
-    assert_eq!(certificates.len(), num_gas_objects);
+    transactions.shuffle(&mut rand::rng());
+    assert_eq!(transactions.len(), num_gas_objects);
 
     let (scheduled_transactions, assigned_versions) = tester
-        .send_certificates_to_consensus_for_scheduling(&certificates)
+        .send_transactions_to_consensus_for_scheduling(&transactions)
         .await;
     assert_eq!(
         scheduled_transactions.len(),
         // +1 because of consensus commit prologue transaction
-        certificates.len() + 1,
+        transactions.len() + 1,
     );
 
     // Checks that there are no deferred transactions
@@ -1103,7 +1166,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
     assert_eq!(
         effects_vec.len(),
         // +1 because of consensus commit prologue transaction
-        certificates.len() + 1,
+        transactions.len() + 1,
     );
 
     // `ConsensusCommitPrologueV1` should be successfully executed
@@ -1167,9 +1230,19 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
 // transaction was deferred.
 #[sim_test]
 async fn gas_price_feedback_mechanism_for_multiple_commits() {
+    gas_price_feedback_mechanism_for_multiple_commits_for_flow(false).await;
+}
+
+#[sim_test]
+async fn gas_price_feedback_mechanism_for_multiple_commits_pcool() {
+    gas_price_feedback_mechanism_for_multiple_commits_for_flow(true).await;
+}
+
+async fn gas_price_feedback_mechanism_for_multiple_commits_for_flow(pcool: bool) {
     let max_execution_duration_per_commit = 1;
     let num_gas_objects = 2;
     let tester = GasPriceFeedbackTester::new(
+        pcool,
         1,                                            // max_deferral_rounds_for_congestion_control
         PerObjectCongestionControlMode::TotalTxCount, // per_object_congestion_control_mode
         Some(max_execution_duration_per_commit),
@@ -1179,9 +1252,9 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     )
     .await;
 
-    // Prepare certificates for consensus commit round 1
-    let mut certificates = vec![];
-    // Create a certificate that should be deferred
+    // Prepare transactions for consensus commit round 1
+    let mut transactions = vec![];
+    // Create a transaction that should be deferred
     let gas_price = REFERENCE_GAS_PRICE_FOR_TESTS;
     let gas_data = GasDataForTests::new(
         tester.gas_object_ids[0],
@@ -1191,9 +1264,9 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     let transaction = tester
         .build_access_both_counters_transaction(gas_data, true, true)
         .await;
-    let should_defer_certificate = tester.certify_transaction(transaction).await;
-    certificates.push(should_defer_certificate.clone());
-    // Create a certificate that should be scheduled
+    let should_defer_transaction = tester.prepare_transaction(transaction).await;
+    transactions.push(should_defer_transaction.clone());
+    // Create a transaction that should be scheduled
     let gas_price = REFERENCE_GAS_PRICE_FOR_TESTS + 5;
     let gas_data = GasDataForTests::new(
         tester.gas_object_ids[1],
@@ -1203,16 +1276,16 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     let transaction = tester
         .build_access_both_counters_transaction(gas_data, false, true)
         .await;
-    let should_schedule_certificate_1 = tester.certify_transaction(transaction).await;
-    certificates.push(should_schedule_certificate_1.clone());
+    let should_schedule_transaction_1 = tester.prepare_transaction(transaction).await;
+    transactions.push(should_schedule_transaction_1.clone());
 
-    // Shuffle certificates so that they do not have any specific order in
+    // Shuffle transactions so that they do not have any specific order in
     // terms of gas price.
-    certificates.shuffle(&mut rand::rng());
-    assert_eq!(certificates.len(), num_gas_objects);
+    transactions.shuffle(&mut rand::rng());
+    assert_eq!(transactions.len(), num_gas_objects);
 
     let (scheduled_transactions, assigned_versions) = tester
-        .send_certificates_to_consensus_for_scheduling(&certificates)
+        .send_transactions_to_consensus_for_scheduling(&transactions)
         .await;
     assert_eq!(
         scheduled_transactions.len() as u64,
@@ -1241,7 +1314,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     // The second scheduled transaction should be one paying higher gas price
     assert_eq!(
         scheduled_transactions[1].as_tx().unwrap().digest(),
-        should_schedule_certificate_1.digest()
+        should_schedule_transaction_1.digest()
     );
 
     // Checks that deferred transactions are formed correctly
@@ -1257,7 +1330,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     ));
     assert_eq!(
         deferred_transactions[0].1[0].suggested_gas_price(),
-        Some(should_schedule_certificate_1.gas_price() + 1)
+        Some(should_schedule_transaction_1.gas_price() + 1)
     );
 
     let effects_vec = tester
@@ -1274,9 +1347,9 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
         assert!(effects.status().is_success());
     }
 
-    // Prepare certificates for consensus commit round 2
-    let mut certificates = vec![];
-    // Create a certificate that should be scheduled
+    // Prepare transactions for consensus commit round 2
+    let mut transactions = vec![];
+    // Create a transaction that should be scheduled
     let gas_price = REFERENCE_GAS_PRICE_FOR_TESTS + 10;
     let gas_data = GasDataForTests::new(
         tester.gas_object_ids[1],
@@ -1286,26 +1359,26 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     let transaction = tester
         .build_access_both_counters_transaction(gas_data, false, true)
         .await;
-    let should_schedule_certificate_2 = tester.certify_transaction(transaction).await;
-    certificates.push(should_schedule_certificate_2.clone());
+    let should_schedule_transaction_2 = tester.prepare_transaction(transaction).await;
+    transactions.push(should_schedule_transaction_2.clone());
 
-    // Shuffle certificates so that they do not have any specific order in
+    // Shuffle transactions so that they do not have any specific order in
     // terms of gas price.
-    certificates.shuffle(&mut rand::rng());
-    assert_eq!(certificates.len(), 1);
+    transactions.shuffle(&mut rand::rng());
+    assert_eq!(transactions.len(), 1);
 
     let (scheduled_transactions, assigned_versions) = tester
-        .send_certificates_to_consensus_for_scheduling(&certificates)
+        .send_transactions_to_consensus_for_scheduling(&transactions)
         .await;
     assert_eq!(
         scheduled_transactions.len(),
         // +2 because one consensus commit prologue transaction and one cancelled transaction
-        certificates.len() + 2,
+        transactions.len() + 2,
     );
 
     // Suggested gas price must be gas price of the scheduled certificate in the
     // first commit round (not the current commit round) plus one
-    let expected_suggested_gas_price = should_schedule_certificate_1.gas_price() + 1;
+    let expected_suggested_gas_price = should_schedule_transaction_1.gas_price() + 1;
 
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
     if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) = scheduled_transactions[0]
@@ -1343,12 +1416,12 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     // The second scheduled transaction should be one paying higher gas price
     assert_eq!(
         scheduled_transactions[1].as_tx().unwrap().digest(),
-        should_schedule_certificate_2.digest()
+        should_schedule_transaction_2.digest()
     );
     // The third scheduled transaction should be the canceled transaction
     assert_eq!(
         scheduled_transactions[2].as_tx().unwrap().digest(),
-        should_defer_certificate.digest()
+        should_defer_transaction.digest()
     );
 
     let effects_vec = tester
@@ -1357,7 +1430,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     assert_eq!(
         effects_vec.len(),
         // +2 because one consensus commit prologue transaction and one cancelled transaction
-        certificates.len() + 2,
+        transactions.len() + 2,
     );
 
     // `ConsensusCommitPrologueV1` should be successfully executed
@@ -1419,8 +1492,18 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
 // Test gas price feedback mechanism in `TotalTxCount` mode in non-trivial case.
 #[sim_test]
 async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
+    gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode_for_flow(false).await;
+}
+
+#[sim_test]
+async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode_pcool() {
+    gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode_for_flow(true).await;
+}
+
+async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode_for_flow(pcool: bool) {
     let num_gas_objects = 13;
     let tester = GasPriceFeedbackTester::new(
+        pcool,
         0,                                            // max_deferral_rounds_for_congestion_control
         PerObjectCongestionControlMode::TotalTxCount, // per_object_congestion_control_mode
         Some(3),                                      // max_execution_duration_per_commit
@@ -1430,24 +1513,24 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
     )
     .await;
 
-    // Prepare certificates
-    let certificates = tester.create_certificates_for_non_trivial_case().await;
-    assert_eq!(certificates.len(), num_gas_objects);
-    // Shuffle certificates so that they do not have any specific order in
+    // Prepare transactions
+    let transactions = tester.create_transactions_for_non_trivial_case().await;
+    assert_eq!(transactions.len(), num_gas_objects);
+    // Shuffle transactions so that they do not have any specific order in
     // terms of gas price.
-    let mut shuffled_certificates = certificates.clone();
-    shuffled_certificates.shuffle(&mut rand::rng());
+    let mut shuffled_transactions = transactions.clone();
+    shuffled_transactions.shuffle(&mut rand::rng());
 
     let (scheduled_transactions, assigned_versions) = tester
-        .send_certificates_to_consensus_for_scheduling(&shuffled_certificates)
+        .send_transactions_to_consensus_for_scheduling(&shuffled_transactions)
         .await;
     assert_eq!(
         scheduled_transactions.len(),
         // +1 because of consensus commit prologue transaction
-        certificates.len() + 1,
+        transactions.len() + 1,
     );
 
-    // Recall the structure of these certificates:
+    // Recall the structure of these transactions:
     // (gas price, gas budget, counter_1_mutable, counter_2_mutable)
     // [
     //     (100K, 3_000_000_000, Some(true),  Some(false)), // 0
@@ -1476,7 +1559,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
     // |------------------|------------------|---- 1      |
     // | cert. 0 (g=100K) | cert. 3 (g=1009) |            |
     // |-------------------------------------|---- 0 -----|
-    // That is, certificates 4, 5, 6, 7, 10, 11, 12 should be cancelled.
+    // That is, transactions 4, 5, 6, 7, 10, 11, 12 should be cancelled.
 
     // Checks that there are no deferred transactions
     assert!(
@@ -1488,8 +1571,8 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
     );
 
     // As can be seen from the illustration above:
-    let expected_suggested_gas_price_for_object_1 = certificates[9].gas_price() + 1;
-    let expected_suggested_gas_price_for_object_2 = certificates[2].gas_price() + 1;
+    let expected_suggested_gas_price_for_object_1 = transactions[9].gas_price() + 1;
+    let expected_suggested_gas_price_for_object_2 = transactions[2].gas_price() + 1;
     let expected_suggested_gas_price_for_both_objects =
         expected_suggested_gas_price_for_object_1.max(expected_suggested_gas_price_for_object_2);
 
@@ -1504,7 +1587,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let canceled_transactions = vec![
             CanceledTransaction {
-                digest: *certificates[4].digest(),
+                digest: *transactions[4].digest(),
                 version_assignments: vec![VersionAssignment::new(
                     tester.shared_counter_2.object_id,
                     Version::new_congested_with_suggested_gas_price(
@@ -1514,7 +1597,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 )],
             },
             CanceledTransaction {
-                digest: *certificates[5].digest(),
+                digest: *transactions[5].digest(),
                 version_assignments: vec![VersionAssignment::new(
                     tester.shared_counter_2.object_id,
                     Version::new_congested_with_suggested_gas_price(
@@ -1524,7 +1607,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 )],
             },
             CanceledTransaction {
-                digest: *certificates[6].digest(),
+                digest: *transactions[6].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
@@ -1543,7 +1626,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 ],
             },
             CanceledTransaction {
-                digest: *certificates[7].digest(),
+                digest: *transactions[7].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
@@ -1562,7 +1645,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 ],
             },
             CanceledTransaction {
-                digest: *certificates[10].digest(),
+                digest: *transactions[10].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
@@ -1581,7 +1664,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 ],
             },
             CanceledTransaction {
-                digest: *certificates[11].digest(),
+                digest: *transactions[11].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
@@ -1600,7 +1683,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 ],
             },
             CanceledTransaction {
-                digest: *certificates[12].digest(),
+                digest: *transactions[12].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
@@ -1635,7 +1718,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
     assert_eq!(
         effects_vec.len(),
         // +1 because of consensus commit prologue transaction
-        certificates.len() + 1,
+        transactions.len() + 1,
     );
 
     // `ConsensusCommitPrologueV1` and first 6 scheduled transactions should be
@@ -1741,35 +1824,45 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
 // case.
 #[sim_test]
 async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
+    gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode_for_flow(false).await;
+}
+
+#[sim_test]
+async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode_pcool() {
+    gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode_for_flow(true).await;
+}
+
+async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode_for_flow(pcool: bool) {
     let num_gas_objects = 13;
     let tester = GasPriceFeedbackTester::new(
-        0,                                              // max_deferral_rounds_for_congestion_control
+        pcool,
+        0, // max_deferral_rounds_for_congestion_control
         PerObjectCongestionControlMode::TotalGasBudget, // per_object_congestion_control_mode
-        Some(9_000_000_000),                            // max_execution_duration_per_commit
-        true,                                           // assign_min_free_execution_slot
-        true,                                           // enable_gas_price_feedback_mechanism
+        Some(9_000_000_000), // max_execution_duration_per_commit
+        true, // assign_min_free_execution_slot
+        true, // enable_gas_price_feedback_mechanism
         num_gas_objects,
     )
     .await;
 
-    // Prepare certificates
-    let certificates = tester.create_certificates_for_non_trivial_case().await;
-    assert_eq!(certificates.len(), num_gas_objects);
-    // Shuffle certificates so that they do not have any specific order in
+    // Prepare transactions
+    let transactions = tester.create_transactions_for_non_trivial_case().await;
+    assert_eq!(transactions.len(), num_gas_objects);
+    // Shuffle transactions so that they do not have any specific order in
     // terms of gas price.
-    let mut shuffled_certificates = certificates.clone();
-    shuffled_certificates.shuffle(&mut rand::rng());
+    let mut shuffled_transactions = transactions.clone();
+    shuffled_transactions.shuffle(&mut rand::rng());
 
     let (scheduled_transactions, assigned_versions) = tester
-        .send_certificates_to_consensus_for_scheduling(&shuffled_certificates)
+        .send_transactions_to_consensus_for_scheduling(&shuffled_transactions)
         .await;
     assert_eq!(
         scheduled_transactions.len(),
         // +1 because of consensus commit prologue transaction
-        certificates.len() + 1,
+        transactions.len() + 1,
     );
 
-    // Recall the structure of these certificates:
+    // Recall the structure of these transactions:
     // (gas price, gas budget, counter_1_mutable, counter_2_mutable)
     // [
     //     (100K, 3_000_000_000, Some(true),  Some(false)), // 0
@@ -1810,7 +1903,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
     // |                        | cert. 3 (g=7000, d=2B) |---- 1B     |
     // |                        |                        |            |
     // |-------------------------------------------------|---- 0 -----|
-    // That is, certificates 4, 5, 6, 7, 10, 11, 12 should be cancelled.
+    // That is, transactions 4, 5, 6, 7, 10, 11, 12 should be cancelled.
 
     // Checks that there are no deferred transactions
     assert!(
@@ -1832,115 +1925,115 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let canceled_transactions = vec![
             CanceledTransaction {
-                digest: *certificates[4].digest(),
+                digest: *transactions[4].digest(),
                 version_assignments: vec![VersionAssignment::new(
                     tester.shared_counter_2.object_id,
                     Version::new_congested_with_suggested_gas_price(
-                        certificates[2].gas_price() + 1,
+                        transactions[2].gas_price() + 1,
                     )
                     .unwrap(),
                 )],
             },
             CanceledTransaction {
-                digest: *certificates[5].digest(),
+                digest: *transactions[5].digest(),
                 version_assignments: vec![VersionAssignment::new(
                     tester.shared_counter_2.object_id,
                     Version::new_congested_with_suggested_gas_price(
-                        certificates[2].gas_price() + 1,
+                        transactions[2].gas_price() + 1,
                     )
                     .unwrap(),
                 )],
             },
             CanceledTransaction {
-                digest: *certificates[6].digest(),
+                digest: *transactions[6].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         Version::new_congested_with_suggested_gas_price(
-                            certificates[1].gas_price() + 1,
+                            transactions[1].gas_price() + 1,
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         Version::new_congested_with_suggested_gas_price(
-                            certificates[1].gas_price() + 1,
+                            transactions[1].gas_price() + 1,
                         )
                         .unwrap(),
                     ),
                 ],
             },
             CanceledTransaction {
-                digest: *certificates[7].digest(),
+                digest: *transactions[7].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         Version::new_congested_with_suggested_gas_price(
-                            certificates[0].gas_price(),
+                            transactions[0].gas_price(),
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         Version::new_congested_with_suggested_gas_price(
-                            certificates[0].gas_price(),
+                            transactions[0].gas_price(),
                         )
                         .unwrap(),
                     ),
                 ],
             },
             CanceledTransaction {
-                digest: *certificates[10].digest(),
+                digest: *transactions[10].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         Version::new_congested_with_suggested_gas_price(
-                            certificates[2].gas_price() + 1,
+                            transactions[2].gas_price() + 1,
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         Version::new_congested_with_suggested_gas_price(
-                            certificates[2].gas_price() + 1,
+                            transactions[2].gas_price() + 1,
                         )
                         .unwrap(),
                     ),
                 ],
             },
             CanceledTransaction {
-                digest: *certificates[11].digest(),
+                digest: *transactions[11].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         Version::new_congested_with_suggested_gas_price(
-                            certificates[1].gas_price() + 1,
+                            transactions[1].gas_price() + 1,
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         Version::new_congested_with_suggested_gas_price(
-                            certificates[1].gas_price() + 1,
+                            transactions[1].gas_price() + 1,
                         )
                         .unwrap(),
                     ),
                 ],
             },
             CanceledTransaction {
-                digest: *certificates[12].digest(),
+                digest: *transactions[12].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         Version::new_congested_with_suggested_gas_price(
-                            certificates[0].gas_price(),
+                            transactions[0].gas_price(),
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         Version::new_congested_with_suggested_gas_price(
-                            certificates[0].gas_price(),
+                            transactions[0].gas_price(),
                         )
                         .unwrap(),
                     ),
@@ -1963,7 +2056,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
     assert_eq!(
         effects_vec.len(),
         // +1 because of consensus commit prologue transaction
-        certificates.len() + 1,
+        transactions.len() + 1,
     );
 
     // `ConsensusCommitPrologueV1` and first 6 scheduled transactions should be
@@ -1975,7 +2068,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
     // The rest of transactions should be cancelled:
     //
     // Transactions that touch shared counter 2:
-    let expected_suggested_gas_price = certificates[2].gas_price() + 1;
+    let expected_suggested_gas_price = transactions[2].gas_price() + 1;
     for effects in effects_vec.iter().skip(7).take(2) {
         if let ExecutionStatus::Failure { error, command } = effects.status() {
             assert!(command.is_none());
@@ -2011,11 +2104,11 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
     // Transactions that touch both shared counters:
     for (i, effects) in effects_vec.iter().skip(9).take(5).enumerate() {
         let expected_suggested_gas_price = if i == 0 || i == 3 {
-            certificates[1].gas_price() + 1
+            transactions[1].gas_price() + 1
         } else if i == 1 || i == 4 {
-            certificates[0].gas_price()
+            transactions[0].gas_price()
         } else if i == 2 {
-            certificates[2].gas_price() + 1
+            transactions[2].gas_price() + 1
         } else {
             panic!("Expected only 5 effects to iterate.")
         };

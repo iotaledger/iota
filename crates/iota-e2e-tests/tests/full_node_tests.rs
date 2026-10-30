@@ -41,13 +41,13 @@ use iota_types::{
     storage::{ObjectKey, ObjectStore},
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        TransactionAPI,
+        TransactionAPI, TransactionEnvelope,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
 use jsonrpsee::{core::client::ClientT, rpc_params};
 use move_core_types::annotated_value::MoveStructLayout;
-use test_cluster::{TestClusterBuilder, override_pcool_flow};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 use tokio::{
     sync::RwLock,
     time::{Duration, sleep, timeout},
@@ -1102,10 +1102,132 @@ async fn test_full_node_transaction_orchestrator_rpc_ok() -> Result<(), anyhow::
         confirmed_local_execution,
         ..
     } = response;
-    assert_eq!(effects.unwrap().transaction_digest(), tx_digest);
+    let returned_effects = effects.unwrap();
+    assert_eq!(returned_effects.transaction_digest(), tx_digest);
     assert!(!confirmed_local_execution.unwrap());
 
+    test_cluster
+        .fullnode_handle
+        .iota_node
+        .state()
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects_for_testing("", &[*tx_digest])
+        .await;
+    let executed: IotaTransactionBlockResponse = jsonrpc_client
+        .request(
+            "iota_getTransactionBlock",
+            rpc_params![
+                *tx_digest,
+                IotaTransactionBlockResponseOptions::new().with_effects()
+            ],
+        )
+        .await
+        .unwrap();
+    assert_eq!(executed.effects.unwrap(), returned_effects);
+
     Ok(())
+}
+
+async fn execute_transaction_block_error(
+    client: &jsonrpsee::http_client::HttpClient,
+    txn: &iota_types::transaction::TransactionEnvelope,
+) -> jsonrpsee::types::ErrorObjectOwned {
+    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+    let result: Result<IotaTransactionBlockResponse, _> = client
+        .request(
+            "iota_executeTransactionBlock",
+            rpc_params![
+                tx_bytes,
+                signatures,
+                IotaTransactionBlockResponseOptions::new(),
+                ExecuteTransactionRequestType::WaitForEffectsCert
+            ],
+        )
+        .await;
+    match result.expect_err("the transaction must be rejected") {
+        jsonrpsee::core::ClientError::Call(error) => error,
+        other => panic!("expected a JSON-RPC error object, got: {other}"),
+    }
+}
+
+#[sim_test]
+async fn test_execute_transaction_block_error_for_missing_gas_object() {
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
+    let (sender, _) = test_cluster
+        .wallet
+        .get_one_gas_object()
+        .await
+        .unwrap()
+        .unwrap();
+    let gas_price = test_cluster.get_reference_gas_price().await;
+    let missing_gas = ObjectReference::new(
+        ObjectId::new([7; 32]),
+        Version::from_u64(1),
+        iota_sdk_types::ObjectDigest::new([0; 32]),
+    );
+    let txn = test_cluster.wallet.sign_transaction(
+        &TestTransactionBuilder::new(sender, missing_gas, gas_price)
+            .transfer_iota(Some(1), sender)
+            .build(),
+    );
+
+    // Validators report a missing input as retriable, since it may only be
+    // missing locally, so the driver retries until it times out.
+    let error = execute_transaction_block_error(jsonrpc_client, &txn).await;
+    assert_eq!(error.code(), -32050, "{error:?}");
+    assert_eq!(
+        error.message(),
+        "Transaction timed out before reaching finality"
+    );
+    assert_eq!(error_data_reason(&error), "timeout_before_finality");
+}
+
+#[sim_test]
+async fn test_execute_transaction_block_error_for_double_used_object() {
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
+    let wallet = &test_cluster.wallet;
+
+    let first = iota_test_transaction_builder::make_transfer_iota_transaction(
+        wallet,
+        Some(Address::random()),
+        Some(1),
+    )
+    .await;
+    let second = iota_test_transaction_builder::make_transfer_iota_transaction(
+        wallet,
+        Some(Address::random()),
+        Some(2),
+    )
+    .await;
+    assert_ne!(first.digest(), second.digest());
+
+    test_cluster.execute_transaction(first).await;
+
+    let error = execute_transaction_block_error(jsonrpc_client, &second).await;
+    assert_eq!(error.code(), -32002, "{error:?}");
+    assert!(
+        error.message().starts_with(
+            "Invalid transaction: unknown error: Transaction was rejected as invalid by more \
+             than 1/3 of validator stake during submission (non-retriable): "
+        ),
+        "{error:?}"
+    );
+    assert!(
+        error.message().contains("is not available for consumption"),
+        "{error:?}"
+    );
+    assert_eq!(error_data_reason(&error), "rejected_by_validators");
+}
+
+fn error_data_reason(error: &jsonrpsee::types::ErrorObjectOwned) -> String {
+    let data: serde_json::Value =
+        serde_json::from_str(error.data().expect("the error must carry data").get()).unwrap();
+    data["reason"]
+        .as_str()
+        .expect("the error data must have a reason")
+        .to_string()
 }
 
 async fn get_obj_read_from_node(
@@ -1317,13 +1439,12 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
-async fn test_access_old_object_pruned() {
-    // This test checks that when we ask a validator to handle a transaction that
-    // uses an old object that's already been pruned, it's able to return an
-    // non-retriable error ObjectVersionUnavailableForConsumption, instead of
-    // the retriable error ObjectNotFound.
-    let test_cluster = TestClusterBuilder::new().build().await;
+/// Spends the gas object of a transaction, moves to the next epoch, and returns
+/// a transaction that names the gas object at its old version, with the
+/// object's reference at that version and its current version.
+async fn transaction_with_old_gas_version(
+    test_cluster: &TestCluster,
+) -> (TransactionEnvelope, ObjectReference, Version) {
     let tx_builder = test_cluster.test_transaction_builder().await;
     let sender = tx_builder.sender();
     let gas_object = tx_builder.gas_object();
@@ -1342,6 +1463,13 @@ async fn test_access_old_object_pruned() {
             .transfer_iota(Some(1), sender)
             .build(),
     );
+    (tx, gas_object, new_gas_version)
+}
+
+async fn prune_old_gas_version_on_validators(
+    test_cluster: &TestCluster,
+    gas_object: ObjectReference,
+) {
     for validator in test_cluster.swarm.active_validators() {
         validator
             .get_node_handle()
@@ -1373,6 +1501,26 @@ async fn test_access_old_object_pruned() {
                         .unwrap()
                         .is_none()
                 );
+            })
+            .await;
+    }
+}
+
+#[sim_test]
+async fn test_access_old_object_pruned() {
+    // This test checks that when we ask a validator to handle a transaction that
+    // uses an old object that's already been pruned, it's able to return an
+    // non-retriable error ObjectVersionUnavailableForConsumption, instead of
+    // the retriable error ObjectNotFound.
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let (tx, gas_object, new_gas_version) = transaction_with_old_gas_version(&test_cluster).await;
+    prune_old_gas_version_on_validators(&test_cluster, gas_object).await;
+    for validator in test_cluster.swarm.active_validators() {
+        validator
+            .get_node_handle()
+            .unwrap()
+            .with_async(|node| async {
+                let state = node.state();
                 let epoch_store = state.epoch_store_for_testing();
                 assert_eq!(
                     state
@@ -1403,6 +1551,66 @@ async fn test_access_old_object_pruned() {
             }
             .to_string()
         )
+    )
+}
+
+/// With the P-COOL flow, which is the default, a client sends a transaction to
+/// a validator with `submit_tx`. The validator rejects it with the same
+/// non-retriable error.
+#[sim_test]
+async fn test_access_old_object_pruned_submit_tx() {
+    use iota_core::authority_client::validator_v2::ValidatorV2API;
+    use iota_types::messages_grpc::TxStatusUpdate;
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+    for handle in test_cluster.all_validator_handles() {
+        handle.with(|node| {
+            assert!(
+                node.state()
+                    .epoch_store_for_testing()
+                    .protocol_config()
+                    .enable_pcool_flow()
+            );
+        });
+    }
+    let (tx, gas_object, new_gas_version) = transaction_with_old_gas_version(&test_cluster).await;
+    prune_old_gas_version_on_validators(&test_cluster, gas_object).await;
+
+    let client_ip = std::net::SocketAddr::new([127, 0, 0, 1].into(), 0);
+    let digest = *tx.digest();
+    let expected = UserInputError::ObjectVersionUnavailableForConsumption {
+        provided_obj_ref: gas_object,
+        current_version: new_gas_version,
+    };
+    let aggregator = test_cluster.authority_aggregator();
+    assert!(!aggregator.authority_clients.is_empty());
+    for client in aggregator.authority_clients.values() {
+        let results = client
+            .authority_client()
+            .submit_tx(vec![tx.clone()], Some(client_ip))
+            .await
+            .unwrap();
+        match results.as_slice() {
+            [(rejected_digest, TxStatusUpdate::Rejected { error })] => {
+                assert_eq!(*rejected_digest, digest);
+                assert_eq!(
+                    *error,
+                    IotaError::UserInput {
+                        error: expected.clone()
+                    }
+                );
+            }
+            other => panic!("expected one rejection, got {other:?}"),
+        }
+    }
+
+    // Check that fullnode would return the same error.
+    let result = test_cluster.wallet.execute_transaction_may_fail(tx).await;
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains(&expected.to_string())
     )
 }
 

@@ -751,7 +751,7 @@ async fn test_cached_response_for_executed_transaction_under_pcool() -> Result<(
 
     let (second, executed_locally) = execute_with_orchestrator(
         &orchestrator,
-        txn,
+        txn.clone(),
         ExecuteTransactionRequestType::WaitForLocalExecution,
     )
     .await?;
@@ -767,6 +767,42 @@ async fn test_cached_response_for_executed_transaction_under_pcool() -> Result<(
     assert_eq!(
         first.effects.effects.digest(),
         second.effects.effects.digest()
+    );
+
+    let (third, _) = execute_with_orchestrator(
+        &orchestrator,
+        txn.clone(),
+        ExecuteTransactionRequestType::WaitForEffectsCert,
+    )
+    .await?;
+    assert!(
+        matches!(
+            third.effects.finality_info,
+            EffectsFinalityInfo::QuorumExecuted(_)
+        ),
+        "resubmission without local-execution wait should also be answered \
+         from the local cache, got {:?}",
+        third.effects.finality_info
+    );
+    assert_eq!(
+        first.effects.effects.digest(),
+        third.effects.effects.digest()
+    );
+
+    let response = orchestrator
+        .execute_transaction_v1(ExecuteTransactionRequestV1::new(txn), false, None)
+        .await?;
+    assert!(
+        matches!(
+            response.effects.finality_info,
+            EffectsFinalityInfo::QuorumExecuted(_)
+        ),
+        "v1 resubmission should be answered from the local cache, got {:?}",
+        response.effects.finality_info
+    );
+    assert_eq!(
+        first.effects.effects.digest(),
+        response.effects.effects.digest()
     );
 
     Ok(())
