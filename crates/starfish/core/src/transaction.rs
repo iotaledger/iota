@@ -12,12 +12,7 @@ use thiserror::Error;
 use tokio::sync::oneshot;
 use tracing::{error, warn};
 
-use crate::{
-    Round,
-    block_header::Transaction,
-    context::Context,
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
-};
+use crate::{Round, block_header::Transaction, context::Context, transaction_ref::TransactionRef};
 
 /// The maximum number of transactions pending to the queue to be pulled for
 /// block proposal
@@ -34,7 +29,7 @@ pub(crate) struct TransactionsGuard {
     // holds the remaining transactions.
     transactions: Vec<Transaction>,
 
-    included_in_block_ack: oneshot::Sender<(GenericTransactionRef, oneshot::Receiver<BlockStatus>)>,
+    included_in_block_ack: oneshot::Sender<(TransactionRef, oneshot::Receiver<BlockStatus>)>,
 }
 
 /// The TransactionConsumer is responsible for fetching the next transactions to
@@ -47,18 +42,18 @@ pub(crate) struct TransactionConsumer {
     max_num_transactions_in_block: u64,
     pending_transactions: Option<TransactionsGuard>,
     block_status_subscribers:
-        Arc<Mutex<BTreeMap<GenericTransactionRef, Vec<oneshot::Sender<BlockStatus>>>>>,
+        Arc<Mutex<BTreeMap<TransactionRef, Vec<oneshot::Sender<BlockStatus>>>>>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum BlockStatus {
     /// The transaction data associated with this block ref has been sequenced
     /// as part of a committed sub dag.
-    Sequenced(GenericTransactionRef),
+    Sequenced(TransactionRef),
     /// The block or transaction data corresponding to this block ref has been
     /// garbage collected and will never be committed. The transaction data
     /// must be attempted to be resent by the client
-    GarbageCollected(GenericTransactionRef),
+    GarbageCollected(TransactionRef),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -94,7 +89,7 @@ impl TransactionConsumer {
         &mut self,
     ) -> (
         Vec<Transaction>,
-        Box<dyn FnOnce(GenericTransactionRef)>,
+        Box<dyn FnOnce(TransactionRef)>,
         LimitReached,
     ) {
         let mut transactions = Vec::new();
@@ -151,18 +146,18 @@ impl TransactionConsumer {
 
         (
             transactions,
-            Box::new(move |gen_tx_ref: GenericTransactionRef| {
+            Box::new(move |tx_ref: TransactionRef| {
                 let mut block_status_subscribers = block_status_subscribers.lock();
 
                 for ack in acks {
                     let (status_tx, status_rx) = oneshot::channel();
 
                     block_status_subscribers
-                        .entry(gen_tx_ref)
+                        .entry(tx_ref)
                         .or_default()
                         .push(status_tx);
 
-                    let _ = ack.send((gen_tx_ref, status_rx));
+                    let _ = ack.send((tx_ref, status_rx));
                 }
             }),
             limit_reached,
@@ -175,15 +170,15 @@ impl TransactionConsumer {
     /// all own committed transaction data.
     pub(crate) fn notify_own_transactions_status(
         &self,
-        committed_transaction_refs: Vec<GenericTransactionRef>,
+        committed_transaction_refs: Vec<TransactionRef>,
         gc_round: Round,
     ) {
         // Notify for all own committed transaction data first
         let mut block_status_subscribers = self.block_status_subscribers.lock();
-        for gen_tx_ref in committed_transaction_refs {
-            if let Some(subscribers) = block_status_subscribers.remove(&gen_tx_ref) {
+        for tx_ref in committed_transaction_refs {
+            if let Some(subscribers) = block_status_subscribers.remove(&tx_ref) {
                 subscribers.into_iter().for_each(|s| {
-                    let _ = s.send(BlockStatus::Sequenced(gen_tx_ref));
+                    let _ = s.send(BlockStatus::Sequenced(tx_ref));
                 });
             }
         }
@@ -191,7 +186,7 @@ impl TransactionConsumer {
         // Now notify everyone <= gc_round that their block has been garbage collected
         // and clean up the entries
         while let Some((block_ref, subscribers)) = block_status_subscribers.pop_first() {
-            if block_ref.round() <= gc_round {
+            if block_ref.round <= gc_round {
                 subscribers.into_iter().for_each(|s| {
                     let _ = s.send(BlockStatus::GarbageCollected(block_ref));
                 });
@@ -205,14 +200,11 @@ impl TransactionConsumer {
     #[cfg(test)]
     pub(crate) fn subscribe_for_block_status_testing(
         &self,
-        gen_tx_ref: GenericTransactionRef,
+        tx_ref: TransactionRef,
     ) -> oneshot::Receiver<BlockStatus> {
         let (tx, rx) = oneshot::channel();
         let mut block_status_subscribers = self.block_status_subscribers.lock();
-        block_status_subscribers
-            .entry(gen_tx_ref)
-            .or_default()
-            .push(tx);
+        block_status_subscribers.entry(tx_ref).or_default().push(tx);
         rx
     }
 
@@ -277,7 +269,7 @@ impl TransactionClient {
     pub async fn submit(
         &self,
         transactions: Vec<Vec<u8>>,
-    ) -> Result<(GenericTransactionRef, oneshot::Receiver<BlockStatus>), ClientError> {
+    ) -> Result<(TransactionRef, oneshot::Receiver<BlockStatus>), ClientError> {
         // TODO: Support returning the block refs for transactions that span multiple
         // blocks
         let included_in_block = self.submit_no_wait(transactions).await?;
@@ -304,10 +296,8 @@ impl TransactionClient {
     pub(crate) async fn submit_no_wait(
         &self,
         transactions: Vec<Vec<u8>>,
-    ) -> Result<
-        oneshot::Receiver<(GenericTransactionRef, oneshot::Receiver<BlockStatus>)>,
-        ClientError,
-    > {
+    ) -> Result<oneshot::Receiver<(TransactionRef, oneshot::Receiver<BlockStatus>)>, ClientError>
+    {
         let (included_in_block_ack_send, included_in_block_ack_receive) = oneshot::channel();
 
         let mut bundle_size = 0;
@@ -383,14 +373,14 @@ mod tests {
     use tokio::time::timeout;
 
     use crate::{
-        block_header::{BlockHeaderDigest, BlockRef},
+        block_header::TransactionsCommitment,
         block_verifier::SignedBlockVerifier,
         context::Context,
         transaction::{
             BlockStatus, LimitReached, NoopTransactionVerifier, TransactionClient,
             TransactionConsumer,
         },
-        transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI},
+        transaction_ref::TransactionRef,
     };
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -434,7 +424,7 @@ mod tests {
         );
 
         // Now acknowledge the inclusion of transactions
-        ack_transactions(GenericTransactionRef::from(BlockRef::MIN));
+        ack_transactions(TransactionRef::default());
 
         // Now make sure that all the waiters have returned
         while let Some(result) = included_in_block_waiters.next().await {
@@ -473,11 +463,11 @@ mod tests {
             if i % 2 == 0 {
                 let (transactions, ack_transactions, _limit_reached) = consumer.next();
                 assert_eq!(transactions.len(), 2);
-                ack_transactions(GenericTransactionRef::from(BlockRef::new(
-                    i,
-                    AuthorityIndex::new_for_test(0),
-                    BlockHeaderDigest::MIN,
-                )));
+                ack_transactions(TransactionRef {
+                    round: i,
+                    author: AuthorityIndex::new_for_test(0),
+                    transactions_commitment: TransactionsCommitment::MIN,
+                });
             }
         }
 
@@ -494,21 +484,21 @@ mod tests {
         let gc_round = 5;
         consumer.notify_own_transactions_status(
             vec![
-                GenericTransactionRef::from(BlockRef::new(
-                    6,
-                    AuthorityIndex::new_for_test(0),
-                    BlockHeaderDigest::MIN,
-                )),
-                GenericTransactionRef::from(BlockRef::new(
-                    8,
-                    AuthorityIndex::new_for_test(0),
-                    BlockHeaderDigest::MIN,
-                )),
-                GenericTransactionRef::from(BlockRef::new(
-                    10,
-                    AuthorityIndex::new_for_test(0),
-                    BlockHeaderDigest::MIN,
-                )),
+                TransactionRef {
+                    round: 6,
+                    author: AuthorityIndex::new_for_test(0),
+                    transactions_commitment: TransactionsCommitment::MIN,
+                },
+                TransactionRef {
+                    round: 8,
+                    author: AuthorityIndex::new_for_test(0),
+                    transactions_commitment: TransactionsCommitment::MIN,
+                },
+                TransactionRef {
+                    round: 10,
+                    author: AuthorityIndex::new_for_test(0),
+                    transactions_commitment: TransactionsCommitment::MIN,
+                },
             ],
             gc_round,
         );
@@ -518,7 +508,7 @@ mod tests {
         for (block_ref, waiter) in block_status_waiters {
             let block_status = waiter.await.expect("Block status waiter shouldn't fail");
 
-            if block_ref.round() <= gc_round {
+            if block_ref.round <= gc_round {
                 assert!(matches!(block_status, BlockStatus::GarbageCollected(_)))
             } else {
                 assert!(matches!(block_status, BlockStatus::Sequenced(_)));
@@ -655,7 +645,7 @@ mod tests {
         // now pull the transactions from the consumer.
         // we expect all transactions are fetched in order, not missing any, and not
         // exceeding the size limit.
-        let mut all_acks: Vec<Box<dyn FnOnce(GenericTransactionRef)>> = Vec::new();
+        let mut all_acks: Vec<Box<dyn FnOnce(TransactionRef)>> = Vec::new();
         let mut batch_index = 0;
         while !consumer.is_empty() {
             let (transactions, ack_transactions, _limit_reached) = consumer.next();
@@ -701,7 +691,7 @@ mod tests {
 
         // now acknowledge the inclusion of all transactions.
         for ack in all_acks {
-            ack(GenericTransactionRef::from(BlockRef::MIN));
+            ack(TransactionRef::default());
         }
 
         // expect all receivers to be resolved.

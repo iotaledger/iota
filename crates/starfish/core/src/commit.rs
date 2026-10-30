@@ -26,10 +26,7 @@ use crate::{
     leader_scoring::ReputationScores,
     misbehavior_store::MisbehaviorCounts,
     storage::Store,
-    transaction_ref::{
-        GenericTransactionRef, GenericTransactionRefAPI as _, SERIALIZED_TRANSACTION_REF_BYTES,
-        TransactionRef,
-    },
+    transaction_ref::{SERIALIZED_TRANSACTION_REF_BYTES, TransactionRef},
 };
 
 /// Index of a commit among all consensus commits.
@@ -117,27 +114,17 @@ impl Commit {
         timestamp_ms: BlockTimestampMs,
         leader: BlockRef,
         blocks: Vec<BlockRef>,
-        committed_transactions: Vec<GenericTransactionRef>,
+        committed_transactions: Vec<TransactionRef>,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
         is_optimistic: bool,
     ) -> Self {
-        let transaction_refs: Vec<TransactionRef> = committed_transactions
-            .into_iter()
-            .map(|gen_ref| match gen_ref {
-                GenericTransactionRef::TransactionRef(tr) => tr,
-                GenericTransactionRef::BlockRef(_) => {
-                    panic!("Expected TransactionRef")
-                }
-            })
-            .collect();
-
         Commit::V3(CommitV3 {
             index,
             previous_digest,
             timestamp_ms,
             leader,
             block_headers: blocks,
-            committed_transactions: transaction_refs,
+            committed_transactions,
             reputation_scores_desc,
             is_optimistic,
         })
@@ -158,7 +145,7 @@ pub(crate) trait CommitAPI {
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn leader(&self) -> BlockRef;
     fn block_headers(&self) -> &[BlockRef];
-    fn committed_transactions(&self) -> Vec<GenericTransactionRef>;
+    fn committed_transactions(&self) -> &[TransactionRef];
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)];
     fn is_optimistic(&self) -> bool;
 }
@@ -212,11 +199,10 @@ impl CommitAPI for CommitV1 {
         &self.blocks
     }
 
-    fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
-        self.committed_transactions
-            .iter()
-            .map(|b| GenericTransactionRef::BlockRef(*b))
-            .collect()
+    fn committed_transactions(&self) -> &[TransactionRef] {
+        // CommitV1 refers to transactions by block ref only; V1 commits are
+        // never created and are rejected when received.
+        &[]
     }
 
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
@@ -282,11 +268,8 @@ impl CommitAPI for CommitV2 {
         &self.block_headers
     }
 
-    fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
-        self.committed_transactions
-            .iter()
-            .map(|t| GenericTransactionRef::TransactionRef(*t))
-            .collect()
+    fn committed_transactions(&self) -> &[TransactionRef] {
+        &self.committed_transactions
     }
 
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
@@ -354,11 +337,8 @@ impl CommitAPI for CommitV3 {
         &self.block_headers
     }
 
-    fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
-        self.committed_transactions
-            .iter()
-            .map(|t| GenericTransactionRef::TransactionRef(*t))
-            .collect()
+    fn committed_transactions(&self) -> &[TransactionRef] {
+        &self.committed_transactions
     }
 
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
@@ -401,7 +381,7 @@ impl TrustedCommit {
         timestamp_ms: BlockTimestampMs,
         leader: BlockRef,
         blocks: Vec<BlockRef>,
-        committed_transactions: Vec<GenericTransactionRef>,
+        committed_transactions: Vec<TransactionRef>,
     ) -> Self {
         let commit = Commit::new(
             index,
@@ -718,7 +698,7 @@ impl CommittedSubDag {
             &self
                 .transactions
                 .iter()
-                .map(|t| GenericTransactionRef::TransactionRef(t.transaction_ref()))
+                .map(|t| t.transaction_ref())
                 .collect::<Vec<_>>(),
         )
     }
@@ -771,7 +751,7 @@ pub struct PendingSubDag {
     pub base: SubDagBase,
     /// References to blocks whose transactions were committed as part of this
     /// SubDag.
-    pub committed_transaction_refs: Vec<GenericTransactionRef>,
+    pub committed_transaction_refs: Vec<TransactionRef>,
 }
 
 impl PendingSubDag {
@@ -780,7 +760,7 @@ impl PendingSubDag {
         leader: BlockRef,
         headers: Vec<VerifiedBlockHeader>,
         committed_header_refs: Vec<BlockRef>,
-        committed_transaction_refs: Vec<GenericTransactionRef>,
+        committed_transaction_refs: Vec<TransactionRef>,
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
@@ -875,22 +855,22 @@ pub(crate) fn load_pending_subdag_from_store(
         leader_block_ref,
         block_headers,
         commit.block_headers().to_vec(),
-        commit.committed_transactions(),
+        commit.committed_transactions().to_vec(),
         commit.timestamp_ms(),
         commit.reference(),
         reputation_scores_desc,
     ))
 }
 
-fn format_transaction_ref_digests(transaction_refs: &[GenericTransactionRef]) -> String {
+fn format_transaction_ref_digests(transaction_refs: &[TransactionRef]) -> String {
     let mut result = String::new();
     for (idx, block) in transaction_refs.iter().enumerate() {
         if idx > 0 {
             result.push_str(", ");
         }
-        result.push_str(&block.digest().to_string());
+        result.push_str(&Digest::<DIGEST_LENGTH>::from(block.transactions_commitment).to_string());
         result.push('@');
-        result.push_str(&block.round().to_string());
+        result.push_str(&block.round.to_string());
     }
     result
 }
@@ -1186,7 +1166,7 @@ mod tests {
         context::Context,
         encoder::create_encoder,
         storage::{Store, WriteBatch, mem_store::MemStore},
-        transaction_ref::{TransactionRef, convert_block_refs_to_generic_transaction_refs},
+        transaction_ref::{TransactionRef, convert_block_refs_to_transaction_refs},
     };
 
     /// Pins the `CommitV3` wire layout that `max_commit_bytes` is derived from:
@@ -1297,9 +1277,9 @@ mod tests {
         let leader_ref = leader_block.reference();
         let commit_index = 1;
 
-        // Convert BlockRefs to GenericTransactionRefs.
-        let generic_committed_transactions =
-            convert_block_refs_to_generic_transaction_refs(store.as_ref(), &first_round_references);
+        // Convert BlockRefs to TransactionRefs.
+        let committed_transactions =
+            convert_block_refs_to_transaction_refs(store.as_ref(), &first_round_references);
 
         let commit = TrustedCommit::new_for_test(
             commit_index,
@@ -1307,7 +1287,7 @@ mod tests {
             leader_block.timestamp_ms(),
             leader_ref,
             blocks.clone(),
-            generic_committed_transactions.clone(),
+            committed_transactions.clone(),
         );
 
         let subdag =
@@ -1319,10 +1299,7 @@ mod tests {
             (num_authorities as u32 * WAVE_LENGTH) as usize + 1
         );
         assert_eq!(subdag.commit_ref, commit.reference());
-        assert_eq!(
-            subdag.committed_transaction_refs,
-            generic_committed_transactions
-        );
+        assert_eq!(subdag.committed_transaction_refs, committed_transactions);
         assert_eq!(subdag.reputation_scores_desc, vec![]);
         let transactions = store
             .read_verified_transactions(&subdag.committed_transaction_refs)
@@ -1390,9 +1367,9 @@ mod tests {
         let leader_ref = leader_block.reference();
         let commit_index = 1;
 
-        // Convert BlockRefs to GenericTransactionRefs.
-        let generic_committed_transactions =
-            convert_block_refs_to_generic_transaction_refs(store.as_ref(), &first_round_references);
+        // Convert BlockRefs to TransactionRefs.
+        let committed_transactions =
+            convert_block_refs_to_transaction_refs(store.as_ref(), &first_round_references);
 
         let commit = TrustedCommit::new_for_test(
             commit_index,
@@ -1400,7 +1377,7 @@ mod tests {
             leader_block.timestamp_ms(),
             leader_ref,
             blocks.clone(),
-            generic_committed_transactions.clone(),
+            committed_transactions.clone(),
         );
 
         let pending_subdag =
@@ -1414,7 +1391,7 @@ mod tests {
         assert_eq!(pending_subdag.commit_ref, commit.reference());
         assert_eq!(
             pending_subdag.committed_transaction_refs,
-            generic_committed_transactions
+            committed_transactions
         );
         assert_eq!(pending_subdag.reputation_scores_desc, vec![]);
     }

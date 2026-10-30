@@ -11,7 +11,7 @@ use tracing::debug;
 
 use crate::{
     CommitIndex, CommittedSubDag, commit::PendingSubDag, dag_state::DagState,
-    transaction_ref::GenericTransactionRef,
+    transaction_ref::TransactionRef,
 };
 
 /// The `CommitSolidifier` is responsible for managing and handling
@@ -58,9 +58,9 @@ impl CommitSolidifier {
     /// Gets all missing transactions from pending subdags.
     ///
     /// # Returns
-    /// A `BTreeSet` of `GenericTransactionRef`s for which transactions are
+    /// A `BTreeSet` of `TransactionRef`s for which transactions are
     /// missing.
-    pub(crate) fn get_missing_transaction_data(&self) -> BTreeSet<GenericTransactionRef> {
+    pub(crate) fn get_missing_transaction_data(&self) -> BTreeSet<TransactionRef> {
         let mut missing = BTreeSet::new();
         let dag_state = self.dag_state.read();
 
@@ -91,7 +91,7 @@ impl CommitSolidifier {
     pub(crate) fn try_get_solid_sub_dags(
         &mut self,
         subdags: &[PendingSubDag],
-    ) -> (Vec<CommittedSubDag>, Vec<GenericTransactionRef>) {
+    ) -> (Vec<CommittedSubDag>, Vec<TransactionRef>) {
         // Add new subdags to the buffer
         for subdag in subdags {
             self.pending_subdags
@@ -174,7 +174,7 @@ impl CommitSolidifier {
     fn try_get_one_solid_sub_dag_internal(
         &self,
         subdag: &PendingSubDag,
-    ) -> Result<CommittedSubDag, Vec<GenericTransactionRef>> {
+    ) -> Result<CommittedSubDag, Vec<TransactionRef>> {
         let dag_state = self.dag_state.read();
         // Get transactions and check if any are missing
         let transaction_results =
@@ -365,7 +365,7 @@ mod tests {
         leader_round: u32,
         leader_index: usize,
         block_specs: Vec<BlockSpec>,
-        committed_refs: Vec<GenericTransactionRef>,
+        committed_refs: Vec<TransactionRef>,
         setup: Arc<TestSetup>,
     }
 
@@ -426,25 +426,21 @@ mod tests {
             let refs = if round == 0 {
                 genesis_blocks(&self.setup.context)
                     .iter()
-                    .map(|b| {
-                        GenericTransactionRef::TransactionRef(
-                            b.verified_block_header.transaction_ref(),
-                        )
-                    })
+                    .map(|b| b.verified_block_header.transaction_ref())
                     .collect()
             } else {
                 self.setup
                     .dag_builder
                     .block_headers(round..=round)
                     .iter()
-                    .map(|b| GenericTransactionRef::TransactionRef(b.transaction_ref()))
+                    .map(|b| b.transaction_ref())
                     .collect()
             };
             self.committed_refs = refs;
             self
         }
 
-        fn with_committed_refs(mut self, refs: Vec<GenericTransactionRef>) -> Self {
+        fn with_committed_refs(mut self, refs: Vec<TransactionRef>) -> Self {
             self.committed_refs = refs;
             self
         }
@@ -558,9 +554,7 @@ mod tests {
                 vec![(1, 0)], // Exclude the first transaction from round 1
             );
 
-        let committed_ref = GenericTransactionRef::TransactionRef(
-            setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
-        );
+        let committed_ref = setup.dag_builder.block_headers(1..=1)[0].transaction_ref();
 
         let subdag = SubDagBuilder::new(setup, 1)
             .leader(3, 0)
@@ -596,7 +590,7 @@ mod tests {
             .dag_state
             .write()
             .accept_block_header(empty_header.clone(), DataSource::Test);
-        let empty_ref = GenericTransactionRef::TransactionRef(empty_header.transaction_ref());
+        let empty_ref = empty_header.transaction_ref();
 
         let subdag = SubDagBuilder::new(setup.clone(), 1)
             .leader(3, 0)
@@ -625,9 +619,7 @@ mod tests {
                 vec![(1, 0)], // Exclude the first transactions from round 1
             );
 
-        let committed_ref = GenericTransactionRef::TransactionRef(
-            setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
-        );
+        let committed_ref = setup.dag_builder.block_headers(1..=1)[0].transaction_ref();
 
         let subdag = SubDagBuilder::new(setup.clone(), 1)
             .leader(3, 0)
@@ -813,9 +805,7 @@ mod tests {
             .with_committed_refs(vec![]) // No committed refs
             .build();
 
-        let subdag2_committed_ref = GenericTransactionRef::TransactionRef(
-            setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
-        );
+        let subdag2_committed_ref = setup.dag_builder.block_headers(1..=1)[0].transaction_ref();
 
         let subdag2 = SubDagBuilder::new(setup.clone(), 2)
             .leader(3, 0)
@@ -823,9 +813,7 @@ mod tests {
             .with_committed_refs(vec![subdag2_committed_ref])
             .build();
 
-        let subdag3_committed_ref = GenericTransactionRef::TransactionRef(
-            setup.dag_builder.block_headers(2..=2)[0].transaction_ref(),
-        );
+        let subdag3_committed_ref = setup.dag_builder.block_headers(2..=2)[0].transaction_ref();
 
         let subdag3 = SubDagBuilder::new(setup.clone(), 3)
             .leader(4, 0)
@@ -887,12 +875,8 @@ mod tests {
             .with_committed_refs(vec![])
             .build();
 
-        let missing_ref = GenericTransactionRef::TransactionRef(
-            setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
-        );
-        let present_ref = GenericTransactionRef::TransactionRef(
-            setup.dag_builder.block_headers(2..=2)[0].transaction_ref(),
-        );
+        let missing_ref = setup.dag_builder.block_headers(1..=1)[0].transaction_ref();
+        let present_ref = setup.dag_builder.block_headers(2..=2)[0].transaction_ref();
 
         // The missing ref is listed twice in one commit and again in the next.
         let subdag2 = SubDagBuilder::new(setup.clone(), 2)
@@ -940,9 +924,7 @@ mod tests {
             .with_committed_refs(vec![])
             .build();
 
-        let subdag3_committed_ref = GenericTransactionRef::TransactionRef(
-            setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
-        );
+        let subdag3_committed_ref = setup.dag_builder.block_headers(1..=1)[0].transaction_ref();
 
         let subdag3 = SubDagBuilder::new(setup.clone(), 3)
             .leader(4, 0)
@@ -953,9 +935,7 @@ mod tests {
             .with_committed_refs(vec![subdag3_committed_ref])
             .build();
 
-        let subdag5_committed_ref = GenericTransactionRef::TransactionRef(
-            setup.dag_builder.block_headers(3..=3)[0].transaction_ref(),
-        );
+        let subdag5_committed_ref = setup.dag_builder.block_headers(3..=3)[0].transaction_ref();
 
         let subdag5 = SubDagBuilder::new(setup.clone(), 5) // Gap: missing index 4
             .leader(5, 0)
@@ -1017,9 +997,7 @@ mod tests {
             );
 
         // Create subdags that reference the missing transactions
-        let subdag1_committed_ref = GenericTransactionRef::TransactionRef(
-            setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
-        );
+        let subdag1_committed_ref = setup.dag_builder.block_headers(1..=1)[0].transaction_ref();
 
         let subdag1 = SubDagBuilder::new(setup.clone(), 1)
             .leader(3, 0)
@@ -1027,9 +1005,7 @@ mod tests {
             .with_committed_refs(vec![subdag1_committed_ref])
             .build();
 
-        let subdag2_committed_ref = GenericTransactionRef::TransactionRef(
-            setup.dag_builder.block_headers(2..=2)[1].transaction_ref(),
-        );
+        let subdag2_committed_ref = setup.dag_builder.block_headers(2..=2)[1].transaction_ref();
 
         let subdag2 = SubDagBuilder::new(setup.clone(), 2)
             .leader(4, 0)

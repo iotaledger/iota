@@ -23,7 +23,7 @@ use crate::{
     commit::{CommitDigest, CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
     misbehavior_store::MisbehaviorCounts,
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 /// A common interface for consensus storage.
@@ -50,17 +50,17 @@ pub(crate) trait Store: Send + Sync {
     /// Read and get verified transactions for the given refs.
     fn read_verified_transactions(
         &self,
-        refs: &[GenericTransactionRef],
+        refs: &[TransactionRef],
     ) -> ConsensusResult<Vec<Option<CommitmentVerifiedTransactions>>>;
 
     /// Read and get serialized transactions for the given refs.
     fn read_serialized_transactions(
         &self,
-        refs: &[GenericTransactionRef],
+        refs: &[TransactionRef],
     ) -> ConsensusResult<Vec<Option<Bytes>>>;
 
     /// Checks if transactions exist in the store.
-    fn contains_transactions(&self, refs: &[GenericTransactionRef]) -> ConsensusResult<Vec<bool>>;
+    fn contains_transactions(&self, refs: &[TransactionRef]) -> ConsensusResult<Vec<bool>>;
 
     /// Checks if block headers exist in the store.
     fn contains_block_headers(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
@@ -109,7 +109,6 @@ pub(crate) trait Store: Send + Sync {
         let refs = self
             .scan_transaction_references_by_author(author, start_round)?
             .into_iter()
-            .map(GenericTransactionRef::from)
             .collect::<Vec<_>>();
         Ok(self
             .read_verified_transactions(&refs)?

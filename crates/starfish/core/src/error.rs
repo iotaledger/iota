@@ -366,14 +366,6 @@ pub(crate) enum ConsensusError {
         block_round: Round,
     },
 
-    #[error(
-        "All GenericTransactionRef elements must have the same variant (BlockRef, TransactionRef, etc.) for batch operations."
-    )]
-    InconsistentTransactionRefVariants,
-
-    #[error("Expected TransactionRef, but received {received_variant}")]
-    TransactionRefVariantMismatch { received_variant: &'static str },
-
     #[error("Failed to fetch {num_requested} block headers from any peer")]
     FailedToFetchBlockHeaders { num_requested: usize },
 

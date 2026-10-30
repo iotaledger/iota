@@ -28,7 +28,7 @@ use crate::{
     context::Context,
     encoder::{ShardEncoder, create_encoder_for_committee},
     error::{ConsensusError, ConsensusResult},
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 /// Round number of a block.
@@ -854,7 +854,7 @@ impl ShardWithProofAPI for ShardWithProofV2 {
 
 pub(crate) struct VerifiedOwnShard {
     pub(crate) serialized_shard: Bytes,
-    pub(crate) gen_transaction_ref: GenericTransactionRef,
+    pub(crate) transaction_ref: TransactionRef,
 }
 
 impl TransactionsCommitment {

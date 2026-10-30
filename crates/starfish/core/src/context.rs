@@ -20,7 +20,7 @@ use crate::{
     },
     metrics::Metrics,
     peer_responsiveness::PeerResponsiveness,
-    transaction_ref::GenericTransactionRef,
+    transaction_ref::TransactionRef,
 };
 
 /// Context contains per-epoch configuration and metrics shared by all
@@ -81,11 +81,8 @@ impl Context {
 
     pub(crate) fn empty_transactions_for_ref(
         &self,
-        transaction_ref: GenericTransactionRef,
+        transaction_ref: TransactionRef,
     ) -> Option<CommitmentVerifiedTransactions> {
-        let GenericTransactionRef::TransactionRef(transaction_ref) = transaction_ref else {
-            return None;
-        };
         (transaction_ref.transactions_commitment == self.empty_transactions_commitment)
             .then(|| CommitmentVerifiedTransactions::new_empty_from_ref(transaction_ref, None))
     }

@@ -486,8 +486,6 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::ShardsDecodingFailed(_)
         | ConsensusError::InsufficientShardsInDecoder(..)
         | ConsensusError::ShardsVecIsTooSmall(..)
-        | ConsensusError::InconsistentTransactionRefVariants
-        | ConsensusError::TransactionRefVariantMismatch { .. }
         | ConsensusError::FailedToFetchBlockHeaders { .. }
         | ConsensusError::MissingVotingBlockHeaderInStorage { .. }
         | ConsensusError::WrongShardVersion { .. }
