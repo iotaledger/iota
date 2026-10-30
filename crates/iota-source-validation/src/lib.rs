@@ -5,13 +5,9 @@
 use std::collections::{HashMap, HashSet};
 
 use futures::future;
+use iota_grpc_client::{GrpcClient, read_mask_fields::ObjectField};
 use iota_move_build::CompiledPackage;
-use iota_sdk::{
-    apis::ReadApi,
-    error::Error as SdkError,
-    rpc_types::{IotaObjectDataOptions, IotaRawData, IotaRawMovePackage},
-};
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_types::{Address, MovePackage, ObjectData, ObjectId};
 use move_binary_format::CompiledModule;
 use move_compiler::compiled_unit::NamedCompiledModule;
 use move_symbol_pool::Symbol;
@@ -44,7 +40,7 @@ pub enum ValidationMode {
 }
 
 pub struct BytecodeSourceVerifier<'a> {
-    rpc_client: &'a ReadApi,
+    grpc_client: &'a GrpcClient,
 }
 
 /// Map package addresses and module names to package names and bytecode.
@@ -155,8 +151,8 @@ impl ValidationMode {
             future::join_all(addrs.iter().copied().map(|a| verifier.pkg_for_address(a))).await;
 
         for (storage_id, pkg) in addrs.into_iter().zip(resps) {
-            let IotaRawMovePackage {
-                module_map,
+            let MovePackage {
+                modules: module_map,
                 linkage_table,
                 ..
             } = pkg?;
@@ -167,11 +163,11 @@ impl ValidationMode {
                     let Ok(module) = CompiledModule::deserialize_with_defaults(&bytes) else {
                         return Err(Error::OnChainDependencyDeserializationError {
                             address: storage_id,
-                            module: name.into(),
+                            module: Symbol::from(name.as_str()),
                         });
                     };
 
-                    Ok::<_, Error>((Symbol::from(name), module))
+                    Ok::<_, Error>((Symbol::from(name.as_str()), module))
                 })
                 .peekable();
 
@@ -211,7 +207,7 @@ impl ValidationMode {
                 on_chain.on_chain_dependencies = Some(HashSet::from_iter(
                     linkage_table
                         .into_values()
-                        .map(|info| info.upgraded_id.into()),
+                        .map(|info| Address::new(info.upgraded_id.into_bytes())),
                 ));
             }
         }
@@ -344,8 +340,8 @@ impl ValidationMode {
 }
 
 impl<'a> BytecodeSourceVerifier<'a> {
-    pub fn new(rpc_client: &'a ReadApi) -> Self {
-        BytecodeSourceVerifier { rpc_client }
+    pub fn new(grpc_client: &'a GrpcClient) -> Self {
+        BytecodeSourceVerifier { grpc_client }
     }
 
     /// Verify that the `compiled_package` matches its on-chain representation.
@@ -412,36 +408,33 @@ impl<'a> BytecodeSourceVerifier<'a> {
         Ok(())
     }
 
-    async fn pkg_for_address(&self, addr: Address) -> Result<IotaRawMovePackage, Error> {
-        // Move packages are specified with an AccountAddress, but are
-        // fetched from a iota network via iota_getObject, which takes an object ID
+    async fn pkg_for_address(&self, addr: Address) -> Result<MovePackage, Error> {
+        // Move packages are specified with an address, but are fetched from the
+        // network as objects keyed by their object ID.
         let obj_id = ObjectId::new(addr.into_bytes());
 
-        // fetch the IOTA object at the address specified for the package in the local
-        // resolution table if future packages with a large set of dependency
-        // packages prove too slow to verify, batched object fetching should be
-        // added to the ReadApi & used here
-        let obj_read = self
-            .rpc_client
-            .get_object_with_options(obj_id, IotaObjectDataOptions::new().with_bcs())
+        let proto_object = match self
+            .grpc_client
+            .objects([obj_id])
+            .read_mask(ObjectField::BCS)
             .await
-            .map_err(Error::DependencyObjectReadFailure)?;
+            .map_err(|e| Error::DependencyObjectReadFailure(e.to_string()))?
+            .into_inner()
+            .pop()
+        {
+            Some(Ok(object)) => object,
+            Some(Err(e)) if e.is_not_found() => return Err(Error::ObjectNotFound(obj_id)),
+            Some(Err(e)) => return Err(Error::DependencyObjectReadFailure(e.to_string())),
+            None => return Err(Error::ObjectNotFound(obj_id)),
+        };
 
-        let obj = obj_read
-            .into_object()
-            .map_err(Error::IotaObjectRefFailure)?
-            .bcs
-            .ok_or_else(|| {
-                Error::DependencyObjectReadFailure(SdkError::Data(
-                    "Bcs field is not found".to_string(),
-                ))
-            })?;
+        let object = proto_object
+            .object()
+            .map_err(|e| Error::DependencyObjectReadFailure(e.to_string()))?;
 
-        match obj {
-            IotaRawData::Package(pkg) => Ok(pkg),
-            IotaRawData::MoveObject(move_obj) => Err(Error::ObjectFoundWhenPackageExpected(
-                Box::new((obj_id, move_obj)),
-            )),
+        match object.data() {
+            ObjectData::Package(pkg) => Ok(pkg.clone()),
+            _ => Err(Error::ObjectFoundWhenPackageExpected(obj_id)),
         }
     }
 }

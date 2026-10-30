@@ -6,10 +6,10 @@
 pub mod client_commands;
 #[macro_use]
 pub mod client_ptb;
-mod clever_error_rendering;
 #[cfg(feature = "gen-completions")]
 mod completions;
 pub mod displays;
+mod executed_transaction_response;
 pub mod iota_commands;
 pub mod key_identity;
 pub mod keytool;
