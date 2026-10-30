@@ -4,6 +4,7 @@
 
 mod dev_inspect;
 mod dry_run_tx_block;
+mod executed_transaction;
 mod gas_cost_summary;
 mod ptb_preview;
 mod status;

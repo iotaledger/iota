@@ -46,6 +46,7 @@ use iota_sdk_types::{
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
+    effects::TransactionEffectsAPI,
     gas_coin::GasCoin,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
@@ -6911,7 +6912,11 @@ async fn test_move_authenticator() -> Result<(), anyhow::Error> {
     .await?;
     assert!(matches!(
         execute_result,
-        IotaClientCommandResult::TransactionBlock(ref tx) if tx.effects.as_ref().unwrap().status().is_ok()
+        IotaClientCommandResult::ExecutedTransaction(ref executed)
+            if matches!(
+                executed.effects().unwrap().effects().unwrap().status(),
+                iota_sdk_types::ExecutionStatus::Success
+            )
     ));
 
     Ok(())

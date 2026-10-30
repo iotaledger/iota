@@ -1837,17 +1837,13 @@ impl IotaClientCommands {
                 let transaction = TransactionEnvelope::from_user_sig_data(data, sigs);
 
                 let executed = context.execute_transaction_may_fail(transaction).await?;
-                IotaClientCommandResult::TransactionBlock(transaction_block_response_from_executed(
-                    &executed,
-                )?)
+                IotaClientCommandResult::ExecutedTransaction(Box::new(executed))
             }
             IotaClientCommands::ExecuteCombinedSignedTx { signed_tx_bytes } => {
                 let tx = SenderSignedTransaction::from_base64(&signed_tx_bytes).map_err(|_| anyhow!("Failed to parse SenderSignedTransaction bytes, check if it matches the output of iota client commands with --serialize-signed-transaction"))?;
                 let transaction = Envelope::<SenderSignedTransaction, EmptySignInfo>::new(tx);
                 let executed = context.execute_transaction_may_fail(transaction).await?;
-                IotaClientCommandResult::TransactionBlock(transaction_block_response_from_executed(
-                    &executed,
-                )?)
+                IotaClientCommandResult::ExecutedTransaction(Box::new(executed))
             }
             IotaClientCommands::Sign {
                 address,
@@ -2490,6 +2486,9 @@ impl Display for IotaClientCommandResult {
             IotaClientCommandResult::TransactionBlock(response) => {
                 write!(writer, "{response}")?;
             }
+            IotaClientCommandResult::ExecutedTransaction(executed) => {
+                write!(writer, "{}", Pretty(&**executed))?;
+            }
             IotaClientCommandResult::RawObject(raw_object_read) => {
                 let raw_object = match raw_object_read.object() {
                     Ok(v) => match &v.bcs {
@@ -2766,6 +2765,7 @@ impl IotaClientCommandResult {
             | IotaClientCommandResult::DynamicFieldQuery(_)
             | IotaClientCommandResult::DevInspect(_)
             | IotaClientCommandResult::Envs(_, _)
+            | IotaClientCommandResult::ExecutedTransaction(_)
             | IotaClientCommandResult::Gas(_)
             | IotaClientCommandResult::NewAddress(_)
             | IotaClientCommandResult::NewEnv(_)
@@ -2787,6 +2787,29 @@ impl IotaClientCommandResult {
 }
 
 impl PrintableResult for IotaClientCommandResult {}
+
+/// Serialize the parts of a gRPC execution result that the CLI surfaces as JSON:
+/// the transaction digest, effects, and events. Fields the read mask omitted are
+/// serialized as `null`.
+fn serialize_executed_transaction<S>(
+    executed: &iota_grpc_types::v1::transaction::ExecutedTransaction,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    use serde::ser::SerializeStruct;
+
+    let digest = executed.transaction().and_then(|t| t.digest()).ok();
+    let effects = executed.effects().and_then(|e| e.effects()).ok();
+    let events = executed.events().and_then(|e| e.events()).ok();
+
+    let mut state = serializer.serialize_struct("ExecutedTransaction", 3)?;
+    state.serialize_field("digest", &digest)?;
+    state.serialize_field("effects", &effects)?;
+    state.serialize_field("events", &events)?;
+    state.end()
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2939,6 +2962,10 @@ pub enum IotaClientCommandResult {
     DryRun(DryRunTransactionBlockResponse),
     DevInspect(DevInspectResults),
     Envs(Vec<IotaEnv>, Option<String>),
+    ExecutedTransaction(
+        #[serde(serialize_with = "serialize_executed_transaction")]
+        Box<iota_grpc_types::v1::transaction::ExecutedTransaction>,
+    ),
     Gas(Vec<GasCoin>),
     NewAddress(NewAddressOutput),
     NewEnv(IotaEnv),
@@ -3597,31 +3624,6 @@ pub(crate) async fn prerender_clever_errors(
             *error = rendered;
         }
     }
-}
-
-/// Build the JSON-RPC-shaped response the CLI's `TransactionBlock` display
-/// expects from a gRPC execution result. Populates the digest and effects; the
-/// execute-signed commands do not surface object or balance changes.
-fn transaction_block_response_from_executed(
-    executed: &iota_grpc_types::v1::transaction::ExecutedTransaction,
-) -> anyhow::Result<IotaTransactionBlockResponse> {
-    let digest = executed
-        .transaction()
-        .and_then(|t| t.digest())
-        .map_err(|e| anyhow!("missing transaction digest in execution result: {e}"))?;
-    let effects = executed
-        .effects()
-        .and_then(|e| e.effects())
-        .map_err(|e| anyhow!("missing effects in execution result: {e}"))?;
-    let raw_effects = bcs::to_bytes(&effects)?;
-    Ok(IotaTransactionBlockResponse {
-        digest,
-        effects: Some(IotaTransactionBlockEffects::try_from(effects)?),
-        raw_effects,
-        timestamp_ms: executed.timestamp_ms().ok(),
-        checkpoint: executed.checkpoint,
-        ..Default::default()
-    })
 }
 
 fn opts_from_cli(opts: &HashSet<DisplayOption>) -> IotaTransactionBlockResponseOptions {
