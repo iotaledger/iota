@@ -444,22 +444,20 @@ mod tests {
     /// The exhaustive match forces a compile error when new variants are added,
     /// so the developer must explicitly map each variant to its gating flag.
     ///
-    /// NOTE: This test is primarily useful for variants that are under
-    /// development or not yet fully rolled out on all networks. Once all
-    /// feature-gated variants are enabled on every network, this test can be
-    /// ignored — its value lies in catching missing gates during the upgrade
-    /// window between code deployment and protocol activation.
+    /// Every gating flag is set explicitly and the test runs with them all off
+    /// and all on, so each gated variant is seen rejected and accepted
+    /// regardless of the chain defaults.
     #[sim_test]
-    async fn validate_transactions_feature_gating_with_pcool_flow() {
+    async fn validate_transactions_feature_gating_with_gated_features_enabled() {
         validate_transactions_feature_gating(true).await;
     }
 
     #[sim_test]
-    async fn validate_transactions_feature_gating_without_pcool_flow() {
+    async fn validate_transactions_feature_gating_with_gated_features_disabled() {
         validate_transactions_feature_gating(false).await;
     }
 
-    async fn validate_transactions_feature_gating(enable_pcool_flow: bool) {
+    async fn validate_transactions_feature_gating(gated_features_enabled: bool) {
         use iota_types::crypto::{
             AccountPrivateKey, AuthorityPublicKeyBytes, deterministic_random_account_private_key,
         };
@@ -477,7 +475,8 @@ mod tests {
                 .build();
 
         let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
-            config.set_enable_pcool_flow_for_testing(enable_pcool_flow);
+            config.set_enable_pcool_flow_for_testing(gated_features_enabled);
+            config.set_calculate_validator_scores_for_testing(gated_features_enabled);
             config
         });
         let state = TestAuthorityBuilder::new()
@@ -499,7 +498,11 @@ mod tests {
         );
 
         let protocol_config = validator.epoch_store.protocol_config();
-        assert_eq!(protocol_config.enable_pcool_flow(), enable_pcool_flow);
+        assert_eq!(protocol_config.enable_pcool_flow(), gated_features_enabled);
+        assert_eq!(
+            protocol_config.calculate_validator_scores(),
+            gated_features_enabled
+        );
         let authority = AuthorityPublicKeyBytes::default();
 
         // Variants that can be validated without signature verification setup
