@@ -859,7 +859,7 @@ impl IotaClientCommands {
                             .and_then(|response| response.into_inner().metadata),
                         None => None,
                     };
-                    let (name, symbol, decimals) = match &metadata {
+                    let (name, symbol, decimals, description, icon_url, id) = match &metadata {
                         Some(metadata) => (
                             metadata
                                 .name
@@ -870,14 +870,30 @@ impl IotaClientCommands {
                                 .clone()
                                 .unwrap_or_else(|| "unknown_symbol".to_string()),
                             metadata.decimals.unwrap_or(9) as u8,
+                            metadata.description.clone().unwrap_or_default(),
+                            metadata.icon_url.clone(),
+                            metadata
+                                .id
+                                .as_ref()
+                                .and_then(|id| ObjectId::try_from(id).ok()),
                         ),
-                        None => ("unknown".to_string(), "unknown_symbol".to_string(), 9),
+                        None => (
+                            "unknown".to_string(),
+                            "unknown_symbol".to_string(),
+                            9,
+                            String::new(),
+                            None,
+                            None,
+                        ),
                     };
                     balances.push(CoinTypeBalance {
                         coin_type,
                         name,
                         symbol,
                         decimals,
+                        description,
+                        icon_url,
+                        id,
                         coins: coins
                             .iter()
                             .map(|coin| CoinBalance {
@@ -3115,6 +3131,9 @@ pub struct CoinTypeBalance {
     pub name: String,
     pub symbol: String,
     pub decimals: u8,
+    pub description: String,
+    pub icon_url: Option<String>,
+    pub id: Option<ObjectId>,
     pub coins: Vec<CoinBalance>,
 }
 
@@ -3122,7 +3141,17 @@ pub struct CoinTypeBalance {
 #[serde(rename_all = "camelCase")]
 pub struct CoinBalance {
     pub coin_object_id: ObjectId,
+    #[serde(serialize_with = "serialize_u64_as_string")]
     pub balance: u64,
+}
+
+/// Serialize an integer as a decimal string, matching the JSON-RPC output that
+/// encoded large integers as strings to avoid JavaScript precision loss.
+fn serialize_u64_as_string<S>(value: &u64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.collect_str(value)
 }
 
 #[derive(Serialize)]
