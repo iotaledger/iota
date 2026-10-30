@@ -31,9 +31,9 @@ use iota_config::IOTA_CLIENT_CONFIG;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions,
-    IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery, IotaRawData,
-    IotaTransactionBlockDataAPI, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
-    ObjectChange, OwnedObjectRef, get_new_package_obj_from_response,
+    IotaObjectResponseQuery, IotaRawData, IotaTransactionBlockDataAPI, IotaTransactionBlockEffects,
+    IotaTransactionBlockEffectsAPI, ObjectChange, OwnedObjectRef,
+    get_new_package_obj_from_response,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
@@ -3117,11 +3117,7 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
     .execute(context)
     .await?;
     let mut_obj1 = if let IotaClientCommandResult::Object(resp) = resp {
-        if let Some(obj) = resp.data {
-            obj
-        } else {
-            panic!()
-        }
+        resp
     } else {
         panic!();
     };
@@ -3133,23 +3129,19 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
     .execute(context)
     .await?;
     let mut_obj2 = if let IotaClientCommandResult::Object(resp2) = resp2 {
-        if let Some(obj) = resp2.data {
-            obj
-        } else {
-            panic!()
-        }
+        resp2
     } else {
         panic!();
     };
 
-    let (gas, obj) = if *mut_obj1.owner.unwrap().address_or_object().unwrap() == address {
+    let (gas, obj) = if *mut_obj1.owner().address_or_object().unwrap() == address {
         (mut_obj1, mut_obj2)
     } else {
         (mut_obj2, mut_obj1)
     };
 
-    assert_eq!(*gas.owner.unwrap().address_or_object().unwrap(), address);
-    assert_eq!(*obj.owner.unwrap().address_or_object().unwrap(), recipient);
+    assert_eq!(*gas.owner().address_or_object().unwrap(), address);
+    assert_eq!(*obj.owner().address_or_object().unwrap(), recipient);
 
     let object_refs = client
         .read_api()
@@ -3217,11 +3209,19 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
 #[test]
 // Test for issue https://github.com/iotaledger/iota/issues/1078
 fn test_bug_1078() {
-    let read = IotaClientCommandResult::Object(IotaObjectResponse::new_with_error(
-        IotaObjectResponseError::NotExists {
-            object_id: ObjectId::random(),
-        },
-    ));
+    let move_object = iota_sdk_types::MoveStruct::new(
+        iota_sdk_types::MoveObjectType::new(StructTag::new_gas_coin()),
+        iota_sdk_types::Version::from_u64(1),
+        vec![0u8; 40],
+    )
+    .unwrap();
+    let object = iota_sdk_types::Object::new(
+        iota_sdk_types::ObjectData::Struct(move_object),
+        Owner::Immutable,
+        iota_sdk_types::TransactionDigest::new([0u8; 32]),
+        0,
+    );
+    let read = IotaClientCommandResult::Object(object);
     let mut writer = String::new();
     // fmt ObjectRead should not fail.
     write!(writer, "{read}").unwrap();
@@ -3242,7 +3242,7 @@ async fn test_switch_command() -> Result<(), anyhow::Error> {
         .execute(context)
         .await?;
 
-    let mut cmd_objs = if let IotaClientCommandResult::Objects(v) = os {
+    let cmd_objs = if let IotaClientCommandResult::Objects(v) = os {
         v
     } else {
         panic!("Command failed")
@@ -3250,7 +3250,7 @@ async fn test_switch_command() -> Result<(), anyhow::Error> {
 
     // Check that we indeed fetched for addr1
     let client = context.get_client().await?;
-    let mut actual_objs = client
+    let actual_objs = client
         .read_api()
         .get_owned_objects(
             addr1,
@@ -3263,9 +3263,17 @@ async fn test_switch_command() -> Result<(), anyhow::Error> {
         .await
         .unwrap()
         .data;
-    cmd_objs.sort();
-    actual_objs.sort();
-    assert_eq!(cmd_objs, actual_objs);
+    let mut cmd_ids = cmd_objs
+        .iter()
+        .map(|obj| obj.id().to_string())
+        .collect::<Vec<_>>();
+    let mut actual_ids = actual_objs
+        .iter()
+        .map(|obj| obj.object().unwrap().object_id.to_string())
+        .collect::<Vec<_>>();
+    cmd_ids.sort();
+    actual_ids.sort();
+    assert_eq!(cmd_ids, actual_ids);
 
     // Switch the address
     let resp = IotaClientCommands::Switch {
