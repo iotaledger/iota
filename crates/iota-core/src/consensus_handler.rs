@@ -3242,8 +3242,21 @@ mod tests {
     ///   the same handler; validator B's handler loses its LRU first, modeling a restart after
     ///   commit A was flushed (the epoch store's consensus-derived state is the same either way —
     ///   only the handler's LRU is lost).
+    ///
+    /// The drop must also be transient for the submitter: a waiter present at commit A gets the
+    /// rejection, and a retry of T through validator A's consensus adapter is submitted to
+    /// consensus rather than answered from that rejection.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_load_shedding_dropped_transaction_retry_is_processed_after_restart() {
+        use crate::{
+            authority_server::soft_lock::PreConsensusSoftLocks,
+            consensus_adapter::{
+                ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
+                MockConsensusClient,
+            },
+            mock_consensus::with_block_status,
+        };
+
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_consensus_dedup_only_recorded_messages_for_testing(true);
             config
@@ -3310,14 +3323,14 @@ mod tests {
         let tx = to_sender_signed_transaction(tx_data, &sender_key);
         let verified_tx = epoch_store_a.verify_transaction(tx).unwrap();
         let tx_digest = *verified_tx.digest();
-        let user_tx_bytes = bcs::to_bytes(&ConsensusTransaction {
+        let consensus_tx = ConsensusTransaction {
             kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
                 verified_tx.into(),
                 None,
             ))),
             tracking_id: Default::default(),
-        })
-        .unwrap();
+        };
+        let user_tx_bytes = bcs::to_bytes(&consensus_tx).unwrap();
         let tx_key = SequencedConsensusTransactionKey::External(
             ConsensusTransactionKey::UserTransaction(tx_digest),
         );
@@ -3386,11 +3399,32 @@ mod tests {
         blocks_b.extend((0..4u32).map(|i| notification_block(i, 201 + i, 2, 0)));
         let commit_b = make_commit(blocks_b, 2);
 
+        // Validator A is T's submitter and holds its pre-consensus soft lock.
+        let soft_locks = Arc::new(PreConsensusSoftLocks::new());
+        epoch_store_a.set_soft_locks(soft_locks.clone());
+        soft_locks
+            .try_acquire(tx_digest, &[owned_ref, gas_ref])
+            .unwrap();
+        assert_eq!(soft_locks.lock_count(), 2);
+
+        let load_shed_waiter = epoch_store_a.notify_read_dropped_digests(tx_digest);
+        pin_mut!(load_shed_waiter);
+        assert!(futures::poll!(&mut load_shed_waiter).is_pending());
+
         // Both validators process commit A and drop T.
         handler_a
             .handle_consensus_output_for_test(commit_a.clone())
             .await;
         handler_b.handle_consensus_output_for_test(commit_a).await;
+        let load_shed_error = tokio::time::timeout(Duration::from_secs(5), load_shed_waiter)
+            .await
+            .expect("a waiter present during load shedding must receive the rejection");
+        assert!(load_shed_error.is_retryable_overload());
+        assert_eq!(
+            soft_locks.lock_count(),
+            0,
+            "a transaction dropped by load shedding must release its soft locks"
+        );
         for (epoch_store, metrics) in [(&epoch_store_a, &metrics_a), (&epoch_store_b, &metrics_b)] {
             assert_eq!(
                 epoch_store.get_quorum_load_shedding_percentage().unwrap(),
@@ -3404,6 +3438,38 @@ mod tests {
             );
             assert!(!epoch_store.is_consensus_message_processed(&tx_key).unwrap());
         }
+
+        // A retry submitted through the adapter must reach consensus rather than
+        // complete from the earlier load-shedding notification.
+        let (submitted_tx, mut submitted_rx) = tokio::sync::mpsc::channel(1);
+        let mut consensus_client = MockConsensusClient::new();
+        consensus_client
+            .expect_submit()
+            .times(1)
+            .returning(move |_, _| {
+                submitted_tx.try_send(()).unwrap();
+                Ok(with_block_status(starfish_core::BlockStatus::Sequenced(
+                    starfish_core::GenericTransactionRef::BlockRef(starfish_core::BlockRef::MIN),
+                )))
+            });
+        let adapter = Arc::new(ConsensusAdapter::new(
+            Arc::new(consensus_client),
+            state_a.checkpoint_store.clone(),
+            state_a.name,
+            Arc::new(ConnectionMonitorStatusForTests {}),
+            100_000,
+            100_000,
+            None,
+            None,
+            ConsensusAdapterMetrics::new_test(),
+            50,
+        ));
+        let retry_waiter = adapter
+            .submit(consensus_tx, None, &epoch_store_a)
+            .expect("retry must be persisted");
+        tokio::time::timeout(Duration::from_secs(5), submitted_rx.recv())
+            .await
+            .expect("retry after load shedding must reach consensus submission");
 
         // Validator B restarts before the retry arrives: the handler's LRU is
         // gone, the epoch store's consensus-derived state remains. A new
@@ -3445,6 +3511,10 @@ mod tests {
             processed_b,
             "retry of a load-shed transaction was not processed after shedding cleared"
         );
+        tokio::time::timeout(Duration::from_secs(5), retry_waiter)
+            .await
+            .expect("adapter retry must finish after consensus processes it")
+            .expect("adapter retry task must not panic");
     }
 
     #[test]

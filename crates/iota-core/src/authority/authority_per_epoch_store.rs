@@ -4758,8 +4758,8 @@ impl AuthorityPerEpochStore {
         let drop_seed = consensus_commit_info.round;
 
         // Transactions dropped by post-consensus load shedding in this commit.
-        // Fed to `dropped_tx_status_cache.insert_and_notify` after the loop so
-        // the submitter's `await_consensus_or_checkpoint` wait is woken and its
+        // Waiters are notified after the loop so the submitter's
+        // `await_consensus_or_checkpoint` wait is woken and its
         // consensus-submission semaphore slot is released.
         let mut load_shedding_dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
         for tx in verified_transactions {
@@ -4799,7 +4799,7 @@ impl AuthorityPerEpochStore {
         }
         if !load_shedding_dropped.is_empty() {
             self.dropped_tx_status_cache
-                .insert_and_notify(&load_shedding_dropped);
+                .notify_without_recording(&load_shedding_dropped);
         }
 
         let mut output =
@@ -4935,7 +4935,12 @@ impl AuthorityPerEpochStore {
             .max_concurrent_execution_workers()
             .is_some();
 
-        let mut soft_lock_release_tx_digests = Vec::new();
+        // Transactions dropped by load shedding never reach conflict
+        // resolution, so their soft locks are released from here.
+        let mut soft_lock_release_tx_digests: Vec<TransactionDigest> = load_shedding_dropped
+            .iter()
+            .map(|(digest, _)| *digest)
+            .collect();
         if enable_pcool {
             // Invariant: P-COOL flow categorization funnels all user transactions
             // (regular + randomness) into `sequenced_transactions`, leaving
