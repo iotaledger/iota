@@ -30,10 +30,11 @@ use iota_macros::{
     sim_test,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{Address, TransactionKind};
+use iota_sdk_types::{Address, ExecutionStatus, TransactionKind};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId, dbg_addr},
+    effects::TransactionEffectsAPI,
     messages_checkpoint::CheckpointSequenceNumber,
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::TransactionAPI,
@@ -109,7 +110,7 @@ fn spawn_transfer_traffic_with_double_spends(
             succeeded += responses
                 .iter()
                 .filter(|response| {
-                    matches!(response, Ok(Ok(response)) if response.status_ok() == Some(true))
+                    matches!(response, Ok(Ok(response)) if matches!(response.effects().unwrap().effects().unwrap().status(), ExecutionStatus::Success))
                 })
                 .count();
             sleep(Duration::from_millis(100)).await;

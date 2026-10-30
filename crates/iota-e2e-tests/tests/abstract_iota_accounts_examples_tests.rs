@@ -1991,7 +1991,7 @@ impl TestEnvironment {
     ) -> anyhow::Result<(
         ObjectId,
         ObjectReference,
-        iota_json_rpc_types::IotaTransactionBlockResponse,
+        iota_grpc_types::v1::transaction::ExecutedTransaction,
     )> {
         let path = Self::example_path(name);
         let (sender, gas) = self
@@ -2012,9 +2012,9 @@ impl TestEnvironment {
             .execute_transaction_must_succeed(tx)
             .await;
 
-        let pkg_id = iota_json_rpc_types::get_new_package_obj_from_response(&resp)
+        let pkg_id = *iota_test_transaction_builder::get_new_package_ref(&resp)
             .ok_or_else(|| anyhow::anyhow!("no Published object change in response"))?
-            .object_id;
+            .object_id();
         let metadata_id = move_package::derive_package_metadata_id(pkg_id);
         let metadata_ref = self
             .test_cluster
@@ -2353,24 +2353,33 @@ fn make_move_authenticator(
 /// and whose `object_type` matches `expected`. Returns the object reference,
 /// or `None` if no match exists.
 fn find_created_shared_in_response(
-    resp: &iota_json_rpc_types::IotaTransactionBlockResponse,
+    resp: &iota_grpc_types::v1::transaction::ExecutedTransaction,
     expected: &TypeTag,
 ) -> Option<ObjectReference> {
+    use iota_grpc_types::v1::transaction::object_change::Kind;
+
     let expected_struct = match expected {
         TypeTag::Struct(s) => s.as_ref(),
         _ => return None,
     };
-    resp.object_changes.as_ref()?.iter().find_map(|c| match c {
-        iota_json_rpc_types::ObjectChange::Created {
-            owner: Owner::Shared(_),
-            object_type,
-            object_id,
-            version,
-            digest,
-            ..
-        } if object_type == expected_struct => {
-            Some(ObjectReference::new(*object_id, *version, *digest))
-        }
-        _ => None,
-    })
+    resp.object_changes()
+        .ok()?
+        .object_changes
+        .iter()
+        .find_map(|change| {
+            let Kind::Created(created) = change.kind.as_ref()? else {
+                return None;
+            };
+            if !matches!(created.owner().ok()?, Owner::Shared(_)) {
+                return None;
+            }
+            if created.object_type().ok()?.to_string() != expected_struct.to_string() {
+                return None;
+            }
+            Some(ObjectReference::new(
+                created.object_id().ok()?,
+                iota_sdk_types::Version::from_u64(created.version?),
+                created.digest().ok()?,
+            ))
+        })
 }

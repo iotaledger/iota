@@ -1457,7 +1457,7 @@ async fn execute_add_validator_transactions(
         .object_ref();
     let gas = coins
         .iter()
-        .filter(|(_, coin)| coin.object_id != stake_coin.object_id)
+        .filter(|(_, coin)| coin.id() != stake_coin.object_id)
         .max_by_key(|(balance, _)| *balance)
         .expect("the validator address must own a coin to pay for gas")
         .1
