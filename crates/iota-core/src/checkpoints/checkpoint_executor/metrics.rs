@@ -15,6 +15,10 @@ pub struct CheckpointExecutorMetrics {
     pub last_executed_checkpoint: IntGauge,
     pub last_executed_checkpoint_timestamp_ms: IntGauge,
     pub checkpoint_exec_errors: IntCounter,
+    /// Transactions whose results were committed from the checkpoint archive
+    /// rather than executed. Flat while a node is catching up from the
+    /// archive means the faster path is not taking effect.
+    pub checkpoint_transactions_committed_from_archive: IntCounter,
     pub checkpoint_exec_epoch: IntGauge,
     pub checkpoint_exec_inflight: IntGauge,
     pub checkpoint_exec_latency: Histogram,
@@ -57,6 +61,12 @@ impl CheckpointExecutorMetrics {
                 "Checkpoint execution errors count",
                 registry;
                 MetricLevel::Warn,
+            )
+            .unwrap(),
+            checkpoint_transactions_committed_from_archive: register_int_counter_with_registry!(
+                "checkpoint_transactions_committed_from_archive",
+                "Transactions whose results were committed from the checkpoint archive instead of executed",
+                registry
             )
             .unwrap(),
             checkpoint_exec_epoch: register_int_gauge_with_registry!(

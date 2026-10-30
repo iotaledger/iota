@@ -21,7 +21,7 @@
 //! successfully, we have reached the end of epoch. This allows us to use it as
 //! a signal for reconfig.
 
-use std::{future::Future, sync::Arc, time::Instant};
+use std::{collections::HashSet, future::Future, sync::Arc, time::Instant};
 
 use futures::{StreamExt, TryStreamExt};
 use iota_common::{debug_fatal, fatal};
@@ -35,7 +35,7 @@ use iota_types::{
     base_types::ExecutionData,
     effects::TransactionEffectsAPI,
     executable_transaction::VerifiedExecutableTransaction,
-    full_checkpoint_content::CheckpointData,
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     global_state_hash::GlobalStateHash,
     messages_checkpoint::{
         CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummaryExt,
@@ -925,9 +925,27 @@ impl CheckpointExecutor {
             // so all of its object writes are done and versions stay in the
             // increasing order the writeback cache requires.
             //
-            // No fork check: the effects being written are the certified ones,
-            // so there is nothing to compare them against.
-            self.commit_checkpoint_results(&results, &unexecuted_tx_digests);
+            // No fork check on what is written: the effects are the certified
+            // ones, so there is nothing to compare them against. A transaction
+            // found already executed is checked, inside.
+            //
+            // The cache is keyed by sequence number alone, so check the
+            // results are the ones this checkpoint was verified against
+            // before writing anything from them.
+            let results_digest = *results.checkpoint_summary.digest();
+            let expected_digest = *ckpt_state.data.checkpoint.digest();
+            if results_digest != expected_digest {
+                fatal!(
+                    "checkpoint {sequence_number} results are for {results_digest}, not \
+                     {expected_digest}"
+                );
+            }
+            let to_commit: HashSet<_> = unexecuted_tx_digests.iter().copied().collect();
+            let committed =
+                self.commit_checkpoint_results(&ckpt_state.data.checkpoint, &results, &to_commit);
+            self.metrics
+                .checkpoint_transactions_committed_from_archive
+                .inc_by(committed as u64);
         } else {
             let actual_fx_digests = self
                 .transaction_cache_reader
@@ -1231,20 +1249,55 @@ impl CheckpointExecutor {
     /// Only transactions the caller found unexecuted are written: committing a
     /// version the writeback cache already holds would break its
     /// increasing-version invariant.
-    fn commit_checkpoint_results(&self, results: &CheckpointData, to_commit: &[TransactionDigest]) {
+    fn commit_checkpoint_results(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+        results: &CheckpointData,
+        to_commit: &HashSet<TransactionDigest>,
+    ) -> usize {
         let _scope = iota_metrics::monitored_scope("CheckpointExecutor::commit_checkpoint_results");
-        for tx in &results.transactions {
-            if !may_commit_from_checkpoint(tx) {
-                continue;
-            }
-            if !to_commit.contains(tx.effects.transaction_digest()) {
+
+        let committable: Vec<&CheckpointTransaction> = results
+            .transactions
+            .iter()
+            .filter(|tx| may_commit_from_checkpoint(tx))
+            .filter(|tx| to_commit.contains(tx.effects.transaction_digest()))
+            .collect();
+        let digests: Vec<_> = committable
+            .iter()
+            .map(|tx| *tx.effects.transaction_digest())
+            .collect();
+
+        // Re-read in the same terms `to_commit` was built in. Nothing enqueues
+        // these transactions, so a hit is not expected, but writing outputs a
+        // second time would put an object version into the writeback cache out
+        // of order, which it asserts against.
+        let executed = self
+            .transaction_cache_reader
+            .multi_get_executed_effects_digests_in_epoch(checkpoint.epoch(), &digests);
+
+        let mut committed = 0;
+        for (tx, executed_fx_digest) in committable.iter().zip(executed) {
+            if let Some(executed_fx_digest) = executed_fx_digest {
+                // Skipping the write loses the only comparison this path would
+                // make against the certified effects, so make it here, the way
+                // the executing path does.
+                assert_not_forked(
+                    checkpoint,
+                    tx.effects.transaction_digest(),
+                    &tx.effects.digest(),
+                    &executed_fx_digest,
+                    &*self.transaction_cache_reader,
+                );
                 continue;
             }
             let outputs = TransactionOutputs::build_from_checkpoint_transaction(tx);
             self.state
                 .commit_checkpoint_transaction_outputs(outputs, &self.epoch_store)
                 .expect("storage access failed");
+            committed += 1;
         }
+        committed
     }
 
     /// Enqueues the checkpoint's not-yet-executed transactions, and returns
