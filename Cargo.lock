@@ -6968,7 +6968,6 @@ dependencies = [
  "iota-sdk-types",
  "thiserror 1.0.64",
  "tokio",
- "tracing",
 ]
 
 [[package]]
