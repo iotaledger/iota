@@ -4,7 +4,7 @@
 
 use std::{
     cmp::{Eq, min},
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, btree_map::Entry},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt::{Debug, Display, Formatter, Write},
     fs,
     path::{Path, PathBuf},
@@ -19,14 +19,16 @@ use colored::Colorize;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_grpc_client::GrpcClient;
+use iota_grpc_client::{
+    GrpcClient,
+    read_mask_fields::{DynamicFieldField, ObjectField, OwnedObjectField, ServiceInfoField},
+};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
-    IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData, IotaObjectDataOptions,
-    IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData, IotaProtocolConfigValue,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaData,
+    IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse, IotaProtocolConfigValue,
     IotaRawData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, OwnedObjectCursor,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     get_new_package_obj_from_response,
 };
 use iota_keys::keystore::{AccountKeystore, StoredKey};
@@ -42,9 +44,8 @@ use iota_package_management::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::{
-    IOTA_COIN_TYPE, IOTA_DEVNET_GAS_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL,
-    IOTA_LOCAL_NETWORK_URL, IOTA_LOCAL_NETWORK_URL_0, IOTA_TESTNET_GAS_URL, IOTA_TESTNET_URL,
-    IotaClient, PagedFn,
+    IOTA_DEVNET_GAS_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL, IOTA_LOCAL_NETWORK_URL,
+    IOTA_LOCAL_NETWORK_URL_0, IOTA_TESTNET_GAS_URL, IOTA_TESTNET_URL, IotaClient,
     apis::ReadApi,
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
@@ -55,9 +56,9 @@ use iota_sdk_move_types::iota_framework::{
 use iota_sdk_transaction_builder::{TransactionBuilderLedgerClient, unresolved};
 use iota_sdk_types::{
     Address, GasCostSummary, Identifier, MoveAuthenticatorV1, MovePackage, MovePackageData,
-    ObjectId, ObjectReference, Owner, SenderSignedTransaction, SharedObjectReference,
-    SignatureScheme, StructTag, Transaction, TransactionDigest, TransactionKind, TypeTag,
-    UserSignature, Version,
+    ObjectData, ObjectId, ObjectReference, ObjectType, Owner, SenderSignedTransaction,
+    SharedObjectReference, SignatureScheme, StructTag, Transaction, TransactionDigest,
+    TransactionKind, TypeTag, UserSignature, Version,
     crypto::{Intent, IntentMessage},
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
@@ -68,7 +69,7 @@ use iota_types::{
     coin::{PAY_SPLIT_N_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
     crypto::EmptySignInfo,
     digests::ChainIdentifier,
-    dynamic_field::DynamicFieldInfo,
+    dynamic_field::DynamicFieldType,
     error::IotaError,
     gas::get_gas_balance,
     gas_coin::GasCoin,
@@ -826,78 +827,107 @@ impl IotaClientCommands {
                 with_coins,
             } => {
                 let address = get_identity_address(address, context).await?;
-                let client = context.get_client().await?;
+                let client = context.get_grpc_client().await?;
 
-                let objects =
-                    PagedFn::collect::<Vec<_>>(async |cursor: Option<OwnedObjectCursor>| {
-                        match coin_type {
-                            Some(ref coin_type) => {
-                                client
-                                    .coin_read_api()
-                                    .get_coins(address, Some(coin_type.clone()), cursor, None)
-                                    .await
-                            }
-                            None => {
-                                client
-                                    .coin_read_api()
-                                    .get_all_coins(address, cursor, None)
-                                    .await
-                            }
-                        }
-                    })
-                    .await?;
+                let mut query = client.coins(address);
+                if let Some(ref coin_type) = coin_type {
+                    let coin_type =
+                        StructTag::from_str(coin_type).context("Cannot parse coin type")?;
+                    query = query.coin_type(coin_type);
+                }
+                let coins = query.collect(None).await?.into_inner();
+
                 // Pages are ordered by balance, so a coin whose balance changes
-                // while they are read can come back on a later page, with a
-                // higher version.
-                let objects =
-                    newest_versions(objects, |coin| Some((coin.coin_object_id, coin.version)));
-
-                fn canonicalize_type(type_: &str) -> Result<String, anyhow::Error> {
-                    Ok(TypeTag::from_str(type_)
-                        .context("Cannot parse coin type")?
-                        .to_canonical_string(/* with_prefix */ true))
+                // while they are read can come back on a later page. Keep the
+                // last occurrence for each coin so it is not counted twice.
+                let mut by_id = BTreeMap::new();
+                for coin in coins {
+                    by_id.insert(*coin.id(), coin);
                 }
 
-                let mut coins_by_type = BTreeMap::new();
-                for c in objects {
-                    let coins = match coins_by_type.entry(canonicalize_type(&c.coin_type)?) {
-                        Entry::Vacant(entry) => {
-                            let metadata = client
-                                .coin_read_api()
-                                .get_coin_metadata(c.coin_type.clone())
-                                .await
-                                .with_context(|| {
-                                    format!(
-                                        "Cannot fetch the coin metadata for coin {}",
-                                        c.coin_type
-                                    )
-                                })?;
+                let mut coins_by_type: BTreeMap<String, Vec<_>> = BTreeMap::new();
+                for coin in by_id.into_values() {
+                    coins_by_type
+                        .entry(coin.coin_type().to_canonical_string(/* with_prefix */ true))
+                        .or_default()
+                        .push(coin);
+                }
 
-                            &mut entry.insert((metadata, vec![])).1
-                        }
-                        Entry::Occupied(entry) => &mut entry.into_mut().1,
+                let mut balances = Vec::with_capacity(coins_by_type.len());
+                for (coin_type, coins) in coins_by_type {
+                    let metadata = match coins[0].coin_type().as_opt_struct_tag() {
+                        Some(tag) => client
+                            .coin_info(tag.clone())
+                            .await
+                            .ok()
+                            .and_then(|response| response.into_inner().metadata),
+                        None => None,
                     };
-
-                    coins.push(c);
+                    let (name, symbol, decimals) = match &metadata {
+                        Some(metadata) => (
+                            metadata
+                                .name
+                                .clone()
+                                .unwrap_or_else(|| "unknown".to_string()),
+                            metadata
+                                .symbol
+                                .clone()
+                                .unwrap_or_else(|| "unknown_symbol".to_string()),
+                            metadata.decimals.unwrap_or(9) as u8,
+                        ),
+                        None => ("unknown".to_string(), "unknown_symbol".to_string(), 9),
+                    };
+                    balances.push(CoinTypeBalance {
+                        coin_type,
+                        name,
+                        symbol,
+                        decimals,
+                        coins: coins
+                            .iter()
+                            .map(|coin| CoinBalance {
+                                coin_object_id: *coin.id(),
+                                balance: coin.balance(),
+                            })
+                            .collect(),
+                    });
                 }
-                let iota_type_tag = canonicalize_type(IOTA_COIN_TYPE)?;
 
-                // show IOTA first
-                let ordered_coins_iota_first = coins_by_type
-                    .remove(&iota_type_tag)
-                    .into_iter()
-                    .chain(coins_by_type.into_values())
-                    .collect();
+                // Show IOTA first.
+                let iota_type =
+                    StructTag::new_gas().to_canonical_string(/* with_prefix */ true);
+                balances.sort_by_key(|balance| balance.coin_type != iota_type);
 
-                IotaClientCommandResult::Balance(ordered_coins_iota_first, with_coins)
+                IotaClientCommandResult::Balance(balances, with_coins)
             }
             IotaClientCommands::DynamicFieldQuery { id, cursor, limit } => {
-                let client = context.get_client().await?;
-                let df_read = client
-                    .read_api()
-                    .get_dynamic_fields(id, cursor, Some(limit))
-                    .await?;
-                IotaClientCommandResult::DynamicFieldQuery(df_read)
+                let client = context.get_grpc_client().await?;
+                let mut query = client
+                    .dynamic_fields(id)
+                    .read_mask(DynamicFieldField::ALL)
+                    .page_size(limit as u32);
+                if let Some(cursor) = cursor {
+                    // The server's page token is the BCS encoding of the
+                    // (parent, cursor) object IDs; reproduce it so the
+                    // `--cursor` flag keeps paging from a given field ID.
+                    query = query.page_token(bytes::Bytes::from(bcs::to_bytes(&(id, cursor))?));
+                }
+                let page = query.await?.into_inner();
+                let has_next_page = page.next_page_token.is_some();
+                let next_cursor = page
+                    .next_page_token
+                    .as_ref()
+                    .and_then(|token| bcs::from_bytes::<(ObjectId, ObjectId)>(token).ok())
+                    .map(|(_parent, cursor)| cursor);
+                let data = page
+                    .items
+                    .iter()
+                    .map(dynamic_field_entry)
+                    .collect::<Result<Vec<_>, _>>()?;
+                IotaClientCommandResult::DynamicFieldQuery(DynamicFieldOutput {
+                    has_next_page,
+                    next_cursor,
+                    data,
+                })
             }
             IotaClientCommands::Upgrade {
                 package_path,
@@ -1263,20 +1293,20 @@ impl IotaClientCommands {
                 }
             }
             IotaClientCommands::Object { id, bcs } => {
-                // Fetch the object ref
-                let client = context.get_client().await?;
+                let client = context.get_grpc_client().await?;
+                let object = client
+                    .objects([id])
+                    .read_mask(ObjectField::BCS)
+                    .await?
+                    .into_inner()
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| anyhow!("object {id} not found"))??
+                    .object()?;
                 if !bcs {
-                    let object_read = client
-                        .read_api()
-                        .get_object_with_options(id, IotaObjectDataOptions::full_content())
-                        .await?;
-                    IotaClientCommandResult::Object(object_read)
+                    IotaClientCommandResult::Object(object)
                 } else {
-                    let raw_object_read = client
-                        .read_api()
-                        .get_object_with_options(id, IotaObjectDataOptions::bcs_lossless())
-                        .await?;
-                    IotaClientCommandResult::RawObject(raw_object_read)
+                    IotaClientCommandResult::RawObject(object)
                 }
             }
             IotaClientCommands::TransactionBlock { digest } => {
@@ -1520,30 +1550,22 @@ impl IotaClientCommands {
             }
             IotaClientCommands::Objects { address } => {
                 let address = get_identity_address(address, context).await?;
-                let client = context.get_client().await?;
-                let objects: Vec<IotaObjectResponse> =
-                    PagedFn::collect(async |cursor: Option<OwnedObjectCursor>| {
-                        client
-                            .read_api()
-                            .get_owned_objects(
-                                address,
-                                Some(IotaObjectResponseQuery::new_with_options(
-                                    IotaObjectDataOptions::full_content(),
-                                )),
-                                cursor,
-                                None,
-                            )
-                            .await
-                    })
-                    .await?;
+                let client = context.get_grpc_client().await?;
+                let objects = client
+                    .owned_objects(address)
+                    .read_mask(OwnedObjectField::BCS)
+                    .collect(None)
+                    .await?
+                    .into_inner()
+                    .into_iter()
+                    .map(|proto_object| proto_object.object())
+                    .collect::<Result<Vec<_>, _>>()?;
                 // Coins are ordered by balance, so a coin whose balance changes
                 // while the pages are read can come back on a later page, with
                 // a higher version.
                 let objects = newest_versions(objects, |object| {
-                    object
-                        .data
-                        .as_ref()
-                        .map(|data| (data.object_id, data.version))
+                    let object_ref = object.object_ref();
+                    Some((*object_ref.object_id(), object_ref.version()))
                 });
                 IotaClientCommandResult::Objects(objects)
             }
@@ -1632,12 +1654,21 @@ impl IotaClientCommands {
                 IotaClientCommandResult::NoOutput
             }
             IotaClientCommands::ChainIdentifier => {
-                let ci = context
-                    .get_client()
+                let client = context.get_grpc_client().await?;
+                let chain_id = client
+                    .service_info()
+                    .read_mask(ServiceInfoField::CHAIN_ID)
                     .await?
-                    .read_api()
-                    .get_chain_identifier()
-                    .await?;
+                    .into_inner()
+                    .chain_id
+                    .ok_or_else(|| anyhow!("node did not return a chain identifier"))?
+                    .digest()?;
+                // The chain identifier is the first four bytes of the genesis
+                // checkpoint digest, hex-encoded.
+                let ci = chain_id.bytes()[..4]
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>();
                 IotaClientCommandResult::ChainIdentifier(ci)
             }
             IotaClientCommands::SplitCoin {
@@ -2363,12 +2394,6 @@ impl Display for IotaClientCommandResult {
                 write!(f, "{table}")?;
             }
             IotaClientCommandResult::DynamicFieldQuery(df_refs) => {
-                let df_refs = DynamicFieldOutput {
-                    has_next_page: df_refs.has_next_page,
-                    next_cursor: df_refs.next_cursor,
-                    data: df_refs.data.iter().cloned().map(Into::into).collect(),
-                };
-
                 let json_obj = json!(df_refs);
                 let mut table = json_to_table(&json_obj);
                 let style = TableStyle::rounded().horizontals([]);
@@ -2457,30 +2482,22 @@ impl Display for IotaClientCommandResult {
 
                 write!(f, "{table}")?
             }
-            IotaClientCommandResult::Object(object_read) => match object_read.object() {
-                Ok(obj) => {
-                    let object = ObjectOutput::from(obj);
-                    let json_obj = json!(&object);
-                    let mut table = json_to_table(&json_obj);
-                    table.with(TableStyle::rounded().horizontals([]));
-                    writeln!(f, "{table}")?
-                }
-                Err(e) => writeln!(f, "Internal error, cannot read the object: {e}")?,
-            },
+            IotaClientCommandResult::Object(object) => {
+                let object = ObjectOutput::from(object);
+                let json_obj = json!(&object);
+                let mut table = json_to_table(&json_obj);
+                table.with(TableStyle::rounded().horizontals([]));
+                writeln!(f, "{table}")?
+            }
             IotaClientCommandResult::Objects(object_refs) => {
                 if object_refs.is_empty() {
                     writeln!(f, "This address has no owned objects.")?
                 } else {
-                    let objects = ObjectsOutput::from_vec(object_refs.to_vec());
-                    match objects {
-                        Ok(objs) => {
-                            let json_obj = json!(objs);
-                            let mut table = json_to_table(&json_obj);
-                            table.with(TableStyle::rounded().horizontals([]));
-                            writeln!(f, "{table}")?
-                        }
-                        Err(e) => write!(f, "Internal error: {e}")?,
-                    }
+                    let objects = ObjectsOutput::from_vec(object_refs);
+                    let json_obj = json!(objects);
+                    let mut table = json_to_table(&json_obj);
+                    table.with(TableStyle::rounded().horizontals([]));
+                    writeln!(f, "{table}")?
                 }
             }
             IotaClientCommandResult::TransactionBlock(response) => {
@@ -2489,24 +2506,22 @@ impl Display for IotaClientCommandResult {
             IotaClientCommandResult::ExecutedTransaction(executed) => {
                 write!(writer, "{}", Pretty(&**executed))?;
             }
-            IotaClientCommandResult::RawObject(raw_object_read) => {
-                let raw_object = match raw_object_read.object() {
-                    Ok(v) => match &v.bcs {
-                        Some(IotaRawData::MoveObject(o)) => {
-                            format!("{:?}\nNumber of bytes: {}", o.bcs_bytes, o.bcs_bytes.len())
+            IotaClientCommandResult::RawObject(object) => {
+                let raw_object = match object.data() {
+                    ObjectData::Struct(move_struct) => {
+                        let bytes = move_struct.contents();
+                        format!("{:?}\nNumber of bytes: {}", bytes, bytes.len())
+                    }
+                    ObjectData::Package(package) => {
+                        let mut temp = String::new();
+                        let mut bcs_bytes = 0usize;
+                        for m in &package.modules {
+                            temp.push_str(&format!("{m:?}\n"));
+                            bcs_bytes += m.1.len()
                         }
-                        Some(IotaRawData::Package(p)) => {
-                            let mut temp = String::new();
-                            let mut bcs_bytes = 0usize;
-                            for m in &p.module_map {
-                                temp.push_str(&format!("{m:?}\n"));
-                                bcs_bytes += m.1.len()
-                            }
-                            format!("{temp}Number of bytes: {bcs_bytes}")
-                        }
-                        None => "Bcs field is None".to_string().red().to_string(),
-                    },
-                    Err(err) => format!("{err}").red().to_string(),
+                        format!("{temp}Number of bytes: {bcs_bytes}")
+                    }
+                    _ => "Unsupported object data".to_string().red().to_string(),
                 };
                 writeln!(writer, "{raw_object}")?;
             }
@@ -2709,13 +2724,9 @@ impl Debug for IotaClientCommandResult {
                     .collect::<Vec<_>>();
                 Ok(serde_json::to_string_pretty(&gas_coins)?)
             }
-            IotaClientCommandResult::Object(object_read) => {
-                let object = object_read.object()?;
+            IotaClientCommandResult::Object(object)
+            | IotaClientCommandResult::RawObject(object) => {
                 Ok(serde_json::to_string_pretty(&object)?)
-            }
-            IotaClientCommandResult::RawObject(raw_object_read) => {
-                let raw_object = raw_object_read.object()?;
-                Ok(serde_json::to_string_pretty(&raw_object)?)
             }
             _ => Ok(serde_json::to_string_pretty(self)?),
         });
@@ -2724,7 +2735,7 @@ impl Debug for IotaClientCommandResult {
 }
 
 impl IotaClientCommandResult {
-    pub fn objects_response(&self) -> Option<Vec<IotaObjectResponse>> {
+    pub fn objects_response(&self) -> Option<Vec<iota_sdk_types::Object>> {
         use IotaClientCommandResult::*;
         match self {
             Object(o) | RawObject(o) => Some(vec![o.clone()]),
@@ -2823,7 +2834,125 @@ pub struct AddressesOutput {
 pub struct DynamicFieldOutput {
     pub has_next_page: bool,
     pub next_cursor: Option<ObjectId>,
-    pub data: Vec<DynamicFieldInfo>,
+    pub data: Vec<DynamicFieldEntry>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DynamicFieldEntry {
+    pub name: DynamicFieldNameOutput,
+    pub bcs_name: String,
+    #[serde(rename = "type")]
+    pub type_: DynamicFieldType,
+    pub object_type: String,
+    pub object_id: ObjectId,
+    pub version: Version,
+    pub digest: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DynamicFieldNameOutput {
+    /// Move type of the dynamic field's name.
+    #[serde(rename = "type")]
+    pub type_: String,
+}
+
+/// Build a [`DynamicFieldEntry`] from the gRPC `DynamicField`.
+///
+/// The parsed name value is not reconstructed: decoding it to JSON needs the
+/// Move type layout, which the gRPC read API does not return. Only the name's
+/// Move type and its BCS bytes are surfaced.
+fn dynamic_field_entry(
+    df: &iota_grpc_types::v1::dynamic_field::DynamicField,
+) -> anyhow::Result<DynamicFieldEntry> {
+    use iota_grpc_types::v1::dynamic_field::dynamic_field::DynamicFieldKind;
+
+    let kind = df
+        .kind
+        .and_then(|kind| DynamicFieldKind::try_from(kind).ok())
+        .unwrap_or(DynamicFieldKind::Unknown);
+
+    let bcs_name = df
+        .name
+        .as_ref()
+        .map(|name| Base64::encode(name.as_bytes()))
+        .unwrap_or_default();
+
+    // The value type is the Move type stored in a plain dynamic field, or the
+    // child object's type for a dynamic object field.
+    let object_type = df
+        .value_type
+        .clone()
+        .unwrap_or_else(|| "unknown".to_string());
+
+    // The owning `0x2::dynamic_field::Field<Name, Value>` object carries the
+    // name type as its first type parameter.
+    let field_object = df
+        .field_object
+        .as_ref()
+        .map(|object| object.object())
+        .transpose()?;
+    let name_type = field_object
+        .as_ref()
+        .and_then(dynamic_field_name_type)
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let (type_, object_id, version, digest) = match kind {
+        DynamicFieldKind::Object => {
+            let child = df
+                .child_object
+                .as_ref()
+                .map(|object| object.object())
+                .transpose()?
+                .ok_or_else(|| anyhow!("dynamic object field is missing its child object"))?;
+            let object_ref = child.object_ref();
+            (
+                DynamicFieldType::DynamicObject,
+                *object_ref.object_id(),
+                object_ref.version(),
+                object_ref.digest().to_string(),
+            )
+        }
+        _ => {
+            let object = field_object
+                .as_ref()
+                .ok_or_else(|| anyhow!("dynamic field is missing its field object"))?;
+            let object_ref = object.object_ref();
+            (
+                DynamicFieldType::DynamicField,
+                *object_ref.object_id(),
+                object_ref.version(),
+                object_ref.digest().to_string(),
+            )
+        }
+    };
+
+    Ok(DynamicFieldEntry {
+        name: DynamicFieldNameOutput { type_: name_type },
+        bcs_name,
+        type_,
+        object_type,
+        object_id,
+        version,
+        digest,
+    })
+}
+
+/// Extract the Move type of a dynamic field's name from its
+/// `0x2::dynamic_field::Field<Name, Value>` object, unwrapping the
+/// `dynamic_object_field::Wrapper<Name>` for dynamic object fields.
+fn dynamic_field_name_type(object: &iota_sdk_types::Object) -> Option<String> {
+    let field_type = object.struct_tag()?;
+    let name_type = field_type.type_params().first()?;
+    if let Some(inner) = name_type.as_opt_struct_tag() {
+        if inner.module().as_str() == "dynamic_object_field" && inner.name().as_str() == "Wrapper" {
+            if let Some(wrapped) = inner.type_params().first() {
+                return Some(wrapped.to_string());
+            }
+        }
+    }
+    Some(name_type.to_string())
 }
 
 #[derive(Serialize)]
@@ -2859,31 +2988,27 @@ pub struct ObjectOutput {
     pub version: Version,
     pub digest: String,
     pub obj_type: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub owner: Option<Owner>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prev_tx: Option<TransactionDigest>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub storage_rebate: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub content: Option<IotaParsedData>,
+    pub owner: Owner,
+    pub prev_tx: TransactionDigest,
+    pub storage_rebate: u64,
 }
 
-impl From<&IotaObjectData> for ObjectOutput {
-    fn from(obj: &IotaObjectData) -> Self {
-        let obj_type = match obj.object_type.as_ref() {
-            Some(x) => x.to_string(),
-            None => "unknown".to_string(),
+impl From<&iota_sdk_types::Object> for ObjectOutput {
+    fn from(obj: &iota_sdk_types::Object) -> Self {
+        let obj_type = match obj.object_type() {
+            ObjectType::Struct(tag) => tag.to_string(),
+            ObjectType::Package => "Package".to_string(),
+            _ => "unknown".to_string(),
         };
+        let object_ref = obj.object_ref();
         Self {
-            object_id: obj.object_id,
-            version: obj.version,
-            digest: obj.digest.to_string(),
+            object_id: *object_ref.object_id(),
+            version: object_ref.version(),
+            digest: object_ref.digest().to_string(),
             obj_type,
-            owner: obj.owner,
-            prev_tx: obj.previous_transaction,
-            storage_rebate: obj.storage_rebate,
-            content: obj.content.clone(),
+            owner: *obj.owner(),
+            prev_tx: obj.previous_transaction(),
+            storage_rebate: obj.storage_rebate(),
         }
     }
 }
@@ -2916,12 +3041,11 @@ pub struct ObjectsOutput {
 }
 
 impl ObjectsOutput {
-    fn from(obj: IotaObjectResponse) -> Result<Self, anyhow::Error> {
-        let obj = obj.into_object()?;
+    fn from(obj: &iota_sdk_types::Object) -> Self {
         // this replicates the object type display as in the iota explorer
-        let object_type = match obj.object_type {
-            Some(iota_types::base_types::ObjectType::Struct(x)) => {
-                let address = x.address().to_string();
+        let object_type = match obj.object_type() {
+            ObjectType::Struct(x) => {
+                let address = x.address().to_raw_hex();
                 // check if the address has length of 64 characters
                 // otherwise, keep it as it is
                 let address = if address.len() == 64 {
@@ -2931,21 +3055,37 @@ impl ObjectsOutput {
                 };
                 format!("{}::{}::{}", address, x.module(), x.name(),)
             }
-            Some(iota_types::base_types::ObjectType::Package) => "Package".to_string(),
-            None => "unknown".to_string(),
+            ObjectType::Package => "Package".to_string(),
+            _ => "unknown".to_string(),
         };
-        Ok(Self {
-            object_id: obj.object_id,
-            version: obj.version,
-            digest: Base64::encode(obj.digest),
+        let object_ref = obj.object_ref();
+        Self {
+            object_id: *object_ref.object_id(),
+            version: object_ref.version(),
+            digest: Base64::encode(object_ref.digest().bytes()),
             object_type,
-        })
+        }
     }
-    fn from_vec(objs: Vec<IotaObjectResponse>) -> Result<Vec<Self>, anyhow::Error> {
-        objs.into_iter()
-            .map(ObjectsOutput::from)
-            .collect::<Result<Vec<_>, _>>()
+    fn from_vec(objs: &[iota_sdk_types::Object]) -> Vec<Self> {
+        objs.iter().map(ObjectsOutput::from).collect()
     }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoinTypeBalance {
+    pub coin_type: String,
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u8,
+    pub coins: Vec<CoinBalance>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoinBalance {
+    pub coin_object_id: ObjectId,
+    pub balance: u64,
 }
 
 #[derive(Serialize)]
@@ -2955,10 +3095,10 @@ pub enum IotaClientCommandResult {
     ActiveEnv(Option<String>),
     AddAccount(AddAccountOutput),
     Addresses(AddressesOutput),
-    Balance(Vec<(Option<IotaCoinMetadata>, Vec<Coin>)>, bool),
+    Balance(Vec<CoinTypeBalance>, bool),
     ChainIdentifier(String),
     ComputeTransactionDigest(Transaction),
-    DynamicFieldQuery(DynamicFieldPage),
+    DynamicFieldQuery(DynamicFieldOutput),
     DryRun(DryRunTransactionBlockResponse),
     DevInspect(DevInspectResults),
     Envs(Vec<IotaEnv>, Option<String>),
@@ -2970,9 +3110,9 @@ pub enum IotaClientCommandResult {
     NewAddress(NewAddressOutput),
     NewEnv(IotaEnv),
     NoOutput,
-    Object(IotaObjectResponse),
-    Objects(Vec<IotaObjectResponse>),
-    RawObject(IotaObjectResponse),
+    Object(iota_sdk_types::Object),
+    Objects(Vec<iota_sdk_types::Object>),
+    RawObject(iota_sdk_types::Object),
     RemoveAddress(Address),
     SerializedSignedTransaction(SenderSignedTransaction),
     SerializedUnsignedTransaction(Transaction),
@@ -3062,7 +3202,7 @@ pub async fn request_tokens_from_faucet(
 }
 
 fn pretty_print_balance(
-    coins_by_type: &Vec<(Option<IotaCoinMetadata>, Vec<Coin>)>,
+    balances: &[CoinTypeBalance],
     builder: &mut TableBuilder,
     with_coins: bool,
 ) {
@@ -3071,16 +3211,11 @@ fn pretty_print_balance(
     if !with_coins {
         table_builder.set_header(vec!["coin", "balance (raw)", "balance", ""]);
     }
-    for (metadata, coins) in coins_by_type {
-        let (name, symbol, coin_decimals) = if let Some(metadata) = metadata {
-            (
-                metadata.name.as_str(),
-                metadata.symbol.as_str(),
-                metadata.decimals,
-            )
-        } else {
-            ("unknown", "unknown_symbol", 9)
-        };
+    for balance_by_type in balances {
+        let name = balance_by_type.name.as_str();
+        let symbol = balance_by_type.symbol.as_str();
+        let coin_decimals = balance_by_type.decimals;
+        let coins = &balance_by_type.coins;
 
         let balance = coins.iter().map(|x| x.balance as u128).sum::<u128>();
         let mut inner_table = TableBuilder::default();
