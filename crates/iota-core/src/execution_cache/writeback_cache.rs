@@ -1398,6 +1398,12 @@ impl WritebackCache {
             .remove(&effects_digest)
             .expect("effects must exist");
 
+        // Read before the effects are handed to the cache below, since the
+        // superseded versions are retired after that point.
+        let modified_at_versions = outputs
+            .record_superseded_versions
+            .then(|| effects.modified_at_versions());
+
         let (_, events) = self
             .dirty
             .transaction_events
@@ -1452,16 +1458,13 @@ impl WritebackCache {
             );
         }
 
-        if outputs.record_superseded_versions {
-            for modified in effects.modified_at_versions() {
-                Self::move_version_from_dirty_to_cache(
-                    &self.dirty.superseded_versions,
-                    &self.cached.superseded_version_cache,
-                    *modified.object_id(),
-                    modified.version(),
-                    &epoch,
-                );
-            }
+        for modified in modified_at_versions.into_iter().flatten() {
+            Self::move_version_from_dirty_to_cache(
+                &self.dirty.superseded_versions,
+                &self.cached.superseded_version_cache,
+                *modified.object_id(),
+                modified.version(),
+            );
         }
 
         for (object_id, object) in written.iter() {
