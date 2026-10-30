@@ -1063,7 +1063,7 @@ mod sim_only_tests {
                     .state()
                     .get_object_store()
                     .as_ref(),
-                inner.validators.inactive_validators.id,
+                *inner.validators.inactive_validators.id.object_id(),
                 &ID::new(ObjectId::ZERO),
                 Some(inner.protocol_version),
             )
@@ -1089,7 +1089,7 @@ mod sim_only_tests {
                     .state()
                     .get_object_store()
                     .as_ref(),
-                inner.validators.inactive_validators.id,
+                *inner.validators.inactive_validators.id.object_id(),
                 &ID::new(ObjectId::ZERO),
                 None,
             )
