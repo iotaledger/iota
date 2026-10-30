@@ -73,7 +73,7 @@ use crate::{
     misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
-    transaction_ref::{GenericTransactionRefAPI, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 /// Allowed multiplicity of commit vote headers per authority in a
@@ -308,7 +308,7 @@ fn verify_commit_authority_indices(
         check(block_ref.author)?;
     }
     for transaction_ref in commit.committed_transactions() {
-        check(transaction_ref.author())?;
+        check(transaction_ref.author)?;
     }
     for (index, _) in commit.reputation_scores() {
         check(*index)?;

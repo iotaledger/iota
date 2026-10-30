@@ -23,7 +23,7 @@ use crate::{
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 /// The `StorageAPI` trait provides an interface for the block store and has
@@ -171,7 +171,7 @@ impl Linearizer {
 
         // Convert each committed BlockRef to a TransactionRef, looking up its
         // transactions commitment.
-        let committed_transactions_refs: Vec<GenericTransactionRef> = {
+        let committed_transactions_refs: Vec<TransactionRef> = {
             // Use batch function to get transaction commitments efficiently
             let dag_state_guard = self.dag_state.read();
             let transactions_commitments =
@@ -184,11 +184,11 @@ impl Linearizer {
                 .map(|(block_ref, transactions_commitment_opt)| {
                     let transactions_commitment = transactions_commitment_opt
                         .expect("Block header must exist for committed transaction");
-                    GenericTransactionRef::TransactionRef(TransactionRef {
+                    TransactionRef {
                         round: block_ref.round,
                         author: block_ref.author,
                         transactions_commitment,
-                    })
+                    }
                 })
                 .collect()
         };
@@ -217,7 +217,7 @@ impl Linearizer {
             leader_block.reference(),
             to_commit,
             commit.block_headers().to_vec(),
-            commit.committed_transactions(),
+            commit.committed_transactions().to_vec(),
             timestamp_ms,
             commit.reference(),
             reputation_scores_desc,
@@ -400,24 +400,18 @@ impl Linearizer {
     /// acknowledger maps to an empty set.
     pub fn get_transaction_ack_authors(
         &self,
-        missing_refs: Vec<GenericTransactionRef>,
-    ) -> BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> {
+        missing_refs: Vec<TransactionRef>,
+    ) -> BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>> {
         let mut acknowledged_map = BTreeMap::new();
 
         for missing_ref in missing_refs {
-            let block_refs: Vec<BlockRef> = match missing_ref {
-                GenericTransactionRef::BlockRef(br) => vec![br],
-                GenericTransactionRef::TransactionRef(tx_ref) => {
-                    let block_refs = self.dag_state.read().resolve_block_refs(&tx_ref);
-                    if block_refs.is_empty() {
-                        error!(
-                            "block_digest not found for {tx_ref:?} in transactions_ack_tracker lookup; \
-                             entry should exist since missing txns are above eviction boundary"
-                        );
-                    }
-                    block_refs
-                }
-            };
+            let block_refs = self.dag_state.read().resolve_block_refs(&missing_ref);
+            if block_refs.is_empty() {
+                error!(
+                    "block_digest not found for {missing_ref:?} in transactions_ack_tracker lookup; \
+                     entry should exist since missing txns are above eviction boundary"
+                );
+            }
             // More than one header can carry the same payload.
             let acknowledgers = block_refs
                 .iter()
@@ -546,7 +540,6 @@ mod tests {
         storage::{Store, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
-        transaction_ref::GenericTransactionRefAPI,
     };
 
     #[tokio::test]
@@ -620,7 +613,7 @@ mod tests {
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
-                assert!(committed_transactions_ref.round() == leaders[idx].round() - 2);
+                assert!(committed_transactions_ref.round == leaders[idx].round() - 2);
             }
 
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
@@ -976,7 +969,7 @@ mod tests {
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
-                assert!(committed_transactions_ref.round() < leaders[idx].round());
+                assert!(committed_transactions_ref.round < leaders[idx].round());
             }
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
         }
@@ -1020,7 +1013,7 @@ mod tests {
             let round_references: Vec<_> = dag_builder
                 .block_headers(round..=round)
                 .into_iter()
-                .map(|bh| GenericTransactionRef::from(bh.reference()))
+                .map(|bh| bh.transaction_ref())
                 .collect();
 
             let ack_authors = linearizer.get_transaction_ack_authors(round_references.clone());
@@ -1035,7 +1028,7 @@ mod tests {
             let round_references: Vec<_> = dag_builder
                 .block_headers(round..=round)
                 .into_iter()
-                .map(|bh| GenericTransactionRef::from(bh.reference()))
+                .map(|bh| bh.transaction_ref())
                 .collect();
             let ack_authors = linearizer.get_transaction_ack_authors(round_references.clone());
             assert_eq!(ack_authors.len(), 4);
@@ -1236,9 +1229,9 @@ mod tests {
         )]);
         assert_eq!(commits.len(), 1);
         let optimistic_refs = &commits[0].committed_transaction_refs;
-        let contains_block = |refs: &[GenericTransactionRef], block_ref: &BlockRef| -> bool {
+        let contains_block = |refs: &[TransactionRef], block_ref: &BlockRef| -> bool {
             refs.iter()
-                .any(|r| r.round() == block_ref.round && r.author() == block_ref.author)
+                .any(|r| r.round == block_ref.round && r.author == block_ref.author)
         };
 
         // Optimistic commits the leader's own ref.
@@ -1290,9 +1283,9 @@ mod tests {
         let optimistic_set: Vec<BlockRef> = std::iter::once(leader_a.reference())
             .chain(leader_a.acknowledgments().iter().copied())
             .collect();
-        let contains_block = |refs: &[GenericTransactionRef], block_ref: &BlockRef| -> bool {
+        let contains_block = |refs: &[TransactionRef], block_ref: &BlockRef| -> bool {
             refs.iter()
-                .any(|r| r.round() == block_ref.round && r.author() == block_ref.author)
+                .any(|r| r.round == block_ref.round && r.author == block_ref.author)
         };
 
         let strong_voters: Vec<AuthorityIndex> = (0..num_authorities as u8)
@@ -1333,7 +1326,7 @@ mod tests {
         let has_round_5_ref = commits_b[0]
             .committed_transaction_refs
             .iter()
-            .any(|r| r.round() == 5);
+            .any(|r| r.round == 5);
         assert!(
             has_round_5_ref,
             "Standard commit of L_b should still include round-5 refs"
@@ -1368,9 +1361,9 @@ mod tests {
             linearizer.get_pending_sub_dags(vec![(leader, CommitMetastate::Standard, vec![])]);
         assert_eq!(commits.len(), 1);
         let standard_refs = &commits[0].committed_transaction_refs;
-        let contains_block = |refs: &[GenericTransactionRef], block_ref: &BlockRef| -> bool {
+        let contains_block = |refs: &[TransactionRef], block_ref: &BlockRef| -> bool {
             refs.iter()
-                .any(|r| r.round() == block_ref.round && r.author() == block_ref.author)
+                .any(|r| r.round == block_ref.round && r.author == block_ref.author)
         };
 
         // Standard metastate must not trigger the Optimistic shortcut.
@@ -1426,21 +1419,21 @@ mod tests {
         let ack_authors =
             linearizer.get_transaction_ack_authors(commits[0].committed_transaction_refs.clone());
 
-        let leader_generic = ack_authors
+        let leader_ack_authors = ack_authors
             .iter()
-            .find(|(r, _)| r.round() == leader_ref.round && r.author() == leader_ref.author)
+            .find(|(r, _)| r.round == leader_ref.round && r.author == leader_ref.author)
             .map(|(_, authors)| authors)
             .expect("leader ref must be present in ack tracker");
         assert!(
-            strong_voters.is_subset(leader_generic),
+            strong_voters.is_subset(leader_ack_authors),
             "leader ref tracker should record the strong-voter authorities; \
-             got {leader_generic:?}, expected superset of {strong_voters:?}"
+             got {leader_ack_authors:?}, expected superset of {strong_voters:?}"
         );
 
         for ack_ref in &leader_ack_refs {
             let recorded = ack_authors
                 .iter()
-                .find(|(r, _)| r.round() == ack_ref.round && r.author() == ack_ref.author)
+                .find(|(r, _)| r.round == ack_ref.round && r.author == ack_ref.author)
                 .map(|(_, authors)| authors)
                 .unwrap_or_else(|| panic!("ack ref {ack_ref:?} must be in tracker"));
             assert!(
@@ -1538,7 +1531,7 @@ mod tests {
         let contains_orphan = subdags[0]
             .committed_transaction_refs
             .iter()
-            .any(|r| r.round() == orphan_ref.round && r.author() == orphan_ref.author);
+            .any(|r| r.round == orphan_ref.round && r.author == orphan_ref.author);
         assert!(
             !contains_orphan,
             "Optimistic path must not commit a ref whose header is not traversed"
@@ -1602,7 +1595,7 @@ mod tests {
             &[other_header.reference()],
         );
 
-        let tx_ref = GenericTransactionRef::from(header.transaction_ref());
+        let tx_ref = header.transaction_ref();
         let ack_authors = linearizer.get_transaction_ack_authors(vec![tx_ref]);
         assert_eq!(
             ack_authors[&tx_ref],

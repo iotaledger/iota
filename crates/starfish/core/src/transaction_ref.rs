@@ -6,15 +6,10 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use enum_dispatch::enum_dispatch;
-use fastcrypto::hash::Digest;
 use serde::{Deserialize, Serialize};
-use starfish_config::{AuthorityIndex, DIGEST_LENGTH};
+use starfish_config::AuthorityIndex;
 
-use crate::{
-    block_header::{BlockRef, Round, TransactionsCommitment},
-    error::{ConsensusError, ConsensusResult},
-};
+use crate::block_header::{BlockRef, Round, TransactionsCommitment};
 
 /// BCS-serialized size of a [`TransactionRef`]: `round` (u32, 4) + `author`
 /// (`AuthorityIndex`, 1) + `transactions_commitment` (32).
@@ -59,110 +54,24 @@ impl Hash for TransactionRef {
     }
 }
 
-/// Accessors to transaction reference info.
-#[enum_dispatch]
-pub(crate) trait GenericTransactionRefAPI {
-    fn author(&self) -> AuthorityIndex;
-    fn round(&self) -> Round;
-    fn digest(&self) -> Digest<DIGEST_LENGTH>;
-    fn variant_name(&self) -> &'static str;
-}
-
-/// A generic reference to either a block or a transaction.
-#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
-#[enum_dispatch(GenericTransactionRefAPI)]
-pub enum GenericTransactionRef {
-    BlockRef(BlockRef),
-    TransactionRef(TransactionRef),
-}
-
-impl GenericTransactionRefAPI for BlockRef {
-    fn author(&self) -> AuthorityIndex {
-        self.author
-    }
-
-    fn round(&self) -> Round {
-        self.round
-    }
-
-    fn digest(&self) -> Digest<DIGEST_LENGTH> {
-        self.digest.into()
-    }
-
-    fn variant_name(&self) -> &'static str {
-        "BlockRef"
-    }
-}
-
-impl GenericTransactionRefAPI for TransactionRef {
-    fn author(&self) -> AuthorityIndex {
-        self.author
-    }
-
-    fn round(&self) -> Round {
-        self.round
-    }
-
-    fn digest(&self) -> Digest<DIGEST_LENGTH> {
-        self.transactions_commitment.into()
-    }
-
-    fn variant_name(&self) -> &'static str {
-        "TransactionRef"
-    }
-}
-
-impl GenericTransactionRef {
-    /// Returns the transaction reference or an error for a legacy block
-    /// reference.
-    pub(crate) fn expect_transaction_ref(self) -> ConsensusResult<TransactionRef> {
-        match self {
-            GenericTransactionRef::TransactionRef(tr) => Ok(tr),
-            GenericTransactionRef::BlockRef(_) => {
-                Err(ConsensusError::TransactionRefVariantMismatch {
-                    received_variant: self.variant_name(),
-                })
-            }
-        }
-    }
-}
-
-impl fmt::Display for GenericTransactionRef {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            GenericTransactionRef::BlockRef(b) => write!(f, "{b}"),
-            GenericTransactionRef::TransactionRef(t) => write!(f, "{t}"),
-        }
-    }
-}
-
-impl Hash for GenericTransactionRef {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        match self {
-            GenericTransactionRef::BlockRef(b) => b.hash(state),
-            GenericTransactionRef::TransactionRef(t) => t.hash(state),
-        }
-    }
-}
-
-/// Helper function to convert BlockRefs to GenericTransactionRefs, fetching
-/// each block header for its transactions commitment.
+/// Helper function to convert BlockRefs to TransactionRefs, fetching each
+/// block header for its transactions commitment.
 #[cfg(test)]
-pub(crate) fn convert_block_refs_to_generic_transaction_refs(
+pub(crate) fn convert_block_refs_to_transaction_refs(
     store: &dyn crate::storage::Store,
     block_refs: &[BlockRef],
-) -> Vec<GenericTransactionRef> {
+) -> Vec<TransactionRef> {
     let headers = store.read_verified_block_headers(block_refs).unwrap();
     block_refs
         .iter()
         .enumerate()
         .map(|(idx, block_ref)| {
             let header = headers[idx].as_ref().unwrap();
-            GenericTransactionRef::TransactionRef(TransactionRef {
+            TransactionRef {
                 round: block_ref.round,
                 author: block_ref.author,
                 transactions_commitment: header.transactions_commitment(),
-            })
+            }
         })
         .collect()
 }

@@ -23,7 +23,6 @@ use crate::{
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     linearizer::Linearizer,
     storage::mem_store::MemStore,
-    transaction_ref::GenericTransactionRef,
     universal_committer::universal_committer_builder::UniversalCommitterBuilder,
 };
 
@@ -897,10 +896,7 @@ async fn optimistic_commits_ref_without_actual_transactions() {
     let p_committed = pending[0]
         .committed_transaction_refs
         .iter()
-        .any(|r| match r {
-            GenericTransactionRef::BlockRef(br) => br.round == 2 && br.author == auth_3,
-            GenericTransactionRef::TransactionRef(tr) => tr.round == 2 && tr.author == auth_3,
-        });
+        .any(|r| r.round == 2 && r.author == auth_3);
     let p_transactions_available = dag_state.read().are_transactions_available(&r2_refs[3]);
 
     assert!(
