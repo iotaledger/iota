@@ -1871,12 +1871,15 @@ impl IotaClientCommands {
                     )
                     .await?
                 } else {
-                    UserSignature::Simple(sign_secure(
-                        context.config_mut().keystore_mut(),
-                        &address,
-                        &intent_msg.value,
-                        intent_msg.intent,
-                    )?)
+                    UserSignature::Simple(
+                        sign_secure(
+                            context.config_mut().keystore_mut(),
+                            &address,
+                            &intent_msg.value,
+                            intent_msg.intent,
+                        )
+                        .await?,
+                    )
                 };
 
                 IotaClientCommandResult::Sign(SignData {
