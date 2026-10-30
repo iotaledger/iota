@@ -227,6 +227,49 @@ async fn test_regulated_coin_v1_types() {
     ));
 }
 
+// Without the P-COOL flow, as on Mainnet and Testnet, admission is the only
+// check of the sender against the coin types of its inputs. It reads the latest
+// deny list, so a denial, its removal and a global pause each apply as soon as
+// they execute, within the same epoch.
+#[tokio::test]
+async fn test_admission_applies_deny_list_changes_at_once_without_the_pcool_flow() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
+    let env = RegulatedCoinEnv::new().await;
+    let transfer_tx = env.build_transfer().await;
+
+    env.deny_sender().await;
+    let err = env.validation_check(&transfer_tx).await.unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            IotaError::UserInput {
+                error: UserInputError::AddressDeniedForCoin { address, coin_type }
+            } if *address == env.env.sender && *coin_type == env.coin_type()
+        ),
+        "a denial must apply at once, got {err:?}"
+    );
+
+    env.undeny_sender().await;
+    env.validation_check(&transfer_tx)
+        .await
+        .expect("a removal must apply at once");
+
+    env.pause().await;
+    let err = env.validation_check(&transfer_tx).await.unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            IotaError::UserInput {
+                error: UserInputError::CoinTypeGlobalPause { coin_type }
+            } if *coin_type == env.coin_type()
+        ),
+        "a global pause must apply at once, got {err:?}"
+    );
+}
+
 // Post-consensus validation at commit C reads state as of commit C - K,
 // called the horizon of C. K is the protocol config's
 // `pcool_deterministic_validation_horizon_distance`, 4 in these tests, so
