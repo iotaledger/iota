@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cmp::{Eq, min},
+    cmp::Eq,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, btree_map::Entry},
     fmt::{Debug, Display, Formatter, Write},
     fs,
@@ -54,10 +54,10 @@ use iota_sdk_move_types::iota_framework::{
 };
 use iota_sdk_transaction_builder::{TransactionBuilderLedgerClient, unresolved};
 use iota_sdk_types::{
-    Address, GasCostSummary, Identifier, MoveAuthenticatorV1, MovePackage, MovePackageData,
-    ObjectId, ObjectReference, Owner, SenderSignedTransaction, SharedObjectReference,
-    SignatureScheme, StructTag, Transaction, TransactionDigest, TransactionKind, TypeTag,
-    UserSignature, Version,
+    Address, Argument, Command, GasCostSummary, Identifier, MoveAuthenticatorV1, MovePackage,
+    MovePackageData, ObjectId, ObjectReference, Owner, SenderSignedTransaction,
+    SharedObjectReference, SignatureScheme, StructTag, Transaction, TransactionDigest,
+    TransactionKind, TypeTag, UserSignature, Version,
     crypto::{Intent, IntentMessage},
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
@@ -70,7 +70,6 @@ use iota_types::{
     digests::ChainIdentifier,
     dynamic_field::DynamicFieldInfo,
     error::IotaError,
-    gas::get_gas_balance,
     gas_coin::GasCoin,
     iota_serde,
     message_envelope::Envelope,
@@ -108,9 +107,10 @@ use crate::{
     PrintableResult,
     clever_error_rendering::render_clever_error_opt,
     client_ptb::ptb::{PTB, PTBCommandResult},
-    displays::Pretty,
+    displays::{DryRunOutput, Pretty},
     key_identity::{KeyIdentity, get_identity_address, get_identity_address_from_keystore},
     keytool::{Key, lowercase_key_scheme},
+    local_simulation::{estimate_local_gas_budget, execute_local_dry_run},
     signing::{SignData, get_shared_object_version, sign_secure, sign_transaction},
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
@@ -655,6 +655,11 @@ pub struct TxProcessingArgs {
     /// Perform a dev inspect of the transaction, without executing it.
     #[arg(long)]
     pub dev_inspect: bool,
+    /// Run the simulation locally through the Move VM instead of on the node.
+    /// Supported with --dry-run. Skips the node's transaction deny-list and uses the default
+    /// signing verifier limits, so a transaction the node rejects can still succeed locally.
+    #[arg(long, requires = "dry_run", conflicts_with = "dev_inspect")]
+    pub local: bool,
     /// Instead of executing the transaction, serialize the bcs bytes of the
     /// unsigned transaction data (Transaction) using base64 encoding,
     /// and print out the string <TX_BYTES>. The string can be used to
@@ -713,6 +718,9 @@ impl TxProcessingArgs {
         }
         if self.dev_inspect {
             args.push("--dev-inspect".to_string());
+        }
+        if self.local {
+            args.push("--local".to_string());
         }
         if self.serialize_unsigned_transaction {
             args.push("--serialize-unsigned-transaction".to_string());
@@ -1459,6 +1467,8 @@ impl IotaClientCommands {
                     // Estimate the gas cost if needed
                     let gas_budget = if let Some(gas_budget) = gas_data.gas_budget {
                         gas_budget
+                    } else if processing.local {
+                        estimate_local_gas_budget(context, signer, tx_kind.clone()).await?
                     } else {
                         let gas_price = context.get_reference_gas_price().await?;
                         estimate_gas_budget(
@@ -2670,8 +2680,8 @@ impl Display for IotaClientCommandResult {
                 writeln!(f, "{table}")?;
             }
             IotaClientCommandResult::NoOutput => {}
-            IotaClientCommandResult::DryRun(response) => {
-                writeln!(f, "{}", Pretty(response))?;
+            IotaClientCommandResult::DryRun(output) => {
+                writeln!(f, "{}", Pretty(output))?;
             }
             IotaClientCommandResult::DevInspect(response) => {
                 writeln!(f, "{}", Pretty(response))?;
@@ -2738,7 +2748,10 @@ impl IotaClientCommandResult {
 
     pub async fn prerender_clever_errors(mut self, context: &mut WalletContext) -> Self {
         match &mut self {
-            IotaClientCommandResult::DryRun(DryRunTransactionBlockResponse { effects, .. })
+            IotaClientCommandResult::DryRun(DryRunOutput {
+                response: DryRunTransactionBlockResponse { effects, .. },
+                local: false,
+            })
             | IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: Some(effects),
                 ..
@@ -2746,7 +2759,8 @@ impl IotaClientCommandResult {
                 let client = context.get_client().await.expect("Cannot connect to RPC");
                 prerender_clever_errors(effects, client.read_api()).await
             }
-            IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
+            IotaClientCommandResult::DryRun(DryRunOutput { local: true, .. })
+            | IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: None,
                 ..
             }) => (),
@@ -2930,7 +2944,7 @@ pub enum IotaClientCommandResult {
     ChainIdentifier(String),
     ComputeTransactionDigest(Transaction),
     DynamicFieldQuery(DynamicFieldPage),
-    DryRun(DryRunTransactionBlockResponse),
+    DryRun(DryRunOutput),
     DevInspect(DevInspectResults),
     Envs(Vec<IotaEnv>, Option<String>),
     Gas(Vec<GasCoin>),
@@ -3171,60 +3185,21 @@ pub async fn execute_dry_run(
     sponsor: Option<Address>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
     let client = context.get_client().await?;
-    let gas_budget = match gas_budget {
-        Some(gas_budget) => gas_budget,
-        None => {
-            let max_gas_budget = max_gas_budget(&client).await?;
-            if gas_payment.is_empty() {
-                max_gas_budget
-            } else {
-                let mut gas_budget = 0;
-                let gas_coins = client
-                    .read_api()
-                    .multi_get_object_with_options(
-                        gas_payment
-                            .iter()
-                            .map(|object_ref| object_ref.object_id)
-                            .collect(),
-                        IotaObjectDataOptions::bcs_lossless(),
-                    )
-                    .await?;
-                for gas_coin in gas_coins {
-                    gas_budget += get_gas_balance(
-                        &gas_coin
-                            .into_object()?
-                            .try_into()
-                            .expect("couldn't convert gas coin into object"),
-                    )?
-                }
-                let final_gas_budget = min(gas_budget, max_gas_budget);
-                if final_gas_budget == gas_budget {
-                    let warn_msg = format!(
-                        "Gas budget is equal to the total gas balance of the provided gas coins: {gas_budget}. Manually provide a lower --gas-budget if you need to split a coin from the gas coin."
-                    );
-                    warn!(warn_msg);
-                    eprintln!("{}", warn_msg.yellow().bold());
-                }
-                final_gas_budget
-            }
-        }
-    };
-    debug!("Gas budget for dry run: {gas_budget}");
     let tx = Transaction::new_with_gas_coins_allow_sponsor(
         kind,
         signer,
         gas_payment,
-        gas_budget,
+        gas_budget.unwrap_or_default(),
         gas_price,
         sponsor.unwrap_or(signer),
     );
     debug!("Executing dry run");
     let response = client.read_api().dry_run_transaction_block(tx).await?;
     debug!("Finished executing dry run {response:?}");
-    let resp = IotaClientCommandResult::DryRun(response)
-        .prerender_clever_errors(context)
-        .await;
-    Ok(resp)
+    Ok(IotaClientCommandResult::DryRun(DryRunOutput {
+        response,
+        local: false,
+    }))
 }
 
 /// Call a dry run with the transaction data to estimate the gas budget.
@@ -3249,7 +3224,10 @@ pub async fn estimate_gas_budget(
     let dry_run =
         execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await;
 
-    if let Ok(IotaClientCommandResult::DryRun(dry_run)) = dry_run {
+    if let Ok(IotaClientCommandResult::DryRun(DryRunOutput {
+        response: dry_run, ..
+    })) = dry_run
+    {
         let rgp = client.read_api().get_reference_gas_price().await?;
         Ok(estimate_gas_budget_from_gas_cost(
             dry_run.effects.gas_cost_summary(),
@@ -3263,6 +3241,51 @@ pub async fn estimate_gas_budget(
     }
 }
 
+/// Whether a dry run without `--gas-budget`, taking balance from gas coins the
+/// caller gave, failed for lack of coin balance. An unset budget is filled in
+/// with the gas coins' balance, up to the protocol maximum (`max_tx_gas`),
+/// which can leave too little to split from the gas coin.
+pub fn budget_took_the_gas_coins(
+    result: &IotaClientCommandResult,
+    gas_budget: Option<u64>,
+    takes_from_given_gas_coins: bool,
+) -> bool {
+    let IotaClientCommandResult::DryRun(DryRunOutput { response, .. }) = result else {
+        return false;
+    };
+    gas_budget.is_none()
+        && takes_from_given_gas_coins
+        && matches!(
+            response.effects.status(),
+            IotaExecutionStatus::Failure { error } if error.contains("Insufficient coin balance")
+        )
+}
+
+fn warn_if_budget_took_the_gas_coins(
+    result: &IotaClientCommandResult,
+    gas_budget: Option<u64>,
+    takes_from_given_gas_coins: bool,
+) {
+    if budget_took_the_gas_coins(result, gas_budget, takes_from_given_gas_coins) {
+        let warn_msg = "Without --gas-budget the dry run sets the budget to the gas coins' balance, up to the maximum budget, which can leave too little to take from the gas coin. Provide a lower --gas-budget, unless the gas coins hold less than the gas cost plus the amount taken from them; then no budget works.";
+        warn!(warn_msg);
+        eprintln!("{}", warn_msg.yellow().bold());
+    }
+}
+
+/// Whether a command splits the gas coin or passes it to a Move call, the ways
+/// a transaction takes balance from it.
+fn takes_from_gas_coin(kind: &TransactionKind) -> bool {
+    let TransactionKind::Programmable(ptb) = kind else {
+        return false;
+    };
+    ptb.commands.iter().any(|command| match command {
+        Command::SplitCoins(split) => split.coin == Argument::Gas,
+        Command::MoveCall(call) => call.arguments.contains(&Argument::Gas),
+        _ => false,
+    })
+}
+
 pub fn estimate_gas_budget_from_gas_cost(
     gas_cost_summary: &GasCostSummary,
     reference_gas_price: u64,
@@ -3272,18 +3295,6 @@ pub fn estimate_gas_budget_from_gas_cost(
 
     let gas_usage = gas_cost_summary.net_gas_usage() + safe_overhead as i64;
     computation_cost_with_overhead.max(if gas_usage < 0 { 0 } else { gas_usage as u64 })
-}
-
-/// Queries the protocol config for the maximum gas allowed in a transaction.
-pub async fn max_gas_budget(client: &IotaClient) -> Result<u64, anyhow::Error> {
-    let cfg = client.read_api().get_protocol_config(None).await?;
-    Ok(match cfg.attributes.get("max_tx_gas") {
-        Some(Some(iota_json_rpc_types::IotaProtocolConfigValue::U64(y))) => *y,
-        _ => bail!(
-            "Could not automatically find the maximum gas allowed in a transaction from the \
-            protocol config. Please provide a gas budget with the --gas-budget flag."
-        ),
-    })
 }
 
 /// The gas coins paying for a transaction, either as object IDs to be resolved
@@ -3368,6 +3379,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         tx_digest,
         dry_run,
         dev_inspect,
+        local,
         serialize_unsigned_transaction,
         serialize_signed_transaction,
         sender,
@@ -3381,12 +3393,15 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
         "Cannot specify both flags: --serialize-unsigned-transaction and --serialize-signed-transaction."
     );
-    let gas_price = if let Some(gas_price) = gas_price {
-        gas_price
-    } else {
-        context.get_reference_gas_price().await?
-    };
-
+    // `--local` picks the local backend for whichever simulation mode was
+    // asked for, so these guards list the modes that have one. `iota client
+    // ptb` builds its flags by hand, so clap's `requires` and
+    // `conflicts_with` on `--local` do not apply there.
+    ensure!(!local || dry_run, "--local requires --dry-run");
+    ensure!(
+        !(local && dev_inspect),
+        "--local is not supported with --dev-inspect"
+    );
     let signer = sender.unwrap_or(signer);
 
     ensure!(
@@ -3394,6 +3409,29 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             || (sponsor_auth_call_args.is_none() && sponsor_auth_type_args.is_none()),
         "--sponsor-auth-call-args and --sponsor-auth-type-args require --gas-sponsor with an address different from the sender."
     );
+
+    let takes_from_given_gas_coins = !gas_payment.is_empty() && takes_from_gas_coin(&tx_kind);
+
+    if dry_run && local {
+        let result = execute_local_dry_run(
+            context,
+            signer,
+            tx_kind,
+            gas_budget,
+            gas_price,
+            gas_payment,
+            gas_sponsor,
+        )
+        .await?;
+        warn_if_budget_took_the_gas_coins(&result, gas_budget, takes_from_given_gas_coins);
+        return Ok(result);
+    }
+
+    let gas_price = if let Some(gas_price) = gas_price {
+        gas_price
+    } else {
+        context.get_reference_gas_price().await?
+    };
 
     if dev_inspect {
         return execute_dev_inspect(
@@ -3410,7 +3448,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     }
 
     if dry_run {
-        return execute_dry_run(
+        let result = execute_dry_run(
             context,
             signer,
             tx_kind,
@@ -3419,7 +3457,9 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             gas_payment,
             gas_sponsor,
         )
-        .await;
+        .await?;
+        warn_if_budget_took_the_gas_coins(&result, gas_budget, takes_from_given_gas_coins);
+        return Ok(result);
     }
 
     let gas_budget = match gas_budget {
@@ -4145,5 +4185,58 @@ mod tests_newest_versions {
             .map(|item| item.map(|(_, _, name)| name))
             .collect();
         assert_eq!(names, [Some("a3"), None, Some("b2"), None]);
+    }
+}
+
+#[cfg(test)]
+mod tests_takes_from_gas_coin {
+    use iota_sdk_types::{MoveCall, ProgrammableTransaction, SplitCoins, TransferObjects};
+
+    use super::*;
+
+    fn kind(command: Command) -> TransactionKind {
+        TransactionKind::Programmable(ProgrammableTransaction {
+            inputs: vec![],
+            commands: vec![command],
+        })
+    }
+
+    fn move_call(arguments: Vec<Argument>) -> Command {
+        Command::MoveCall(MoveCall {
+            package: ObjectId::FRAMEWORK,
+            module: Identifier::new("pay").unwrap(),
+            function: Identifier::new("split").unwrap(),
+            type_arguments: vec![],
+            arguments,
+        })
+    }
+
+    #[test]
+    fn splitting_the_gas_coin_or_passing_it_to_a_move_call_takes_from_it() {
+        let split = |coin| {
+            Command::SplitCoins(SplitCoins {
+                coin,
+                amounts: vec![Argument::Input(0)],
+            })
+        };
+        assert!(takes_from_gas_coin(&kind(split(Argument::Gas))));
+        assert!(takes_from_gas_coin(&kind(move_call(vec![
+            Argument::Input(0),
+            Argument::Gas
+        ]))));
+
+        assert!(!takes_from_gas_coin(&kind(split(Argument::Input(0)))));
+        assert!(!takes_from_gas_coin(&kind(move_call(vec![
+            Argument::Input(0)
+        ]))));
+    }
+
+    #[test]
+    fn transferring_the_whole_gas_coin_does_not_take_from_it() {
+        let transfer = Command::TransferObjects(TransferObjects {
+            objects: vec![Argument::Gas],
+            address: Argument::Input(0),
+        });
+        assert!(!takes_from_gas_coin(&kind(transfer)));
     }
 }
