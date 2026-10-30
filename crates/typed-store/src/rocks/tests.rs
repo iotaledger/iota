@@ -290,6 +290,48 @@ async fn test_insert_batch() {
     }
 }
 
+struct TestSwitch(bool);
+
+impl SyncSwitch for TestSwitch {
+    fn is_on(&self) -> bool {
+        self.0
+    }
+
+    fn name(&self) -> &'static str {
+        "test_switch"
+    }
+}
+
+#[tokio::test]
+async fn write_with_sync_counts_synced_writes_under_the_switch_name() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
+    let synced_writes = DBMetrics::get()
+        .op_metrics
+        .rocksdb_synced_writes
+        .with_label_values(&[&db.db.db_name(), "test_switch"]);
+
+    let mut batch = db.batch();
+    batch
+        .insert_batch(&db, [(1, "1".to_string())])
+        .expect("Failed to batch insert");
+    batch
+        .write_with_sync(TestSwitch(true))
+        .expect("Failed to execute batch");
+    assert_eq!(synced_writes.get(), 1);
+    assert_eq!(Some("1".to_string()), db.get(&1).unwrap());
+
+    let mut batch = db.batch();
+    batch
+        .insert_batch(&db, [(2, "2".to_string())])
+        .expect("Failed to batch insert");
+    batch
+        .write_with_sync(TestSwitch(false))
+        .expect("Failed to execute batch");
+    assert_eq!(synced_writes.get(), 1);
+    assert_eq!(Some("2".to_string()), db.get(&2).unwrap());
+}
+
 #[tokio::test]
 async fn test_insert_batch_across_cf() {
     let tmp_dir = iota_common::tempdir();

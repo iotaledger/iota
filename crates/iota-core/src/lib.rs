@@ -18,6 +18,7 @@ pub mod consensus_handler;
 pub mod consensus_manager;
 pub(crate) mod consensus_types;
 pub mod consensus_validator;
+pub mod db_sync;
 pub mod epoch;
 pub mod epoch_buckets;
 pub mod epoch_end_db_snapshot;

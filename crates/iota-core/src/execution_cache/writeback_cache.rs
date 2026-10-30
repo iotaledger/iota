@@ -97,6 +97,7 @@ use crate::{
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
+    db_sync::Switch,
     fallback_fetch::try_do_fallback_lookup,
     global_state_hasher::GlobalStateHashStore,
     transaction_outputs::TransactionOutputs,
@@ -1249,7 +1250,15 @@ impl WritebackCache {
         // Flush writes to disk before removing anything from dirty set. otherwise,
         // a cache eviction could cause a value to disappear briefly, even if we insert
         // to the cache before removing from the dirty set.
-        db_batch.write().expect("db error");
+        // The quarantine flush (epoch database) and the highest executed
+        // checkpoint (checkpoint database) are written after these outputs and
+        // rely on them being on disk. Unless this batch is synced, a power loss
+        // can keep either of those writes and lose the outputs, and the node
+        // then stalls until the end of the epoch or fails on every restart;
+        // see `crate::db_sync`.
+        db_batch
+            .write_with_sync(Switch::CheckpointOutputs)
+            .expect("db error");
 
         let _metrics_guard =
             iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs::flush");

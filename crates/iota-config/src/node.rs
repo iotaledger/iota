@@ -260,6 +260,46 @@ pub struct NodeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_db_write_stall: Option<bool>,
 
+    /// The `enable_db_sync_*` settings make chosen database writes sync the
+    /// RocksDB write-ahead log to disk, so the orders across databases listed
+    /// in `iota_core::db_sync` survive a power loss and not only a process
+    /// crash. Each costs write latency and is off when unset. Each also has an
+    /// environment variable that takes precedence: set to `1` or `true`, it
+    /// turns the setting on even when it is set to false here. They are
+    /// separate only so that each cost can be measured, and are to be merged
+    /// or removed after that. Turning on only some can make another one's
+    /// problem more likely; see `iota_core::db_sync` for the risks and how
+    /// likely they are.
+    ///
+    /// If set to true, the checkpoint executor's writes of the handler object
+    /// state rows are synced, so after a power loss no object is on disk
+    /// without its row. Without this setting, a power loss can lose rows
+    /// whose objects are kept, and the validator has to be restored from a
+    /// snapshot.
+    /// `IOTA_DB_SYNC_HANDLER_OBJECT_STATE=1` also turns it on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enable_db_sync_handler_object_state: Option<bool>,
+
+    /// If set to true, a checkpoint's transaction outputs are synced. The
+    /// quarantine flush and the highest executed checkpoint are written after
+    /// the outputs and rely on them being on disk. Without this setting, a
+    /// power loss can keep either of those writes and lose the outputs, which
+    /// can stall checkpoint execution on a validator until the end of the
+    /// epoch, or make the node fail on every restart.
+    /// `IOTA_DB_SYNC_CHECKPOINT_OUTPUTS=1` also turns it on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enable_db_sync_checkpoint_outputs: Option<bool>,
+
+    /// If set to true, the transactions and effects that state sync stores
+    /// are synced. The checkpoint contents rows and the highest synced
+    /// checkpoint are written after them and rely on them being on disk.
+    /// Without this setting, a power loss can keep those rows and lose the
+    /// transactions and effects, and the node then fails on every restart
+    /// when it executes that checkpoint from synced data.
+    /// `IOTA_DB_SYNC_TRANSACTIONS_AND_EFFECTS=1` also turns it on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enable_db_sync_transactions_and_effects: Option<bool>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub iota_names_config: Option<IotaNamesConfig>,
 
@@ -2054,6 +2094,25 @@ mod tests {
             .authority_store_pruning_config
             .set_num_epochs_to_retain_for_checkpoints(Some(1));
         config.validate().unwrap();
+    }
+
+    #[test]
+    fn db_sync_switches_are_unset_by_default_and_read_true() {
+        let config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        assert_eq!(config.enable_db_sync_handler_object_state, None);
+        assert_eq!(config.enable_db_sync_checkpoint_outputs, None);
+        assert_eq!(config.enable_db_sync_transactions_and_effects, None);
+
+        let config: NodeConfig = serde_yaml::from_str(&format!(
+            "{TEMPLATE}\n\
+             enable-db-sync-handler-object-state: true\n\
+             enable-db-sync-checkpoint-outputs: true\n\
+             enable-db-sync-transactions-and-effects: true\n"
+        ))
+        .unwrap();
+        assert_eq!(config.enable_db_sync_handler_object_state, Some(true));
+        assert_eq!(config.enable_db_sync_checkpoint_outputs, Some(true));
+        assert_eq!(config.enable_db_sync_transactions_and_effects, Some(true));
     }
 
     #[test]

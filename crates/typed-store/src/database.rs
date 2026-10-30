@@ -1197,6 +1197,15 @@ pub struct DBBatch {
     write_sample_interval: SamplingInterval,
 }
 
+/// Decides whether [`DBBatch::write_with_sync`] syncs the WAL.
+pub trait SyncSwitch {
+    /// Whether the write is synced.
+    fn is_on(&self) -> bool;
+    /// The value of the `switch` label of `rocksdb_synced_writes` for the
+    /// synced writes.
+    fn name(&self) -> &'static str;
+}
+
 impl DBBatch {
     /// Create a new batch associated with a DB reference.
     ///
@@ -1221,6 +1230,20 @@ impl DBBatch {
         self.write_opt(&rocksdb::WriteOptions::default())
     }
 
+    /// Consume the batch and write it, syncing the WAL first when `switch` is
+    /// on, so the batch and every earlier write to the same database survive a
+    /// power loss. A synced write is counted in `rocksdb_synced_writes` under
+    /// the switch's name. With the switch off, the same as [`Self::write`].
+    #[instrument(level = "trace", skip_all, err)]
+    pub fn write_with_sync(self, switch: impl SyncSwitch) -> Result<(), TypedStoreError> {
+        if !switch.is_on() {
+            return self.write_inner(&rocksdb::WriteOptions::default(), None);
+        }
+        let mut write_options = rocksdb::WriteOptions::default();
+        write_options.set_sync(true);
+        self.write_inner(&write_options, Some(switch.name()))
+    }
+
     /// Consume the batch and write its operations to the database with custom
     /// write options.
     ///
@@ -1230,6 +1253,14 @@ impl DBBatch {
     /// runtime must pass [`drop_tolerant_write_options`].
     #[instrument(level = "trace", skip_all, err)]
     pub fn write_opt(self, write_options: &rocksdb::WriteOptions) -> Result<(), TypedStoreError> {
+        self.write_inner(write_options, None)
+    }
+
+    fn write_inner(
+        self,
+        write_options: &rocksdb::WriteOptions,
+        synced_label: Option<&'static str>,
+    ) -> Result<(), TypedStoreError> {
         let db_name = self.database.db_name();
         let timer = self
             .db_metrics
@@ -1245,6 +1276,15 @@ impl DBBatch {
             None
         };
         self.database.write_opt(self.batch, write_options)?;
+        if let Some(label) = synced_label {
+            if matches!(self.database.storage, Storage::Rocks(_)) {
+                self.db_metrics
+                    .op_metrics
+                    .rocksdb_synced_writes
+                    .with_label_values(&[&db_name, label])
+                    .inc();
+            }
+        }
         self.db_metrics
             .op_metrics
             .rocksdb_batch_commit_bytes
