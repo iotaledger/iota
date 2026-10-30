@@ -21193,7 +21193,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Extra wait at block proposal time imposed by the StarfishSpeed strong-vote condition: time between when the ordinary (base Starfish) propose condition first became satisfiable and when the proposal actually happened.",
+          "description": "Extra wait at block proposal time imposed by the StarfishSpeed strong-vote condition: time between when the ordinary (base Starfish) propose condition first became satisfiable and when the proposal actually happened. Observed only when consensus_starfish_speed is enabled.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -21305,7 +21305,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Distribution of the `missing` set size in the strong-vote payload of each proposed block. Each cell shows the rate of proposals whose `missing.len()` fell in the bucket on the Y axis. Bucket `le=0.5` = clean strong vote (no blame); `le=1.5` = single-authority blame; etc. Buckets are integer-aligned (boundaries at N.5) so 0 and 1 are separable.",
+          "description": "Distribution of the `missing` set size in the strong-vote payload of each proposed block. Each cell shows the rate of proposals whose `missing.len()` fell in the bucket on the Y axis. Bucket `le=0.5` = clean strong vote (no blame); `le=1.5` = single-authority blame; etc. Buckets are integer-aligned (boundaries at N.5) so 0 and 1 are separable. Observed only when consensus_starfish_speed is enabled.",
           "fieldConfig": {
             "defaults": {
               "custom": {
