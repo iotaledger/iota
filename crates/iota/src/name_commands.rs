@@ -15,8 +15,8 @@ use iota_grpc_client::{
     GrpcClient,
     read_mask_fields::{DynamicFieldField, ObjectField, OwnedObjectField, ServiceInfoField},
 };
+use iota_grpc_types::v1::transaction::ExecutedTransaction;
 use iota_json::IotaJsonValue;
-use iota_json_rpc_types::IotaTransactionBlockResponse;
 use iota_names::{
     IotaNamesNft, NameRegistration, SubnameRegistration,
     config::IotaNamesConfig,
@@ -335,7 +335,7 @@ impl NameCommand {
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::Burn {
                         burned: nft,
-                        digest: res.digest,
+                        digest: res.transaction()?.digest()?,
                     })
                 })
                 .await?
@@ -476,7 +476,7 @@ impl NameCommand {
                         record: get_registry_entry(&name, &grpc_client).await?.name_record,
                         nft: get_owned_nft_by_name::<NameRegistration>(&name, sender, context)
                             .await?,
-                        digest: res.digest,
+                        digest: res.transaction()?.digest()?,
                     })
                 })
                 .await?
@@ -562,7 +562,7 @@ impl NameCommand {
                         record: get_registry_entry(&name, &grpc_client).await?.name_record,
                         nft: get_owned_nft_by_name::<NameRegistration>(&name, sender, context)
                             .await?,
-                        digest: res.digest,
+                        digest: res.transaction()?.digest()?,
                     })
                 })
                 .await?
@@ -606,16 +606,14 @@ impl NameCommand {
                 .await?;
 
                 handle_transaction_result(res, verbose, async |res| {
+                    let digest = res.transaction()?.digest()?;
                     let Some(entry) = get_reverse_registry_entry(sender, &grpc_client).await?
                     else {
                         return Ok(NameCommandResult::CommandResult(Box::new(
-                            IotaClientCommandResult::TransactionBlock(res),
+                            IotaClientCommandResult::ExecutedTransaction(Box::new(res)),
                         )));
                     };
-                    Ok(NameCommandResult::SetReverseLookup {
-                        entry,
-                        digest: res.digest,
-                    })
+                    Ok(NameCommandResult::SetReverseLookup { entry, digest })
                 })
                 .await?
             }
@@ -669,7 +667,7 @@ impl NameCommand {
                     let entry = get_registry_entry(&name, &grpc_client).await?;
                     Ok(NameCommandResult::SetTargetAddress {
                         entry,
-                        digest: res.digest,
+                        digest: res.transaction()?.digest()?,
                     })
                 })
                 .await?
@@ -711,7 +709,7 @@ impl NameCommand {
                         key,
                         value,
                         record: get_registry_entry(&name, &grpc_client).await?.name_record,
-                        digest: res.digest,
+                        digest: res.transaction()?.digest()?,
                     })
                 })
                 .await?
@@ -750,7 +748,7 @@ impl NameCommand {
                     Ok(NameCommandResult::Transfer {
                         name,
                         to: address,
-                        digest: res.digest,
+                        digest: res.transaction()?.digest()?,
                     })
                 })
                 .await?
@@ -781,7 +779,7 @@ impl NameCommand {
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::UnsetReverseLookup {
                         address,
-                        digest: res.digest,
+                        digest: res.transaction()?.digest()?,
                     })
                 })
                 .await?
@@ -828,7 +826,7 @@ impl NameCommand {
                     let entry = get_registry_entry(&name, &grpc_client).await?;
                     Ok(NameCommandResult::UnsetTargetAddress {
                         entry,
-                        digest: res.digest,
+                        digest: res.transaction()?.digest()?,
                     })
                 })
                 .await?
@@ -867,7 +865,7 @@ impl NameCommand {
                     Ok(NameCommandResult::UnsetUserData {
                         key,
                         record: get_registry_entry(&name, &grpc_client).await?.name_record,
-                        digest: res.digest,
+                        digest: res.transaction()?.digest()?,
                     })
                 })
                 .await?
@@ -1020,7 +1018,7 @@ impl SubnameCommand {
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::RegisterLeafSubname {
                         record: get_registry_entry(&name, &grpc_client).await?.name_record,
-                        digest: res.digest,
+                        digest: res.transaction()?.digest()?,
                     })
                 })
                 .await?
@@ -1086,7 +1084,7 @@ impl SubnameCommand {
                         record: get_registry_entry(&name, &grpc_client).await?.name_record,
                         nft: get_owned_nft_by_name::<SubnameRegistration>(&name, sender, context)
                             .await?,
-                        digest: res.digest,
+                        digest: res.transaction()?.digest()?,
                     })
                 })
                 .await?
@@ -1133,7 +1131,7 @@ impl SubnameCommand {
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::UpdateMetadata {
                         record: get_registry_entry(&name, &grpc_client).await?.name_record,
-                        digest: res.digest,
+                        digest: res.transaction()?.digest()?,
                     })
                 })
                 .await?
@@ -1184,7 +1182,7 @@ impl SubnameCommand {
                         record: get_registry_entry(&name, &grpc_client).await?.name_record,
                         nft: get_owned_nft_by_name::<SubnameRegistration>(&name, sender, context)
                             .await?,
-                        digest: res.digest,
+                        digest: res.transaction()?.digest()?,
                     })
                 })
                 .await?
@@ -1818,18 +1816,15 @@ async fn handle_transaction_result<Fun, F>(
     fun: Fun,
 ) -> anyhow::Result<NameCommandResult>
 where
-    Fun: FnOnce(IotaTransactionBlockResponse) -> F,
+    Fun: FnOnce(ExecutedTransaction) -> F,
     F: futures::Future<Output = anyhow::Result<NameCommandResult>>,
 {
     if verbose {
         println!("{res}\n");
     }
     Ok(
-        if let IotaClientCommandResult::TransactionBlock(res) = res {
-            if !res.errors.is_empty() {
-                bail!("transaction failed: {}", res.errors.join("; "));
-            }
-            fun(res).await?
+        if let IotaClientCommandResult::ExecutedTransaction(executed) = res {
+            fun(*executed).await?
         } else {
             NameCommandResult::CommandResult(Box::new(res))
         },

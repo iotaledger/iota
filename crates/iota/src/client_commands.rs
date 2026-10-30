@@ -30,10 +30,7 @@ use iota_grpc_types::{
     read_mask_fields::SimulateField, v1::transaction_execution_service::SimulatedTransaction,
 };
 use iota_json::IotaJsonValue;
-use iota_json_rpc_types::{
-    IotaExecutionStatus, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
-    get_new_package_obj_from_response,
-};
+use iota_json_rpc_types::IotaTransactionBlockResponse;
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{
@@ -49,7 +46,6 @@ use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::{
     IOTA_DEVNET_GAS_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL, IOTA_LOCAL_NETWORK_URL,
     IOTA_LOCAL_NETWORK_URL_0, IOTA_TESTNET_GAS_URL, IOTA_TESTNET_URL, IotaClient,
-    apis::ReadApi,
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
@@ -108,7 +104,6 @@ use tracing::{debug, warn};
 
 use crate::{
     PrintableResult,
-    clever_error_rendering::render_clever_error_opt,
     client_ptb::ptb::{PTB, PTBCommandResult},
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address, get_identity_address_from_keystore},
@@ -947,12 +942,10 @@ impl IotaClientCommands {
                 } else {
                     context.infer_sender(&payment.gas).await?
                 };
-                let client = context.get_client().await?;
-                let read_api = client.read_api();
                 let grpc_client = context.get_grpc_client().await?;
-                let chain_id = read_api.get_chain_identifier().await.ok();
+                let chain_id = fetch_chain_id(&grpc_client).await.ok();
 
-                check_protocol_version_and_warn(read_api).await?;
+                check_protocol_version_and_warn(&grpc_client).await?;
 
                 if !package_path.exists() {
                     bail!("Package path '{}' does not exist", package_path.display());
@@ -1009,8 +1002,9 @@ impl IotaClientCommands {
                 let package_id = compiled_package.published_at.clone()?;
 
                 if verify_compatibility {
-                    let protocol_version =
-                        read_api.get_protocol_config(None).await?.protocol_version;
+                    let protocol_version = fetch_network_build_config(&grpc_client)
+                        .await?
+                        .protocol_version;
 
                     ensure!(
                         ProtocolVersion::MAX >= protocol_version,
@@ -1032,7 +1026,7 @@ impl IotaClientCommands {
                     );
 
                     check_compatibility(
-                        read_api,
+                        &grpc_client,
                         package_id,
                         compiled_package,
                         package_path,
@@ -1061,13 +1055,13 @@ impl IotaClientCommands {
                 )
                 .await?;
 
-                if let IotaClientCommandResult::TransactionBlock(ref response) = result {
+                if let IotaClientCommandResult::ExecutedTransaction(ref executed) = result {
                     if let Err(e) = update_lock_file(
                         context,
                         LockCommand::Upgrade,
                         build_config.install_dir,
                         build_config.lock_file,
-                        response,
+                        executed,
                     )
                     .await
                     {
@@ -1111,12 +1105,10 @@ impl IotaClientCommands {
                 } else {
                     context.infer_sender(&payment.gas).await?
                 };
-                let client = context.get_client().await?;
-                let read_api = client.read_api();
                 let grpc_client = context.get_grpc_client().await?;
-                let chain_id = read_api.get_chain_identifier().await.ok();
+                let chain_id = fetch_chain_id(&grpc_client).await.ok();
 
-                check_protocol_version_and_warn(read_api).await?;
+                check_protocol_version_and_warn(&grpc_client).await?;
 
                 if !package_path.exists() {
                     bail!("Package path '{}' does not exist", package_path.display());
@@ -1180,13 +1172,13 @@ impl IotaClientCommands {
                 )
                 .await?;
 
-                if let IotaClientCommandResult::TransactionBlock(ref response) = result {
+                if let IotaClientCommandResult::ExecutedTransaction(ref executed) = result {
                     if let Err(e) = update_lock_file(
                         context,
                         LockCommand::Publish,
                         build_config.install_dir,
                         build_config.lock_file,
-                        response,
+                        executed,
                     )
                     .await
                     {
@@ -2002,7 +1994,7 @@ impl IotaClientCommands {
                 }
             },
         };
-        Ok(ret.prerender_clever_errors(context).await)
+        Ok(ret)
     }
 
     pub fn switch_env(config: &mut IotaClientConfig, env: &str) -> Result<(), anyhow::Error> {
@@ -2815,50 +2807,6 @@ impl IotaClientCommandResult {
             TransactionBlock(b) => Some(b),
             _ => None,
         }
-    }
-
-    pub async fn prerender_clever_errors(mut self, context: &mut WalletContext) -> Self {
-        match &mut self {
-            IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
-                effects: Some(effects),
-                ..
-            }) => {
-                let client = context.get_client().await.expect("Cannot connect to RPC");
-                prerender_clever_errors(effects, client.read_api()).await
-            }
-            IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
-                effects: None,
-                ..
-            }) => (),
-            IotaClientCommandResult::ActiveAddress(_)
-            | IotaClientCommandResult::ActiveEnv(_)
-            | IotaClientCommandResult::AddAccount(_)
-            | IotaClientCommandResult::Addresses(_)
-            | IotaClientCommandResult::Balance(_, _)
-            | IotaClientCommandResult::ComputeTransactionDigest(_)
-            | IotaClientCommandResult::ChainIdentifier(_)
-            | IotaClientCommandResult::DynamicFieldQuery(_)
-            | IotaClientCommandResult::DryRun(_, _)
-            | IotaClientCommandResult::DevInspect(_)
-            | IotaClientCommandResult::Envs(_, _)
-            | IotaClientCommandResult::ExecutedTransaction(_)
-            | IotaClientCommandResult::Gas(_)
-            | IotaClientCommandResult::NewAddress(_)
-            | IotaClientCommandResult::NewEnv(_)
-            | IotaClientCommandResult::NoOutput
-            | IotaClientCommandResult::Object(_)
-            | IotaClientCommandResult::Objects(_)
-            | IotaClientCommandResult::RawObject(_)
-            | IotaClientCommandResult::RemoveAddress(_)
-            | IotaClientCommandResult::SerializedSignedTransaction(_)
-            | IotaClientCommandResult::SerializedUnsignedTransaction(_)
-            | IotaClientCommandResult::Sign(_)
-            | IotaClientCommandResult::Switch(_)
-            | IotaClientCommandResult::SyncClientState
-            | IotaClientCommandResult::VerifyBytecodeMeter { .. }
-            | IotaClientCommandResult::VerifySource => (),
-        }
-        self
     }
 }
 
@@ -3861,18 +3809,6 @@ async fn execute_dev_inspect(
     Ok(IotaClientCommandResult::DevInspect(Box::new(simulated)))
 }
 
-pub(crate) async fn prerender_clever_errors(
-    effects: &mut IotaTransactionBlockEffects,
-    read_api: &ReadApi,
-) {
-    let IotaTransactionBlockEffects::V1(effects) = effects;
-    if let IotaExecutionStatus::Failure { error } = &mut effects.status {
-        if let Some(rendered) = render_clever_error_opt(error, read_api).await {
-            *error = rendered;
-        }
-    }
-}
-
 pub(crate) fn parse_display_option(s: &str) -> Result<HashSet<DisplayOption>, String> {
     let mut options = HashSet::new();
 
@@ -3893,9 +3829,11 @@ pub(crate) fn parse_display_option(s: &str) -> Result<HashSet<DisplayOption>, St
 
 /// Warn the user if the CLI does not match the version of current on-chain
 /// protocol.
-async fn check_protocol_version_and_warn(read_api: &ReadApi) -> Result<(), anyhow::Error> {
-    let protocol_cfg = read_api.get_protocol_config(None).await?;
-    let on_chain_protocol_version = protocol_cfg.protocol_version.as_u64();
+async fn check_protocol_version_and_warn(grpc_client: &GrpcClient) -> Result<(), anyhow::Error> {
+    let on_chain_protocol_version = fetch_network_build_config(grpc_client)
+        .await?
+        .protocol_version
+        .as_u64();
     let cli_protocol_version = ProtocolVersion::MAX.as_u64();
 
     if cli_protocol_version != on_chain_protocol_version {
@@ -4214,12 +4152,25 @@ async fn update_lock_file(
     command: LockCommand,
     install_dir: Option<PathBuf>,
     lock_file: Option<PathBuf>,
-    response: &IotaTransactionBlockResponse,
+    executed: &iota_grpc_types::v1::transaction::ExecutedTransaction,
 ) -> Result<(), anyhow::Error> {
-    let object_ref = get_new_package_obj_from_response(response).context(
-        "Expected a valid published package response but didn't see \
-         one when attempting to update the `Move.lock`.",
-    )?;
+    use iota_grpc_types::v1::transaction::object_change::Kind as ObjectChangeKind;
+
+    let (package_id, version) = executed
+        .object_changes()
+        .ok()
+        .and_then(|changes| {
+            changes.object_changes.iter().find_map(|change| {
+                let ObjectChangeKind::Published(published) = change.kind.as_ref()? else {
+                    return None;
+                };
+                Some((published.package_id().ok()?, published.version?))
+            })
+        })
+        .context(
+            "Expected a valid published package response but didn't see \
+             one when attempting to update the `Move.lock`.",
+        )?;
     let grpc_client = context.get_grpc_client().await.context(
         "Network issue: couldn't use client to connect to chain when updating Move.lock",
     )?;
@@ -4237,8 +4188,8 @@ async fn update_lock_file(
         command,
         install_dir,
         lock_file,
-        object_ref.object_id,
-        object_ref.version.as_u64(),
+        package_id,
+        version,
     )
 }
 
