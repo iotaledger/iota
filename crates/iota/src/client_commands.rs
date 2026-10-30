@@ -23,6 +23,7 @@ use iota_grpc_client::{
     GrpcClient,
     read_mask_fields::{
         DynamicFieldField, EpochField, ObjectField, OwnedObjectField, ServiceInfoField,
+        TransactionField,
     },
 };
 use iota_grpc_types::{
@@ -31,8 +32,7 @@ use iota_grpc_types::{
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     IotaData, IotaExecutionStatus, IotaObjectDataOptions, IotaTransactionBlockEffects,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    get_new_package_obj_from_response,
+    IotaTransactionBlockResponse, get_new_package_obj_from_response,
 };
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
@@ -760,9 +760,9 @@ impl IotaClientCommands {
     ) -> Result<IotaClientCommandResult, anyhow::Error> {
         let ret = match self {
             IotaClientCommands::AddAccount { address, alias } => {
-                let client = context.get_client().await?;
+                let grpc_client = context.get_grpc_client().await?;
 
-                let _auth_info = fetch_auth_info(&client, address).await?;
+                let _auth_info = fetch_auth_info(&grpc_client, address).await?;
 
                 context
                     .config_mut()
@@ -1312,23 +1312,22 @@ impl IotaClientCommands {
                 }
             }
             IotaClientCommands::TransactionBlock { digest } => {
-                let client = context.get_client().await?;
-                let tx_read = client
-                    .read_api()
-                    .get_transaction_with_options(
-                        digest,
-                        IotaTransactionBlockResponseOptions {
-                            show_input: true,
-                            show_raw_input: false,
-                            show_effects: true,
-                            show_events: true,
-                            show_object_changes: true,
-                            show_balance_changes: false,
-                            show_raw_effects: false,
-                        },
-                    )
-                    .await?;
-                IotaClientCommandResult::TransactionBlock(tx_read)
+                let client = context.get_grpc_client().await?;
+                let executed = client
+                    .transactions([digest])
+                    .read_mask([
+                        TransactionField::TRANSACTION_DIGEST,
+                        TransactionField::EFFECTS_BCS,
+                        TransactionField::EVENTS_EVENTS_BCS,
+                        TransactionField::OBJECT_CHANGES,
+                        TransactionField::BALANCE_CHANGES,
+                    ])
+                    .await?
+                    .into_inner()
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| anyhow!("transaction {digest} not found"))??;
+                IotaClientCommandResult::ExecutedTransaction(Box::new(executed))
             }
             IotaClientCommands::Call {
                 package,
@@ -1976,15 +1975,15 @@ impl IotaClientCommands {
 
                 build_config.implicit_dependencies = implicit_deps(latest_system_packages());
                 let build_config = resolve_lock_file_path(build_config, Some(&package_path))?;
-                let client = context.get_client().await?;
-                let chain_id = client.read_api().get_chain_identifier().await?;
-                let protocol_config = client.read_api().get_protocol_config(None).await?;
+                let grpc_client = context.get_grpc_client().await?;
+                let chain_id = fetch_chain_id(&grpc_client).await?;
+                let network_build_config = fetch_network_build_config(&grpc_client).await?;
                 let compiled_package = BuildConfig {
                     config: build_config,
                     run_bytecode_verifier: true,
                     print_diags_to_stderr: true,
                     chain_id: Some(chain_id),
-                    protocol_build_config: ProtocolBuildConfig::from(&protocol_config),
+                    protocol_build_config: network_build_config.protocol_build_config,
                 }
                 .build(&package_path)?;
 
@@ -3776,8 +3775,10 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     } else if tx_digest {
         Ok(IotaClientCommandResult::ComputeTransactionDigest(tx))
     } else {
+        let grpc_client = context.get_grpc_client().await?;
         let sender_auth_args = build_auth_args_for_signing(
             &client,
+            &grpc_client,
             signer,
             auth_call_args.as_ref(),
             auth_type_args.as_ref(),
@@ -3792,6 +3793,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             if gas_sponsor != signer {
                 let sponsor_auth_args = build_auth_args_for_signing(
                     &client,
+                    &grpc_client,
                     gas_sponsor,
                     sponsor_auth_call_args.as_ref(),
                     sponsor_auth_type_args.as_ref(),
@@ -4065,6 +4067,7 @@ async fn select_coins_for_amount(
 /// accounts acting as either sender or gas sponsor.
 pub(crate) async fn build_auth_args_for_signing(
     client: &IotaClient,
+    grpc_client: &GrpcClient,
     address: Address,
     auth_call_args: Option<&Vec<String>>,
     auth_type_args: Option<&Vec<String>>,
@@ -4073,7 +4076,7 @@ pub(crate) async fn build_auth_args_for_signing(
         return Ok(None);
     }
 
-    let auth_info = fetch_auth_info(client, address).await?;
+    let auth_info = fetch_auth_info(grpc_client, address).await?;
     let (type_args, json_args) = process_auth_args(auth_call_args, auth_type_args, address)?;
     let call_args = resolve_auth_call_args(
         client,
@@ -4113,33 +4116,30 @@ pub(crate) async fn resolve_auth_call_args(
 
 /// Fetches AuthenticatorFunctionRefV1 for a signer.
 pub(crate) async fn fetch_auth_info(
-    client: &IotaClient,
+    grpc_client: &GrpcClient,
     signer: Address,
 ) -> Result<Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>, anyhow::Error> {
     let authenticator_function_ref_id =
         derive_authenticator_function_ref_v1_dynamic_field_id(signer)?;
 
-    let response = client
-        .read_api()
-        .get_object_with_options(
-            authenticator_function_ref_id,
-            IotaObjectDataOptions::new().with_bcs(),
-        )
-        .await?;
+    let object = grpc_client
+        .objects([authenticator_function_ref_id])
+        .read_mask(ObjectField::BCS)
+        .await?
+        .into_inner()
+        .into_iter()
+        .next()
+        .ok_or_else(|| {
+            anyhow!("AuthenticatorFunctionRefV1 object {authenticator_function_ref_id} not found")
+        })??
+        .object()?;
 
-    if let Some(error) = response.error {
-        bail!("Failed to fetch AuthenticatorFunctionRefV1 object {error}");
+    match object.data() {
+        ObjectData::Struct(move_struct) => Ok(bcs::from_bytes::<
+            Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>,
+        >(move_struct.contents())?),
+        _ => bail!("invalid move type for AuthenticatorFunctionRefV1 object"),
     }
-
-    let auth_info = response
-        .into_object()?
-        .bcs
-        .ok_or_else(|| anyhow::anyhow!("missing bcs"))?
-        .try_into_move()
-        .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
-        .deserialize::<Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>>()?;
-
-    Ok(auth_info)
 }
 
 /// Processes authentication arguments.
@@ -4197,7 +4197,7 @@ async fn create_move_authenticator_signature(
     auth_type_args: Option<&Vec<String>>,
 ) -> Result<UserSignature, anyhow::Error> {
     let (call_args, type_args) =
-        build_auth_args_for_signing(client, address, auth_call_args, auth_type_args)
+        build_auth_args_for_signing(client, grpc_client, address, auth_call_args, auth_type_args)
             .await?
             .ok_or_else(|| anyhow!("auth args are required to create a MoveAuthenticator"))?;
 
@@ -4229,12 +4229,10 @@ async fn update_lock_file(
         "Expected a valid published package response but didn't see \
          one when attempting to update the `Move.lock`.",
     )?;
-    let chain_identifier = context
-        .get_client()
-        .await
-        .context("Network issue: couldn't use client to connect to chain when updating Move.lock")?
-        .read_api()
-        .get_chain_identifier()
+    let grpc_client = context.get_grpc_client().await.context(
+        "Network issue: couldn't use client to connect to chain when updating Move.lock",
+    )?;
+    let chain_identifier = fetch_chain_id(&grpc_client)
         .await
         .context("Network issue: couldn't determine chain identifier for updating Move.lock")?;
     let env = context.active_env().context(
