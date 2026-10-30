@@ -408,12 +408,12 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                                 .map(|b| b.to_string())
                                 .join(","),
                         );
-                        for (gen_tran_ref, _ack_authorities) in missing_committed_txns {
+                        for (tx_ref, _ack_authorities) in missing_committed_txns {
                             let hostname = &self
                                 .inner
                                 .context
                                 .committee
-                                .authority(gen_tran_ref.author)
+                                .authority(tx_ref.author)
                                 .hostname;
                             metrics
                                 .commit_sync_fetch_missing_transactions

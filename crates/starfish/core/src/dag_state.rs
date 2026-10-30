@@ -1000,7 +1000,7 @@ impl DagState {
 
     /// Finds a genesis block matching the given TransactionRef. Uses a range
     /// query on (round, author) with transactions_commitment filtering.
-    fn find_genesis_by_transaction_ref(&self, tx_ref: &TransactionRef) -> Option<&VerifiedBlock> {
+    fn get_genesis_block(&self, tx_ref: &TransactionRef) -> Option<&VerifiedBlock> {
         let author = tx_ref.author;
         let round = tx_ref.round;
         let min_ref = BlockRef {
@@ -1075,8 +1075,7 @@ impl DagState {
 
         for (index, transactions_ref) in transactions_refs.iter().enumerate() {
             if transactions_ref.round == GENESIS_ROUND {
-                if let Some(genesis_block) = self.find_genesis_by_transaction_ref(transactions_ref)
-                {
+                if let Some(genesis_block) = self.get_genesis_block(transactions_ref) {
                     transactions[index] = Some(genesis_block.verified_transactions.clone());
                 }
                 continue;
@@ -1142,7 +1141,7 @@ impl DagState {
 
             // Check genesis blocks
             if round == GENESIS_ROUND {
-                results[index] = self.find_genesis_by_transaction_ref(tx_ref).is_some();
+                results[index] = self.get_genesis_block(tx_ref).is_some();
                 continue;
             }
 
@@ -1342,7 +1341,7 @@ impl DagState {
         let mut block_headers: Vec<Option<VerifiedBlockHeader>> = vec![None; tx_refs.len()];
         for (index, tx_ref) in tx_refs.iter().enumerate() {
             if tx_ref.round == GENESIS_ROUND {
-                if let Some(block) = self.find_genesis_by_transaction_ref(tx_ref) {
+                if let Some(block) = self.get_genesis_block(tx_ref) {
                     block_headers[index] = Some(block.verified_block_header.clone());
                 }
                 continue;
@@ -1358,12 +1357,10 @@ impl DagState {
     }
 
     /// Gets shards by checking cached recent shards in memory.
-    pub(crate) fn get_cached_shards(&self, gen_tran_refs: &[TransactionRef]) -> Vec<Option<Bytes>> {
-        let mut shards: Vec<Option<Bytes>> = vec![None; gen_tran_refs.len()];
-        for (index, gen_tran_ref) in gen_tran_refs.iter().enumerate() {
-            if let Some(shard) =
-                self.recent_shards_by_authority[gen_tran_ref.author].get(gen_tran_ref)
-            {
+    pub(crate) fn get_cached_shards(&self, tx_refs: &[TransactionRef]) -> Vec<Option<Bytes>> {
+        let mut shards: Vec<Option<Bytes>> = vec![None; tx_refs.len()];
+        for (index, tx_ref) in tx_refs.iter().enumerate() {
+            if let Some(shard) = self.recent_shards_by_authority[tx_ref.author].get(tx_ref) {
                 shards[index] = Some(shard.clone());
             }
         }
@@ -2759,9 +2756,7 @@ impl DagState {
     /// the store: genesis, empty, or among the recent transactions held here.
     pub(crate) fn contains_cached_transactions(&self, transaction_ref: TransactionRef) -> bool {
         if transaction_ref.round == GENESIS_ROUND {
-            return self
-                .find_genesis_by_transaction_ref(&transaction_ref)
-                .is_some();
+            return self.get_genesis_block(&transaction_ref).is_some();
         }
         self.context
             .empty_transactions_for_ref(transaction_ref)
@@ -2791,7 +2786,7 @@ impl DagState {
     ) -> Option<Bytes> {
         if transaction_ref.round == GENESIS_ROUND {
             return self
-                .find_genesis_by_transaction_ref(&transaction_ref)
+                .get_genesis_block(&transaction_ref)
                 .map(|block| block.verified_transactions.serialized().clone());
         }
         if let Some(transactions) =
