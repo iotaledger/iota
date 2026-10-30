@@ -160,11 +160,7 @@ impl GraphQLStream {
     /// Reserves a slot for a new subscription, failing with a client error
     /// when the server-wide cap is reached.
     fn acquire_permit(&self) -> Result<OwnedSemaphorePermit, Error> {
-        Self::acquire(&self.active_subscriptions)
-    }
-
-    fn acquire(active_subscriptions: &Arc<Semaphore>) -> Result<OwnedSemaphorePermit, Error> {
-        active_subscriptions
+        self.active_subscriptions
             .clone()
             .try_acquire_owned()
             .map_err(|_| Error::Client("too many active subscriptions, retry later".to_string()))
@@ -267,26 +263,47 @@ impl GraphQLStream {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use diesel::r2d2::{ConnectionManager, Pool};
+
     use super::*;
 
     #[tokio::test]
     async fn rejects_subscriptions_beyond_the_cap_until_one_is_dropped() {
-        let active = Arc::new(Semaphore::new(1));
+        // The cap never touches the database, so a pool that cannot connect
+        // is enough.
+        let pool = Pool::builder()
+            .connection_timeout(Duration::from_millis(1))
+            .build_unchecked(ConnectionManager::<diesel::PgConnection>::new(
+                "postgres://unused",
+            ));
+        let limits = Limits {
+            max_active_subscriptions: 1,
+            ..Default::default()
+        };
+        let stream = GraphQLStream::new(
+            IndexerReader::new_without_watermark_cache(pool),
+            &Registry::new(),
+            &limits,
+        )
+        .await
+        .unwrap();
 
-        let first = GraphQLStream::acquire(&active).unwrap();
+        let first = stream.acquire_permit().unwrap();
         assert!(matches!(
-            GraphQLStream::acquire(&active),
+            stream.acquire_permit(),
             Err(Error::Client(msg)) if msg == "too many active subscriptions, retry later"
         ));
 
         drop(first);
-        let _again = GraphQLStream::acquire(&active).unwrap();
+        let _again = stream.acquire_permit().unwrap();
     }
 
     #[tokio::test]
     async fn live_stream_holds_its_permit_until_dropped() {
         let active = Arc::new(Semaphore::new(1));
-        let permit = GraphQLStream::acquire(&active).unwrap();
+        let permit = active.clone().try_acquire_owned().unwrap();
 
         let items = futures::stream::pending::<Result<(), Error>>();
         let stream = GraphQLStream::terminate_on_error(items, permit);
@@ -299,7 +316,7 @@ mod tests {
     #[tokio::test]
     async fn stream_ends_after_the_first_error_and_releases_its_permit() {
         let active = Arc::new(Semaphore::new(1));
-        let permit = GraphQLStream::acquire(&active).unwrap();
+        let permit = active.clone().try_acquire_owned().unwrap();
 
         let items = futures::stream::iter([Ok(1), Err(Error::Internal("boom".into())), Ok(2)]);
         let mut stream = GraphQLStream::terminate_on_error(items, permit);
