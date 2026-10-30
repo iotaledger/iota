@@ -2090,7 +2090,11 @@ pub(crate) async fn fetch_network_build_config(
 ) -> Result<NetworkBuildConfig, anyhow::Error> {
     let epoch = grpc_client
         .epoch()
-        .read_mask(EpochField::PROTOCOL_CONFIG)
+        .read_mask([
+            EpochField::PROTOCOL_CONFIG_PROTOCOL_VERSION,
+            EpochField::PROTOCOL_CONFIG_FEATURE_FLAGS,
+            EpochField::PROTOCOL_CONFIG_ATTRIBUTES,
+        ])
         .await?
         .into_inner();
     let protocol_config = epoch.protocol_config()?;
