@@ -1502,11 +1502,14 @@ pub fn position_submit_certificate(
 mod adapter_tests {
     use std::{sync::Arc, time::Duration};
 
-    use fastcrypto::traits::KeyPair;
+    use fastcrypto::{
+        bls12381::min_sig::BLS12381PrivateKey,
+        traits::{KeyPair, ToFromBytes},
+    };
     use iota_sdk_types::TransactionDigest;
     use iota_types::{
         committee::Committee,
-        crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair_from_bytes},
+        crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes},
     };
 
     use super::position_submit_certificate;
@@ -1527,9 +1530,9 @@ mod adapter_tests {
             .iter()
             .enumerate()
             .map(|(i, stake)| {
-                let mut key_bytes = [0u8; 32 + 96];
-                key_bytes[..32].fill(i as u8 + 1);
-                let key_pair: AuthorityKeyPair = get_key_pair_from_bytes(&key_bytes).unwrap();
+                let key_pair = AuthorityKeyPair::from(
+                    BLS12381PrivateKey::from_bytes(&[i as u8 + 1; 32]).unwrap(),
+                );
                 (AuthorityPublicKeyBytes::from(key_pair.public()), *stake)
             })
             .collect();
