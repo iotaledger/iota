@@ -227,6 +227,8 @@ The `[limits]` table controls how heavy a single query can be.
 | `max-move-value-depth`       | `128`       | Maximum depth of a Move value.                                                                                                                           |
 | `max-transaction-ids`        | `1000`      | Maximum number of transaction ids accepted by `TransactionBlockFilter` and `transactionBlocksByDigests`.                                                 |
 | `max-scan-limit`             | `100000000` | Maximum number of candidate rows the database scans when assembling a page.                                                                              |
+| `max-subscription-recovery-distance` | `10000` | Maximum number of transactions a subscription replays from the database when resuming from `startAfter`. An older digest is rejected. |
+| `max-active-subscriptions` | `1000` | Maximum number of subscriptions active at the same time across all connections. |
 
 ### TOML — other tables
 

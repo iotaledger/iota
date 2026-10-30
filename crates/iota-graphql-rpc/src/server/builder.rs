@@ -33,7 +33,10 @@ use iota_graphql_rpc_headers::LIMITS_HEADER;
 use iota_grpc_client::GrpcClient;
 use iota_indexer::{
     apis::{OptimisticWriteApi, ReadApi, WriteApi},
-    db::{get_pool_connection, setup_postgres::check_db_migration_consistency},
+    db::{
+        ConnectionPoolConfig, get_pool_connection, new_connection_pool,
+        setup_postgres::check_db_migration_consistency,
+    },
     metrics::IndexerMetrics,
     optimistic_indexing::OptimisticTransactionExecutor,
     read::IndexerReader,
@@ -484,7 +487,23 @@ impl ServerBuilder {
             ));
         };
 
-        let graphql_streams = GraphQLStream::new(reader.clone(), &registry).await?;
+        // subscriptions replay from their own pool for better performance.
+        let mut subscription_pool_config = ConnectionPoolConfig::default();
+        subscription_pool_config.set_pool_size(config.connection.db_pool_size);
+        subscription_pool_config.set_statement_timeout(Duration::from_millis(
+            config.service.limits.request_timeout_ms.into(),
+        ));
+        let subscription_pool =
+            new_connection_pool(&config.connection.db_url, &subscription_pool_config).map_err(
+                |e| {
+                    Error::ServerInit(format!(
+                        "failed to create subscription connection pool: {e}"
+                    ))
+                },
+            )?;
+        let subscription_reader = IndexerReader::new_without_watermark_cache(subscription_pool);
+        let graphql_streams =
+            GraphQLStream::new(subscription_reader, &registry, &config.service.limits).await?;
 
         let fullnode_grpc_client =
             GrpcClient::new(fullnode_url).map_err(|e| Error::ServerInit(e.to_string()))?;

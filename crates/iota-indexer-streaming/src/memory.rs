@@ -122,6 +122,19 @@ pub struct Config {
     /// The value of 50 provides good balance between indexer synchronization
     /// and subscriber responsiveness for typical workloads.
     pub transaction_batch_size: NonZeroI64,
+    /// The maximum number of transactions a recovery stream may replay from
+    /// the database before switching to live data.
+    ///
+    /// The distance is the difference between the sequence number of the
+    /// latest indexed transaction and that of the [`RecoveryPoint`], so it
+    /// equals the number of transactions to replay. For example, resuming from
+    /// transaction 4000 when the latest one is 15000 is a distance of 11000.
+    /// A larger distance than this fails the stream with
+    /// [`IndexerStreamingError::RecoveryDistanceExceeded`]. `None` leaves the
+    /// replay distance unbounded.
+    ///
+    /// - default: `None`
+    pub max_recovery_distance: Option<NonZeroI64>,
 }
 
 impl Default for Config {
@@ -130,6 +143,7 @@ impl Default for Config {
             channel_buffer_size: NonZeroUsize::new(1000).expect("value should be greater than 0"),
             transaction_batch_size: NonZeroI64::new(50).expect("value should be greater than 0"),
             notification_chunk_size: NonZeroUsize::new(10).expect("value should be greater than 0"),
+            max_recovery_distance: None,
         }
     }
 }
@@ -367,6 +381,7 @@ impl InMemory {
             recovery_point.digest(),
             self.reader.clone(),
             self.config.transaction_batch_size.get(),
+            self.config.max_recovery_distance.map(NonZeroI64::get),
             self.metrics.clone(),
         );
 
@@ -504,6 +519,7 @@ impl InMemory {
             recovery_point.digest(),
             self.reader.clone(),
             self.config.transaction_batch_size.get(),
+            self.config.max_recovery_distance.map(NonZeroI64::get),
             self.metrics.clone(),
         );
 
@@ -933,6 +949,9 @@ struct HistoricalFetch {
     buffer: VecDeque<StoredTransaction>,
     /// Number of transactions to fetch per database query.
     batch_size: i64,
+    /// Maximum allowed distance between the resolved cursor and the latest
+    /// committed transaction, if bounded.
+    max_recovery_distance: Option<i64>,
     /// Upon an unrecoverable error, the stream should be closed.
     should_close_stream: bool,
     /// Tracks the latency of querying transaction batch from the indexer
@@ -946,6 +965,7 @@ impl HistoricalFetch {
         start_from_digest: TransactionDigest,
         reader: IndexerReader,
         batch_size: i64,
+        max_recovery_distance: impl Into<Option<i64>>,
         metrics: Arc<InMemoryStreamMetrics>,
     ) -> Self {
         let active_subscriber_number = metrics.active_subscriber_number.with_label_values(&[label]);
@@ -959,6 +979,7 @@ impl HistoricalFetch {
             reader,
             buffer: VecDeque::new(),
             batch_size,
+            max_recovery_distance: max_recovery_distance.into(),
             should_close_stream: false,
             query_tx_from_indexer_db_latency: metrics.query_tx_from_indexer_db_latency.clone(),
         }
@@ -1097,6 +1118,19 @@ impl HistoricalFetch {
                         if state.cursor_value() > state.latest_tx_in_db {
                             debug!("reached the tip and are in sync with live data");
                             return None;
+                        }
+
+                        if let Some(max) = state.max_recovery_distance {
+                            let distance = state.latest_tx_in_db - state.cursor_value();
+                            if distance > max {
+                                state.should_close_stream = true;
+                                let e = IndexerStreamingError::RecoveryDistanceExceeded {
+                                    distance,
+                                    max,
+                                };
+                                debug!("{e}");
+                                return Some((Err(e), state));
+                            }
                         }
                     }
 
