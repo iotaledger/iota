@@ -37,7 +37,13 @@ pub enum ObjectChange {
         digest: ObjectDigest,
         modules: Vec<String>,
     },
-    /// Transfer objects to new address / wrap in another object
+    /// Deprecated, never produced. The node's object-change derivation
+    /// (`get_object_changes` in `iota-json-rpc`) has no code path that emits
+    /// this: there is no `WriteKind::Transfer`, so an object that merely
+    /// changes owner is reported as `Mutated`. This variant is a historical
+    /// leftover kept only so existing serialized data still deserializes; do
+    /// not add logic that depends on receiving it (the gRPC `ObjectChange`
+    /// omits it entirely for this reason).
     #[serde(rename_all = "camelCase")]
     Transferred {
         #[serde_as(as = "AddressSchema")]
