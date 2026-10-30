@@ -1301,10 +1301,10 @@ pub struct MetricsConfig {
 /// Default budget for retained checkpoint results.
 ///
 /// Only occupied while the node is behind and reading from the archive; a
-/// caught-up node holds nothing. Covers roughly 85,000 checkpoints at mainnet
-/// object density, so it is the binding constraint on how far ahead of
-/// execution the faster path reaches — see
-/// `max_checkpoints_ahead_of_execution`.
+/// caught-up node holds nothing. Sized above what
+/// `max_checkpoints_ahead_of_execution` lets state sync hold, so the
+/// checkpoint window is what bounds the faster path and the budget is the
+/// backstop for checkpoints larger than the estimate expects.
 pub const DEFAULT_CHECKPOINT_RESULTS_CACHE_SIZE_BYTES: usize = 8 * 1024 * 1024 * 1024;
 
 fn default_checkpoint_archive_download_concurrency() -> NonZeroUsize {
@@ -1342,8 +1342,9 @@ pub struct CheckpointArchiveConfig {
     /// downloaded and being committed by the checkpoint executor.
     ///
     /// Results beyond the budget are dropped and their checkpoints executed
-    /// instead, so this bounds how far ahead of execution the faster path
-    /// reaches. Raising `max_checkpoints_ahead_of_execution` past what this
+    /// instead. The count is estimated rather than measured, so treat this as
+    /// approximate and leave room above what the checkpoint window needs.
+    /// Raising `max_checkpoints_ahead_of_execution` past what this
     /// budget covers gains nothing.
     #[serde(default = "default_checkpoint_results_cache_size_bytes")]
     pub results_cache_size_bytes: usize,

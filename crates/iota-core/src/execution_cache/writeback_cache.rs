@@ -1326,8 +1326,6 @@ impl WritebackCache {
 
         let effects_digest = effects.digest();
 
-        // Update cache before removing from self.dirty to avoid
-        // unnecessary cache misses
         // The dirty maps own the effects and events, and the cache is the only
         // consumer left for them, so hand the values over rather than copying
         // them. Taken before the cache insert: a reader that misses both in
