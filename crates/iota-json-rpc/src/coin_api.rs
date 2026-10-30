@@ -17,10 +17,10 @@ use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
+use iota_sdk_move_types::iota_framework::balance::Supply;
 use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    balance::Supply,
     coin::TreasuryCap,
     coin_manager::CoinManager,
     effects::TransactionEffectsAPI,
@@ -363,7 +363,7 @@ async fn find_package_object_id(
 }
 
 #[instrument(skip(internal), ret)]
-async fn gas_total_supply<I>(internal: &I, tag: &StructTag) -> Result<Option<Supply>, Error>
+async fn gas_total_supply<I>(internal: &I, tag: &StructTag) -> Result<Option<Supply<()>>, Error>
 where
     I: CoinReadInternal + Send + Sync + ?Sized,
 {
@@ -380,16 +380,14 @@ where
     )
     .map_err(Error::from)?;
 
-    Ok(Some(Supply {
-        value: summary.iota_total_supply,
-    }))
+    Ok(Some(Supply::new(summary.iota_total_supply)))
 }
 
 #[instrument(skip(internal), ret)]
 async fn treasury_cap_total_supply<I>(
     internal: &I,
     tag: &StructTag,
-) -> Result<Option<Supply>, Error>
+) -> Result<Option<Supply<()>>, Error>
 where
     I: CoinReadInternal + Send + Sync + ?Sized,
 {
@@ -415,7 +413,7 @@ where
 async fn coin_manager_total_supply<I>(
     internal: &I,
     tag: &StructTag,
-) -> Result<Option<Supply>, Error>
+) -> Result<Option<Supply<()>>, Error>
 where
     I: CoinReadInternal + Send + Sync + ?Sized,
 {
@@ -563,7 +561,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
 mod tests {
     use expect_test::expect;
     use iota_json_rpc_types::Coin;
-    use iota_sdk_move_types::iota_framework::object::UID;
+    use iota_sdk_move_types::iota_framework::{balance::Supply, object::UID};
     use iota_sdk_types::{
         CheckpointDigest, ObjectDigest, StructTag, TransactionDigest, TransactionEffects,
         TransactionEvents, TypeTag, Version,
@@ -575,7 +573,6 @@ mod tests {
         key_value_store_metrics::KeyValueStoreMetrics,
     };
     use iota_types::{
-        balance::Supply,
         coin::TreasuryCap,
         effects::TransactionEffectsExtForTesting,
         error::{IotaError, IotaResult},
@@ -729,7 +726,7 @@ mod tests {
         let treasury_cap_struct = StructTag::new_treasury_cap(input_coin_struct.clone());
         let treasury_cap = TreasuryCap {
             id: UID::new(get_test_package_id()),
-            total_supply: Supply { value: 420 },
+            total_supply: Supply::new(420),
         };
         let treasury_cap_object =
             Object::treasury_cap_for_testing(input_coin_struct.clone(), treasury_cap.clone());
@@ -1481,7 +1478,7 @@ mod tests {
             let coin_metadata_struct = StructTag::new_coin_metadata(input_coin_struct.clone());
             let treasury_cap = TreasuryCap {
                 id: UID::new(get_test_package_id()),
-                total_supply: Supply { value: 420 },
+                total_supply: Supply::new(420),
             };
             let treasury_cap_object =
                 Object::treasury_cap_for_testing(input_coin_struct.clone(), treasury_cap);
@@ -1676,9 +1673,7 @@ mod tests {
                 iota_treasury_cap: IotaTreasuryCap {
                     inner: TreasuryCap {
                         id: UID::new(ObjectId::random()),
-                        total_supply: Supply {
-                            value: Default::default(),
-                        },
+                        total_supply: Supply::new(Default::default()),
                     },
                 },
                 validators: ValidatorSetV2 {
