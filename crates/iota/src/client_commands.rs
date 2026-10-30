@@ -23,11 +23,13 @@ use iota_grpc_client::{
     GrpcClient,
     read_mask_fields::{DynamicFieldField, ObjectField, OwnedObjectField, ServiceInfoField},
 };
+use iota_grpc_types::{
+    read_mask_fields::SimulateField, v1::transaction_execution_service::SimulatedTransaction,
+};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaData,
-    IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse, IotaProtocolConfigValue,
-    IotaRawData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    IotaData, IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse,
+    IotaProtocolConfigValue, IotaRawData, IotaTransactionBlockEffects,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     get_new_package_obj_from_response,
 };
@@ -55,7 +57,7 @@ use iota_sdk_move_types::iota_framework::{
 };
 use iota_sdk_transaction_builder::{TransactionBuilderLedgerClient, unresolved};
 use iota_sdk_types::{
-    Address, GasCostSummary, Identifier, MoveAuthenticatorV1, MovePackage, MovePackageData,
+    Address, Coin, GasCostSummary, Identifier, MoveAuthenticatorV1, MovePackage, MovePackageData,
     ObjectData, ObjectId, ObjectReference, ObjectType, Owner, SenderSignedTransaction,
     SharedObjectReference, SignatureScheme, StructTag, Transaction, TransactionDigest,
     TransactionKind, TypeTag, UserSignature, Version,
@@ -70,15 +72,13 @@ use iota_types::{
     crypto::EmptySignInfo,
     digests::ChainIdentifier,
     dynamic_field::DynamicFieldType,
+    effects::TransactionEffectsAPI,
     error::IotaError,
-    gas::get_gas_balance,
     gas_coin::GasCoin,
-    iota_serde,
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
     move_package::UpgradeCap,
     parse_iota_type_tag,
-    quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{
         CallArg, InputObjectKind, TransactionAPI, TransactionEnvelope, TransactionKindExt,
     },
@@ -2690,11 +2690,18 @@ impl Display for IotaClientCommandResult {
                 writeln!(f, "{table}")?;
             }
             IotaClientCommandResult::NoOutput => {}
-            IotaClientCommandResult::DryRun(response) => {
-                writeln!(f, "{}", Pretty(response))?;
+            IotaClientCommandResult::DryRun(simulated, transaction) => {
+                writeln!(
+                    f,
+                    "{}",
+                    crate::displays::DryRunDisplay {
+                        simulated,
+                        transaction,
+                    }
+                )?;
             }
-            IotaClientCommandResult::DevInspect(response) => {
-                writeln!(f, "{}", Pretty(response))?;
+            IotaClientCommandResult::DevInspect(simulated) => {
+                writeln!(f, "{}", Pretty(&**simulated))?;
             }
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
@@ -2754,8 +2761,7 @@ impl IotaClientCommandResult {
 
     pub async fn prerender_clever_errors(mut self, context: &mut WalletContext) -> Self {
         match &mut self {
-            IotaClientCommandResult::DryRun(DryRunTransactionBlockResponse { effects, .. })
-            | IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
+            IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: Some(effects),
                 ..
             }) => {
@@ -2774,6 +2780,7 @@ impl IotaClientCommandResult {
             | IotaClientCommandResult::ComputeTransactionDigest(_)
             | IotaClientCommandResult::ChainIdentifier(_)
             | IotaClientCommandResult::DynamicFieldQuery(_)
+            | IotaClientCommandResult::DryRun(_, _)
             | IotaClientCommandResult::DevInspect(_)
             | IotaClientCommandResult::Envs(_, _)
             | IotaClientCommandResult::ExecutedTransaction(_)
@@ -2816,6 +2823,30 @@ where
     let events = executed.events().and_then(|e| e.events()).ok();
 
     let mut state = serializer.serialize_struct("ExecutedTransaction", 3)?;
+    state.serialize_field("digest", &digest)?;
+    state.serialize_field("effects", &effects)?;
+    state.serialize_field("events", &events)?;
+    state.end()
+}
+
+/// Serialize the parts of a gRPC simulation result that the CLI surfaces as
+/// JSON: the simulated transaction's digest, effects, and events. Fields the
+/// read mask omitted are serialized as `null`.
+fn serialize_simulated_transaction<S>(
+    simulated: &SimulatedTransaction,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    use serde::ser::SerializeStruct;
+
+    let executed = simulated.executed_transaction().ok();
+    let digest = executed.and_then(|e| e.transaction().and_then(|t| t.digest()).ok());
+    let effects = executed.and_then(|e| e.effects().and_then(|e| e.effects()).ok());
+    let events = executed.and_then(|e| e.events().and_then(|e| e.events()).ok());
+
+    let mut state = serializer.serialize_struct("SimulatedTransaction", 3)?;
     state.serialize_field("digest", &digest)?;
     state.serialize_field("effects", &effects)?;
     state.serialize_field("events", &events)?;
@@ -3099,8 +3130,13 @@ pub enum IotaClientCommandResult {
     ChainIdentifier(String),
     ComputeTransactionDigest(Transaction),
     DynamicFieldQuery(DynamicFieldOutput),
-    DryRun(DryRunTransactionBlockResponse),
-    DevInspect(DevInspectResults),
+    DryRun(
+        #[serde(serialize_with = "serialize_simulated_transaction")] Box<SimulatedTransaction>,
+        Transaction,
+    ),
+    DevInspect(
+        #[serde(serialize_with = "serialize_simulated_transaction")] Box<SimulatedTransaction>,
+    ),
     Envs(Vec<IotaEnv>, Option<String>),
     ExecutedTransaction(
         #[serde(serialize_with = "serialize_executed_transaction")]
@@ -3328,8 +3364,11 @@ fn format_balance(
     format!("{whole}.{fractional}{suffix}")
 }
 
-/// Helper function to reduce code duplication for executing dry run
-pub async fn execute_dry_run(
+/// Build the transaction for a dry run and simulate it over gRPC with the
+/// node's usual Move VM checks (`skip_checks` disabled). When no gas budget is
+/// given, it defaults to the maximum allowed by the protocol, capped at the
+/// total balance of any explicitly provided gas coins.
+async fn simulate_dry_run(
     context: &mut WalletContext,
     signer: Address,
     kind: TransactionKind,
@@ -3337,8 +3376,8 @@ pub async fn execute_dry_run(
     gas_price: u64,
     gas_payment: Vec<ObjectReference>,
     sponsor: Option<Address>,
-) -> Result<IotaClientCommandResult, anyhow::Error> {
-    let client = context.get_client().await?;
+) -> Result<(Transaction, SimulatedTransaction), anyhow::Error> {
+    let client = context.get_grpc_client().await?;
     let gas_budget = match gas_budget {
         Some(gas_budget) => gas_budget,
         None => {
@@ -3347,23 +3386,15 @@ pub async fn execute_dry_run(
                 max_gas_budget
             } else {
                 let mut gas_budget = 0;
-                let gas_coins = client
-                    .read_api()
-                    .multi_get_object_with_options(
-                        gas_payment
-                            .iter()
-                            .map(|object_ref| object_ref.object_id)
-                            .collect(),
-                        IotaObjectDataOptions::bcs_lossless(),
-                    )
-                    .await?;
-                for gas_coin in gas_coins {
-                    gas_budget += get_gas_balance(
-                        &gas_coin
-                            .into_object()?
-                            .try_into()
-                            .expect("couldn't convert gas coin into object"),
-                    )?
+                for object_ref in &gas_payment {
+                    let object_id = *object_ref.object_id();
+                    let object = client
+                        .object(object_id, None)
+                        .await?
+                        .ok_or_else(|| anyhow!("Gas coin {object_id} does not exist"))?;
+                    gas_budget += Coin::try_from_object(&object)
+                        .map_err(|_| anyhow!("Object {object_id} is not a gas coin"))?
+                        .balance();
                 }
                 let final_gas_budget = min(gas_budget, max_gas_budget);
                 if final_gas_budget == gas_budget {
@@ -3387,12 +3418,43 @@ pub async fn execute_dry_run(
         sponsor.unwrap_or(signer),
     );
     debug!("Executing dry run");
-    let response = client.read_api().dry_run_transaction_block(tx).await?;
-    debug!("Finished executing dry run {response:?}");
-    let resp = IotaClientCommandResult::DryRun(response)
-        .prerender_clever_errors(context)
-        .await;
-    Ok(resp)
+    let simulated = client
+        .simulate_transaction(tx.clone())
+        .read_mask([
+            SimulateField::EXECUTED_TRANSACTION_TRANSACTION_DIGEST,
+            SimulateField::EXECUTED_TRANSACTION_EFFECTS_BCS,
+            SimulateField::EXECUTED_TRANSACTION_EVENTS_EVENTS_BCS,
+            SimulateField::EXECUTED_TRANSACTION_OBJECT_CHANGES,
+            SimulateField::EXECUTED_TRANSACTION_BALANCE_CHANGES,
+            SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_SOURCE,
+        ])
+        .await?
+        .into_inner();
+    debug!("Finished executing dry run");
+    Ok((tx, simulated))
+}
+
+/// Helper function to reduce code duplication for executing dry run
+pub async fn execute_dry_run(
+    context: &mut WalletContext,
+    signer: Address,
+    kind: TransactionKind,
+    gas_budget: Option<u64>,
+    gas_price: u64,
+    gas_payment: Vec<ObjectReference>,
+    sponsor: Option<Address>,
+) -> Result<IotaClientCommandResult, anyhow::Error> {
+    let (tx, simulated) = simulate_dry_run(
+        context,
+        signer,
+        kind,
+        gas_budget,
+        gas_price,
+        gas_payment,
+        sponsor,
+    )
+    .await?;
+    Ok(IotaClientCommandResult::DryRun(Box::new(simulated), tx))
 }
 
 /// Call a dry run with the transaction data to estimate the gas budget.
@@ -3413,22 +3475,14 @@ pub async fn estimate_gas_budget(
     gas_payment: Vec<ObjectReference>,
     sponsor: Option<Address>,
 ) -> Result<u64, anyhow::Error> {
-    let client = context.get_client().await?;
-    let dry_run =
-        execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await;
-
-    if let Ok(IotaClientCommandResult::DryRun(dry_run)) = dry_run {
-        let rgp = client.read_api().get_reference_gas_price().await?;
-        Ok(estimate_gas_budget_from_gas_cost(
-            dry_run.effects.gas_cost_summary(),
-            rgp,
-        ))
-    } else {
-        bail!(
-            "Could not determine the gas budget. Error: {}",
-            dry_run.unwrap_err()
-        )
-    }
+    let (_tx, simulated) =
+        simulate_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await?;
+    let rgp = context.get_reference_gas_price().await?;
+    let effects = simulated.executed_transaction()?.effects()?.effects()?;
+    Ok(estimate_gas_budget_from_gas_cost(
+        effects.gas_cost_summary(),
+        rgp,
+    ))
 }
 
 pub fn estimate_gas_budget_from_gas_cost(
@@ -3443,15 +3497,16 @@ pub fn estimate_gas_budget_from_gas_cost(
 }
 
 /// Queries the protocol config for the maximum gas allowed in a transaction.
-pub async fn max_gas_budget(client: &IotaClient) -> Result<u64, anyhow::Error> {
-    let cfg = client.read_api().get_protocol_config(None).await?;
-    Ok(match cfg.attributes.get("max_tx_gas") {
-        Some(Some(iota_json_rpc_types::IotaProtocolConfigValue::U64(y))) => *y,
-        _ => bail!(
-            "Could not automatically find the maximum gas allowed in a transaction from the \
-            protocol config. Please provide a gas budget with the --gas-budget flag."
-        ),
-    })
+pub async fn max_gas_budget(client: &GrpcClient) -> Result<u64, anyhow::Error> {
+    let cfg = client.protocol_config().await?;
+    cfg.attribute("max_tx_gas")
+        .and_then(|value| value.parse::<u64>().ok())
+        .ok_or_else(|| {
+            anyhow!(
+                "Could not automatically find the maximum gas allowed in a transaction from the \
+                protocol config. Please provide a gas budget with the --gas-budget flag."
+            )
+        })
 }
 
 /// The gas coins paying for a transaction, either as object IDs to be resolved
@@ -3539,7 +3594,9 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         serialize_unsigned_transaction,
         serialize_signed_transaction,
         sender,
-        display,
+        // The native `ExecutedTransaction` display always renders the full
+        // result, so the per-field selection no longer applies.
+        display: _,
         auth_call_args,
         auth_type_args,
         sponsor_auth_call_args,
@@ -3688,31 +3745,21 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         } else {
             let transaction = TransactionEnvelope::new(sender_signed_tx);
             debug!("Executing transaction: {:?}", transaction);
-            let mut response = client
-                .quorum_driver_api()
-                .execute_transaction_block(
-                    transaction,
-                    opts_from_cli(&display),
-                    Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-                )
-                .await?;
+            let executed = context.execute_transaction_may_fail(transaction).await?;
             debug!("Transaction executed");
-
-            if let Some(effects) = response.effects.as_mut() {
-                prerender_clever_errors(effects, client.read_api()).await;
+            // Preserve the CLI's non-zero exit on an on-chain execution failure
+            // (scripts rely on it); `execute-signed-tx` keeps its own
+            // show-the-result behavior.
+            let effects = executed
+                .effects()
+                .and_then(|e| e.effects())
+                .map_err(|e| anyhow!("missing effects in execution result: {e}"))?;
+            if !matches!(effects.status(), iota_sdk_types::ExecutionStatus::Success) {
+                bail!("Error executing transaction: {:?}", effects.status());
             }
-            let effects = response.effects.as_ref().ok_or_else(|| {
-                anyhow!("Effects from IotaTransactionBlockResult should not be empty")
-            })?;
-            if let IotaExecutionStatus::Failure { error } = effects.status() {
-                bail!("Error executing transaction '{}': {error}", response.digest);
-            }
-            // Effects are always requested for the status check above, so drop
-            // them here when the display selection excludes them.
-            if !display.is_empty() && !display.contains(&DisplayOption::Effects) {
-                response.effects = None;
-            }
-            Ok(IotaClientCommandResult::TransactionBlock(response))
+            Ok(IotaClientCommandResult::ExecutedTransaction(Box::new(
+                executed,
+            )))
         }
     }
 }
@@ -3727,26 +3774,30 @@ async fn execute_dev_inspect(
     gas_sponsor: Option<Address>,
     skip_checks: Option<bool>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
-    let client = context.get_client().await?;
+    let client = context.get_grpc_client().await?;
 
-    let dev_inspect_args = DevInspectArgs {
-        gas_sponsor,
-        gas_budget,
-        gas_objects: (!gas_objects.is_empty()).then_some(gas_objects),
-        skip_checks,
-        show_raw_txn_data_and_effects: None,
-    };
-    let dev_inspect_result = client
-        .read_api()
-        .dev_inspect_transaction_block(
-            signer,
-            tx_kind,
-            Some(iota_serde::BigInt::from(gas_price)),
-            None,
-            Some(dev_inspect_args),
-        )
-        .await?;
-    Ok(IotaClientCommandResult::DevInspect(dev_inspect_result))
+    // An unset gas budget is encoded as 0, which asks the node to estimate it
+    // when the Move VM checks are relaxed.
+    let tx = Transaction::new_with_gas_coins_allow_sponsor(
+        tx_kind,
+        signer,
+        gas_objects,
+        gas_budget.unwrap_or(0),
+        gas_price,
+        gas_sponsor.unwrap_or(signer),
+    );
+    let simulated = client
+        .simulate_transaction(tx)
+        .skip_checks(skip_checks.unwrap_or(true))
+        .read_mask([
+            SimulateField::EXECUTED_TRANSACTION_EFFECTS_BCS,
+            SimulateField::EXECUTED_TRANSACTION_EVENTS_EVENTS_BCS,
+            SimulateField::EXECUTION_RESULT_COMMAND_RESULTS,
+            SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_SOURCE,
+        ])
+        .await?
+        .into_inner();
+    Ok(IotaClientCommandResult::DevInspect(Box::new(simulated)))
 }
 
 pub(crate) async fn prerender_clever_errors(
@@ -3757,30 +3808,6 @@ pub(crate) async fn prerender_clever_errors(
     if let IotaExecutionStatus::Failure { error } = &mut effects.status {
         if let Some(rendered) = render_clever_error_opt(error, read_api).await {
             *error = rendered;
-        }
-    }
-}
-
-fn opts_from_cli(opts: &HashSet<DisplayOption>) -> IotaTransactionBlockResponseOptions {
-    if opts.is_empty() {
-        IotaTransactionBlockResponseOptions::new()
-            .with_input()
-            .with_effects()
-            .with_events()
-            .with_object_changes()
-            .with_balance_changes()
-    } else {
-        IotaTransactionBlockResponseOptions {
-            show_input: opts.contains(&DisplayOption::Input),
-            show_raw_input: false,
-            // Effects are always requested because the execution status check
-            // needs them; they are dropped from the response afterwards when
-            // the display selection excludes them.
-            show_effects: true,
-            show_raw_effects: false,
-            show_events: opts.contains(&DisplayOption::Events),
-            show_object_changes: opts.contains(&DisplayOption::ObjectChanges),
-            show_balance_changes: opts.contains(&DisplayOption::BalanceChanges),
         }
     }
 }
