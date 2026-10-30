@@ -668,7 +668,6 @@ mod tests {
         dag_state::{DagState, DataSource},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
-        transaction_ref::GenericTransactionRef,
     };
 
     #[tokio::test]
@@ -1196,12 +1195,9 @@ mod tests {
         let suspended_count = block_manager.suspended_full_blocks_count();
 
         // Verify that transactions were actually added to DagState
-        let has_transactions_results = dag_state.read().contains_transactions(
-            round_2_blocks
-                .iter()
-                .map(|b| GenericTransactionRef::TransactionRef(b.transaction_ref()))
-                .collect(),
-        );
+        let has_transactions_results = dag_state
+            .read()
+            .contains_transactions(round_2_blocks.iter().map(|b| b.transaction_ref()).collect());
 
         let transactions_added_count = has_transactions_results.iter().filter(|&&x| x).count();
 

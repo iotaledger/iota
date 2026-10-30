@@ -24,7 +24,7 @@ use iota_types::{
     transaction::TransactionAPI,
     utils::to_sender_signed_transaction,
 };
-use starfish_core::{BlockRef, BlockStatus};
+use starfish_core::BlockStatus;
 
 use crate::{
     authority::{
@@ -885,7 +885,7 @@ async fn test_handle_soft_bundle_certificates() {
         HashSet::new(),
         true,
         vec![with_block_status(BlockStatus::Sequenced(
-            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            starfish_core::TransactionRef::default(),
         ))],
     );
     let server = AuthorityServer::new_for_test_with_consensus_adapter(authority.clone(), adapter);

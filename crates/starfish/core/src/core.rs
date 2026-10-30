@@ -54,7 +54,7 @@ use crate::{
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction::TransactionConsumer,
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
+    transaction_ref::TransactionRef,
     universal_committer::{
         UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
@@ -394,7 +394,7 @@ impl Core {
         source: DataSource,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
-        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_blocks");
         let _s = self
@@ -461,7 +461,7 @@ impl Core {
         source: DataSource,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
-        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_block_headers");
         let _s = self
@@ -587,7 +587,7 @@ impl Core {
         certified_commits: CertifiedCommits,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
-        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_certified_commits");
 
@@ -804,7 +804,7 @@ impl Core {
         reason: ReasonToCreateBlock,
     ) -> ConsensusResult<(
         Option<VerifiedBlock>,
-        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::new_block");
         if self.last_proposed_round() < round {
@@ -824,7 +824,7 @@ impl Core {
         reason: ReasonToCreateBlock,
     ) -> ConsensusResult<(
         Option<VerifiedBlock>,
-        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         if !self.should_propose() {
             return Ok((None, BTreeMap::new()));
@@ -1263,8 +1263,8 @@ impl Core {
         drop(dag_state_guard);
         // Now acknowledge the transactions for their inclusion to block
         let block_ref = verified_block.reference();
-        let gen_transaction_ref = GenericTransactionRef::from(verified_block.transaction_ref());
-        ack_transactions(gen_transaction_ref);
+        let transaction_ref = verified_block.transaction_ref();
+        ack_transactions(transaction_ref);
 
         info!("Created block {block_ref} for round {round}");
 
@@ -1290,7 +1290,7 @@ impl Core {
         source: CommittedSubDagSource,
     ) -> ConsensusResult<(
         Vec<PendingSubDag>,
-        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _s = self
             .context
@@ -1426,7 +1426,7 @@ impl Core {
             .iter()
             .flat_map(|sub_dag| sub_dag.committed_transaction_refs.iter())
             .filter_map(|block_ref| {
-                (block_ref.author() == self.context.own_index).then_some(*block_ref)
+                (block_ref.author == self.context.own_index).then_some(*block_ref)
             })
             .collect::<Vec<_>>();
 
@@ -1451,7 +1451,7 @@ impl Core {
     }
     pub(crate) fn get_missing_transaction_data(
         &self,
-    ) -> BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> {
+    ) -> BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>> {
         let _scope = monitored_scope("Core::get_missing_transaction_data");
         let _s = self
             .context
@@ -2068,13 +2068,13 @@ mod test {
         // able to commit transactions up to round 2.
         for block in dag_builder.block_headers(1..=2) {
             if block.author() == context.own_index {
-                let generic_ref = GenericTransactionRef::TransactionRef(TransactionRef {
+                let transaction_ref = TransactionRef {
                     round: block.round(),
                     author: block.author(),
                     transactions_commitment: block.transactions_commitment(),
-                });
+                };
                 let subscription =
-                    transaction_consumer.subscribe_for_block_status_testing(generic_ref);
+                    transaction_consumer.subscribe_for_block_status_testing(transaction_ref);
                 block_status_subscriptions.push(subscription);
             }
         }
@@ -3358,35 +3358,27 @@ mod test {
         assert!(missing_references.is_empty());
         let first_missing_transaction_from_skipped = *missing_transactions
             .iter()
-            .find(|(a, _)| a.author() == authority_to_skip)
+            .find(|(a, _)| a.author == authority_to_skip)
             .unwrap()
             .0;
         if commit_only_for_traversed_headers {
             assert_eq!(
-                first_missing_transaction_from_skipped.round(),
+                first_missing_transaction_from_skipped.round,
                 num_rounds_with_skip_ancestors
             );
         } else {
-            assert_eq!(first_missing_transaction_from_skipped.round(), 1);
+            assert_eq!(first_missing_transaction_from_skipped.round, 1);
         }
         // Ensure that the block header corresponding to the
         // first_missing_transaction_from_skipped is not in dag_state
         // if commit_only_for_traversed_headers=false and in dag_state otherwise
         let is_in_dag_state = {
             let dag = core_catch_up.dag_state.read();
-            match first_missing_transaction_from_skipped {
-                GenericTransactionRef::BlockRef(ref b) => {
-                    let block_ref = BlockRef::new(b.round, b.author, b.digest);
-                    dag.get_verified_block_headers(&[block_ref])[0].is_some()
-                }
-                GenericTransactionRef::TransactionRef(ref t) => {
-                    // resolve_block_refs is empty iff the block header is absent from
-                    // dag_state, which is exactly the condition we want to check.
-                    dag.resolve_block_refs(t)
-                        .iter()
-                        .any(|block_ref| dag.get_verified_block_headers(&[*block_ref])[0].is_some())
-                }
-            }
+            // resolve_block_refs is empty iff the block header is absent from
+            // dag_state, which is exactly the condition we want to check.
+            dag.resolve_block_refs(&first_missing_transaction_from_skipped)
+                .iter()
+                .any(|block_ref| dag.get_verified_block_headers(&[*block_ref])[0].is_some())
         };
         assert_eq!(is_in_dag_state, commit_only_for_traversed_headers);
         // No commit is solid (with all transactions being locally available) yet:
@@ -3403,10 +3395,7 @@ mod test {
         // synchronizer
         let missing_verified_transactions: Vec<_> = all_sequenced_transactions
             .into_iter()
-            .filter(|tx| {
-                let generic_ref = GenericTransactionRef::TransactionRef(tx.transaction_ref());
-                missing_transactions.contains_key(&generic_ref)
-            })
+            .filter(|tx| missing_transactions.contains_key(&tx.transaction_ref()))
             .collect();
         core_catch_up
             .add_transactions(
@@ -3926,13 +3915,13 @@ mod test {
         // able to commit transactions up to round 4.
         for block in dag_builder.block_headers(1..=4) {
             if block.author() == context.own_index {
-                let generic_ref = GenericTransactionRef::TransactionRef(TransactionRef {
+                let transaction_ref = TransactionRef {
                     round: block.round(),
                     author: block.author(),
                     transactions_commitment: block.transactions_commitment(),
-                });
+                };
                 let subscription =
-                    transaction_consumer.subscribe_for_block_status_testing(generic_ref);
+                    transaction_consumer.subscribe_for_block_status_testing(transaction_ref);
                 block_status_subscriptions.push(subscription);
             }
         }
@@ -4536,17 +4525,11 @@ mod test {
             .store
             .scan_commits((1..=fast_sync_end).into())
             .unwrap();
-        let transactions: BTreeMap<GenericTransactionRef, CommitmentVerifiedTransactions> =
-            dag_builder
-                .transactions(1..=8)
-                .into_iter()
-                .map(|transactions| {
-                    (
-                        GenericTransactionRef::TransactionRef(transactions.transaction_ref()),
-                        transactions,
-                    )
-                })
-                .collect();
+        let transactions: BTreeMap<TransactionRef, CommitmentVerifiedTransactions> = dag_builder
+            .transactions(1..=8)
+            .into_iter()
+            .map(|transactions| (transactions.transaction_ref(), transactions))
+            .collect();
         let misbehavior_counts = fixture
             .core
             .dag_state

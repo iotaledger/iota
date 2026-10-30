@@ -28,7 +28,7 @@ use crate::{
     leader_schedule::LeaderSchedule,
     linearizer::Linearizer,
     storage::Store,
-    transaction_ref::GenericTransactionRef,
+    transaction_ref::TransactionRef,
 };
 
 #[derive(Clone, Copy)]
@@ -158,7 +158,7 @@ impl CommitObserver {
         source: CommittedSubDagSource,
     ) -> ConsensusResult<(
         Vec<PendingSubDag>,
-        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _s = self
             .context
@@ -233,7 +233,7 @@ impl CommitObserver {
         let transaction_results = self
             .dag_state
             .read()
-            .try_get_verified_transactions(&tx_refs)?;
+            .try_get_verified_transactions(tx_refs)?;
         let missing_refs: Vec<_> = tx_refs
             .iter()
             .zip(&transaction_results)
@@ -631,7 +631,7 @@ impl CommitObserver {
     /// who acknowledged them
     pub(crate) fn get_missing_transaction_data(
         &self,
-    ) -> BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> {
+    ) -> BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>> {
         let missing_refs = self.commit_solidifier.get_missing_transaction_data();
         self.linearizer
             .get_transaction_ack_authors(missing_refs.into_iter().collect())
@@ -760,7 +760,6 @@ mod tests {
         dag_state::{DagState, DataSource},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
-        transaction_ref::GenericTransactionRefAPI,
     };
 
     #[tokio::test]
@@ -1211,9 +1210,9 @@ mod tests {
             let dag_state_guard = dag_state.read();
             for commit in &commits {
                 let committed_refs = commit.committed_transactions();
-                let tx_results = dag_state_guard.get_verified_transactions(&committed_refs);
+                let tx_results = dag_state_guard.get_verified_transactions(committed_refs);
                 let missing_refs = committed_refs
-                    .into_iter()
+                    .iter()
                     .zip(tx_results.iter())
                     .filter_map(|(tx_ref, tx)| tx.is_none().then_some(tx_ref))
                     .collect::<Vec<_>>();
@@ -1598,8 +1597,8 @@ mod tests {
     ) -> (
         BlockRef,
         Vec<BlockRef>,
-        Vec<GenericTransactionRef>,
-        Vec<GenericTransactionRef>,
+        Vec<TransactionRef>,
+        Vec<TransactionRef>,
     ) {
         let num_authorities = 4;
 
@@ -1705,7 +1704,7 @@ mod tests {
                 CommittedSubDagSource::Consensus,
             )
             .unwrap();
-        let post_refs: Vec<GenericTransactionRef> = later_commits
+        let post_refs: Vec<TransactionRef> = later_commits
             .iter()
             .flat_map(|c| c.committed_transaction_refs.iter().cloned())
             .collect();
@@ -1730,9 +1729,9 @@ mod tests {
         assert!(!l5_acks_optimistic.is_empty(), "leader should have acks");
         assert!(!l5_acks_standard.is_empty(), "leader should have acks");
 
-        let contains = |refs: &[GenericTransactionRef], target: &BlockRef| -> bool {
+        let contains = |refs: &[TransactionRef], target: &BlockRef| -> bool {
             refs.iter()
-                .any(|r| r.round() == target.round && r.author() == target.author)
+                .any(|r| r.round == target.round && r.author == target.author)
         };
 
         // Optimistic: L5's ref + every ack land in L5's commit (early), and
@@ -1900,7 +1899,7 @@ mod tests {
         // The stall must land inside the backlog that the old tip-anchored window
         // (last_commit - 2 * gc_depth) would have skipped, or the test wouldn't
         // distinguish the fix.
-        let earliest_missing_round = raw_missing.iter().map(|r| r.round()).min().unwrap();
+        let earliest_missing_round = raw_missing.iter().map(|r| r.round).min().unwrap();
         assert!(
             earliest_missing_round < num_rounds - 2 * gc_depth,
             "stall must land below the pre-fix seeding window"
