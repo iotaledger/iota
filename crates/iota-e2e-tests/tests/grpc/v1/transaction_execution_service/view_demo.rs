@@ -4,6 +4,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use iota_grpc_types::v1::{
+    bcs::BcsData,
     command::{CommandOutput, InputArgument},
     transaction_execution_service::{
         ViewFunctionCallItem, ViewFunctionCallsRequest, ViewFunctionCallsResponse,
@@ -631,4 +632,40 @@ async fn open_for_ms_reads_clock() {
     millis
         .parse::<u64>()
         .unwrap_or_else(|e| panic!("expected open_for_ms to return a u64, got `{millis}`: {e}"));
+}
+
+/// A view response bigger than the server's `max_message_size_bytes` must be
+/// rejected by the handler itself, before tonic encodes it: the message of
+/// tonic's own error is different.
+#[sim_test]
+async fn oversized_view_response_is_rejected_by_the_handler() {
+    // Each call returns about 150 * 15 KB = 2.25 MB, so a batch of 20 calls
+    // returns about 45 MB, more than the default limit.
+    const COPIES: &str = "150";
+    const CALLS: usize = 20;
+
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
+    let mut exec_client = client.execution_service_client();
+    let pkg = publish_view_demo_package(&test_cluster, &client).await;
+
+    // Below the 16 KiB limit of one pure argument.
+    let bytes = BcsData::default().with_data(bcs::to_bytes(&vec![7u8; 15_000]).unwrap());
+    let item = ViewFunctionCallItem::default()
+        .with_fq_function_name(format!("{}::echo::repeat_bytes", pkg.package_id))
+        .with_type_args(vec![])
+        .with_inputs(vec![
+            InputArgument::default().with_bcs(bytes),
+            json_arg(COPIES),
+        ]);
+    let request = ViewFunctionCallsRequest::default().with_view_function_calls(vec![item; CALLS]);
+
+    let status = exec_client
+        .view_function_calls(request)
+        .await
+        .expect_err("the oversized response must be rejected");
+    assert_eq!(status.code(), tonic::Code::OutOfRange, "{status:?}");
+    assert!(
+        status.message().contains("exceeds max message size"),
+        "expected the handler's own size-limit message, got: {status:?}"
+    );
 }
