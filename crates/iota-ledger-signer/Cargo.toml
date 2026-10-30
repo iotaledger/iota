@@ -13,7 +13,6 @@ workspace = true
 # external dependencies
 bip32.workspace = true
 thiserror.workspace = true
-tracing.workspace = true
 
 # internal dependencies
 iota-ledger.workspace = true
