@@ -110,10 +110,6 @@ impl ConsensusAuthority {
                 .join(", ")
         );
         info!("Consensus parameters: {:?}", parameters);
-        info!(
-            "Protocol consensus flags: starfish_speed={}",
-            protocol_config.consensus_starfish_speed(),
-        );
         info!("Consensus committee: {:?}", committee);
         let context = Arc::new(Context::new(
             epoch_start_timestamp_ms,

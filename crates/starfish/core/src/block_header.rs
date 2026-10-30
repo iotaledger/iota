@@ -1563,19 +1563,6 @@ pub enum TestBlockHeaderVersion {
     V2,
 }
 
-impl TestBlockHeaderVersion {
-    /// The version `Core` proposes under this context's
-    /// `consensus_starfish_speed` setting.
-    #[cfg(test)]
-    pub(crate) fn from_context(context: &Context) -> Self {
-        if context.protocol_config.consensus_starfish_speed() {
-            Self::V2
-        } else {
-            Self::V1
-        }
-    }
-}
-
 /// This struct is public for testing in other crates.
 #[derive(Clone)]
 pub struct TestBlockHeader {

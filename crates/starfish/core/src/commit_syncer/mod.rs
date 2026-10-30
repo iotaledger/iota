@@ -271,32 +271,16 @@ impl<C: NetworkClient> Inner<C> {
     }
 }
 
-/// Rejects a deserialized commit whose variant does not match the local
-/// protocol-flag configuration. The flag is uniform across the network within
-/// an epoch, so any mismatch implies either a malicious peer or a misconfigured
-/// upgrade path. Called on commits received over the network in
-/// `verify_commits`; recovery from local store is trusted and skips this check.
-pub(crate) fn check_commit_version_matches_flags(
-    commit: &Commit,
-    protocol_config: &iota_protocol_config::ProtocolConfig,
-) -> ConsensusResult<()> {
-    let starfish_speed = protocol_config.consensus_starfish_speed();
-    let variant_matches_flags = matches!(
-        (commit, starfish_speed),
-        (Commit::V2(_), false) | (Commit::V3(_), true)
-    );
-    if !variant_matches_flags {
-        let actual = match commit {
-            Commit::V1(_) => "V1",
-            Commit::V2(_) => "V2",
-            Commit::V3(_) => "V3",
-        };
-        return Err(ConsensusError::WrongCommitVersionForFlags {
-            actual,
-            starfish_speed,
-        });
-    }
-    Ok(())
+/// Rejects a deserialized commit that is not V3, the only variant honest peers
+/// create. Called on commits received over the network in `verify_commits`;
+/// recovery from local store is trusted and skips this check.
+pub(crate) fn check_commit_version(commit: &Commit) -> ConsensusResult<()> {
+    let actual = match commit {
+        Commit::V1(_) => "V1",
+        Commit::V2(_) => "V2",
+        Commit::V3(_) => return Ok(()),
+    };
+    Err(ConsensusError::WrongCommitVersion { actual })
 }
 
 /// Validates every `AuthorityIndex` carried by a fetched commit against the
@@ -384,7 +368,7 @@ pub(crate) fn verify_commits(
     for serialized in &serialized_commits {
         let commit: Commit =
             bcs::from_bytes(serialized).map_err(|e| reject(ConsensusError::MalformedCommit(e)))?;
-        check_commit_version_matches_flags(&commit, &context.protocol_config).map_err(reject)?;
+        check_commit_version(&commit).map_err(reject)?;
         verify_commit_authority_indices(context, peer, &commit).map_err(reject)?;
         let digest = TrustedCommit::compute_digest(serialized);
         if commits.is_empty() {
@@ -971,7 +955,7 @@ pub(crate) mod tests {
         Round,
         block_header::{BlockHeaderDigest, TestBlockHeader},
         block_verifier::NoopBlockVerifier,
-        commit::{CommitV1, CommitV2, CommitV3},
+        commit::{CommitV1, CommitV2},
         network::{BlockBundleStream, FetchedCommitsAndTransactions},
         transaction_ref::TransactionRef,
     };
@@ -1116,15 +1100,11 @@ pub(crate) mod tests {
     }
 
     /// Builds a single-commit byte stream from `commit` and runs it through
-    /// `verify_commits` with the two protocol flags set as specified. The
-    /// version check fires before the index check, so the default commit
-    /// index of 0 is fine here. Also returns the unprovable faults charged to
-    /// the serving peer.
-    fn run_verify(commit: Commit, starfish_speed_on: bool) -> (ConsensusResult<()>, u64) {
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed_on);
+    /// `verify_commits`. The version check fires before the index check, so
+    /// the default commit index of 0 is fine here. Also returns the unprovable
+    /// faults charged to the serving peer.
+    fn run_verify(commit: Commit) -> (ConsensusResult<()>, u64) {
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let misbehavior_store = MisbehaviorStore::new(&context);
         let peer = AuthorityIndex::new_for_test(1);
@@ -1148,42 +1128,30 @@ pub(crate) mod tests {
     }
 
     #[rstest::rstest]
-    #[case::v1_with_starfish_off(Commit::V1(CommitV1::default()), false, "V1")]
-    #[case::v1_with_starfish_on(Commit::V1(CommitV1::default()), true, "V1")]
-    #[case::v2_with_starfish_on(Commit::V2(CommitV2::default()), true, "V2")]
-    #[case::v3_with_starfish_off(Commit::V3(CommitV3::default()), false, "V3")]
+    #[case::v1(Commit::V1(CommitV1::default()), "V1")]
+    #[case::v2(Commit::V2(CommitV2::default()), "V2")]
     #[tokio::test]
     async fn verify_commits_rejects_wrong_version(
         #[case] commit: Commit,
-        #[case] starfish_speed_on: bool,
         #[case] expected_variant: &'static str,
     ) {
-        let (result, unprovable) = run_verify(commit, starfish_speed_on);
-        let Err(ConsensusError::WrongCommitVersionForFlags {
-            actual,
-            starfish_speed,
-        }) = result
-        else {
-            panic!("expected WrongCommitVersionForFlags, got {result:?}");
+        let (result, unprovable) = run_verify(commit);
+        let Err(ConsensusError::WrongCommitVersion { actual }) = result else {
+            panic!("expected WrongCommitVersion, got {result:?}");
         };
         assert_eq!(actual, expected_variant);
-        assert_eq!(starfish_speed, starfish_speed_on);
         assert_eq!(unprovable, 1);
     }
 
     #[tokio::test]
     async fn verify_commits_rejects_out_of_range_authority_index() {
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(false);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let misbehavior_store = MisbehaviorStore::new(&context);
         let peer = AuthorityIndex::new_for_test(1);
         let invalid_author = AuthorityIndex::new_for_test(4);
         let leader = BlockRef::new(1, invalid_author, BlockHeaderDigest::MIN);
         let commit = Commit::new(
-            &context,
             1,
             CommitDigest::MIN,
             0,
@@ -1218,14 +1186,9 @@ pub(crate) mod tests {
     }
 
     /// Serializes a commit at `index` whose leader is in the committee.
-    fn serialized_commit(
-        context: &Arc<Context>,
-        index: CommitIndex,
-        previous_digest: CommitDigest,
-    ) -> Bytes {
+    fn serialized_commit(index: CommitIndex, previous_digest: CommitDigest) -> Bytes {
         let leader = BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN);
         Commit::new(
-            context,
             index,
             previous_digest,
             0,
@@ -1259,12 +1222,12 @@ pub(crate) mod tests {
         let peer = AuthorityIndex::new_for_test(1);
         let serialized_commits = match expected_error {
             "MalformedCommit" => vec![Bytes::from_static(b"garbage")],
-            "UnexpectedStartCommit" => vec![serialized_commit(&context, 2, CommitDigest::MIN)],
+            "UnexpectedStartCommit" => vec![serialized_commit(2, CommitDigest::MIN)],
             "UnexpectedCommitSequence" => vec![
-                serialized_commit(&context, 1, CommitDigest::MIN),
-                serialized_commit(&context, 2, CommitDigest::MIN),
+                serialized_commit(1, CommitDigest::MIN),
+                serialized_commit(2, CommitDigest::MIN),
             ],
-            "NotEnoughCommitVotes" => vec![serialized_commit(&context, 1, CommitDigest::MIN)],
+            "NotEnoughCommitVotes" => vec![serialized_commit(1, CommitDigest::MIN)],
             _ => vec![],
         };
 

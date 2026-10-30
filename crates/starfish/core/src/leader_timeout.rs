@@ -44,7 +44,6 @@ pub(crate) struct LeaderTimeoutTask<D: CoreThreadDispatcher> {
     leader_timeout: Duration,
     min_block_delay: Duration,
     soft_leader_timeout: Duration,
-    starfish_speed_enabled: bool,
     stop: Receiver<()>,
 }
 
@@ -67,7 +66,6 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
             leader_timeout: context.parameters.leader_timeout,
             min_block_delay: context.parameters.min_block_delay,
             soft_leader_timeout: context.parameters.soft_leader_timeout,
-            starfish_speed_enabled: context.protocol_config.consensus_starfish_speed(),
         };
         let handle = tokio::spawn(async move { me.run().await });
 
@@ -117,8 +115,8 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                     min_block_delay_timed_out = true;
                 },
                 // When the soft leader timeout expires, attempt block creation without requiring
-                // a strong-vote quorum. Only active when starfish speed is enabled.
-                () = &mut soft_timeout, if !soft_timed_out && self.starfish_speed_enabled => {
+                // a strong-vote quorum.
+                () = &mut soft_timeout, if !soft_timed_out => {
                     if Self::dispatch_new_block(&self.dispatcher, &self.transactions_synchronizer, clock_round, ReasonToCreateBlock::SoftTimeout).await {
                         return;
                     }
@@ -213,7 +211,6 @@ mod tests {
 
     use bytes::Bytes;
     use parking_lot::RwLock;
-    use rstest::rstest;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::time::{Instant, sleep};
 
@@ -297,14 +294,10 @@ mod tests {
         }
     }
 
-    #[rstest]
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn basic_leader_timeout(#[values(false, true)] starfish_speed: bool) {
+    async fn basic_leader_timeout() {
         telemetry_subscribers::init_for_testing();
-        let (mut context, _signers) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        let (context, _signers) = Context::new_for_test(4);
         let dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let leader_timeout = Duration::from_millis(500);
         let min_block_delay = Duration::from_millis(50);
@@ -383,16 +376,11 @@ mod tests {
         // wait enough until a new_block has been received
         sleep(2 * leader_timeout).await;
         let all_calls = dispatcher.get_new_block_calls().await;
-        // With starfish speed enabled the soft leader timeout fires before the
-        // max leader timeout.
-        let expected = if starfish_speed {
-            vec![
-                (ReasonToCreateBlock::SoftTimeout, soft_leader_timeout),
-                (ReasonToCreateBlock::MaxLeaderTimeout, leader_timeout),
-            ]
-        } else {
-            vec![(ReasonToCreateBlock::MaxLeaderTimeout, leader_timeout)]
-        };
+        // The soft leader timeout fires before the max leader timeout.
+        let expected = [
+            (ReasonToCreateBlock::SoftTimeout, soft_leader_timeout),
+            (ReasonToCreateBlock::MaxLeaderTimeout, leader_timeout),
+        ];
         assert_eq!(all_calls.len(), expected.len());
         for ((round, reason, timestamp), (expected_reason, timeout)) in
             all_calls.iter().zip(&expected)
@@ -414,14 +402,10 @@ mod tests {
         assert_eq!(all_calls.len(), 0);
     }
 
-    #[rstest]
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn multiple_leader_timeouts(#[values(false, true)] starfish_speed: bool) {
+    async fn multiple_leader_timeouts() {
         telemetry_subscribers::init_for_testing();
-        let (mut context, _signers) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        let (context, _signers) = Context::new_for_test(4);
         let dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let leader_timeout = Duration::from_millis(500);
         let min_block_delay = Duration::from_millis(50);
@@ -491,22 +475,14 @@ mod tests {
             .expect("We should expect correct sending a new block");
         sleep(2 * leader_timeout).await;
 
-        // only the last round should be received; with starfish speed enabled
-        // the soft leader timeout fires between the min block delay and the
-        // max leader timeout.
+        // only the last round should be received; the soft leader timeout
+        // fires between the min block delay and the max leader timeout.
         let all_calls = dispatcher.get_new_block_calls().await;
-        let expected = if starfish_speed {
-            vec![
-                (ReasonToCreateBlock::MinBlockDelayTimeout, min_block_delay),
-                (ReasonToCreateBlock::SoftTimeout, soft_leader_timeout),
-                (ReasonToCreateBlock::MaxLeaderTimeout, leader_timeout),
-            ]
-        } else {
-            vec![
-                (ReasonToCreateBlock::MinBlockDelayTimeout, min_block_delay),
-                (ReasonToCreateBlock::MaxLeaderTimeout, leader_timeout),
-            ]
-        };
+        let expected = [
+            (ReasonToCreateBlock::MinBlockDelayTimeout, min_block_delay),
+            (ReasonToCreateBlock::SoftTimeout, soft_leader_timeout),
+            (ReasonToCreateBlock::MaxLeaderTimeout, leader_timeout),
+        ];
         assert_eq!(all_calls.len(), expected.len());
         for ((round, reason, timestamp), (expected_reason, timeout)) in
             all_calls.iter().zip(&expected)

@@ -2442,7 +2442,6 @@ mod tests {
     use futures::{StreamExt, TryStreamExt};
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
-    use rstest::rstest;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::{
         sync::{broadcast, mpsc},
@@ -3258,7 +3257,6 @@ mod tests {
             let mut d = dag_state.write();
             for index in 1..=12u32 {
                 d.add_commit(TrustedCommit::new_for_test(
-                    &context,
                     index,
                     CommitDigest::MIN,
                     0,
@@ -3391,7 +3389,6 @@ mod tests {
             let mut d = dag_state.write();
             for index in 1..=12u32 {
                 d.add_commit(TrustedCommit::new_for_test(
-                    &context,
                     index,
                     CommitDigest::MIN,
                     0,
@@ -4036,18 +4033,12 @@ mod tests {
             unimplemented!("Unimplemented")
         }
     }
-    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_with_additional_headers(
-        #[values(false, true)] starfish_speed: bool,
-    ) {
+    async fn test_handle_subscribed_block_bundle_with_additional_headers() {
         // GIVEN
         let rounds = 10;
         let validators = 10;
-        let (mut context, key_pairs) = Context::new_for_test(validators);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -4214,12 +4205,7 @@ mod tests {
         // bundle's block round.
         let rounds: u32 = MAX_ROUND_GAP_FOR_USEFUL_PARTS + 4;
         let validators = 4;
-        // Test headers are V1, which flag-on verification rejects; run with
-        // StarfishSpeed off.
-        let (mut context, key_pairs) = Context::new_for_test(validators);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(false);
+        let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -4412,18 +4398,12 @@ mod tests {
         assert!((resampled - expected(&newest_of_author_3)).abs() < MARGIN_MS);
     }
 
-    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribe_bundle_without_additional_headers(
-        #[values(false, true)] starfish_speed: bool,
-    ) {
+    async fn test_handle_subscribe_bundle_without_additional_headers() {
         // GIVEN
         let rounds = 10;
         let validators = 10;
-        let (mut context, key_pairs) = Context::new_for_test(validators);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -5287,18 +5267,14 @@ mod tests {
         );
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_handle_fetch_commits(#[values(false, true)] starfish_speed: bool) {
+    async fn test_handle_fetch_commits() {
         // GIVEN
         let rounds = 15;
         let validators = 4;
-        let (mut context, key_pairs) = Context::new_for_test(validators);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
-        let version = TestBlockHeaderVersion::from_context(&context);
+        let version = TestBlockHeaderVersion::V2;
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
