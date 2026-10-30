@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
-
 use bytes::Bytes;
 use rstest::rstest;
 use starfish_config::AuthorityIndex;
@@ -15,7 +13,6 @@ use crate::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, Slot, TestBlockHeader, VerifiedBlock,
     },
     commit::{CommitDigest, CommitRef, TrustedCommit},
-    context::Context,
     transaction_ref::GenericTransactionRef,
 };
 
@@ -371,8 +368,6 @@ async fn read_and_scan_commits(
     #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
     let store = test_store.store();
-    let (context, _) = Context::new_for_test(4);
-    let context = Arc::new(context);
 
     {
         let last_commit = store
@@ -383,7 +378,6 @@ async fn read_and_scan_commits(
 
     let written_commits = vec![
         TrustedCommit::new_for_test(
-            &context,
             1,
             CommitDigest::MIN,
             1,
@@ -396,7 +390,6 @@ async fn read_and_scan_commits(
             vec![],
         ),
         TrustedCommit::new_for_test(
-            &context,
             2,
             CommitDigest::MIN,
             2,
@@ -409,7 +402,6 @@ async fn read_and_scan_commits(
             vec![],
         ),
         TrustedCommit::new_for_test(
-            &context,
             3,
             CommitDigest::MIN,
             3,
@@ -422,7 +414,6 @@ async fn read_and_scan_commits(
             vec![],
         ),
         TrustedCommit::new_for_test(
-            &context,
             4,
             CommitDigest::MIN,
             4,

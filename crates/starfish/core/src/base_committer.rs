@@ -231,40 +231,6 @@ impl BaseCommitter {
             .contains(&leader_block.reference())
     }
 
-    /// Return the refs of the given voting-round (`leader_block.round() + 1`)
-    /// blocks that directly include `leader_block` as an ancestor — i.e. the
-    /// set of votes for this specific leader block.
-    fn vote_refs_for_leader(
-        &self,
-        leader_block: &VerifiedBlockHeader,
-        voting_blocks: &[VerifiedBlockHeader],
-    ) -> HashSet<BlockRef> {
-        voting_blocks
-            .iter()
-            .filter(|voting_block| Self::is_vote(voting_block, leader_block))
-            .map(|voting_block| voting_block.reference())
-            .collect()
-    }
-
-    /// Check whether `potential_certificate` is a certificate for the leader
-    /// whose votes are captured in `vote_refs` — i.e. its ancestors include
-    /// a quorum of vote refs.
-    fn is_certificate(
-        &self,
-        potential_certificate: &VerifiedBlockHeader,
-        vote_refs: &HashSet<BlockRef>,
-    ) -> bool {
-        let mut votes_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-        for reference in potential_certificate.ancestors() {
-            if vote_refs.contains(reference)
-                && votes_stake_aggregator.add(reference.author, &self.context.committee)
-            {
-                return true;
-            }
-        }
-        false
-    }
-
     /// Decide the status of a target leader from the specified anchor. We
     /// commit the target leader if it has a certified link to the anchor.
     /// Otherwise, we skip the target leader.
@@ -303,10 +269,8 @@ impl BaseCommitter {
             .reachable_headers_at_round_above_last_commit(anchor, certifying_round);
 
         // Use those potential certificates to determine which (if any) of the target
-        // leader blocks can be committed, and — when StarfishSpeed is enabled —
-        // classify the metastate in the same walk. When the flag is off we
-        // stick to the cheap regular-certificate-only check.
-        let starfish_speed = self.context.protocol_config.consensus_starfish_speed();
+        // leader blocks can be committed, and classify the metastate in the same
+        // walk.
         let voting_blocks = self
             .dag_state
             .read()
@@ -317,49 +281,35 @@ impl BaseCommitter {
             Vec<AuthorityIndex>,
         )> = Vec::new();
         for leader_block in leader_blocks {
-            let (any_cert, metastate, strong_voters) = if starfish_speed {
-                let (vote_refs, strong_vote_refs) =
-                    self.vote_and_strong_vote_refs_for_leader(&leader_block, &voting_blocks);
-                let mut any_cert = false;
-                let mut any_strong = false;
-                for potential_certificate in &potential_certificates {
-                    let (is_cert, is_strong) = self.classify_certificate_cached(
-                        potential_certificate,
-                        &leader_block,
-                        &vote_refs,
-                        &strong_vote_refs,
-                    );
-                    any_cert |= is_cert;
-                    any_strong |= is_strong;
-                    if any_cert && any_strong {
-                        break;
-                    }
+            let (vote_refs, strong_vote_refs) =
+                self.vote_and_strong_vote_refs_for_leader(&leader_block, &voting_blocks);
+            let mut any_cert = false;
+            let mut any_strong = false;
+            for potential_certificate in &potential_certificates {
+                let (is_cert, is_strong) = self.classify_certificate_cached(
+                    potential_certificate,
+                    &leader_block,
+                    &vote_refs,
+                    &strong_vote_refs,
+                );
+                any_cert |= is_cert;
+                any_strong |= is_strong;
+                if any_cert && any_strong {
+                    break;
                 }
-                let metastate = if any_cert {
-                    Some(if any_strong {
-                        CommitMetastate::Optimistic
-                    } else {
-                        CommitMetastate::Standard
-                    })
-                } else {
-                    None
-                };
-                let strong_voters = if any_strong {
-                    strong_vote_refs.iter().map(|r| r.author).collect()
-                } else {
-                    Vec::new()
-                };
-                (any_cert, metastate, strong_voters)
-            } else {
-                let vote_refs = self.vote_refs_for_leader(&leader_block, &voting_blocks);
-                let any_cert = potential_certificates.iter().any(|potential_certificate| {
-                    self.is_certificate(potential_certificate, &vote_refs)
-                });
-                (any_cert, None, Vec::new())
-            };
-            if any_cert {
-                certified_leader_blocks.push((leader_block, metastate, strong_voters));
             }
+            if !any_cert {
+                continue;
+            }
+            let (metastate, strong_voters) = if any_strong {
+                (
+                    CommitMetastate::Optimistic,
+                    strong_vote_refs.iter().map(|r| r.author).collect(),
+                )
+            } else {
+                (CommitMetastate::Standard, Vec::new())
+            };
+            certified_leader_blocks.push((leader_block, Some(metastate), strong_voters));
         }
 
         // There can be at most one certified leader, otherwise it means the BFT
@@ -414,32 +364,17 @@ impl BaseCommitter {
     /// `Some((metastate, strong_voters))` when 2f+1 certifying blocks carry a
     /// certificate for the leader block, `None` otherwise.
     ///
-    /// When StarfishSpeed is enabled, regular and strong certificates are
-    /// classified in a single walk over the certifying blocks, and the
-    /// metastate follows the direct rule: StrongQC quorum → `Optimistic`
-    /// (with the leader's strong-voter authorities, used by the linearizer
-    /// to seed the per-ref ack tracker), strong-blame quorum → `Standard`,
-    /// else `Pending`. When the flag is off the metastate is `None`.
+    /// Regular and strong certificates are classified in a single walk over
+    /// the certifying blocks, and the metastate follows the direct rule:
+    /// StrongQC quorum → `Optimistic` (with the leader's strong-voter
+    /// authorities, used by the linearizer to seed the per-ref ack tracker),
+    /// strong-blame quorum → `Standard`, else `Pending`.
     fn direct_decide_leader_block(
         &mut self,
         leader_block: &VerifiedBlockHeader,
         voting_blocks: &[VerifiedBlockHeader],
         decision_blocks: &[VerifiedBlockHeader],
     ) -> Option<(Option<CommitMetastate>, Vec<AuthorityIndex>)> {
-        if !self.context.protocol_config.consensus_starfish_speed() {
-            let vote_refs = self.vote_refs_for_leader(leader_block, voting_blocks);
-            let mut certificate_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-            for decision_block in decision_blocks {
-                let authority = decision_block.reference().author;
-                if self.is_certificate(decision_block, &vote_refs)
-                    && certificate_stake_aggregator.add(authority, &self.context.committee)
-                {
-                    return Some((None, Vec::new()));
-                }
-            }
-            return None;
-        }
-
         let (vote_refs, strong_vote_refs) =
             self.vote_and_strong_vote_refs_for_leader(leader_block, voting_blocks);
 

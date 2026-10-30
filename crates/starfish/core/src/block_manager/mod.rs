@@ -1261,12 +1261,10 @@ mod tests {
         /// `commit_leader_round - gc_depth*2`.
         pub(super) fn plant_last_commit(
             dag_state: &Arc<RwLock<DagState>>,
-            context: &Arc<Context>,
             commit_leader_round: Round,
         ) {
             let leader = block_ref(commit_leader_round, 0);
             let commit = TrustedCommit::new_for_test(
-                context,
                 // commit index
                 1,
                 CommitDigest::MIN,
@@ -1295,7 +1293,7 @@ mod tests {
 
         // Plant a commit with leader round large enough that gc_floor > 0.
         let commit_leader_round = gc_depth * 2 + 200;
-        plant_last_commit(&dag_state, &context, commit_leader_round);
+        plant_last_commit(&dag_state, commit_leader_round);
         let gc_floor = dag_state.read().gc_round_for_last_commit();
         assert!(gc_floor > 0);
 
@@ -1523,7 +1521,7 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_leader_round = gc_depth * 2 + 200;
-        plant_last_commit(&dag_state, &context, commit_leader_round);
+        plant_last_commit(&dag_state, commit_leader_round);
 
         let mut block_manager = BlockManager::new(context, dag_state);
 
@@ -1600,7 +1598,7 @@ mod tests {
 
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-        let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
+        let mut block_manager = BlockManager::new(context, dag_state.clone());
 
         // Manually put an entry into suspended_transactions at a low round.
         let stale_header = header(50, 0, vec![]);
@@ -1614,7 +1612,7 @@ mod tests {
         // Advance the floor well past round 50 and trigger a sweep via
         // try_accept_block_headers with an empty input.
         let commit_leader_round = gc_depth * 2 + 500;
-        plant_last_commit(&dag_state, &context, commit_leader_round);
+        plant_last_commit(&dag_state, commit_leader_round);
         block_manager.try_accept_block_headers(vec![], DataSource::Test);
 
         assert_eq!(block_manager.suspended_transactions.len(), 0);
@@ -1632,7 +1630,7 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_leader_round = gc_depth * 2 + 200;
-        plant_last_commit(&dag_state, &context, commit_leader_round);
+        plant_last_commit(&dag_state, commit_leader_round);
 
         let mut block_manager = BlockManager::new(context, dag_state);
 
@@ -1661,7 +1659,7 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_leader_round = gc_depth * 2 + 200;
-        plant_last_commit(&dag_state, &context, commit_leader_round);
+        plant_last_commit(&dag_state, commit_leader_round);
 
         let mut block_manager = BlockManager::new(context, dag_state.clone());
 
@@ -1695,7 +1693,7 @@ mod tests {
 
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-        let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
+        let mut block_manager = BlockManager::new(context, dag_state.clone());
 
         // Floor is 0 — the header at round 50 with a missing ancestor at
         // round 30 gets suspended via the normal path.
@@ -1707,7 +1705,7 @@ mod tests {
         assert_eq!(missing, BTreeSet::from([stale_ancestor]));
 
         // Advance the floor past the stale header's own round.
-        plant_last_commit(&dag_state, &context, gc_depth * 2 + 200);
+        plant_last_commit(&dag_state, gc_depth * 2 + 200);
 
         // Triggering the sweep with an empty input must NOT promote the
         // stale header even though the suspender cascade-unsuspends it.

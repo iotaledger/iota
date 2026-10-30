@@ -125,8 +125,7 @@ fn assert_direct_commit_metastate(
 }
 
 /// Fully-connected V2 layers from `start` (or genesis) through `stop`. V2
-/// mirror of `test_dag::build_dag`, matching the DAG shape used when
-/// `consensus_starfish_speed` is enabled.
+/// mirror of `test_dag::build_dag`.
 fn build_v2_layers(
     context: &Context,
     dag_state: &Arc<RwLock<DagState>>,
@@ -162,12 +161,9 @@ fn build_v2_layers(
     ancestors
 }
 
-/// Test context with the starfish-speed flag set, plus an empty DAG state.
-fn test_context_with_flag(enable_starfish_speed: bool) -> (Arc<Context>, Arc<RwLock<DagState>>) {
-    let (mut ctx, _) = Context::new_for_test(4);
-    ctx.protocol_config
-        .set_consensus_starfish_speed_for_testing(enable_starfish_speed);
-    let ctx = Arc::new(ctx);
+/// Test context plus an empty DAG state.
+fn test_context() -> (Arc<Context>, Arc<RwLock<DagState>>) {
+    let ctx = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         ctx.clone(),
         Arc::new(MemStore::new()),
@@ -232,19 +228,9 @@ fn build_metastate_dag(
 }
 
 #[tokio::test]
-async fn determine_metastate_disabled_returns_none() {
-    telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context_with_flag(false);
-    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
-
-    let leader = build_metastate_dag(context, dag_state, &mut committer, [strong_vote(); 4]);
-    assert_direct_commit_metastate(&mut committer, leader, None);
-}
-
-#[tokio::test]
 async fn determine_metastate_optimistic_when_strong_qc_quorum() {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context_with_flag(true);
+    let (context, dag_state) = test_context();
     let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Four strong votes at r+1 → every r+2 certifier observes a StrongQC →
@@ -256,7 +242,7 @@ async fn determine_metastate_optimistic_when_strong_qc_quorum() {
 #[tokio::test]
 async fn strong_qc_quorum_collects_strong_voter_authorities_from_dag() {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context_with_flag(true);
+    let (context, dag_state) = test_context();
     let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // 3 strong votes + 1 strong blame: every r+2 certifier still observes a
@@ -283,7 +269,7 @@ async fn strong_qc_quorum_collects_strong_voter_authorities_from_dag() {
 #[tokio::test]
 async fn determine_metastate_standard_when_strong_blame_quorum() {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context_with_flag(true);
+    let (context, dag_state) = test_context();
     let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // 3 strong blames + 1 strong vote → no StrongQC quorum, 2f+1 strong-blame
@@ -301,7 +287,7 @@ async fn determine_metastate_standard_when_strong_blame_quorum() {
 #[tokio::test]
 async fn determine_metastate_pending_when_neither_quorum() {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context_with_flag(true);
+    let (context, dag_state) = test_context();
     let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // 2 strong votes + 2 strong blames → neither side reaches 2f+1 = 3 → Pending.
@@ -433,7 +419,7 @@ fn build_equivocating_metastate_dag(
 #[tokio::test]
 async fn determine_metastate_pending_when_equivocating_strong_vote_is_filtered() {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context_with_flag(true);
+    let (context, dag_state) = test_context();
     let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Discriminator for the `is_vote()` filter in `has_strong_qc_quorum`:
@@ -471,7 +457,7 @@ async fn determine_metastate_pending_when_equivocating_strong_vote_is_filtered()
 #[tokio::test]
 async fn determine_metastate_pending_when_equivocating_strong_blame_is_filtered() {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context_with_flag(true);
+    let (context, dag_state) = test_context();
     let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Discriminator for the `is_vote()` filter in `has_strong_blame_quorum`:
@@ -588,7 +574,7 @@ fn build_wave_one_with_single_strong_qc(
 #[tokio::test]
 async fn indirect_metastate_optimistic_when_anchor_path_contains_strong_qc() {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context_with_flag(true);
+    let (context, dag_state) = test_context();
     let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     let (leader_slot, [c0, c1, c2, _c3]) =
@@ -622,7 +608,7 @@ async fn indirect_metastate_optimistic_when_anchor_path_contains_strong_qc() {
 #[tokio::test]
 async fn indirect_metastate_standard_when_strong_qc_outside_anchor_path() {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context_with_flag(true);
+    let (context, dag_state) = test_context();
     let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     let (leader_slot, [_c0, c1, c2, c3]) =
@@ -656,7 +642,7 @@ async fn indirect_metastate_standard_when_strong_qc_outside_anchor_path() {
 
 #[tokio::test]
 async fn leader_status_is_resolved_classification() {
-    let (context, dag_state) = test_context_with_flag(true);
+    let (context, dag_state) = test_context();
     let refs = build_v2_layers(&context, &dag_state, None, 1);
     let block = dag_state
         .read()
@@ -714,7 +700,7 @@ fn round_3_metastate(
 #[tokio::test]
 async fn pending_leader_resolves_to_optimistic() {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context_with_flag(true);
+    let (context, dag_state) = test_context();
     let mut universal = build_universal_committer(context.clone(), dag_state.clone());
     let mut base = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
@@ -737,7 +723,7 @@ async fn pending_leader_resolves_to_optimistic() {
 #[tokio::test]
 async fn pending_leader_resolves_to_standard() {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context_with_flag(true);
+    let (context, dag_state) = test_context();
     let mut universal = build_universal_committer(context.clone(), dag_state.clone());
     let mut base = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
@@ -768,7 +754,7 @@ async fn pending_leader_resolves_to_standard() {
 #[tokio::test]
 async fn optimistic_commits_ref_without_actual_transactions() {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context_with_flag(true);
+    let (context, dag_state) = test_context();
     let auth_1 = AuthorityIndex::from(1u8);
     let auth_3 = AuthorityIndex::from(3u8);
 
@@ -935,7 +921,7 @@ async fn optimistic_commits_ref_without_actual_transactions() {
 #[tokio::test]
 async fn decision_cache_answers_repeated_checks_until_evicted() {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context_with_flag(true);
+    let (context, dag_state) = test_context();
     let mut base = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
     let metrics = &context.metrics.node_metrics;
 
@@ -961,7 +947,7 @@ async fn decision_cache_answers_repeated_checks_until_evicted() {
 #[tokio::test]
 async fn decision_cache_classifies_a_certifier_accepted_after_a_check_once() {
     telemetry_subscribers::init_for_testing();
-    let (context, dag_state) = test_context_with_flag(true);
+    let (context, dag_state) = test_context();
     let mut base = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
     let metrics = &context.metrics.node_metrics;
     let (leader_slot, voters) =
@@ -997,10 +983,7 @@ async fn decision_cache_serves_repeated_checks_of_pending_leaders() {
     const COMMITTEE: usize = 62;
     const ROUNDS: Round = 40;
 
-    let (mut ctx, _) = Context::new_for_test(COMMITTEE);
-    ctx.protocol_config
-        .set_consensus_starfish_speed_for_testing(true);
-    let context = Arc::new(ctx);
+    let context = Arc::new(Context::new_for_test(COMMITTEE).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
         Arc::new(MemStore::new()),

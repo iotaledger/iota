@@ -3741,7 +3741,7 @@ mod test {
             },
         }";
 
-        let dag_builder = parse_dag(dag_str, false).expect("Invalid dag");
+        let dag_builder = parse_dag(dag_str).expect("Invalid dag");
 
         // Add equivocating block for round 2 authority 3
         let block_header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(2, 2).build());
@@ -3756,7 +3756,6 @@ mod test {
         }
 
         dag_state.add_commit(TrustedCommit::new_for_test(
-            &context,
             1 as CommitIndex,
             CommitDigest::MIN,
             context.clock.timestamp_utc_ms(),
@@ -3865,7 +3864,7 @@ mod test {
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store);
+        let mut dag_state = DagState::new(context, store);
 
         // Create no block headers for authority 0
         // Create block headers for authorities 1..=3, scaled so gc_round > 0.
@@ -3882,7 +3881,6 @@ mod test {
         }
 
         dag_state.add_commit(TrustedCommit::new_for_test(
-            &context,
             1 as CommitIndex,
             CommitDigest::MIN,
             0,
@@ -4496,7 +4494,7 @@ mod test {
         let (mut context, _) = Context::new_for_test(4);
         context.protocol_config.set_gc_depth_for_testing(3);
         let context = Arc::new(context);
-        let mut dag_state = DagState::new(context.clone(), Arc::new(MemStore::new()));
+        let mut dag_state = DagState::new(context, Arc::new(MemStore::new()));
 
         let author = AuthorityIndex::new_for_test(3);
         let shard_refs = (1..=NUM_ROUNDS)
@@ -4520,7 +4518,6 @@ mod test {
             BlockHeaderDigest::MIN,
         );
         dag_state.set_last_commit(TrustedCommit::new_for_test(
-            &context,
             1,
             CommitDigest::MIN,
             0,

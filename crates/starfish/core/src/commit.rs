@@ -16,14 +16,12 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction as _};
 use serde::{Deserialize, Serialize};
 use starfish_config::{AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction};
-use tracing::debug;
 
 use crate::{
     block_header::{
         BlockHeaderAPI, BlockRef, BlockTimestampMs, CommitmentVerifiedTransactions, Round,
         SERIALIZED_BLOCK_REF_BYTES, Slot, VerifiedBlockHeader, format_block_digests, uleb128_len,
     },
-    context::Context,
     error::{ConsensusError, ConsensusResult},
     leader_scoring::ReputationScores,
     misbehavior_store::MisbehaviorCounts,
@@ -113,10 +111,8 @@ pub(crate) enum Commit {
 }
 
 impl Commit {
-    /// Create a new commit. The variant (V2 or V3) is determined by the
-    /// consensus_starfish_speed protocol flag.
+    /// Create a new commit.
     pub(crate) fn new(
-        context: &Arc<Context>,
         index: CommitIndex,
         previous_digest: CommitDigest,
         timestamp_ms: BlockTimestampMs,
@@ -126,53 +122,26 @@ impl Commit {
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
         is_optimistic: bool,
     ) -> Self {
-        if context.protocol_config.consensus_starfish_speed() {
-            debug!("Creating CommitV3 as consensus_starfish_speed is enabled");
-            // consensus_starfish_speed implies consensus_fast_commit_sync (asserted in
-            // protocol config), so all committed transactions are TransactionRefs.
-            let transaction_refs: Vec<TransactionRef> = committed_transactions
-                .into_iter()
-                .map(|gen_ref| match gen_ref {
-                    GenericTransactionRef::TransactionRef(tr) => tr,
-                    GenericTransactionRef::BlockRef(_) => {
-                        panic!("Expected TransactionRef when consensus_starfish_speed is enabled")
-                    }
-                })
-                .collect();
-
-            Commit::V3(CommitV3 {
-                index,
-                previous_digest,
-                timestamp_ms,
-                leader,
-                block_headers: blocks,
-                committed_transactions: transaction_refs,
-                reputation_scores_desc,
-                is_optimistic,
+        let transaction_refs: Vec<TransactionRef> = committed_transactions
+            .into_iter()
+            .map(|gen_ref| match gen_ref {
+                GenericTransactionRef::TransactionRef(tr) => tr,
+                GenericTransactionRef::BlockRef(_) => {
+                    panic!("Expected TransactionRef")
+                }
             })
-        } else {
-            debug!("Creating CommitV2");
-            // Extract TransactionRefs from GenericTransactionRef
-            let transaction_refs: Vec<TransactionRef> = committed_transactions
-                .into_iter()
-                .map(|gen_ref| match gen_ref {
-                    GenericTransactionRef::TransactionRef(tr) => tr,
-                    GenericTransactionRef::BlockRef(_) => {
-                        panic!("Expected TransactionRef")
-                    }
-                })
-                .collect();
+            .collect();
 
-            Commit::V2(CommitV2 {
-                index,
-                previous_digest,
-                timestamp_ms,
-                leader,
-                block_headers: blocks,
-                committed_transactions: transaction_refs,
-                reputation_scores_desc,
-            })
-        }
+        Commit::V3(CommitV3 {
+            index,
+            previous_digest,
+            timestamp_ms,
+            leader,
+            block_headers: blocks,
+            committed_transactions: transaction_refs,
+            reputation_scores_desc,
+            is_optimistic,
+        })
     }
 
     pub(crate) fn serialize(&self) -> Result<Bytes, bcs::Error> {
@@ -428,7 +397,6 @@ impl TrustedCommit {
 
     #[cfg(test)]
     pub(crate) fn new_for_test(
-        context: &Arc<Context>,
         index: CommitIndex,
         previous_digest: CommitDigest,
         timestamp_ms: BlockTimestampMs,
@@ -437,7 +405,6 @@ impl TrustedCommit {
         committed_transactions: Vec<GenericTransactionRef>,
     ) -> Self {
         let commit = Commit::new(
-            context,
             index,
             previous_digest,
             timestamp_ms,
@@ -1351,7 +1318,6 @@ mod tests {
             convert_block_refs_to_generic_transaction_refs(store.as_ref(), &first_round_references);
 
         let commit = TrustedCommit::new_for_test(
-            &context,
             commit_index,
             CommitDigest::MIN,
             leader_block.timestamp_ms(),
@@ -1445,7 +1411,6 @@ mod tests {
             convert_block_refs_to_generic_transaction_refs(store.as_ref(), &first_round_references);
 
         let commit = TrustedCommit::new_for_test(
-            &context,
             commit_index,
             CommitDigest::MIN,
             leader_block.timestamp_ms(),

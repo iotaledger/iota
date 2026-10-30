@@ -202,8 +202,7 @@ pub struct Parameters {
     /// that the voters are not expected to hold at the next round, judged
     /// from how soon they acknowledged recent blocks. Voters count by how
     /// often this node's blocks reference them. Deferred acknowledgments go
-    /// into later blocks. Effective only when the
-    /// protocol-level `consensus_starfish_speed` flag is also on.
+    /// into later blocks.
     #[serde(default = "Parameters::default_enable_starfish_speed_adaptive_acknowledgments")]
     pub enable_starfish_speed_adaptive_acknowledgments: bool,
 
