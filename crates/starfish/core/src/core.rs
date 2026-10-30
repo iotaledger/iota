@@ -1385,10 +1385,7 @@ impl Core {
                 sequenced_leaders.len(),
                 sequenced_leaders
                     .iter()
-                    .map(|(b, m, _)| match m {
-                        Some(state) => format!("{}({state})", b.reference()),
-                        None => b.reference().to_string(),
-                    })
+                    .map(|(b, m, _)| format!("{}({m})", b.reference()))
                     .join(",")
             );
 
