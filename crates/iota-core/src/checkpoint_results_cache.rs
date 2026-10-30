@@ -31,8 +31,15 @@ pub struct CheckpointResultsCache {
 
 struct Inner {
     /// Keyed by sequence number; the executor consumes in increasing order.
-    results: BTreeMap<CheckpointSequenceNumber, Arc<CheckpointData>>,
+    results: BTreeMap<CheckpointSequenceNumber, Entry>,
     retained_bytes: usize,
+}
+
+struct Entry {
+    data: Arc<CheckpointData>,
+    /// What this entry was charged on admission. Kept so releasing it credits
+    /// back the same number, without re-walking its objects under the lock.
+    bytes: usize,
 }
 
 impl CheckpointResultsCache {
@@ -53,13 +60,22 @@ impl CheckpointResultsCache {
         }
     }
 
+    /// What the cache currently counts as retained.
+    #[cfg(test)]
+    fn retained_bytes_for_testing(&self) -> usize {
+        self.inner
+            .lock()
+            .expect("results cache mutex poisoned")
+            .retained_bytes
+    }
+
     /// Takes the results for `sequence_number`, if they were kept.
     pub fn take(&self, sequence_number: CheckpointSequenceNumber) -> Option<Arc<CheckpointData>> {
         let mut inner = self.inner.lock().expect("results cache mutex poisoned");
-        let data = inner.results.remove(&sequence_number)?;
-        inner.retained_bytes = inner.retained_bytes.saturating_sub(estimate_bytes(&data));
+        let entry = inner.results.remove(&sequence_number)?;
+        inner.retained_bytes = inner.retained_bytes.saturating_sub(entry.bytes);
         self.retained_bytes_gauge.set(inner.retained_bytes as i64);
-        Some(data)
+        Some(entry.data)
     }
 
     /// Drops everything below `sequence_number`.
@@ -72,7 +88,7 @@ impl CheckpointResultsCache {
             if *entry.key() >= sequence_number {
                 break;
             }
-            let bytes = estimate_bytes(entry.get());
+            let bytes = entry.get().bytes;
             entry.remove();
             inner.retained_bytes = inner.retained_bytes.saturating_sub(bytes);
         }
@@ -92,16 +108,33 @@ impl CacheCheckpointResults for CheckpointResultsCache {
         let sequence_number = checkpoint.checkpoint_summary.sequence_number;
         let bytes = estimate_bytes(&checkpoint);
         let mut inner = self.inner.lock().expect("results cache mutex poisoned");
+
+        // State sync retries a failed batch, which offers its checkpoints
+        // again. The copy being replaced is credited back before the budget is
+        // tested, so a re-offer is weighed as the replacement it is rather than
+        // as a second copy.
+        if let Some(replaced) = inner.results.remove(&sequence_number) {
+            inner.retained_bytes = inner.retained_bytes.saturating_sub(replaced.bytes);
+        }
+
         if inner.retained_bytes + bytes > self.budget_bytes {
             debug!(
                 ?sequence_number,
                 retained_bytes = inner.retained_bytes,
                 "declining checkpoint results: the cache is at its size limit"
             );
+            self.retained_bytes_gauge.set(inner.retained_bytes as i64);
             return false;
         }
+
         inner.retained_bytes += bytes;
-        inner.results.insert(sequence_number, checkpoint);
+        inner.results.insert(
+            sequence_number,
+            Entry {
+                data: checkpoint,
+                bytes,
+            },
+        );
         self.retained_bytes_gauge.set(inner.retained_bytes as i64);
         true
     }
@@ -114,18 +147,24 @@ impl CacheCheckpointResults for CheckpointResultsCache {
 /// per-item size. It only has to be close enough to keep the cache from
 /// growing without limit.
 fn estimate_bytes(checkpoint: &CheckpointData) -> usize {
-    /// Rough average size of a stored object, from the objects table's bytes
-    /// per key on a mainnet-scale node.
-    const BYTES_PER_OBJECT: usize = 512;
-    /// Covers a transaction, its effects and its events.
+    /// Covers a transaction, its effects and its events, none of which carry
+    /// a size of their own.
     const BYTES_PER_TRANSACTION: usize = 2048;
 
     checkpoint
         .transactions
         .iter()
         .map(|tx| {
-            BYTES_PER_TRANSACTION
-                + (tx.input_objects.len() + tx.output_objects.len()) * BYTES_PER_OBJECT
+            // Measured rather than averaged: an object ranges from a few
+            // hundred bytes to the move object and package size limits, so an
+            // average would let an object-heavy range run far past the budget.
+            let objects: usize = tx
+                .input_objects
+                .iter()
+                .chain(tx.output_objects.iter())
+                .map(|object| object.object_size_for_gas_metering())
+                .sum();
+            BYTES_PER_TRANSACTION + objects
         })
         .sum()
 }
@@ -137,4 +176,53 @@ pub fn may_commit_from_checkpoint(
     tx: &iota_types::full_checkpoint_content::CheckpointTransaction,
 ) -> bool {
     !tx.transaction.transaction().is_end_of_epoch_tx()
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_types::{
+        full_checkpoint_content::CheckpointData,
+        test_checkpoint_data_builder::TestCheckpointDataBuilder,
+    };
+    use prometheus_filtered::Registry;
+
+    use super::*;
+
+    fn checkpoint(sequence_number: u64) -> Arc<CheckpointData> {
+        Arc::new(
+            TestCheckpointDataBuilder::new(sequence_number)
+                .start_transaction(0)
+                .finish_transaction()
+                .build_checkpoint(),
+        )
+    }
+
+    /// State sync retries a failed batch, so the same checkpoint is offered
+    /// again. The second offer replaces the first rather than being charged
+    /// on top of it; otherwise the budget leaks until nothing is accepted.
+    #[test]
+    fn offering_the_same_checkpoint_twice_charges_for_it_once() {
+        let cache = CheckpointResultsCache::new(1 << 30, &Registry::new());
+
+        assert!(cache.cache_checkpoint_results(checkpoint(1)));
+        let after_first = cache.retained_bytes_for_testing();
+        assert!(cache.cache_checkpoint_results(checkpoint(1)));
+
+        assert_eq!(
+            cache.retained_bytes_for_testing(),
+            after_first,
+            "a re-offer of the same checkpoint must not be charged twice"
+        );
+    }
+
+    /// Taking the results back out releases what they were charged.
+    #[test]
+    fn taking_results_releases_their_bytes() {
+        let cache = CheckpointResultsCache::new(1 << 30, &Registry::new());
+
+        assert!(cache.cache_checkpoint_results(checkpoint(1)));
+        assert!(cache.take(1).is_some());
+
+        assert_eq!(cache.retained_bytes_for_testing(), 0);
+    }
 }
