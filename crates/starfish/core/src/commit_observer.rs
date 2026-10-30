@@ -154,11 +154,7 @@ impl CommitObserver {
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn handle_committed_leaders(
         &mut self,
-        committed_leaders: Vec<(
-            VerifiedBlockHeader,
-            Option<CommitMetastate>,
-            Vec<AuthorityIndex>,
-        )>,
+        committed_leaders: Vec<(VerifiedBlockHeader, CommitMetastate, Vec<AuthorityIndex>)>,
         source: CommittedSubDagSource,
     ) -> ConsensusResult<(
         Vec<PendingSubDag>,
@@ -759,7 +755,7 @@ mod tests {
     use super::*;
     use crate::{
         block_header::BlockRef,
-        commit::with_no_metastate,
+        commit::with_standard_metastate,
         context::Context,
         dag_state::{DagState, DataSource},
         storage::mem_store::MemStore,
@@ -810,7 +806,7 @@ mod tests {
 
         let (commits, _missing_transactions_refs) = observer
             .handle_committed_leaders(
-                with_no_metastate(leaders.clone()),
+                with_standard_metastate(leaders.clone()),
                 CommittedSubDagSource::Consensus,
             )
             .unwrap();
@@ -934,7 +930,7 @@ mod tests {
         let expected_last_processed_index: usize = 2;
         let (mut created_commits, _missing_transactions_refs) = observer
             .handle_committed_leaders(
-                with_no_metastate(
+                with_standard_metastate(
                     leaders
                         .clone()
                         .into_iter()
@@ -973,7 +969,7 @@ mod tests {
         created_commits.append(
             &mut observer
                 .handle_committed_leaders(
-                    with_no_metastate(
+                    with_standard_metastate(
                         leaders
                             .into_iter()
                             .skip(expected_last_processed_index)
@@ -1086,7 +1082,10 @@ mod tests {
         // the consensus output channel.
         let expected_last_processed_index: usize = 10;
         let (created_commits, _missing_transactions_refs) = observer
-            .handle_committed_leaders(with_no_metastate(leaders), CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(
+                with_standard_metastate(leaders),
+                CommittedSubDagSource::Consensus,
+            )
             .unwrap();
 
         // Check commits sent over consensus output channel is accurate
@@ -1183,7 +1182,10 @@ mod tests {
         assert_eq!(leaders.len(), num_rounds as usize);
 
         let _ = observer
-            .handle_committed_leaders(with_no_metastate(leaders), CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(
+                with_standard_metastate(leaders),
+                CommittedSubDagSource::Consensus,
+            )
             .unwrap();
 
         // Drain the receiver to simulate consumer processing commits before crash.
@@ -1374,7 +1376,10 @@ mod tests {
             .map(Option::unwrap)
             .collect::<Vec<_>>();
         observer
-            .handle_committed_leaders(with_no_metastate(leaders), CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(
+                with_standard_metastate(leaders),
+                CommittedSubDagSource::Consensus,
+            )
             .unwrap();
         while receiver.try_recv().is_ok() {}
         drop(observer);
@@ -1523,7 +1528,7 @@ mod tests {
         // Each leader in the first 3 rounds has transactions from previous rounds
         let (_, _) = observer
             .handle_committed_leaders(
-                with_no_metastate(all_leaders[0..3].to_vec()),
+                with_standard_metastate(all_leaders[0..3].to_vec()),
                 CommittedSubDagSource::Consensus,
             )
             .unwrap();
@@ -1568,7 +1573,7 @@ mod tests {
         // plus transactions from recovered blocks (rounds 1-3)
         let (_commits_after, _) = observer_after_restart
             .handle_committed_leaders(
-                with_no_metastate(new_leaders),
+                with_standard_metastate(new_leaders),
                 CommittedSubDagSource::Consensus,
             )
             .unwrap();
@@ -1658,7 +1663,7 @@ mod tests {
 
         observer
             .handle_committed_leaders(
-                with_no_metastate(leaders_1_to_4),
+                with_standard_metastate(leaders_1_to_4),
                 CommittedSubDagSource::Consensus,
             )
             .unwrap();
@@ -1667,9 +1672,9 @@ mod tests {
             let strong_voters: Vec<AuthorityIndex> = (0..num_authorities as u8)
                 .map(AuthorityIndex::new_for_test)
                 .collect();
-            vec![(l5, Some(CommitMetastate::Optimistic), strong_voters)]
+            vec![(l5, CommitMetastate::Optimistic, strong_voters)]
         } else {
-            with_no_metastate(vec![l5])
+            with_standard_metastate(vec![l5])
         };
         let (pre_commits, _) = observer
             .handle_committed_leaders(l5_meta, CommittedSubDagSource::Consensus)
@@ -1696,7 +1701,7 @@ mod tests {
         let later_leaders: Vec<_> = builder.leader_blocks(6..=8).into_iter().flatten().collect();
         let (later_commits, _) = observer_after
             .handle_committed_leaders(
-                with_no_metastate(later_leaders),
+                with_standard_metastate(later_leaders),
                 CommittedSubDagSource::Consensus,
             )
             .unwrap();
@@ -1863,16 +1868,10 @@ mod tests {
                 .collect();
             leaders
                 .into_iter()
-                .map(|leader| {
-                    (
-                        leader,
-                        Some(CommitMetastate::Optimistic),
-                        strong_voters.clone(),
-                    )
-                })
+                .map(|leader| (leader, CommitMetastate::Optimistic, strong_voters.clone()))
                 .collect::<Vec<_>>()
         } else {
-            with_no_metastate(leaders)
+            with_standard_metastate(leaders)
         };
         observer
             .handle_committed_leaders(committed_leaders, CommittedSubDagSource::Consensus)

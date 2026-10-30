@@ -64,7 +64,7 @@ async fn direct_commit() {
     let leader_status = committer.try_direct_decide(leader);
     if let LeaderStatus::Commit(_, metastate, _) = &leader_status {
         tracing::info!("Committed: {leader_status}");
-        assert_eq!(*metastate, Some(CommitMetastate::Optimistic));
+        assert_eq!(*metastate, CommitMetastate::Optimistic);
     } else {
         panic!("Expected a committed leader, got {leader_status}");
     }
@@ -251,7 +251,7 @@ async fn indirect_commit() {
     let leader_status_wave_2 = committer.try_direct_decide(leader_wave2);
     if let LeaderStatus::Commit(committed, metastate, _) = leader_status_wave_2.clone() {
         tracing::info!("Direct committed leader at wave 2: {committed}");
-        assert_eq!(metastate, Some(CommitMetastate::Pending));
+        assert_eq!(metastate, CommitMetastate::Pending);
     } else {
         panic!(
             "Expected LeaderStatus::Commit for a leader in wave 2, applying a direct decicion rule, got {leader_status_wave_2}"
@@ -265,7 +265,7 @@ async fn indirect_commit() {
 
     if let LeaderStatus::Commit(ref committed, metastate, _) = leader_status_wave1_indirect {
         tracing::info!("Indirect committed leader at wave 1: {committed}");
-        assert_eq!(metastate, Some(CommitMetastate::Optimistic));
+        assert_eq!(metastate, CommitMetastate::Optimistic);
     } else {
         panic!(
             "Expected LeaderStatus::Commit for a leader in wave 1, applying an indirect decicion rule, got {leader_status_wave1_indirect}"
@@ -320,7 +320,7 @@ async fn indirect_skip() {
     let leader_status_wave1 = committer.try_direct_decide(leader);
     if let LeaderStatus::Commit(ref committed, metastate, _) = leader_status_wave1 {
         tracing::info!("Direct undecided leader at wave 1: {committed}");
-        assert_eq!(metastate, Some(CommitMetastate::Optimistic));
+        assert_eq!(metastate, CommitMetastate::Optimistic);
     } else {
         panic!(
             "Expected LeaderStatus::Commit for a leader in wave 1, applying a direct decicion rule, got {leader_status_wave1}"
@@ -358,7 +358,7 @@ async fn indirect_skip() {
     let mut decided_leaders = vec![];
     if let LeaderStatus::Commit(ref committed_block, metastate, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_3.authority);
-        assert_eq!(metastate, Some(CommitMetastate::Optimistic));
+        assert_eq!(metastate, CommitMetastate::Optimistic);
         decided_leaders.push(leader_status);
     } else {
         panic!("Expected a committed leader")
