@@ -2832,29 +2832,6 @@ impl IotaClientCommandResult {
 
 impl PrintableResult for IotaClientCommandResult {}
 
-/// Serialize the parts of a gRPC execution result that the CLI surfaces as JSON:
-/// the transaction digest, effects, and events. Fields the read mask omitted are
-/// serialized as `null`.
-fn serialize_executed_transaction<S>(
-    executed: &iota_grpc_types::v1::transaction::ExecutedTransaction,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    use serde::ser::SerializeStruct;
-
-    let digest = executed.transaction().and_then(|t| t.digest()).ok();
-    let effects = executed.effects().and_then(|e| e.effects()).ok();
-    let events = executed.events().and_then(|e| e.events()).ok();
-
-    let mut state = serializer.serialize_struct("ExecutedTransaction", 3)?;
-    state.serialize_field("digest", &digest)?;
-    state.serialize_field("effects", &effects)?;
-    state.serialize_field("events", &events)?;
-    state.end()
-}
-
 /// Serialize the parts of a gRPC simulation result that the CLI surfaces as
 /// JSON: the simulated transaction's digest, effects, and events. Fields the
 /// read mask omitted are serialized as `null`.
@@ -3178,7 +3155,9 @@ pub enum IotaClientCommandResult {
     ),
     Envs(Vec<IotaEnv>, Option<String>),
     ExecutedTransaction(
-        #[serde(serialize_with = "serialize_executed_transaction")]
+        #[serde(
+            serialize_with = "crate::executed_transaction_response::serialize_executed_transaction"
+        )]
         Box<iota_grpc_types::v1::transaction::ExecutedTransaction>,
     ),
     Gas(Vec<GasCoin>),

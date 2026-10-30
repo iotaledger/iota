@@ -9,6 +9,7 @@ pub mod client_ptb;
 #[cfg(feature = "gen-completions")]
 mod completions;
 pub mod displays;
+mod executed_transaction_response;
 pub mod iota_commands;
 pub mod key_identity;
 pub mod keytool;

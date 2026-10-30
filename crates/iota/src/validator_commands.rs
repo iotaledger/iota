@@ -164,19 +164,34 @@ pub enum IotaValidatorCommandResponse {
     MakeValidatorInfo,
     DisplayMetadata(String),
     BecomeCandidate(
-        #[serde(serialize_with = "serialize_executed_transaction")] Box<ExecutedTransaction>,
+        #[serde(
+            serialize_with = "crate::executed_transaction_response::serialize_executed_transaction"
+        )]
+        Box<ExecutedTransaction>,
     ),
     JoinValidators(
-        #[serde(serialize_with = "serialize_executed_transaction")] Box<ExecutedTransaction>,
+        #[serde(
+            serialize_with = "crate::executed_transaction_response::serialize_executed_transaction"
+        )]
+        Box<ExecutedTransaction>,
     ),
     LeaveValidators(
-        #[serde(serialize_with = "serialize_executed_transaction")] Box<ExecutedTransaction>,
+        #[serde(
+            serialize_with = "crate::executed_transaction_response::serialize_executed_transaction"
+        )]
+        Box<ExecutedTransaction>,
     ),
     UpdateMetadata(
-        #[serde(serialize_with = "serialize_executed_transaction")] Box<ExecutedTransaction>,
+        #[serde(
+            serialize_with = "crate::executed_transaction_response::serialize_executed_transaction"
+        )]
+        Box<ExecutedTransaction>,
     ),
     ReportValidator(
-        #[serde(serialize_with = "serialize_executed_transaction")] Box<ExecutedTransaction>,
+        #[serde(
+            serialize_with = "crate::executed_transaction_response::serialize_executed_transaction"
+        )]
+        Box<ExecutedTransaction>,
     ),
     SerializedPayload(String),
     List(String),
@@ -889,29 +904,6 @@ impl Display for IotaValidatorCommandResponse {
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
     }
-}
-
-/// Serialize the parts of a gRPC execution result that the CLI surfaces as JSON:
-/// the transaction digest, effects, and events. Fields the read mask omitted are
-/// serialized as `null`.
-fn serialize_executed_transaction<S>(
-    executed: &ExecutedTransaction,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    use serde::ser::SerializeStruct;
-
-    let digest = executed.transaction().and_then(|t| t.digest()).ok();
-    let effects = executed.effects().and_then(|e| e.effects()).ok();
-    let events = executed.events().and_then(|e| e.events()).ok();
-
-    let mut state = serializer.serialize_struct("ExecutedTransaction", 3)?;
-    state.serialize_field("digest", &digest)?;
-    state.serialize_field("effects", &effects)?;
-    state.serialize_field("events", &events)?;
-    state.end()
 }
 
 impl Debug for IotaValidatorCommandResponse {
