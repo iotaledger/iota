@@ -116,7 +116,7 @@ fn strong_blame() -> Option<AuthoritySet> {
 fn assert_direct_commit_metastate(
     committer: &mut crate::base_committer::BaseCommitter,
     slot: Slot,
-    expected: Option<CommitMetastate>,
+    expected: CommitMetastate,
 ) {
     match committer.try_direct_decide(slot) {
         LeaderStatus::Commit(_, metastate, _) => assert_eq!(metastate, expected),
@@ -236,7 +236,7 @@ async fn determine_metastate_optimistic_when_strong_qc_quorum() {
     // Four strong votes at r+1 → every r+2 certifier observes a StrongQC →
     // 2f+1 StrongQC quorum → Optimistic.
     let leader = build_metastate_dag(context, dag_state, &mut committer, [strong_vote(); 4]);
-    assert_direct_commit_metastate(&mut committer, leader, Some(CommitMetastate::Optimistic));
+    assert_direct_commit_metastate(&mut committer, leader, CommitMetastate::Optimistic);
 }
 
 #[tokio::test]
@@ -258,7 +258,7 @@ async fn strong_qc_quorum_collects_strong_voter_authorities_from_dag() {
     );
 
     let strong_voters = match committer.try_direct_decide(leader) {
-        LeaderStatus::Commit(_, Some(CommitMetastate::Optimistic), strong_voters) => strong_voters,
+        LeaderStatus::Commit(_, CommitMetastate::Optimistic, strong_voters) => strong_voters,
         other => panic!("expected Commit(Optimistic), got {other}"),
     };
     let collected: BTreeSet<AuthorityIndex> = strong_voters.into_iter().collect();
@@ -281,7 +281,7 @@ async fn determine_metastate_standard_when_strong_blame_quorum() {
         &mut committer,
         [strong_vote(), blame, blame, blame],
     );
-    assert_direct_commit_metastate(&mut committer, leader, Some(CommitMetastate::Standard));
+    assert_direct_commit_metastate(&mut committer, leader, CommitMetastate::Standard);
 }
 
 #[tokio::test]
@@ -298,7 +298,7 @@ async fn determine_metastate_pending_when_neither_quorum() {
         &mut committer,
         [strong_vote(), strong_vote(), blame, blame],
     );
-    assert_direct_commit_metastate(&mut committer, leader, Some(CommitMetastate::Pending));
+    assert_direct_commit_metastate(&mut committer, leader, CommitMetastate::Pending);
 }
 
 /// Which equivocating leader a voter supports.
@@ -448,7 +448,7 @@ async fn determine_metastate_pending_when_equivocating_strong_vote_is_filtered()
     match committer.try_direct_decide(leader_slot) {
         LeaderStatus::Commit(block, metastate, _) => {
             assert_eq!(block.reference(), leader_a_ref);
-            assert_eq!(metastate, Some(CommitMetastate::Pending));
+            assert_eq!(metastate, CommitMetastate::Pending);
         }
         status => panic!("expected Commit, got {status}"),
     }
@@ -486,7 +486,7 @@ async fn determine_metastate_pending_when_equivocating_strong_blame_is_filtered(
     match committer.try_direct_decide(leader_slot) {
         LeaderStatus::Commit(block, metastate, _) => {
             assert_eq!(block.reference(), leader_a_ref);
-            assert_eq!(metastate, Some(CommitMetastate::Pending));
+            assert_eq!(metastate, CommitMetastate::Pending);
         }
         status => panic!("expected Commit, got {status}"),
     }
@@ -593,13 +593,13 @@ async fn indirect_metastate_optimistic_when_anchor_path_contains_strong_qc() {
         .write()
         .accept_block_header(anchor.clone(), DataSource::Test);
 
-    let anchor_status = LeaderStatus::Commit(anchor, None, vec![]);
+    let anchor_status = LeaderStatus::Commit(anchor, CommitMetastate::Standard, vec![]);
     let current = LeaderStatus::Undecided(leader_slot);
     match committer.try_indirect_decide(current, std::iter::once(&anchor_status)) {
         LeaderStatus::Commit(block, metastate, _) => {
             assert_eq!(block.reference().round, leader_slot.round);
             assert_eq!(block.reference().author, leader_slot.authority);
-            assert_eq!(metastate, Some(CommitMetastate::Optimistic));
+            assert_eq!(metastate, CommitMetastate::Optimistic);
         }
         status => panic!("expected Commit, got {status}"),
     }
@@ -628,13 +628,13 @@ async fn indirect_metastate_standard_when_strong_qc_outside_anchor_path() {
         .write()
         .accept_block_header(anchor.clone(), DataSource::Test);
 
-    let anchor_status = LeaderStatus::Commit(anchor, None, vec![]);
+    let anchor_status = LeaderStatus::Commit(anchor, CommitMetastate::Standard, vec![]);
     let current = LeaderStatus::Undecided(leader_slot);
     match committer.try_indirect_decide(current, std::iter::once(&anchor_status)) {
         LeaderStatus::Commit(block, metastate, _) => {
             assert_eq!(block.reference().round, leader_slot.round);
             assert_eq!(block.reference().author, leader_slot.authority);
-            assert_eq!(metastate, Some(CommitMetastate::Standard));
+            assert_eq!(metastate, CommitMetastate::Standard);
         }
         status => panic!("expected Commit, got {status}"),
     }
@@ -650,17 +650,9 @@ async fn leader_status_is_resolved_classification() {
         .expect("round-1 block exists");
 
     let slot = Slot::new(3, AuthorityIndex::from(0u8));
-    assert!(
-        !LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Pending), vec![]).is_resolved()
-    );
-    assert!(
-        LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Optimistic), vec![])
-            .is_resolved()
-    );
-    assert!(
-        LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Standard), vec![]).is_resolved()
-    );
-    assert!(LeaderStatus::Commit(block, None, vec![]).is_resolved());
+    assert!(!LeaderStatus::Commit(block.clone(), CommitMetastate::Pending, vec![]).is_resolved());
+    assert!(LeaderStatus::Commit(block.clone(), CommitMetastate::Optimistic, vec![]).is_resolved());
+    assert!(LeaderStatus::Commit(block, CommitMetastate::Standard, vec![]).is_resolved());
     assert!(LeaderStatus::Skip(slot).is_resolved());
     assert!(!LeaderStatus::Undecided(slot).is_resolved());
 }
@@ -680,7 +672,7 @@ fn build_universal_committer(
 fn round_3_metastate(
     universal: &crate::universal_committer::UniversalCommitter,
     decided: &[DecidedLeader],
-) -> Option<CommitMetastate> {
+) -> CommitMetastate {
     let leader_authority = universal
         .get_leaders(3)
         .into_iter()
@@ -708,7 +700,7 @@ async fn pending_leader_resolves_to_optimistic() {
         build_wave_one_with_single_strong_qc(&context, &dag_state, &mut base);
 
     // No wave-2 anchor yet — direct says Pending and can't upgrade.
-    assert_direct_commit_metastate(&mut base, round_3_slot, Some(CommitMetastate::Pending));
+    assert_direct_commit_metastate(&mut base, round_3_slot, CommitMetastate::Pending);
 
     // Wave 2 pulls the StrongQC (c0) into the round-6 anchor's r+2 path.
     build_v2_layers(&context, &dag_state, Some(round_5_refs.to_vec()), 8);
@@ -716,7 +708,7 @@ async fn pending_leader_resolves_to_optimistic() {
     let decided = universal.try_decide(Slot::new(GENESIS_ROUND, 0u8));
     assert_eq!(
         round_3_metastate(&universal, &decided),
-        Some(CommitMetastate::Optimistic),
+        CommitMetastate::Optimistic,
     );
 }
 
@@ -730,7 +722,7 @@ async fn pending_leader_resolves_to_standard() {
     // Wave 1 only — strong_vote = None everywhere → direct says Pending.
     let round_5_refs = build_v2_layers(&context, &dag_state, None, 5);
     let round_3_slot = base.elect_leader(3).expect("round 3 has a leader");
-    assert_direct_commit_metastate(&mut base, round_3_slot, Some(CommitMetastate::Pending));
+    assert_direct_commit_metastate(&mut base, round_3_slot, CommitMetastate::Pending);
 
     // Wave 2 arrives. The round-6 anchor's r+2 path has only regular QCs.
     build_v2_layers(&context, &dag_state, Some(round_5_refs), 8);
@@ -738,7 +730,7 @@ async fn pending_leader_resolves_to_standard() {
     let decided = universal.try_decide(Slot::new(GENESIS_ROUND, 0u8));
     assert_eq!(
         round_3_metastate(&universal, &decided),
-        Some(CommitMetastate::Standard),
+        CommitMetastate::Standard,
     );
 }
 
@@ -970,7 +962,7 @@ async fn decision_cache_classifies_a_certifier_accepted_after_a_check_once() {
     // The third certificate arrives: it is the only new classification.
     let c3 = certifier(&mut base, 3, voters);
     dag_state.write().accept_block_header(c3, DataSource::Test);
-    assert_direct_commit_metastate(&mut base, leader_slot, Some(CommitMetastate::Optimistic));
+    assert_direct_commit_metastate(&mut base, leader_slot, CommitMetastate::Optimistic);
     assert_eq!(metrics.decision_cache_misses_total.get(), 4);
     assert_eq!(metrics.decision_cache_hits_total.get(), 3);
 }
@@ -1025,12 +1017,8 @@ async fn decision_cache_serves_repeated_checks_of_pending_leaders() {
                 last_finalized = last.slot();
                 for leader in &decided {
                     match leader {
-                        DecidedLeader::Commit(_, Some(CommitMetastate::Optimistic), _) => {
-                            optimistic += 1
-                        }
-                        DecidedLeader::Commit(_, Some(CommitMetastate::Standard), _) => {
-                            standard += 1
-                        }
+                        DecidedLeader::Commit(_, CommitMetastate::Optimistic, _) => optimistic += 1,
+                        DecidedLeader::Commit(_, CommitMetastate::Standard, _) => standard += 1,
                         _ => other += 1,
                     }
                 }
