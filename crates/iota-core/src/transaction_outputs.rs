@@ -141,6 +141,21 @@ impl TransactionOutputs {
             })
             .collect();
 
+        // Execution derives `mutable_inputs` from the transaction's declared
+        // inputs, which never include a `Receiving` argument; the received
+        // objects are added once by `derive_store_updates`. Effects do record
+        // them as modified, so drop them here or they would be listed twice.
+        let received: HashSet<ObjectId> = transaction
+            .transaction()
+            .receiving_objects()
+            .into_iter()
+            .map(|obj_ref| obj_ref.object_id)
+            .collect();
+        let inputs: BTreeMap<ObjectId, (VersionDigest, Owner)> = inputs
+            .into_iter()
+            .filter(|(id, _)| !received.contains(id))
+            .collect();
+
         let shared_inputs: HashSet<ObjectId> = inputs
             .iter()
             .filter_map(|(id, (_, owner))| owner.is_shared().then_some(*id))

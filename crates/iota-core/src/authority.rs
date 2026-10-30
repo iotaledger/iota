@@ -2292,6 +2292,21 @@ impl AuthorityState {
             outputs.effects.lamport_version(),
         );
 
+        // A transaction keyed by anything but its digest is looked up by that
+        // key later, and committing its results is the only time this node
+        // learns the mapping — local randomness generation, the other writer,
+        // never runs for a round that arrived in a synced checkpoint.
+        //
+        // Written before the outputs for the reason the executing path gives:
+        // lookups consult the perpetual store first, so the epoch store may
+        // run ahead of it but must not fall behind. The other order would
+        // leave the mapping permanently unwritten if this failed, since the
+        // transaction then counts as executed and is never committed again.
+        let non_digest_key = outputs.transaction.non_digest_key();
+        if let Some(key) = non_digest_key {
+            epoch_store.insert_tx_key(key, tx_digest)?;
+        }
+
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), Arc::new(outputs))?;
 
@@ -2299,6 +2314,9 @@ impl AuthorityState {
             ExecutionSchedulerWrapper::ExecutionScheduler(_) => {}
             ExecutionSchedulerWrapper::TransactionManager(tm) => {
                 tm.notify_commit(&tx_digest, output_keys, epoch_store);
+                if let Some(key) = non_digest_key {
+                    tm.notify_transaction_key(epoch_store, key, tx_digest);
+                }
             }
         }
         Ok(())
