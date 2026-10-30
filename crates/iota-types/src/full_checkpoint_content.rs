@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
     CheckpointContents, ObjectId, ObjectReference, TransactionEffects, TransactionEvents,
@@ -262,16 +262,18 @@ impl CheckpointTransaction {
             .map(|(owned, _)| (owned.reference().object_id, *owned.reference()))
             .collect();
 
-        if written.len() != self.output_objects.len() {
-            return Err(StorageError::custom(format!(
-                "transaction {tx_digest} carries {} output objects but its effects record {} \
-                 writes",
-                self.output_objects.len(),
-                written.len()
-            )));
-        }
+        // Counted by the ids seen rather than by the length of the list: the
+        // list may repeat an id, and comparing lengths alone would let a
+        // repeat stand in for a write the checkpoint left out.
+        let mut seen: BTreeSet<ObjectId> = BTreeSet::new();
 
         for object in &self.output_objects {
+            if !seen.insert(object.id()) {
+                return Err(StorageError::custom(format!(
+                    "transaction {tx_digest} carries output object {} more than once",
+                    object.id()
+                )));
+            }
             let Some(expected) = written.get(&object.id()) else {
                 return Err(StorageError::custom(format!(
                     "transaction {tx_digest} carries output object {} which its effects do not \
@@ -295,24 +297,41 @@ impl CheckpointTransaction {
             }
         }
 
+        if let Some(missing) = written.keys().find(|id| !seen.contains(id)) {
+            return Err(StorageError::custom(format!(
+                "transaction {tx_digest} records a write to object {missing} that the checkpoint \
+                 does not carry"
+            )));
+        }
+
         // Every version the transaction superseded is relocated out of the live
         // table when its results are committed, using the pre-image the
         // checkpoint carries as an input object. Effects record the digest each
         // of those versions had, so a pre-image is checked the same way an
-        // output object is: a missing one would be dropped rather than
-        // relocated, and a substituted one would reach the store unchecked.
-        let pre_images: BTreeMap<ObjectId, &Object> = self
-            .input_objects
-            .iter()
-            .map(|object| (object.id(), object))
+        // output object is, in both directions: a missing one would be dropped
+        // rather than relocated, and an extra or substituted one would reach
+        // the store unchecked.
+        let superseded: BTreeMap<ObjectId, ObjectReference> = self
+            .effects
+            .old_object_metadata()
+            .into_iter()
+            .map(|old| (old.reference().object_id, *old.reference()))
             .collect();
-        for old in self.effects.old_object_metadata() {
-            let expected = *old.reference();
-            let Some(object) = pre_images.get(&expected.object_id) else {
+
+        let mut seen_inputs: BTreeSet<ObjectId> = BTreeSet::new();
+
+        for object in &self.input_objects {
+            if !seen_inputs.insert(object.id()) {
                 return Err(StorageError::custom(format!(
-                    "transaction {tx_digest} supersedes version {} of object {} but the \
-                     checkpoint carries no input object for it",
-                    expected.version, expected.object_id
+                    "transaction {tx_digest} carries input object {} more than once",
+                    object.id()
+                )));
+            }
+            let Some(expected) = superseded.get(&object.id()) else {
+                return Err(StorageError::custom(format!(
+                    "transaction {tx_digest} carries input object {} which its effects do not \
+                     record as superseded",
+                    object.id()
                 )));
             };
             let actual = object.object_ref();
@@ -320,13 +339,20 @@ impl CheckpointTransaction {
                 return Err(StorageError::custom(format!(
                     "input object mismatch for {} in transaction {tx_digest}: effects record \
                      version {} digest {}, contents are version {} digest {}",
-                    expected.object_id,
+                    object.id(),
                     expected.version,
                     expected.digest,
                     actual.version,
                     actual.digest
                 )));
             }
+        }
+
+        if let Some(missing) = superseded.keys().find(|id| !seen_inputs.contains(id)) {
+            return Err(StorageError::custom(format!(
+                "transaction {tx_digest} supersedes object {missing} but the checkpoint carries \
+                 no input object for it"
+            )));
         }
 
         match (self.effects.events_digest(), &self.events) {

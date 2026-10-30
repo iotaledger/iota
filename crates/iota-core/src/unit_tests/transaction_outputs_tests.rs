@@ -277,6 +277,35 @@ async fn verify_payload_digests_rejects_missing_input_object() {
     );
 }
 
+/// A checkpoint that repeats one output object in place of another must be
+/// rejected. Counting the payloads against the number of recorded writes is
+/// not enough on its own: a repeat keeps the count right while a write the
+/// effects record goes missing, and the object it displaced would then never
+/// reach the store.
+#[tokio::test]
+async fn verify_payload_digests_rejects_a_repeated_output_object() {
+    let (_, mut checkpoint_tx) = execute_transfer_both_ways().await;
+    assert!(
+        checkpoint_tx.output_objects.len() > 1,
+        "a transfer writes the gas coin and the transferred object"
+    );
+
+    // Stand the first object in for the last, keeping the count unchanged.
+    let repeated = checkpoint_tx.output_objects[0].clone();
+    *checkpoint_tx
+        .output_objects
+        .last_mut()
+        .expect("checked above") = repeated;
+
+    let err = checkpoint_tx
+        .verify_payload_digests()
+        .expect_err("a repeated output object must be rejected");
+    assert!(
+        format!("{err}").contains("more than once"),
+        "the error must name the failure, got: {err}"
+    );
+}
+
 /// An object the effects record as written but the checkpoint does not carry
 /// must be rejected; applying such a checkpoint would silently drop a write.
 #[tokio::test]
