@@ -244,19 +244,20 @@ mod checked {
         Ok(aggregated_authenticator_input_objects)
     }
 
-    /// Checks certificate and Move-authenticator inputs, returning an
-    /// execution-mode gas status plus the checked input objects.
+    /// Checks the inputs of a transaction bound for execution: the Move
+    /// authenticator inputs, gas, the transaction's own inputs and their
+    /// union. Returns an execution-mode gas status plus the checked input
+    /// objects. Post-consensus validation of an attested transaction runs
+    /// this same function, so the two cannot drift.
     #[instrument(level = "trace", skip_all)]
     pub fn check_certificate_and_move_authenticator_input(
-        cert: &VerifiedExecutableTransaction,
+        transaction: &Transaction,
         tx_input_objects: InputObjects,
         per_authenticator_input_objects: Vec<InputObjects>,
         authenticator_gas_budget: u64,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
     ) -> IotaResult<(IotaGasStatus, Vec<CheckedInputObjects>, CheckedInputObjects)> {
-        let transaction = cert.data().transaction();
-
         // Check Move authenticator inputs first.
         per_authenticator_input_objects
             .iter()
