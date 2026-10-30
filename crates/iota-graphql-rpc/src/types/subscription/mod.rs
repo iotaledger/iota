@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{num::NonZeroUsize, sync::Arc};
+use std::num::NonZeroUsize;
 
 use async_graphql::{Context, ErrorExtensions, OutputType, SimpleObject, Subscription, Union};
 use futures::{Stream, StreamExt, TryStreamExt, future};
@@ -13,7 +13,7 @@ use iota_indexer_streaming::{
 };
 use iota_sdk_types::TransactionDigest;
 use prometheus_filtered::Registry;
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{Semaphore, SemaphorePermit};
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tracing::warn;
 
@@ -74,13 +74,14 @@ impl Subscription {
     /// the client received, the stream resumes from the transaction
     /// immediately after it. The identified transaction itself is not
     /// emitted.
-    async fn transactions(
+    async fn transactions<'c, 'r>(
         &self,
-        ctx: &Context<'_>,
+        ctx: &'r Context<'c>,
         start_after: Option<Digest>,
         filter: Option<SubscriptionTransactionFilter>,
-    ) -> async_graphql::Result<impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>>>
-    {
+    ) -> async_graphql::Result<
+        impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>> + use<'c, 'r>,
+    > {
         let stream = ctx.data_unchecked::<GraphQLStream>();
         let permit = stream.acquire_permit().map_err(|e| e.extend())?;
         Ok(stream.subscribe_transactions(start_after, filter, permit))
@@ -108,12 +109,14 @@ impl Subscription {
     /// On reconnect, clients should pass the digest of the last fully
     /// received transaction as `start_after`. The stream resumes from the
     /// next transaction, so no partial transaction is ever observed.
-    async fn events(
+    async fn events<'c, 'r>(
         &self,
-        ctx: &Context<'_>,
+        ctx: &'r Context<'c>,
         start_after: Option<Digest>,
         filter: Option<SubscriptionEventFilter>,
-    ) -> async_graphql::Result<impl Stream<Item = Result<SubscriptionItem<Event>, Error>>> {
+    ) -> async_graphql::Result<
+        impl Stream<Item = Result<SubscriptionItem<Event>, Error>> + use<'c, 'r>,
+    > {
         let stream = ctx.data_unchecked::<GraphQLStream>();
         let permit = stream.acquire_permit().map_err(|e| e.extend())?;
         Ok(stream.subscribe_events(start_after, filter, permit))
@@ -132,7 +135,7 @@ pub(crate) struct GraphQLStream {
     streamer: InMemory,
     /// Caps the number of subscriptions active at the same time across all
     /// connections.
-    active_subscriptions: Arc<Semaphore>,
+    active_subscriptions: Semaphore,
 }
 
 impl GraphQLStream {
@@ -151,27 +154,24 @@ impl GraphQLStream {
             .map_err(|e| Error::Internal(format!("failed to connect to postgres: {e}")))?;
         Ok(Self {
             streamer,
-            active_subscriptions: Arc::new(Semaphore::new(
-                limits.max_active_subscriptions as usize,
-            )),
+            active_subscriptions: Semaphore::new(limits.max_active_subscriptions as usize),
         })
     }
 
     /// Reserves a slot for a new subscription, failing with a client error
     /// when the server-wide cap is reached.
-    fn acquire_permit(&self) -> Result<OwnedSemaphorePermit, Error> {
+    fn acquire_permit(&self) -> Result<SemaphorePermit<'_>, Error> {
         self.active_subscriptions
-            .clone()
-            .try_acquire_owned()
+            .try_acquire()
             .map_err(|_| Error::Client("too many active subscriptions, retry later".to_string()))
     }
 
     /// Sends the first error to the client and terminates the stream after it.
     /// The permit is held as long as the stream is alive.
-    fn terminate_on_error<T>(
-        stream: impl Stream<Item = Result<T, Error>>,
-        permit: OwnedSemaphorePermit,
-    ) -> impl Stream<Item = Result<T, Error>> {
+    fn terminate_on_error<'a, T: 'a>(
+        stream: impl Stream<Item = Result<T, Error>> + 'a,
+        permit: SemaphorePermit<'a>,
+    ) -> impl Stream<Item = Result<T, Error>> + 'a {
         stream.scan(
             (false, permit),
             |(should_terminate_stream, _permit), subscription_item| {
@@ -197,12 +197,12 @@ impl GraphQLStream {
     }
 
     /// Subscribe to transactions from IOTA Network.
-    pub(crate) fn subscribe_transactions(
-        &self,
+    pub(crate) fn subscribe_transactions<'s, 'p>(
+        &'s self,
         start_after: Option<Digest>,
         filter: Option<SubscriptionTransactionFilter>,
-        permit: OwnedSemaphorePermit,
-    ) -> impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>> {
+        permit: SemaphorePermit<'p>,
+    ) -> impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>> + use<'s, 'p> {
         let stream = self
             .streamer
             .subscribe_transactions(
@@ -232,12 +232,12 @@ impl GraphQLStream {
     }
 
     /// Subscribe to events from IOTA Network.
-    pub(crate) fn subscribe_events(
-        &self,
+    pub(crate) fn subscribe_events<'s, 'p>(
+        &'s self,
         start_after: Option<Digest>,
         filter: Option<SubscriptionEventFilter>,
-        permit: OwnedSemaphorePermit,
-    ) -> impl Stream<Item = Result<SubscriptionItem<Event>, Error>> {
+        permit: SemaphorePermit<'p>,
+    ) -> impl Stream<Item = Result<SubscriptionItem<Event>, Error>> + use<'s, 'p> {
         let stream = self
             .streamer
             .subscribe_events(
@@ -302,8 +302,8 @@ mod tests {
 
     #[tokio::test]
     async fn live_stream_holds_its_permit_until_dropped() {
-        let active = Arc::new(Semaphore::new(1));
-        let permit = active.clone().try_acquire_owned().unwrap();
+        let active = Semaphore::new(1);
+        let permit = active.try_acquire().unwrap();
 
         let items = futures::stream::pending::<Result<(), Error>>();
         let stream = GraphQLStream::terminate_on_error(items, permit);
@@ -315,8 +315,8 @@ mod tests {
 
     #[tokio::test]
     async fn stream_ends_after_the_first_error_and_releases_its_permit() {
-        let active = Arc::new(Semaphore::new(1));
-        let permit = active.clone().try_acquire_owned().unwrap();
+        let active = Semaphore::new(1);
+        let permit = active.try_acquire().unwrap();
 
         let items = futures::stream::iter([Ok(1), Err(Error::Internal("boom".into())), Ok(2)]);
         let mut stream = GraphQLStream::terminate_on_error(items, permit);
