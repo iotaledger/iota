@@ -49,13 +49,22 @@ impl Metrics {
         }
     }
 
-    /// Counts a checkpoint from the archive whose results were not applied, so
-    /// its transactions fall back to being executed. Expected around epoch
-    /// boundaries the node has not reached yet; a steadily rising count means
-    /// applying is not taking effect.
+    /// Counts a checkpoint from the archive whose results were not kept
+    /// because the cache is at its size limit, so its transactions fall back
+    /// to being executed. Ordinary backpressure while a node is far behind.
     pub fn checkpoint_from_archive_left_to_the_executor(&self) {
         if let Some(inner) = &self.0 {
             inner.checkpoints_from_archive_left_to_the_executor.inc();
+        }
+    }
+
+    /// Counts a checkpoint from the archive whose payloads did not match the
+    /// digests its effects record. Its transactions are executed instead, so
+    /// the node stays correct — but the archive served something it should
+    /// not have, and any count above zero is worth investigating.
+    pub fn checkpoint_from_archive_failed_verification(&self) {
+        if let Some(inner) = &self.0 {
+            inner.checkpoints_from_archive_failed_verification.inc();
         }
     }
 
@@ -79,6 +88,7 @@ struct Inner {
     highest_synced_checkpoint: IntGauge,
     checkpoints_synced_from_checkpoint_archive: IntCounter,
     checkpoints_from_archive_left_to_the_executor: IntCounter,
+    checkpoints_from_archive_failed_verification: IntCounter,
     checkpoint_summary_age: Histogram,
 }
 
@@ -121,6 +131,14 @@ impl Inner {
                 "checkpoints_from_archive_left_to_the_executor",
                 "Checkpoints from the archive whose results were not applied, leaving their \
                  transactions to be executed",
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+            checkpoints_from_archive_failed_verification: register_int_counter_with_registry!(
+                "checkpoints_from_archive_failed_verification",
+                "Checkpoints from the archive whose payloads did not match the digests their \
+                 effects record, leaving their transactions to be executed",
                 registry;
                 MetricLevel::Warn,
             )
