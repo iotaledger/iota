@@ -263,10 +263,10 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
             );
         }
 
-        // Read only the declaration, so validation at a commit decides them
-        // the same way on every validator, with or without the object there
-        // to read. Without deterministic validation the checks on the loaded
-        // objects apply these rules.
+        // Read only the declaration, so validation at a commit decides them the
+        // same way on every validator, with or without the object there to
+        // read. Without the P-COOL flow the checks on the loaded objects apply
+        // these rules.
         if config.enable_pcool_flow() {
             for kind in &input_objects {
                 match *kind {

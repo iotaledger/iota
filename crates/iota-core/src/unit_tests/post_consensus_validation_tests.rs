@@ -179,7 +179,6 @@ async fn test_valid_user_transaction_passes() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -248,7 +247,6 @@ async fn drop_error_for_gas_version_below_canceled_range(
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -337,7 +335,6 @@ async fn drop_error_for_account_named_as_shared(account: Object) -> IotaError {
         &authority,
         &epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
@@ -366,7 +363,10 @@ async fn test_immutable_account_named_as_shared_dropped() {
         matches!(
             error,
             IotaError::UserInput {
-                error: UserInputError::ImmutableAccountObjectNotSupported { object_id }
+                error: UserInputError::InputObjectNotAvailableAtCommit {
+                    object_id,
+                    version: None,
+                }
             } if object_id == account_id
         ),
         "unexpected error: {error:?}"
@@ -386,7 +386,10 @@ async fn test_owned_account_named_as_shared_dropped() {
         matches!(
             error,
             IotaError::UserInput {
-                error: UserInputError::AccountObjectNotSupported { object_id }
+                error: UserInputError::InputObjectNotAvailableAtCommit {
+                    object_id,
+                    version: None,
+                }
             } if object_id == account_id
         ),
         "unexpected error: {error:?}"
@@ -407,7 +410,6 @@ async fn test_non_user_transaction_passes_through() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -461,7 +463,6 @@ async fn test_duplicate_transaction_deduplicated() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -531,7 +532,6 @@ async fn test_mixed_batch_filtering() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -617,7 +617,6 @@ async fn test_simple_conflict() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -652,8 +651,9 @@ async fn test_simple_conflict() {
 /// different versions, with the stale one ordered first (the scenario from
 /// issue #10922). Because owned-object locks are keyed by the full
 /// `ObjectReference`, the two never falsely conflict; the stale transaction is
-/// dropped by the version check in `handle_transaction_validation_checks`
-/// (Check #5) and the fresh transaction is kept and acquires the lock.
+/// dropped by the commit-indexed reader, for which the stale version is not
+/// live at the commit (Check #5), and the fresh transaction is kept and
+/// acquires the lock.
 #[sim_test]
 async fn test_stale_version_dropped_fresh_kept() {
     telemetry_subscribers::init_for_testing();
@@ -721,7 +721,6 @@ async fn test_stale_version_dropped_fresh_kept() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -743,10 +742,10 @@ async fn test_stale_version_dropped_fresh_kept() {
         matches!(
             dropped_errors[0],
             IotaError::UserInput {
-                error: UserInputError::ObjectVersionUnavailableForConsumption { .. }
+                error: UserInputError::InputObjectNotAvailableAtCommit { .. }
             }
         ),
-        "Stale tx should be dropped because its version is unavailable, got {:?}",
+        "Stale tx should be dropped because its version is not available at the commit, got {:?}",
         dropped_errors[0]
     );
 
@@ -825,7 +824,6 @@ async fn test_no_conflict() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -924,7 +922,6 @@ async fn test_chain_conflict() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -1046,7 +1043,6 @@ async fn test_multiple_conflicts_in_batch() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -1136,7 +1132,6 @@ async fn test_gas_object_conflict() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -1250,7 +1245,6 @@ async fn test_winner_blocks_multiple_losers() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -1370,7 +1364,6 @@ async fn test_dropped_tx_does_not_acquire_locks() {
             &authority,
             &epoch_store,
             1,
-            false,
             &Default::default(),
             &mut transactions,
         )
@@ -1726,6 +1719,18 @@ impl LockTierSetup {
             .unwrap();
     }
 
+    /// Saves a keep for `verified_tx` at commit `index`, as the first run of
+    /// that commit did before a restart, so validating the commit again
+    /// repeats it.
+    fn save_keep(&self, index: CommitIndex, verified_tx: &VerifiedTransaction) {
+        self.epoch_store
+            .persist_post_consensus_decisions(
+                index,
+                &[(*verified_tx.digest(), SavedPostConsensusDecision::kept())],
+            )
+            .unwrap();
+    }
+
     /// Seeds `(self.object_ref, self.gas_ref) -> locker` into the requested
     /// tier. For `Persistent`, a signed-transaction row backing the lock is
     /// also written.
@@ -1812,7 +1817,6 @@ async fn run_different_digest_lock_drops_contender(tier: LockTier) {
         &s.authority,
         &s.epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
@@ -1831,9 +1835,9 @@ async fn run_different_digest_lock_drops_contender(tier: LockTier) {
     );
 }
 
-/// Body for the Check #1 retain case: an already-executed tx finding its OWN
-/// digest as the lock holder in the given tier must NOT be dropped and must
-/// NOT trigger `fatal!`.
+/// Body for the Check #1 retain case: an already-executed tx kept at the
+/// replayed commit, finding its OWN digest as the lock holder in the given
+/// tier, must NOT be dropped and must NOT trigger `fatal!`.
 async fn run_same_digest_lock_retains_already_executed(tier: LockTier) {
     let s = setup_lock_tier().await;
 
@@ -1845,13 +1849,13 @@ async fn run_same_digest_lock_retains_already_executed(tier: LockTier) {
     // `live_owned_object_markers` for its inputs are already consumed).
     s.seed_lock(tier, &tx);
     s.execute_in_an_earlier_commit(&tx);
+    s.save_keep(1, &tx);
 
     let mut transactions = vec![make_user_tx_v1_verified(tx)];
     let (dropped, _, all_digests) = post_consensus_validation::validate_and_resolve_conflicts(
         &s.authority,
         &s.epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
@@ -1877,27 +1881,24 @@ async fn run_same_digest_lock_retains_already_executed(tier: LockTier) {
     );
 }
 
-/// Body for the deferred-transaction self-lock case: a transaction that already
-/// holds its OWN lock in the given tier (from a prior consensus round in which
-/// it acquired owned-object locks and was then deferred for shared-object
-/// congestion) must NOT be dropped when it is reloaded and re-validated.
-/// Without the self-exemption in Check #4 it would conflict with its own lock,
-/// drop as `ObjectLockConflict`, and never execute.
+/// Body for the self-lock case: a transaction that finds its OWN digest as the
+/// holder of its inputs' locks in the given tier, from an earlier commit, must
+/// NOT be dropped. Without the self-exemption in Check #4 it would conflict
+/// with its own lock and drop as `ObjectLockConflict`.
 ///
 /// Unlike the already-executed case (Check #1), the transaction is NOT executed
 /// here, so it flows through the full validation pass (Check #2-#5) and must
 /// survive end-to-end and re-acquire its locks.
 ///
 /// Dedup by digest already runs upstream in Check #0, so a same-digest lock
-/// seen in Check #4 can only be this transaction's own prior-round lock (a
-/// deferred tx), never a same-commit duplicate.
-async fn run_self_lock_retains_deferred_tx(tier: LockTier) {
+/// seen in Check #4 is never a same-commit duplicate.
+async fn run_self_lock_is_not_a_conflict(tier: LockTier) {
     let setup = setup_lock_tier().await;
 
     let tx = setup.make_tx();
     let tx_digest = *tx.digest();
 
-    // Seed the tx's own lock into the tier, as round r would before deferral.
+    // Seed the tx's own lock into the tier, as an earlier commit would.
     setup.seed_lock(tier, &tx);
 
     let mut transactions = vec![make_user_tx_v1_verified(tx)];
@@ -1905,7 +1906,6 @@ async fn run_self_lock_retains_deferred_tx(tier: LockTier) {
         &setup.authority,
         &setup.epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
@@ -1914,34 +1914,30 @@ async fn run_self_lock_retains_deferred_tx(tier: LockTier) {
 
     assert!(
         dropped.is_empty(),
-        "deferred tx must not self-conflict on its own prior-round lock"
+        "tx must not self-conflict on its own lock from an earlier commit"
     );
-    assert_eq!(transactions.len(), 1, "deferred tx must be retained");
-    assert_eq!(
-        all_digests,
-        vec![tx_digest],
-        "deferred tx digest is reported"
-    );
+    assert_eq!(transactions.len(), 1, "tx must be retained");
+    assert_eq!(all_digests, vec![tx_digest], "tx digest is reported");
     assert_eq!(
         locks.get(&setup.object_ref),
         Some(&tx_digest),
-        "deferred tx must re-acquire its own object lock"
+        "tx must re-acquire its own object lock"
     );
     assert_eq!(
         locks.get(&setup.gas_ref),
         Some(&tx_digest),
-        "deferred tx must re-acquire its own gas lock"
+        "tx must re-acquire its own gas lock"
     );
 }
 
 #[tokio::test]
-async fn tier2_quarantine_self_lock_retains_deferred_tx() {
-    run_self_lock_retains_deferred_tx(LockTier::Quarantine).await;
+async fn tier2_quarantine_self_lock_is_not_a_conflict() {
+    run_self_lock_is_not_a_conflict(LockTier::Quarantine).await;
 }
 
 #[tokio::test]
-async fn tier3_persistent_self_lock_retains_deferred_tx() {
-    run_self_lock_retains_deferred_tx(LockTier::Persistent).await;
+async fn tier3_persistent_self_lock_is_not_a_conflict() {
+    run_self_lock_is_not_a_conflict(LockTier::Persistent).await;
 }
 
 #[tokio::test]
@@ -1964,8 +1960,9 @@ async fn tier3_persistent_same_digest_lock_retains_already_executed() {
     run_same_digest_lock_retains_already_executed(LockTier::Persistent).await;
 }
 
-/// Check #1 / `fatal!` invariant: when an already-executed transaction's owned
-/// input is locked by a DIFFERENT transaction digest,
+/// Check #1 / `fatal!` invariant: when an already-executed transaction kept at
+/// the replayed commit has an owned input locked by a DIFFERENT transaction
+/// digest,
 /// `validate_and_resolve_conflicts` must panic — the executed-but-out-locked
 /// state is a real consistency violation, not a recoverable conflict.
 ///
@@ -1979,6 +1976,7 @@ async fn already_executed_tx_locked_by_different_digest_is_fatal() {
     // The tx the committee actually executed (by an earlier commit on this node).
     let tx = s.make_tx();
     s.execute_in_an_earlier_commit(&tx);
+    s.save_keep(1, &tx);
 
     // Seed the quarantine with a lock on `tx`'s inputs held by a DIFFERENT
     // digest — simulates the consistency violation the `fatal!` guards against.
@@ -1992,7 +1990,6 @@ async fn already_executed_tx_locked_by_different_digest_is_fatal() {
         &s.authority,
         &s.epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
@@ -2059,7 +2056,6 @@ async fn post_consensus_validation_uses_governance_rules() {
         &authority,
         &epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
@@ -2113,7 +2109,6 @@ async fn post_consensus_validation_keeps_non_denied_transactions() {
         &authority,
         &epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
@@ -2164,7 +2159,6 @@ async fn post_consensus_validation_applies_relaxed_rules() {
         &authority,
         &epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
@@ -2187,8 +2181,8 @@ async fn post_consensus_validation_applies_relaxed_rules() {
     let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &authority,
         &epoch_store,
-        1,
-        false,
+        // The next commit: commit 1 saved its decisions above.
+        2,
         &Default::default(),
         &mut transactions,
     )
@@ -3111,7 +3105,6 @@ impl HandlerObjectStateSetup {
             &self.authority,
             &self.epoch_store,
             index,
-            true,
             &Default::default(),
             &mut sequenced,
         )
@@ -5540,13 +5533,7 @@ async fn validation_at_commit_drops_a_forbidden_system_object_input() {
 
         let error = s
             .authority
-            .handle_transaction_validation_checks(
-                &tx,
-                &s.epoch_store,
-                deny_config,
-                false,
-                VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
-            )
+            .handle_transaction_validation_checks(&tx, &s.epoch_store, deny_config)
             .await
             .expect_err("a validator must reject the input before submission");
         assert_eq!(
@@ -5660,13 +5647,7 @@ async fn validation_at_commit_reports_an_object_that_is_not_an_account_missing()
     // the transaction.
     let error = s
         .authority
-        .handle_transaction_validation_checks(
-            &tx,
-            &s.epoch_store,
-            deny_config,
-            false,
-            VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
-        )
+        .handle_transaction_validation_checks(&tx, &s.epoch_store, deny_config)
         .await
         .expect_err("a validator must reject an account without a function before submission");
     assert!(
@@ -5702,8 +5683,9 @@ async fn validation_at_commit_reports_an_object_that_is_not_an_account_missing()
 
 /// A Move authenticator needs its account to be a shared object, but a
 /// transaction can still name an object owned by an address as its account.
-/// Post-consensus validation drops such a transaction when reading the account
-/// finds an object that is not shared, so it never reaches execution.
+/// A validator rejects such a transaction before submission, and
+/// post-consensus validation drops it when reading the account finds an object
+/// that is not shared, so it never reaches execution.
 #[tokio::test]
 async fn validation_at_commit_drops_an_account_owned_by_an_address() {
     let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -5729,6 +5711,21 @@ async fn validation_at_commit_drops_an_account_owned_by_an_address() {
         &gas_id,
         sponsor,
         &sponsor_key,
+    );
+
+    let error = s
+        .authority
+        .handle_transaction_validation_checks(&tx, &s.epoch_store, deny_config)
+        .await
+        .expect_err("a validator must reject an address-owned account before submission");
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::AccountObjectNotSupported { object_id }
+            } if object_id == account_id
+        ),
+        "{error:?}"
     );
 
     match s
@@ -5781,13 +5778,7 @@ async fn validation_at_commit_drops_an_immutable_account() {
 
     let error = s
         .authority
-        .handle_transaction_validation_checks(
-            &tx,
-            &s.epoch_store,
-            deny_config,
-            false,
-            VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
-        )
+        .handle_transaction_validation_checks(&tx, &s.epoch_store, deny_config)
         .await
         .expect_err("a validator must reject an immutable account before submission");
     assert!(
@@ -6036,13 +6027,7 @@ async fn validation_at_commit_checks_the_authenticator_package_against_the_deny_
         );
         let at_admission = s
             .authority
-            .handle_transaction_validation_checks(
-                &tx,
-                &s.epoch_store,
-                &deny_package(denied),
-                false,
-                VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
-            )
+            .handle_transaction_validation_checks(&tx, &s.epoch_store, &deny_package(denied))
             .await
             .map(|_| ())
             .unwrap_err();
@@ -6325,13 +6310,7 @@ async fn validation_at_commit_checks_the_authenticator_package_of_a_move_account
     let at_commit = s.validate_at_commit_under(12, &tx, &deny_package(denied));
     let at_admission = s
         .authority
-        .handle_transaction_validation_checks(
-            &tx,
-            &s.epoch_store,
-            &deny_package(denied),
-            false,
-            VerifierLimitsSource::NodeConfig(&s.authority.config.verifier_signing_config),
-        )
+        .handle_transaction_validation_checks(&tx, &s.epoch_store, &deny_package(denied))
         .await
         .map(|_| ())
         .unwrap_err();
@@ -6428,7 +6407,6 @@ async fn validation_loop_drops_a_mutable_shared_authenticator_argument_on_every_
             &s.authority,
             &s.epoch_store,
             18,
-            true,
             &Default::default(),
             &mut transactions,
         )
@@ -6618,7 +6596,6 @@ async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
         &s.authority,
         &s.epoch_store,
         12,
-        true,
         &Default::default(),
         &mut transactions,
     )
@@ -6769,7 +6746,6 @@ async fn later_copy_is_validated_after_a_copy_fails_on_its_authenticator() {
             &s.authority,
             &s.epoch_store,
             1,
-            true,
             &Default::default(),
             &mut transactions,
         )
@@ -6811,7 +6787,6 @@ async fn later_copy_is_validated_after_a_copy_fails_on_its_authenticator() {
         &s.authority,
         &s.epoch_store,
         2,
-        true,
         &Default::default(),
         &mut transactions,
     )
@@ -6959,7 +6934,6 @@ async fn decisions_retire_with_resume_progress_and_processed_state() {
         &s.authority,
         &s.epoch_store,
         1,
-        true,
         &Default::default(),
         &mut transactions,
     )
@@ -7461,7 +7435,6 @@ async fn previously_deferred_transaction_is_kept_without_checks() {
         &s.authority,
         &s.epoch_store,
         2,
-        true,
         &previously_deferred,
         &mut transactions,
     )
@@ -7481,7 +7454,6 @@ async fn previously_deferred_transaction_is_kept_without_checks() {
         &s.authority,
         &s.epoch_store,
         3,
-        true,
         &Default::default(),
         &mut transactions,
     )
@@ -8139,7 +8111,6 @@ async fn saved_keep_without_effects_revalidates_and_rejects_disagreement() {
             &authority,
             &epoch_store,
             2,
-            true,
             &Default::default(),
             &mut vec![make_user_tx_v1_verified(tx)],
         )
@@ -8330,7 +8301,6 @@ async fn validation_loop_at_a_commit_checks_locks_before_the_reader() {
         &s.authority,
         &s.epoch_store,
         13,
-        true,
         &Default::default(),
         &mut transactions,
     )
@@ -8812,7 +8782,6 @@ impl ImmutableInputSetup {
             &self.authority,
             &self.epoch_store,
             1,
-            false,
             &Default::default(),
             transactions,
         )
@@ -8958,8 +8927,6 @@ async fn assert_node_limits_reject(setup: &PublishSetup) {
             &VerifiedTransaction::new_unchecked(setup.tx.clone()),
             &epoch_store,
             &setup.authority.config.transaction_deny_config,
-            false,
-            VerifierLimitsSource::NodeConfig(&setup.authority.config.verifier_signing_config),
         )
         .await;
 
@@ -8989,7 +8956,6 @@ async fn post_consensus_validation_meters_packages_with_protocol_limits() {
         &setup.authority,
         &epoch_store,
         1,
-        false,
         &Default::default(),
         &mut transactions,
     )
@@ -9231,7 +9197,6 @@ async fn transaction_naming_a_version_a_failed_transaction_consumed_is_dropped_o
         &f.s.authority,
         &f.s.epoch_store,
         failed_at + f.s.horizon_distance(),
-        true,
         &Default::default(),
         &mut transactions,
     )
@@ -9332,7 +9297,6 @@ async fn gas_coin_of_an_unauthorized_transaction_moves_to_its_next_version() {
         &s.authority,
         &s.epoch_store,
         failed_at,
-        true,
         &Default::default(),
         &mut transactions,
     )
@@ -9369,7 +9333,6 @@ async fn gas_coin_of_an_unauthorized_transaction_moves_to_its_next_version() {
         &s.authority,
         &s.epoch_store,
         failed_at + s.horizon_distance(),
-        true,
         &Default::default(),
         &mut transactions,
     )
@@ -10280,7 +10243,6 @@ async fn run_shared_coin_deletion_replay(options: RegulatedCoinOptions) {
             &authority,
             &epoch_store,
             12,
-            true,
             &Default::default(),
             &mut transactions,
         )
@@ -11304,7 +11266,6 @@ async fn pruning_keeps_a_dynamic_field_child_a_later_validation_can_still_keep()
                 &authority,
                 &epoch_store,
                 9,
-                true,
                 &Default::default(),
                 &mut transactions,
             )

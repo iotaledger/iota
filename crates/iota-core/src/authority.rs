@@ -347,11 +347,11 @@ pub struct AuthorityMetrics {
     /// `consensus_handler_load_shedding_dropped_transactions`.
     pub consensus_handler_validation_dropped_transactions: IntCounter,
     /// Results of the commit-indexed reader in post-consensus validation, by
-    /// result (keep, drop or missing) and the reason that decided it. Only
-    /// with deterministic validation on.
+    /// result (keep, drop or missing) and the reason that decided it. Only with
+    /// the P-COOL flow on.
     pub consensus_handler_validation_reader_verdicts: IntCounterVec,
     /// The commit being validated minus the highest fully executed commit, set
-    /// once per commit. Only with deterministic validation on.
+    /// once per commit. Only with the P-COOL flow on.
     pub consensus_handler_commit_execution_lag: IntGauge,
     /// Number of user transactions dropped during a consensus commit by
     /// post-consensus load shedding, i.e. probabilistically rejected at the
@@ -1138,50 +1138,24 @@ impl AuthorityState {
     /// commit, so a check added here belongs there too.
     ///
     /// `deny_config` is the deny rule source to enforce, chosen per caller:
-    /// the local config alone, the local config combined with the governance
-    /// rules (admission), or the governance-derived active set alone
-    /// (post-consensus) — the latter two with `enable_pcool_flow`.
+    /// the local config alone, or with `enable_pcool_flow` the local config
+    /// combined with the governance rules.
     ///
-    /// `epoch_gated_coin_deny_list` selects how the coin deny list is read:
-    /// `false` reads the latest value, so denials apply immediately - for
-    /// validator-local admission (signing); `true` reads the value settled
-    /// before the current epoch, which is deterministic across validators
-    /// regardless of each validator's execution progress - required
-    /// post-consensus, where the verdict decides whether the transaction
-    /// stays in the committed set. The two read modes intentionally disagree
-    /// about deny-list changes made in the current epoch, in both directions:
-    /// - An entry added this epoch is enforced at admission right away, while the epoch-gated
-    ///   layers enforce it only from the next epoch. Since execution and post-consensus must read
-    ///   epoch-gated to stay deterministic, admission is the only layer that can react to a new
-    ///   denial or global pause before the epoch boundary.
-    /// - An entry removed this epoch is admitted right away but still denied by the epoch-gated
-    ///   post-consensus read, so such transactions are sequenced by consensus and then
-    ///   deterministically dropped (no execution, no gas charged) until the removal settles at the
-    ///   next epoch boundary. The wasted consensus slot is accepted: post-consensus must handle
-    ///   deterministic drops regardless (owned-object double-spend losers, for example), and
-    ///   validators that skip admission can put such transactions into their blocks anyway, so no
-    ///   admission policy can limit how many deterministically-dropped transactions reach
-    ///   consensus.
-    ///
-    /// With `enable_pcool_flow`, post-consensus validation does
-    /// not call this function: [`Self::handle_transaction_validation_checks_at_commit`]
+    /// These are the checks of validator-local admission: the coin deny list
+    /// is read at its latest value, so a denial or global pause applies at
+    /// once, and published packages are verified with this validator's own
+    /// `VerifierSigningConfig`. Post-consensus validation does not call this
+    /// function: [`Self::handle_transaction_validation_checks_at_commit`]
     /// reads the deny list as of the commit's horizon, where a change made
-    /// this epoch counts from the horizon distance after the commit that
-    /// made it.
-    ///
-    /// `verifier_limits_source` says where the metered bytecode verifier takes
-    /// its limits for the packages the transaction publishes. Validator-local
-    /// admission passes this validator's own `VerifierSigningConfig`;
-    /// post-consensus validation passes the protocol config, because every
-    /// validator must reach the same verdict there.
+    /// this epoch counts from the horizon distance after the commit that made
+    /// it, and verifies packages with the protocol config's limits, so every
+    /// validator reaches the same verdict.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) async fn handle_transaction_validation_checks(
         &self,
         transaction: &VerifiedTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         deny_config: &dyn DenyRuleConfig,
-        epoch_gated_coin_deny_list: bool,
-        verifier_limits_source: VerifierLimitsSource<'_>,
     ) -> IotaResult<Vec<ObjectReference>> {
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
@@ -1225,7 +1199,7 @@ impl AuthorityState {
                 &tx_receiving_objects,
                 &move_authenticators,
                 per_authenticator_inputs,
-                verifier_limits_source,
+                VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
             )?;
 
         // Get the input objects for the authenticators, if there are
@@ -1269,7 +1243,6 @@ impl AuthorityState {
             &tx_receiving_objects,
             &per_authenticator_checked_input_objects,
             &self.get_object_store(),
-            epoch_gated_coin_deny_list.then_some(epoch),
         )?;
 
         let (kind, signer, gas_data) = tx.execution_parts();
@@ -1587,12 +1560,6 @@ impl AuthorityState {
                 &transaction,
                 epoch_store,
                 &self.config.transaction_deny_config,
-                // Latest-value coin deny-list read: admission is validator-local,
-                // and denials should take effect immediately. Unlike the P-COOL
-                // submission path, no post-consensus re-check follows - this is
-                // the only sender-side coin deny check in the certificate flow.
-                false,
-                VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
             )
             .await?;
 
@@ -2483,10 +2450,10 @@ impl AuthorityState {
                 per_authenticator_checked_input_objects.len(),
                 "Move authenticators amount must match the number of checked authenticator inputs"
             );
-            // Under deterministic validation, a gas owner that cannot be resolved
-            // did not authorize the transaction, so nobody pays; its own failure is
+            // Under the P-COOL flow, a gas owner that cannot be resolved did
+            // not authorize the transaction, so nobody pays; its own failure is
             // then the one reported.
-            let deterministic_validation = protocol_config.enable_pcool_flow();
+            let pcool_flow = protocol_config.enable_pcool_flow();
             let mut first_resolution_error = None;
             let mut gas_owner_resolution_error = None;
             let mut resolved_authenticators = Vec::with_capacity(move_authenticators.len());
@@ -2504,10 +2471,7 @@ impl AuthorityState {
                             input_objects: authenticator_checked_input_objects,
                         })
                     }
-                    Err(error)
-                        if deterministic_validation
-                            && move_authenticator.address() == gas_data.owner =>
-                    {
+                    Err(error) if pcool_flow && move_authenticator.address() == gas_data.owner => {
                         gas_owner_resolution_error = Some(error);
                     }
                     Err(error) => {
@@ -2524,15 +2488,15 @@ impl AuthorityState {
                 sponsor_authenticator_function_ref,
             };
 
-            // With a resolution failure, the executor gets the failure in place of
-            // the list, with the accounts the authenticators would have
-            // authenticated and, under deterministic validation, the gas owner's
+            // With a resolution failure, the executor gets the failure in place
+            // of the list, with the accounts the authenticators would have
+            // authenticated and, under the P-COOL flow, the gas owner's
             // authenticator if its account resolved, so it can decide who pays.
             let authenticators = match gas_owner_resolution_error.or(first_resolution_error) {
                 Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed {
                     error,
                     accounts,
-                    gas_owner: if deterministic_validation {
+                    gas_owner: if pcool_flow {
                         resolved_authenticators
                             .into_iter()
                             .find(|resolved| resolved.authenticator.address() == gas_data.owner)
