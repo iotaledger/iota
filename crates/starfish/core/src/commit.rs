@@ -111,7 +111,6 @@ pub(crate) enum Commit {
 }
 
 impl Commit {
-    /// Create a new commit.
     pub(crate) fn new(
         index: CommitIndex,
         previous_digest: CommitDigest,
