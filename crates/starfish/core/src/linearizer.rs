@@ -79,7 +79,7 @@ impl Linearizer {
     fn collect_sub_dag_and_commit(
         &mut self,
         leader_block: VerifiedBlockHeader,
-        metastate: Option<CommitMetastate>,
+        metastate: CommitMetastate,
         strong_voters: Vec<AuthorityIndex>,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
     ) -> (PendingSubDag, TrustedCommit) {
@@ -144,7 +144,7 @@ impl Linearizer {
         // Optimistic: record the leader's r+1 strong-voters as acks for the
         // leader's ref and each of its acknowledgments. Crossing 2f+1 commits
         // the ref through the standard quorum path.
-        if metastate == Some(CommitMetastate::Optimistic) {
+        if metastate == CommitMetastate::Optimistic {
             let leader_ref = leader_block.reference();
             let refs: Vec<BlockRef> = std::iter::once(leader_ref)
                 .chain(leader_block.acknowledgments().iter().copied())
@@ -205,7 +205,7 @@ impl Linearizer {
                 .collect::<Vec<BlockRef>>(),
             committed_transactions_refs,
             reputation_scores_desc.clone(),
-            metastate == Some(CommitMetastate::Optimistic),
+            metastate == CommitMetastate::Optimistic,
         );
         let serialized = commit
             .serialize()
@@ -286,11 +286,7 @@ impl Linearizer {
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn get_pending_sub_dags(
         &mut self,
-        committed_leaders: Vec<(
-            VerifiedBlockHeader,
-            Option<CommitMetastate>,
-            Vec<AuthorityIndex>,
-        )>,
+        committed_leaders: Vec<(VerifiedBlockHeader, CommitMetastate, Vec<AuthorityIndex>)>,
     ) -> Vec<PendingSubDag> {
         if committed_leaders.is_empty() {
             return vec![];
@@ -543,7 +539,7 @@ mod tests {
     use super::*;
     use crate::{
         CommitIndex, TestBlockHeader,
-        commit::{CommitDigest, WAVE_LENGTH, max_commit_bytes, with_no_metastate},
+        commit::{CommitDigest, WAVE_LENGTH, max_commit_bytes, with_standard_metastate},
         context::Context,
         dag_state::DataSource,
         leader_schedule::{LeaderSchedule, LeaderSwapTable},
@@ -582,7 +578,7 @@ mod tests {
             .map(Option::unwrap)
             .collect::<Vec<_>>();
 
-        let commits = linearizer.get_pending_sub_dags(with_no_metastate(leaders.clone()));
+        let commits = linearizer.get_pending_sub_dags(with_standard_metastate(leaders.clone()));
         for (idx, subdag) in commits.into_iter().enumerate() {
             tracing::info!("{subdag:?}");
             assert_eq!(subdag.leader, leaders[idx].reference());
@@ -670,7 +666,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         // Create some commits
-        let commits = linearizer.get_pending_sub_dags(with_no_metastate(leaders));
+        let commits = linearizer.get_pending_sub_dags(with_standard_metastate(leaders));
         {
             // Write them in DagState
             let mut write = dag_state.write();
@@ -692,7 +688,7 @@ mod tests {
 
         // Now on the commits only the first one should contain the updated scores, the
         // other should be empty
-        let commits = linearizer.get_pending_sub_dags(with_no_metastate(leaders));
+        let commits = linearizer.get_pending_sub_dags(with_standard_metastate(leaders));
         assert_eq!(commits.len(), 10);
         let scores = vec![
             (AuthorityIndex::new_for_test(1), 29),
@@ -803,7 +799,7 @@ mod tests {
             vec![],
         );
 
-        let commit = linearizer.get_pending_sub_dags(with_no_metastate(vec![leader.clone()]));
+        let commit = linearizer.get_pending_sub_dags(with_standard_metastate(vec![leader.clone()]));
         assert_eq!(commit.len(), 1);
 
         let subdag = &commit[0];
@@ -897,7 +893,8 @@ mod tests {
             .collect::<Vec<_>>();
 
         for (idx, leader) in leaders.iter().enumerate() {
-            let subdags = linearizer.get_pending_sub_dags(with_no_metastate(vec![leader.clone()]));
+            let subdags =
+                linearizer.get_pending_sub_dags(with_standard_metastate(vec![leader.clone()]));
             assert_eq!(subdags.len(), 1);
             let subdag = &subdags[0];
 
@@ -1016,7 +1013,7 @@ mod tests {
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-        linearizer.get_pending_sub_dags(with_no_metastate(leaders));
+        linearizer.get_pending_sub_dags(with_standard_metastate(leaders));
         // Check that before eviction acknowledgements for all rounds up to num_rounds-2
         // are stored
         for round in 1..=num_rounds - 2 {
@@ -1234,7 +1231,7 @@ mod tests {
             .collect();
         let commits = linearizer.get_pending_sub_dags(vec![(
             leader,
-            Some(CommitMetastate::Optimistic),
+            CommitMetastate::Optimistic,
             strong_voters,
         )]);
         assert_eq!(commits.len(), 1);
@@ -1303,7 +1300,7 @@ mod tests {
             .collect();
         let commits_a = linearizer.get_pending_sub_dags(vec![(
             leader_a,
-            Some(CommitMetastate::Optimistic),
+            CommitMetastate::Optimistic,
             strong_voters,
         )]);
         assert_eq!(commits_a.len(), 1);
@@ -1321,7 +1318,8 @@ mod tests {
         let leader_b = dag_builder
             .leader_block(7)
             .expect("Leader at round 7 should exist");
-        let commits_b = linearizer.get_pending_sub_dags(vec![(leader_b, None, vec![])]);
+        let commits_b =
+            linearizer.get_pending_sub_dags(vec![(leader_b, CommitMetastate::Standard, vec![])]);
         assert_eq!(commits_b.len(), 1);
         for block_ref in &optimistic_set {
             assert!(
@@ -1366,11 +1364,8 @@ mod tests {
         let leader_ref = leader.reference();
         let leader_ack_refs: Vec<BlockRef> = leader.acknowledgments().to_vec();
 
-        let commits = linearizer.get_pending_sub_dags(vec![(
-            leader,
-            Some(CommitMetastate::Standard),
-            vec![],
-        )]);
+        let commits =
+            linearizer.get_pending_sub_dags(vec![(leader, CommitMetastate::Standard, vec![])]);
         assert_eq!(commits.len(), 1);
         let standard_refs = &commits[0].committed_transaction_refs;
         let contains_block = |refs: &[GenericTransactionRef], block_ref: &BlockRef| -> bool {
@@ -1423,7 +1418,7 @@ mod tests {
             (0..3u8).map(AuthorityIndex::new_for_test).collect();
         let commits = linearizer.get_pending_sub_dags(vec![(
             leader,
-            Some(CommitMetastate::Optimistic),
+            CommitMetastate::Optimistic,
             strong_voters.iter().copied().collect(),
         )]);
         assert_eq!(commits.len(), 1);
@@ -1535,7 +1530,7 @@ mod tests {
 
         let subdags = linearizer.get_pending_sub_dags(vec![(
             leader_modified,
-            Some(CommitMetastate::Optimistic),
+            CommitMetastate::Optimistic,
             all_authorities,
         )]);
         assert_eq!(subdags.len(), 1);
@@ -1643,7 +1638,7 @@ mod tests {
             .leader_block(leader_round)
             .expect("leader block should exist");
 
-        let subdags = linearizer.get_pending_sub_dags(with_no_metastate(vec![leader]));
+        let subdags = linearizer.get_pending_sub_dags(with_standard_metastate(vec![leader]));
         assert_eq!(subdags.len(), 1);
         let max_subdag_blocks = gc_depth as usize * num_authorities + 1;
         assert_eq!(subdags[0].headers.len(), max_subdag_blocks);
