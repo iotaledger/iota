@@ -168,7 +168,6 @@ impl SlidingWindowSchedule {
 
 #[cfg(test)]
 mod tests {
-    use rstest::rstest;
 
     use super::*;
     use crate::test_dag_builder::DagBuilder;
@@ -195,16 +194,11 @@ mod tests {
         assert_eq!(schedule.scores_entries.len(), 0);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_eviction_subtracts_from_aggregate(#[values(false, true)] starfish_speed: bool) {
+    async fn test_eviction_subtracts_from_aggregate() {
         // Small window so we can saturate it within a small DAG.
         let window_size: u32 = 2;
-        let mut context = Context::new_for_test(4).0;
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
-        let context = Arc::new(context);
+        let context = Arc::new(Context::new_for_test(4).0);
         let mut schedule = SlidingWindowSchedule::new(context.clone(), window_size);
         // 6 commits → 3 scored (commits 1..=3 scored as c_minus_3 in iterations 4..=6).
         let subdags = build_full_commits(context.clone(), 6);
@@ -215,12 +209,11 @@ mod tests {
         assert_eq!(schedule.scores_entries.len(), window_size as usize);
 
         // In a fully-connected DAG each scored commit contributes
-        // committee.total_stake() to every authority — doubled under
-        // StarfishSpeed, where every vote is a strong vote. The aggregate
-        // equals `window_size * per_commit` because earlier contributions were
-        // subtracted on eviction.
-        let vote_weight: u64 = if starfish_speed { 2 } else { 1 };
-        let per_commit = context.committee.total_stake() * vote_weight;
+        // committee.total_stake() to every authority — doubled, since every
+        // vote is a strong vote. The aggregate equals `window_size *
+        // per_commit` because earlier contributions were subtracted on
+        // eviction.
+        let per_commit = context.committee.total_stake() * 2;
         let expected = per_commit * (window_size as u64);
         assert_eq!(
             schedule.total_scores_per_authority,
@@ -228,16 +221,9 @@ mod tests {
         );
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_reputation_scores_reports_window_aggregate_and_range(
-        #[values(false, true)] starfish_speed: bool,
-    ) {
-        let mut context = Context::new_for_test(4).0;
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
-        let context = Arc::new(context);
+    async fn test_reputation_scores_reports_window_aggregate_and_range() {
+        let context = Arc::new(Context::new_for_test(4).0);
         let mut schedule = SlidingWindowSchedule::new(context.clone(), 10);
 
         // Before anything is scored: all-zero scores over the empty range.
@@ -255,9 +241,8 @@ mod tests {
         }
         let scores = schedule.reputation_scores();
         assert_eq!(scores.commit_range, (1..=3).into());
-        // Under StarfishSpeed every vote is a strong vote, which scores double.
-        let vote_weight: u64 = if starfish_speed { 2 } else { 1 };
-        let per_commit = context.committee.total_stake() * vote_weight;
+        // Every vote is a strong vote, which scores double.
+        let per_commit = context.committee.total_stake() * 2;
         assert_eq!(
             scores.scores_per_authority,
             vec![per_commit * 3; context.committee.size()]

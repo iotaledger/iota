@@ -104,31 +104,13 @@ impl SignedBlockVerifier {
     }
 }
 
-/// Rejects a deserialized `BlockHeader` whose variant does not match the local
-/// `consensus_starfish_speed` configuration. The flag is uniform across the
-/// network within an epoch, so any mismatch implies either a malicious peer
-/// or a misconfigured upgrade path. V2 is gated by `consensus_starfish_speed`;
-/// V1 is the only legal variant when the flag is off.
-pub(crate) fn check_block_header_version_matches_flag(
-    header: &BlockHeader,
-    protocol_config: &iota_protocol_config::ProtocolConfig,
-) -> ConsensusResult<()> {
-    let starfish_speed = protocol_config.consensus_starfish_speed();
-    let variant_matches_flag = matches!(
-        (header, starfish_speed),
-        (BlockHeader::V1(_), false) | (BlockHeader::V2(_), true)
-    );
-    if !variant_matches_flag {
-        let actual = match header {
-            BlockHeader::V1(_) => "V1",
-            BlockHeader::V2(_) => "V2",
-        };
-        return Err(ConsensusError::WrongBlockHeaderVersionForFlag {
-            actual,
-            starfish_speed,
-        });
+/// Rejects a deserialized `BlockHeader` that is not V2, the only variant
+/// honest peers propose.
+pub(crate) fn check_block_header_version(header: &BlockHeader) -> ConsensusResult<()> {
+    match header {
+        BlockHeader::V1(_) => Err(ConsensusError::WrongBlockHeaderVersion { actual: "V1" }),
+        BlockHeader::V2(_) => Ok(()),
     }
-    Ok(())
 }
 
 // All block verification logic are implemented below.
@@ -149,9 +131,7 @@ impl BlockVerifier for SignedBlockVerifier {
         }
         ConsensusError::quick_validation_authority_indices(&[block.author()], committee)?;
 
-        // Reject blocks whose header variant does not match the local
-        // `consensus_starfish_speed` configuration.
-        check_block_header_version_matches_flag(block, &self.context.protocol_config)?;
+        check_block_header_version(block)?;
 
         // Verify the block's signature.
         block.verify_signature(&self.context)?;
@@ -267,8 +247,7 @@ impl BlockVerifier for SignedBlockVerifier {
             });
         }
 
-        // Validate strong_vote field. Reachable only on V2 headers, which the
-        // version-flag check above already gated on `consensus_starfish_speed`.
+        // Validate strong_vote field.
         if let Some(strong_vote) = block.strong_vote() {
             if !committee.is_valid_index(strong_vote.leader_authority) {
                 return Err(ConsensusError::InvalidStrongVoteAuthority {
@@ -392,7 +371,6 @@ impl BlockVerifier for NoopBlockVerifier {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use rstest::rstest;
     use starfish_config::AuthorityIndex;
 
     use super::*;
@@ -496,15 +474,11 @@ pub(crate) mod test {
         }
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_verify_block(#[values(false, true)] starfish_speed: bool) {
-        let (mut context, keypairs) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+    async fn test_verify_block() {
+        let (context, keypairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let version = TestBlockHeaderVersion::from_context(&context);
+        let version = TestBlockHeaderVersion::V2;
         let authority_2_protocol_keypair = &keypairs[2].1;
         let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
 
@@ -756,20 +730,16 @@ pub(crate) mod test {
         }
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_verify_block_round_gap(#[values(false, true)] starfish_speed: bool) {
+    async fn test_verify_block_round_gap() {
         let (mut context, keypairs) = Context::new_for_test(4);
         // Small gc_depth so we can construct violations without huge round
         // numbers.
         context
             .protocol_config
             .set_consensus_gc_depth_for_testing(5);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let context = Arc::new(context);
-        let version = TestBlockHeaderVersion::from_context(&context);
+        let version = TestBlockHeaderVersion::V2;
         let authority_2_protocol_keypair = &keypairs[2].1;
         let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
 
@@ -850,80 +820,32 @@ pub(crate) mod test {
     }
 
     #[tokio::test]
-    async fn test_verify_block_version_flag() {
-        use crate::block_header::BlockHeader;
+    async fn test_verify_block_rejects_v1_header() {
+        let (context, keypairs) = Context::new_for_test(4);
+        let verifier = SignedBlockVerifier::new(Arc::new(context), Arc::new(TxnSizeVerifier {}));
 
-        let ancestors = vec![
-            BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
-            BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
-            BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
-            BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
-        ];
-
-        // V1 block reaching a flag-on receiver -> WrongBlockHeaderVersionForFlag.
-        {
-            let (mut context, keypairs) = Context::new_for_test(4);
-            context
-                .protocol_config
-                .set_consensus_starfish_speed_for_testing(true);
-            let context = Arc::new(context);
-            let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
-
-            let block = TestBlockHeader::new(10, 2)
-                .set_ancestors(ancestors.clone())
-                .build();
-            let signed_block = SignedBlockHeader::new(block, &keypairs[2].1).unwrap();
-            assert!(matches!(
-                verifier.verify(&signed_block),
-                Err(ConsensusError::WrongBlockHeaderVersionForFlag {
-                    actual: "V1",
-                    starfish_speed: true,
-                })
-            ));
-        }
-
-        // V2 block reaching a flag-off receiver -> WrongBlockHeaderVersionForFlag.
-        {
-            let (mut context, keypairs) = Context::new_for_test(4);
-            context
-                .protocol_config
-                .set_consensus_starfish_speed_for_testing(false);
-            let context = Arc::new(context);
-            let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
-
-            let v2 = crate::block_header::BlockHeaderV2::new(
-                0,
-                10,
-                AuthorityIndex::new_for_test(2),
-                0,
-                ancestors,
-                vec![],
-                vec![],
-                crate::block_header::TransactionsCommitment::DEFAULT_FOR_TEST,
-                None,
-            );
-            let signed_block = SignedBlockHeader::new(BlockHeader::V2(v2), &keypairs[2].1).unwrap();
-            assert!(matches!(
-                verifier.verify(&signed_block),
-                Err(ConsensusError::WrongBlockHeaderVersionForFlag {
-                    actual: "V2",
-                    starfish_speed: false,
-                })
-            ));
-        }
+        let block = TestBlockHeader::new(10, 2)
+            .set_ancestors(vec![
+                BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+                BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+            ])
+            .build();
+        let signed_block = SignedBlockHeader::new(block, &keypairs[2].1).unwrap();
+        assert!(matches!(
+            verifier.verify(&signed_block),
+            Err(ConsensusError::WrongBlockHeaderVersion { actual: "V1" })
+        ));
     }
 
     #[tokio::test]
     async fn test_verify_block_strong_vote() {
-        let (mut context_on, keypairs) = Context::new_for_test(4);
-        context_on
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(true);
-        let context_on = Arc::new(context_on);
+        let (context, keypairs) = Context::new_for_test(4);
 
         let keypair = &keypairs[2].1;
         let leader_authority = AuthorityIndex::new_for_test(0);
-        let verifier_on = SignedBlockVerifier::new(context_on, Arc::new(TxnSizeVerifier {}));
+        let verifier = SignedBlockVerifier::new(Arc::new(context), Arc::new(TxnSizeVerifier {}));
 
         let base = TestBlockHeader::new(10, 2)
             .set_version(TestBlockHeaderVersion::V2)
@@ -952,7 +874,7 @@ pub(crate) mod test {
                 .build();
             let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
             assert!(matches!(
-                verifier_on.verify(&signed_block),
+                verifier.verify(&signed_block),
                 Err(ConsensusError::InvalidStrongVoteAuthority { .. })
             ));
         }
@@ -970,7 +892,7 @@ pub(crate) mod test {
                 .build();
             let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
             assert!(matches!(
-                verifier_on.verify(&signed_block),
+                verifier.verify(&signed_block),
                 Err(ConsensusError::InvalidStrongVoteAuthority { .. })
             ));
         }
@@ -989,7 +911,7 @@ pub(crate) mod test {
                 .build();
             let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
             assert!(matches!(
-                verifier_on.verify(&signed_block),
+                verifier.verify(&signed_block),
                 Err(ConsensusError::StrongVoteLeaderNotInAncestors { .. })
             ));
         }
@@ -999,7 +921,7 @@ pub(crate) mod test {
         {
             let block = base.set_strong_vote(Some(well_formed)).build();
             let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
-            verifier_on.verify(&signed_block).unwrap();
+            verifier.verify(&signed_block).unwrap();
         }
     }
 }

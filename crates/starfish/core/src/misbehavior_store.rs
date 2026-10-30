@@ -400,7 +400,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::StreamedBlockRoundNotIncreasing { .. }
         | ConsensusError::CommitDataAfterTransactions { .. }
         | ConsensusError::MalformedCommit(_)
-        | ConsensusError::WrongCommitVersionForFlags { .. }
+        | ConsensusError::WrongCommitVersion { .. }
         | ConsensusError::InvalidAuthorityIndexRequested { .. }
         | ConsensusError::UnexpectedStartCommit { .. }
         | ConsensusError::UnexpectedCommitSequence { .. }
@@ -491,7 +491,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::FailedToFetchBlockHeaders { .. }
         | ConsensusError::MissingVotingBlockHeaderInStorage { .. }
         | ConsensusError::WrongShardVersion { .. }
-        | ConsensusError::WrongBlockHeaderVersionForFlag { .. }
+        | ConsensusError::WrongBlockHeaderVersion { .. }
         | ConsensusError::TransactionsNotAvailable { .. } => FaultType::Untracked,
     }
 }
@@ -1395,10 +1395,7 @@ mod tests {
             },
             // Commit lists an honest server never sends.
             ConsensusError::MalformedCommit(bcs::Error::Custom("bad".to_string())),
-            ConsensusError::WrongCommitVersionForFlags {
-                actual: "V2",
-                starfish_speed: true,
-            },
+            ConsensusError::WrongCommitVersion { actual: "V2" },
             ConsensusError::InvalidAuthorityIndexRequested {
                 index: AuthorityIndex::new_for_test(4),
                 max: 4,

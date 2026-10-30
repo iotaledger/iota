@@ -2446,7 +2446,7 @@ mod tests {
                 Round 7 : { * },
              }";
         let final_round = 6;
-        let result = parse_dag(dag_str, false);
+        let result = parse_dag(dag_str);
         assert!(result.is_ok());
 
         let dag_builder = result.unwrap();

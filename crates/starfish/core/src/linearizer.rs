@@ -195,7 +195,6 @@ impl Linearizer {
 
         // Create the Commit.
         let commit = Commit::new(
-            &self.context,
             last_commit_index + 1,
             last_commit_digest,
             timestamp_ms,
@@ -752,7 +751,6 @@ mod tests {
             .expect("Wave 1 leader round block should exist");
         let mut last_commit_index = 1;
         let first_commit_data = TrustedCommit::new_for_test(
-            &context,
             last_commit_index,
             CommitDigest::MIN,
             0,
@@ -797,7 +795,6 @@ mod tests {
 
         last_commit_index += 1;
         let expected_second_commit = TrustedCommit::new_for_test(
-            &context,
             last_commit_index,
             CommitDigest::MIN,
             0,
@@ -887,7 +884,7 @@ mod tests {
                 Round 5 : { * },
             }";
 
-        let dag_builder = parse_dag(dag_str, false).expect("Invalid dag");
+        let dag_builder = parse_dag(dag_str).expect("Invalid dag");
         dag_builder.print();
         dag_builder.persist_all_blocks(dag_state.clone());
 
