@@ -179,12 +179,10 @@ pub struct InputCheckRules {
     /// the received object out of their dependencies when it does not match.
     pub any_receiving_object_digest: bool,
     /// Skip the metered bytecode verifier on the packages the transaction
-    /// publishes. Execution verifies them again, without the signing limits.
-    ///
-    /// This differs from the other relaxations in two ways, and may be worth
-    /// reconsidering: a simulation then accepts a publish that signing would
-    /// reject, and nothing bounds how long verifying the modules takes on an
-    /// endpoint that needs no signature.
+    /// publishes. Execution verifies them again with neither a limit nor a
+    /// meter, so these checks are the only bound on that work, and a caller
+    /// that sets this accepts a publish that signing would reject. Both
+    /// [`Self::STRICT`] and [`Self::RELAXED_UNSAFE`] leave it off.
     pub skip_package_verification: bool,
 }
 
@@ -210,7 +208,10 @@ impl InputCheckRules {
         any_initial_shared_version: true,
         any_receiving_object_version: true,
         any_receiving_object_digest: true,
-        skip_package_verification: true,
+        // Execution verifies a published package unmetered, so dropping this
+        // would leave nothing bounding that work on an endpoint that needs no
+        // signature.
+        skip_package_verification: false,
     };
 }
 

@@ -60,12 +60,12 @@ use iota_types::{
     signature::VerifyParams,
     supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
     transaction::{
-        CallArg, CancelledObjects, MAX_PROGRAMMABLE_TX_INPUTS, SenderSignedTransactionAPI,
-        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope, TransactionKey,
-        VerifiedCertificate, VerifiedTransaction,
+        CallArg, CancelledObjects, InputObjects, MAX_PROGRAMMABLE_TX_INPUTS, ObjectReadResult,
+        ReceivingObjects, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
+        TransactionEnvelope, TransactionKey, VerifiedCertificate, VerifiedTransaction,
     },
-    transaction_executor::{SimulateTransactionResult, VmChecks},
+    transaction_executor::{InputCheckRules, SimulateTransactionResult, VmChecks},
     utils::{
         assert_size_limit_err, ptb_above_max_tx_size, ptb_with_pure_inputs,
         to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
@@ -1920,12 +1920,12 @@ async fn test_simulate_rejects_a_system_object_misuse() {
     }
 }
 
-/// A published package is metered by the signing-time bytecode verifier in a
-/// dry run, and not in a dev inspect, which sets
-/// `InputCheckRules::skip_package_verification`. Execution verifies the
-/// modules again either way, without those limits.
+/// The signing-time bytecode verifier meters a published package unless the
+/// caller sets `InputCheckRules::skip_package_verification`, which neither
+/// `STRICT` nor `RELAXED_UNSAFE` does — so both simulation modes meter it, as
+/// `simulate_meters_published_packages_with_the_node_signing_limits` asserts.
 #[tokio::test]
-async fn test_simulate_meters_a_published_package_only_with_checks_enabled() {
+async fn test_skip_package_verification_drops_the_package_meter() {
     // A one-tick meter limit fails the first function it meters, as an operator
     // could configure in the node YAML.
     let node_limits: VerifierSigningConfig = serde_yaml::from_str(concat!(
@@ -1939,15 +1939,13 @@ async fn test_simulate_meters_a_published_package_only_with_checks_enabled() {
     let fullnode_key_pair = get_authority_key_pair().1;
     let fullnode = TestAuthorityBuilder::new()
         .with_keypair(&fullnode_key_pair)
-        .with_verifier_signing_config(node_limits)
+        .with_verifier_signing_config(node_limits.clone())
         .build()
         .await;
 
     let sender = Address::random();
-    let max_tx_gas = fullnode
-        .epoch_store_for_testing()
-        .protocol_config()
-        .max_tx_gas();
+    let epoch_store = fullnode.epoch_store_for_testing();
+    let max_tx_gas = epoch_store.protocol_config().max_tx_gas();
     let gas_coin = Object::new_gas_with_balance_and_owner_for_testing(max_tx_gas * 4, sender);
     fullnode.insert_genesis_object(gas_coin.clone());
 
@@ -1956,31 +1954,44 @@ async fn test_simulate_meters_a_published_package_only_with_checks_enabled() {
     let publish = TestTransactionBuilder::new(sender, gas_coin.object_ref(), reference_gas_price)
         .publish(path)
         .build();
-    let TransactionKind::Programmable(pt) = publish.kind().clone() else {
-        panic!("a publish is a programmable transaction");
+
+    let receiving_objects = ReceivingObjects::from(vec![]);
+    let verdict = |input_checks| {
+        iota_transaction_checks::check_transaction_input(
+            epoch_store.protocol_config(),
+            reference_gas_price,
+            &publish,
+            InputObjects::new(vec![ObjectReadResult::new_from_gas_object(&gas_coin)]),
+            &receiving_objects,
+            &fullnode.metrics.bytecode_verifier_metrics,
+            iota_transaction_checks::VerifierLimitsSource::NodeConfig(&node_limits),
+            // No Move authenticator runs here, so it gets no gas budget.
+            0,
+            false,
+            input_checks,
+        )
+        .err()
     };
 
-    for (checks, result) in
-        simulate_under_both_checks(&fullnode, sender, vec![gas_coin.object_ref()], &pt)
-    {
-        match checks {
-            VmChecks::Enabled => assert!(
-                matches!(
-                    &result,
-                    Err(IotaError::UserInput {
-                        error: UserInputError::PackageVerificationTimedout { .. }
-                    })
-                ),
-                "a dry run should meter the published package: {:?}",
-                result.as_ref().err()
-            ),
-            VmChecks::Disabled => assert!(
-                result.is_ok(),
-                "a dev inspect should not meter the published package: {:?}",
-                result.as_ref().err()
-            ),
-        }
-    }
+    let metered = verdict(InputCheckRules::STRICT);
+    assert!(
+        matches!(
+            metered,
+            Some(IotaError::UserInput {
+                error: UserInputError::PackageVerificationTimedout { .. }
+            })
+        ),
+        "the node's limits should meter the published package: {metered:?}"
+    );
+
+    let skipped = verdict(InputCheckRules {
+        skip_package_verification: true,
+        ..InputCheckRules::STRICT
+    });
+    assert!(
+        skipped.is_none(),
+        "the relaxation should drop the meter: {skipped:?}"
+    );
 }
 
 /// A mismatched input object digest is rejected by a dry run and accepted by a
