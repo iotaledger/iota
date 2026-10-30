@@ -661,10 +661,7 @@ impl IotaNode {
         )
         .map_err(|e| anyhow!("refusing to start: {e}"))?;
 
-        // The first one-way step: an older release reads the column family
-        // this drops.
-        store.retire_objects_pruner_watermark()?;
-
+        // The first one-way step: an older release reads these databases.
         // Frees disk space ahead of the one-time migration passes below. The
         // check above counted that space as free, so a failed removal must
         // stop the start before the migration fills the disk.
@@ -681,6 +678,10 @@ impl IotaNode {
                 warn!("failed to remove a legacy index database: {e}");
             }
         }
+
+        // After the last refusal above: an older release reads the column
+        // family this drops.
+        store.retire_objects_pruner_watermark()?;
 
         // Before any service starts, since nothing reads the flat tables.
         // TODO(https://github.com/iotaledger/iota/issues/12763): remove this call.
