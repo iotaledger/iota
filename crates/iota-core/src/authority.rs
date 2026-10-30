@@ -2778,6 +2778,7 @@ impl AuthorityState {
         InnerTemporaryStore,
         TransactionEffects,
         Option<ExecutionError>,
+        ObjectSet,
     )> {
         let lock = RwLock::new(epoch_store.epoch());
         let execution_guard = lock.try_read().unwrap();
@@ -2790,9 +2791,11 @@ impl AuthorityState {
             &AttestationSource::Unattested,
             epoch_store,
         )
-        .map(|(inner_temp_store, effects, execution_error, _, _)| {
-            (inner_temp_store, effects, execution_error)
-        })
+        .map(
+            |(inner_temp_store, effects, execution_error, read_objects, _)| {
+                (inner_temp_store, effects, execution_error, read_objects)
+            },
+        )
     }
 
     /// Simulate a transaction without committing it.
