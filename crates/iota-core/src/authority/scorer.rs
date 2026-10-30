@@ -56,9 +56,51 @@ impl Scoreboard {
         }
     }
 
+    /// The latest published scores: the entry at position `i` is the score of
+    /// the authority whose [`Committee::authority_index()`] is `i`.
+    ///
+    /// [`Committee::authority_index()`]: iota_types::committee::Committee::authority_index
     pub(crate) fn current_scores(&self) -> Vec<u64> {
         self.current_scores.load().as_ref().clone()
     }
+}
+
+/// The scores in committee member index order: the entry at position `p` is
+/// the score of the validator whose committee member index is `p`. This is
+/// how `validator_set::advance_epoch()` reads the `scores` vector of the
+/// change-epoch transaction. `scores_by_authority_index` is as
+/// [`Scoreboard::current_scores()`] returns it;
+/// `committee_member_indices_by_authority_index` is as
+/// [`EpochStartSystemState::authority_indices_to_committee_member_indices()`]
+/// returns it.
+///
+/// # Panics
+///
+/// If `scores_by_authority_index` and
+/// `committee_member_indices_by_authority_index` differ in length.
+///
+/// [`EpochStartSystemState::authority_indices_to_committee_member_indices()`]: iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemState::authority_indices_to_committee_member_indices
+pub(crate) fn scores_by_committee_member_index(
+    scores_by_authority_index: &[u64],
+    committee_member_indices_by_authority_index: &[usize],
+) -> Vec<u64> {
+    assert_eq!(
+        scores_by_authority_index.len(),
+        committee_member_indices_by_authority_index.len(),
+        "there should be one score per committee member"
+    );
+
+    // `committee_member_indices_by_authority_index` is a permutation, so
+    // every entry is written exactly once.
+    let mut scores_by_committee_member_index = vec![0; scores_by_authority_index.len()];
+    for (&score, &committee_member_index) in scores_by_authority_index
+        .iter()
+        .zip(committee_member_indices_by_authority_index)
+    {
+        scores_by_committee_member_index[committee_member_index] = score;
+    }
+
+    scores_by_committee_member_index
 }
 
 /// Versioned scoring engine. Each variant is a self-contained struct that
@@ -593,8 +635,31 @@ mod tests {
     use crate::authority::authority_per_epoch_store::{
         misbehavior::MisbehaviorReportVersion,
         report_aggregator::ReportAggregator,
-        scorer::{MAX_SCORE, Scoreboard, ScorerV1, ScorerV2, VotingPower},
+        scorer::{
+            MAX_SCORE, Scoreboard, ScorerV1, ScorerV2, VotingPower,
+            scores_by_committee_member_index,
+        },
     };
+
+    /// `scores_by_committee_member_index()` places each score at the committee
+    /// member index given for its authority index: here the validator with
+    /// authority index 0 has committee member index 3, so its score moves from
+    /// position 0 to position 3.
+    #[test]
+    fn scores_move_to_their_committee_member_index() {
+        assert_eq!(
+            scores_by_committee_member_index(&[0, 100, 200, 300], &[3, 0, 1, 2]),
+            vec![100, 200, 300, 0]
+        );
+    }
+
+    /// `scores_by_committee_member_index()` panics when the scores and the
+    /// committee member indices differ in length: here one score is missing.
+    #[test]
+    #[should_panic(expected = "there should be one score per committee member")]
+    fn scores_must_cover_the_committee() {
+        scores_by_committee_member_index(&[0, 100, 200], &[0, 1, 2, 3]);
+    }
 
     fn mock_protocol_config_with_scorer(version: u16) -> ProtocolConfig {
         let mut config = ProtocolConfig::get_for_max_version_UNSAFE();

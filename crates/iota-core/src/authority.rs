@@ -5849,6 +5849,12 @@ impl AuthorityState {
     /// final checkpoint. As long as the network is able to create a certified
     /// checkpoint (which should be ensured by the capabilities vote), it
     /// will arrive via state sync and be executed by CheckpointExecutor.
+    ///
+    /// `scores` is indexed by authority index, see
+    /// [`Committee::authority_index()`], as `Scoreboard::current_scores()`
+    /// returns it. The transaction carries the scores in committee member
+    /// index order, which is where Move reads them, so this is the one place
+    /// that converts between the two orders.
     #[instrument(level = "error", skip_all)]
     pub async fn create_and_execute_advance_epoch_tx(
         &self,
@@ -5977,7 +5983,7 @@ impl AuthorityState {
                     epoch_start_timestamp_ms,
                     next_epoch_system_package_bytes,
                     eligible_active_validators,
-                    scores,
+                    epoch_store.scores_for_advance_epoch(&scores),
                     config.adjust_rewards_by_score(),
                 ));
             } else {
