@@ -237,15 +237,15 @@ impl IotaSystemState {
     pub fn for_testing(epoch: u64, protocol_version: u64) -> Self {
         use iota_sdk_move_types::{
             iota_framework::{
-                bag::Bag, object::UID, system_admin_cap::IotaSystemAdminCap, table::Table,
-                table_vec::TableVec, vec_map::VecMap,
+                bag::Bag, balance::Supply, object::UID, system_admin_cap::IotaSystemAdminCap,
+                table::Table, table_vec::TableVec, vec_map::VecMap,
             },
             iota_system::iota_system_state_inner::SystemParametersV1,
         };
         use iota_sdk_types::ObjectId;
 
         use crate::{
-            balance::{Balance, Supply},
+            balance::Balance,
             coin::TreasuryCap,
             gas_coin::IotaTreasuryCap,
             iota_system_state::iota_system_state_inner_v1::{
@@ -259,7 +259,7 @@ impl IotaSystemState {
             iota_treasury_cap: IotaTreasuryCap {
                 inner: TreasuryCap {
                     id: UID::new(ObjectId::ZERO),
-                    total_supply: Supply { value: 0 },
+                    total_supply: Supply::new(0),
                 },
             },
             validators: ValidatorSetV1 {

@@ -36,14 +36,13 @@ use iota_json_rpc_types::{
 use iota_package_resolver::{
     Package, PackageStore, PackageStoreWithLruCache, Resolver, error::Error as PackageResolverError,
 };
-use iota_sdk_move_types::iota_framework::vec_map::VecMap;
+use iota_sdk_move_types::iota_framework::{balance::Supply, vec_map::VecMap};
 use iota_sdk_types::{
     Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TransactionEvents, TypeTag,
     Version,
 };
 use iota_transaction_builder::DataReader;
 use iota_types::{
-    balance::Supply,
     base_types::VersionNumber,
     coin::TreasuryCap,
     coin_manager::CoinManager,
@@ -2779,12 +2778,12 @@ impl IndexerReader {
     pub async fn get_total_supply_in_blocking_task(
         &self,
         coin_struct: StructTag,
-    ) -> Result<Supply, IndexerError> {
+    ) -> Result<Supply<()>, IndexerError> {
         self.spawn_blocking(move |this| this.get_total_supply(coin_struct))
             .await
     }
 
-    fn get_total_supply(&self, coin_struct: StructTag) -> Result<Supply, IndexerError> {
+    fn get_total_supply(&self, coin_struct: StructTag) -> Result<Supply<()>, IndexerError> {
         if let Some(supply) = self.get_treasury_cap_total_supply(&coin_struct)? {
             return Ok(supply);
         }
@@ -2800,7 +2799,7 @@ impl IndexerReader {
     fn get_treasury_cap_total_supply(
         &self,
         coin_struct: &StructTag,
-    ) -> Result<Option<Supply>, IndexerError> {
+    ) -> Result<Option<Supply<()>>, IndexerError> {
         let tag = StructTag::new_treasury_cap(coin_struct.clone());
         Ok(self
             .get_object_as::<TreasuryCap>(tag)?
@@ -2810,7 +2809,7 @@ impl IndexerReader {
     fn get_coin_manager_total_supply(
         &self,
         coin_struct: &StructTag,
-    ) -> Result<Option<Supply>, IndexerError> {
+    ) -> Result<Option<Supply<()>>, IndexerError> {
         let tag = StructTag::new_coin_manager(coin_struct.clone());
         Ok(self
             .get_object_as::<CoinManager>(tag)?

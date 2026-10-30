@@ -7,6 +7,7 @@ use std::{
     fmt::{Display, Formatter},
 };
 
+use iota_sdk_move_types::iota_framework::balance::Supply;
 use iota_sdk_types::{
     Address, MoveStruct, ObjectData, ObjectId, Owner, TransactionDigest, Version,
 };
@@ -14,7 +15,6 @@ use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    balance::Supply,
     coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
@@ -167,7 +167,7 @@ mod checked {
         }
 
         /// Returns the total `Supply` of `Coin<IOTA>`.
-        pub fn total_supply(&self) -> &Supply {
+        pub fn total_supply(&self) -> &Supply<()> {
             &self.inner.total_supply
         }
     }

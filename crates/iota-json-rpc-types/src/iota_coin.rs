@@ -2,14 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::iota_framework::balance::Supply;
 use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version};
 use iota_types::{
-    balance::Supply, coin::CoinMetadata, error::IotaError,
-    messages_checkpoint::CheckpointSequenceNumber, object::Object,
+    coin::CoinMetadata, error::IotaError, messages_checkpoint::CheckpointSequenceNumber,
+    object::Object,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
+use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
     OwnedObjectCursor, Page,
@@ -30,38 +31,17 @@ pub struct IotaSupply {
     pub value: u64,
 }
 
-impl SerializeAs<Supply> for IotaSupply {
-    fn serialize_as<S>(source: &Supply, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        IotaSupply::from(source.clone()).serialize(serializer)
-    }
-}
-
-impl<'de> DeserializeAs<'de, Supply> for IotaSupply {
-    fn deserialize_as<D>(deserializer: D) -> Result<Supply, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let schema = IotaSupply::deserialize(deserializer)?;
-        Ok(Supply::from(schema))
-    }
-}
-
-impl From<Supply> for IotaSupply {
-    fn from(supply: Supply) -> Self {
+impl From<Supply<()>> for IotaSupply {
+    fn from(supply: Supply<()>) -> Self {
         Self {
             value: supply.value,
         }
     }
 }
 
-impl From<IotaSupply> for Supply {
+impl From<IotaSupply> for Supply<()> {
     fn from(schema: IotaSupply) -> Self {
-        Self {
-            value: schema.value,
-        }
+        Self::new(schema.value)
     }
 }
 
