@@ -749,8 +749,12 @@ impl IotaNode {
         // Where state sync leaves the results it downloads for the checkpoint
         // executor to commit. Needs nothing from the authority state, so it can
         // be shared with state sync before that exists.
+        // A validator executes what consensus gives it and keeps bookkeeping
+        // that committing results would not reproduce, so only a fullnode
+        // takes this path.
         let checkpoint_results_cache = config
             .checkpoint_archive_config()
+            .filter(|_| is_full_node)
             .filter(|archive| !archive.re_execute_archived_checkpoints)
             .map(|archive| {
                 Arc::new(CheckpointResultsCache::new(
