@@ -5683,8 +5683,9 @@ async fn validation_at_commit_reports_an_object_that_is_not_an_account_missing()
 
 /// A Move authenticator needs its account to be a shared object, but a
 /// transaction can still name an object owned by an address as its account.
-/// Post-consensus validation drops such a transaction when reading the account
-/// finds an object that is not shared, so it never reaches execution.
+/// A validator rejects such a transaction before submission, and
+/// post-consensus validation drops it when reading the account finds an object
+/// that is not shared, so it never reaches execution.
 #[tokio::test]
 async fn validation_at_commit_drops_an_account_owned_by_an_address() {
     let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -5710,6 +5711,21 @@ async fn validation_at_commit_drops_an_account_owned_by_an_address() {
         &gas_id,
         sponsor,
         &sponsor_key,
+    );
+
+    let error = s
+        .authority
+        .handle_transaction_validation_checks(&tx, &s.epoch_store, deny_config)
+        .await
+        .expect_err("a validator must reject an address-owned account before submission");
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::AccountObjectNotSupported { object_id }
+            } if object_id == account_id
+        ),
+        "{error:?}"
     );
 
     match s
