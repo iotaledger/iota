@@ -19,11 +19,7 @@
 //! readers.
 
 use iota_sdk_types::{ObjectId, Version};
-use iota_types::{
-    error::{IotaError, IotaResult},
-    object::Object,
-    storage::ObjectKey,
-};
+use iota_types::{error::IotaResult, object::Object, storage::ObjectKey};
 
 use super::{DynamicFieldAtHorizon, reader::CommitIndexedReader};
 use crate::authority::authority_per_epoch_store::handler_object_state::{
@@ -202,15 +198,11 @@ pub struct NeedBytes {
 impl DynamicFieldState for NeedBytes {}
 
 impl DynamicFieldReader<NeedBytes> {
-    /// The bytes at exactly that version. Pruning keeps every version a
-    /// commit above the horizon consumed, so a miss is a storage error,
-    /// never an answer.
+    /// The bytes at exactly that version, see
+    /// [`CommitIndexedReader::load_kept_version`].
     pub fn load_bytes(self, ctx: &CommitIndexedReader) -> IotaResult<DynamicFieldAtHorizon> {
-        let key = ObjectKey(self.id, self.state.version);
-        ctx.cache
-            .try_get_object_by_key(&key.0, key.1)?
+        ctx.load_kept_version(&ObjectKey(self.id, self.state.version))
             .map(DynamicFieldAtHorizon::Live)
-            .ok_or_else(|| IotaError::Storage(format!("no bytes for {key:?} in the object store")))
     }
 }
 

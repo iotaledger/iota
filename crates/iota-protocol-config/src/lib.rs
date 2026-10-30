@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 39;
+pub const MAX_PROTOCOL_VERSION: u64 = 40;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -269,6 +269,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             `acquires` lists when execution deserializes a module, and
 //             verify modules without the acquires pass and with vector element
 //             borrows checked by the call rule.
+// Version 40: Post-consensus validation takes the instantiation-loop graph
+//             edge limit, and whether the instantiation-loop check is
+//             metered, from the protocol config.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -800,9 +803,14 @@ struct FeatureFlags {
     // vector element borrows with the same rule as calls, and fails if a
     // deprecated instruction reaches it. This applies to every module the VM
     // verifies, including published packages it loads. Signing always runs
-    // with it on.
+    // with it on; post-consensus validation follows this flag.
     #[serde(skip_serializing_if = "is_false")]
     deprecate_global_storage_ops: bool,
+
+    // If true, post-consensus validation meters the instantiation-loop check
+    // of the bytecode verifier. Signing always meters it.
+    #[serde(skip_serializing_if = "is_false")]
+    meter_instantiation_loops: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1158,6 +1166,11 @@ pub struct ProtocolConfig {
     /// may spend per function, module and package. The check rejects a module
     /// it cannot finish within the limit.
     max_meter_ticks_regex_reference_safety: Option<u64>,
+
+    /// Maximum number of edges in the instantiation-loop graph of a Move
+    /// module, checked only by post-consensus validation. Signing uses a limit
+    /// set in the binary instead, and execution does not check it.
+    max_instantiation_loop_graph_edges: Option<u64>,
 
     // === Object runtime internal operation limits ====
     // These affect dynamic fields
@@ -2317,6 +2330,10 @@ impl ProtocolConfig {
     pub fn deprecate_global_storage_ops(&self) -> bool {
         self.feature_flags.deprecate_global_storage_ops
     }
+
+    pub fn meter_instantiation_loops(&self) -> bool {
+        self.feature_flags.meter_instantiation_loops
+    }
 }
 
 #[cfg(not(msim))]
@@ -2610,6 +2627,7 @@ impl ProtocolConfig {
             max_meter_ticks_per_module: Some(16_000_000),
             max_meter_ticks_per_package: Some(16_000_000),
             max_meter_ticks_regex_reference_safety: None,
+            max_instantiation_loop_graph_edges: None,
 
             object_runtime_max_num_cached_objects: Some(1000),
             object_runtime_max_num_cached_objects_system_tx: Some(1000 * 16),
@@ -3786,6 +3804,13 @@ impl ProtocolConfig {
                     // borrows checked by the call rule.
                     cfg.feature_flags.deprecate_global_storage_ops = true;
                 }
+                40 => {
+                    // Post-consensus validation meters the instantiation-loop
+                    // check and caps its graph with these values, which signing
+                    // also uses.
+                    cfg.feature_flags.meter_instantiation_loops = true;
+                    cfg.max_instantiation_loop_graph_edges = Some(100_000);
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -3848,10 +3873,9 @@ impl ProtocolConfig {
         const MAX_INSTANTIATION_LOOP_GRAPH_EDGES_AT_SIGNING: usize = 100_000;
 
         // Applied with the signing limits only: execution verifies without a
-        // meter. Both fail with PROGRAM_TOO_COMPLEX, which signing rejects. On
-        // chains with the P-COOL flow, the signing limits also decide which
-        // transactions post-consensus validation keeps, so validators running
-        // binaries with different values here can disagree.
+        // meter. Both fail with PROGRAM_TOO_COMPLEX, which signing rejects.
+        // Post-consensus validation takes them from the protocol config, see
+        // `post_consensus_verifier_config`.
         let (meter_instantiation_loops, max_instantiation_loop_graph_edges) =
             if signing_limits.is_some() {
                 (true, Some(MAX_INSTANTIATION_LOOP_GRAPH_EDGES_AT_SIGNING))
@@ -3888,6 +3912,36 @@ impl ProtocolConfig {
             meter_instantiation_loops,
             max_instantiation_loop_graph_edges,
             deprecate_global_storage_ops,
+        }
+    }
+
+    /// The bytecode verifier config for post-consensus validation: the
+    /// protocol's sign-time limits, with `deprecate_global_storage_ops`, the
+    /// instantiation-loop graph edge limit and the metering of that check
+    /// taken from the protocol config rather than set as at signing.
+    ///
+    /// # Panics
+    ///
+    /// Panics before protocol version 35, which has no
+    /// `max_meter_ticks_regex_reference_safety`.
+    pub fn post_consensus_verifier_config(&self) -> VerifierConfig {
+        // Before protocol version 40, the check is metered and capped at
+        // 100,000 edges, the values signing used then.
+        let (meter_instantiation_loops, max_instantiation_loop_graph_edges) =
+            if self.version < ProtocolVersion::new(40) {
+                (true, Some(100_000))
+            } else {
+                (
+                    self.meter_instantiation_loops(),
+                    self.max_instantiation_loop_graph_edges_as_option()
+                        .map(|edges| edges as usize),
+                )
+            };
+        VerifierConfig {
+            deprecate_global_storage_ops: self.deprecate_global_storage_ops(),
+            meter_instantiation_loops,
+            max_instantiation_loop_graph_edges,
+            ..self.verifier_config(Some(self.verifier_signing_limits()))
         }
     }
 
@@ -3967,6 +4021,10 @@ impl ProtocolConfig {
 
     pub fn set_deprecate_global_storage_ops_for_testing(&mut self, val: bool) {
         self.feature_flags.deprecate_global_storage_ops = val;
+    }
+
+    pub fn set_meter_instantiation_loops_for_testing(&mut self, val: bool) {
+        self.feature_flags.meter_instantiation_loops = val;
     }
 
     pub fn set_consensus_round_prober_for_testing(&mut self, val: bool) {
@@ -4332,6 +4390,65 @@ mod test {
         let execution = prot.verifier_config(None);
         assert_eq!(execution.max_instantiation_loop_graph_edges, None);
         assert!(!execution.meter_instantiation_loops);
+    }
+
+    #[test]
+    fn post_consensus_verifier_config_follows_deprecate_global_storage_ops() {
+        let mut prot = ProtocolConfig::get_for_max_version_UNSAFE();
+        prot.set_deprecate_global_storage_ops_for_testing(false);
+
+        assert!(
+            prot.verifier_config(Some((0, 0, 0)))
+                .deprecate_global_storage_ops
+        );
+        let post_consensus = prot.post_consensus_verifier_config();
+        assert!(!post_consensus.deprecate_global_storage_ops);
+        assert_eq!(
+            post_consensus.max_back_edges_per_function,
+            Some(prot.max_back_edges_per_function() as usize)
+        );
+
+        prot.set_deprecate_global_storage_ops_for_testing(true);
+        assert!(
+            prot.post_consensus_verifier_config()
+                .deprecate_global_storage_ops
+        );
+    }
+
+    #[test]
+    fn post_consensus_verifier_config_bounds_the_instantiation_loop_checker() {
+        let before = ProtocolConfig::get_for_version(ProtocolVersion::new(39), Chain::Unknown);
+        let config = before.post_consensus_verifier_config();
+        assert!(config.meter_instantiation_loops);
+        assert_eq!(config.max_instantiation_loop_graph_edges, Some(100_000));
+
+        let mut prot = ProtocolConfig::get_for_version(ProtocolVersion::new(40), Chain::Unknown);
+        prot.set_max_instantiation_loop_graph_edges_for_testing(7);
+        prot.set_meter_instantiation_loops_for_testing(false);
+        let config = prot.post_consensus_verifier_config();
+        assert!(!config.meter_instantiation_loops);
+        assert_eq!(config.max_instantiation_loop_graph_edges, Some(7));
+
+        // The node's signing config keeps its own values.
+        let signing = prot.verifier_config(Some((0, 0, 0)));
+        assert!(signing.meter_instantiation_loops);
+        assert_eq!(signing.max_instantiation_loop_graph_edges, Some(100_000));
+    }
+
+    #[test]
+    fn signing_and_post_consensus_instantiation_loop_limits_match() {
+        let prot = ProtocolConfig::get_for_max_version_UNSAFE();
+        let signing = prot.verifier_config(Some(prot.verifier_signing_limits()));
+        let post_consensus = prot.post_consensus_verifier_config();
+
+        assert_eq!(
+            signing.meter_instantiation_loops,
+            post_consensus.meter_instantiation_loops
+        );
+        assert_eq!(
+            signing.max_instantiation_loop_graph_edges,
+            post_consensus.max_instantiation_loop_graph_edges
+        );
     }
 
     #[test]

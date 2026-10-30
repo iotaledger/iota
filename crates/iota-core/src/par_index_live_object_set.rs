@@ -2,13 +2,21 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::Instant;
+use std::{
+    panic::{AssertUnwindSafe, catch_unwind, resume_unwind},
+    sync::atomic::{AtomicBool, AtomicU64, Ordering},
+    time::{Duration, Instant},
+};
 
 use iota_sdk_types::ObjectId;
 use iota_types::{object::Object, storage::error::Error as StorageError};
-use tracing::info;
+use tracing::{info, warn};
 
-use crate::authority::AuthorityStore;
+use crate::{
+    authority::AuthorityStore,
+    index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
+    progress_logger::{PROGRESS_REPORT_INTERVAL, progress_line},
+};
 
 /// Make `LiveObjectIndexer`s for parallel indexing of the live object set
 pub trait ParMakeLiveObjectIndexer: Sync {
@@ -24,12 +32,18 @@ pub trait ParMakeLiveObjectIndexer: Sync {
 pub trait LiveObjectIndexer {
     /// Called on each object in the range of the live object set this indexer
     /// task is responsible for.
-    fn index_object(&mut self, object: Object) -> Result<(), StorageError>;
+    fn index_object(&mut self, object: &Object) -> Result<(), StorageError>;
 
     /// Called once the range of objects this indexer task is responsible for
     /// have been processed by calling `index_object`.
     fn finish(self) -> Result<(), StorageError>;
 }
+
+const BITS: u8 = 5;
+
+/// How many indexers [`par_index_live_object_set`] runs at once, each over its
+/// own range of object ids.
+pub const TASKS: usize = 1 << BITS;
 
 /// Utility for iterating over, and indexing, the live object set in parallel
 ///
@@ -38,29 +52,80 @@ pub trait LiveObjectIndexer {
 /// User's will need to implement the `ParMakeLiveObjectIndexer` trait which
 /// will be used to make N `LiveObjectIndexer`s which will then process one of
 /// the disjoint parts of the live object set.
+///
+/// Setting `cancelled` makes the scan fail early with a cancellation error;
+/// the partial work is the caller's to discard. A task that fails or panics
+/// stops the others early, and the scan then returns its error or raises its
+/// panic.
 #[tracing::instrument(skip_all)]
 pub fn par_index_live_object_set<T: ParMakeLiveObjectIndexer>(
     authority_store: &AuthorityStore,
     make_indexer: &T,
+    cancelled: &AtomicBool,
 ) -> Result<(), StorageError> {
     info!("Indexing Live Object Set");
     let start_time = Instant::now();
+
+    // Object ids are hash-derived and uniformly distributed, so each task's
+    // position within its id range doubles as its fraction of work done.
+    let positions: Vec<AtomicU64> = (0..TASKS)
+        .map(|index| AtomicU64::new(task_range_start(index as u8, BITS)))
+        .collect();
+    let objects_scanned = AtomicU64::new(0);
+    let done = AtomicBool::new(false);
+    let failed = AtomicBool::new(false);
+
     std::thread::scope(|s| -> Result<(), StorageError> {
+        let reporter = s.spawn(|| {
+            report_scan_progress_until_done(BITS, &positions, &objects_scanned, &done, start_time)
+        });
+
         let mut threads = Vec::new();
-        const BITS: u8 = 5;
-        for index in 0u8..(1 << BITS) {
+        for index in 0u8..(TASKS as u8) {
+            let position = &positions[index as usize];
+            let objects_scanned = &objects_scanned;
+            let failed = &failed;
             threads.push(s.spawn(move || {
-                let object_indexer = make_indexer.make_live_object_indexer();
-                live_object_set_index_task(index, BITS, authority_store, object_indexer)
+                let outcome = catch_unwind(AssertUnwindSafe(|| {
+                    let object_indexer = make_indexer.make_live_object_indexer();
+                    live_object_set_index_task(
+                        index,
+                        BITS,
+                        authority_store,
+                        object_indexer,
+                        position,
+                        objects_scanned,
+                        &|| cancelled.load(Ordering::Relaxed) || failed.load(Ordering::Relaxed),
+                    )
+                }));
+                if !matches!(outcome, Ok(Ok(()))) {
+                    failed.store(true, Ordering::Relaxed);
+                }
+                outcome
             }));
         }
 
-        // join threads
+        // Join every task before stopping the reporter, and raise a task's
+        // panic only after that: the reporter runs until it is stopped, so
+        // the scope would never return.
+        let mut result = Ok(());
+        let mut panicked = None;
         for thread in threads {
-            thread.join().unwrap()?;
+            match thread.join().expect("a scan task's panic is caught") {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => result = keep_task_error(result, e),
+                Err(payload) => {
+                    panicked.get_or_insert(payload);
+                }
+            }
+        }
+        done.store(true, Ordering::Relaxed);
+        reporter.join().unwrap();
+        if let Some(payload) = panicked {
+            resume_unwind(payload);
         }
 
-        Ok(())
+        result
     })?;
 
     info!(
@@ -71,13 +136,25 @@ pub fn par_index_live_object_set<T: ParMakeLiveObjectIndexer>(
     Ok(())
 }
 
-#[tracing::instrument(skip(authority_store, object_indexer))]
+/// Indexes task `task_id`'s range of the live object set. Fails with a
+/// cancellation error once `stop` answers `true`.
+#[tracing::instrument(skip(authority_store, object_indexer, position, objects_scanned, stop))]
 fn live_object_set_index_task<T: LiveObjectIndexer>(
     task_id: u8,
     bits: u8,
     authority_store: &AuthorityStore,
     mut object_indexer: T,
+    position: &AtomicU64,
+    objects_scanned: &AtomicU64,
+    stop: &dyn Fn() -> bool,
 ) -> Result<(), StorageError> {
+    const COUNTER_CHUNK: u64 = 10_000;
+    const CANCELLATION_CHUNK: u64 = 1_024;
+
+    if stop() {
+        return Err(scan_cancelled());
+    }
+
     let mut id_bytes = [0; ObjectId::LENGTH];
     id_bytes[0] = task_id << (8 - bits);
     let start_id = ObjectId::new(id_bytes);
@@ -89,23 +166,239 @@ fn live_object_set_index_task<T: LiveObjectIndexer>(
     let end_id = ObjectId::new(id_bytes);
 
     let mut object_scanned: u64 = 0;
-    for object in authority_store
+    for live_object in authority_store
         .perpetual_tables
         .range_iter_live_object_set(Some(start_id), Some(end_id))
-        .map(|o| o.object)
     {
+        let object = live_object?.object;
         object_scanned += 1;
-        if object_scanned.is_multiple_of(2_000_000) {
-            info!(
-                "[Index] Task {}: object scanned: {}",
-                task_id, object_scanned
-            );
+        position.store(id_position(&object.id()), Ordering::Relaxed);
+        if object_scanned.is_multiple_of(COUNTER_CHUNK) {
+            objects_scanned.fetch_add(COUNTER_CHUNK, Ordering::Relaxed);
+        }
+        if object_scanned.is_multiple_of(CANCELLATION_CHUNK) && stop() {
+            return Err(scan_cancelled());
         }
 
-        object_indexer.index_object(object)?
+        object_indexer.index_object(&object)?
     }
+    objects_scanned.fetch_add(object_scanned % COUNTER_CHUNK, Ordering::Relaxed);
+    position.store(
+        task_range_start(task_id, bits) + (task_range_span(bits) - 1),
+        Ordering::Relaxed,
+    );
 
     object_indexer.finish()?;
 
     Ok(())
+}
+
+fn scan_cancelled() -> StorageError {
+    RebuildCancelled::error("the live object set scan was cancelled")
+}
+
+/// The error to report out of the scan, given the one kept so far and the one
+/// a further task returned. The discarded error is logged.
+///
+/// A real failure outranks a cancellation, which every task returns once the
+/// flag is set, so a cancellation cannot hide a failure.
+fn keep_task_error(
+    kept: Result<(), StorageError>,
+    error: StorageError,
+) -> Result<(), StorageError> {
+    match kept {
+        Ok(()) => Err(error),
+        Err(kept) if is_cancelled(&kept) && !is_cancelled(&error) => Err(error),
+        Err(kept) => {
+            if !is_cancelled(&error) {
+                warn!("another live object set indexing task failed: {error}");
+            }
+            Err(kept)
+        }
+    }
+}
+
+/// Logs a progress line with estimated percent, scan rate, and remaining time
+/// every [`PROGRESS_REPORT_INTERVAL`] until `done` is set.
+fn report_scan_progress_until_done(
+    bits: u8,
+    positions: &[AtomicU64],
+    objects_scanned: &AtomicU64,
+    done: &AtomicBool,
+    start_time: Instant,
+) {
+    let mut last_report = Instant::now();
+    while !done.load(Ordering::Relaxed) {
+        std::thread::sleep(Duration::from_secs(1));
+        if last_report.elapsed() < PROGRESS_REPORT_INTERVAL {
+            continue;
+        }
+        last_report = Instant::now();
+
+        let fraction = scan_fraction(bits, positions);
+        let scanned = objects_scanned.load(Ordering::Relaxed);
+        // Extrapolated from the covered fraction of the object id space.
+        let total = if fraction > 0.0 {
+            (scanned as f64 / fraction) as u64
+        } else {
+            0
+        };
+        info!(
+            "{}",
+            progress_line(
+                "Indexing live object set",
+                "objects",
+                fraction,
+                scanned,
+                total,
+                start_time.elapsed(),
+            )
+        );
+    }
+}
+
+/// The fraction of the object id space the scan tasks have covered so far,
+/// capped just below 1 since it is only an estimate.
+fn scan_fraction(bits: u8, positions: &[AtomicU64]) -> f64 {
+    let span = task_range_span(bits) as f64;
+    let sum: f64 = positions
+        .iter()
+        .enumerate()
+        .map(|(index, position)| {
+            let start = task_range_start(index as u8, bits);
+            let position = position.load(Ordering::Relaxed);
+            ((position.saturating_sub(start)) as f64 / span).clamp(0.0, 1.0)
+        })
+        .sum();
+    (sum / positions.len() as f64).min(0.999)
+}
+
+/// The first 8 bytes of `task_id`'s range of the object id space.
+fn task_range_start(task_id: u8, bits: u8) -> u64 {
+    (task_id as u64) << (64 - bits)
+}
+
+/// The size of each task's range of the object id space, in units of
+/// [`id_position`].
+fn task_range_span(bits: u8) -> u64 {
+    1u64 << (64 - bits)
+}
+
+/// An object id's position in the id space: its first 8 bytes as an integer.
+pub(crate) fn id_position(id: &ObjectId) -> u64 {
+    id.as_bytes()
+        .iter()
+        .take(8)
+        .fold(0u64, |acc, byte| (acc << 8) | *byte as u64)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::authority::test_authority_builder::TestAuthorityBuilder;
+
+    struct PanickingIndexer;
+
+    impl ParMakeLiveObjectIndexer for PanickingIndexer {
+        type ObjectIndexer<'a> = PanickingIndexer;
+
+        fn make_live_object_indexer(&self) -> PanickingIndexer {
+            PanickingIndexer
+        }
+    }
+
+    impl LiveObjectIndexer for PanickingIndexer {
+        fn index_object(&mut self, _object: &Object) -> Result<(), StorageError> {
+            panic!("an indexer panicked");
+        }
+
+        fn finish(self) -> Result<(), StorageError> {
+            Ok(())
+        }
+    }
+
+    /// A panicking task makes the scan panic in turn, rather than leaving it
+    /// waiting forever for the progress reporter.
+    #[tokio::test]
+    async fn a_panicking_task_ends_the_scan_with_its_panic() {
+        let state = TestAuthorityBuilder::new().build().await;
+        let store = state.database_for_testing();
+        let scan = tokio::task::spawn_blocking(move || {
+            par_index_live_object_set(&store, &PanickingIndexer, &AtomicBool::new(false))
+        });
+        let joined = tokio::time::timeout(Duration::from_secs(60), scan)
+            .await
+            .expect("the scan must end once a task panics");
+        assert!(joined.unwrap_err().is_panic());
+    }
+
+    const BITS: u8 = 5;
+
+    fn positions_at(fractions: &[f64]) -> Vec<AtomicU64> {
+        fractions
+            .iter()
+            .enumerate()
+            .map(|(index, fraction)| {
+                let start = task_range_start(index as u8, BITS);
+                let offset = (task_range_span(BITS) as f64 * fraction) as u64;
+                AtomicU64::new(start.saturating_add(offset))
+            })
+            .collect()
+    }
+
+    /// A real failure is reported over the cancellations of the other tasks,
+    /// whatever the join order.
+    #[test]
+    fn a_real_failure_outranks_a_cancellation_in_any_join_order() {
+        let failure = || StorageError::custom("object 0x3 is corrupt");
+
+        let kept = keep_task_error(keep_task_error(Ok(()), scan_cancelled()), failure());
+        let error = kept.unwrap_err();
+        assert!(!is_cancelled(&error));
+        assert!(error.to_string().contains("corrupt"));
+
+        let kept = keep_task_error(keep_task_error(Ok(()), failure()), scan_cancelled());
+        let error = kept.unwrap_err();
+        assert!(!is_cancelled(&error));
+        assert!(error.to_string().contains("corrupt"));
+
+        // Between real failures the first one still wins.
+        let kept = keep_task_error(
+            keep_task_error(Ok(()), StorageError::custom("first")),
+            StorageError::custom("second"),
+        );
+        assert!(kept.unwrap_err().to_string().contains("first"));
+
+        // Without a real failure the scan still reports the cancellation.
+        let kept = keep_task_error(keep_task_error(Ok(()), scan_cancelled()), scan_cancelled());
+        assert!(is_cancelled(&kept.unwrap_err()));
+    }
+
+    #[test]
+    fn scan_fraction_averages_task_positions() {
+        let positions = positions_at(&[0.0; 32]);
+        assert_eq!(scan_fraction(BITS, &positions), 0.0);
+
+        let positions = positions_at(&[0.5; 32]);
+        assert!((scan_fraction(BITS, &positions) - 0.5).abs() < 1e-9);
+
+        let mut fractions = [0.0; 32];
+        fractions[0] = 1.0;
+        let positions = positions_at(&fractions);
+        assert!((scan_fraction(BITS, &positions) - 1.0 / 32.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn scan_fraction_is_capped_below_one() {
+        let positions = positions_at(&[1.0; 32]);
+        assert_eq!(scan_fraction(BITS, &positions), 0.999);
+    }
+
+    #[test]
+    fn id_position_uses_the_first_eight_bytes() {
+        let mut bytes = [0u8; ObjectId::LENGTH];
+        bytes[..8].copy_from_slice(&[0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0]);
+        bytes[8] = 0xff;
+        assert_eq!(id_position(&ObjectId::new(bytes)), 0x1234_5678_9abc_def0);
+    }
 }

@@ -8,7 +8,7 @@ use rstest::rstest;
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::*;
-use crate::traits::Map;
+use crate::{database::drop_tolerant_write_options, traits::Map};
 
 fn get_iter<K, V>(db: &DBMap<K, V>) -> impl Iterator<Item = (K, V)> + use<'_, K, V>
 where
@@ -1414,7 +1414,8 @@ async fn a_column_family_can_be_created_at_runtime() {
 
 /// Differently-typed [`TaggedDBMap`]s share one column family without their
 /// rows surfacing in each other: gets, full scans in both directions,
-/// bounded ranges, and deletes all stay within their map's tag.
+/// bounded ranges, single-key writes, and deletes all stay within their
+/// map's tag.
 #[tokio::test]
 async fn tagged_dbmaps_share_a_column_family() {
     let tmp_dir = iota_common::tempdir();
@@ -1928,6 +1929,267 @@ async fn tagged_schedule_delete_all_clears_only_its_own_tag() {
     assert_eq!(entries(&below), expected);
 }
 
+/// Operations on a column family dropped at runtime must report
+/// [`TypedStoreError::UnregisteredColumn`] rather than panicking.
+#[tokio::test]
+async fn operations_on_a_dropped_column_family_report_an_error() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["doomed"]);
+    let map =
+        DBMap::<u32, String>::reopen(&db, Some("doomed"), &ReadWriteOptions::default(), false)
+            .expect("the map should open");
+    map.insert(&1, &"one".to_string())
+        .expect("the row should insert");
+
+    let tagged: TaggedDBMap<u32, String> =
+        TaggedDBMap::reopen(&db, "doomed", 0, &ReadWriteOptions::default(), false)
+            .expect("the tagged map should open");
+
+    db.drop_cf("doomed").expect("the column family should drop");
+
+    let assert_unregistered = |op: &str, error: TypedStoreError| {
+        assert!(
+            matches!(&error, TypedStoreError::UnregisteredColumn(cf) if cf == "doomed"),
+            "{op}: unexpected error: {error}"
+        );
+    };
+
+    assert_unregistered("get", map.get(&1).unwrap_err());
+    assert_unregistered("contains_key", map.contains_key(&1).unwrap_err());
+    assert_unregistered("multi_get", map.multi_get([1, 2, 3]).unwrap_err());
+    assert_unregistered("insert", map.insert(&2, &"two".to_string()).unwrap_err());
+    assert_unregistered("remove", map.remove(&1).unwrap_err());
+
+    // A batch resolves the handle when the operation is staged, not at write.
+    let mut batch = map.batch();
+    assert_unregistered(
+        "insert_batch",
+        batch
+            .insert_batch(&map, [(3u32, "three".to_string())])
+            .map(drop)
+            .unwrap_err(),
+    );
+    assert_unregistered(
+        "delete_batch",
+        batch.delete_batch(&map, [1u32]).map(drop).unwrap_err(),
+    );
+    assert_unregistered(
+        "schedule_delete_range",
+        batch
+            .schedule_delete_range(&map, &0, &9)
+            .map(drop)
+            .unwrap_err(),
+    );
+
+    // A scan reports the error as its first item, having no fallible
+    // constructor.
+    for (op, mut scan) in [
+        ("safe_iter", map.safe_iter()),
+        ("safe_range_iter", map.safe_range_iter(..)),
+        ("safe_range_iter_reversed", map.safe_range_iter_reversed(..)),
+    ] {
+        assert_unregistered(
+            op,
+            scan.next()
+                .expect("the scan should yield an item")
+                .unwrap_err(),
+        );
+    }
+
+    // `is_empty` has no error channel; a dropped column family reads as
+    // non-empty rather than empty.
+    assert!(!map.is_empty());
+
+    // A tagged map opened before the drop reports the same errors.
+    assert_unregistered("tagged get", tagged.get(&1).unwrap_err());
+    assert_unregistered(
+        "tagged multi_get",
+        tagged.multi_get([1]).map(drop).unwrap_err(),
+    );
+    let mut batch = tagged.batch();
+    assert_unregistered(
+        "tagged insert_batch",
+        batch
+            .insert_batch_tagged(&tagged, [(1u32, "one".to_string())])
+            .map(drop)
+            .unwrap_err(),
+    );
+    assert_unregistered(
+        "tagged scan",
+        tagged
+            .safe_range_iter(..)
+            .next()
+            .expect("the scan should yield an item")
+            .unwrap_err(),
+    );
+
+    assert_unregistered(
+        "compact_range",
+        map.compact_range(&0u32, &9u32).unwrap_err(),
+    );
+    // The one deliberate exception: flushing a dropped column family is a
+    // no-op, not an error.
+    map.flush()
+        .expect("a flush of a dropped column family is a no-op");
+}
+
+/// With `ignore_missing_column_families`, a batch staged before its column
+/// family is dropped still writes: the dropped entries are discarded and the
+/// other column family's entries land.
+#[tokio::test]
+async fn a_batch_staged_before_a_drop_still_writes() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["doomed", "kept"]);
+    let doomed =
+        DBMap::<u32, String>::reopen(&db, Some("doomed"), &ReadWriteOptions::default(), false)
+            .expect("the doomed map should open");
+    let kept = DBMap::<u32, String>::reopen(&db, Some("kept"), &ReadWriteOptions::default(), false)
+        .expect("the kept map should open");
+
+    let mut batch = doomed.batch();
+    batch
+        .insert_batch(&doomed, [(1u32, "one".to_string())])
+        .unwrap();
+    batch
+        .insert_batch(&kept, [(1u32, "one".to_string())])
+        .unwrap();
+
+    db.drop_cf("doomed").expect("the column family should drop");
+
+    batch
+        .write_opt(&drop_tolerant_write_options())
+        .expect("the batch should write");
+    assert_eq!(kept.get(&1).unwrap(), Some("one".to_string()));
+
+    kept.insert(&2, &"two".to_string())
+        .expect("the kept column family should still accept writes");
+    assert_eq!(kept.safe_iter().count(), 2);
+    assert!(db.cf_handle("doomed").is_none());
+}
+
+/// Without `ignore_missing_column_families`, a write fails when an entry's
+/// column family was dropped after staging.
+#[tokio::test]
+async fn a_dropped_column_family_fails_a_batch_write_by_default() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["doomed", "kept"]);
+    let doomed =
+        DBMap::<u32, String>::reopen(&db, Some("doomed"), &ReadWriteOptions::default(), false)
+            .expect("the doomed map should open");
+    let kept = DBMap::<u32, String>::reopen(&db, Some("kept"), &ReadWriteOptions::default(), false)
+        .expect("the kept map should open");
+
+    let mut batch = doomed.batch();
+    batch
+        .insert_batch(&doomed, [(1u32, "one".to_string())])
+        .unwrap();
+    batch
+        .insert_batch(&kept, [(1u32, "one".to_string())])
+        .unwrap();
+
+    db.drop_cf("doomed").expect("the column family should drop");
+    assert!(
+        batch.write().is_err(),
+        "the default write options should not discard the dropped entry"
+    );
+}
+
+/// Rows written through SST files read back as if inserted directly: sorted,
+/// with a repeated key keeping its last value, across files whose key ranges
+/// overlap.
+#[tokio::test]
+async fn sst_files_ingest_into_the_table() {
+    let tmp_dir = iota_common::tempdir();
+    let files_dir = iota_common::tempdir();
+    let db = open_map::<_, u32, String>(tmp_dir.path(), Some("table"));
+    let options = rocksdb::Options::default();
+
+    let mut first = SstFileBuffer::<u32, String>::new();
+    for key in [5, 1, 9, 3] {
+        first.insert(&key, &format!("first {key}")).unwrap();
+    }
+    first.insert(&1, &"first 1 again".to_string()).unwrap();
+    let mut second = SstFileBuffer::<u32, String>::new();
+    for key in [4, 2, 8] {
+        second.insert(&key, &format!("second {key}")).unwrap();
+    }
+    let paths = [
+        files_dir.path().join("1.sst"),
+        files_dir.path().join("2.sst"),
+    ];
+    first.write_file(&paths[0], &options).unwrap();
+    second.write_file(&paths[1], &options).unwrap();
+    assert!(first.is_empty(), "writing a file must empty the buffer");
+
+    db.ingest_sst_files(&paths).unwrap();
+
+    assert_eq!(
+        get_iter(&db).collect::<Vec<_>>(),
+        vec![
+            (1, "first 1 again".to_string()),
+            (2, "second 2".to_string()),
+            (3, "first 3".to_string()),
+            (4, "second 4".to_string()),
+            (5, "first 5".to_string()),
+            (8, "second 8".to_string()),
+            (9, "first 9".to_string()),
+        ]
+    );
+    assert!(
+        paths.iter().all(|path| !path.exists()),
+        "ingestion must move the files into the database"
+    );
+}
+
+/// Rows of tagged tables sharing a column family, written to one SST file
+/// per table and ingested together, read back through each table alone.
+#[tokio::test]
+async fn tagged_sst_files_ingest_into_their_tables() {
+    let tmp_dir = iota_common::tempdir();
+    let files_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["shared"]);
+    let numbers: TaggedDBMap<u32, String> =
+        TaggedDBMap::reopen(&db, "shared", 0, &ReadWriteOptions::default(), false).unwrap();
+    let words: TaggedDBMap<String, u64> =
+        TaggedDBMap::reopen(&db, "shared", 1, &ReadWriteOptions::default(), false).unwrap();
+    let options = rocksdb::Options::default();
+
+    let mut number_rows = SstFileBuffer::new();
+    for key in [3, 1, 2] {
+        number_rows
+            .insert_tagged(&numbers, &key, &format!("number {key}"))
+            .unwrap();
+    }
+    let mut word_rows = SstFileBuffer::new();
+    word_rows
+        .insert_tagged(&words, &"two".to_string(), &2)
+        .unwrap();
+    word_rows
+        .insert_tagged(&words, &"one".to_string(), &1)
+        .unwrap();
+    let paths = [
+        files_dir.path().join("numbers.sst"),
+        files_dir.path().join("words.sst"),
+    ];
+    number_rows.write_file(&paths[0], &options).unwrap();
+    word_rows.write_file(&paths[1], &options).unwrap();
+
+    numbers.ingest_sst_files(&paths).unwrap();
+
+    assert_eq!(
+        numbers.safe_iter().map(Result::unwrap).collect::<Vec<_>>(),
+        vec![
+            (1, "number 1".to_string()),
+            (2, "number 2".to_string()),
+            (3, "number 3".to_string()),
+        ]
+    );
+    assert_eq!(
+        words.safe_iter().map(Result::unwrap).collect::<Vec<_>>(),
+        vec![("one".to_string(), 1), ("two".to_string(), 2)]
+    );
+}
+
 fn open_map<P: AsRef<Path>, K, V>(path: P, opt_cf: Option<&str>) -> DBMap<K, V> {
     let cf_key = opt_cf.unwrap_or(rocksdb::DEFAULT_COLUMN_FAMILY_NAME);
     DBMap::<K, V>::reopen(
@@ -1951,4 +2213,62 @@ fn open_rocksdb<P: AsRef<Path>>(path: P, opt_cfs: &[&str]) -> Arc<Database> {
             .collect::<Vec<_>>(),
     )
     .expect("failed to open rocksdb")
+}
+
+/// A directory not created yet reports the free space of the file system it
+/// will be created on.
+#[test]
+fn a_directory_still_to_be_created_reports_its_file_systems_free_space() {
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("historic").join("ledger");
+    assert!(!missing.exists());
+
+    let free = available_disk_space(&missing).expect("the parent directory exists");
+    assert!(free > 0);
+    let parent_free = available_disk_space(dir.path()).unwrap();
+    // Other processes write meanwhile, so the two only agree roughly.
+    assert!(
+        free.abs_diff(parent_free) < 1 << 30,
+        "{free} vs {parent_free}"
+    );
+}
+
+/// A directory still to be created is on its parent's file system, and the
+/// device files are on a file system of their own.
+#[cfg(unix)]
+#[test]
+fn file_systems_are_told_apart_also_for_a_directory_still_to_be_created() {
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("historic").join("ledger");
+
+    assert_eq!(super::on_same_file_system(dir.path(), &missing), Some(true));
+    assert_eq!(
+        super::on_same_file_system(dir.path(), std::path::Path::new("/dev")),
+        Some(false)
+    );
+}
+
+/// A map labelled with [`DBMap::with_metrics_label`] reports its operations
+/// under that label instead of its column family name.
+#[tokio::test]
+async fn a_relabelled_map_reports_its_operations_under_the_label() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = open_map::<_, u64, u64>(dir.path(), Some("relabelled_cf"))
+        .with_metrics_label("relabelled_label");
+    db.insert(&1, &1).unwrap();
+    assert_eq!(db.get(&1).unwrap(), Some(1));
+
+    let gets = &crate::DBMetrics::get()
+        .op_metrics
+        .rocksdb_get_latency_seconds;
+    assert!(
+        gets.with_label_values(&["relabelled_label"])
+            .get_sample_count()
+            > 0
+    );
+    assert_eq!(
+        gets.with_label_values(&["relabelled_cf"])
+            .get_sample_count(),
+        0
+    );
 }

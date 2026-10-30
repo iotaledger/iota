@@ -15,9 +15,9 @@ pub trait Verifier {
     /// Create a new bytecode verifier meter.
     fn meter(&self, config: MeterConfig) -> Box<dyn Meter>;
 
-    /// Specifies whether or not the `deprecate_global_storage_ops` protocol
-    /// flag should be overridden for the `BinaryConfig`
-    fn override_deprecate_global_storage_ops(&self) -> Option<bool>;
+    /// Whether `meter_module_bytes` rejects a module that uses the deprecated
+    /// global storage instructions, rather than leaving it to execution.
+    fn deprecate_global_storage_ops(&self) -> bool;
 
     /// Run the bytecode verifier with a meter limit
     ///
@@ -43,17 +43,18 @@ pub trait Verifier {
                 .map(|b| CompiledModule::deserialize_with_config(b, binary_config))
                 .collect::<Result<Vec<_>, _>>()
         };
-        let modules = match deserialize(&to_binary_config(
-            protocol_config,
-            self.override_deprecate_global_storage_ops(),
-        )) {
+        // The deprecated global storage instructions always fail
+        // deserialization here. With `deprecate_global_storage_ops` set, a
+        // module that fails only because of them is rejected below. Without
+        // it, the package is left to execution without being metered.
+        let modules = match deserialize(&to_binary_config(protocol_config, Some(true))) {
             Ok(modules) => modules,
             Err(error) => {
-                // The modules fail only because they use the deprecated global
-                // storage instructions or a non-empty `acquires` list. No such
-                // module can be published, so reject it here rather than at
-                // execution.
-                if deserialize(&to_binary_config(protocol_config, Some(false))).is_ok() {
+                // Such a module can never be published, so there is no point
+                // in leaving it to execution.
+                if self.deprecate_global_storage_ops()
+                    && deserialize(&to_binary_config(protocol_config, Some(false))).is_ok()
+                {
                     return Err(IotaError::ModuleDeserializationFailure {
                         error: error.to_string(),
                     });

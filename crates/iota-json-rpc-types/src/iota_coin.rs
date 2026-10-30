@@ -12,14 +12,14 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
 use crate::{
-    Page,
+    OwnedObjectCursor, Page,
     iota_primitives::{
         Base58 as Base58Schema, ObjectId as ObjectIdSchema,
         SequenceNumberString as SequenceNumberStringSchema,
     },
 };
 
-pub type CoinPage = Page<Coin, ObjectId>;
+pub type CoinPage = Page<Coin, OwnedObjectCursor>;
 
 #[serde_as]
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]

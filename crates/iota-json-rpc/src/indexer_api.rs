@@ -6,6 +6,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use futures::future::try_join_all;
 use iota_core::authority::AuthorityState;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{
@@ -16,7 +17,8 @@ use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectDataFilter,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
-    IotaTransactionBlockResponseQueryV2, ObjectsPage, Page, TransactionBlocksPage,
+    IotaTransactionBlockResponseQueryV2, ObjectsPage, OwnedObjectCursor, Page,
+    TransactionBlocksPage,
 };
 use iota_metrics::spawn_monitored_blocking;
 use iota_names::{
@@ -28,8 +30,8 @@ use iota_sdk_move_types::iota_framework::dynamic_field::Field;
 use iota_sdk_types::{Address, ObjectId, TransactionDigest, TypeTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    dynamic_field::DynamicFieldName, error::UserInputError, event::EventID,
-    iota_sdk_types_conversions::type_tag_sdk_to_core,
+    base_types::ObjectInfo, dynamic_field::DynamicFieldName, error::UserInputError, event::EventID,
+    iota_sdk_types_conversions::type_tag_sdk_to_core, object::ObjectRead,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 use move_bytecode_utils::layout::TypeLayoutBuilder;
@@ -38,8 +40,10 @@ use tracing::instrument;
 use crate::{
     IotaRpcModule,
     authority_state::{StateRead, StateReadResult},
+    coin_api::cursor_position,
     error::{Error, IotaRpcInputError},
     logger::FutureWithTracing as _,
+    read_api::object_response,
 };
 
 pub struct IndexerApi<R> {
@@ -94,16 +98,20 @@ impl<R: ReadApiServer> IndexerApi<R> {
         async move {
             let (name_type, name_bcs_value) = self.extract_values_from_dynamic_field_name(name)?;
 
-            let id = self
+            let object = self
                 .state
-                .get_dynamic_field_object_id(parent_object_id, name_type, &name_bcs_value)
+                .get_dynamic_field_object(parent_object_id, name_type, &name_bcs_value)
                 .map_err(Error::from)?;
 
-            if let Some(id) = id {
-                self.read_api
-                    .get_object(id, options)
-                    .await
-                    .map_err(|e| Error::Internal(anyhow!(e)))
+            if let Some(object) = object {
+                let layout = self.state.get_object_layout(&object)?;
+                object_response(
+                    &self.state,
+                    &self.transaction_kv_store,
+                    ObjectRead::Exists(object.object_ref(), object, layout),
+                    &options.unwrap_or_default(),
+                )
+                .await
             } else {
                 Ok(IotaObjectResponse::new_with_error(
                     IotaObjectResponseError::DynamicFieldNotFound { parent_object_id },
@@ -132,7 +140,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         &self,
         address: Address,
         query: Option<IotaObjectResponseQuery>,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage> {
         async move {
@@ -146,24 +154,39 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 })?;
             }
             let options = options.unwrap_or_default();
+            let cursor = cursor_position(cursor)?;
             let state = self.state.clone();
             let page = spawn_monitored_blocking!(move || {
                 state.get_owner_objects_page(address, cursor, limit, filter)
             })
             .await??;
 
+            // From the objects the page read, at the version their rows name,
+            // so each response matches the ownership the page reports.
             let data = match options.is_not_in_object_info() {
                 true => {
-                    let object_ids = page.data.iter().map(|obj| obj.object_id).collect();
-                    self.read_api
-                        .multi_get_objects(object_ids, Some(options))
-                        .await
-                        .map_err(|e| Error::Internal(anyhow!(e)))?
+                    let reads = page
+                        .data
+                        .into_iter()
+                        .map(|object| {
+                            let layout = self.state.get_object_layout(&object)?;
+                            Ok(ObjectRead::Exists(object.object_ref(), object, layout))
+                        })
+                        .collect::<Result<Vec<_>, Error>>()?;
+                    try_join_all(reads.into_iter().map(|read| {
+                        object_response(&self.state, &self.transaction_kv_store, read, &options)
+                    }))
+                    .await?
                 }
                 false => page
                     .data
                     .into_iter()
-                    .map(|o_info| IotaObjectResponse::try_from((o_info, options.clone())))
+                    .map(|object| {
+                        IotaObjectResponse::try_from((
+                            ObjectInfo::new(&object.object_ref(), &object),
+                            options.clone(),
+                        ))
+                    })
                     .collect::<Result<Vec<IotaObjectResponse>, _>>()?,
             };
 
@@ -334,21 +357,40 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         async move {
             let limit = cap_page_limit(limit);
             self.metrics.get_dynamic_fields_limit.observe(limit as f64);
-            let mut data = self
-                .state
-                .get_dynamic_fields(parent_object_id, cursor, limit + 1)
-                .map_err(Error::from)?;
-            let has_next_page = data.len() > limit;
-            data.truncate(limit);
-            let next_cursor = data.last().cloned().map_or(cursor, |c| Some(c.0));
+            // An unresolvable field (`None` info) advances the cursor but is
+            // omitted from the page. A page with none resolved is retried a
+            // bounded number of times, since clients may treat an empty page
+            // as the end.
+            const MAX_EMPTY_PAGE_RETRIES: usize = 3;
+            let mut next_cursor = cursor;
+            let mut has_next_page;
+            let mut resolved;
+            let mut retries = 0;
+            loop {
+                let mut data = self
+                    .state
+                    .get_dynamic_fields(parent_object_id, next_cursor, limit + 1)
+                    .map_err(Error::from)?;
+                has_next_page = data.len() > limit;
+                data.truncate(limit);
+                next_cursor = data.last().map_or(next_cursor, |c| Some(c.0));
+                resolved = data
+                    .into_iter()
+                    .filter_map(|(_, info)| Some(info?.into()))
+                    .collect::<Vec<_>>();
+                if !resolved.is_empty() || !has_next_page || retries >= MAX_EMPTY_PAGE_RETRIES {
+                    break;
+                }
+                retries += 1;
+            }
             self.metrics
                 .get_dynamic_fields_result_size
-                .observe(data.len() as f64);
+                .observe(resolved.len() as f64);
             self.metrics
                 .get_dynamic_fields_result_size_total
-                .inc_by(data.len() as u64);
+                .inc_by(resolved.len() as u64);
             Ok(DynamicFieldPage {
-                data: data.into_iter().map(|(_, w)| w.into()).collect(),
+                data: resolved,
                 next_cursor,
                 has_next_page,
                 oldest_available_checkpoint: None,
@@ -490,7 +532,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     async fn iota_names_find_all_registration_nfts(
         &self,
         address: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage> {

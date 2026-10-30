@@ -1,0 +1,307 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//! Checkpoint history in the checkpoint store's database, bucketed by the
+//! epoch that closed the checkpoint (see `epoch_buckets`).
+
+use std::{collections::BTreeMap, path::Path, sync::Arc};
+
+use iota_sdk_types::{CheckpointContents, CheckpointContentsDigest, CheckpointDigest};
+use iota_types::{committee::EpochId, messages_checkpoint::TrustedCheckpoint};
+use typed_store::{
+    TypedStoreError,
+    database::Database,
+    rocks::{DBMap, DBOptions, ReadWriteOptions, TaggedDBMap, list_tables, synced_write_options},
+    traits::Map,
+};
+
+use super::{EMPTY_CHECKPOINT_CONTENTS_DIGEST, empty_checkpoint_contents};
+use crate::epoch_buckets::{
+    BucketPaths, BucketReopen, EpochBuckets, PrunedBuckets, absent_if_dropped, bucket_cf_epoch,
+    bucket_cf_options, bucket_metrics_label, dump_page, dump_retention_floor, dump_rows,
+    extra_column_family_options,
+};
+
+/// Column-family prefix of the historic checkpoint buckets; a bucket's
+/// family is `{prefix}{epoch}`.
+const HISTORIC_CHECKPOINTS_CF_PREFIX: &str = "hist_ckpt_e";
+
+/// The directory of each epoch, under the historic root, that this
+/// store's buckets keep their files in.
+const BUCKET_DIR: &str = "checkpoints";
+
+/// Tags of the tables inside a bucket's column family. Do not reuse a tag
+/// for a different table: mark it retired in a comment instead.
+const DB_PREFIX_HISTORIC_CHECKPOINT_CONTENT: u8 = 0;
+const DB_PREFIX_HISTORIC_CHECKPOINT_BY_DIGEST: u8 = 1;
+
+/// Column family holding the earliest-retained-epoch marker
+/// [`EpochBuckets`] persists on a prune; empty until the first prune.
+///
+/// The name must not begin with [`HISTORIC_CHECKPOINTS_CF_PREFIX`], which
+/// marks a bucket's column family.
+const EARLIEST_RETAINED_CF: &str = "hist_ckpt_retention";
+
+/// One epoch's checkpoint history.
+pub struct HistoricCheckpointsBucket {
+    pub(crate) checkpoint_content: TaggedDBMap<CheckpointContentsDigest, CheckpointContents>,
+    pub(crate) checkpoint_by_digest: TaggedDBMap<CheckpointDigest, TrustedCheckpoint>,
+}
+
+impl BucketReopen for HistoricCheckpointsBucket {
+    fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError> {
+        Ok(Self {
+            checkpoint_content: TaggedDBMap::reopen(
+                db,
+                cf_name,
+                DB_PREFIX_HISTORIC_CHECKPOINT_CONTENT,
+                &ReadWriteOptions::default(),
+                true,
+            )?
+            .with_metrics_label(bucket_metrics_label(cf_name)),
+            checkpoint_by_digest: TaggedDBMap::reopen(
+                db,
+                cf_name,
+                DB_PREFIX_HISTORIC_CHECKPOINT_BY_DIGEST,
+                &ReadWriteOptions::default(),
+                true,
+            )?
+            .with_metrics_label(bucket_metrics_label(cf_name)),
+        })
+    }
+
+    /// Writes the contents every empty checkpoint names, if missing. State
+    /// sync stores a checkpoint's contents only when no bucket holds them yet,
+    /// so without its own copy a bucket's empty checkpoints would lose their
+    /// contents once the bucket holding the shared copy expired.
+    fn initialize(&self) -> Result<(), TypedStoreError> {
+        if self
+            .checkpoint_content
+            .contains_key(&EMPTY_CHECKPOINT_CONTENTS_DIGEST)?
+        {
+            return Ok(());
+        }
+        // Synced, like the creation of the bucket it belongs with.
+        let mut batch = self.checkpoint_content.batch();
+        batch.insert_batch_tagged(
+            &self.checkpoint_content,
+            [(
+                *EMPTY_CHECKPOINT_CONTENTS_DIGEST,
+                empty_checkpoint_contents(),
+            )],
+        )?;
+        batch.write_opt(&synced_write_options())
+    }
+}
+
+/// Checkpoint history, bucketed by the epoch that closed the checkpoint.
+///
+/// A bucket's existence does **not** mean its epoch has been executed: state
+/// sync inserts checkpoints ahead of execution and across epoch boundaries,
+/// so the newest bucket can belong to an epoch this node has yet to execute.
+/// Retention must therefore count from the epoch being executed, as
+/// [`Self::prune`] does.
+pub struct HistoricCheckpoints {
+    buckets: EpochBuckets<HistoricCheckpointsBucket>,
+}
+
+impl HistoricCheckpoints {
+    /// The `(name, options)` pairs of the column families this store needs,
+    /// to be opened alongside the checkpoint store's own tables.
+    pub fn extra_column_family_options(
+        checkpoint_db_path: &Path,
+        db_options: &DBOptions,
+        historic_root: &Path,
+    ) -> Vec<(String, DBOptions)> {
+        extra_column_family_options(
+            checkpoint_db_path,
+            db_options,
+            HISTORIC_CHECKPOINTS_CF_PREFIX,
+            EARLIEST_RETAINED_CF,
+            Some(&BucketPaths::new(historic_root, BUCKET_DIR)),
+        )
+    }
+
+    /// Opens the historic-checkpoint buckets already present among `db`'s
+    /// column families. `db` is the checkpoint store's own handle, and
+    /// `db_options` and `historic_root` must be the ones it was opened with.
+    pub fn open(
+        db: Arc<Database>,
+        db_options: &DBOptions,
+        historic_root: &Path,
+    ) -> Result<Self, TypedStoreError> {
+        let existing_cfs = list_tables(db.path_for_pruning().to_path_buf())
+            .map_err(|e| TypedStoreError::RocksDB(format!("failed to list buckets: {e}")))?;
+
+        let mut buckets = BTreeMap::new();
+        for cf_name in &existing_cfs {
+            if let Some(epoch) = bucket_cf_epoch(HISTORIC_CHECKPOINTS_CF_PREFIX, cf_name) {
+                let bucket = HistoricCheckpointsBucket::reopen(&db, cf_name)?;
+                // A crash right after creating the bucket left it without.
+                bucket.initialize()?;
+                buckets.insert(epoch, Arc::new(bucket));
+            }
+        }
+
+        let cf_options = bucket_cf_options(db_options).options;
+        if db.cf_handle(EARLIEST_RETAINED_CF).is_none() {
+            db.create_cf(EARLIEST_RETAINED_CF, &cf_options)?;
+        }
+        let earliest_retained_table: DBMap<(), EpochId> = DBMap::reopen(
+            &db,
+            Some(EARLIEST_RETAINED_CF),
+            &ReadWriteOptions::default(),
+            true,
+        )?;
+
+        let buckets = EpochBuckets::open(
+            db,
+            "historic checkpoints",
+            HISTORIC_CHECKPOINTS_CF_PREFIX,
+            cf_options,
+            Some(BucketPaths::new(historic_root, BUCKET_DIR)),
+            earliest_retained_table,
+            buckets,
+        )?;
+        Ok(Self { buckets })
+    }
+
+    /// The oldest epoch this store still holds a bucket for, `None` when it
+    /// holds none. This is what the store holds, not what its retention would
+    /// keep: a node restored from a formal snapshot starts with no bucket.
+    pub fn earliest_bucket_epoch(&self) -> Option<EpochId> {
+        self.buckets.earliest_epoch()
+    }
+
+    /// The earliest epoch [`Self::prune`] retains; the checkpoint history of
+    /// every epoch below it is gone.
+    pub fn earliest_retained_epoch(&self) -> EpochId {
+        self.buckets.earliest_retained()
+    }
+
+    /// The bucket holding `epoch`'s checkpoint history, created if absent.
+    pub fn ensure(
+        &self,
+        epoch: EpochId,
+    ) -> Result<Arc<HistoricCheckpointsBucket>, TypedStoreError> {
+        self.buckets.ensure(epoch)
+    }
+
+    /// The bucket holding `epoch`'s checkpoint history, and `None` once that
+    /// epoch has been expired. See
+    /// `EpochBuckets::ensure_retained`.
+    pub fn ensure_retained(
+        &self,
+        epoch: EpochId,
+    ) -> Result<Option<Arc<HistoricCheckpointsBucket>>, TypedStoreError> {
+        self.buckets.ensure_retained(epoch)
+    }
+
+    /// Drops the buckets of the epochs that have fallen outside
+    /// `epochs_to_retain`, counted back from `current_epoch` and including
+    /// it, and returns the earliest epoch retained and how many buckets were
+    /// dropped.
+    ///
+    /// `current_epoch` must be the epoch this node is executing (see
+    /// [`HistoricCheckpoints`]); buckets above it are left alone. Blocks while
+    /// the drops run, so async callers must use `spawn_blocking`.
+    ///
+    /// `before_drop` runs before each bucket is dropped, once the earliest
+    /// epoch retained has moved past it, so that what advertises the retained
+    /// range can be moved first.
+    pub fn prune(
+        &self,
+        current_epoch: EpochId,
+        epochs_to_retain: u64,
+        before_drop: &dyn Fn(),
+    ) -> Result<Option<PrunedBuckets>, TypedStoreError> {
+        self.buckets.prune(current_epoch, epochs_to_retain, |_, _| {
+            before_drop();
+            Ok(())
+        })
+    }
+
+    /// Compacts the buckets of the epochs below `current_epoch` that are not
+    /// compacted yet (see
+    /// `EpochBuckets::compact_closed`, which asks
+    /// `stop` before each bucket). Blocks while
+    /// the compactions run, so async callers must use `spawn_blocking`.
+    pub fn compact_closed_buckets(
+        &self,
+        current_epoch: EpochId,
+        stop: &dyn Fn() -> bool,
+    ) -> Result<usize, TypedStoreError> {
+        self.buckets.compact_closed(current_epoch, stop)
+    }
+
+    /// The contents stored under `digest`, newest bucket first, `None` if no
+    /// bucket holds them (or their bucket has since been dropped).
+    pub fn find_contents(
+        &self,
+        digest: &CheckpointContentsDigest,
+    ) -> Result<Option<CheckpointContents>, TypedStoreError> {
+        Ok(self
+            .find_contents_with_epoch(digest)?
+            .map(|(_, contents)| contents))
+    }
+
+    /// [`Self::find_contents`], with the epoch of the bucket holding them,
+    /// which is the epoch of the checkpoint they belong to. Every bucket
+    /// holds the empty contents; for them, the newest bucket's epoch.
+    pub fn find_contents_with_epoch(
+        &self,
+        digest: &CheckpointContentsDigest,
+    ) -> Result<Option<(EpochId, CheckpointContents)>, TypedStoreError> {
+        for (epoch, bucket) in self.buckets.iter_with_epoch(true) {
+            if let Some(contents) = absent_if_dropped(bucket.checkpoint_content.get(digest))? {
+                return Ok(Some((epoch, contents)));
+            }
+        }
+        Ok(None)
+    }
+
+    /// The certified summary stored under `digest`, newest bucket first,
+    /// `None` if no bucket holds it (or its bucket has since been dropped).
+    ///
+    /// A caller that has the sequence number should read
+    /// `certified_checkpoints` instead, which is never pruned.
+    pub fn find_by_digest(
+        &self,
+        digest: &CheckpointDigest,
+    ) -> Result<Option<TrustedCheckpoint>, TypedStoreError> {
+        for bucket in self.buckets.iter(true) {
+            if let Some(checkpoint) = absent_if_dropped(bucket.checkpoint_by_digest.get(digest))? {
+                return Ok(Some(checkpoint));
+            }
+        }
+        Ok(None)
+    }
+
+    /// One page of the rows `cf_name` holds, if it is one of this store's
+    /// column families, for the table dump of `iota-tool`. `None` for any
+    /// other name. `db` may be a read-only or secondary handle.
+    pub fn dump_column_family(
+        db: &Arc<Database>,
+        cf_name: &str,
+        page_size: u16,
+        page_number: usize,
+    ) -> Result<Option<BTreeMap<String, String>>, TypedStoreError> {
+        if bucket_cf_epoch(HISTORIC_CHECKPOINTS_CF_PREFIX, cf_name).is_some() {
+            let bucket = HistoricCheckpointsBucket::reopen(db, cf_name)?;
+            bucket.checkpoint_content.try_catch_up_with_primary()?;
+            bucket.checkpoint_by_digest.try_catch_up_with_primary()?;
+            let rows = dump_rows("content:", bucket.checkpoint_content.safe_iter()).chain(
+                dump_rows("by_digest:", bucket.checkpoint_by_digest.safe_iter()),
+            );
+            return dump_page(rows, page_size, page_number).map(Some);
+        }
+        if cf_name == EARLIEST_RETAINED_CF {
+            return dump_retention_floor(db, cf_name, page_size, page_number).map(Some);
+        }
+        Ok(None)
+    }
+}
+
+#[cfg(test)]
+#[path = "../unit_tests/historic_checkpoints_tests.rs"]
+mod tests;

@@ -154,7 +154,7 @@ p2p-config:
       peer-id: 01589ac910a5993f80fbc34a6e0c8b2041ddc5526a951c838df3037e11ab0188
 
 # Resource optimization
-enable-index-processing: false
+enable-jsonrpc-api: false
 
 # Genesis configuration
 genesis:

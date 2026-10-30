@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     fmt,
     future::Future,
     num::NonZeroUsize,
@@ -34,6 +34,7 @@ use iota_core::{
         authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
+        ledger_backlog_migration, object_backlog_sweep,
         shared_object_version_manager::Schedulable,
     },
     authority_aggregator::{
@@ -62,21 +63,23 @@ use iota_core::{
         epoch_metrics::EpochMetrics, randomness::RandomnessManager,
         reconfiguration::ReconfigurationInitiator,
     },
+    epoch_buckets::HISTORIC_DB_DIR,
     epoch_end_db_snapshot::{EpochEndDbSnapshotHandle, EpochEndDbSnapshotRequest},
     execution_cache::build_execution_cache,
     execution_scheduler::ExecutionSchedulerAPI,
     global_state_hasher::{GlobalStateHashMetrics, GlobalStateHasher},
-    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::IndexStore,
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{consensus_queue_overload_monitor, overload_monitor},
+    rpc_indexes::{
+        RpcIndexesStore, legacy_index_dirs_size, remove_legacy_index_dirs,
+        schema::{IndexGroup, RPC_INDEXES_DIR},
+    },
     safe_client::SafeClientMetricsBase,
     signature_verifier::SignatureVerifierMetrics,
     storage::{GrpcReadStore, RocksDbStore},
     transaction_orchestrator::TransactionOrchestrator,
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
-use iota_genesis_common::MigrationTxDataExt;
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_http::metrics::ListenerMetrics;
 use iota_json_rpc::{
@@ -237,10 +240,6 @@ pub struct IotaNode {
     /// executed; set for each epoch from `sync_summaries_to_epoch_end`.
     sync_summaries_to_epoch_end: Arc<AtomicBool>,
     checkpoint_store: Arc<CheckpointStore>,
-    /// Checked by the checkpoint store before its saved synced watermark
-    /// passes a checkpoint; see
-    /// [`CheckpointStore::hold_synced_watermark_in_memory`].
-    perpetual_tables: Arc<AuthorityPerpetualTables>,
     state_sync_store: RocksDbStore,
     global_state_hasher: Mutex<Option<Arc<GlobalStateHasher>>>,
     connection_monitor_status: Arc<ConnectionMonitorStatus>,
@@ -327,6 +326,7 @@ impl IotaNode {
             registry_service,
             ServerVersion::new("iota-node", "unknown"),
             tokio::runtime::Handle::current(),
+            Arc::default(),
         )
         .await
     }
@@ -376,13 +376,22 @@ impl IotaNode {
         }))
     }
 
+    /// Setting `index_rebuild_cancelled` stops an RPC index rebuild running
+    /// during startup, which no other shutdown path can reach.
     pub async fn start_async(
         mut config: NodeConfig,
         registry_service: RegistryService,
         server_version: ServerVersion,
         serving_rt_handle: tokio::runtime::Handle,
+        index_rebuild_cancelled: Arc<AtomicBool>,
     ) -> Result<Arc<IotaNode>> {
+        config.check_renamed_keys()?;
         config.validate()?;
+        if config.maintains_rpc_indexes() {
+            config
+                .authority_store_pruning_config
+                .check_index_retention_within_ledger()?;
+        }
         NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
         if config.supported_protocol_versions.is_none() {
             info!(
@@ -464,19 +473,29 @@ impl IotaNode {
             None,
         ));
 
+        let historic_db_path = config.db_path().join(HISTORIC_DB_DIR);
+
         // By default, only enable write stall on validators for perpetual db.
         let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
-        let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
-        let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
-            &config.db_path().join("store"),
-            Some(perpetual_tables_options),
-        ));
+        let perpetual_tables_options = AuthorityPerpetualTablesOptions {
+            enable_write_stall,
+            historic_db_path: Some(historic_db_path.clone()),
+        };
+        let (perpetual_tables, historic_objects, historic_ledger, epoch_markers) =
+            AuthorityPerpetualTables::open_with_historic_objects(
+                &config.db_path().join("store"),
+                Some(perpetual_tables_options),
+            )?;
+        let perpetual_tables = Arc::new(perpetual_tables);
+        let historic_objects = Arc::new(historic_objects);
+        let historic_ledger = Arc::new(historic_ledger);
         let is_genesis = perpetual_tables
             .database_is_empty()
             .expect("Database read should not fail at init.");
 
         let checkpoint_store = CheckpointStore::new_with_contents_cache(
             &config.db_path().join("checkpoints"),
+            Some(&historic_db_path),
             FullCheckpointContentsCache::new(
                 config
                     .full_checkpoint_contents_cache_size_mb
@@ -508,11 +527,13 @@ impl IotaNode {
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
-        let perpetual_tables_for_progress = perpetual_tables.clone();
+        let historic_objects_for_progress = historic_objects.clone();
         let perpetual_tables_for_snapshots = perpetual_tables.clone();
-        let perpetual_tables_for_synced_watermark = perpetual_tables.clone();
         let store = AuthorityStore::open(
             perpetual_tables,
+            historic_objects,
+            historic_ledger,
+            Arc::new(epoch_markers),
             &genesis,
             &config,
             &prometheus_registry,
@@ -570,16 +591,6 @@ impl IotaNode {
         )?;
 
         info!("created epoch store");
-        // As at an epoch change; must come before anything marks a checkpoint
-        // synced.
-        if epoch_store.protocol_config().enable_pcool_flow()
-            && epoch_store
-                .committee()
-                .authority_exists(&config.authority_public_key())
-        {
-            checkpoint_store
-                .hold_synced_watermark_in_memory(perpetual_tables_for_synced_watermark.clone())?;
-        }
 
         replay_log!(
             "Beginning replay run. Epoch: {:?}, Protocol config: {:?}",
@@ -621,6 +632,108 @@ impl IotaNode {
         // Database has everything from genesis, set corrupted key to 0
         unmark_db_corruption(db_corrupted_path)?;
 
+        // A database created from genesis has nothing for the one-time passes
+        // below to find.
+        // TODO(https://github.com/iotaledger/iota/issues/12712): remove this.
+        if is_genesis {
+            store.mark_pre_bucket_passes_done()?;
+            checkpoint_store.mark_checkpoint_backlog_migrated()?;
+        }
+
+        // Before the first start changes anything an older release reads, so
+        // that a refused start leaves the database usable by that release.
+        // TODO(https://github.com/iotaledger/iota/issues/12763): remove this call.
+        let pruning_config = &config.authority_store_pruning_config;
+        // Only space freed on the history's file system helps the migration,
+        // which copies into it.
+        let legacy_index_size = if is_full_node {
+            legacy_index_dirs_size(&config.db_path(), &historic_db_path)
+        } else {
+            0
+        };
+        ledger_backlog_migration::check_before_first_start(
+            &store,
+            checkpoint_store.clone(),
+            epoch_store.epoch(),
+            pruning_config.num_epochs_to_retain_for_checkpoints,
+            pruning_config.num_epochs_to_retain_for_checkpoints(),
+            legacy_index_size,
+        )
+        .map_err(|e| anyhow!("refusing to start: {e}"))?;
+
+        // The first one-way step: an older release reads the column family
+        // this drops.
+        store.retire_objects_pruner_watermark()?;
+
+        // Frees disk space ahead of the one-time migration passes below. The
+        // check above counted that space as free, so a failed removal must
+        // stop the start before the migration fills the disk.
+        if is_full_node {
+            if let Err(e) = remove_legacy_index_dirs(&config.db_path()) {
+                if legacy_index_size > 0 {
+                    return Err(anyhow!(
+                        "refusing to start: failed to remove a legacy index database in {}, \
+                         whose space the ledger migration needs: {e}. Remove the `indexes`, \
+                         `jsonrpc_indexes` and `grpc_indexes` directories there by hand",
+                        config.db_path().display()
+                    ));
+                }
+                warn!("failed to remove a legacy index database: {e}");
+            }
+        }
+
+        // Before any service starts, since nothing reads the flat tables.
+        // TODO(https://github.com/iotaledger/iota/issues/12763): remove this call.
+        ledger_backlog_migration::migrate(
+            store.clone(),
+            checkpoint_store.clone(),
+            epoch_store.epoch(),
+            pruning_config.num_epochs_to_retain_for_checkpoints(),
+        )
+        .await
+        .map_err(|e| {
+            anyhow!(
+                "failed to migrate the ledger and checkpoint history written before this build: {e}"
+            )
+        })?;
+
+        // Before any service starts: a missed marker would let a receive or a
+        // delete happen twice.
+        // TODO(https://github.com/iotaledger/iota/issues/12712): remove this call.
+        store
+            .migrate_flat_markers(epoch_store.epoch())
+            .map_err(|e| {
+                anyhow!("failed to migrate the object markers written before this build: {e}")
+            })?;
+
+        // Before any service that could expire a historic bucket starts, and
+        // before the index rebuild below scans the live `objects` table.
+        // TODO(https://github.com/iotaledger/iota/issues/12712): remove this call.
+        object_backlog_sweep::sweep(store.clone(), epoch_store.epoch())
+            .await
+            .map_err(|e| {
+                anyhow!(
+                    "failed to sweep the object versions superseded before this build: {e}. If it \
+                     fails on a row it cannot read every time, `iota-tool db-tool --db-path {} \
+                     mark-object-backlog-swept`, with the node stopped, lets it start without \
+                     the sweep; the versions it had not reached then stay in the live object \
+                     table",
+                    config.db_path().display()
+                )
+            })?;
+
+        // As at an epoch change. After the one-time passes above, whose
+        // rewind writes only the saved synced watermark, and before state sync
+        // marks anything synced.
+        if epoch_store.protocol_config().enable_pcool_flow()
+            && epoch_store
+                .committee()
+                .authority_exists(&config.authority_public_key())
+        {
+            checkpoint_store
+                .hold_synced_watermark_in_memory(store.get_historic_ledger().clone())?;
+        }
+
         info!("creating state sync store");
         let state_sync_store = RocksDbStore::new(
             cache_traits.clone(),
@@ -628,30 +741,41 @@ impl IotaNode {
             checkpoint_store.clone(),
         );
 
-        let index_store = if is_full_node && config.enable_index_processing {
+        let mut index_groups = BTreeSet::new();
+        if is_full_node && config.enable_jsonrpc_api {
+            index_groups.insert(IndexGroup::JsonRpc);
+        }
+        if is_full_node && config.enable_grpc_api {
+            index_groups.insert(IndexGroup::Grpc);
+        }
+        let rpc_indexes_store = if index_groups.is_empty() {
+            None
+        } else {
             info!("creating index store");
-            Some(Arc::new(IndexStore::new(
-                config.db_path().join("indexes"),
-                &prometheus_registry,
-                epoch_store
-                    .protocol_config()
-                    .max_move_identifier_len_as_option(),
-            )))
-        } else {
-            None
-        };
-
-        let grpc_indexes_store = if is_full_node && config.enable_grpc_api {
-            Some(Arc::new(
-                GrpcIndexesStore::new(
-                    config.db_path().join(GRPC_INDEXES_DIR),
-                    Arc::clone(&store),
+            let epochs_to_retain = config
+                .authority_store_pruning_config
+                .num_epochs_to_retain_for_indexes();
+            if epochs_to_retain.is_none() {
+                warn!(
+                    "index pruning is off: the history index backing iotax_queryTransactionBlocks() and iotax_queryEvents() adds a column family per epoch and grows without bound. Set num-epochs-to-retain-for-checkpoints, which num-epochs-to-retain-for-indexes follows, or num-epochs-to-retain-for-indexes itself"
+                );
+            }
+            Some(
+                RpcIndexesStore::new(
+                    config.db_path().join(RPC_INDEXES_DIR),
+                    Some(&historic_db_path),
+                    &prometheus_registry,
+                    index_groups,
+                    epoch_store
+                        .protocol_config()
+                        .max_move_identifier_len_as_option(),
+                    epochs_to_retain,
+                    &store,
                     &checkpoint_store,
+                    index_rebuild_cancelled,
                 )
-                .await,
-            ))
-        } else {
-            None
+                .await?,
+            )
         };
 
         // Seed the open epoch's `epoch_info` row before services start.
@@ -714,11 +838,6 @@ impl IotaNode {
 
         let checkpoint_progress_tracker = Arc::new(CheckpointProgressTracker::new());
 
-        let mut genesis_objects = genesis.objects().to_vec();
-        if let Some(migration_tx_data) = migration_tx_data.as_ref() {
-            genesis_objects.extend(migration_tx_data.get_objects());
-        }
-
         let authority_name = config.authority_public_key();
         let validator_tx_finalizer =
             config
@@ -738,15 +857,12 @@ impl IotaNode {
             cache_traits.clone(),
             epoch_store.clone(),
             committee_store.clone(),
-            index_store.clone(),
-            grpc_indexes_store,
+            rpc_indexes_store,
             checkpoint_store.clone(),
             &prometheus_registry,
-            &genesis_objects,
             config.clone(),
             validator_tx_finalizer,
             chain_identifier,
-            Some(checkpoint_progress_tracker.clone()),
             config.policy_config.clone(),
             epoch_end_db_snapshots,
         )
@@ -783,19 +899,6 @@ impl IotaNode {
         // Start the loop that receives new randomness and generates transactions for
         // it.
         RandomnessRoundReceiver::spawn(state.clone(), randomness_rx);
-
-        if config
-            .expensive_safety_check_config
-            .enable_secondary_index_checks()
-        {
-            if let Some(indexes) = state.indexes.clone() {
-                iota_core::verify_indexes::verify_indexes(
-                    state.get_global_state_hash_store().as_ref(),
-                    indexes,
-                )
-                .expect("secondary indexes are inconsistent");
-            }
-        }
 
         let (end_of_epoch_channel, end_of_epoch_receiver) =
             broadcast::channel(config.end_of_epoch_broadcast_channel_capacity);
@@ -950,7 +1053,6 @@ impl IotaNode {
             randomness_handle,
             sync_summaries_to_epoch_end,
             checkpoint_store,
-            perpetual_tables: perpetual_tables_for_synced_watermark,
             state_sync_store,
             global_state_hasher: Mutex::new(Some(global_state_hasher)),
             end_of_epoch_channel,
@@ -983,7 +1085,7 @@ impl IotaNode {
         });
 
         node.checkpoint_progress_tracker
-            .spawn_logging_task(node.checkpoint_store.clone(), perpetual_tables_for_progress);
+            .spawn_logging_task(node.checkpoint_store.clone(), historic_objects_for_progress);
 
         Ok(node)
     }
@@ -2234,30 +2336,26 @@ impl IotaNode {
             // (e.g. syncing from genesis).
             self.state.epoch_db_pruner().prune_old_epoch_dbs().await;
 
-            if cfg!(msim)
-                && !matches!(
-                    self.config
-                        .authority_store_pruning_config
-                        .num_epochs_to_retain_for_checkpoints(),
-                    None | Some(u64::MAX) | Some(0)
-                )
-            {
-                self.state
-                    .prune_checkpoints_for_eligible_epochs_for_testing(
-                        self.config.clone(),
-                        iota_core::authority::authority_store_pruner::AuthorityStorePruningMetrics::new_for_test(),
-                    )
-                    .await?;
-            }
-
             epoch_store = new_epoch_store;
             info!("Reconfiguration finished");
         }
     }
 
-    async fn shutdown(&self) {
+    /// Stops consensus, the JSON-RPC index backfill and the gRPC server.
+    /// Does nothing the second time it is called.
+    pub async fn shutdown(&self) {
+        // First, so that a running expiry or compaction, which the runtime's
+        // shutdown waits for, ends soon.
+        self.state.stop_historic_bucket_work();
+
         if let Some(validator_components) = &*self.validator_components.lock().await {
             validator_components.consensus_manager.shutdown().await;
+        }
+
+        // Stop the background index backfill so shutdown does not block on
+        // a full history replay.
+        if let Some(indexes) = &self.state.rpc_indexes_store {
+            indexes.shutdown().await;
         }
 
         // Shutdown the gRPC server if it's running
@@ -2337,7 +2435,7 @@ impl IotaNode {
             && self.state.is_committee_validator(&new_epoch_store)
         {
             self.checkpoint_store
-                .hold_synced_watermark_in_memory(self.perpetual_tables.clone())?;
+                .hold_synced_watermark_in_memory(self.state.get_historic_ledger().clone())?;
         }
         self.state.get_reconfig_api().update_epoch_flags_metrics(
             cur_epoch_store.epoch_start_config().flags(),
@@ -2664,10 +2762,11 @@ async fn build_grpc_server(
 /// 1. Checks if the node is a validator by inspecting the consensus configuration; if so, it
 ///    returns early as validators do not expose these APIs.
 /// 2. Creates an Axum router to handle HTTP requests.
-/// 3. Initializes the JSON-RPC server and registers various RPC modules based on the node's state
-///    and configuration, including CoinApi, TransactionBuilderApi, GovernanceApi,
-///    TransactionExecutionApi, and IndexerApi.
-/// 4. Binds the server to the specified JSON-RPC address and starts listening for incoming
+/// 3. If the JSON-RPC API is enabled, initializes the JSON-RPC server and registers various RPC
+///    modules based on the node's state and configuration, including CoinApi,
+///    TransactionBuilderApi, GovernanceApi, TransactionExecutionApi, and IndexerApi.
+/// 4. Adds the `/health` endpoint, which is served whether or not the JSON-RPC API is enabled.
+/// 5. Binds the server to the specified JSON-RPC address and starts listening for incoming
 ///    connections.
 pub async fn build_http_server(
     state: Arc<AuthorityState>,
@@ -2682,62 +2781,65 @@ pub async fn build_http_server(
 
     let mut router = axum::Router::new();
 
-    let json_rpc_router = {
-        let traffic_controller = state.traffic_controller.clone();
-        let mut server = JsonRpcServerBuilder::new(
-            env!("CARGO_PKG_VERSION"),
-            prometheus_registry,
-            traffic_controller,
-            config.policy_config.clone(),
-        );
+    // A full node with JSON-RPC off still serves `/health`, which liveness
+    // probes rely on.
+    if config.enable_jsonrpc_api {
+        let json_rpc_router = {
+            let traffic_controller = state.traffic_controller.clone();
+            let mut server = JsonRpcServerBuilder::new(
+                env!("CARGO_PKG_VERSION"),
+                prometheus_registry,
+                traffic_controller,
+                config.policy_config.clone(),
+            );
 
-        let kv_store = build_kv_store(&state, config, prometheus_registry)?;
+            let kv_store = build_kv_store(&state, config, prometheus_registry)?;
 
-        let metrics = Arc::new(JsonRpcMetrics::new(prometheus_registry));
-        server.register_module(ReadApi::new(
-            state.clone(),
-            kv_store.clone(),
-            metrics.clone(),
-        ))?;
-        server.register_module(CoinReadApi::new(
-            state.clone(),
-            kv_store.clone(),
-            metrics.clone(),
-        )?)?;
-
-        // if run_with_range is enabled we want to prevent any transactions
-        // run_with_range = None is normal operating conditions
-        if config.run_with_range.is_none() {
-            server.register_module(TransactionBuilderApi::new(state.clone()))?;
-        }
-        server.register_module(GovernanceReadApi::new(state.clone(), metrics.clone()))?;
-
-        if let Some(transaction_orchestrator) = transaction_orchestrator {
-            server.register_module(TransactionExecutionApi::new(
+            let metrics = Arc::new(JsonRpcMetrics::new(prometheus_registry));
+            server.register_module(ReadApi::new(
                 state.clone(),
-                transaction_orchestrator.clone(),
+                kv_store.clone(),
                 metrics.clone(),
             ))?;
-        }
+            server.register_module(CoinReadApi::new(
+                state.clone(),
+                kv_store.clone(),
+                metrics.clone(),
+            )?)?;
 
-        let iota_names_config = config
-            .iota_names_config
-            .clone()
-            .unwrap_or_else(|| IotaNamesConfig::from_chain(&state.get_chain_identifier().chain()));
+            // if run_with_range is enabled we want to prevent any transactions
+            // run_with_range = None is normal operating conditions
+            if config.run_with_range.is_none() {
+                server.register_module(TransactionBuilderApi::new(state.clone()))?;
+            }
+            server.register_module(GovernanceReadApi::new(state.clone(), metrics.clone()))?;
 
-        server.register_module(IndexerApi::new(
-            state.clone(),
-            ReadApi::new(state.clone(), kv_store.clone(), metrics.clone()),
-            kv_store,
-            metrics,
-            iota_names_config,
-        ))?;
-        server.register_module(MoveUtils::new(state.clone()))?;
+            if let Some(transaction_orchestrator) = transaction_orchestrator {
+                server.register_module(TransactionExecutionApi::new(
+                    state.clone(),
+                    transaction_orchestrator.clone(),
+                    metrics.clone(),
+                ))?;
+            }
 
-        server.to_router().await?
-    };
+            let iota_names_config = config.iota_names_config.clone().unwrap_or_else(|| {
+                IotaNamesConfig::from_chain(&state.get_chain_identifier().chain())
+            });
 
-    router = router.merge(json_rpc_router);
+            server.register_module(IndexerApi::new(
+                state.clone(),
+                ReadApi::new(state.clone(), kv_store.clone(), metrics.clone()),
+                kv_store,
+                metrics,
+                iota_names_config,
+            ))?;
+            server.register_module(MoveUtils::new(state.clone()))?;
+
+            server.to_router().await?
+        };
+
+        router = router.merge(json_rpc_router);
+    }
 
     router = router
         .route("/health", axum::routing::get(health_check_handler))
@@ -2762,7 +2864,12 @@ pub async fn build_http_server(
         )
         .serve(&config.json_rpc_address, router)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
-    info!(local_addr =? handle.local_addr(), "IOTA JSON-RPC server listening on {}", handle.local_addr());
+    info!(
+        local_addr =? handle.local_addr(),
+        json_rpc = config.enable_jsonrpc_api,
+        "IOTA HTTP server listening on {}",
+        handle.local_addr()
+    );
 
     Ok(Some(handle))
 }
@@ -2932,11 +3039,13 @@ mod runtime_split_tests {
 
 #[cfg(test)]
 mod config_tests {
+    use std::sync::{Arc, atomic::AtomicBool};
+
     use iota_config::NodeConfig;
     use iota_metrics::RegistryService;
     use prometheus_filtered::Registry;
 
-    use super::{IotaNode, remove_legacy_db_checkpoints};
+    use super::{IotaNode, ServerVersion, remove_legacy_db_checkpoints};
 
     /// A config whose `db-path` is `db_path`, with nothing else a node would
     /// need to start.
@@ -2997,6 +3106,37 @@ genesis:
         assert!(
             !dir.path().join("db_checkpoints").exists(),
             "the cleanup must not create what it is there to remove",
+        );
+    }
+
+    /// `start_async` refuses a config whose index retention outlives its
+    /// ledger retention before it opens a database.
+    #[tokio::test]
+    async fn index_retention_beyond_ledger_retention_refuses_to_start() {
+        const TEMPLATE: &str = include_str!("../../iota-config/data/fullnode-template.yaml");
+        let mut config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        config
+            .authority_store_pruning_config
+            .num_epochs_to_retain_for_checkpoints = Some(2);
+        config
+            .authority_store_pruning_config
+            .num_epochs_to_retain_for_indexes = Some(3);
+
+        let err = IotaNode::start_async(
+            config,
+            RegistryService::new(Registry::new()),
+            ServerVersion::new("test", "0.0.0"),
+            tokio::runtime::Handle::current(),
+            Arc::new(AtomicBool::new(false)),
+        )
+        .await
+        .unwrap_err()
+        .to_string();
+
+        assert!(err.contains("num-epochs-to-retain-for-indexes"), "{err}");
+        assert!(
+            err.contains("num-epochs-to-retain-for-checkpoints"),
+            "{err}"
         );
     }
 }
