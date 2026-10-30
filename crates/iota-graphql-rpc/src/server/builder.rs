@@ -487,7 +487,7 @@ impl ServerBuilder {
             ));
         };
 
-        // subscriptions replay from their own pool for better performsance.
+        // subscriptions replay from their own pool for better performance.
         let mut subscription_pool_config = ConnectionPoolConfig::default();
         subscription_pool_config.set_pool_size(config.connection.db_pool_size);
         subscription_pool_config.set_statement_timeout(Duration::from_millis(
