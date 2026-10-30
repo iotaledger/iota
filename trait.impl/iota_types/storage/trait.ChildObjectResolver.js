@@ -1,0 +1,9 @@
+(function() {
+    const implementors = Object.fromEntries([["iota_adapter_latest",[["impl <a class=\"trait\" href=\"iota_types/storage/trait.ChildObjectResolver.html\" title=\"trait iota_types::storage::ChildObjectResolver\">ChildObjectResolver</a> for <a class=\"struct\" href=\"iota_adapter_latest/temporary_store/struct.TemporaryStore.html\" title=\"struct iota_adapter_latest::temporary_store::TemporaryStore\">TemporaryStore</a>&lt;'_&gt;",0]]],["iota_core",[["impl <a class=\"trait\" href=\"iota_types/storage/trait.ChildObjectResolver.html\" title=\"trait iota_types::storage::ChildObjectResolver\">ChildObjectResolver</a> for <a class=\"struct\" href=\"iota_core/execution_cache/writeback_cache/struct.WritebackCache.html\" title=\"struct iota_core::execution_cache::writeback_cache::WritebackCache\">WritebackCache</a>",0]]],["iota_move_natives_latest",[["impl <a class=\"trait\" href=\"iota_types/storage/trait.ChildObjectResolver.html\" title=\"trait iota_types::storage::ChildObjectResolver\">ChildObjectResolver</a> for <a class=\"struct\" href=\"iota_move_natives_latest/test_scenario/struct.InMemoryTestStore.html\" title=\"struct iota_move_natives_latest::test_scenario::InMemoryTestStore\">InMemoryTestStore</a>",0]]],["iota_types",[]],["simulacrum",[["impl <a class=\"trait\" href=\"iota_types/storage/trait.ChildObjectResolver.html\" title=\"trait iota_types::storage::ChildObjectResolver\">ChildObjectResolver</a> for <a class=\"struct\" href=\"simulacrum/store/in_mem_store/struct.InMemoryStore.html\" title=\"struct simulacrum::store::in_mem_store::InMemoryStore\">InMemoryStore</a>",0]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":59,"fragment_lengths":[390,384,401,18,358]}

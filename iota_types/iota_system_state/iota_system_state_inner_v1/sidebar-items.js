@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["IotaSystemStateV1","StakingPoolV1","StorageFundV1","ValidatorMetadataV1","ValidatorSetV1","ValidatorV1","VerifiedValidatorMetadataV1"]};

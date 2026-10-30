@@ -1,0 +1,85 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="The handler object state: the object versions that the commits assigned by the consensus handler produce, kept per epoch for P-COOL deterministic post-consensus validation. Validation reads object state as of a commit from it, however far local execution has got."><title>iota_core::authority::authority_per_epoch_store::handler_object_state - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="iota_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.0 (b940084d7 2026-09-28)" data-channel="1.99.0" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module handler_object_state</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../../iota_core/index.html">iota_<wbr>core</a><span class="version">1.36.0-alpha</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module handler_<wbr>object_<wbr>state</a></h2><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#functions" title="Functions">Functions</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In iota_<wbr>core::<wbr>authority::<wbr>authority_<wbr>per_<wbr>epoch_<wbr>store</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../../index.html">iota_core</a>::<wbr><a href="../../index.html">authority</a>::<wbr><a href="../index.html">authority_per_epoch_store</a></div><h1>Module <span>handler_<wbr>object_<wbr>state</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../../src/iota_core/authority/handler_object_state.rs.html#4-1233">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>The handler object state: the object versions that the commits assigned
+by the consensus handler produce, kept per epoch for P-COOL deterministic
+post-consensus validation. Validation reads object state as of a commit
+from it, however far local execution has got.</p>
+<p>Terms used here:</p>
+<ul>
+<li><code>C</code> is the commit being validated, and <code>K</code> is how many commits behind <code>C</code> validation reads the
+object state: the protocol config’s <code>pcool_deterministic_validation_horizon_distance</code>.
+Validation at <code>C</code> reads the state as of commit <code>C - K</code>, called the horizon.</li>
+<li>A row is one entry of the handler object state. It records that a transaction in some commit
+produced version <code>V</code> of object <code>id</code>: the commit, the digest, and whether the object is live,
+deleted or wrapped at that version. “The row at <code>(id, V)</code>” is that entry. Rows are read at the
+exact version a transaction names or, for a shared object that is gone, at the object’s
+highest version.</li>
+<li>Rows are written to the epoch table <code>handler_processed_objects</code>. Until then they are held in
+memory. A row held in memory is removed only after it is written to the table, and reads look
+in memory first.</li>
+<li>The roots of a commit are the keys of the transactions the handler put in the commit’s pending
+checkpoints, cancelled transactions included.</li>
+<li>A commit is fully executed when every root of it has effects.</li>
+<li>The execution watcher is the task that waits for the effects of the roots of each assigned
+commit and then marks the commit fully executed (<code>ExecutionWatcher</code> in the consensus handler).</li>
+<li>The resume point is the last commit whose output the quarantine flush wrote. After a restart
+the handler replays the commits above it.</li>
+</ul>
+<p>On a committee validator every execution belongs to a commit the handler
+has assigned: the checkpoint executor runs a transaction only after the
+handler has assigned its commit, until the node switches to executing
+synced checkpoints for the rest of the epoch, which stops the handler.
+The change-epoch transaction and genesis run outside any commit and write
+no rows. What they write is the state the next epoch starts with.</p>
+<p><a href="struct.HandlerObjectState.html" title="struct iota_core::authority::authority_per_epoch_store::handler_object_state::HandlerObjectState"><code>HandlerObjectState</code></a> owns the rows held in memory and the map from
+transaction key to assigned commit.</p>
+<p>The rows and the map change at these points:</p>
+<ul>
+<li>the handler assigns a commit to its roots before any of them can be scheduled
+(<a href="struct.HandlerObjectState.html#method.assign_commit_to_transactions" title="method iota_core::authority::authority_per_epoch_store::handler_object_state::HandlerObjectState::assign_commit_to_transactions"><code>HandlerObjectState::assign_commit_to_transactions</code></a>, through the epoch store);</li>
+<li>each execution of a transaction whose commit is assigned puts its rows in memory before its
+outputs become readable (<a href="struct.HandlerObjectState.html#method.record_executed_transaction" title="method iota_core::authority::authority_per_epoch_store::handler_object_state::HandlerObjectState::record_executed_transaction"><code>HandlerObjectState::record_executed_transaction</code></a>);</li>
+<li>a commit is completed, either by the execution watcher once it is fully executed
+(<a href="struct.HandlerObjectState.html#method.record_commit_fully_executed" title="method iota_core::authority::authority_per_epoch_store::handler_object_state::HandlerObjectState::record_commit_fully_executed"><code>HandlerObjectState::record_commit_fully_executed</code></a>) or by the quarantine flush of its
+output when that comes first (<a href="struct.HandlerObjectState.html#method.complete_commit_at_flush" title="method iota_core::authority::authority_per_epoch_store::handler_object_state::HandlerObjectState::complete_commit_at_flush"><code>HandlerObjectState::complete_commit_at_flush</code></a>). Either way
+the commit’s rows are put in memory, skipping the rows already present, and the commit’s keys
+are removed from the map;</li>
+<li>the execution watcher stops on an error
+(<a href="struct.HandlerObjectState.html#method.record_execution_watcher_error" title="method iota_core::authority::authority_per_epoch_store::handler_object_state::HandlerObjectState::record_execution_watcher_error"><code>HandlerObjectState::record_execution_watcher_error</code></a>). After that only a flush completes a
+commit, and a wait for a commit that is not fully executed panics;</li>
+<li>rows are removed from memory once they are written to the table.</li>
+</ul>
+<p>Completing a commit also raises the highest fully executed commit
+(<a href="struct.HandlerObjectState.html#method.wait_for_fully_executed_commit" title="method iota_core::authority::authority_per_epoch_store::handler_object_state::HandlerObjectState::wait_for_fully_executed_commit"><code>HandlerObjectState::wait_for_fully_executed_commit</code></a>). Validation of a
+commit waits on it, so that it reads rows no execution can still add to.</p>
+<p>Rows are written to the table at two points:</p>
+<ul>
+<li>the quarantine flush of a commit’s output, once its checkpoint is certified and executed,
+writes the commit’s rows not yet in the table, in the same batch as <code>last_consensus_stats</code>
+(<a href="struct.HandlerObjectState.html#method.write_commit_rows_to_batch" title="method iota_core::authority::authority_per_epoch_store::handler_object_state::HandlerObjectState::write_commit_rows_to_batch"><code>HandlerObjectState::write_commit_rows_to_batch</code></a>). For a commit the execution watcher
+completed, these are its rows still held in memory
+(<a href="struct.HandlerObjectState.html#method.take_completed_commit_rows" title="method iota_core::authority::authority_per_epoch_store::handler_object_state::HandlerObjectState::take_completed_commit_rows"><code>HandlerObjectState::take_completed_commit_rows</code></a>). Otherwise they are all the commit’s
+rows, derived from its effects;</li>
+<li>for every executed checkpoint, the checkpoint executor writes the rows its executions put in
+memory, in a separate batch written just before the checkpoint’s outputs and its watermark
+(<a href="struct.HandlerObjectState.html#method.write_checkpoint_rows_to_batch" title="method iota_core::authority::authority_per_epoch_store::handler_object_state::HandlerObjectState::write_checkpoint_rows_to_batch"><code>HandlerObjectState::write_checkpoint_rows_to_batch</code></a>). So an object is never written
+without its row. Rows never change once written for a key, so this batch takes no lock.</li>
+</ul>
+<p>Neither batch is synced to disk when written, so the order of these writes
+holds across a process crash but not across a power loss or kernel crash.</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.AssignedCommit.html" title="struct iota_core::authority::authority_per_epoch_store::handler_object_state::AssignedCommit">Assigned<wbr>Commit</a></dt><dd>A commit the handler has assigned, handed to the execution watcher so it
+can mark the commit fully executed once every root has effects.</dd><dt><a class="struct" href="struct.HandlerObjectState.html" title="struct iota_core::authority::authority_per_epoch_store::handler_object_state::HandlerObjectState">Handler<wbr>Object<wbr>State</a></dt><dd>The rows held in memory and the map from transaction key to assigned
+commit, with every operation that combines them with the table. A row
+held in memory is removed only after it is written to the table, and
+reads look in memory first, so a row found in both places reads the same.</dd><dt><a class="struct" href="struct.HandlerProcessedObject.html" title="struct iota_core::authority::authority_per_epoch_store::handler_object_state::HandlerProcessedObject">Handler<wbr>Processed<wbr>Object</a></dt><dd>A row: one version an object took in a commit the consensus handler
+assigned.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.HandlerProcessedObjectKind.html" title="enum iota_core::authority::authority_per_epoch_store::handler_object_state::HandlerProcessedObjectKind">Handler<wbr>Processed<wbr>Object<wbr>Kind</a></dt><dd>Whether a row describes a live object, or a deleted or wrapped one, at its
+version.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.handler_processed_keys.html" title="fn iota_core::authority::authority_per_epoch_store::handler_object_state::handler_processed_keys">handler_<wbr>processed_<wbr>keys</a></dt><dd>The keys of the rows <a href="fn.handler_processed_upserts.html" title="fn iota_core::authority::authority_per_epoch_store::handler_object_state::handler_processed_upserts"><code>handler_processed_upserts</code></a> derives for <code>effects</code>,
+in the same order, without building the rows.</dd><dt><a class="fn" href="fn.handler_processed_upserts.html" title="fn iota_core::authority::authority_per_epoch_store::handler_object_state::handler_processed_upserts">handler_<wbr>processed_<wbr>upserts</a></dt><dd>The rows one executed transaction of commit <code>produced_at</code> produces: a
+<code>Live</code> row for each created, mutated or unwrapped object, and a <code>Deleted</code>
+or <code>Wrapped</code> row for each deleted or wrapped one. A deleted shared object’s
+row keeps its initial shared version, taken from the consumed input’s
+owner, and every <code>Deleted</code> row names the transaction.</dd><dt><a class="fn" href="fn.handler_rows_for_commit.html" title="fn iota_core::authority::authority_per_epoch_store::handler_object_state::handler_rows_for_commit">handler_<wbr>rows_<wbr>for_<wbr>commit</a></dt><dd>The rows a commit’s executed transactions produce. The execution watcher
+and the quarantine flush both derive a commit’s rows here, so they always
+agree.</dd></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.CommitIndex.html" title="type iota_core::authority::authority_per_epoch_store::handler_object_state::CommitIndex">Commit<wbr>Index</a></dt><dd>Position of a consensus commit in the epoch’s commit sequence: dense,
+starting at 1, identical on every validator. The node-side counterpart of
+consensus’s <code>CommitIndex</code>, widened like <code>ExecutionIndices::sub_dag_index</code>
+so this module’s persisted rows do not depend on the consensus crate’s
+representation.</dd></dl></section></div></main></body></html>

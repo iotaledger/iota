@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["CoinBalance","ObjectRefColumn","StoredBackwardHistoryObject","StoredCheckpointedObject","StoredDeletedObject","StoredHistoryObject","StoredObject"]};
