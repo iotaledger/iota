@@ -3083,7 +3083,6 @@ mod test {
                 round <= MAX_ROUNDS,
                 "network did not reach a post-rotation mid-interval state within {MAX_ROUNDS} rounds"
             );
-            // Which rounds needed the timeout stand-in does not matter here.
             last_round_blocks = gossip_one_round(
                 cores,
                 round,
