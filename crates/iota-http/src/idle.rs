@@ -55,7 +55,7 @@ use tokio::time::{Instant, Sleep};
 ///         _ = &mut timer => {
 ///             // Work can arrive between the timer being reached and this
 ///             // running, so readiness alone does not mean it is still idle.
-///             if timer.is_busy() {
+///             if timer.is_busy() == Some(true) {
 ///                 continue;
 ///             }
 ///             // … wind the task down
@@ -106,12 +106,10 @@ impl IdleSleep {
         }
     }
 
-    /// Whether the task has anything to do right now. Always `false` for a
-    /// timer with no timeout, which tracks nothing.
-    pub fn is_busy(&self) -> bool {
-        self.timer
-            .as_ref()
-            .is_some_and(|timer| timer.shared.is_busy())
+    /// Whether the task has anything to do right now, or `None` for a timer
+    /// with no timeout, which does not count its task's work.
+    pub fn is_busy(&self) -> Option<bool> {
+        self.timer.as_ref().map(|timer| timer.shared.is_busy())
     }
 }
 
@@ -136,8 +134,8 @@ impl IdleHandle {
     }
 
     #[cfg(test)]
-    pub fn is_busy(&self) -> bool {
-        self.shared.as_ref().is_some_and(|shared| shared.is_busy())
+    pub fn is_busy(&self) -> Option<bool> {
+        self.shared.as_ref().map(|shared| shared.is_busy())
     }
 
     /// Approximately how long the task has been idle, or `None` if it is busy
