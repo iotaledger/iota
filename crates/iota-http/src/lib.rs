@@ -316,6 +316,13 @@ where
 
     fn handle_incoming(&mut self, io: L::Io, remote_addr: L::Addr) {
         let io = TrackedIo::new(io, self.config.metrics.as_ref(), remote_addr);
+        // Closed rather than left in the kernel backlog, and before any
+        // handshake, which a full listener would only waste.
+        if self.is_full() {
+            // Dropping the connection closes it, releasing its file descriptor.
+            trace!("listener is already serving its maximum connections, closing the new one");
+            return;
+        }
         if let Some(tls) = self.tls_config.clone() {
             let tls_acceptor = TlsAcceptor::from(tls);
             let handshake_timeout = self.config.handshake_timeout;
@@ -344,6 +351,14 @@ where
         } else {
             self.handle_connection(ServerIo::new_io(io), remote_addr);
         }
+    }
+
+    /// Whether the connections being served and those still in their
+    /// handshake have reached `max_connections`.
+    fn is_full(&self) -> bool {
+        self.config.max_connections.is_some_and(|max| {
+            self.connection_handlers.len() + self.pending_connections.len() >= max
+        })
     }
 
     fn handle_connection(&mut self, io: ServerIo<TrackedIo<L::Io>>, remote_addr: L::Addr) {
@@ -1823,5 +1838,128 @@ mod tests {
     #[tokio::test]
     async fn a_connection_with_no_idle_deadline_is_given_every_grace() {
         assert_an_unfinished_request_is_cut_after_the_last_grace(None).await;
+    }
+
+    /// The listener's own limit is what bounds the connections it serves. A
+    /// per-peer limit cannot: it permits one peer's worth per peer, and the
+    /// peers are whoever connects.
+    #[tokio::test]
+    async fn connections_are_capped_for_the_whole_listener() {
+        use tokio::io::AsyncReadExt as _;
+
+        const MAX_CONNECTIONS: usize = 4;
+        const ATTEMPTS: usize = MAX_CONNECTIONS * 4;
+
+        let handle = Builder::new()
+            .config(Config::default().max_connections(Some(MAX_CONNECTIONS)))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        // Each connection waits for the server to close it, which only the
+        // refused ones see. The served ones stay open while their tasks wait.
+        let mut closed_by_server = tokio::task::JoinSet::new();
+        for _ in 0..ATTEMPTS {
+            let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+                .await
+                .unwrap();
+            closed_by_server.spawn(async move {
+                let mut buf = [0u8; 1];
+                let _ = connection.read(&mut buf).await;
+            });
+        }
+
+        tokio::time::timeout(Duration::from_secs(10), async {
+            for _ in 0..ATTEMPTS - MAX_CONNECTIONS {
+                closed_by_server.join_next().await;
+            }
+        })
+        .await
+        .expect("every connection past the limit must be refused");
+
+        assert_eq!(
+            handle.number_of_connections(),
+            MAX_CONNECTIONS,
+            "the listener must fill to its limit and never past it"
+        );
+    }
+
+    /// A full listener refuses a new connection before its TLS handshake, so
+    /// it spends nothing on a connection it will not serve.
+    #[tokio::test]
+    async fn a_full_listener_refuses_before_the_tls_handshake() {
+        let (server_tls_config, client_tls_config) = test_tls_configs();
+        let handle = Builder::new()
+            .config(Config::default().max_connections(Some(1)))
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+        let addr = *handle.local_addr();
+
+        let connector = tokio_rustls::TlsConnector::from(Arc::new(client_tls_config));
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        let connect = || async {
+            let io = tokio::net::TcpStream::connect(addr).await.unwrap();
+            connector.connect(server_name.clone(), io).await
+        };
+
+        let _served = connect()
+            .await
+            .expect("the first connection must be served");
+        // The listener counts it only once the accept loop has taken it from
+        // its handshake.
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while handle.number_of_connections() < 1 {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the first connection must be counted"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        // Refused after its handshake, the client would see the handshake
+        // complete and only then the connection close.
+        let refused = tokio::time::timeout(Duration::from_secs(10), connect())
+            .await
+            .expect("a full listener must answer a new peer");
+        assert!(
+            refused.is_err(),
+            "a full listener must not complete a TLS handshake"
+        );
+    }
+
+    /// A connection still in its TLS handshake counts toward the limit, so
+    /// peers connecting at the same moment cannot all be served.
+    #[tokio::test]
+    async fn a_connection_in_its_handshake_counts_toward_the_limit() {
+        let (server_tls_config, client_tls_config) = test_tls_configs();
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .max_connections(Some(1))
+                    // Long enough that the stalled peer below keeps its slot
+                    // for the whole test.
+                    .handshake_timeout(Some(Duration::from_secs(60))),
+            )
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+        let addr = *handle.local_addr();
+
+        // Takes the only slot by never starting its handshake. The listener
+        // accepts in the order peers connected, so it is taken first.
+        let _stalled = tokio::net::TcpStream::connect(addr).await.unwrap();
+
+        let connector = tokio_rustls::TlsConnector::from(Arc::new(client_tls_config));
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        let refused = tokio::time::timeout(Duration::from_secs(10), async {
+            let io = tokio::net::TcpStream::connect(addr).await.unwrap();
+            connector.connect(server_name, io).await
+        })
+        .await
+        .expect("a full listener must answer a new peer");
+        assert!(
+            refused.is_err(),
+            "a connection must be refused while another holds the only slot in its handshake"
+        );
     }
 }
