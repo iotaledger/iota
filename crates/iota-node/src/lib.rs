@@ -6,7 +6,7 @@ use std::{
     collections::{BTreeSet, HashMap},
     fmt,
     future::Future,
-    num::NonZeroUsize,
+    num::{NonZeroU32, NonZeroUsize},
     sync::{
         Arc, Weak,
         atomic::{AtomicBool, Ordering},
@@ -1734,7 +1734,7 @@ impl IotaNode {
         // cannot fill a service's admission slots on its own. A fullnode sends
         // every request to this validator over one connection, so the cap must
         // stay well above a busy fullnode's peak concurrency.
-        const VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS: u32 = 1000;
+        const VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS: NonZeroU32 = NonZeroU32::new(1000).unwrap();
 
         let mut server_conf = iota_network_stack::config::Config::new();
         server_conf.http2_keepalive_interval = Some(VALIDATOR_GRPC_KEEPALIVE);

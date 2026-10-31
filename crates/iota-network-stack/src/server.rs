@@ -746,7 +746,7 @@ mod test {
 
         let started = Started::default();
         let mut config = Config::new();
-        config.http2_max_concurrent_streams = Some(STREAM_CAP);
+        config.http2_max_concurrent_streams = std::num::NonZeroU32::new(STREAM_CAP);
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let server = config
             .server_builder_with_metrics(started.clone())

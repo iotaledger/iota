@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{sync::Arc, time::Duration};
+use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use iota_http::Config;
 use tokio::{
@@ -254,7 +254,7 @@ async fn pending_handshakes_peak_counts_the_silent_connections() {
 async fn a_connection_refused_for_its_peer_is_not_left_open() {
     let (reader, metrics) = setup();
     let addr = serve_mutual_tls(
-        Config::default().max_connections_per_peer(Some(1)),
+        Config::default().max_connections_per_peer(Some(NonZeroUsize::MIN)),
         &metrics,
         ok_app(),
     );
