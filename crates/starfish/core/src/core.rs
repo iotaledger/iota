@@ -3505,13 +3505,12 @@ mod test {
             opt_verified_transaction[0].is_some(),
             commit_only_for_traversed_headers
         );
-        // Try to get a serialized transaction from skipped authority. It should now be
-        // possible with get_serialized_transactions() method since it just
-        // reads bytes from storage
-        let opt_serialized_transaction = core_catch_up
-            .dag_state
-            .read()
-            .get_serialized_transactions(&[first_missing_transaction_from_skipped]);
+        // The transaction from the skipped authority was flushed, so its bytes
+        // are in the store.
+        let opt_serialized_transaction = core_fixture_catch_up
+            .store
+            .read_serialized_transactions(&[first_missing_transaction_from_skipped])
+            .unwrap();
         assert!(opt_serialized_transaction[0].is_some());
     }
 
