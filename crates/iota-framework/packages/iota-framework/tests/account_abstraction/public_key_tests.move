@@ -71,11 +71,12 @@ fun create_multisig_key_secp256k1_signer() {
 
 #[test]
 fun create_multisig_key_multiple_signers() {
-    // BCS-encoded MultiSigPublicKey: 1-of-2 with an Ed25519 and a Secp256k1 signer, each
-    // weight=1, threshold=1. Layout: vec_len(2) | Ed25519-entry | Secp256k1-entry | threshold_le(1)
-    // Uses the same key material as the MULTISIG_MIXED_PK constant (minus the 0x03 scheme prefix).
+    // BCS-encoded MultiSigPublicKey: 1-of-2 with a Secp256k1 and a Secp256r1 signer, each
+    // weight=1, threshold=1. Layout: vec_len(2) | Secp256k1-entry | Secp256r1-entry | threshold_le(1)
+    // Uses the same key material as the MULTISIG_SECP256K1_SECP256R1_PK constant (minus the 0x03
+    // scheme prefix).
     let raw =
-        x"0200cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c010100";
+        x"020102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c01020227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a010100";
     let public_key = public_key::create(signature_scheme::multisig(), raw);
 
     assert_eq(public_key.scheme(), signature_scheme::multisig());
@@ -221,11 +222,23 @@ fun create_multisig_weight_below_threshold_aborts() {
 #[test]
 #[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_multisig_zero_weight_signer_aborts() {
-    // The mixed 1-of-2 committee with the Ed25519 member's weight set to 0. Total weight (1,
-    // from the Secp256k1 member) still meets the threshold, so only the zero-weight rule is
+    // The two-scheme 1-of-2 committee with the Secp256k1 member's weight set to 0. Total weight
+    // (1, from the Secp256r1 member) still meets the threshold, so only the zero-weight rule is
     // violated. Zero-weight members are rejected.
     let raw =
-        x"0200cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88000102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c010100";
+        x"020102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c00020227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a010100";
+    public_key::create(signature_scheme::multisig(), raw);
+}
+
+#[test]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
+fun create_multisig_mixed_ed25519_signers_aborts() {
+    // 1-of-2 with an Ed25519 and a Secp256k1 signer, each weight=1, threshold=1. Ed25519 members
+    // carry no scheme flag in the address preimage, so two different committees mixing Ed25519
+    // with other schemes can derive the same address; such committees are rejected.
+    // Layout: vec_len(2) | Ed25519-entry | Secp256k1-entry | threshold_le(1)
+    let raw =
+        x"0200cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c010100";
     public_key::create(signature_scheme::multisig(), raw);
 }
 
@@ -359,10 +372,10 @@ const PASSKEY_PK: vector<u8> =
 // 1-of-1 Ed25519 MultiSig: [0x03] | vec_len(1) | tag(0) | 32-byte key | weight(1) | threshold_le16(1)
 const MULTISIG_PK: vector<u8> =
     x"030100cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010100";
-// Mixed 1-of-2 MultiSig: Ed25519 (weight=1) + Secp256k1 (weight=1), threshold=1.
-// [0x03] | vec_len(2) | tag(0) | 32-byte ed25519 key | weight(1) | tag(1) | 33-byte secp256k1 key | weight(1) | threshold_le16(1)
-const MULTISIG_MIXED_PK: vector<u8> =
-    x"030200cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c010100";
+// 1-of-2 MultiSig: Secp256k1 (weight=1) + Secp256r1 (weight=1), threshold=1.
+// [0x03] | vec_len(2) | tag(1) | 33-byte secp256k1 key | weight(1) | tag(2) | 33-byte secp256r1 key | weight(1) | threshold_le16(1)
+const MULTISIG_SECP256K1_SECP256R1_PK: vector<u8> =
+    x"03020102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c01020227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a010100";
 
 #[test]
 fun from_prefixed_bytes_ed25519() {
@@ -439,8 +452,8 @@ const SECP256K1_ADDR: address = @0x2fecbdf2652b089c64d127158d388621fdbbd156533fb
 const SECP256R1_ADDR: address = @0x318f591092f10b67a81963954fb9539ea3919444417726be4e1b95ce44fe2fc0;
 const PASSKEY_ADDR: address = @0xa2f90cd2552d45ab5ba157dacf19597e2018108c6a80e4d7a4a5680d1542a7e8;
 const MULTISIG_ADDR: address = @0x1cc23b51b2e3c8641eea35b29114a53ad7a76643dcb2763d12290a7b83cac525;
-const MULTISIG_MIXED_ADDR: address =
-    @0x2e6c30799340fef9d382542ff0cad8e2a20f766da8b71a25c2443eda658104e4;
+const MULTISIG_SECP256K1_SECP256R1_ADDR: address =
+    @0x16cc5f64810dd2ca27d4bf4a884ffd3570800349238b403c072fd6ca6a9a4c97;
 
 #[test]
 fun to_iota_address_vectors() {
@@ -450,9 +463,9 @@ fun to_iota_address_vectors() {
     assert_eq(public_key::from_prefixed_bytes(PASSKEY_PK).to_iota_address(), PASSKEY_ADDR);
     // 1-of-1 Ed25519 MultiSig: Ed25519 members have no scheme-flag prefix in the hash input.
     assert_eq(public_key::from_prefixed_bytes(MULTISIG_PK).to_iota_address(), MULTISIG_ADDR);
-    // Mixed Ed25519 + Secp256k1: pins the per-scheme flag behavior for both member types.
+    // Secp256k1 + Secp256r1: pins the scheme-flag prefix of both flagged member types.
     assert_eq(
-        public_key::from_prefixed_bytes(MULTISIG_MIXED_PK).to_iota_address(),
-        MULTISIG_MIXED_ADDR,
+        public_key::from_prefixed_bytes(MULTISIG_SECP256K1_SECP256R1_PK).to_iota_address(),
+        MULTISIG_SECP256K1_SECP256R1_ADDR,
     );
 }

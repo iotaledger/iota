@@ -115,8 +115,8 @@ fn verify_builtin_signature_ok_secp256r1() {
 #[test]
 fn verify_builtin_signature_ok_multisig() {
     let mut rng = seeded_rng();
-    let kp1 = Ed25519PrivateKey::random_with(&mut rng);
-    let kp2 = Secp256k1PrivateKey::random_with(&mut rng);
+    let kp1 = Secp256k1PrivateKey::random_with(&mut rng);
+    let kp2 = Secp256r1PrivateKey::random_with(&mut rng);
     let multisig_public_key = MultisigCommittee::new(
         vec![
             MultisigMember::new(kp1.public_key(), 1),
