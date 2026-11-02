@@ -5,15 +5,19 @@
 //! flow and compares the binary cutoff with graduated shedding.
 //!
 //! Every arrival goes through the real admission check,
-//! [`AuthorityState::check_system_overload`], against a [`ConsensusAdapter`]
-//! configured with the policy under test. What the node does after admission
-//! is replaced by a model of the consensus queue:
-//! - an accepted transaction is counted in `num_inflight_transactions` at once (the node counts it
-//!   later, in the spawned submission task);
-//! - the queue drains in commits: every [`Load::commit_interval`], the oldest transactions that
-//!   have waited at least [`Load::pipeline_time`] leave it, up to `drain_rate × commit_interval` of
-//!   them;
-//! - the submit semaphore always has a free permit, so only the policy rejects.
+//! [`AuthorityState::reserve_consensus_queue_slot`], against a
+//! [`ConsensusAdapter`] configured with the policy under test, so an accepted
+//! transaction holds a real slot in `num_inflight_transactions` and, when one
+//! is free, a real submit permit. What the node does after admission is
+//! replaced by a model of the consensus queue:
+//! - a transaction holds its permit until a commit drains it, and can be drained only
+//!   [`Load::pipeline_time`] after taking the permit, like a submission waiting for its consensus
+//!   round trip; freed permits go to the oldest waiting transactions;
+//! - the queue drains in commits: every [`Load::commit_interval`], up to `drain_rate ×
+//!   commit_interval` of the oldest drainable transactions leave it, and their slots and permits
+//!   are released;
+//! - the semaphore has as many permits as the hard limit, unless a scenario sets today's count,
+//!   `max_pending_transactions × 2 ÷ committee size`.
 //!
 //! The clock is tokio's paused clock: a simulated minute takes a fraction of
 //! a second, and the arrivals, with their digests, are the same in every run
@@ -27,19 +31,22 @@ use std::{collections::VecDeque, sync::Arc, time::Duration};
 
 use iota_sdk_types::{Address, ObjectReference, SenderSignedTransaction, Transaction};
 use iota_types::{base_types::random_object_ref, transaction::TransactionAPI};
-use tokio::time::{Instant, interval_at};
+use tokio::{
+    sync::SemaphorePermit,
+    time::{Instant, interval_at},
+};
 use tracing::info;
 
 use crate::{
     authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
     checkpoints::CheckpointStore,
     consensus_adapter::{
-        ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
+        ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics, InflightSlot,
         MockConsensusClient,
     },
 };
 
-/// Rejection reasons `check_system_overload` counts in
+/// Rejection reasons the admission check counts in
 /// `transaction_overload_sources` on the P-COOL path.
 const REJECTION_LABELS: [&str; 5] = [
     "consensus_graduated_preventive",
@@ -65,6 +72,8 @@ struct Policy {
     hard_limit: usize,
     /// `graduated_load_shedding_soft_limit_pct`.
     soft_limit_pct: u32,
+    /// Submit permits. The hard limit unless a scenario sets today's count.
+    permits: usize,
 }
 
 impl Policy {
@@ -73,6 +82,7 @@ impl Policy {
             name,
             hard_limit,
             soft_limit_pct: 100,
+            permits: hard_limit,
         }
     }
 
@@ -81,7 +91,13 @@ impl Policy {
             name,
             hard_limit,
             soft_limit_pct,
+            permits: hard_limit,
         }
+    }
+
+    fn with_permits(mut self, permits: usize) -> Self {
+        self.permits = permits;
+        self
     }
 
     fn soft_limit(&self) -> usize {
@@ -107,8 +123,8 @@ struct Load {
     /// Time between commits. Each commit drains `drain_rate ×
     /// commit_interval` transactions.
     commit_interval: Duration,
-    /// Least time a transaction spends in the queue before a commit can
-    /// take it.
+    /// Least time between a transaction taking its permit and a commit
+    /// draining it.
     pipeline_time: Duration,
     /// Time before measurements start, for the queue to settle.
     warm_up: Duration,
@@ -176,9 +192,9 @@ impl TransactionFactory {
     fn make(&self, index: u64) -> SenderSignedTransaction {
         let tx = Transaction::new_transfer(
             self.recipient,
-            self.object.clone(),
+            self.object,
             self.sender,
-            self.gas.clone(),
+            self.gas,
             1_000_000 + index,
             1_000,
         );
@@ -186,25 +202,123 @@ impl TransactionFactory {
     }
 }
 
-struct Entry {
+/// An accepted transaction in the modelled consensus queue. Its slot stays
+/// counted, and its permit, once it has one, stays taken, until the entry is
+/// dropped.
+struct Entry<'a> {
+    slot: InflightSlot,
+    permit: Option<SemaphorePermit<'a>>,
+    /// When the transaction took its permit; `None` while it waits for one.
+    submitted_at: Option<Instant>,
     accepted_at: Instant,
     /// Accepted inside the measured window as a steady arrival, so its wait
     /// counts.
     measured: bool,
 }
 
-/// What one run measured over its window.
-struct Outcome {
-    policy: Policy,
+/// One run: the admission check on one side, the modelled consensus queue on
+/// the other.
+struct Simulation<'a> {
+    state: &'a AuthorityState,
+    adapter: &'a Arc<ConsensusAdapter>,
+    factory: &'a TransactionFactory,
+    load: Load,
+    window_start: Instant,
+    window_end: Instant,
+    queue: VecDeque<Entry<'a>>,
+    next_index: u64,
     /// Steady arrivals inside the window.
     accepted: usize,
     rejected: usize,
-    /// Queue length sampled before and after each commit inside the window.
+    /// Time from admission to the commit that drained the transaction, for
+    /// steady arrivals accepted inside the window.
+    waits: Vec<Duration>,
+    /// Queue length before and after each commit inside the window.
+    samples: Vec<usize>,
+}
+
+impl Simulation<'_> {
+    /// Runs one arrival through the admission check. Returns whether it was
+    /// accepted.
+    fn admit(&mut self, now: Instant, measured: bool) -> bool {
+        let tx = self.factory.make(self.next_index);
+        self.next_index += 1;
+        match self.state.reserve_consensus_queue_slot(self.adapter, &tx) {
+            Ok(slot) => {
+                let permit = self.adapter.try_acquire_submit_permit_for_testing();
+                let submitted_at = permit.is_some().then_some(now);
+                self.queue.push_back(Entry {
+                    slot,
+                    permit,
+                    submitted_at,
+                    accepted_at: now,
+                    measured,
+                });
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// One commit: drains up to one batch of transactions that have held
+    /// their permit long enough, releasing their slots and permits, then
+    /// hands the freed permits to the oldest waiting transactions.
+    fn commit(&mut self, now: Instant) {
+        let in_window = now >= self.window_start && now < self.window_end;
+        if in_window {
+            self.samples.push(self.queue.len());
+        }
+        let batch = self.load.commit_batch();
+        let mut drained = 0;
+        while drained < batch {
+            match self.queue.front() {
+                Some(entry)
+                    if entry.submitted_at.is_some_and(|submitted_at| {
+                        now.duration_since(submitted_at) >= self.load.pipeline_time
+                    }) =>
+                {
+                    let entry = self.queue.pop_front().unwrap();
+                    if entry.measured {
+                        self.waits.push(now.duration_since(entry.accepted_at));
+                    }
+                    // Processed: the permit and the slot are released, as the
+                    // submission task's guards release them.
+                    drop(entry.permit);
+                    drop(entry.slot);
+                    drained += 1;
+                }
+                _ => break,
+            }
+        }
+        // The semaphore serves its waiters in arrival order.
+        for entry in self.queue.iter_mut() {
+            if entry.permit.is_some() {
+                continue;
+            }
+            match self.adapter.try_acquire_submit_permit_for_testing() {
+                Some(permit) => {
+                    entry.permit = Some(permit);
+                    entry.submitted_at = Some(now);
+                }
+                None => break,
+            }
+        }
+        if in_window {
+            self.samples.push(self.queue.len());
+        }
+    }
+}
+
+/// What one run measured over its window.
+struct Outcome {
+    policy: Policy,
+    accepted: usize,
+    rejected: usize,
+    /// Steady arrivals accepted per second.
+    accepted_rate: f64,
     queue_mean: f64,
     queue_min: usize,
     queue_max: usize,
-    /// Time from admission to the commit that drained the transaction, for
-    /// steady arrivals accepted inside the window.
     wait_mean: Duration,
     wait_p50: Duration,
     wait_p99: Duration,
@@ -217,6 +331,14 @@ struct Outcome {
 impl Outcome {
     fn reject_fraction(&self) -> f64 {
         self.rejected as f64 / (self.accepted + self.rejected) as f64
+    }
+
+    fn rejections_labelled(&self, label: &str) -> u64 {
+        self.rejections
+            .iter()
+            .find(|(name, _)| *name == label)
+            .map(|(_, count)| *count)
+            .unwrap()
     }
 
     fn log(&self) {
@@ -232,9 +354,10 @@ impl Outcome {
             .collect::<Vec<_>>()
             .join(" ");
         info!(
-            "{:<28} reject {:>5.1}%  queue mean {:>6.1} (min {:>4}, max {:>4})  wait mean {:.3} s, p50 {:.3} s, p99 {:.3} s{}  [{}]",
+            "{:<28} reject {:>5.1}%  accepted {:>6.0}/s  queue mean {:>6.1} (min {:>4}, max {:>4})  wait mean {:.3} s, p50 {:.3} s, p99 {:.3} s{}  [{}]",
             self.policy.name,
             self.reject_fraction() * 100.0,
+            self.accepted_rate,
             self.queue_mean,
             self.queue_min,
             self.queue_max,
@@ -250,9 +373,10 @@ impl Outcome {
 fn log_model(policy: Policy, load: Load) {
     let settled = policy.settled_level(load.overload());
     info!(
-        "{:<28} reject {:>5.1}%  queue      {:>6.1}                        wait      {:.3} s   (model: soft + (hard - soft) × (1 - drain / arrival); wait = queue / drain)",
+        "{:<28} reject {:>5.1}%  accepted {:>6.0}/s  queue      {:>6.1}                        wait      {:.3} s   (model: soft + (hard - soft) × (1 - drain / arrival); wait = queue / drain)",
         format!("model for {}", policy.name),
         (1.0 - 1.0 / load.overload()) * 100.0,
+        load.drain_rate,
         settled,
         settled / load.drain_rate,
     );
@@ -265,9 +389,7 @@ fn adapter_for(state: &AuthorityState, policy: Policy) -> Arc<ConsensusAdapter> 
         state.name,
         Arc::new(ConnectionMonitorStatusForTests {}),
         policy.hard_limit,
-        // As many permits as the hard limit, so the permit check never
-        // rejects and only the policy under test does.
-        policy.hard_limit,
+        policy.permits,
         None,
         None,
         ConsensusAdapterMetrics::new_test(),
@@ -299,7 +421,6 @@ async fn run(
 ) -> Outcome {
     let adapter = adapter_for(state, policy);
     let rejections_before = rejection_counts(state);
-    let batch = load.commit_batch();
 
     let start = Instant::now();
     let window_start = start + load.warm_up;
@@ -307,59 +428,24 @@ async fn run(
     let mut spike_pending = load
         .spike
         .map(|spike| (window_start + spike.at, spike.size));
+    let mut spike_accepted = None;
 
     let mut arrivals = interval_at(start, Duration::from_secs_f64(1.0 / load.arrival_rate));
     let mut commits = interval_at(start + load.commit_interval, load.commit_interval);
 
-    let mut queue: VecDeque<Entry> = VecDeque::new();
-    let mut next_index: u64 = 0;
-    let mut accepted = 0usize;
-    let mut rejected = 0usize;
-    let mut spike_accepted = None;
-    let mut waits: Vec<Duration> = Vec::new();
-    let mut samples: Vec<usize> = Vec::new();
-
-    let mut admit = |now: Instant, queue: &mut VecDeque<Entry>, measured: bool| -> bool {
-        let tx = factory.make(next_index);
-        next_index += 1;
-        let accepted = state
-            .check_system_overload(&adapter, &tx, false, true)
-            .is_ok();
-        if accepted {
-            queue.push_back(Entry {
-                accepted_at: now,
-                measured,
-            });
-            adapter.set_num_inflight_transactions_for_testing(queue.len() as u64);
-        }
-        accepted
-    };
-
-    let commit = |now: Instant,
-                  queue: &mut VecDeque<Entry>,
-                  waits: &mut Vec<Duration>,
-                  samples: &mut Vec<usize>| {
-        let in_window = now >= window_start && now < window_end;
-        if in_window {
-            samples.push(queue.len());
-        }
-        let mut drained = 0;
-        while drained < batch {
-            match queue.front() {
-                Some(entry) if now.duration_since(entry.accepted_at) >= load.pipeline_time => {
-                    let entry = queue.pop_front().unwrap();
-                    if entry.measured {
-                        waits.push(now.duration_since(entry.accepted_at));
-                    }
-                    drained += 1;
-                }
-                _ => break,
-            }
-        }
-        adapter.set_num_inflight_transactions_for_testing(queue.len() as u64);
-        if in_window {
-            samples.push(queue.len());
-        }
+    let mut sim = Simulation {
+        state,
+        adapter: &adapter,
+        factory,
+        load,
+        window_start,
+        window_end,
+        queue: VecDeque::new(),
+        next_index: 0,
+        accepted: 0,
+        rejected: 0,
+        waits: Vec::new(),
+        samples: Vec::new(),
     };
 
     let mut now = start;
@@ -370,25 +456,24 @@ async fn run(
             biased;
             tick = commits.tick() => {
                 now = tick;
-                commit(now, &mut queue, &mut waits, &mut samples);
+                sim.commit(now);
             }
             tick = arrivals.tick() => {
                 now = tick;
                 if let Some((at, size)) = spike_pending {
                     if now >= at {
-                        let got = (0..size).filter(|_| admit(now, &mut queue, false)).count();
-                        spike_accepted = Some(got);
+                        spike_accepted = Some((0..size).filter(|_| sim.admit(now, false)).count());
                         spike_pending = None;
                     }
                 }
                 if now < window_end {
                     let measured = now >= window_start;
-                    if admit(now, &mut queue, measured) {
+                    if sim.admit(now, measured) {
                         if measured {
-                            accepted += 1;
+                            sim.accepted += 1;
                         }
                     } else if measured {
-                        rejected += 1;
+                        sim.rejected += 1;
                     }
                 }
             }
@@ -397,11 +482,24 @@ async fn run(
 
     // Drain what was accepted inside the window, so its waiting time is
     // known.
-    while queue.iter().any(|entry| entry.measured) {
+    while sim.queue.iter().any(|entry| entry.measured) {
         let tick = commits.tick().await;
-        commit(tick, &mut queue, &mut waits, &mut samples);
+        sim.commit(tick);
     }
 
+    let Simulation {
+        accepted,
+        rejected,
+        mut waits,
+        samples,
+        ..
+    } = sim;
+    assert_eq!(
+        adapter.num_inflight_transactions(),
+        0,
+        "{}: every slot should be released once the queue is dropped",
+        policy.name
+    );
     assert!(
         !waits.is_empty(),
         "{}: no transaction was accepted",
@@ -420,6 +518,7 @@ async fn run(
         policy,
         accepted,
         rejected,
+        accepted_rate: accepted as f64 / load.measured.as_secs_f64(),
         queue_mean: samples.iter().sum::<usize>() as f64 / samples.len() as f64,
         queue_min: *samples.iter().min().unwrap(),
         queue_max: *samples.iter().max().unwrap(),
@@ -658,4 +757,77 @@ async fn a_matched_binary_cap_fits_one_overload_level_only() {
         matched_heavy.wait_mean,
         graduated_heavy.wait_mean,
     );
+}
+
+/// With today's permit count, `max_pending_transactions × 2 ÷ committee
+/// size`, the permit check holds the queue at the permit count, which is the
+/// soft limit at 4 validators and below it at every larger size, so neither
+/// policy ever decides: both reject the same share for the same reason and
+/// wait the same. With a large committee the permits also cap throughput
+/// below what consensus drains.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn todays_permit_count_leaves_both_policies_idle() {
+    telemetry_subscribers::init_for_testing();
+    let state = TestAuthorityBuilder::new().build().await;
+    let factory = TransactionFactory::new();
+    let load = Load::steady(1.1);
+
+    for committee_size in [4usize, 50] {
+        let permits = HARD_LIMIT * 2 / committee_size;
+        let graduated = Policy::graduated("graduated, soft 50%", HARD_LIMIT, SOFT_LIMIT_PCT)
+            .with_permits(permits);
+        let binary = Policy::binary("binary at the cap", HARD_LIMIT).with_permits(permits);
+        // What the permits allow through. A permit is taken just after the
+        // commit that freed it and held until the first commit at least the
+        // pipeline time later, so it is held for one commit more than the
+        // pipeline time spans.
+        let commit_interval = load.commit_interval.as_secs_f64();
+        let commits_held = (load.pipeline_time.as_secs_f64() / commit_interval).floor() + 1.0;
+        let permit_limited_rate = permits as f64 / (commits_held * commit_interval);
+        info!(
+            "{committee_size} validators: {permits} permits, soft limit {}, {:.2}× overload; permits allow {permit_limited_rate:.0}/s",
+            graduated.soft_limit(),
+            load.overload(),
+        );
+        let binary_outcome = run(&state, &factory, binary, load).await;
+        let graduated_outcome = run(&state, &factory, graduated, load).await;
+        binary_outcome.log();
+        graduated_outcome.log();
+
+        for outcome in [&binary_outcome, &graduated_outcome] {
+            let name = outcome.policy.name;
+            assert!(
+                outcome.queue_max <= permits,
+                "{name} at {committee_size} validators: queue reached {}, above the {permits} permits",
+                outcome.queue_max,
+            );
+            for label in REJECTION_LABELS {
+                let count = outcome.rejections_labelled(label);
+                if label == "consensus_semaphore_no_permits" {
+                    assert!(count > 0, "{name}: expected rejections for lack of permits");
+                } else {
+                    assert_eq!(count, 0, "{name}: {label} should never fire");
+                }
+            }
+            let expected_rate = load.drain_rate.min(permit_limited_rate);
+            assert_close(
+                &format!("{name} at {committee_size} validators: accepted per second"),
+                outcome.accepted_rate,
+                expected_rate,
+                0.1 * expected_rate,
+            );
+        }
+        assert_close(
+            "binary against graduated: mean queue length",
+            binary_outcome.queue_mean,
+            graduated_outcome.queue_mean,
+            0.02 * graduated_outcome.queue_mean,
+        );
+        assert_close(
+            "binary against graduated: mean wait (s)",
+            binary_outcome.wait_mean.as_secs_f64(),
+            graduated_outcome.wait_mean.as_secs_f64(),
+            0.02 * graduated_outcome.wait_mean.as_secs_f64(),
+        );
+    }
 }

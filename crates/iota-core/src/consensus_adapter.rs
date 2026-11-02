@@ -806,6 +806,13 @@ impl ConsensusAdapter {
             .store(value, Ordering::Relaxed);
     }
 
+    /// Test-only: takes a submit permit without waiting, as a submission task
+    /// does when its turn comes. Returns `None` when no permit is free.
+    #[cfg(test)]
+    pub(super) fn try_acquire_submit_permit_for_testing(&self) -> Option<SemaphorePermit<'_>> {
+        self.submit_semaphore.try_acquire().ok()
+    }
+
     /// Returns `true` if both hard limits allow another transaction:
     /// (i) in-flight count is at or below `max_pending_transactions`, and
     /// (ii) `submit_semaphore` has at least one available permit.
