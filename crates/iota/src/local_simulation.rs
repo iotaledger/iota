@@ -52,7 +52,7 @@ use crate::{
 /// The run blocks the calling thread until it is done. Resolving an object
 /// the run asks for needs a multi-threaded Tokio runtime.
 pub(crate) async fn execute_local_dry_run(
-    context: &mut WalletContext,
+    context: &WalletContext,
     signer: Address,
     kind: TransactionKind,
     gas_budget: Option<u64>,
