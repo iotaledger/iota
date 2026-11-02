@@ -156,7 +156,7 @@ use crate::{
     authority_client::NetworkAuthorityClient,
     checkpoints::{CheckpointBuilderError, CheckpointBuilderResult, CheckpointStore},
     congestion_tracker::CongestionTracker,
-    consensus_adapter::ConsensusAdapter,
+    consensus_adapter::{ConsensusAdapter, InflightSlot},
     epoch::committee_store::CommitteeStore,
     epoch_buckets::PrunedBuckets,
     epoch_end_db_snapshot::{EpochEndDbSnapshotHandle, HandOver},
@@ -1680,22 +1680,11 @@ impl AuthorityState {
         pcool_flow_enabled: bool,
     ) -> IotaResult {
         if pcool_flow_enabled {
-            // Graduated shedding: 0% to 100% as consensus queue fills from soft
-            // to hard limit.
-            self.check_consensus_queue_graduated_limits(consensus_adapter, tx)
-                .tap_err(|_| {
-                    self.update_overload_metrics("consensus");
-                })?;
-
-            // NOTE: graduated shedding at 100% already rejects everything at or above
-            // `max_pending_transactions`, so the queue-length part of the check below
-            // is redundant but harmless. But `check_consensus_overload()` should be
-            // kept here because it also verifies that `submit_semaphore` has permits
-            // (see `check_consensus_hard_limits` in consensus_adapter.rs), which is a
-            // separate concurrency limit not covered by the graduated shedding.
-            consensus_adapter.check_consensus_overload().tap_err(|_| {
-                self.update_overload_metrics("consensus");
-            })?;
+            // Judged on the count as it stands, without this transaction. The
+            // P-COOL validator service calls `reserve_consensus_queue_slot`
+            // instead, which counts the transaction first.
+            let queue_length = consensus_adapter.num_inflight_transactions() as usize;
+            self.check_consensus_queue_overload(consensus_adapter, tx, queue_length)?;
         } else {
             if do_authority_overload_check {
                 self.check_authority_overload(tx).tap_err(|_| {
@@ -1730,22 +1719,71 @@ impl AuthorityState {
         Ok(())
     }
 
-    /// Rejects `tx_data` via graduated shedding based on consensus queue
-    /// length. Scales from 0% at the soft limit to 100% at
-    /// `max_pending_transactions`. Returns `ValidatorOverloadedRetryAfter`
-    /// for probabilistic rejection (shedding percentage < 100%, via
-    /// `overload_monitor_accept_tx`) or `TooManyTransactionsPendingConsensus`
-    /// for unconditional rejection (shedding percentage >= 100%). Updates
+    /// P-COOL admission with the transaction counted first: takes its
+    /// [`InflightSlot`], then runs the consensus overload checks on the queue
+    /// length at that moment. Concurrent admissions thus see each other,
+    /// unlike in [`AuthorityState::check_system_overload()`], where the count
+    /// rises only once the transaction is on its way to consensus. Rejecting
+    /// releases the slot. On success, pass it to
+    /// [`ConsensusAdapter::submit_with_slot()`].
+    pub(crate) fn reserve_consensus_queue_slot(
+        &self,
+        consensus_adapter: &Arc<ConsensusAdapter>,
+        tx: &SenderSignedTransaction,
+    ) -> IotaResult<InflightSlot> {
+        let slot = consensus_adapter.reserve_inflight_slot();
+        self.check_consensus_queue_overload(
+            consensus_adapter,
+            tx,
+            slot.queue_length_before() as usize,
+        )?;
+        Ok(slot)
+    }
+
+    /// The consensus queue checks of the P-COOL path, judged against
+    /// `queue_length`, the number of other transactions in the queue:
+    /// graduated shedding, then the binary cutoff and the permit check.
+    fn check_consensus_queue_overload(
+        &self,
+        consensus_adapter: &Arc<ConsensusAdapter>,
+        tx: &SenderSignedTransaction,
+        queue_length: usize,
+    ) -> IotaResult {
+        // Graduated shedding: 0% to 100% as the consensus queue fills from the
+        // soft to the hard limit.
+        self.check_consensus_queue_graduated_limits(consensus_adapter, tx, queue_length)
+            .tap_err(|_| {
+                self.update_overload_metrics("consensus");
+            })?;
+
+        // Graduated shedding at 100% already rejects everything at or above
+        // `max_pending_transactions`, so the queue-length part of the check
+        // below is redundant but harmless. `check_consensus_overload()` stays
+        // because it also verifies that `submit_semaphore` has permits (see
+        // `check_consensus_hard_limits` in consensus_adapter.rs), a separate
+        // concurrency limit that graduated shedding does not cover.
+        consensus_adapter.check_consensus_overload().tap_err(|_| {
+            self.update_overload_metrics("consensus");
+        })
+    }
+
+    /// Rejects `tx` via graduated shedding at `queue_length`, the number of
+    /// other transactions in the consensus queue. Scales from 0% at the soft
+    /// limit to 100% at `max_pending_transactions`. Returns
+    /// [`IotaError::ValidatorOverloadedRetryAfter`] for probabilistic
+    /// rejection (shedding percentage < 100%, via
+    /// [`overload_monitor_accept_tx()`]) or
+    /// [`IotaError::TooManyTransactionsPendingConsensus`] for unconditional
+    /// rejection (shedding percentage >= 100%). Updates the
     /// `consensus_queue_load_shedding_percentage` metric.
     fn check_consensus_queue_graduated_limits(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
         tx: &SenderSignedTransaction,
+        queue_length: usize,
     ) -> IotaResult {
-        let num_inflight_txs = consensus_adapter.num_inflight_transactions() as usize;
-
         let shedding_pct = compute_graduated_load_shedding_percentage(
-            num_inflight_txs,
+            queue_length,
             consensus_adapter.max_pending_transactions(),
             consensus_adapter.graduated_load_shedding_soft_limit_pct(),
         );

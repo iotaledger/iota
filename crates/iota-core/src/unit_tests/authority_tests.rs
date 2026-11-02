@@ -9149,6 +9149,77 @@ async fn test_consensus_queue_graduated_load_shedding() {
     );
 }
 
+/// [`AuthorityState::reserve_consensus_queue_slot()`] counts the transaction
+/// before judging it, keeps the slot counted until it is dropped, and
+/// releases it when it rejects.
+#[tokio::test]
+async fn consensus_queue_slot_is_counted_before_the_check_and_released_on_rejection() {
+    telemetry_subscribers::init_for_testing();
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object1 = Object::with_owner_for_testing(sender);
+    let gas_object2 = Object::with_owner_for_testing(sender);
+
+    let hard_limit: usize = 20_000;
+    let soft_limit_pct: u32 = 50;
+    let soft_limit = hard_limit * soft_limit_pct as usize / 100;
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    authority_state.insert_genesis_objects(&[gas_object1.clone(), gas_object2.clone()]);
+
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        hard_limit,
+        hard_limit,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        soft_limit_pct,
+    ));
+
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let tx = make_transfer_object_transaction(
+        gas_object1.object_ref(),
+        gas_object2.object_ref(),
+        sender,
+        &sender_key,
+        Address::random(),
+        rgp,
+    );
+
+    // Below the soft limit: accepted, and the slot stays counted until it is
+    // dropped.
+    consensus_adapter.set_num_inflight_transactions_for_testing(soft_limit as u64 - 1);
+    let slot = authority_state
+        .reserve_consensus_queue_slot(&consensus_adapter, tx.data())
+        .unwrap();
+    assert_eq!(slot.queue_length_before(), soft_limit as u64 - 1);
+    assert_eq!(
+        consensus_adapter.num_inflight_transactions(),
+        soft_limit as u64
+    );
+    drop(slot);
+    assert_eq!(
+        consensus_adapter.num_inflight_transactions(),
+        soft_limit as u64 - 1
+    );
+
+    // At the hard limit: rejected, and the slot is released.
+    consensus_adapter.set_num_inflight_transactions_for_testing(hard_limit as u64);
+    let result = authority_state.reserve_consensus_queue_slot(&consensus_adapter, tx.data());
+    assert!(
+        matches!(result, Err(IotaError::TooManyTransactionsPendingConsensus)),
+        "at the hard limit the transaction should be rejected",
+    );
+    assert_eq!(
+        consensus_adapter.num_inflight_transactions(),
+        hard_limit as u64
+    );
+}
+
 /// Builds an authority with the P-COOL flow, and with it deny rule
 /// governance, toggled.
 async fn authority_with_pcool_flow(enabled: bool) -> Arc<AuthorityState> {
