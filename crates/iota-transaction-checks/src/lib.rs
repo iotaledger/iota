@@ -1001,17 +1001,17 @@ mod checked {
         };
 
         // Use the same verifier and meter for all packages.
-        let (signing_limits, meter_config) = match verifier_limits_source {
+        let (verifier_config, meter_config) = match verifier_limits_source {
             VerifierLimitsSource::NodeConfig(config) => (
-                config.limits_for_signing(),
+                protocol_config.verifier_config(Some(config.limits_for_signing())),
                 config.meter_config_for_signing(),
             ),
             VerifierLimitsSource::ProtocolConfig => (
-                protocol_config.verifier_signing_limits(),
+                protocol_config.post_consensus_verifier_config(),
                 protocol_config.meter_config(),
             ),
         };
-        let mut verifier = iota_execution::verifier(protocol_config, Some(signing_limits), metrics);
+        let mut verifier = iota_execution::verifier(protocol_config, verifier_config, metrics);
         let mut meter = verifier.meter(meter_config);
 
         // Measure time for verifying all packages in the PTB

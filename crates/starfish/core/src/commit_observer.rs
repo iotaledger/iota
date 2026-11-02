@@ -81,8 +81,8 @@ pub(crate) struct CommitObserver {
     dag_state: Arc<RwLock<DagState>>,
 
     leader_schedule: Arc<LeaderSchedule>,
-    /// Tracks the last commit index sent through the channel.
-    /// Used to prevent resending already sent commits.
+    /// Tracks the last commit index sent through the channel. Only solid
+    /// commits are sent. Used to prevent resending already sent commits.
     last_sent_commit_index: CommitIndex,
 }
 
@@ -341,6 +341,10 @@ impl CommitObserver {
         // not be reset per batch.
         self.commit_solidifier
             .set_last_solid_committed_index(self.last_sent_commit_index);
+        // Buffered commits up to this index were already sent by fast sync and
+        // can no longer be output.
+        self.commit_solidifier
+            .remove_pending_subdags_up_to(self.last_sent_commit_index);
 
         // Process in bounded batches so a large unprocessed range (e.g. when tx
         // data lagged behind commits for a long period) is never materialized at

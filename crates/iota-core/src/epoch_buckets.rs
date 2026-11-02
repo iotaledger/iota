@@ -1,0 +1,1496 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//! Per-epoch column families ("buckets") for the stores that retain their
+//! rows epoch by epoch, so that pruning an epoch is one column-family drop
+//! instead of per-row deletes.
+//!
+//! The history stores keep their buckets' SST files outside the database
+//! directory (see `BucketPaths`).
+
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    ffi::OsStr,
+    fmt::Debug,
+    fs, io,
+    path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
+};
+
+use iota_types::committee::EpochId;
+use parking_lot::{Mutex, RwLock, RwLockUpgradableReadGuard};
+use tracing::{info, warn};
+use typed_store::{
+    DBMetrics, DbIterator, TypedStoreError,
+    database::Database,
+    rocks::{
+        DBMap, DBOptions, ReadWriteOptions, available_disk_space, list_tables,
+        synced_write_options, target_file_size_base,
+    },
+    rocksdb::{self, DBPath},
+    traits::Map,
+};
+
+/// The directory in a node's live database directory that holds the
+/// per-epoch history of all its stores.
+pub const HISTORIC_DB_DIR: &str = "historic";
+
+/// How often a store reports the size of its buckets.
+const SIZE_REPORT_PERIOD: Duration = Duration::from_secs(30);
+
+/// The root a database's buckets live under: `historic_db_path` if given,
+/// otherwise [`HISTORIC_DB_DIR`] in the database directory itself.
+pub(crate) fn historic_root(db_path: &Path, historic_db_path: Option<&Path>) -> PathBuf {
+    historic_db_path.map_or_else(|| db_path.join(HISTORIC_DB_DIR), Path::to_path_buf)
+}
+
+/// Where one store keeps the SST files of its buckets: `epoch`'s column family
+/// keeps them in `<root>/epoch_<epoch>/<store_dir>`.
+///
+/// RocksDB does not record where a column family's files are and looks for
+/// them only where its options say, so every open of a database must pass
+/// the same root.
+#[derive(Clone, Debug)]
+pub(crate) struct BucketPaths {
+    root: PathBuf,
+    store_dir: &'static str,
+}
+
+impl BucketPaths {
+    pub(crate) fn new(root: &Path, store_dir: &'static str) -> Self {
+        Self {
+            root: root.to_path_buf(),
+            store_dir,
+        }
+    }
+
+    fn epoch_dir(&self, epoch: EpochId) -> PathBuf {
+        self.root.join(format!("epoch_{epoch}"))
+    }
+
+    fn bucket_dir(&self, epoch: EpochId) -> PathBuf {
+        self.epoch_dir(epoch).join(self.store_dir)
+    }
+
+    /// `options` with the SST files of `epoch`'s bucket placed in that
+    /// epoch's directory.
+    pub(crate) fn cf_options(
+        &self,
+        options: &rocksdb::Options,
+        epoch: EpochId,
+    ) -> rocksdb::Options {
+        let mut options = options.clone();
+        let path = DBPath::new(self.bucket_dir(epoch), u64::MAX)
+            .expect("RocksDB allocates a path for every valid directory");
+        options.set_cf_paths(&[path]);
+        options
+    }
+
+    /// [`Self::cf_options`] for a bucket already on disk. Creates the
+    /// bucket's directory if it is missing, as the open would fail without it,
+    /// but only under a root that exists: a mistyped root is left for the open
+    /// to refuse rather than created empty.
+    pub(crate) fn existing_cf_options(
+        &self,
+        options: &rocksdb::Options,
+        epoch: EpochId,
+    ) -> rocksdb::Options {
+        if self.root.exists() {
+            if let Err(e) = self.create_dir(epoch) {
+                warn!("{e}");
+            }
+        }
+        self.cf_options(options, epoch)
+    }
+
+    /// Creates the directory `epoch`'s bucket keeps its files in. RocksDB
+    /// creates only the last component of a column family's path, not the
+    /// directories above it.
+    fn create_dir(&self, epoch: EpochId) -> Result<(), TypedStoreError> {
+        let dir = self.bucket_dir(epoch);
+        fs::create_dir_all(&dir)
+            .map_err(|e| TypedStoreError::RocksDB(format!("cannot create {}: {e}", dir.display())))
+    }
+
+    /// The epochs that have a directory under the root, with that directory.
+    fn epoch_dirs(&self) -> io::Result<Vec<(EpochId, PathBuf)>> {
+        let entries = match fs::read_dir(&self.root) {
+            Ok(entries) => entries,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(e) => return Err(e),
+        };
+        let mut dirs = Vec::new();
+        for entry in entries {
+            let entry = entry?;
+            if let Some(epoch) = epoch_of_dir(&entry.file_name()) {
+                dirs.push((epoch, entry.path()));
+            }
+        }
+        Ok(dirs)
+    }
+
+    /// Deletes this store's directory of every epoch `has_bucket` says has no
+    /// bucket, with whatever untracked files are left in it.
+    ///
+    /// Only for a database opened read-write, before it creates a bucket.
+    pub(crate) fn remove_dirs_without_bucket(&self, has_bucket: impl Fn(EpochId) -> bool) {
+        let dirs = match self.epoch_dirs() {
+            Ok(dirs) => dirs,
+            Err(e) => {
+                warn!(root = ?self.root, "cannot list the historic directory: {e}");
+                return;
+            }
+        };
+        for (epoch, epoch_dir) in dirs {
+            if has_bucket(epoch) {
+                continue;
+            }
+            let dir = epoch_dir.join(self.store_dir);
+            match fs::remove_dir_all(&dir) {
+                Ok(()) => info!(?dir, "removed the files of a bucket that no longer exists"),
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                Err(e) => warn!(?dir, "cannot remove the files of a dropped bucket: {e}"),
+            }
+            // Other stores' directories of the same epoch keep it in use.
+            let _ = fs::remove_dir(&epoch_dir);
+        }
+    }
+
+    /// Removes this store's directories of the epochs below
+    /// `earliest_retained` that are empty, and the epoch directories they
+    /// leave empty.
+    ///
+    /// RocksDB deletes a dropped bucket's files only once nothing reads it,
+    /// so a directory still holding files is left for a later call.
+    fn remove_empty_dirs_below(&self, earliest_retained: EpochId) {
+        let Ok(dirs) = self.epoch_dirs() else {
+            return;
+        };
+        for (_, epoch_dir) in dirs
+            .into_iter()
+            .filter(|(epoch, _)| *epoch < earliest_retained)
+        {
+            let _ = fs::remove_dir(epoch_dir.join(self.store_dir));
+            let _ = fs::remove_dir(&epoch_dir);
+        }
+    }
+}
+
+/// The epoch an `epoch_<N>` directory under a historic root holds, `None` for
+/// any other name.
+fn epoch_of_dir(name: &OsStr) -> Option<EpochId> {
+    name.to_str()?.strip_prefix("epoch_")?.parse().ok()
+}
+
+/// Options for the RPC index stores' history buckets, which are written once
+/// and then read by range scans and exact-key probes. Every clone of the
+/// returned options shares one block cache.
+pub(crate) fn history_cf_options(
+    db_options: &DBOptions,
+    block_cache_size_mb: usize,
+) -> rocksdb::Options {
+    bucket_cf_options(db_options)
+        .set_block_options(block_cache_size_mb, 16 << 10)
+        .options
+}
+
+/// How many sorted runs a bucket accumulates before RocksDB compacts it.
+/// Every lookup that walks the buckets probes each run of the current
+/// epoch's bucket, which takes all of the epoch's writes; closed buckets are
+/// compacted into one run by [`EpochBuckets::compact_closed`].
+const BUCKET_COMPACTION_TRIGGER: i32 = 8;
+
+/// The file size below which [`EpochBuckets::compact_closed`] counts a closed
+/// bucket's files as too many, even in a single sorted run: SST ingestion,
+/// as in the one-time ledger migration, can leave a bucket with thousands of
+/// small files, each costing a table reader and MANIFEST entry. Half the
+/// compaction's output file size if that is smaller, so a compacted bucket
+/// never counts.
+fn compacted_file_size() -> u64 {
+    (32 << 20).min(target_file_size_base() / 2).max(1)
+}
+
+/// Options every bucket column family is opened with.
+pub(crate) fn bucket_cf_options(db_options: &DBOptions) -> DBOptions {
+    let mut options = db_options
+        .clone()
+        .optimize_for_write_throughput_no_deletion();
+    // A flushed memtable would otherwise stay in memory until the next write
+    // to its column family, which a bucket of a past epoch never gets.
+    options.options.set_max_write_buffer_size_to_maintain(0);
+    options
+        .options
+        .set_level_zero_file_num_compaction_trigger(BUCKET_COMPACTION_TRIGGER);
+    // The total-size stop style: with the similar-size one the base options
+    // pick, flushes of slightly different sizes never merge on size, so
+    // past the trigger every flush rewrites the newest, ever growing run.
+    let mut universal = rocksdb::UniversalCompactOptions::default();
+    universal.set_max_size_amplification_percent(10000);
+    universal.set_stop_style(rocksdb::UniversalCompactionStopStyle::Total);
+    options.options.set_universal_compaction_options(&universal);
+    // RocksDB otherwise rewrites every universal-compaction column family in
+    // full every 30 days, a closed bucket included, without regard to free
+    // disk space; closed buckets are compacted once by
+    // `EpochBuckets::compact_closed`, which checks it.
+    options.options.set_periodic_compaction_seconds(0);
+    options.options.set_ttl(0);
+    options
+}
+
+/// The `(name, options)` pairs a store's open must list for its buckets and
+/// for `earliest_retained_cf`, the column family holding their retention
+/// floor. With `paths`, every bucket's options place its files there.
+///
+/// Every bucket column family already on disk under `db_path` is included,
+/// since auto-discovery would reopen it with default options and without its
+/// `paths`. If the column families cannot be listed, only
+/// `earliest_retained_cf` is returned.
+pub(crate) fn extra_column_family_options(
+    db_path: &Path,
+    db_options: &DBOptions,
+    cf_prefix: &str,
+    earliest_retained_cf: &str,
+    paths: Option<&BucketPaths>,
+) -> Vec<(String, DBOptions)> {
+    let cf_options = bucket_cf_options(db_options);
+    let mut options = vec![(earliest_retained_cf.to_string(), cf_options.clone())];
+    if !db_path.join("CURRENT").exists() {
+        return options;
+    }
+    let existing_cfs = match list_tables(db_path.to_path_buf()) {
+        Ok(existing_cfs) => existing_cfs,
+        // Not an error: the open that follows reports what is wrong with the
+        // database.
+        Err(err) => {
+            warn!(
+                "failed to list the column families of {}: {err}",
+                db_path.display()
+            );
+            return options;
+        }
+    };
+    options.extend(existing_cfs.into_iter().filter_map(|name| {
+        let epoch = bucket_cf_epoch(cf_prefix, &name)?;
+        let options = match paths {
+            Some(paths) => DBOptions {
+                options: paths.existing_cf_options(&cf_options.options, epoch),
+                rw_options: cf_options.rw_options.clone(),
+            },
+            None => cf_options.clone(),
+        };
+        Some((name, options))
+    }));
+    options
+}
+
+/// The rows of one table for the `iota-tool` table dump, each key prefixed
+/// by `prefix`.
+pub(crate) fn dump_rows<'a, K: Debug + 'a, V: Debug + 'a>(
+    prefix: &'static str,
+    rows: DbIterator<'a, (K, V)>,
+) -> impl Iterator<Item = Result<(String, String), TypedStoreError>> + 'a {
+    rows.map(move |row| row.map(|(key, value)| (format!("{prefix}{key:?}"), format!("{value:?}"))))
+}
+
+/// Page `page_number` of `rows`, `page_size` rows to a page.
+pub(crate) fn dump_page(
+    rows: impl Iterator<Item = Result<(String, String), TypedStoreError>>,
+    page_size: u16,
+    page_number: usize,
+) -> Result<BTreeMap<String, String>, TypedStoreError> {
+    rows.skip(page_number * page_size as usize)
+        .take(page_size as usize)
+        .collect()
+}
+
+/// One page of a store's retention floor column family `cf_name` for the
+/// table dump. `db` may be a read-only or secondary handle.
+pub(crate) fn dump_retention_floor(
+    db: &Arc<Database>,
+    cf_name: &str,
+    page_size: u16,
+    page_number: usize,
+) -> Result<BTreeMap<String, String>, TypedStoreError> {
+    let earliest_retained: DBMap<(), EpochId> =
+        DBMap::reopen(db, Some(cf_name), &ReadWriteOptions::default(), true)?;
+    earliest_retained.try_catch_up_with_primary()?;
+    dump_page(
+        dump_rows("", earliest_retained.safe_iter()),
+        page_size,
+        page_number,
+    )
+}
+
+/// Treats a read from a bucket whose column family has been dropped as
+/// returning no rows, rather than as an error.
+///
+/// [`EpochBuckets::iter_with_epoch`] hands out handles and releases the lock,
+/// so an expiry can drop a bucket while a walk is still working through them.
+/// A dropped bucket is an epoch this node no longer serves.
+pub(crate) fn absent_if_dropped<T: Default>(
+    read: Result<T, TypedStoreError>,
+) -> Result<T, TypedStoreError> {
+    match read {
+        Err(TypedStoreError::UnregisteredColumn(_)) => Ok(T::default()),
+        other => other,
+    }
+}
+
+/// How long [`EpochBuckets::prune`] waits for the readers still holding a
+/// bucket it took out of the map before it drops the column family anyway.
+const READERS_DRAIN_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Stands for "no bucket at all" in [`EpochBuckets::earliest_bucket_epoch`].
+/// No real epoch reaches it.
+const NO_BUCKET: EpochId = EpochId::MAX;
+
+/// What the metrics of a bucket store are labelled with, given the column-family
+/// name of one of its buckets or its column-family prefix: the prefix without
+/// its trailing `_e`, such as `hist_obj`. The buckets of one store share their
+/// series instead of adding a set per epoch.
+pub(crate) fn bucket_metrics_label(cf_name: &str) -> &str {
+    let prefix = cf_name.trim_end_matches(|c: char| c.is_ascii_digit());
+    prefix.strip_suffix("_e").unwrap_or(prefix)
+}
+
+/// The column-family name of `epoch`'s bucket: `"{cf_prefix}{epoch}"`.
+pub(crate) fn bucket_cf_name(cf_prefix: &str, epoch: EpochId) -> String {
+    format!("{cf_prefix}{epoch}")
+}
+
+/// The epoch of a bucket's column family, `None` for other names.
+pub(crate) fn bucket_cf_epoch(cf_prefix: &str, cf_name: &str) -> Option<EpochId> {
+    cf_name
+        .strip_prefix(cf_prefix)
+        .and_then(|epoch| epoch.parse().ok())
+}
+
+/// A store's view of one per-epoch bucket, which [`EpochBuckets`] opens from
+/// the bucket's column-family name.
+pub(crate) trait BucketReopen: Sized {
+    fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError>;
+
+    /// Writes what a bucket of this store must hold from the moment it
+    /// exists, on a bucket [`EpochBuckets::ensure`] has just created. Must be
+    /// safe to run again on the same bucket. Writes nothing by default.
+    fn initialize(&self) -> Result<(), TypedStoreError> {
+        Ok(())
+    }
+}
+
+/// What a prune of a store's buckets did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PrunedBuckets {
+    /// The earliest epoch retained; buckets below it are gone and are never
+    /// recreated.
+    pub earliest_retained: EpochId,
+    /// How many buckets this prune dropped.
+    pub dropped: usize,
+}
+
+/// The per-epoch buckets of one store, each viewed as a `B`.
+///
+/// On-disk column-family names are the ground truth for which buckets exist;
+/// the map here mirrors them for reads.
+pub(crate) struct EpochBuckets<B> {
+    db: Arc<Database>,
+    /// What this store is called in log lines, which several stores write
+    /// for the same epoch.
+    name: &'static str,
+    cf_prefix: &'static str,
+    /// Template options for new buckets; all clones share one block cache.
+    cf_options: rocksdb::Options,
+    /// Where the buckets keep their files, `None` for a store that keeps them
+    /// in the database directory.
+    paths: Option<BucketPaths>,
+    buckets: Arc<RwLock<BTreeMap<EpochId, Arc<B>>>>,
+    /// Mirrors the persisted retention floor; never moves backwards.
+    earliest_retained_epoch: AtomicU64,
+    earliest_retained_table: DBMap<(), EpochId>,
+    /// Mirrors the oldest epoch in `buckets` ([`NO_BUCKET`] when empty),
+    /// updated under the map's write lock. Kept apart from the map so that
+    /// request-path readers do not take the map's lock.
+    earliest_bucket_epoch: AtomicU64,
+    /// Held for the whole of a [`Self::prune`], so that two prunes never
+    /// expire the same bucket at once.
+    pruning: Mutex<()>,
+}
+
+impl<B: BucketReopen + Send + Sync + 'static> EpochBuckets<B> {
+    /// Assembles the store's buckets from the ones found on disk, dropping
+    /// those below the persisted retention floor, which a failed drop leaves
+    /// behind.
+    ///
+    /// `paths` must be the ones `db` was opened with, and `db` must be open
+    /// read-write: the directories of epochs without a bucket are deleted
+    /// here.
+    ///
+    /// # Errors
+    ///
+    /// Fails if the retention floor cannot be read.
+    pub(crate) fn open(
+        db: Arc<Database>,
+        name: &'static str,
+        cf_prefix: &'static str,
+        cf_options: rocksdb::Options,
+        paths: Option<BucketPaths>,
+        earliest_retained_table: DBMap<(), EpochId>,
+        mut buckets: BTreeMap<EpochId, Arc<B>>,
+    ) -> Result<Self, TypedStoreError> {
+        let earliest_retained_epoch = earliest_retained_table.get(&())?.unwrap_or(0);
+        // Listed from the database rather than taken from `buckets`: a column
+        // family whose drop failed before this call is still there, and so
+        // are its files.
+        let on_disk: Option<BTreeSet<EpochId>> = match &paths {
+            Some(_) => match list_tables(db.path_for_pruning().to_path_buf()) {
+                Ok(cfs) => Some(
+                    cfs.iter()
+                        .filter_map(|cf_name| bucket_cf_epoch(cf_prefix, cf_name))
+                        .collect(),
+                ),
+                Err(e) => {
+                    warn!(store = name, "cannot list the bucket column families: {e}");
+                    None
+                }
+            },
+            None => None,
+        };
+        let pruned: Vec<EpochId> = buckets
+            .range(..earliest_retained_epoch)
+            .map(|(&epoch, _)| epoch)
+            .collect();
+        for epoch in pruned {
+            info!(
+                store = name,
+                epoch, "dropping a pruned bucket column family at open"
+            );
+            buckets.remove(&epoch);
+            if let Err(e) = db.drop_cf(&bucket_cf_name(cf_prefix, epoch)) {
+                warn!(
+                    store = name,
+                    epoch, "failed to drop a pruned bucket column family: {e}"
+                );
+            }
+        }
+        if let Some(paths) = &paths {
+            if let Some(on_disk) = on_disk {
+                paths.remove_dirs_without_bucket(|epoch| on_disk.contains(&epoch));
+            }
+            paths.remove_empty_dirs_below(earliest_retained_epoch);
+        }
+        let earliest_bucket_epoch = Self::earliest_epoch_of(&buckets);
+        let buckets = Arc::new(RwLock::new(buckets));
+        Self::spawn_size_reporting(&db, cf_prefix, &buckets);
+        Ok(Self {
+            db,
+            name,
+            cf_prefix,
+            cf_options,
+            paths,
+            buckets,
+            earliest_retained_epoch: AtomicU64::new(earliest_retained_epoch),
+            earliest_retained_table,
+            earliest_bucket_epoch: AtomicU64::new(earliest_bucket_epoch),
+            pruning: Mutex::new(()),
+        })
+    }
+
+    /// Reports the size of the SST files of all the store's buckets together
+    /// in `rocksdb_total_sst_files_size`, which reports a column family each,
+    /// under the store's [`bucket_metrics_label`] while the store is open. The buckets report
+    /// nothing on their own: one series each would grow with every epoch.
+    fn spawn_size_reporting(
+        db: &Arc<Database>,
+        cf_prefix: &'static str,
+        buckets: &Arc<RwLock<BTreeMap<EpochId, Arc<B>>>>,
+    ) {
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let db = Arc::downgrade(db);
+        let buckets = Arc::downgrade(buckets);
+        runtime.spawn(async move {
+            let mut interval = tokio::time::interval(SIZE_REPORT_PERIOD);
+            loop {
+                interval.tick().await;
+                let (Some(db), Some(buckets)) = (db.upgrade(), buckets.upgrade()) else {
+                    break;
+                };
+                let epochs: Vec<EpochId> = buckets.read().keys().copied().collect();
+                drop(buckets);
+                let size = tokio::task::spawn_blocking(move || {
+                    epochs
+                        .into_iter()
+                        .filter_map(|epoch| {
+                            db.sst_files_size(&bucket_cf_name(cf_prefix, epoch)).ok()
+                        })
+                        .sum::<u64>()
+                })
+                .await;
+                if let Ok(size) = size {
+                    DBMetrics::get()
+                        .cf_metrics
+                        .rocksdb_total_sst_files_size
+                        .with_label_values(&[bucket_metrics_label(cf_prefix)])
+                        .set(size.min(i64::MAX as u64) as i64);
+                }
+            }
+        });
+    }
+
+    /// The oldest epoch in `buckets`, [`NO_BUCKET`] when there is none.
+    fn earliest_epoch_of(buckets: &BTreeMap<EpochId, Arc<B>>) -> EpochId {
+        buckets
+            .first_key_value()
+            .map_or(NO_BUCKET, |(&epoch, _)| epoch)
+    }
+
+    /// Republishes the mirror of the oldest epoch in `buckets`. The caller
+    /// must hold the write lock.
+    fn publish_earliest_epoch(&self, buckets: &BTreeMap<EpochId, Arc<B>>) {
+        self.earliest_bucket_epoch
+            .store(Self::earliest_epoch_of(buckets), Ordering::Relaxed);
+    }
+
+    /// The retained buckets in scan order: ascending epochs, or descending
+    /// when `reverse`. Chaining per-bucket scans in this order preserves the
+    /// global order.
+    pub(crate) fn iter(&self, reverse: bool) -> Vec<Arc<B>> {
+        let buckets = self.buckets.read();
+        if reverse {
+            buckets.values().rev().cloned().collect()
+        } else {
+            buckets.values().cloned().collect()
+        }
+    }
+
+    /// [`Self::iter`], with the epoch each bucket holds.
+    pub(crate) fn iter_with_epoch(&self, reverse: bool) -> Vec<(EpochId, Arc<B>)> {
+        let buckets = self.buckets.read();
+        let rows = buckets
+            .iter()
+            .map(|(&epoch, bucket)| (epoch, bucket.clone()));
+        if reverse {
+            rows.rev().collect()
+        } else {
+            rows.collect()
+        }
+    }
+
+    /// The newest epoch holding a bucket, `None` when there is none.
+    pub(crate) fn newest_epoch(&self) -> Option<EpochId> {
+        self.buckets
+            .read()
+            .last_key_value()
+            .map(|(&epoch, _)| epoch)
+    }
+
+    /// The oldest epoch holding a bucket, `None` when there is none. This can
+    /// be above [`Self::earliest_retained`], e.g. on a node restored from a
+    /// formal snapshot. Takes no lock, so it is safe to call on a request path.
+    pub(crate) fn earliest_epoch(&self) -> Option<EpochId> {
+        match self.earliest_bucket_epoch.load(Ordering::Relaxed) {
+            NO_BUCKET => None,
+            epoch => Some(epoch),
+        }
+    }
+
+    /// The earliest epoch [`Self::prune`] retains; buckets below it are gone
+    /// and are never recreated.
+    pub(crate) fn earliest_retained(&self) -> EpochId {
+        self.earliest_retained_epoch.load(Ordering::Relaxed)
+    }
+
+    /// The directory this store's buckets keep their files under: the bucket
+    /// root, or the database directory for a store without one.
+    pub(crate) fn files_dir(&self) -> PathBuf {
+        match &self.paths {
+            Some(paths) => paths.root.clone(),
+            None => self.db.path_for_pruning().to_path_buf(),
+        }
+    }
+
+    /// The options a bucket's column family is created with, which SST files
+    /// ingested into it must be written with.
+    pub(crate) fn cf_options(&self) -> &rocksdb::Options {
+        &self.cf_options
+    }
+
+    /// The bucket holding `epoch`'s rows, `None` when nothing has been
+    /// written for that epoch yet or it has been pruned. Never creates one.
+    pub(crate) fn get(&self, epoch: EpochId) -> Option<Arc<B>> {
+        self.buckets.read().get(&epoch).cloned()
+    }
+
+    /// The bucket holding `epoch`'s rows, created if absent.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TypedStoreError::Pruned`] if `epoch` is below the retention
+    /// floor.
+    pub(crate) fn ensure(&self, epoch: EpochId) -> Result<Arc<B>, TypedStoreError> {
+        self.ensure_retained(epoch)?.ok_or_else(|| {
+            TypedStoreError::Pruned(format!(
+                "the {} bucket of epoch {epoch} was pruned: only epochs from {} on are retained",
+                self.name,
+                self.earliest_retained()
+            ))
+        })
+    }
+
+    /// The bucket holding `epoch`'s rows, created if absent, and `None` when
+    /// `epoch` is below the retention floor. For a writer that can be handed
+    /// rows of an expired epoch, such as state sync; others want
+    /// [`Self::ensure`].
+    pub(crate) fn ensure_retained(
+        &self,
+        epoch: EpochId,
+    ) -> Result<Option<Arc<B>>, TypedStoreError> {
+        if epoch < self.earliest_retained() {
+            return Ok(None);
+        }
+        if let Some(bucket) = self.buckets.read().get(&epoch) {
+            return Ok(Some(bucket.clone()));
+        }
+        let mut buckets = self.buckets.write();
+        if let Some(bucket) = buckets.get(&epoch) {
+            return Ok(Some(bucket.clone()));
+        }
+        // The epoch may have been pruned between the check above and taking
+        // the lock that `prune` holds.
+        if epoch < self.earliest_retained() {
+            return Ok(None);
+        }
+        let cf_name = bucket_cf_name(self.cf_prefix, epoch);
+        // The column family may already exist if a previous run crashed
+        // between `create_cf` and the first batch write.
+        if self.db.cf_handle(&cf_name).is_none() {
+            match &self.paths {
+                Some(paths) => {
+                    paths.create_dir(epoch)?;
+                    self.db
+                        .create_cf(&cf_name, &paths.cf_options(&self.cf_options, epoch))?
+                }
+                None => self.db.create_cf(&cf_name, &self.cf_options)?,
+            }
+        }
+        let bucket = Arc::new(B::reopen(&self.db, &cf_name)?);
+        bucket.initialize()?;
+        buckets.insert(epoch, bucket.clone());
+        self.publish_earliest_epoch(&buckets);
+        Ok(Some(bucket))
+    }
+
+    /// Drops the buckets older than `current_epoch` and the `epochs_to_retain`
+    /// epochs below it; buckets above `current_epoch` are left alone. `0`
+    /// keeps `current_epoch`'s bucket alone.
+    ///
+    /// `current_epoch` is passed in because state sync can write buckets
+    /// ahead of execution, which must not count towards the retention.
+    ///
+    /// Returns the earliest epoch to retain and how many buckets this call
+    /// dropped, `None` when there is no bucket at all. The earliest epoch is
+    /// persisted before the drops and never moves backwards, so
+    /// dropped epochs are never recreated, even after a reopen or a raised
+    /// `epochs_to_retain`. An epoch whose drop failed is gone all the same,
+    /// and the next open drops it.
+    ///
+    /// Blocks for as long as `before_drop` and the drops take, so callers on
+    /// an async runtime must use `spawn_blocking`. Queries and [`Self::ensure`]
+    /// block only while the floor moves and while a bucket is taken out of
+    /// the map, not while its column family is dropped.
+    ///
+    /// `before_drop` runs for each expiring epoch in ascending order, before
+    /// the drop and without the lock, so queries still reach the bucket while
+    /// it runs. Its error stops the prune and keeps that epoch's bucket,
+    /// without rolling back what `before_drop` already wrote, so it must be
+    /// safe to run again on the same epoch and must not durably change how a
+    /// bucket may be read until it has made that safe.
+    pub(crate) fn prune(
+        &self,
+        current_epoch: EpochId,
+        epochs_to_retain: u64,
+        mut before_drop: impl FnMut(EpochId, &Arc<B>) -> Result<(), TypedStoreError>,
+    ) -> Result<Option<PrunedBuckets>, TypedStoreError> {
+        let _pruning = self.pruning.lock();
+        let (earliest_retained, expired) = {
+            // Usually has nothing to do, so it takes the write lock queries
+            // block on only when it has to.
+            let buckets = self.buckets.upgradable_read();
+            let persisted = self.earliest_retained();
+            let Some(earliest_retained) = Self::earliest_epoch_to_retain(
+                &buckets,
+                current_epoch,
+                epochs_to_retain,
+                persisted,
+            ) else {
+                return Ok(None);
+            };
+            let expired: Vec<(EpochId, Arc<B>)> = buckets
+                .range(..earliest_retained)
+                .map(|(&e, bucket)| (e, bucket.clone()))
+                .collect();
+            if earliest_retained == persisted && expired.is_empty() {
+                return Ok(Some(PrunedBuckets {
+                    earliest_retained,
+                    dropped: 0,
+                }));
+            }
+            if earliest_retained != persisted {
+                // Under the write lock, so `ensure` cannot hand out a bucket
+                // below the new floor.
+                let _buckets = RwLockUpgradableReadGuard::upgrade(buckets);
+                // Synced before any drop: RocksDB makes a column-family drop
+                // durable at once, and a lost floor would let a reopen
+                // backfill the dropped epochs again.
+                let mut batch = self.earliest_retained_table.batch();
+                batch.insert_batch(&self.earliest_retained_table, [((), earliest_retained)])?;
+                batch.write_opt(&synced_write_options())?;
+                self.earliest_retained_epoch
+                    .store(earliest_retained, Ordering::Relaxed);
+            }
+            (earliest_retained, expired)
+        };
+
+        let mut dropped = 0;
+        for (epoch, bucket) in expired {
+            before_drop(epoch, &bucket)?;
+            info!(
+                store = self.name,
+                epoch, "dropping the bucket of an expired epoch"
+            );
+            {
+                let mut buckets = self.buckets.write();
+                buckets.remove(&epoch);
+                // Per epoch, so an early `before_drop` error leaves the mirror
+                // matching the map.
+                self.publish_earliest_epoch(&buckets);
+            }
+            dropped += 1;
+            // A reader that took the bucket before it left the map finishes
+            // against the open column family rather than failing; no new
+            // reader can take it now.
+            let deadline = Instant::now() + READERS_DRAIN_TIMEOUT;
+            while Arc::strong_count(&bucket) > 1 && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            if Arc::strong_count(&bucket) > 1 {
+                warn!(
+                    store = self.name,
+                    epoch, "dropping an expired bucket that a reader still holds"
+                );
+            }
+            drop(bucket);
+            // Outside the lock: a large column family takes seconds to drop.
+            // A failed drop leaves a column family below the floor, which the
+            // next open drops.
+            if let Err(e) = self.db.drop_cf(&bucket_cf_name(self.cf_prefix, epoch)) {
+                warn!(
+                    store = self.name,
+                    epoch, "failed to drop an expired bucket column family: {e}"
+                );
+            }
+        }
+        if let Some(paths) = &self.paths {
+            paths.remove_empty_dirs_below(earliest_retained);
+        }
+        Ok(Some(PrunedBuckets {
+            earliest_retained,
+            dropped,
+        }))
+    }
+
+    /// Compacts each bucket below `current_epoch` into a single sorted run,
+    /// oldest first, so a lookup probes it once; also a bucket in one sorted
+    /// run of far more files than its size needs. Such a bucket is no longer
+    /// written, so this compacts it once; the ones already compacted are
+    /// skipped. A bucket is also skipped while its disk has less free space
+    /// than the bucket's files take plus 10%, which the compaction needs
+    /// again until it finishes. Returns how many buckets it compacted.
+    ///
+    /// `stop` is asked before each bucket; once it answers `true`, the rest
+    /// are left for a later call. A bucket's compaction cannot be cut short.
+    ///
+    /// Blocks for as long as the compactions take, so callers on an async
+    /// runtime must use `spawn_blocking`. Queries and writes go on meanwhile.
+    pub(crate) fn compact_closed(
+        &self,
+        current_epoch: EpochId,
+        stop: &dyn Fn() -> bool,
+    ) -> Result<usize, TypedStoreError> {
+        let mut compacted = 0;
+        let closed: Vec<EpochId> = self
+            .buckets
+            .read()
+            .range(..current_epoch)
+            .map(|(&epoch, _)| epoch)
+            .collect();
+        for epoch in closed {
+            if stop() {
+                break;
+            }
+            let cf_name = bucket_cf_name(self.cf_prefix, epoch);
+            let size = self.db.sst_files_size(&cf_name)?;
+            if self.db.sorted_runs(&cf_name)? <= 1
+                && self.db.sst_file_count(&cf_name)? <= size / compacted_file_size() + 8
+            {
+                continue;
+            }
+            let dir = match &self.paths {
+                Some(paths) => paths.bucket_dir(epoch),
+                None => self.db.path_for_pruning().to_path_buf(),
+            };
+            match available_disk_space(&dir) {
+                Some(free) if free < size + size / 10 => {
+                    warn!(
+                        store = self.name,
+                        epoch,
+                        size,
+                        free,
+                        "not compacting the bucket of a closed epoch: too little free disk space"
+                    );
+                    continue;
+                }
+                Some(_) => {}
+                None => warn!(
+                    store = self.name,
+                    epoch,
+                    dir = %dir.display(),
+                    "unable to determine the free disk space; compacting the bucket of a closed \
+                     epoch without the check"
+                ),
+            }
+            let started = Instant::now();
+            // A bucket dropped meanwhile needs no compaction.
+            absent_if_dropped(self.db.compact_cf(&cf_name))?;
+            // RocksDB reports no error from a manual compaction; one that
+            // failed leaves the runs as they were.
+            let runs = self.db.sorted_runs(&cf_name)?;
+            if runs > 1 {
+                warn!(
+                    store = self.name,
+                    epoch, runs, "the compaction of a closed bucket left more than one sorted run"
+                );
+                continue;
+            }
+            info!(
+                store = self.name,
+                epoch,
+                elapsed_ms = started.elapsed().as_millis(),
+                "compacted the bucket of a closed epoch"
+            );
+            compacted += 1;
+        }
+        Ok(compacted)
+    }
+
+    /// The earliest epoch to retain when `current_epoch` is kept together
+    /// with the `epochs_to_retain` epochs below it, never below `persisted`.
+    /// `None` when there is no bucket at all. `u64::MAX` retains everything.
+    fn earliest_epoch_to_retain(
+        buckets: &BTreeMap<EpochId, Arc<B>>,
+        current_epoch: EpochId,
+        epochs_to_retain: u64,
+        persisted: EpochId,
+    ) -> Option<EpochId> {
+        if buckets.is_empty() {
+            return None;
+        }
+        Some(
+            current_epoch
+                .saturating_sub(epochs_to_retain)
+                .max(persisted),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+
+    use typed_store::{
+        database::wait_for_database_close,
+        rocks::{DBMap, MetricConf, ReadWriteOptions, default_db_options, open_cf_opts},
+    };
+
+    use super::{
+        Arc, BTreeMap, BucketPaths, BucketReopen, DBMetrics, Database, Duration, EpochBuckets,
+        EpochId, Map, Path, PathBuf, PrunedBuckets, SIZE_REPORT_PERIOD, TypedStoreError,
+        bucket_cf_epoch, bucket_cf_name, bucket_cf_options, fs, rocksdb,
+    };
+
+    /// The buckets of one store share one metrics label, so that a store
+    /// keeping many epochs does not add a set of series per epoch.
+    #[test]
+    fn the_buckets_of_a_store_share_one_metrics_label() {
+        assert_eq!(
+            super::bucket_metrics_label(&bucket_cf_name("hist_obj_e", 7)),
+            "hist_obj"
+        );
+        assert_eq!(
+            super::bucket_metrics_label(&bucket_cf_name("hist_obj_e", 702)),
+            super::bucket_metrics_label(&bucket_cf_name("hist_obj_e", 7))
+        );
+    }
+
+    /// A bucket keeps no memtable in memory once it is flushed: a node holds
+    /// many buckets that are no longer written, and each would otherwise keep
+    /// its last memtable.
+    #[test]
+    fn a_bucket_keeps_no_flushed_memtable() {
+        let dir = iota_common::tempdir();
+        let mut db_options = rocksdb::Options::default();
+        db_options.create_if_missing(true);
+        db_options.create_missing_column_families(true);
+        let db = rocksdb::DB::open_cf_with_opts(
+            &db_options,
+            dir.path(),
+            [("bucket", bucket_cf_options(&default_db_options()).options)],
+        )
+        .unwrap();
+        let cf = db.cf_handle("bucket").unwrap();
+        db.put_cf(&cf, [1u8; 8], [2u8; 64]).unwrap();
+        db.flush_cf(&cf).unwrap();
+
+        assert_eq!(
+            db.property_int_value_cf(&cf, "rocksdb.num-immutable-mem-table-flushed")
+                .unwrap(),
+            Some(0)
+        );
+    }
+
+    /// A bucket is never rewritten on a timer, and universal compaction merges
+    /// its runs by total size: RocksDB's OPTIONS file, which records what it
+    /// runs with after its own adjustments, says so.
+    #[test]
+    fn a_bucket_has_no_periodic_compaction_and_merges_by_total_size() {
+        let dir = iota_common::tempdir();
+        let mut db_options = rocksdb::Options::default();
+        db_options.create_if_missing(true);
+        db_options.create_missing_column_families(true);
+        let db = rocksdb::DB::open_cf_with_opts(
+            &db_options,
+            dir.path(),
+            [("bucket", bucket_cf_options(&default_db_options()).options)],
+        )
+        .unwrap();
+        drop(db);
+
+        let options_file = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| {
+                path.file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("OPTIONS-")
+            })
+            .max()
+            .unwrap();
+        let options = fs::read_to_string(options_file).unwrap();
+        let bucket = options
+            .split("[CFOptions \"bucket\"]")
+            .nth(1)
+            .unwrap()
+            .split("[TableOptions")
+            .next()
+            .unwrap();
+        for expected in [
+            "periodic_compaction_seconds=0",
+            "ttl=0",
+            "compaction_options_universal={",
+            "stop_style=kCompactionStopStyleTotalSize",
+        ] {
+            assert!(bucket.contains(expected), "missing {expected} in {bucket}");
+        }
+    }
+
+    /// The options of a bucket under a root that does not exist, as a tool
+    /// given a mistyped path computes them, create no directory.
+    #[test]
+    fn options_under_a_missing_root_create_no_directory() {
+        let dir = iota_common::tempdir();
+        let paths = BucketPaths::new(&dir.path().join("mistyped"), "test");
+        paths.existing_cf_options(&rocksdb::Options::default(), 3);
+        assert!(!dir.path().join("mistyped").exists());
+
+        let paths = BucketPaths::new(dir.path(), "test");
+        paths.existing_cf_options(&rocksdb::Options::default(), 3);
+        assert!(paths.bucket_dir(3).exists());
+    }
+
+    /// `before_drop` runs without the lock queries take, so they keep being
+    /// answered while it runs.
+    #[tokio::test]
+    async fn before_drop_runs_while_queries_can_take_the_lock() {
+        let (buckets, _dir) = test_buckets(&[0, 1, 2]);
+        let mut called = Vec::new();
+        buckets
+            .prune(2, 0, |epoch, _| {
+                assert!(buckets.buckets.try_write().is_some());
+                called.push(epoch);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(called, vec![0, 1]);
+    }
+
+    /// A reader holding an expired bucket keeps its column family open until
+    /// it lets go, and the prune drops it after.
+    #[tokio::test]
+    async fn a_held_bucket_is_dropped_once_its_reader_lets_go() {
+        let (buckets, _dir) = test_buckets(&[0, 1]);
+        let held = buckets.iter(false)[0].clone();
+        let cf_name = bucket_cf_name(TEST_CF_PREFIX, 0);
+
+        std::thread::scope(|scope| {
+            let reader = scope.spawn(|| {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                let open = buckets.db.cf_handle(&cf_name).is_some();
+                drop(held);
+                open
+            });
+            buckets.prune(1, 0, |_, _| Ok(())).unwrap();
+            assert!(
+                reader.join().unwrap(),
+                "the column family must stay open while a reader holds the bucket"
+            );
+        });
+        assert!(buckets.db.cf_handle(&cf_name).is_none());
+    }
+
+    /// The name mapping must round-trip and reject other stores' prefixes:
+    /// a shared database relies on it to tell bucket column families apart.
+    #[test]
+    fn cf_name_round_trips_within_its_prefix() {
+        assert_eq!(bucket_cf_name("hist_e", 42), "hist_e42");
+        assert_eq!(bucket_cf_epoch("hist_e", "hist_e42"), Some(42));
+        assert_eq!(bucket_cf_epoch("hist_e", "hist_e"), None);
+        assert_eq!(bucket_cf_epoch("hist_e", "hist_e4x"), None);
+        assert_eq!(bucket_cf_epoch("hist_e", "owner_index"), None);
+        assert_eq!(bucket_cf_epoch("other_", "hist_e42"), None);
+    }
+
+    const TEST_CF_PREFIX: &str = "test_e";
+    const RETENTION_CF: &str = "test_retention";
+
+    /// A bucket holding none of a store's own data, for exercising
+    /// `EpochBuckets` on its own.
+    struct TestBucket;
+
+    impl BucketReopen for TestBucket {
+        fn reopen(_db: &Arc<Database>, _cf_name: &str) -> Result<Self, TypedStoreError> {
+            Ok(Self)
+        }
+    }
+
+    /// An `EpochBuckets` with one bucket per epoch in `epochs`, backed by a
+    /// fresh temporary database whose directory must outlive the buckets.
+    fn test_buckets(
+        epochs: &[EpochId],
+    ) -> (EpochBuckets<TestBucket>, iota_common::random_util::TempDir) {
+        prefixed_test_buckets(TEST_CF_PREFIX, epochs)
+    }
+
+    /// [`test_buckets`] with the column-family prefix `cf_prefix`.
+    fn prefixed_test_buckets(
+        cf_prefix: &'static str,
+        epochs: &[EpochId],
+    ) -> (EpochBuckets<TestBucket>, iota_common::random_util::TempDir) {
+        let dir = iota_common::tempdir();
+        let db_options = default_db_options().options;
+        let cf_names: Vec<String> = epochs
+            .iter()
+            .map(|&epoch| bucket_cf_name(cf_prefix, epoch))
+            .chain([RETENTION_CF.to_string()])
+            .collect();
+        let opt_cfs: Vec<(&str, rocksdb::Options)> = cf_names
+            .iter()
+            .map(|name| (name.as_str(), db_options.clone()))
+            .collect();
+        let db = open_cf_opts(dir.path(), None, MetricConf::new("test"), &opt_cfs).unwrap();
+
+        let earliest_retained_table: DBMap<(), EpochId> =
+            DBMap::reopen(&db, Some(RETENTION_CF), &ReadWriteOptions::default(), true).unwrap();
+        let buckets: BTreeMap<EpochId, Arc<TestBucket>> = epochs
+            .iter()
+            .map(|&epoch| (epoch, Arc::new(TestBucket)))
+            .collect();
+
+        let buckets = EpochBuckets::open(
+            db,
+            "test buckets",
+            cf_prefix,
+            db_options,
+            None,
+            earliest_retained_table,
+            buckets,
+        )
+        .unwrap();
+        (buckets, dir)
+    }
+
+    /// The paths of a test store's buckets under `dir`, and the directory its
+    /// database lives in.
+    fn test_paths(dir: &Path) -> (BucketPaths, PathBuf) {
+        let paths = BucketPaths {
+            root: dir.join("historic"),
+            store_dir: "test",
+        };
+        (paths, dir.join("db"))
+    }
+
+    /// An `EpochBuckets` over the database at `db_path` with a bucket for each
+    /// of `epochs`, keeping their files under `paths`.
+    fn placed_buckets(
+        db_path: &Path,
+        paths: &BucketPaths,
+        epochs: &[EpochId],
+    ) -> (EpochBuckets<TestBucket>, Arc<Database>) {
+        placed_buckets_without(db_path, paths, epochs, &[])
+    }
+
+    /// Like [`placed_buckets`], but with the column families of `left_out`
+    /// opened and kept out of the buckets, as a store does with one it failed
+    /// to drop before calling `EpochBuckets::open`.
+    fn placed_buckets_without(
+        db_path: &Path,
+        paths: &BucketPaths,
+        epochs: &[EpochId],
+        left_out: &[EpochId],
+    ) -> (EpochBuckets<TestBucket>, Arc<Database>) {
+        let db_options = default_db_options().options;
+        let mut opt_cfs: Vec<(String, rocksdb::Options)> = epochs
+            .iter()
+            .chain(left_out)
+            .map(|&epoch| {
+                (
+                    bucket_cf_name(TEST_CF_PREFIX, epoch),
+                    paths.existing_cf_options(&db_options, epoch),
+                )
+            })
+            .collect();
+        opt_cfs.push((RETENTION_CF.to_string(), db_options.clone()));
+        let opt_cfs: Vec<(&str, rocksdb::Options)> = opt_cfs
+            .iter()
+            .map(|(name, options)| (name.as_str(), options.clone()))
+            .collect();
+        let db = open_cf_opts(db_path, None, MetricConf::new("test"), &opt_cfs).unwrap();
+        let earliest_retained_table: DBMap<(), EpochId> =
+            DBMap::reopen(&db, Some(RETENTION_CF), &ReadWriteOptions::default(), true).unwrap();
+        let buckets = EpochBuckets::open(
+            db.clone(),
+            "test buckets",
+            TEST_CF_PREFIX,
+            db_options,
+            Some(paths.clone()),
+            earliest_retained_table,
+            epochs
+                .iter()
+                .map(|&epoch| (epoch, Arc::new(TestBucket)))
+                .collect(),
+        )
+        .unwrap();
+        (buckets, db)
+    }
+
+    fn bucket_table(db: &Arc<Database>, epoch: EpochId) -> DBMap<u64, u64> {
+        DBMap::reopen(
+            db,
+            Some(&bucket_cf_name(TEST_CF_PREFIX, epoch)),
+            &ReadWriteOptions::default(),
+            false,
+        )
+        .unwrap()
+    }
+
+    /// A closed bucket in a single sorted run of many small files, as SST
+    /// ingestion leaves one, is compacted too, and only once.
+    #[tokio::test]
+    async fn a_closed_bucket_of_many_small_files_is_compacted() {
+        let (buckets, dir) = test_buckets(&[1, 2]);
+        let table = bucket_table(&buckets.db, 1);
+        let paths: Vec<PathBuf> = (0..20u64)
+            .map(|file| {
+                let mut buffer = typed_store::rocks::SstFileBuffer::<u64, u64>::new();
+                buffer.insert(&file, &file).unwrap();
+                let path = dir.path().join(format!("ingest-{file}.sst"));
+                buffer.write_file(&path, buckets.cf_options()).unwrap();
+                path
+            })
+            .collect();
+        table.ingest_sst_files(&paths).unwrap();
+        let cf_name = bucket_cf_name(TEST_CF_PREFIX, 1);
+        assert_eq!(buckets.db.sorted_runs(&cf_name).unwrap(), 1);
+        assert_eq!(buckets.db.sst_file_count(&cf_name).unwrap(), 20);
+
+        assert_eq!(buckets.compact_closed(2, &|| false).unwrap(), 1);
+        assert!(buckets.db.sst_file_count(&cf_name).unwrap() <= 8);
+        assert_eq!(table.get(&19).unwrap(), Some(19));
+        assert_eq!(buckets.compact_closed(2, &|| false).unwrap(), 0);
+    }
+
+    /// Closed buckets are compacted into one sorted run, once; the current
+    /// epoch's bucket and a closed one already in a single run are left alone.
+    #[tokio::test]
+    async fn closed_buckets_are_compacted_once() {
+        let (buckets, _dir) = test_buckets(&[1, 2, 3]);
+        let flushes = [(1, 2), (2, 1), (3, 2)];
+        for (epoch, files) in flushes {
+            let table = bucket_table(&buckets.db, epoch);
+            for key in 0..files {
+                table.insert(&key, &key).unwrap();
+                table.flush().unwrap();
+            }
+        }
+        let runs = |epoch| {
+            buckets
+                .db
+                .sorted_runs(&bucket_cf_name(TEST_CF_PREFIX, epoch))
+                .unwrap()
+        };
+        assert_eq!([runs(1), runs(2), runs(3)], [2, 1, 2]);
+
+        assert_eq!(buckets.compact_closed(3, &|| false).unwrap(), 1);
+        assert_eq!([runs(1), runs(2), runs(3)], [1, 1, 2]);
+        assert_eq!(bucket_table(&buckets.db, 1).get(&1).unwrap(), Some(1));
+
+        assert_eq!(buckets.compact_closed(3, &|| false).unwrap(), 0);
+    }
+
+    /// A compaction told to stop leaves the remaining buckets for a later
+    /// call.
+    #[tokio::test]
+    async fn a_stopped_compaction_leaves_the_remaining_buckets() {
+        let (buckets, _dir) = test_buckets(&[1, 2, 3]);
+        for epoch in [1, 2] {
+            let table = bucket_table(&buckets.db, epoch);
+            for key in 0..2 {
+                table.insert(&key, &key).unwrap();
+                table.flush().unwrap();
+            }
+        }
+        let asked = std::sync::atomic::AtomicUsize::new(0);
+        let stop_after_one = || asked.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 1;
+        assert_eq!(buckets.compact_closed(3, &stop_after_one).unwrap(), 1);
+        assert_eq!(buckets.compact_closed(3, &|| false).unwrap(), 1);
+    }
+
+    /// A bucket writes its files into its epoch's directory rather than the
+    /// database directory, and a reopen that names the same directory finds
+    /// them there.
+    #[tokio::test]
+    async fn a_bucket_keeps_its_files_in_its_epoch_directory() {
+        let dir = iota_common::tempdir();
+        let (paths, db_path) = test_paths(dir.path());
+        {
+            let (buckets, db) = placed_buckets(&db_path, &paths, &[]);
+            buckets.ensure(3).unwrap();
+            let table = bucket_table(&db, 3);
+            table.insert(&1, &2).unwrap();
+            table.flush().unwrap();
+
+            let files: Vec<_> = fs::read_dir(paths.bucket_dir(3))
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name())
+                .collect();
+            assert!(
+                files
+                    .iter()
+                    .any(|name| name.to_string_lossy().ends_with(".sst")),
+                "the bucket's table file belongs in its epoch directory: {files:?}"
+            );
+            let weak_db = db.close_handle();
+            drop((buckets, table, db));
+            assert!(wait_for_database_close(weak_db).await);
+        }
+
+        let (_buckets, db) = placed_buckets(&db_path, &paths, &[3]);
+        assert_eq!(bucket_table(&db, 3).get(&1).unwrap(), Some(2));
+    }
+
+    /// A prune takes the directory of a bucket it drops along with the
+    /// bucket, and the epoch's directory with it once no store has anything
+    /// left there.
+    #[tokio::test]
+    async fn a_prune_removes_the_directories_of_the_buckets_it_drops() {
+        let dir = iota_common::tempdir();
+        let (paths, db_path) = test_paths(dir.path());
+        let (buckets, _db) = placed_buckets(&db_path, &paths, &[]);
+        buckets.ensure(1).unwrap();
+        buckets.ensure(2).unwrap();
+        assert!(paths.bucket_dir(1).exists());
+
+        buckets.prune(2, 0, |_, _| Ok(())).unwrap();
+
+        assert!(!paths.epoch_dir(1).exists());
+        assert!(paths.bucket_dir(2).exists());
+    }
+
+    /// An open deletes this store's directory of every epoch it has no bucket
+    /// for, files and all, and leaves another store's directory of the same
+    /// epoch alone.
+    #[tokio::test]
+    async fn an_open_removes_the_directories_of_buckets_that_no_longer_exist() {
+        let dir = iota_common::tempdir();
+        let (paths, db_path) = test_paths(dir.path());
+        fs::create_dir_all(paths.bucket_dir(9)).unwrap();
+        fs::write(
+            paths.bucket_dir(9).join("000012.sst"),
+            b"left by a wiped database",
+        )
+        .unwrap();
+        let other_store = paths.epoch_dir(9).join("other");
+        fs::create_dir_all(&other_store).unwrap();
+
+        let (_buckets, _db) = placed_buckets(&db_path, &paths, &[]);
+
+        assert!(!paths.bucket_dir(9).exists());
+        assert!(other_store.exists());
+    }
+
+    /// A column family the store kept out of its buckets, as after a failed
+    /// drop, keeps its directory: the column family is still in the
+    /// database, and the next open needs its files.
+    #[tokio::test]
+    async fn an_open_keeps_the_directory_of_a_column_family_still_in_the_database() {
+        let dir = iota_common::tempdir();
+        let (paths, db_path) = test_paths(dir.path());
+        {
+            let (buckets, db) = placed_buckets(&db_path, &paths, &[]);
+            buckets.ensure(3).unwrap();
+            let table = bucket_table(&db, 3);
+            table.insert(&1, &2).unwrap();
+            table.flush().unwrap();
+            let weak_db = db.close_handle();
+            drop((buckets, table, db));
+            assert!(wait_for_database_close(weak_db).await);
+        }
+        {
+            let (buckets, db) = placed_buckets_without(&db_path, &paths, &[], &[3]);
+            assert!(paths.bucket_dir(3).exists());
+            let weak_db = db.close_handle();
+            drop((buckets, db));
+            assert!(wait_for_database_close(weak_db).await);
+        }
+
+        let (_buckets, db) = placed_buckets(&db_path, &paths, &[3]);
+        assert_eq!(bucket_table(&db, 3).get(&1).unwrap(), Some(2));
+    }
+
+    /// `before_drop` must see every expiring epoch, oldest first: a later
+    /// consumer relies on this order to carry state forward from one
+    /// dropped epoch to the next.
+    #[tokio::test]
+    async fn prune_calls_back_in_ascending_epoch_order() {
+        let (buckets, _dir) = test_buckets(&[3, 4, 5, 6]);
+        let seen = Mutex::new(Vec::new());
+        let pruned = buckets
+            .prune(6, 1, |epoch, _| {
+                seen.lock().unwrap().push(epoch);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(
+            pruned,
+            Some(PrunedBuckets {
+                earliest_retained: 5,
+                dropped: 2
+            })
+        );
+        assert_eq!(*seen.lock().unwrap(), vec![3, 4]);
+    }
+
+    /// Counting back from an epoch below the newest bucket must neither
+    /// spend the retention on the buckets above it nor drop them: those are
+    /// the epochs a store fed by state sync has run ahead into.
+    #[tokio::test]
+    async fn prune_ignores_the_buckets_above_the_current_epoch() {
+        let (buckets, _dir) = test_buckets(&[3, 4, 5, 6]);
+        let pruned = buckets.prune(4, 1, |_, _| Ok(())).unwrap();
+        assert_eq!(
+            pruned,
+            Some(PrunedBuckets {
+                earliest_retained: 3,
+                dropped: 0
+            })
+        );
+        assert_eq!(buckets.iter(false).len(), 4);
+
+        let pruned = buckets.prune(5, 1, |_, _| Ok(())).unwrap();
+        assert_eq!(
+            pruned,
+            Some(PrunedBuckets {
+                earliest_retained: 4,
+                dropped: 1
+            })
+        );
+        assert_eq!(buckets.earliest_epoch(), Some(4));
+        assert_eq!(buckets.newest_epoch(), Some(6));
+    }
+
+    /// A writer handed an expired epoch is told there is no bucket, rather
+    /// than being refused or handed a recreated one. The refusing form stays
+    /// available for writers to which an expired epoch is a fault.
+    #[tokio::test]
+    async fn an_expired_epoch_has_no_bucket_for_a_writer_that_tolerates_it() {
+        let (buckets, _dir) = test_buckets(&[3, 4, 5]);
+        buckets.prune(5, 1, |_, _| Ok(())).unwrap();
+        assert_eq!(buckets.earliest_retained(), 4);
+
+        assert!(buckets.ensure_retained(3).unwrap().is_none());
+        assert!(buckets.ensure(3).is_err());
+        // Nothing recreated the pruned column family.
+        assert_eq!(buckets.earliest_epoch(), Some(4));
+        assert_eq!(buckets.iter(false).len(), 2);
+
+        assert!(buckets.ensure_retained(4).unwrap().is_some());
+        assert!(buckets.ensure_retained(9).unwrap().is_some());
+        assert_eq!(buckets.newest_epoch(), Some(9));
+    }
+
+    /// A callback error must abort that epoch's drop instead of leaving the
+    /// bucket dropped with the store none the wiser.
+    #[tokio::test]
+    async fn a_callback_error_keeps_the_bucket() {
+        let (buckets, _dir) = test_buckets(&[3, 4]);
+        let result = buckets.prune(4, 0, |_, _| Err(TypedStoreError::RocksDB("no".to_string())));
+        assert!(result.is_err());
+        assert_eq!(buckets.iter(false).len(), 2);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_size_of_all_buckets_is_reported_under_the_store_label() {
+        const CF_PREFIX: &str = "size_report_e";
+        let (buckets, _dir) = prefixed_test_buckets(CF_PREFIX, &[1, 2]);
+        let mut expected = 0;
+        for epoch in [1, 2] {
+            let cf_name = bucket_cf_name(CF_PREFIX, epoch);
+            let map: DBMap<u64, Vec<u8>> = DBMap::reopen(
+                &buckets.db,
+                Some(&cf_name),
+                &ReadWriteOptions::default(),
+                true,
+            )
+            .unwrap();
+            map.insert(&epoch, &vec![7; 4096]).unwrap();
+            map.flush().unwrap();
+            expected += buckets.db.sst_files_size(&cf_name).unwrap();
+        }
+        assert!(expected > 0);
+
+        let gauge = DBMetrics::get()
+            .cf_metrics
+            .rocksdb_total_sst_files_size
+            .with_label_values(&["size_report"]);
+        let deadline = tokio::time::Instant::now() + SIZE_REPORT_PERIOD * 3;
+        while gauge.get() != expected as i64 && tokio::time::Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        assert_eq!(gauge.get(), expected as i64);
+    }
+}

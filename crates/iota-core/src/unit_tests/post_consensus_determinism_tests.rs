@@ -26,7 +26,7 @@
 //! - commit completions by the execution watcher;
 //! - the wait for the highest fully executed commit to reach the horizon;
 //! - the writes of each checkpoint's rows to the table;
-//! - commit flushes and pruning;
+//! - commit flushes and bucket expiry;
 //! - the switch to executing synced checkpoints at the end of the epoch;
 //! - crashes at every write to disk.
 //!
@@ -54,10 +54,10 @@
 //!
 //! The executor runs a transaction only once the handler assigned its
 //! commit, until the switch. From then on it runs every commit, writing no
-//! rows, and the handler validates no further commit. As on the node,
-//! pruning deletes no consumed version that a validation above the resume
-//! point can still keep. A node that crashes after the switch replays the
-//! commits up to the switch on restart and switches again at the next one.
+//! rows, and the handler validates no further commit. As on the node, a
+//! consumed version moves into the running epoch's bucket, which is not
+//! expired, so a validation above the resume point can still read it. A node that crashes after the
+//! switch replays the commits up to the switch on restart and switches again at the next one.
 //! The scenario `restart_after_the_switch_replays_only_up_to_the_switch`
 //! covers the restart.
 //!
@@ -85,11 +85,10 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::EpochId,
-    effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    effects::TransactionEffectsExt,
     error::{IotaError, IotaResult},
     execution::SharedInput,
     iota_system_state::IotaSystemState,
-    messages_checkpoint::CheckpointSequenceNumber,
     messages_consensus::ConsensusTransactionKey,
     object::Object,
     storage::{InputKey, MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject},
@@ -1088,6 +1087,11 @@ struct StoreState {
     objects: BTreeMap<ObjectId, BTreeMap<Version, StoredEntry>>,
     /// Deletion markers by id and version, with whether they are dirty.
     markers: BTreeMap<ObjectId, BTreeMap<Version, (MarkerValue, bool)>>,
+    /// The consumed versions the commit of their consumer moved out of the
+    /// live state into the epoch's historic objects bucket.
+    moved: BTreeSet<ObjectKey>,
+    /// The epoch the store runs in, whose bucket holds `moved`.
+    epoch: EpochId,
 }
 
 impl StoreState {
@@ -1115,9 +1119,32 @@ impl StoreState {
     }
 
     fn by_key(&self, id: &ObjectId, version: Version) -> Option<Object> {
+        if self.moved.contains(&ObjectKey(*id, version)) {
+            return None;
+        }
         match &self.objects.get(id)?.get(&version)?.version {
             StoredVersion::Live { object, pruned } if !pruned => Some(object.clone()),
             _ => None,
+        }
+    }
+
+    /// [`Self::by_key`], or else the version moved into `epoch`'s bucket,
+    /// which is not expired while the epoch runs.
+    fn by_key_with_history(
+        &self,
+        id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> Option<Object> {
+        if !self.moved.contains(&ObjectKey(*id, version)) {
+            return self.by_key(id, version);
+        }
+        if epoch != self.epoch {
+            return None;
+        }
+        match &self.objects.get(id)?.get(&version)?.version {
+            StoredVersion::Live { object, .. } => Some(object.clone()),
+            StoredVersion::Tombstone(_) => None,
         }
     }
 }
@@ -1147,8 +1174,11 @@ fn deletion_markers(execution: &Execution) -> Vec<(ObjectId, Version)> {
 struct FakeStore(Mutex<StoreState>);
 
 impl FakeStore {
-    fn new(history: &History) -> Self {
-        let mut state = StoreState::default();
+    fn new(history: &History, epoch: EpochId) -> Self {
+        let mut state = StoreState {
+            epoch,
+            ..Default::default()
+        };
         let genesis = |object: Object| StoredEntry {
             version: StoredVersion::Live {
                 object,
@@ -1228,9 +1258,15 @@ impl FakeStore {
         }
     }
 
+    /// Makes an execution's outputs durable and, as the commit does, moves
+    /// the versions it consumed out of the live state into the epoch's
+    /// bucket.
     fn make_durable(&self, execution: &Execution) {
         let mut state = self.lock();
         for change in &execution.changes {
+            if let Some(before) = &change.before {
+                state.moved.insert(ObjectKey(change.id, before.version()));
+            }
             let version = change.after.version();
             if let Some(entry) = state
                 .objects
@@ -1251,15 +1287,15 @@ impl FakeStore {
         }
     }
 
-    /// Deletes a version's bytes, as the pruner does; the latest reference of
-    /// the id is unaffected.
+    /// Deletes a version's bytes, as the expiry of an earlier epoch's bucket
+    /// does; the latest reference of the id is unaffected.
     fn prune(&self, key: &ObjectKey) {
         let mut state = self.lock();
         let Some(versions) = state.objects.get_mut(&key.0) else {
             return;
         };
         let is_latest = versions.keys().next_back() == Some(&key.1);
-        assert!(!is_latest, "the pruner never deletes the latest version");
+        assert!(!is_latest, "expiry never deletes the latest version");
         if let Some(entry) = versions.get_mut(&key.1) {
             if let StoredVersion::Live { pruned, .. } = &mut entry.version {
                 *pruned = true;
@@ -1341,6 +1377,15 @@ impl ObjectCacheRead for FakeStore {
         Ok(self.lock().by_key(object_id, version))
     }
 
+    fn try_get_object_by_key_with_historic_fallback(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> IotaResult<Option<Object>> {
+        Ok(self.lock().by_key_with_history(object_id, version, epoch))
+    }
+
     fn try_multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],
@@ -1397,10 +1442,6 @@ impl ObjectCacheRead for FakeStore {
 
     fn try_get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
         unreachable!("post-consensus validation does not read the system state")
-    }
-
-    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        unreachable!("post-consensus validation does not read the pruning watermark")
     }
 
     fn notify_read_input_objects<'a>(
@@ -1874,11 +1915,12 @@ struct InputRead {
 impl<'a> Validator<'a> {
     fn new(history: &'a History, env: &'a Env) -> IotaResult<Self> {
         let epoch_store = env.reset(history.k())?;
+        let epoch = epoch_store.epoch();
         Ok(Self {
             history,
             env,
             epoch_store,
-            store: Arc::new(FakeStore::new(history)),
+            store: Arc::new(FakeStore::new(history, epoch)),
             executed: BTreeMap::new(),
             quarantine: BTreeMap::new(),
             validated_through: 0,
@@ -2341,7 +2383,7 @@ impl<'a> Validator<'a> {
         self.checkpointed_through = last;
         self.trace
             .push(format!("checkpoint of commits {first}..={last} committed"));
-        // The executor nudges the pruner after every checkpoint.
+        // Bucket expiry can run after every checkpoint.
         self.prune(false);
         Ok(Ok(()))
     }
@@ -2537,45 +2579,21 @@ impl<'a> Validator<'a> {
         Ok(())
     }
 
-    /// The object pruner. A version consumed at commit `c` can still be kept
-    /// by a validation at a commit below `c + K`, and the next validation is
-    /// at least the commit after the last flushed one, where a restart
-    /// resumes. So only a version consumed at `c` with `c + K` at or below
-    /// that commit is pruned, and only once its consumer's checkpoint is
-    /// committed.
+    /// Bucket expiry. A version consumed in this epoch sits in this epoch's
+    /// bucket, which is not expired while the epoch runs, so expiry removes
+    /// nothing a validation of this epoch reads. With `pre_epoch_too`, the
+    /// versions retained from earlier epochs lose their bytes, as the expiry
+    /// of those epochs' buckets does.
     fn prune(&mut self, pre_epoch_too: bool) {
-        let history = self.history;
-        let next_validation = self.flushed_through + 1;
-        let consumed: Vec<ObjectKey> = self
-            .executed
-            .iter()
-            .filter(|(digest, executed)| {
-                executed.durable
-                    && history
-                        .execution(digest)
-                        .is_some_and(|(commit, _)| commit + history.k() <= next_validation)
-            })
-            .flat_map(|(_, executed)| {
-                executed
-                    .effects
-                    .old_object_metadata()
-                    .into_iter()
-                    .map(|owned| ObjectKey::from(*owned.reference()))
-            })
-            .collect();
-        for key in &consumed {
-            self.store.prune(key);
-        }
         if pre_epoch_too {
             for object in &self.history.retained_pre_epoch {
                 self.store.prune(&ObjectKey(object.id(), object.version()));
             }
         }
         self.trace.push(format!(
-            "prune {} consumed versions{}",
-            consumed.len(),
+            "expire the earlier buckets{}",
             if pre_epoch_too {
-                " and the retained pre-epoch versions"
+                ", with the retained pre-epoch versions"
             } else {
                 ""
             }
@@ -3009,7 +3027,13 @@ impl<'a> Validator<'a> {
     ) -> Outcome<OwnedVerdict> {
         let reference = need_bytes.into_reference();
         let key = ObjectKey(reference.object_id, reference.version);
-        if let Some(object) = self.storage(self.store.try_get_object_by_key(&key.0, key.1))? {
+        if let Some(object) =
+            self.storage(self.store.try_get_object_by_key_with_historic_fallback(
+                &key.0,
+                key.1,
+                self.epoch_store.epoch(),
+            ))?
+        {
             if object.digest() != reference.digest {
                 return Ok(OwnedVerdict::Drop(DropReason(
                     DropKind::StoreDigestMismatch,
@@ -3826,8 +3850,8 @@ async fn replay_of_a_consumed_epoch_start_input() {
     run_scenario("replay of a consumed epoch-start input", &history, steps).await;
 }
 
-/// As [`replay_of_a_consumed_epoch_start_input`], with the consumed version
-/// pruned before the crash; the replay must need no bytes of it.
+/// As [`replay_of_a_consumed_epoch_start_input`], with a bucket expiry
+/// before the crash, which removes nothing the replay reads.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn replay_after_pruning_the_consumed_input() {
     let history = consumed_epoch_start_history();
@@ -3949,6 +3973,29 @@ async fn version_older_than_a_received_one_stays_stale() {
         "stale version below a receive, not executed",
         &history,
         validates(12),
+    )
+    .await;
+}
+
+/// `T2` keeps the epoch start version of `R`, which the receive at commit 11
+/// consumed above the horizon. Once the receive's checkpoint has committed,
+/// that version is no longer in the live state but in this epoch's bucket,
+/// and the read of `T2`'s inputs, with a writer step between its reads, loads
+/// it from there.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn kept_version_moved_by_a_committed_checkpoint_is_loaded_from_the_bucket() {
+    let history = received_epoch_start_history(EPOCH_START_VERSION);
+    let mut steps = validates(11);
+    steps.push(writer(WriterStep::Execute));
+    steps.extend(checkpoints(11));
+    steps.push(validate_interleaved(
+        1,
+        vec![(ReaderPoint::Row, WriterStep::Watcher)],
+    ));
+    run_scenario(
+        "kept version moved by a committed checkpoint",
+        &history,
+        steps,
     )
     .await;
 }

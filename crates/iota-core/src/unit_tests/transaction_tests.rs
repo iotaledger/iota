@@ -20,6 +20,7 @@ use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
+    signature::VerifyParams,
     transaction::TransactionAPI,
     utils::to_sender_signed_transaction,
 };
@@ -897,7 +898,10 @@ async fn test_handle_soft_bundle_certificates() {
             CertifiedTransaction::new(transaction.clone().into_message(), sigs.clone(), &committee)
         {
             return cert
-                .try_into_verified_for_testing(&committee, &Default::default())
+                .try_into_verified_for_testing(
+                    &committee,
+                    &VerifyParams::from_protocol_config(epoch_store.protocol_config()),
+                )
                 .unwrap();
         }
         panic!("Failed to create certificate");
@@ -1055,7 +1059,10 @@ async fn test_handle_soft_bundle_certificates_errors() {
             CertifiedTransaction::new(transaction.clone().into_message(), sigs.clone(), &committee)
         {
             return cert
-                .try_into_verified_for_testing(&committee, &Default::default())
+                .try_into_verified_for_testing(
+                    &committee,
+                    &VerifyParams::from_protocol_config(epoch_store.protocol_config()),
+                )
                 .unwrap();
         }
         panic!("Failed to create certificate");

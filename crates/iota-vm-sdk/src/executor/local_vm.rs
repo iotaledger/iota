@@ -420,8 +420,6 @@ impl LocalVm {
         &self,
         signed: &SenderSignedTransaction,
     ) -> Result<(), VmSdkError> {
-        // Match the node's verifier, which also derives these from the protocol
-        // config; `VerifyParams::default()` would turn every check off.
         let verify_params = VerifyParams::from_protocol_config(&self.protocol_config);
         verify_sender_signed_data_message_signatures(signed, &verify_params)
             .map_err(VmSdkError::SignatureVerification)

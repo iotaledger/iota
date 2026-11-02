@@ -35,7 +35,8 @@ pub trait TransactionExecutor: Send + Sync {
         checks: VmChecks,
     ) -> Result<SimulateTransactionResult, IotaError>;
 
-    /// Wait for the given transactions to be included in a checkpoint.
+    /// Wait until the given transactions are in a checkpoint and the RPC
+    /// indexes include that checkpoint.
     ///
     /// Returns a mapping from transaction digest to
     /// `(checkpoint_sequence_number, checkpoint_timestamp_ms)`.

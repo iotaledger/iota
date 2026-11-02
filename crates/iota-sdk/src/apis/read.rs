@@ -5,7 +5,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use fastcrypto::encoding::Base64;
-use futures::{StreamExt, stream};
+use futures::stream;
 use futures_core::Stream;
 use iota_json_rpc_api::{
     GovernanceReadApiClient, IndexerApiClient, MoveUtilsClient, ReadApiClient, WriteApiClient,
@@ -16,17 +16,15 @@ use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, DevInspectArgs, DevInspectResults,
     DryRunTransactionBlockResponse, DynamicFieldPage, IotaData, IotaGetPastObjectRequest,
     IotaMoveNormalizedModule, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaPastObjectResponse, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery,
-    IotaTransactionBlockResponseQueryV2, ObjectsPage, ProtocolConfigResponse,
-    TransactionBlocksPage, TransactionFilter,
+    IotaPastObjectResponse, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage,
+    OwnedObjectCursor, ProtocolConfigResponse, TransactionBlocksPage,
 };
 use iota_sdk_types::{Address, ObjectId, Transaction, TransactionDigest, TransactionKind, Version};
 use iota_types::{
     dynamic_field::DynamicFieldName, iota_serde::BigInt,
     messages_checkpoint::CheckpointSequenceNumber,
 };
-use jsonrpsee::core::client::Subscription;
 
 use crate::{
     RpcClient,
@@ -75,7 +73,7 @@ impl ReadApi {
         &self,
         address: Address,
         query: impl Into<Option<IotaObjectResponseQuery>>,
-        cursor: impl Into<Option<ObjectId>>,
+        cursor: impl Into<Option<OwnedObjectCursor>>,
         limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<ObjectsPage> {
         Ok(self
@@ -616,23 +614,6 @@ impl ReadApi {
         )
     }
 
-    /// Subscribe to a stream of transactions.
-    ///
-    /// This is only available through WebSockets.
-    pub async fn subscribe_transaction(
-        &self,
-        filter: TransactionFilter,
-    ) -> IotaRpcResult<impl Stream<Item = IotaRpcResult<IotaTransactionBlockEffects>>> {
-        let Some(c) = &self.api.ws else {
-            return Err(Error::Subscription(
-                "Subscription only supported by WebSocket client.".to_string(),
-            ));
-        };
-        let subscription: Subscription<IotaTransactionBlockEffects> =
-            c.subscribe_transaction(filter).await?;
-        Ok(subscription.map(|item| Ok(item?)))
-    }
-
     /// Get move modules by package ID, keyed by name.
     pub async fn get_normalized_move_modules_by_package(
         &self,
@@ -752,7 +733,7 @@ impl ReadApi {
     pub async fn iota_names_find_all_registration_nfts(
         &self,
         address: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> IotaRpcResult<ObjectsPage> {
