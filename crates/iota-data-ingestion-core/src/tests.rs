@@ -46,7 +46,7 @@ use crate::{
     IngestionResult, ProgressStore, ReaderOptions, Reducer, ShutdownAction, Worker, WorkerPool,
     history::{
         CHECKPOINT_FILE_MAGIC, MANIFEST_FILENAME,
-        manifest::{Manifest, create_file_metadata_from_bytes, finalize_manifest},
+        manifest::{FileMetadata, Manifest, create_file_metadata_from_bytes, finalize_manifest},
     },
     progress_store::ExecutorProgress,
     reader::v2::{CheckpointReader, CheckpointReaderConfig, RemoteUrl},
@@ -943,4 +943,36 @@ async fn historical_reader_rejects_a_checkpoint_file_with_a_blob_length_beyond_t
             .is_err()
     );
     reader.shutdown().await.unwrap();
+}
+
+/// A MANIFEST whose files leave a gap or do not start at checkpoint 0 is a read
+/// error: the reader sends nothing, retries, and keeps running.
+#[tokio::test]
+async fn historical_reader_rejects_a_manifest_whose_files_leave_a_gap() {
+    for ranges in [[0..2, 3..5], [1..3, 3..5]] {
+        let archive = write_history_archive(false);
+        let mut manifest = Manifest::new(0);
+        for range in ranges {
+            let end = range.end;
+            let metadata = FileMetadata {
+                checkpoint_seq_range: range,
+                sha3_digest: [0; 32],
+            };
+            manifest.update(end, metadata);
+        }
+        std::fs::write(
+            archive.path().join(MANIFEST_FILENAME),
+            finalize_manifest(manifest).unwrap(),
+        )
+        .unwrap();
+        let mut reader = history_archive_reader(archive.path(), 0).await;
+        // A panic in the reader task closes the channel and ends this wait
+        // early.
+        assert!(
+            timeout(Duration::from_secs(2), reader.checkpoint())
+                .await
+                .is_err()
+        );
+        reader.shutdown().await.unwrap();
+    }
 }

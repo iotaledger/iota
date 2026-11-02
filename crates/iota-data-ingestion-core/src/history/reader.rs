@@ -74,6 +74,11 @@ impl HistoricalReader {
     /// More specifically it verifies that the files in the remote store
     /// cover the entire range of checkpoints from sequence number 0
     /// until the latest available checkpoint with no missing checkpoint.
+    ///
+    /// # Errors
+    ///
+    /// Fails if the manifest lists no files, or if its files do not cover
+    /// every checkpoint from 0 without a gap or overlap.
     pub fn verify_and_get_manifest_files(&self, manifest: Manifest) -> Result<Vec<FileMetadata>> {
         let mut files = manifest.to_files();
         if files.is_empty() {
@@ -84,13 +89,15 @@ impl HistoricalReader {
 
         files.sort_by_key(|f| f.checkpoint_seq_range.start);
 
-        assert!(
-            files
+        let covers_every_checkpoint = files[0].checkpoint_seq_range.start == 0
+            && files
                 .windows(2)
-                .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end)
-        );
-
-        assert_eq!(files.first().map(|f| f.checkpoint_seq_range.start), Some(0));
+                .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end);
+        if !covers_every_checkpoint {
+            return Err(IngestionError::HistoryRead(
+                "manifest files do not cover every checkpoint from 0".to_string(),
+            ));
+        }
 
         Ok(files)
     }
