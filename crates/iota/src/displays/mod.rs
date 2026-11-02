@@ -9,4 +9,6 @@ mod ptb_preview;
 mod status;
 mod summary;
 
+pub use dry_run_tx_block::DryRunOutput;
+
 pub struct Pretty<'a, T>(pub &'a T);
