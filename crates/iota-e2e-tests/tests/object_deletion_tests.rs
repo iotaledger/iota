@@ -241,6 +241,7 @@ mod sim_only_tests {
     // Pruning is disabled so that no bucket expiry runs before the read.
     #[sim_test]
     async fn a_withdrawn_stake_still_reports_its_status() {
+        iota_json_rpc::governance_api::clear_exchange_rates_cache_for_testing().await;
         let test_cluster = TestClusterBuilder::new()
             .disable_fullnode_pruning()
             .build()
