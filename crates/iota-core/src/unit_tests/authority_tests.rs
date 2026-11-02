@@ -9829,8 +9829,8 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
 }
 
 /// Tests graduated load shedding based on the consensus queue length
-/// in the P-COOL (certificate-less) path of
-/// [`AuthorityState::check_system_overload`]. Verifies that:
+/// in the P-COOL flow, through
+/// [`AuthorityState::reserve_consensus_queue_slot()`]. Verifies that:
 /// - below soft limit: all transactions are accepted
 /// - between soft and hard limit: some transactions are rejected
 /// - at/above hard limit: all transactions are rejected
@@ -9874,19 +9874,10 @@ async fn test_consensus_queue_graduated_load_shedding() {
         rgp,
     );
 
-    let pcool_flow_enabled = true;
-    // Does not matter in the P-COOL flow.
-    let do_authority_overload_check = false;
-
     // Below and at soft limit, all transactions should be accepted.
     for num_inflight_txs in [0, soft_limit - 1, soft_limit] {
         consensus_adapter.set_num_inflight_transactions_for_testing(num_inflight_txs as u64);
-        let result = authority_state.check_system_overload(
-            &consensus_adapter,
-            tx.data(),
-            do_authority_overload_check,
-            pcool_flow_enabled,
-        );
+        let result = authority_state.reserve_consensus_queue_slot(&consensus_adapter, tx.data());
 
         assert!(
             result.is_ok(),
@@ -9906,12 +9897,7 @@ async fn test_consensus_queue_graduated_load_shedding() {
         (hard_limit + 1, 100, true), // above hard limit: 100% shedding
     ] {
         consensus_adapter.set_num_inflight_transactions_for_testing(num_inflight_txs as u64);
-        let result = authority_state.check_system_overload(
-            &consensus_adapter,
-            tx.data(),
-            do_authority_overload_check,
-            pcool_flow_enabled,
-        );
+        let result = authority_state.reserve_consensus_queue_slot(&consensus_adapter, tx.data());
 
         assert_eq!(
             authority_state
@@ -9932,20 +9918,130 @@ async fn test_consensus_queue_graduated_load_shedding() {
         }
     }
 
-    // Verify that with `pcool_flow_enabled = false` (certificate flow),
-    // the consensus graduated shedding does NOT apply - only the binary
-    // hard cutoff runs.
+    // In the certificate flow, `check_system_overload()` applies no graduated
+    // shedding, only the binary hard cutoff.
     consensus_adapter.set_num_inflight_transactions_for_testing(hard_limit as u64);
+    let do_authority_overload_check = false;
     let result = authority_state.check_system_overload(
         &consensus_adapter,
         tx.data(),
         do_authority_overload_check,
-        false, // certificate flow
     );
     assert!(
         result.is_ok(),
         "in certificate mode, no graduated shedding expected below/at hard limit",
     );
+}
+
+/// [`AuthorityState::reserve_consensus_queue_slot()`] counts the transaction
+/// before judging it, keeps the slot counted until it is dropped, and
+/// releases it when it rejects.
+#[tokio::test]
+async fn consensus_queue_slot_is_counted_before_the_check_and_released_on_rejection() {
+    telemetry_subscribers::init_for_testing();
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object1 = Object::with_owner_for_testing(sender);
+    let gas_object2 = Object::with_owner_for_testing(sender);
+
+    let hard_limit: usize = 20_000;
+    // With the soft limit at the hard limit, graduated shedding accepts every
+    // transaction below the hard limit and rejects every one at it, so the
+    // outcome does not depend on the transaction digest.
+    let soft_limit_pct: u32 = 100;
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        hard_limit,
+        hard_limit,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        soft_limit_pct,
+    ));
+
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let tx = make_transfer_object_transaction(
+        gas_object1.object_ref(),
+        gas_object2.object_ref(),
+        sender,
+        &sender_key,
+        Address::random(),
+        rgp,
+    );
+
+    // One place is left: the first admission takes it, and its slot counts
+    // until it is dropped.
+    consensus_adapter.set_num_inflight_transactions_for_testing(hard_limit as u64 - 1);
+    let first = authority_state
+        .reserve_consensus_queue_slot(&consensus_adapter, tx.data())
+        .unwrap();
+    assert_eq!(first.queue_length_before(), hard_limit as u64 - 1);
+    assert_eq!(
+        consensus_adapter.num_inflight_transactions(),
+        hard_limit as u64
+    );
+
+    // A second admission while the first still holds its slot counts the
+    // first, so it is rejected, and its own slot is released.
+    let second = authority_state.reserve_consensus_queue_slot(&consensus_adapter, tx.data());
+    assert!(
+        matches!(second, Err(IotaError::TooManyTransactionsPendingConsensus)),
+        "the second admission should count the first and be rejected",
+    );
+    assert_eq!(
+        consensus_adapter.num_inflight_transactions(),
+        hard_limit as u64
+    );
+
+    drop(first);
+    assert_eq!(
+        consensus_adapter.num_inflight_transactions(),
+        hard_limit as u64 - 1
+    );
+}
+
+/// A slot passed to [`ConsensusAdapter::submit_with_slot()`] is released when
+/// the epoch has ended before the submission task starts.
+#[tokio::test]
+async fn consensus_queue_slot_is_released_when_the_epoch_has_ended() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object1 = Object::with_owner_for_testing(sender);
+    let gas_object2 = Object::with_owner_for_testing(sender);
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
+        authority_state.name,
+    ));
+    let tx = make_transfer_object_transaction(
+        gas_object1.object_ref(),
+        gas_object2.object_ref(),
+        sender,
+        &sender_key,
+        Address::random(),
+        authority_state.reference_gas_price_for_testing().unwrap(),
+    );
+
+    let epoch_store = authority_state.epoch_store_for_testing();
+    epoch_store.epoch_terminated().await;
+
+    let slot = consensus_adapter.reserve_inflight_slot();
+    assert_eq!(consensus_adapter.num_inflight_transactions(), 1);
+    consensus_adapter
+        .submit_with_slot(
+            ConsensusTransaction::new_user_transaction(tx),
+            None,
+            &epoch_store,
+            slot,
+        )
+        .unwrap()
+        .await
+        .unwrap();
+    assert_eq!(consensus_adapter.num_inflight_transactions(), 0);
 }
 
 /// Builds an authority with the P-COOL flow, and with it deny rule
