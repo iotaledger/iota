@@ -1216,6 +1216,7 @@ impl RegulatedCoinEnv {
                 &epoch_store,
                 &self.env.authority.config.transaction_deny_config,
                 VerifierLimitsSource::ProtocolConfig,
+                false,
             )
     }
 

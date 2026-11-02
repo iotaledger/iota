@@ -888,7 +888,7 @@ async fn pre_execution_failure_skips_execution_and_charges_gas() {
     let expected = ExecutionErrorKind::MoveAuthentication {
         error: Box::new(failure.clone()),
     };
-    let (inner_store, _, effects, _, result) = epoch_store
+    let (inner_store, _, effects, _, result, _) = epoch_store
         .executor()
         .authenticate_then_execute_transaction_to_effects(
             authority.get_backing_store().as_ref(),

@@ -27,7 +27,7 @@ use iota_types::{
     base_types::TxContext,
     committee::EpochId,
     error::{ExecutionError, IotaError, IotaResult},
-    execution::{ExecutionResult, ExecutionTiming, TypeLayoutStore},
+    execution::{AuthenticateThenExecuteOutput, ExecutionResult, ExecutionTiming, TypeLayoutStore},
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
@@ -201,13 +201,7 @@ impl executor::Executor for Executor {
         auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> (
-        InnerTemporaryStore,
-        IotaGasStatus,
-        TransactionEffects,
-        Vec<ExecutionTiming>,
-        Result<(), ExecutionError>,
-    ) {
+    ) -> AuthenticateThenExecuteOutput<()> {
         authenticate_then_execute_transaction_to_effects::<execution_mode::Normal>(
             store,
             protocol_config,
