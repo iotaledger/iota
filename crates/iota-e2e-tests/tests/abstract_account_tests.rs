@@ -334,12 +334,14 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
         .execute_transaction_may_fail(tx)
         .await
         .unwrap()
-        .effects
+        .effects()
+        .unwrap()
+        .effects()
         .unwrap();
 
     // Assert received a MoveAbort error
     assert!(
-        tx_result.status().is_err(),
+        !matches!(tx_result.status(), iota_sdk_types::ExecutionStatus::Success),
         "Expected TX2 certificate creation to fail due to conflict on receiving object"
     );
     let error_string = format!("{:#?}", tx_result.status());
@@ -2116,10 +2118,12 @@ async fn test_received_version_named_as_owned_input_never_executes() -> Result<(
         .wallet
         .execute_transaction_may_fail(receive_tx)
         .await?
-        .effects
+        .effects()
+        .unwrap()
+        .effects()
         .unwrap();
     assert!(
-        effects.status().is_ok(),
+        matches!(effects.status(), iota_sdk_types::ExecutionStatus::Success),
         "the receive must succeed while the object is not an account, got {:?}",
         effects.status()
     );

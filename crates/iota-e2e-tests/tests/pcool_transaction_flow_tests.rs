@@ -33,7 +33,9 @@ use std::str::FromStr;
 use iota_macros::sim_test;
 use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::{base_types::dbg_addr, coin::CoinMetadata, transaction::CallArg};
+use iota_types::{
+    base_types::dbg_addr, coin::CoinMetadata, effects::TransactionEffectsAPI, transaction::CallArg,
+};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 /// Builds a P-COOL test cluster. When `use_execution_scheduler` is set, every
@@ -134,9 +136,10 @@ async fn run_owned_object_transfer_reaches_finality(test_cluster: &TestCluster) 
         .await;
 
     assert!(
-        response
-            .as_ref()
-            .is_ok_and(|r| r.status_ok().unwrap_or(false)),
+        response.as_ref().is_ok_and(|r| matches!(
+            r.effects().unwrap().effects().unwrap().status(),
+            iota_sdk_types::ExecutionStatus::Success
+        )),
         "owned-object transfer must finalize successfully under P-COOL: {response:?}"
     );
 }
@@ -203,8 +206,14 @@ async fn run_double_spend_resolves_to_single_winner(test_cluster: &TestCluster) 
     // The loser is dropped post-consensus, so its submission errors (or, at
     // worst, comes back with a non-success status); the winner finalizes
     // successfully. Treat "finalized successfully" as Ok AND status Success.
-    let ok1 = r1.as_ref().is_ok_and(|r| r.status_ok().unwrap_or(false));
-    let ok2 = r2.as_ref().is_ok_and(|r| r.status_ok().unwrap_or(false));
+    let is_success = |r: &iota_grpc_types::v1::transaction::ExecutedTransaction| {
+        matches!(
+            r.effects().unwrap().effects().unwrap().status(),
+            iota_sdk_types::ExecutionStatus::Success
+        )
+    };
+    let ok1 = r1.as_ref().is_ok_and(is_success);
+    let ok2 = r2.as_ref().is_ok_and(is_success);
 
     assert!(
         ok1 ^ ok2,
@@ -280,9 +289,10 @@ async fn run_immutable_object_read_twice(test_cluster: &TestCluster) {
             .await;
 
         assert!(
-            response
-                .as_ref()
-                .is_ok_and(|r| r.status_ok().unwrap_or(false)),
+            response.as_ref().is_ok_and(|r| matches!(
+                r.effects().unwrap().effects().unwrap().status(),
+                iota_sdk_types::ExecutionStatus::Success
+            )),
             "read {attempt} of an immutable object must finalize under P-COOL: {response:?}"
         );
     }

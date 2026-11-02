@@ -4,11 +4,10 @@
 
 use std::{future::Future, path::PathBuf, sync::Arc, time::Duration};
 
-use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, Transaction, TypeTag,
-    Version,
+    Address, ExecutionStatus, Identifier, ObjectId, ObjectReference, SharedObjectReference,
+    Transaction, TypeTag, Version,
 };
 use iota_types::{
     base_types::EpochId, effects::TransactionEffectsAPI,
@@ -93,20 +92,20 @@ async fn run_thread<F, Fut>(
             .wallet
             .execute_transaction_may_fail(tx)
             .await
-            .map(|r| r.effects.unwrap())
+            .map(|r| r.effects().unwrap().effects().unwrap())
         else {
             // When epochs are short, it is possible that some transactions
             // keep getting sent at epoch boundaries and timeout eventually.
             continue;
         };
-        if effects.status().is_ok() {
+        if matches!(effects.status(), ExecutionStatus::Success) {
             info!(?thread_id, ?tx_digest, "Transaction succeeded");
             num_tx_succeeded += 1;
         } else {
             info!(?thread_id, ?tx_digest, "Transaction failed");
             num_tx_failed += 1;
         }
-        let executed_epoch = effects.executed_epoch();
+        let executed_epoch = effects.epoch();
         if executed_epoch >= target_epoch {
             info!(
                 ?thread_id,

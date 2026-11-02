@@ -1595,7 +1595,9 @@ impl IotaClientCommands {
                     .await?
                     .iter()
                     // Ok to unwrap() since `get_gas_objects` guarantees gas
-                    .map(|(_val, object)| GasCoin::try_from(object).unwrap())
+                    .map(|(balance, object)| {
+                        GasCoin::new(*object.object_ref().object_id(), *balance)
+                    })
                     .collect();
                 IotaClientCommandResult::Gas(coins)
             }
@@ -1834,14 +1836,18 @@ impl IotaClientCommands {
                 }
                 let transaction = TransactionEnvelope::from_user_sig_data(data, sigs);
 
-                let response = context.execute_transaction_may_fail(transaction).await?;
-                IotaClientCommandResult::TransactionBlock(response)
+                let executed = context.execute_transaction_may_fail(transaction).await?;
+                IotaClientCommandResult::TransactionBlock(transaction_block_response_from_executed(
+                    &executed,
+                )?)
             }
             IotaClientCommands::ExecuteCombinedSignedTx { signed_tx_bytes } => {
                 let tx = SenderSignedTransaction::from_base64(&signed_tx_bytes).map_err(|_| anyhow!("Failed to parse SenderSignedTransaction bytes, check if it matches the output of iota client commands with --serialize-signed-transaction"))?;
                 let transaction = Envelope::<SenderSignedTransaction, EmptySignInfo>::new(tx);
-                let response = context.execute_transaction_may_fail(transaction).await?;
-                IotaClientCommandResult::TransactionBlock(response)
+                let executed = context.execute_transaction_may_fail(transaction).await?;
+                IotaClientCommandResult::TransactionBlock(transaction_block_response_from_executed(
+                    &executed,
+                )?)
             }
             IotaClientCommands::Sign {
                 address,
@@ -3593,6 +3599,31 @@ pub(crate) async fn prerender_clever_errors(
     }
 }
 
+/// Build the JSON-RPC-shaped response the CLI's `TransactionBlock` display
+/// expects from a gRPC execution result. Populates the digest and effects; the
+/// execute-signed commands do not surface object or balance changes.
+fn transaction_block_response_from_executed(
+    executed: &iota_grpc_types::v1::transaction::ExecutedTransaction,
+) -> anyhow::Result<IotaTransactionBlockResponse> {
+    let digest = executed
+        .transaction()
+        .and_then(|t| t.digest())
+        .map_err(|e| anyhow!("missing transaction digest in execution result: {e}"))?;
+    let effects = executed
+        .effects()
+        .and_then(|e| e.effects())
+        .map_err(|e| anyhow!("missing effects in execution result: {e}"))?;
+    let raw_effects = bcs::to_bytes(&effects)?;
+    Ok(IotaTransactionBlockResponse {
+        digest,
+        effects: Some(IotaTransactionBlockEffects::try_from(effects)?),
+        raw_effects,
+        timestamp_ms: executed.timestamp_ms().ok(),
+        checkpoint: executed.checkpoint,
+        ..Default::default()
+    })
+}
+
 fn opts_from_cli(opts: &HashSet<DisplayOption>) -> IotaTransactionBlockResponseOptions {
     if opts.is_empty() {
         IotaTransactionBlockResponseOptions::new()
@@ -3771,7 +3802,7 @@ async fn select_coins_for_amount(
         .await?
         .iter()
         // Ok to unwrap() since `gas_objects` guarantees gas
-        .map(|(_val, object)| GasCoin::try_from(object).unwrap())
+        .map(|(balance, object)| GasCoin::new(*object.object_ref().object_id(), *balance))
         .collect::<Vec<_>>();
     // Sort in ascending order
     gas_coins.sort_unstable_by_key(|c| c.value());

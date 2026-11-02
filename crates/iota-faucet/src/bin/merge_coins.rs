@@ -10,7 +10,6 @@ use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_transaction_builder::WaitForTransaction;
 use iota_sdk_types::ObjectId;
-use iota_types::gas_coin::GasCoin;
 use tracing::info;
 
 #[tokio::main]
@@ -74,16 +73,16 @@ async fn _merge_coins(gas_coin: &str, wallet: WalletContext) -> Result<(), anyho
         .map_err(|e| FaucetError::Wallet(e.to_string()))?
         .iter()
         // Ok to unwrap() since `get_gas_objects` guarantees gas
-        .map(|q| GasCoin::try_from(&q.1).unwrap())
+        .map(|q| iota_sdk_types::Coin::try_from_object(&q.1).unwrap())
         // Everything less than 1 iota
-        .filter(|coin| coin.0.balance.value() <= 10000000000)
-        .collect::<Vec<GasCoin>>();
+        .filter(|coin| coin.balance() <= 10000000000)
+        .collect::<Vec<_>>();
 
     let signer = wallet.config().keystore().get_key(&active_address)?;
 
     // Smash coins togethers 254 objects at a time
     for chunk in small_coins.chunks(254) {
-        let total_balance: u64 = chunk.iter().map(|coin| coin.0.balance.value()).sum();
+        let total_balance: u64 = chunk.iter().map(|coin| coin.balance()).sum();
 
         let mut coin_vector = chunk
             .iter()
