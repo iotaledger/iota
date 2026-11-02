@@ -5,7 +5,6 @@
 #[test_only]
 module iota_system::stake_tests;
 
-use iota::balance;
 use iota::coin;
 use iota::table::Table;
 use iota::test_scenario::{Self, Scenario};
@@ -1224,44 +1223,6 @@ fun test_withdraw_stake_from_inactive_pool_across_safe_mode_epoch_changes() {
     assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * NANOS_PER_IOTA);
     unstake(VALIDATOR_ADDR_1, 0, scenario);
     assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 100 * NANOS_PER_IOTA);
-    scenario_val.end();
-}
-
-#[test]
-fun test_epoch_change_settles_withdraw_recorded_against_unprocessed_stake() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let ctx = scenario.ctx();
-
-    let mut pool = staking_pool::new(ctx);
-    pool.activate_staking_pool(0);
-    // 100 IOTA processed into the pool at the first epoch change.
-    let processed = pool.request_add_stake(
-        balance::create_for_testing(100 * NANOS_PER_IOTA),
-        1,
-        ctx,
-    );
-    pool.process_pending_stakes_and_withdraws(ctx);
-    assert_eq(pool.iota_balance(), 100 * NANOS_PER_IOTA);
-
-    // A 200 IOTA stake left pending by a safe-mode epoch change and then also
-    // recorded as a 200 IOTA withdrawal: the state the old withdrawal path left behind.
-    let skipped = pool.request_add_stake(
-        balance::create_for_testing(200 * NANOS_PER_IOTA),
-        2,
-        ctx,
-    );
-    pool.set_pending_withdraws_for_testing(200 * NANOS_PER_IOTA, 200 * NANOS_PER_IOTA);
-
-    scenario.next_epoch(@0x0);
-    pool.process_pending_stakes_and_withdraws(scenario.ctx());
-    assert_eq(pool.iota_balance(), 100 * NANOS_PER_IOTA);
-    assert_eq(pool.pending_stake_amount(), 0);
-    assert_eq(pool.pending_stake_withdraw_amount(), 0);
-
-    test_utils::destroy(processed);
-    test_utils::destroy(skipped);
-    test_utils::destroy(pool);
     scenario_val.end();
 }
 

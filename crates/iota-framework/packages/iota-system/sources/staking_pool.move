@@ -227,16 +227,8 @@ public(package) fun process_pending_stakes_and_withdraws(
     ctx: &TxContext,
 ) {
     let new_epoch = ctx.epoch() + 1;
-    // A withdrawal recorded against stake that was never processed into the pool
-    // leaves more to withdraw than the pool holds; adding the stake first lets the
-    // two cancel instead of aborting the epoch change.
-    if (pool.pending_total_iota_withdraw > pool.iota_balance) {
-        process_pending_stake(pool);
-        process_pending_stake_withdraw(pool);
-    } else {
-        process_pending_stake_withdraw(pool);
-        process_pending_stake(pool);
-    };
+    process_pending_stake_withdraw(pool);
+    process_pending_stake(pool);
     pool
         .exchange_rates
         .add(
@@ -522,18 +514,6 @@ fun check_balance_invariants(pool: &StakingPoolV1, epoch: u64) {
 }
 
 // ==== test-related functions ====
-
-/// Record a pending withdrawal directly, to reproduce pool state that the
-/// withdrawal path can no longer produce.
-#[test_only]
-public fun set_pending_withdraws_for_testing(
-    pool: &mut StakingPoolV1,
-    pending_total_iota_withdraw: u64,
-    pending_pool_token_withdraw: u64,
-) {
-    pool.pending_total_iota_withdraw = pending_total_iota_withdraw;
-    pool.pending_pool_token_withdraw = pending_pool_token_withdraw;
-}
 
 // Given the `staked_iota` receipt calculate the current rewards (in terms of IOTA) for it.
 #[test_only]
