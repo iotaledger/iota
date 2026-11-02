@@ -239,10 +239,17 @@ impl IotaEnv {
     ///
     /// Errors if the env has no `grpc` URL configured.
     pub fn create_grpc_client(&self) -> Result<iota_grpc_client::GrpcClient, anyhow::Error> {
-        let grpc_url = self
-            .grpc
-            .as_deref()
-            .ok_or_else(|| anyhow!("gRPC is not configured for environment [{}]", self.alias))?;
+        let grpc_url = self.grpc.as_deref().ok_or_else(|| {
+            anyhow!(
+                "Environment [{}] has no `grpc` URL configured, but the CLI now talks to the \
+                 node over gRPC. Add a `grpc` URL to this environment in your client config \
+                 (client.yaml), or recreate it with `iota client new-env --alias {} --rpc {} \
+                 --grpc <GRPC_URL>`. The JSON-RPC `rpc` URL alone is no longer sufficient.",
+                self.alias,
+                self.alias,
+                self.rpc
+            )
+        })?;
         Ok(iota_grpc_client::GrpcClient::new(grpc_url)?)
     }
 

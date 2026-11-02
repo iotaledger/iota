@@ -17,7 +17,10 @@ use fastcrypto::{
     traits::{KeyPair, ToFromBytes},
 };
 use iota_genesis_builder::validator_info::GenesisValidatorInfo;
-use iota_grpc_client::{GrpcClient, read_mask_fields::EpochField};
+use iota_grpc_client::{
+    GrpcClient,
+    read_mask_fields::{EpochField, EpochReadMask},
+};
 use iota_grpc_types::v1::transaction::ExecutedTransaction;
 use iota_keys::{
     key_derive::generate_new_key,
@@ -28,6 +31,7 @@ use iota_keys::{
     keystore::{AccountKeystore, StoredKey},
 };
 use iota_multiaddr::Multiaddr;
+use iota_protocol_config::PROTOCOL_VERSION_IIP8;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_move_types::{
@@ -160,19 +164,34 @@ pub enum IotaValidatorCommandResponse {
     MakeValidatorInfo,
     DisplayMetadata(String),
     BecomeCandidate(
-        #[serde(serialize_with = "serialize_executed_transaction")] Box<ExecutedTransaction>,
+        #[serde(
+            serialize_with = "crate::executed_transaction_response::serialize_executed_transaction"
+        )]
+        Box<ExecutedTransaction>,
     ),
     JoinValidators(
-        #[serde(serialize_with = "serialize_executed_transaction")] Box<ExecutedTransaction>,
+        #[serde(
+            serialize_with = "crate::executed_transaction_response::serialize_executed_transaction"
+        )]
+        Box<ExecutedTransaction>,
     ),
     LeaveValidators(
-        #[serde(serialize_with = "serialize_executed_transaction")] Box<ExecutedTransaction>,
+        #[serde(
+            serialize_with = "crate::executed_transaction_response::serialize_executed_transaction"
+        )]
+        Box<ExecutedTransaction>,
     ),
     UpdateMetadata(
-        #[serde(serialize_with = "serialize_executed_transaction")] Box<ExecutedTransaction>,
+        #[serde(
+            serialize_with = "crate::executed_transaction_response::serialize_executed_transaction"
+        )]
+        Box<ExecutedTransaction>,
     ),
     ReportValidator(
-        #[serde(serialize_with = "serialize_executed_transaction")] Box<ExecutedTransaction>,
+        #[serde(
+            serialize_with = "crate::executed_transaction_response::serialize_executed_transaction"
+        )]
+        Box<ExecutedTransaction>,
     ),
     SerializedPayload(String),
     List(String),
@@ -449,10 +468,9 @@ fn move_string(bytes: &[u8]) -> String {
 /// `0x3::validator::ValidatorV1` (and its `ValidatorMetadataV1` /
 /// `StakingPoolV1`) as read from the system state over gRPC.
 ///
-/// This mirrors the fields the previous `IotaValidatorSummary` exposed, with
-/// one exception: `effective_commission_rate` (the IIP8 protocol-adjusted rate)
-/// is computed by the node and not present in the raw system state, so it is
-/// omitted here.
+/// This mirrors the fields the previous `IotaValidatorSummary` exposed,
+/// including `effective_commission_rate` (the IIP8 protocol-adjusted rate),
+/// which is not present in the raw system state and is computed here.
 #[derive(Serialize)]
 struct ValidatorDisplay {
     iota_address: Address,
@@ -474,30 +492,74 @@ struct ValidatorDisplay {
     next_epoch_net_address: Option<String>,
     next_epoch_p2p_address: Option<String>,
     next_epoch_primary_address: Option<String>,
+    #[serde(serialize_with = "serialize_u64_as_string")]
     voting_power: u64,
     operation_cap_id: ObjectId,
+    #[serde(serialize_with = "serialize_u64_as_string")]
     gas_price: u64,
+    #[serde(serialize_with = "serialize_u64_as_string")]
     commission_rate: u64,
+    #[serde(serialize_with = "serialize_opt_u64_as_string")]
+    effective_commission_rate: Option<u64>,
+    #[serde(serialize_with = "serialize_u64_as_string")]
     next_epoch_stake: u64,
+    #[serde(serialize_with = "serialize_u64_as_string")]
     next_epoch_gas_price: u64,
+    #[serde(serialize_with = "serialize_u64_as_string")]
     next_epoch_commission_rate: u64,
     staking_pool_id: ObjectId,
+    #[serde(serialize_with = "serialize_opt_u64_as_string")]
     staking_pool_activation_epoch: Option<u64>,
+    #[serde(serialize_with = "serialize_opt_u64_as_string")]
     staking_pool_deactivation_epoch: Option<u64>,
+    #[serde(serialize_with = "serialize_u64_as_string")]
     staking_pool_iota_balance: u64,
+    #[serde(serialize_with = "serialize_u64_as_string")]
     rewards_pool: u64,
+    #[serde(serialize_with = "serialize_u64_as_string")]
     pool_token_balance: u64,
+    #[serde(serialize_with = "serialize_u64_as_string")]
     pending_stake: u64,
+    #[serde(serialize_with = "serialize_u64_as_string")]
     pending_total_iota_withdraw: u64,
+    #[serde(serialize_with = "serialize_u64_as_string")]
     pending_pool_token_withdraw: u64,
     exchange_rates_id: ObjectId,
+    #[serde(serialize_with = "serialize_u64_as_string")]
     exchange_rates_size: u64,
 }
 
+/// Serialize an integer as a decimal string, matching the JSON-RPC output that
+/// encoded large integers as strings to avoid JavaScript precision loss.
+fn serialize_u64_as_string<S>(value: &u64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.collect_str(value)
+}
+
+/// Like [`serialize_u64_as_string`], but for optional integers; `None`
+/// serializes as `null`.
+fn serialize_opt_u64_as_string<S>(value: &Option<u64>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    match value {
+        Some(value) => serializer.collect_str(value),
+        None => serializer.serialize_none(),
+    }
+}
+
 impl ValidatorDisplay {
-    fn from_validator(validator: &ValidatorV1) -> Self {
+    fn from_validator(validator: &ValidatorV1, protocol_version: Option<u64>) -> Self {
         let metadata = &validator.metadata;
         let pool = &validator.staking_pool;
+        let effective_commission_rate = Some(match protocol_version {
+            Some(version) if version >= PROTOCOL_VERSION_IIP8 => {
+                validator.commission_rate.max(validator.voting_power)
+            }
+            _ => validator.commission_rate,
+        });
         Self {
             iota_address: metadata.iota_address,
             authority_pubkey_bytes: Base64::encode(&metadata.authority_pubkey_bytes),
@@ -543,6 +605,7 @@ impl ValidatorDisplay {
             operation_cap_id: validator.operation_cap_id.bytes,
             gas_price: validator.gas_price,
             commission_rate: validator.commission_rate,
+            effective_commission_rate,
             next_epoch_stake: validator.next_epoch_stake,
             next_epoch_gas_price: validator.next_epoch_gas_price,
             next_epoch_commission_rate: validator.next_epoch_commission_rate,
@@ -573,6 +636,9 @@ struct SystemStateInfo {
     validator_candidates_id: ObjectId,
     /// Object ID of the table of inactive validators, keyed by staking pool ID.
     inactive_validators_id: ObjectId,
+    /// Protocol version of the current epoch, used to compute the IIP8
+    /// protocol-adjusted effective commission rate. `None` if it was not read.
+    protocol_version: Option<u64>,
 }
 
 impl From<IotaSystemStateV1> for SystemStateInfo {
@@ -588,6 +654,7 @@ impl From<IotaSystemStateV1> for SystemStateInfo {
             inactive_validators_id: *validators.inactive_validators.id.object_id(),
             active_validators: validators.active_validators,
             committee_members: None,
+            protocol_version: None,
         }
     }
 }
@@ -605,6 +672,7 @@ impl From<IotaSystemStateV2> for SystemStateInfo {
             inactive_validators_id: *validators.inactive_validators.id.object_id(),
             active_validators: validators.active_validators,
             committee_members: Some(validators.committee_members),
+            protocol_version: None,
         }
     }
 }
@@ -623,16 +691,25 @@ async fn get_system_state(context: &WalletContext) -> Result<SystemStateInfo> {
     let client = context.get_grpc_client().await?;
     let epoch = client
         .epoch()
-        .read_mask(EpochField::BCS_SYSTEM_STATE)
+        .read_mask(EpochReadMask::from([
+            EpochField::BCS_SYSTEM_STATE,
+            EpochField::PROTOCOL_CONFIG_PROTOCOL_VERSION,
+        ]))
         .await?
         .into_inner();
+    let protocol_version = epoch
+        .protocol_config
+        .as_ref()
+        .and_then(|config| config.protocol_version);
     let bcs = epoch.system_state_bcs()?;
     let state: IotaSystemStateBcs = bcs::from_bytes(bcs)
         .map_err(|e| anyhow!("failed to deserialize the on-chain system state: {e}"))?;
-    Ok(match state {
+    let mut info: SystemStateInfo = match state {
         IotaSystemStateBcs::V1(v1) => v1.into(),
         IotaSystemStateBcs::V2(v2) => v2.into(),
-    })
+    };
+    info.protocol_version = protocol_version;
+    Ok(info)
 }
 
 /// Read the BCS contents of an object's Move struct.
@@ -829,29 +906,6 @@ impl Display for IotaValidatorCommandResponse {
     }
 }
 
-/// Serialize the parts of a gRPC execution result that the CLI surfaces as JSON:
-/// the transaction digest, effects, and events. Fields the read mask omitted are
-/// serialized as `null`.
-fn serialize_executed_transaction<S>(
-    executed: &ExecutedTransaction,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    use serde::ser::SerializeStruct;
-
-    let digest = executed.transaction().and_then(|t| t.digest()).ok();
-    let effects = executed.effects().and_then(|e| e.effects()).ok();
-    let events = executed.events().and_then(|e| e.events()).ok();
-
-    let mut state = serializer.serialize_struct("ExecutedTransaction", 3)?;
-    state.serialize_field("digest", &digest)?;
-    state.serialize_field("effects", &effects)?;
-    state.serialize_field("events", &events)?;
-    state.end()
-}
-
 impl Debug for IotaValidatorCommandResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let string = serde_json::to_string_pretty(self);
@@ -896,7 +950,10 @@ async fn get_validator_summary(
             } else {
                 ValidatorStatus::Active
             };
-            return Ok(Some((status, ValidatorDisplay::from_validator(validator))));
+            return Ok(Some((
+                status,
+                ValidatorDisplay::from_validator(validator, system_state.protocol_version),
+            )));
         }
     }
 
@@ -910,7 +967,7 @@ async fn get_validator_summary(
     {
         return Ok(Some((
             ValidatorStatus::Pending,
-            ValidatorDisplay::from_validator(&validator),
+            ValidatorDisplay::from_validator(&validator, system_state.protocol_version),
         )));
     }
 
@@ -924,7 +981,7 @@ async fn get_validator_summary(
     if let Some(validator) = get_validator_from_wrapper(&client, candidate_field_id).await? {
         return Ok(Some((
             ValidatorStatus::Candidate,
-            ValidatorDisplay::from_validator(&validator),
+            ValidatorDisplay::from_validator(&validator, system_state.protocol_version),
         )));
     }
 
@@ -940,7 +997,7 @@ async fn get_validator_summary(
             if validator.metadata.iota_address == validator_address {
                 return Ok(Some((
                     ValidatorStatus::Inactive,
-                    ValidatorDisplay::from_validator(&validator),
+                    ValidatorDisplay::from_validator(&validator, system_state.protocol_version),
                 )));
             }
         }

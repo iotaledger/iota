@@ -17,15 +17,11 @@ use std::{
 
 use anyhow::{Context, Error, anyhow, bail};
 use formatting::{FormattedField, format_list, format_param, singular_or_plural};
-use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
+use iota_grpc_client::{GrpcClient, read_mask_fields::ObjectField};
 use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk::apis::ReadApi;
-use iota_sdk_types::ObjectId;
-use iota_types::{
-    execution_config_utils::to_binary_config,
-    move_package::{MovePackageExt, UpgradePolicy},
-};
+use iota_sdk_types::{ObjectData, ObjectId};
+use iota_types::{execution_config_utils::to_binary_config, move_package::UpgradePolicy};
 use move_binary_format::{
     CompiledModule,
     compatibility::{Compatibility, InclusionCheck},
@@ -696,48 +692,54 @@ upgrade_codes!(
 /// Check the upgrade compatibility of a new package with an existing on-chain
 /// package.
 pub(crate) async fn check_compatibility(
-    read_api: &ReadApi,
+    grpc_client: &GrpcClient,
     package_id: ObjectId,
     new_package: CompiledPackage,
     package_path: PathBuf,
     upgrade_policy: u8,
     protocol_config: ProtocolConfig,
 ) -> Result<(), Error> {
-    let existing_obj_read = read_api
-        .get_object_with_options(package_id, IotaObjectDataOptions::new().with_bcs())
+    let existing_obj = grpc_client
+        .objects([package_id])
+        .read_mask(ObjectField::BCS)
         .await
+        .context("Unable to get existing package")?
+        .into_inner()
+        .pop()
+        .context("Unable to get existing package")?
+        .map_err(anyhow::Error::from)
+        .and_then(|object| object.object().map_err(anyhow::Error::from))
         .context("Unable to get existing package")?;
 
-    let existing_obj = existing_obj_read
-        .into_object()
-        .context("Unable to get existing package")?
-        .bcs
-        .ok_or_else(|| anyhow!("Unable to read object"))?;
-
-    let existing_package = match existing_obj {
-        IotaRawData::Package(pkg) => pkg,
-        IotaRawData::MoveObject(_) => bail!("Object found when package expected"),
+    let ObjectData::Package(existing_package) = existing_obj.data() else {
+        bail!("Object found when package expected");
     };
 
     let existing_modules = existing_package
-        .module_map
-        .iter()
-        .map(|m| {
-            CompiledModule::deserialize_with_config(m.1, &to_binary_config(&protocol_config, None))
+        .modules
+        .values()
+        .map(|bytes| {
+            CompiledModule::deserialize_with_config(
+                bytes,
+                &to_binary_config(&protocol_config, None),
+            )
         })
         .collect::<Result<Vec<_>, _>>()
         .context("Unable to get existing package")?;
+
+    // Every module carries the original package ID (the runtime ID) in its self
+    // address, so taking it from the first module gives the original ID
+    // regardless of which version was fetched.
+    let original_package_id = existing_modules
+        .first()
+        .context("On-chain package has no modules")?
+        .address();
 
     let policy =
         UpgradePolicy::try_from(upgrade_policy).map_err(|_| anyhow!("Invalid upgrade policy"))?;
 
     compare_packages(
-        AccountAddress::new(
-            existing_package
-                .to_move_package()
-                .original_package_id()
-                .into_bytes(),
-        ),
+        *original_package_id,
         existing_modules,
         new_package,
         package_path,

@@ -389,7 +389,7 @@ impl PTB {
             .into_iter()
             .map(|(sa, alias)| (alias.alias.clone(), AccountAddress::new(sa.into_bytes())))
             .collect();
-        let builder = PTBBuilder::new(starting_addresses, context, &grpc_client);
+        let builder = PTBBuilder::new(starting_addresses, &grpc_client);
         builder.build(program).await
     }
 

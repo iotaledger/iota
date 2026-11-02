@@ -504,6 +504,9 @@ pub enum IndexedObjectChange {
         digest: ObjectDigest,
         modules: Vec<String>,
     },
+    /// Deprecated, never produced — mirrors `iota_json_rpc_types::ObjectChange::Transferred`,
+    /// which the node never emits (an owner change is reported as `Mutated`).
+    /// Kept only for backward-compatible (de)serialization.
     Transferred {
         sender: Address,
         recipient: Owner,
