@@ -92,7 +92,9 @@ impl HistoricalReader {
         let covers_every_checkpoint = files[0].checkpoint_seq_range.start == 0
             && files
                 .windows(2)
-                .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end);
+                .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end)
+            && files.last().map(|f| f.checkpoint_seq_range.end)
+                == Some(manifest.next_checkpoint_seq_num());
         if !covers_every_checkpoint {
             return Err(IngestionError::HistoryRead(
                 "manifest files do not cover every checkpoint from 0".to_string(),
