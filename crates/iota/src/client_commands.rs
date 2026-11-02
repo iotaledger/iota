@@ -3367,8 +3367,6 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     gas_data: GasDataArgs,
     processing: TxProcessingArgs,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
-    let gas_payment = gas_payment.into().resolve(context).await?;
-
     let GasDataArgs {
         gas_budget,
         gas_price,
@@ -3410,6 +3408,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         "--sponsor-auth-call-args and --sponsor-auth-type-args require --gas-sponsor with an address different from the sender."
     );
 
+    let gas_payment = gas_payment.into().resolve(context).await?;
     let takes_from_given_gas_coins = !gas_payment.is_empty() && takes_from_gas_coin(&tx_kind);
 
     if dry_run && local {

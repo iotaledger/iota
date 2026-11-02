@@ -114,8 +114,8 @@ struct FetchedPackages(InMemoryStore);
 
 #[async_trait]
 impl PackageStore for FetchedPackages {
-    async fn fetch(&self, id: Address) -> Result<Arc<Package>, PackageResolverError> {
-        let id = ObjectId::new(id.into_bytes());
+    async fn fetch(&self, address: Address) -> Result<Arc<Package>, PackageResolverError> {
+        let id = ObjectId::from(address);
         match self.0.get_object(&id, None) {
             Ok(Some(object)) => Package::read_from_object(&object).map(Arc::new),
             _ => Err(PackageResolverError::PackageNotFound(id.into())),
