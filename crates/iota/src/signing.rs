@@ -5,7 +5,6 @@ use std::{fmt, sync::Arc};
 
 use anyhow::{Result, bail};
 use iota_grpc_client::{GrpcClient, read_mask_fields::ObjectField};
-use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_ledger::Ledger;
 use iota_ledger_signer::{LedgerSigner, LedgerSignerError, ObjectProvider};
@@ -98,7 +97,6 @@ pub(crate) async fn sign_transaction(
     signer_address: &Address,
     auth_args: Option<(Vec<CallArg>, Vec<TypeTag>)>,
 ) -> Result<UserSignature> {
-    let iota_client = context.get_client().await?;
     let key = context.config().keystore().get_key(signer_address)?;
 
     match key {
@@ -110,8 +108,9 @@ pub(crate) async fn sign_transaction(
         // reject the transaction at runtime if the on-chain function actually requires more.
         StoredKey::Account(_) => {
             let (auth_call_args, auth_type_args) = auth_args.unwrap_or_default();
+            let grpc_client = context.get_grpc_client().await?;
             let initial_shared_version =
-                get_shared_object_version(&iota_client, signer_address).await?;
+                get_shared_object_version(&grpc_client, signer_address).await?;
 
             Ok(UserSignature::MoveAuthenticator(
                 MoveAuthenticatorV1::new(
@@ -225,26 +224,21 @@ where
 }
 
 pub(crate) async fn get_shared_object_version(
-    iota_client: &iota_sdk::IotaClient,
+    grpc_client: &GrpcClient,
     signer_address: &Address,
 ) -> Result<Version> {
-    let object_response = iota_client
-        .read_api()
-        .get_object_with_options(
-            ObjectId::from(*signer_address),
-            IotaObjectDataOptions {
-                show_owner: true,
-                ..Default::default()
-            },
-        )
-        .await?;
-    if let Some(error) = object_response.error {
-        bail!("failed to fetch object data for signer_address {signer_address}: {error:?}");
-    }
-    let object = object_response.data.expect("missing object data");
+    let object = grpc_client
+        .objects([ObjectId::from(*signer_address)])
+        .read_mask(ObjectField::BCS)
+        .await?
+        .into_inner()
+        .into_iter()
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("object {signer_address} not found"))??
+        .object()?;
 
-    if let Some(Owner::Shared(initial_shared_version)) = object.owner {
-        Ok(initial_shared_version)
+    if let Owner::Shared(initial_shared_version) = object.owner() {
+        Ok(*initial_shared_version)
     } else {
         bail!("signer_address {signer_address} is not a shared object")
     }

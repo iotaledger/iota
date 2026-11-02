@@ -21,15 +21,16 @@ use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_grpc_client::{
     GrpcClient,
-    read_mask_fields::{DynamicFieldField, ObjectField, OwnedObjectField, ServiceInfoField},
+    read_mask_fields::{
+        DynamicFieldField, EpochField, ObjectField, OwnedObjectField, ServiceInfoField,
+    },
 };
 use iota_grpc_types::{
     read_mask_fields::SimulateField, v1::transaction_execution_service::SimulatedTransaction,
 };
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    IotaData, IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse,
-    IotaProtocolConfigValue, IotaRawData, IotaTransactionBlockEffects,
+    IotaData, IotaExecutionStatus, IotaObjectDataOptions, IotaTransactionBlockEffects,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     get_new_package_obj_from_response,
 };
@@ -948,6 +949,7 @@ impl IotaClientCommands {
                 };
                 let client = context.get_client().await?;
                 let read_api = client.read_api();
+                let grpc_client = context.get_grpc_client().await?;
                 let chain_id = read_api.get_chain_identifier().await.ok();
 
                 check_protocol_version_and_warn(read_api).await?;
@@ -977,6 +979,7 @@ impl IotaClientCommands {
                 let verify =
                     check_dep_verification_flags(skip_dependency_verification, verify_deps)?;
                 let upgrade_result = upgrade_package(
+                    &grpc_client,
                     read_api,
                     build_config.clone(),
                     &package_path,
@@ -1040,7 +1043,6 @@ impl IotaClientCommands {
                     .await?;
                 }
 
-                let grpc_client = context.get_grpc_client().await?;
                 let mut builder = grpc_client.transaction_builder(sender);
                 builder.upgrade_package(
                     package_id,
@@ -1112,6 +1114,7 @@ impl IotaClientCommands {
                 };
                 let client = context.get_client().await?;
                 let read_api = client.read_api();
+                let grpc_client = context.get_grpc_client().await?;
                 let chain_id = read_api.get_chain_identifier().await.ok();
 
                 check_protocol_version_and_warn(read_api).await?;
@@ -1140,6 +1143,7 @@ impl IotaClientCommands {
                 let verify =
                     check_dep_verification_flags(skip_dependency_verification, verify_deps)?;
                 let compile_result = compile_package(
+                    &grpc_client,
                     read_api,
                     build_config.clone(),
                     &package_path,
@@ -1163,7 +1167,6 @@ impl IotaClientCommands {
                     compiled_package.get_published_dependencies_ids(),
                 );
 
-                let grpc_client = context.get_grpc_client().await?;
                 let mut builder = grpc_client.transaction_builder(sender);
                 let upgrade_cap = builder.publish_package(package_data).result();
                 builder.transfer_objects(sender, [upgrade_cap]);
@@ -1205,8 +1208,7 @@ impl IotaClientCommands {
                 package_path,
                 build_config,
             } => {
-                let client = context.get_client().await?;
-                let read_api = client.read_api();
+                let grpc_client = context.get_grpc_client().await?;
                 let protocol_version =
                     protocol_version.map_or(ProtocolVersion::MAX, ProtocolVersion::new);
                 let protocol_config =
@@ -1236,7 +1238,7 @@ impl IotaClientCommands {
                     (_, package_path) => {
                         let package_path = package_path.unwrap_or_else(|| PathBuf::from("."));
                         let package = compile_package_simple(
-                            read_api,
+                            &grpc_client,
                             build_config,
                             &package_path,
                             None,
@@ -1896,8 +1898,10 @@ impl IotaClientCommands {
 
                 let iota_signature = if auth_call_args.is_some() || auth_type_args.is_some() {
                     let client = context.get_client().await?;
+                    let grpc_client = context.get_grpc_client().await?;
                     create_move_authenticator_signature(
                         &client,
+                        &grpc_client,
                         address,
                         auth_call_args.as_ref(),
                         auth_type_args.as_ref(),
@@ -2048,8 +2052,76 @@ fn check_dep_verification_flags(
     Ok(verify_dependencies)
 }
 
+/// Protocol parameters needed to compile a Move package, read from the network
+/// over gRPC.
+pub(crate) struct NetworkBuildConfig {
+    pub protocol_version: ProtocolVersion,
+    pub protocol_build_config: ProtocolBuildConfig,
+    pub min_move_binary_format_version: Option<u32>,
+    pub move_binary_format_version: Option<u32>,
+}
+
+/// Reads the chain identifier (the short, 4-byte hex form) over gRPC.
+pub(crate) async fn fetch_chain_id(grpc_client: &GrpcClient) -> Result<String, anyhow::Error> {
+    let chain_id = grpc_client
+        .service_info()
+        .read_mask(ServiceInfoField::CHAIN_ID)
+        .await?
+        .into_inner()
+        .chain_id
+        .ok_or_else(|| anyhow!("node did not return a chain identifier"))?
+        .digest()?;
+    // The chain identifier is the first four bytes of the genesis checkpoint
+    // digest, hex-encoded.
+    Ok(chain_id.bytes()[..4]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
+}
+
+/// Reads the network's protocol config over gRPC and maps it to the parameters
+/// needed to compile a Move package.
+pub(crate) async fn fetch_network_build_config(
+    grpc_client: &GrpcClient,
+) -> Result<NetworkBuildConfig, anyhow::Error> {
+    let epoch = grpc_client
+        .epoch()
+        .read_mask(EpochField::PROTOCOL_CONFIG)
+        .await?
+        .into_inner();
+    let protocol_config = epoch.protocol_config()?;
+    let protocol_version = ProtocolVersion::new(protocol_config.version()?);
+    let feature_flags = protocol_config.feature_flags()?;
+    let attributes = protocol_config.attributes()?;
+    let u64_attribute = |name: &str| {
+        attributes
+            .get(name)
+            .and_then(|value| value.parse::<u64>().ok())
+    };
+    let u32_attribute = |name: &str| {
+        attributes
+            .get(name)
+            .and_then(|value| value.parse::<u32>().ok())
+    };
+    let protocol_build_config = ProtocolBuildConfig {
+        allow_view_function: feature_flags
+            .get("package_metadata_with_dynamic_module_metadata")
+            .copied()
+            .unwrap_or(false),
+        max_move_package_size: u64_attribute("max_move_package_size"),
+        max_move_system_package_size: u64_attribute("max_move_system_package_size"),
+    };
+
+    Ok(NetworkBuildConfig {
+        protocol_version,
+        protocol_build_config,
+        min_move_binary_format_version: u32_attribute("min_move_binary_format_version"),
+        move_binary_format_version: u32_attribute("move_binary_format_version"),
+    })
+}
+
 async fn compile_package_simple(
-    read_api: &ReadApi,
+    grpc_client: &GrpcClient,
     mut build_config: MoveBuildConfig,
     package_path: &Path,
     chain_id: Option<String>,
@@ -2071,12 +2143,13 @@ async fn compile_package_simple(
         chain_id,
         protocol_build_config,
     )?;
-    pkg_tree_shake(read_api, false, &mut compiled_package).await?;
+    pkg_tree_shake(grpc_client, false, &mut compiled_package).await?;
 
     Ok(compiled_package)
 }
 
 pub(crate) async fn upgrade_package(
+    grpc_client: &GrpcClient,
     read_api: &ReadApi,
     build_config: MoveBuildConfig,
     package_path: &Path,
@@ -2086,6 +2159,7 @@ pub(crate) async fn upgrade_package(
     env_alias: Option<String>,
 ) -> Result<(u8, CompiledPackage), anyhow::Error> {
     let mut compiled_package = compile_package(
+        grpc_client,
         read_api,
         build_config,
         package_path,
@@ -2095,7 +2169,7 @@ pub(crate) async fn upgrade_package(
     .await?;
 
     pkg_tree_shake(
-        read_api,
+        grpc_client,
         with_unpublished_dependencies,
         &mut compiled_package,
     )
@@ -2152,21 +2226,22 @@ pub(crate) async fn upgrade_package(
 }
 
 pub(crate) async fn compile_package(
+    grpc_client: &GrpcClient,
     read_api: &ReadApi,
     mut build_config: MoveBuildConfig,
     package_path: &Path,
     with_unpublished_dependencies: bool,
     skip_dependency_verification: bool,
 ) -> Result<CompiledPackage, anyhow::Error> {
-    let protocol_config = read_api.get_protocol_config(None).await?;
-    let protocol_build_config = ProtocolBuildConfig::from(&protocol_config);
+    let network_build_config = fetch_network_build_config(grpc_client).await?;
+    let protocol_build_config = network_build_config.protocol_build_config;
 
     build_config.implicit_dependencies =
-        implicit_deps_for_protocol_version(protocol_config.protocol_version)?;
+        implicit_deps_for_protocol_version(network_build_config.protocol_version)?;
     let config = resolve_lock_file_path(build_config, Some(package_path))?;
     let run_bytecode_verifier = true;
     let print_diags_to_stderr = true;
-    let chain_id = read_api.get_chain_identifier().await.ok();
+    let chain_id = fetch_chain_id(grpc_client).await.ok();
     let config = BuildConfig {
         config,
         run_bytecode_verifier,
@@ -2192,21 +2267,16 @@ pub(crate) async fn compile_package(
     )?;
 
     pkg_tree_shake(
-        read_api,
+        grpc_client,
         with_unpublished_dependencies,
         &mut compiled_package,
     )
     .await?;
 
-    let protocol_config = read_api.get_protocol_config(None).await?;
-
     // Check that the package's Move version is compatible with the chain's
-    if let Some(Some(IotaProtocolConfigValue::U32(min_version))) = protocol_config
-        .attributes
-        .get("min_move_binary_format_version")
-    {
+    if let Some(min_version) = network_build_config.min_move_binary_format_version {
         for module in compiled_package.get_modules_and_deps() {
-            if module.version() < *min_version {
+            if module.version() < min_version {
                 return Err(IotaError::ModulePublishFailure {
                     error: format!(
                         "Module {} has a version {} that is \
@@ -2221,11 +2291,9 @@ pub(crate) async fn compile_package(
     }
 
     // Check that the package's Move version is compatible with the chain's
-    if let Some(Some(IotaProtocolConfigValue::U32(max_version))) =
-        protocol_config.attributes.get("move_binary_format_version")
-    {
+    if let Some(max_version) = network_build_config.move_binary_format_version {
         for module in compiled_package.get_modules_and_deps() {
-            if module.version() > *max_version {
+            if module.version() > max_version {
                 let help_msg = if module.version() == 7 {
                     "This is because you used enums in your Move package but tried to publish it to \
                     a chain that does not yet support enums in Move."
@@ -3858,42 +3926,45 @@ async fn check_protocol_version_and_warn(read_api: &ReadApi) -> Result<(), anyho
     Ok(())
 }
 
-/// Try to convert this object into a package.
-fn to_package(o: IotaObjectResponse) -> anyhow::Result<MovePackage> {
-    let id = o.object_id()?;
-    let Some(IotaRawData::Package(p)) = o.into_object()?.bcs else {
-        bail!("Object {id} not a package");
-    };
-
-    Ok(p.to_move_package())
-}
-
 /// Fetch move packages
 async fn fetch_move_packages(
-    read_api: &ReadApi,
+    grpc_client: &GrpcClient,
     immediate_dep_packages: &BTreeMap<Symbol, ObjectId>,
 ) -> Result<Vec<MovePackage>, anyhow::Error> {
-    let package_ids: Vec<_> = immediate_dep_packages.values().cloned().collect(); // a map from id to pkg name for finding package names for error reporting.
+    let package_ids: Vec<ObjectId> = immediate_dep_packages.values().copied().collect();
+    if package_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    // A map from id to pkg name for finding package names for error reporting.
     let pkg_id_to_name: BTreeMap<_, _> = immediate_dep_packages
         .iter()
         .map(|(name, id)| (id, name))
         .collect();
 
-    let objects = read_api
-        .multi_get_object_with_options(package_ids, IotaObjectDataOptions::bcs_lossless())
-        .await?;
+    // The default read mask includes the object BCS, from which the package is
+    // reconstructed. Results come back in request order, one per id.
+    let objects = grpc_client
+        .objects(package_ids.iter().copied())
+        .await?
+        .into_inner();
 
     let mut packages = Vec::with_capacity(objects.len());
-    for o in objects {
-        let id = o.object_id()?;
-        packages.push(to_package(o).with_context(|| {
-            format!(
-                "Failed to fetch package {}",
-                pkg_id_to_name
-                    .get(&id)
-                    .map_or("of unknown name", |x| x.as_str())
-            )
-        })?);
+    for (id, result) in package_ids.iter().zip(objects) {
+        let object = result
+            .map_err(anyhow::Error::from)
+            .and_then(|object| object.object().map_err(anyhow::Error::from))
+            .with_context(|| {
+                format!(
+                    "Failed to fetch package {}",
+                    pkg_id_to_name
+                        .get(id)
+                        .map_or("of unknown name", |name| name.as_str())
+                )
+            })?;
+        let ObjectData::Package(package) = object.data() else {
+            bail!("Object {id} is not a package");
+        };
+        packages.push(package.clone());
     }
 
     Ok(packages)
@@ -3902,10 +3973,10 @@ async fn fetch_move_packages(
 // Fetch the original ids of all the transitive dependencies of the immediate
 // package dependencies
 async fn trans_deps_original_ids(
-    read_api: &ReadApi,
+    grpc_client: &GrpcClient,
     immediate_dep_packages: &BTreeMap<Symbol, ObjectId>,
 ) -> Result<BTreeSet<ObjectId>, anyhow::Error> {
-    let pkgs = fetch_move_packages(read_api, immediate_dep_packages).await?;
+    let pkgs = fetch_move_packages(grpc_client, immediate_dep_packages).await?;
     let linkage_table = pkgs
         .iter()
         .flat_map(|pkg| pkg.linkage_table().keys())
@@ -3921,7 +3992,7 @@ async fn trans_deps_original_ids(
 /// package dependencies. For packages that are not referenced in the source
 /// code, they will be filtered out from the list of dependencies.
 pub(crate) async fn pkg_tree_shake(
-    read_api: &ReadApi,
+    grpc_client: &GrpcClient,
     with_unpublished_dependencies: bool,
     compiled_package: &mut CompiledPackage,
 ) -> Result<(), anyhow::Error> {
@@ -3932,7 +4003,7 @@ pub(crate) async fn pkg_tree_shake(
     // for every immediate dependency package, we need to use its linkage table to
     // determine its transitive dependencies and ensure that we keep the
     // required packages, so fetch those tables
-    let trans_deps_orig_ids = trans_deps_original_ids(read_api, &immediate_dep_packages).await?;
+    let trans_deps_orig_ids = trans_deps_original_ids(grpc_client, &immediate_dep_packages).await?;
     let pkg_name_to_orig_id: BTreeMap<_, _> = compiled_package
         .package
         .deps_compiled_units
@@ -4120,6 +4191,7 @@ pub(crate) fn process_auth_args(
 /// Creates a MoveAuthenticator signature for account addresses.
 async fn create_move_authenticator_signature(
     client: &IotaClient,
+    grpc_client: &iota_grpc_client::GrpcClient,
     address: Address,
     auth_call_args: Option<&Vec<String>>,
     auth_type_args: Option<&Vec<String>>,
@@ -4129,7 +4201,7 @@ async fn create_move_authenticator_signature(
             .await?
             .ok_or_else(|| anyhow!("auth args are required to create a MoveAuthenticator"))?;
 
-    let initial_shared_version = get_shared_object_version(client, &address).await?;
+    let initial_shared_version = get_shared_object_version(grpc_client, &address).await?;
 
     Ok(UserSignature::MoveAuthenticator(
         MoveAuthenticatorV1::new(

@@ -41,7 +41,7 @@ use move_package::BuildConfig as MoveBuildConfig;
 
 use super::ast::{ModuleAccess as PTBModuleAccess, ParsedPTBCommand, Program};
 use crate::{
-    client_commands::{compile_package, upgrade_package},
+    client_commands::{compile_package, fetch_chain_id, upgrade_package},
     client_ptb::{
         ast::{ASSIGN, Argument as PTBArg, GAS_BUDGET},
         error::{PTBError, PTBResult, Span, Spanned},
@@ -968,7 +968,7 @@ impl<'a> PTBBuilder<'a> {
                     .get_client()
                     .await
                     .map_err(|e| err!(pkg_loc, "{e}"))?;
-                let chain_id = client.read_api().get_chain_identifier().await.ok();
+                let chain_id = fetch_chain_id(self.grpc_client).await.ok();
                 let initial_dir = std::env::current_dir()
                     .map_err(|e| err!(pkg_loc, "Failed to get current directory: {e}"))?;
                 let build_config =
@@ -987,6 +987,7 @@ impl<'a> PTBBuilder<'a> {
                 };
 
                 let compile_result = compile_package(
+                    self.grpc_client,
                     client.read_api(),
                     build_config.clone(),
                     package_path,
@@ -1210,7 +1211,7 @@ impl<'a> PTBBuilder<'a> {
             .get_client()
             .await
             .map_err(|e| err!(path_loc, "{e}"))?;
-        let chain_id = client.read_api().get_chain_identifier().await.ok();
+        let chain_id = fetch_chain_id(self.grpc_client).await.ok();
         let build_config = MoveBuildConfig::default();
 
         let initial_dir = std::env::current_dir()
@@ -1230,6 +1231,7 @@ impl<'a> PTBBuilder<'a> {
         };
 
         let upgrade_result = upgrade_package(
+            self.grpc_client,
             client.read_api(),
             build_config.clone(),
             &package_path,

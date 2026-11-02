@@ -66,7 +66,7 @@ pub async fn get_identity_address(
             KeyIdentity::Alias(x) => Ok(*ctx.config().keystore().get_address_by_alias(x)?),
             #[cfg(feature = "iota-names")]
             KeyIdentity::Name(name) => {
-                let client = ctx.get_client().await?;
+                let client = ctx.get_grpc_client().await?;
                 // Check alias first as it can override a name
                 if let Ok(alias) = ctx
                     .config()
