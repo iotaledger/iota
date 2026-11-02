@@ -1,21 +1,48 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 use anyhow::{Result, bail};
+use iota_grpc_client::{GrpcClient, read_mask_fields::ObjectField};
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_ledger::Ledger;
-use iota_ledger_signer::LedgerSigner;
+use iota_ledger_signer::{LedgerSigner, LedgerSignerError, ObjectProvider};
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{
     Address, MoveAuthenticatorV1, ObjectId, Owner, SharedObjectReference, Transaction, TypeTag,
     UserSignature, Version,
     crypto::{Intent, SimpleSignature},
 };
-use iota_types::transaction::CallArg;
+use iota_types::{object::Object, transaction::CallArg};
 use serde::Serialize;
+
+/// Loads a transaction's input objects over gRPC so a Ledger device can
+/// clear-sign them.
+struct GrpcObjectProvider {
+    client: GrpcClient,
+}
+
+#[async_trait::async_trait]
+impl ObjectProvider for GrpcObjectProvider {
+    async fn load_objects(
+        &self,
+        object_ids: Vec<ObjectId>,
+    ) -> Result<Vec<Object>, LedgerSignerError> {
+        let objects = self
+            .client
+            .objects(object_ids)
+            .read_mask(ObjectField::BCS)
+            .await
+            .map_err(|e| LedgerSignerError::ObjectProvider(e.to_string()))?
+            .into_inner()
+            .into_iter()
+            .filter_map(|proto_object| Some(proto_object.ok()?.object().ok()?.into()))
+            .collect();
+        Ok(objects)
+    }
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -129,8 +156,13 @@ pub(crate) async fn sign_transaction(
                         );
                     };
 
-                    let signer =
-                        LedgerSigner::new_with_default(derivation_path.clone(), Some(iota_client))?;
+                    let object_provider = GrpcObjectProvider {
+                        client: context.get_grpc_client().await?,
+                    };
+                    let signer = LedgerSigner::new_with_default(
+                        derivation_path.clone(),
+                        Some(Arc::new(object_provider)),
+                    )?;
                     // pass the transaction sender to the signer to ensure the correct
                     // key is used
                     Ok(signer

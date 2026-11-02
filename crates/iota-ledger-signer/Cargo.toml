@@ -11,18 +11,20 @@ workspace = true
 
 [dependencies]
 # external dependencies
+async-trait.workspace = true
 bip32.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
 # internal dependencies
 iota-ledger.workspace = true
-iota-sdk.workspace = true
 iota-sdk-types.workspace = true
+iota-types.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
 bcs.workspace = true
 clap.workspace = true
 fastcrypto.workspace = true
+iota-grpc-client.workspace = true
 tokio.workspace = true
