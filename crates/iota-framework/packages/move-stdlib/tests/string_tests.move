@@ -47,6 +47,25 @@ fun test_substring_invalid_index() {
 }
 
 #[test]
+#[expected_failure(abort_code = string::EInvalidIndex)]
+fun test_internal_sub_string_end_past_length() {
+    string::internal_sub_string_for_testing(&b"A", 0, 2);
+}
+
+#[test]
+#[expected_failure(abort_code = string::EInvalidIndex)]
+fun test_internal_sub_string_end_not_char_boundary() {
+    // "é" is two bytes in utf8.
+    string::internal_sub_string_for_testing(&x"c3a9", 0, 1);
+}
+
+#[test]
+#[expected_failure(abort_code = string::EInvalidIndex)]
+fun test_internal_sub_string_start_not_char_boundary() {
+    string::internal_sub_string_for_testing(&x"c3a9", 1, 2);
+}
+
+#[test]
 fun test_substring_empty() {
     let s = b"abcd".to_string();
     let sub = s.substring(4, 4);

@@ -346,15 +346,21 @@ pub(crate) fn verify_commits(
     serialized_vote_blocks_headers: Vec<Bytes>,
     max_commits: usize,
 ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
+    // Every rejection is recorded once against the serving peer, except a vote
+    // header that fails verification, which also charges its author when its
+    // signature is valid.
+    let reject = |e: ConsensusError| {
+        misbehavior_store.record_fetch_fault(peer, &e);
+        e
+    };
+
     // Validate response size - peer should not return more than max_commits
     if serialized_commits.len() > max_commits {
-        let e = ConsensusError::TooManyCommitsFromPeer {
+        return Err(reject(ConsensusError::TooManyCommitsFromPeer {
             peer,
             count: serialized_commits.len() as CommitIndex,
             limit: max_commits as CommitIndex,
-        };
-        misbehavior_store.record_fetch_fault(peer, &e);
-        return Err(e);
+        }));
     }
 
     // One vote header per authority certifies a commit, but servers that do
@@ -366,31 +372,29 @@ pub(crate) fn verify_commits(
         .size()
         .saturating_mul(MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY);
     if serialized_vote_blocks_headers.len() > max_vote_headers {
-        let e = ConsensusError::TooManyCommitVoteHeaders {
+        return Err(reject(ConsensusError::TooManyCommitVoteHeaders {
             peer,
             count: serialized_vote_blocks_headers.len(),
             limit: max_vote_headers,
-        };
-        misbehavior_store.record_fetch_fault(peer, &e);
-        return Err(e);
+        }));
     }
 
     // Parse and verify commits.
     let mut commits = Vec::new();
     for serialized in &serialized_commits {
         let commit: Commit =
-            bcs::from_bytes(serialized).map_err(ConsensusError::MalformedCommit)?;
-        check_commit_version_matches_flags(&commit, &context.protocol_config)?;
-        verify_commit_authority_indices(context, peer, &commit)?;
+            bcs::from_bytes(serialized).map_err(|e| reject(ConsensusError::MalformedCommit(e)))?;
+        check_commit_version_matches_flags(&commit, &context.protocol_config).map_err(reject)?;
+        verify_commit_authority_indices(context, peer, &commit).map_err(reject)?;
         let digest = TrustedCommit::compute_digest(serialized);
         if commits.is_empty() {
             // start is inclusive, so first commit must be at the start index.
             if commit.index() != commit_range.start() {
-                return Err(ConsensusError::UnexpectedStartCommit {
+                return Err(reject(ConsensusError::UnexpectedStartCommit {
                     peer,
                     start: commit_range.start(),
                     commit: Box::new(commit),
-                });
+                }));
             }
         } else {
             // Verify next commit increments index and references the previous digest.
@@ -399,17 +403,17 @@ pub(crate) fn verify_commits(
             if commit.index() != last_commit.index() + 1
                 || &commit.previous_digest() != last_commit_digest
             {
-                return Err(ConsensusError::UnexpectedCommitSequence {
+                return Err(reject(ConsensusError::UnexpectedCommitSequence {
                     peer,
                     prev_commit: Box::new(last_commit.clone()),
                     curr_commit: Box::new(commit),
-                });
+                }));
             }
         }
         commits.push((digest, commit));
     }
     let Some((end_commit_digest, end_commit)) = commits.last() else {
-        return Err(ConsensusError::NoCommitReceived { peer });
+        return Err(reject(ConsensusError::NoCommitReceived { peer }));
     };
 
     // Parse and verify blocks. Then accumulate votes on the end commit.
@@ -418,11 +422,7 @@ pub(crate) fn verify_commits(
     let mut verified_voting_headers = Vec::new();
     for serialized_block_header in serialized_vote_blocks_headers {
         let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
-            .map_err(ConsensusError::MalformedHeader)
-            .inspect_err(|e| {
-                // Author is unknown when deserialization fails — blame the peer.
-                misbehavior_store.record_faulty_block(peer, peer, e);
-            })?;
+            .map_err(|e| reject(ConsensusError::MalformedHeader(e)))?;
         // The block signature needs to be verified.
         if let Err(e) = block_verifier.verify(&signed_block_header) {
             misbehavior_store.record_faulty_block(peer, signed_block_header.author(), &e);
@@ -442,11 +442,11 @@ pub(crate) fn verify_commits(
 
     // Check if the end commit has enough votes.
     if !stake_aggregator.reached_threshold(&context.committee) {
-        return Err(ConsensusError::NotEnoughCommitVotes {
+        return Err(reject(ConsensusError::NotEnoughCommitVotes {
             stake: stake_aggregator.stake(),
             peer,
             commit: Box::new(end_commit.clone()),
-        });
+        }));
     }
 
     let trusted_commits = commits
@@ -1118,26 +1118,33 @@ pub(crate) mod tests {
     /// Builds a single-commit byte stream from `commit` and runs it through
     /// `verify_commits` with the two protocol flags set as specified. The
     /// version check fires before the index check, so the default commit
-    /// index of 0 is fine here.
-    fn run_verify(commit: Commit, starfish_speed_on: bool) -> ConsensusResult<()> {
+    /// index of 0 is fine here. Also returns the unprovable faults charged to
+    /// the serving peer.
+    fn run_verify(commit: Commit, starfish_speed_on: bool) -> (ConsensusResult<()>, u64) {
         let (mut context, _) = Context::new_for_test(4);
         context
             .protocol_config
             .set_consensus_starfish_speed_for_testing(starfish_speed_on);
         let context = Arc::new(context);
         let misbehavior_store = MisbehaviorStore::new(&context);
+        let peer = AuthorityIndex::new_for_test(1);
         let serialized = commit.serialize().unwrap();
-        verify_commits(
+        let result = verify_commits(
             &context,
             &NoopBlockVerifier,
             &misbehavior_store,
-            AuthorityIndex::new_for_test(1),
+            peer,
             CommitRange::new(1..=1),
             vec![serialized],
             vec![],
             10,
         )
-        .map(|_| ())
+        .map(|_| ());
+        let counts = misbehavior_store.snapshot_totals();
+        (
+            result,
+            counts[peer.value()].as_v2().faulty_blocks_unprovable,
+        )
     }
 
     #[rstest::rstest]
@@ -1151,7 +1158,7 @@ pub(crate) mod tests {
         #[case] starfish_speed_on: bool,
         #[case] expected_variant: &'static str,
     ) {
-        let result = run_verify(commit, starfish_speed_on);
+        let (result, unprovable) = run_verify(commit, starfish_speed_on);
         let Err(ConsensusError::WrongCommitVersionForFlags {
             actual,
             starfish_speed,
@@ -1161,6 +1168,7 @@ pub(crate) mod tests {
         };
         assert_eq!(actual, expected_variant);
         assert_eq!(starfish_speed, starfish_speed_on);
+        assert_eq!(unprovable, 1);
     }
 
     #[tokio::test]
@@ -1205,6 +1213,79 @@ pub(crate) mod tests {
                 peer: error_peer,
             }) if index == invalid_author && max == 4 && error_peer == peer
         ));
+        let counts = misbehavior_store.snapshot_totals();
+        assert_eq!(counts[peer.value()].as_v2().faulty_blocks_unprovable, 1);
+    }
+
+    /// Serializes a commit at `index` whose leader is in the committee.
+    fn serialized_commit(
+        context: &Arc<Context>,
+        index: CommitIndex,
+        previous_digest: CommitDigest,
+    ) -> Bytes {
+        let leader = BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN);
+        Commit::new(
+            context,
+            index,
+            previous_digest,
+            0,
+            leader,
+            vec![leader],
+            vec![],
+            vec![],
+            false,
+        )
+        .serialize()
+        .unwrap()
+    }
+
+    /// A rejected commit list charges the serving peer one unprovable fault,
+    /// except an empty one, which an honest peer sends when it has no
+    /// certified commit in the range.
+    #[rstest::rstest]
+    #[case::malformed_commit("MalformedCommit", 1)]
+    #[case::unexpected_start_commit("UnexpectedStartCommit", 1)]
+    #[case::unexpected_commit_sequence("UnexpectedCommitSequence", 1)]
+    #[case::not_enough_commit_votes("NotEnoughCommitVotes", 1)]
+    #[case::no_commit_received("NoCommitReceived", 0)]
+    #[tokio::test]
+    async fn verify_commits_charges_rejected_commit_lists(
+        #[case] expected_error: &'static str,
+        #[case] expected_unprovable: u64,
+    ) {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let misbehavior_store = MisbehaviorStore::new(&context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let serialized_commits = match expected_error {
+            "MalformedCommit" => vec![Bytes::from_static(b"garbage")],
+            "UnexpectedStartCommit" => vec![serialized_commit(&context, 2, CommitDigest::MIN)],
+            "UnexpectedCommitSequence" => vec![
+                serialized_commit(&context, 1, CommitDigest::MIN),
+                serialized_commit(&context, 2, CommitDigest::MIN),
+            ],
+            "NotEnoughCommitVotes" => vec![serialized_commit(&context, 1, CommitDigest::MIN)],
+            _ => vec![],
+        };
+
+        let result = verify_commits(
+            &context,
+            &NoopBlockVerifier,
+            &misbehavior_store,
+            peer,
+            CommitRange::new(1..=2),
+            serialized_commits,
+            vec![],
+            10,
+        );
+
+        let error = result.expect_err("the commit list must be rejected");
+        assert_eq!(error.name(), expected_error);
+        let counts = misbehavior_store.snapshot_totals();
+        assert_eq!(
+            counts[peer.value()].as_v2().faulty_blocks_unprovable,
+            expected_unprovable
+        );
     }
 
     #[tokio::test]

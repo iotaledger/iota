@@ -52,6 +52,7 @@ impl ExtendedApiServer for ExtendedApi {
             data: epochs,
             next_cursor: next_cursor.map(|id| id.into()),
             has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 
@@ -90,6 +91,7 @@ impl ExtendedApiServer for ExtendedApi {
             data: epoch_metrics,
             next_cursor: next_cursor.map(|id| id.into()),
             has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 

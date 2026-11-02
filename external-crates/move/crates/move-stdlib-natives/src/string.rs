@@ -30,6 +30,22 @@ use crate::helpers::make_module_natives;
 // create a `&str` view on the bytes without a copy. Once we have this
 // view, we can call ut8 functions like length, substring, etc.
 
+/// Abort code of `std::string::EInvalidIndex`.
+const E_INVALID_INDEX: u64 = 2;
+
+/// Same result as `str::is_char_boundary`, without requiring `bytes` to be
+/// valid utf8: true for `0` and `bytes.len()`, false past the end.
+fn is_char_boundary(bytes: &[u8], i: usize) -> bool {
+    if i == 0 {
+        return true;
+    }
+    match bytes.get(i) {
+        // utf8 continuation bytes are `0b10xx_xxxx`, i.e. below -0x40 as `i8`.
+        Some(&b) => (b as i8) >= -0x40,
+        None => i == bytes.len(),
+    }
+}
+
 /// ****************************************************************************
 /// native fun internal_check_utf8
 ///
@@ -95,10 +111,7 @@ fn native_is_char_boundary(
     let i = pop_arg!(args, u64);
     let s_arg = pop_arg!(args, VectorRef);
     let s_ref = s_arg.as_bytes_ref();
-    let ok = unsafe {
-        // This is safe because we guarantee the bytes to be utf8.
-        std::str::from_utf8_unchecked(s_ref.as_slice()).is_char_boundary(i as usize)
-    };
+    let ok = is_char_boundary(s_ref.as_slice(), i as usize);
     NativeResult::map_partial_vm_result_one(context.gas_used(), Ok(Value::bool(ok)))
 }
 
@@ -144,11 +157,13 @@ fn native_sub_string(
 
     let s_arg = pop_arg!(args, VectorRef);
     let s_ref = s_arg.as_bytes_ref();
-    let s_str = unsafe {
-        // This is safe because we guarantee the bytes to be utf8.
-        std::str::from_utf8_unchecked(s_ref.as_slice())
-    };
-    let v = Value::vector_u8(s_str[i..j].as_bytes().iter().cloned());
+    let bytes = s_ref.as_slice();
+    // `string::substring` already checks the range, but a bad range reaching
+    // this native must abort rather than panic the node.
+    if !is_char_boundary(bytes, i) || !is_char_boundary(bytes, j) {
+        return Ok(NativeResult::err(context.gas_used(), E_INVALID_INDEX));
+    }
+    let v = Value::vector_u8(bytes[i..j].iter().cloned());
     NativeResult::map_partial_vm_result_one(context.gas_used(), Ok(v))
 }
 

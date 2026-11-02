@@ -153,16 +153,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
             );
 
         let route_layers = ServiceBuilder::new()
-            .map_request(|mut request: http::Request<_>| {
-                if let Some(connect_info) = request.extensions().get::<iota_http::ConnectInfo>() {
-                    let tonic_connect_info = tonic::transport::server::TcpConnectInfo {
-                        local_addr: Some(connect_info.local_addr),
-                        remote_addr: Some(connect_info.remote_addr),
-                    };
-                    request.extensions_mut().insert(tonic_connect_info);
-                }
-                request
-            })
+            .map_request(insert_tonic_connect_info)
             .layer(RequestLifetimeLayer { metrics_provider })
             .layer(SetRequestHeaderLayer::overriding(
                 GRPC_ENDPOINT_PATH_HEADER.clone(),
@@ -232,6 +223,20 @@ impl Server {
     }
 }
 
+/// Copies the client address and the listener address of a connection served
+/// by iota-http into tonic's `TcpConnectInfo`, which
+/// `tonic::Request::remote_addr` reads.
+pub fn insert_tonic_connect_info<B>(mut request: Request<B>) -> Request<B> {
+    if let Some(connect_info) = request.extensions().get::<iota_http::ConnectInfo>() {
+        let tonic_connect_info = tonic::transport::server::TcpConnectInfo {
+            local_addr: Some(connect_info.local_addr),
+            remote_addr: Some(connect_info.remote_addr),
+        };
+        request.extensions_mut().insert(tonic_connect_info);
+    }
+    request
+}
+
 fn update_tcp_port_in_multiaddr(addr: &Multiaddr, port: u16) -> Multiaddr {
     addr.replace(1, |protocol| {
         if let Protocol::Tcp(_) = protocol {
@@ -257,6 +262,26 @@ mod test {
     use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
 
     use crate::{Multiaddr, config::Config, metrics::MetricsCallbackProvider};
+
+    #[test]
+    fn insert_tonic_connect_info_copies_both_addresses() {
+        let local_addr = "127.0.0.1:1".parse().unwrap();
+        let remote_addr = "127.0.0.2:2".parse().unwrap();
+        let mut request = http::Request::new(());
+        request.extensions_mut().insert(iota_http::ConnectInfo {
+            local_addr,
+            remote_addr,
+        });
+
+        let request = super::insert_tonic_connect_info(request);
+
+        let connect_info = request
+            .extensions()
+            .get::<tonic::transport::server::TcpConnectInfo>()
+            .unwrap();
+        assert_eq!(connect_info.local_addr(), Some(local_addr));
+        assert_eq!(connect_info.remote_addr(), Some(remote_addr));
+    }
 
     #[tokio::test]
     async fn test_metrics_layer_successful() {

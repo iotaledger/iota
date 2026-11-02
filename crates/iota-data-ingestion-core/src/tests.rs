@@ -12,6 +12,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use backoff::ExponentialBackoff;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointSummary, GasCostSummary, ObjectDigest, ObjectId,
@@ -627,6 +628,75 @@ async fn graceful_shutdown_faulty_reducer() {
     )
     .await;
     assert!(result.is_ok());
+    assert_eq!(result.unwrap().get("test"), Some(&0));
+}
+
+/// A backoff whose retry budget runs out after a few quick attempts.
+fn short_backoff() -> ExponentialBackoff {
+    ExponentialBackoff {
+        initial_interval: Duration::from_millis(10),
+        max_elapsed_time: Some(Duration::from_millis(100)),
+        ..Default::default()
+    }
+}
+
+/// Writes `count` mock checkpoints into a fresh directory for the reader.
+fn write_mock_checkpoints(count: u64) -> tempfile::TempDir {
+    let tmp_dir = iota_common::tempdir();
+    for checkpoint_number in 0..count {
+        let bytes = mock_checkpoint_data_bytes(checkpoint_number);
+        std::fs::write(
+            tmp_dir.path().join(format!("{checkpoint_number}.chk")),
+            bytes,
+        )
+        .unwrap();
+    }
+    tmp_dir
+}
+
+/// A worker that keeps failing on a checkpoint shuts the run down once its
+/// retry budget runs out, without any cancellation from the outside and
+/// without panicking.
+#[tokio::test]
+async fn faulty_worker_shuts_down_once_retries_are_exhausted() {
+    let mut bundle = create_executor_bundle().await;
+    let pool = WorkerPool::new(FaultyWorker, "test".to_string(), 5, short_backoff());
+    bundle.executor.register(pool).await.unwrap();
+    let tmp_dir = write_mock_checkpoints(20);
+
+    let result = run(
+        bundle.executor,
+        tmp_dir.path().to_path_buf(),
+        None,
+        bundle.token,
+    )
+    .await;
+    assert_eq!(result.unwrap().get("test"), Some(&0));
+}
+
+/// A reducer that keeps failing to commit shuts the run down once its retry
+/// budget runs out, without any cancellation from the outside and without
+/// panicking.
+#[tokio::test]
+async fn faulty_reducer_shuts_down_once_retries_are_exhausted() {
+    let mut bundle = create_executor_bundle().await;
+    let pool = WorkerPool::new_with_reducer(
+        TestWorker,
+        "test".to_string(),
+        5,
+        short_backoff(),
+        FaultyReducer::new(5),
+    );
+    bundle.executor.register(pool).await.unwrap();
+    let tmp_dir = write_mock_checkpoints(20);
+
+    let result = run(
+        bundle.executor,
+        tmp_dir.path().to_path_buf(),
+        None,
+        bundle.token,
+    )
+    .await;
     assert_eq!(result.unwrap().get("test"), Some(&0));
 }
 

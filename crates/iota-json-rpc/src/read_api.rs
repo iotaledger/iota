@@ -7,7 +7,11 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use backoff::{ExponentialBackoff, future::retry};
-use futures::{StreamExt, TryStreamExt, future::join_all, stream};
+use futures::{
+    StreamExt, TryStreamExt,
+    future::{OptionFuture, join_all},
+    stream,
+};
 use indexmap::map::IndexMap;
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{
@@ -28,13 +32,12 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_move_types::iota_framework::vec_map::VecMap;
+use iota_sdk_move_types::iota_framework::{display::VersionUpdated, vec_map::VecMap};
 use iota_sdk_types::{
     Address, ObjectId, StructTag, TransactionDigest, TransactionEffects, TransactionEvents, Version,
 };
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    display::DisplayVersionUpdatedEvent,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaError,
     iota_serde::BigInt,
@@ -110,6 +113,13 @@ impl ReadApi {
             transaction_kv_store,
             metrics,
         }
+    }
+
+    /// The checkpoint the node's indexes are complete through: a transaction
+    /// is reported in a checkpoint only up to it, so that an index-backed read
+    /// sent right after sees it. `None` before the first checkpoint executes.
+    fn indexed_through(&self) -> Option<CheckpointSequenceNumber> {
+        self.state.get_latest_checkpoint_sequence_number().ok()
     }
 
     async fn get_checkpoint_internal(&self, id: CheckpointId) -> Result<Checkpoint, Error> {
@@ -234,14 +244,59 @@ impl ReadApi {
         if opts.require_effects() {
             trace!("getting effects");
             let digests_clone = digests.clone();
-            let effects_list = self.transaction_kv_store
-                .multi_get_fx_by_tx_digest(&digests_clone)
+            if opts.require_input() {
+                let effects_list = self.transaction_kv_store
+                    .multi_get_fx_by_tx_digest(&digests_clone)
+                    .await
+                    .tap_err(
+                        |err| debug!(digests=?digests_clone, "Failed to multi get effects for transactions: {:?}", err),
+                    )?;
+                for ((_digest, cache_entry), e) in temp_response.iter_mut().zip(effects_list) {
+                    cache_entry.effects = e;
+                }
+            } else {
+                // Fetch the transactions in the same round trip: existence is
+                // determined from the transaction, never from the effects.
+                let (transactions, effects_list) = self.transaction_kv_store
+                    .multi_get(&digests_clone, &digests_clone)
+                    .await
+                    .tap_err(
+                        |err| debug!(digests=?digests_clone, "Failed to multi get transactions and effects: {:?}", err),
+                    )?;
+                for ((_digest, cache_entry), (txn, e)) in temp_response
+                    .iter_mut()
+                    .zip(transactions.into_iter().zip(effects_list))
+                {
+                    cache_entry.transaction = txn;
+                    cache_entry.effects = e;
+                }
+            }
+        }
+
+        // An unknown digest gets a not-found error in its entry, the error
+        // the single-digest endpoint reports for it.
+        trace!("checking digest existence");
+        let missing: Vec<bool> = if opts.require_input() || opts.require_effects() {
+            temp_response
+                .values()
+                .map(|entry| entry.transaction.is_none())
+                .collect()
+        } else {
+            self.transaction_kv_store
+                .multi_get_tx(&digests)
                 .await
                 .tap_err(
-                    |err| debug!(digests=?digests_clone, "Failed to multi get effects for transactions: {:?}", err),
-                )?;
-            for ((_digest, cache_entry), e) in temp_response.iter_mut().zip(effects_list) {
-                cache_entry.effects = e;
+                    |err| debug!(digests=?digests, "Failed to multi get transactions: {:?}", err),
+                )?
+                .iter()
+                .map(|txn| txn.is_none())
+                .collect()
+        };
+        for ((digest, cache_entry), missing) in temp_response.iter_mut().zip(&missing) {
+            if *missing {
+                cache_entry
+                    .errors
+                    .push(IotaError::TransactionNotFound { digest: *digest }.to_string());
             }
         }
 
@@ -252,8 +307,10 @@ impl ReadApi {
             .await
             .tap_err(
                 |err| debug!(digests=?digests, "Failed to multi get checkpoint sequence number: {:?}", err))?;
+        let indexed_through = self.indexed_through();
         for ((_digest, cache_entry), seq) in temp_response.iter_mut().zip(checkpoint_seq_list) {
-            cache_entry.checkpoint_seq = seq;
+            cache_entry.checkpoint_seq =
+                seq.filter(|seq| indexed_through.is_some_and(|i| *seq <= i));
         }
 
         let unique_checkpoint_numbers = temp_response
@@ -336,7 +393,10 @@ impl ReadApi {
             .into_iter();
 
             // fill cache with the events
-            for (_, cache_entry) in temp_response.iter_mut() {
+            for ((_, cache_entry), missing) in temp_response.iter_mut().zip(&missing) {
+                if *missing {
+                    continue;
+                }
                 let transaction_digest = cache_entry.digest;
                 if let Some(events_digest) =
                     cache_entry.effects.as_ref().and_then(|e| e.events_digest())
@@ -368,33 +428,40 @@ impl ReadApi {
         if opts.show_balance_changes {
             trace!("getting balance changes");
 
-            let mut results = vec![];
-            for resp in temp_response.values() {
-                let input_objects = if let Some(tx) = resp.transaction() {
-                    tx.data().transaction().input_objects().unwrap_or_default()
-                } else {
-                    // don't have the input tx, so not much we can do. perhaps this is an Err?
-                    Vec::new()
-                };
-                results.push(get_balance_changes_from_effect(
+            // An unknown digest keeps its not-found error. A known entry
+            // without effects gets its own error, and the other entries still
+            // answer.
+            let computations = temp_response.values().zip(&missing).map(|(resp, missing)| {
+                if *missing {
+                    return None;
+                }
+                let effects = resp.effects.as_ref()?;
+                let input_objects = resp
+                    .transaction()
+                    .as_ref()
+                    .map(|tx| tx.data().transaction().input_objects().unwrap_or_default())
+                    .unwrap_or_default();
+                Some(get_balance_changes_from_effect(
                     &object_cache,
-                    resp.effects.as_ref().ok_or_else(|| {
-                        IotaRpcInputError::GenericNotFound(
-                            "unable to derive balance changes because effect is empty".to_string(),
-                        )
-                    })?,
+                    effects,
                     input_objects,
                     None,
-                ));
-            }
-            let results = join_all(results).await;
-            for (result, entry) in results.into_iter().zip(temp_response.iter_mut()) {
+                ))
+            });
+            let results = join_all(computations.map(OptionFuture::from)).await;
+            for ((entry, missing), result) in temp_response.values_mut().zip(&missing).zip(results)
+            {
+                if *missing {
+                    continue;
+                }
                 match result {
-                    Ok(balance_changes) => entry.1.balance_changes = Some(balance_changes),
-                    Err(e) => entry
-                        .1
+                    Some(Ok(balance_changes)) => entry.balance_changes = Some(balance_changes),
+                    Some(Err(e)) => entry
                         .errors
                         .push(format!("Failed to fetch balance changes {e:?}")),
+                    None => entry.errors.push(
+                        "unable to derive balance changes because effect is empty".to_string(),
+                    ),
                 }
             }
         }
@@ -402,40 +469,35 @@ impl ReadApi {
         if opts.show_object_changes {
             trace!("getting object changes");
 
-            let mut results = vec![];
-            for resp in temp_response.values() {
-                let effects = resp.effects.as_ref().ok_or_else(|| {
-                    IotaRpcInputError::GenericNotFound(
-                        "unable to derive object changes because effect is empty".to_string(),
-                    )
-                })?;
-
-                results.push(get_object_changes(
+            let computations = temp_response.values().zip(&missing).map(|(resp, missing)| {
+                if *missing {
+                    return None;
+                }
+                let effects = resp.effects.as_ref()?;
+                let transaction = resp.transaction().as_ref()?;
+                Some(get_object_changes(
                     &object_cache,
-                    resp.transaction
-                        .as_ref()
-                        .ok_or_else(|| {
-                            IotaRpcInputError::GenericNotFound(
-                                "unable to derive object changes because transaction is empty"
-                                    .to_string(),
-                            )
-                        })?
-                        .data()
-                        .transaction()
-                        .sender(),
+                    transaction.data().transaction().sender(),
                     effects.modified_at_versions(),
                     effects.all_changed_objects(),
                     effects.all_removed_objects(),
-                ));
-            }
-            let results = join_all(results).await;
-            for (result, entry) in results.into_iter().zip(temp_response.iter_mut()) {
+                ))
+            });
+            let results = join_all(computations.map(OptionFuture::from)).await;
+            for ((entry, missing), result) in temp_response.values_mut().zip(&missing).zip(results)
+            {
+                if *missing {
+                    continue;
+                }
                 match result {
-                    Ok(object_changes) => entry.1.object_changes = Some(object_changes),
-                    Err(e) => entry
-                        .1
+                    Some(Ok(object_changes)) => entry.object_changes = Some(object_changes),
+                    Some(Err(e)) => entry
                         .errors
                         .push(format!("Failed to fetch object changes {e:?}")),
+                    None => entry.errors.push(
+                        "unable to derive object changes because effect or transaction is empty"
+                            .to_string(),
+                    ),
                 }
             }
         }
@@ -487,47 +549,13 @@ impl ReadApiServer for ReadApi {
             })
             .await
             .map_err(Error::from)??;
-            let options = options.unwrap_or_default();
-
-            match object_read {
-                ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
-                    IotaObjectResponseError::NotExists { object_id: id },
-                )),
-                ObjectRead::Exists(object_ref, o, layout) => {
-                    let mut display_fields = None;
-                    if options.show_display {
-                        match get_display_fields(self, &self.transaction_kv_store, &o, &layout)
-                            .await
-                        {
-                            Ok(rendered_fields) => display_fields = Some(rendered_fields),
-                            Err(e) => {
-                                return Ok(IotaObjectResponse::new(
-                                    Some(IotaObjectData::new(
-                                        object_ref, o, layout, &options, None,
-                                    )?),
-                                    Some(IotaObjectResponseError::Display {
-                                        error: e.to_string(),
-                                    }),
-                                ));
-                            }
-                        }
-                    }
-                    Ok(IotaObjectResponse::new_with_data(IotaObjectData::new(
-                        object_ref,
-                        o,
-                        layout,
-                        &options,
-                        display_fields,
-                    )?))
-                }
-                ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
-                    IotaObjectResponseError::Deleted {
-                        object_id: object_ref.object_id,
-                        version: object_ref.version.into(),
-                        digest: object_ref.digest,
-                    },
-                )),
-            }
+            object_response(
+                &self.state,
+                &self.transaction_kv_store,
+                object_read,
+                &options.unwrap_or_default(),
+            )
+            .await
         }
         .trace()
         .await
@@ -607,7 +635,7 @@ impl ReadApiServer for ReadApi {
                     let display_fields = if options.show_display {
                         // TODO (jian): api breaking change to also modify past objects.
                         Some(
-                            get_display_fields(self, &self.transaction_kv_store, &o, &layout)
+                            get_display_fields(&self.state, &self.transaction_kv_store, &o, &layout)
                                 .await
                                 .map_err(|e| {
                                     Error::Unexpected(format!(
@@ -723,27 +751,19 @@ impl ReadApiServer for ReadApi {
 
     #[instrument(skip(self, digest), fields(digest = %digest))]
     async fn is_transaction_indexed_on_node(&self, digest: TransactionDigest) -> RpcResult<bool> {
-        let transaction = async move {
-            let transaction_kv_store = self.transaction_kv_store.clone();
-            let mut transactions = spawn_monitored_task!(async move {
-                let ret = transaction_kv_store
-                    .multi_get_tx(&[digest])
-                    .await
-                    .map_err(|err| {
-                        debug!(tx_digest=?digest, "Failed to get transaction: {:?}", err);
-                        Error::from(err)
-                    });
-                add_server_timing("tx_kv_lookup");
-                ret
-            })
-            .await??;
-            Ok(transactions
-                .pop()
-                .expect("there should be one tx lookup response"))
+        let checkpoint = async move {
+            self.transaction_kv_store
+                .get_transaction_perpetual_checkpoint(digest)
+                .await
+                .map_err(|err| {
+                    debug!(tx_digest=?digest, "Failed to get the transaction's checkpoint: {:?}", err);
+                    Error::from(err)
+                })
         }
         .trace()
         .await?;
-        Ok(transaction.map(|tx| *tx.digest()) == Some(digest))
+        let indexed_through = self.indexed_through();
+        Ok(checkpoint.is_some_and(|seq| indexed_through.is_some_and(|i| seq <= i)))
     }
 
     #[instrument(skip(self, digest), fields(digest = %digest))]
@@ -802,6 +822,7 @@ impl ReadApiServer for ReadApi {
             // of being able to execute the following call below.
             // It if gets removed or rewritten then the table and associated
             // code can be removed as well.
+            let indexed_through = self.indexed_through();
             temp_response.checkpoint_seq = self
                 .transaction_kv_store
                 .get_transaction_perpetual_checkpoint(digest)
@@ -809,7 +830,8 @@ impl ReadApiServer for ReadApi {
                 .map_err(|e| {
                     error!("failed to retrieve checkpoint sequence for transaction {digest} with error: {e:?}");
                     Error::from(e)
-                })?;
+                })?
+                .filter(|seq| indexed_through.is_some_and(|i| *seq <= i));
 
             if let Some(checkpoint_seq) = &temp_response.checkpoint_seq {
                 let kv_store = self.transaction_kv_store.clone();
@@ -1030,6 +1052,7 @@ impl ReadApiServer for ReadApi {
                 data,
                 next_cursor,
                 has_next_page,
+                oldest_available_checkpoint: None,
             })
         }
         .trace()
@@ -1125,8 +1148,52 @@ pub enum ObjectDisplayError {
     StateRead(#[from] StateReadError),
 }
 
+/// The response for `object_read`, with `options` applied.
+pub(crate) async fn object_response(
+    state: &Arc<dyn StateRead>,
+    kv_store: &Arc<TransactionKeyValueStore>,
+    object_read: ObjectRead,
+    options: &IotaObjectDataOptions,
+) -> Result<IotaObjectResponse, Error> {
+    match object_read {
+        ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
+            IotaObjectResponseError::NotExists { object_id: id },
+        )),
+        ObjectRead::Exists(object_ref, o, layout) => {
+            let mut display_fields = None;
+            if options.show_display {
+                match get_display_fields(state, kv_store, &o, &layout).await {
+                    Ok(rendered_fields) => display_fields = Some(rendered_fields),
+                    Err(e) => {
+                        return Ok(IotaObjectResponse::new(
+                            Some(IotaObjectData::new(object_ref, o, layout, options, None)?),
+                            Some(IotaObjectResponseError::Display {
+                                error: e.to_string(),
+                            }),
+                        ));
+                    }
+                }
+            }
+            Ok(IotaObjectResponse::new_with_data(IotaObjectData::new(
+                object_ref,
+                o,
+                layout,
+                options,
+                display_fields,
+            )?))
+        }
+        ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
+            IotaObjectResponseError::Deleted {
+                object_id: object_ref.object_id,
+                version: object_ref.version.into(),
+                digest: object_ref.digest,
+            },
+        )),
+    }
+}
+
 async fn get_display_fields(
-    fullnode_api: &ReadApi,
+    state: &Arc<dyn StateRead>,
     kv_store: &Arc<TransactionKeyValueStore>,
     original_object: &Object,
     original_layout: &Option<MoveStructLayout>,
@@ -1138,10 +1205,10 @@ async fn get_display_fields(
             error: None,
         });
     };
-    if let Some(display_object) =
-        get_display_object_by_type(kv_store, fullnode_api, &object_type).await?
-    {
-        return get_rendered_fields(display_object.fields, &layout);
+    if let Some(display_object) = get_display_object_by_type(kv_store, state, &object_type).await? {
+        let fields = VecMap::<String, String>::try_from(display_object.fields)
+            .map_err(|_| bcs::Error::Utf8)?;
+        return get_rendered_fields(fields, &layout);
     }
     Ok(DisplayFieldsResponse {
         data: None,
@@ -1151,12 +1218,11 @@ async fn get_display_fields(
 
 async fn get_display_object_by_type(
     kv_store: &Arc<TransactionKeyValueStore>,
-    fullnode_api: &ReadApi,
+    state: &Arc<dyn StateRead>,
     object_type: &StructTag,
     // TODO: add query version support
-) -> Result<Option<DisplayVersionUpdatedEvent>, ObjectDisplayError> {
-    let mut events = fullnode_api
-        .state
+) -> Result<Option<VersionUpdated<()>>, ObjectDisplayError> {
+    let mut events = state
         .query_events(
             kv_store,
             EventFilter::MoveEventType(StructTag::new_display_version_updated(object_type.clone())),
@@ -1169,7 +1235,7 @@ async fn get_display_object_by_type(
     // If there's any recent version of Display, give it to the client.
     // TODO: add support for version query.
     if let Some(event) = events.pop() {
-        let display: DisplayVersionUpdatedEvent = bcs::from_bytes(&event.bcs.into_bytes())?;
+        let display: VersionUpdated<()> = bcs::from_bytes(&event.bcs.into_bytes())?;
         Ok(Some(display))
     } else {
         Ok(None)

@@ -64,21 +64,31 @@ impl WatermarkCache {
     /// Gets the lowest checkpoint that is available for all specified tables.
     /// Returns `None` if no watermarks are available for any of the tables.
     pub fn get_lowest_available_cp_for_tables(&self, tables: &[CommitterTables]) -> Option<i64> {
-        let cache = self.inner.load();
-        tables
-            .iter()
-            .filter_map(|table| cache.get(table.as_ref()).map(|wm| wm.min_available_cp))
-            .max()
+        self.get_lowest_available_cp_and_tx_for_tables(tables)
+            .map(|(cp, _tx)| cp)
     }
 
     /// Gets the lowest transaction that is available for all specified tables.
     /// Returns `None` if no watermarks are available for any of the tables.
     pub fn get_lowest_available_tx_for_tables(&self, tables: &[CommitterTables]) -> Option<i64> {
+        self.get_lowest_available_cp_and_tx_for_tables(tables)
+            .map(|(_cp, tx)| tx)
+    }
+
+    /// Gets the lowest checkpoint and transaction that are available for all
+    /// specified tables, read from a single view of the cache.
+    ///
+    /// Returns `None` if no watermarks are available for any of the tables.
+    pub fn get_lowest_available_cp_and_tx_for_tables(
+        &self,
+        tables: &[CommitterTables],
+    ) -> Option<(i64, i64)> {
         let cache = self.inner.load();
         tables
             .iter()
-            .filter_map(|table| cache.get(table.as_ref()).map(|wm| wm.min_available_tx))
-            .max()
+            .filter_map(|table| cache.get(table.as_ref()))
+            .map(|watermark| (watermark.min_available_cp, watermark.min_available_tx))
+            .reduce(|(cp, tx), (next_cp, next_tx)| (cp.max(next_cp), tx.max(next_tx)))
     }
 
     /// Updates the cache with fresh watermarks from the database
@@ -139,7 +149,11 @@ impl WatermarkTask {
     }
 
     /// Fetches watermarks from the database and updates the cache
-    async fn update_watermarks(&self) -> Result<(), IndexerError> {
+    ///
+    /// Callers that serve reads from the cache must await this once before
+    /// accepting requests: an empty cache is indistinguishable from one where
+    /// nothing has ever been ingested/pruned.
+    pub async fn update_watermarks(&self) -> Result<(), IndexerError> {
         let (watermarks, _timestamp_ms) = self.store.get_watermarks().await?;
 
         if !watermarks.is_empty() {

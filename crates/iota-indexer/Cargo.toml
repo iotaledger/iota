@@ -84,6 +84,7 @@ shared_test_runtime = ["dep:rand"]
 # external dependencies
 hex.workspace = true
 rand.workspace = true
+rstest.workspace = true
 
 # internal dependencies
 iota-common.workspace = true
@@ -105,7 +106,7 @@ name = "iota-indexer"
 path = "src/main.rs"
 
 [package.metadata.cargo-udeps.ignore]
-development = ["simulacrum", "simulacrum-server"]
+development = ["rstest", "simulacrum", "simulacrum-server"]
 
 [lints]
 workspace = true

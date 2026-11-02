@@ -4,6 +4,6 @@
 // A TransactionDenyRulesUpdate transaction cannot be built before the
 // TransactionDenyRules object has been created at the end of an epoch.
 
-//# init --simulator --deny-rule-governance true
+//# init --simulator
 
 //# update-deny-rules --added-addresses 0xAA

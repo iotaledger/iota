@@ -19,8 +19,9 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_crypto::IotaSigner as _;
+use iota_sdk_move_types::iota_system::iota_system::IotaSystemState as IotaSystemStateWrapper;
 use iota_sdk_types::{
-    Address, Argument, CanceledTransaction, CheckpointSequenceNumber, Command,
+    Address, Argument, CanceledTransaction, CheckpointContents, CheckpointSequenceNumber, Command,
     ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
     GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference,
     OwnedObjectReference, Owner, ProgrammableTransaction, RandomnessRound, SharedObjectReference,
@@ -29,7 +30,10 @@ use iota_sdk_types::{
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
-    base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
+    attestation::AttestedTransaction,
+    base_types::{
+        AuthorityName, ExecutionDigests, TxContext, dbg_addr, dbg_object_id, random_object_ref,
+    },
     committee::Committee,
     crypto::{
         AccountPrivateKey, AggregateAuthorityPublicKey, AuthorityKeyPair, AuthoritySignInfo,
@@ -41,15 +45,18 @@ use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     execution::SharedInput,
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::{GasCoin, SIMULATION_GAS_COIN_VALUE},
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::PackageStoreWithFallback,
-    iota_system_state::{IotaSystemStateTrait, IotaSystemStateWrapper},
+    iota_system_state::IotaSystemStateTrait,
+    messages_checkpoint::CheckpointContentsExt,
     messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest, TransactionInfoRequest},
-    object::{GAS_VALUE_FOR_TESTING, MoveStructExt, OBJECT_START_VERSION, Object},
+    object::{GAS_VALUE_FOR_TESTING, MoveStructExt, OBJECT_START_VERSION, Object, PastObjectRead},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
+    signature::VerifyParams,
     supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
     transaction::{
         CallArg, CancelledObjects, MAX_PROGRAMMABLE_TX_INPUTS, SenderSignedTransactionAPI,
@@ -99,6 +106,7 @@ use crate::{
     consensus_handler::SequencedConsensusTransaction,
     execution_cache::ExecutionCacheCommit,
     execution_scheduler::ExecutionSchedulerAPI,
+    storage::{GrpcReadStore, RocksDbStore},
     test_utils::{
         init_state_parameters_from_rng, make_transfer_object_transaction, set_scheduler_env,
     },
@@ -1078,6 +1086,106 @@ async fn test_dev_inspect_on_validator() {
     )
     .await;
     assert!(result.is_err())
+}
+
+/// A dev inspect may call private and `public(package)` Move functions, but not
+/// such natives: they rely on their Move callers to check the arguments.
+#[tokio::test]
+async fn test_dev_inspect_rejects_non_public_natives() {
+    let (_validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+    let sender = Address::random();
+
+    let assert_rejected = |pt: ProgrammableTransaction, target: &str| {
+        let result = dev_inspect(
+            &fullnode,
+            sender,
+            TransactionKind::new_programmable(pt),
+            None,
+        )
+        .unwrap_or_else(|e| panic!("{target}: {e}"));
+        assert!(
+            matches!(
+                result.effects.status(),
+                ExecutionStatus::Failure {
+                    error: ExecutionError::NonEntryFunctionInvoked,
+                    ..
+                }
+            ),
+            "{target}: {:?}",
+            result.effects.status()
+        );
+    };
+
+    // An end index past the end of the string.
+    assert_rejected(
+        ProgrammableTransaction {
+            inputs: vec![
+                CallArg::pure(&b"A".to_vec()),
+                CallArg::pure(&0_u64),
+                CallArg::pure(&2_u64),
+            ],
+            commands: vec![Command::new_move_call(
+                ObjectId::STD,
+                Identifier::from_static("string"),
+                Identifier::from_static("internal_sub_string"),
+                vec![],
+                vec![Argument::Input(0), Argument::Input(1), Argument::Input(2)],
+            )],
+        },
+        "0x1::string::internal_sub_string",
+    );
+
+    // The visibility check comes before arguments are read, so no arguments are
+    // needed to reach it.
+    let mut natives = 0;
+    for package in BuiltInFramework::iter_system_packages() {
+        for module in package.modules() {
+            for fdef in module.function_defs() {
+                if !fdef.is_native()
+                    || fdef.is_entry
+                    || fdef.visibility == file_format::Visibility::Public
+                {
+                    continue;
+                }
+                let function = module.identifier_at(module.function_handle_at(fdef.function).name);
+                assert_rejected(
+                    ProgrammableTransaction {
+                        inputs: vec![],
+                        commands: vec![Command::new_move_call(
+                            package.id,
+                            Identifier::new(module.self_id().name().as_str()).unwrap(),
+                            Identifier::new(function.as_str()).unwrap(),
+                            vec![],
+                            vec![],
+                        )],
+                    },
+                    &format!("{}::{function}", module.self_id()),
+                );
+                natives += 1;
+            }
+        }
+    }
+    assert!(natives > 0, "the framework should have non-public natives");
+
+    // The rule is limited to natives: a private Move function stays callable.
+    let result = dev_inspect(
+        &fullnode,
+        sender,
+        TransactionKind::new_programmable(ProgrammableTransaction {
+            inputs: vec![CallArg::pure(&b'a')],
+            commands: vec![Command::new_move_call(
+                ObjectId::STD,
+                Identifier::from_static("ascii"),
+                Identifier::from_static("char_to_uppercase"),
+                vec![],
+                vec![Argument::Input(0)],
+            )],
+        }),
+        None,
+    )
+    .unwrap();
+    assert_eq!(result.effects.status(), &ExecutionStatus::Success);
 }
 
 #[tokio::test]
@@ -3150,12 +3258,20 @@ async fn test_authority_persist() {
     let tmp_dir = iota_common::tempdir();
     let path = tmp_dir.path().to_path_buf();
 
-    let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));
+    let (perpetual_tables, historic_objects, historic_ledger, epoch_markers) =
+        AuthorityPerpetualTables::open_with_historic_objects(&path, None).unwrap();
+    let historic_ledger = Arc::new(historic_ledger);
     // Create an authority
-    let store =
-        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis)
-            .await
-            .unwrap();
+    let store = AuthorityStore::open_with_committee_for_testing(
+        Arc::new(perpetual_tables),
+        Arc::new(historic_objects),
+        historic_ledger.clone(),
+        Arc::new(epoch_markers),
+        &committee,
+        &genesis,
+    )
+    .await
+    .unwrap();
     let authority = init_state(&genesis, authority_key, store).await;
 
     // Create an object
@@ -3168,6 +3284,8 @@ async fn test_authority_persist() {
 
     // Close the authority
     drop(authority);
+    // The ledger buckets hold their own reference to the database.
+    drop(historic_ledger);
 
     // TODO: The right fix is to invoke some function on DBMap and release the
     // rocksdb arc references being held in the background thread but this will
@@ -3178,11 +3296,18 @@ async fn test_authority_persist() {
     let seed = [1u8; 32];
     let (genesis, authority_key) = init_state_parameters_from_rng(&mut StdRng::from_seed(seed));
     let committee = genesis.committee().unwrap();
-    let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));
-    let store =
-        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis)
-            .await
-            .unwrap();
+    let (perpetual_tables, historic_objects, historic_ledger, epoch_markers) =
+        AuthorityPerpetualTables::open_with_historic_objects(&path, None).unwrap();
+    let store = AuthorityStore::open_with_committee_for_testing(
+        Arc::new(perpetual_tables),
+        Arc::new(historic_objects),
+        Arc::new(historic_ledger),
+        Arc::new(epoch_markers),
+        &committee,
+        &genesis,
+    )
+    .await
+    .unwrap();
     let authority2 = init_state(&genesis, authority_key, store).await;
     let obj2 = authority2.get_object(&object_id).unwrap();
 
@@ -3600,6 +3725,124 @@ fn build_and_commit(
     cache_commit.commit_transaction_outputs(epoch, batch, txs);
 }
 
+/// Response-assembling reads find the versions a checkpoint commit moved into
+/// the historic buckets. The pre-images are genesis objects, so no cached copy
+/// can answer instead.
+#[tokio::test]
+async fn test_response_reads_resolve_relocated_versions() {
+    use iota_types::storage::{ObjectKey, ObjectStore};
+    use typed_store::Map;
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let recipient = dbg_addr(2);
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
+    let authority_state =
+        init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
+
+    let transferred_pre_image = authority_state.get_object(&object_id).unwrap();
+    let gas_pre_image = authority_state.get_object(&gas_object_id).unwrap();
+
+    let certificate = init_certified_transfer_transaction(
+        sender,
+        &sender_key,
+        recipient,
+        transferred_pre_image.object_ref(),
+        gas_pre_image.object_ref(),
+        &authority_state,
+    );
+    let effects = authority_state
+        .wait_for_certificate_execution(&certificate, &authority_state.epoch_store_for_testing())
+        .await
+        .unwrap();
+    effects.status().unwrap();
+
+    build_and_commit(
+        authority_state.get_cache_commit(),
+        authority_state.epoch_store_for_testing().epoch(),
+        &[*effects.transaction_digest()],
+        0,
+    );
+
+    let perpetual = &authority_state.database_for_testing().perpetual_tables;
+    for pre_image in [&transferred_pre_image, &gas_pre_image] {
+        let key = ObjectKey(pre_image.id(), pre_image.version());
+        assert_eq!(
+            perpetual.objects.get(&key).unwrap(),
+            None,
+            "the commit must have moved {key:?} out of the live table"
+        );
+    }
+
+    // Serves `iota_tryGetPastObject` and the JSON-RPC balance- and
+    // object-change assembly.
+    let past_object = authority_state
+        .get_past_object_read(&object_id, transferred_pre_image.version())
+        .unwrap();
+    match past_object {
+        PastObjectRead::VersionFound(_, object, _) => {
+            assert_eq!(object, transferred_pre_image)
+        }
+        other => panic!("expected the relocated version, got {other:?}"),
+    }
+
+    // Serves fullnode execute-transaction responses and validator gRPC
+    // responses.
+    let input_objects = authority_state
+        .get_transaction_input_objects(&effects)
+        .unwrap();
+    for pre_image in [&transferred_pre_image, &gas_pre_image] {
+        assert!(
+            input_objects.contains(pre_image),
+            "the input objects must carry the relocated {:?}",
+            pre_image.id()
+        );
+    }
+
+    // Serves the gRPC read API, which reads the same pre-images through its
+    // own store rather than through `AuthorityState`.
+    let grpc_read_store = GrpcReadStore::new(
+        authority_state.clone(),
+        RocksDbStore::new(
+            authority_state.execution_cache_trait_pointers.clone(),
+            authority_state.committee_store().clone(),
+            authority_state.checkpoint_store.clone(),
+        ),
+    );
+    for pre_image in [&transferred_pre_image, &gas_pre_image] {
+        assert_eq!(
+            grpc_read_store
+                .try_get_object_by_key(&pre_image.id(), pre_image.version())
+                .unwrap()
+                .as_ref(),
+            Some(pre_image),
+            "the gRPC read store must serve the relocated version"
+        );
+    }
+
+    // Serves the JSON-RPC owner, coin and stake reads, which resolve an index
+    // row by the version it names, and a commit moves that version before
+    // the index update for its checkpoint is written.
+    let object_store = authority_state.object_store_with_historic_fallback();
+    for pre_image in [&transferred_pre_image, &gas_pre_image] {
+        assert_eq!(
+            object_store
+                .try_get_object_by_key(&pre_image.id(), pre_image.version())
+                .unwrap()
+                .as_ref(),
+            Some(pre_image),
+            "the owner reads must serve the relocated version"
+        );
+    }
+    let keys = [&transferred_pre_image, &gas_pre_image]
+        .map(|pre_image| ObjectKey(pre_image.id(), pre_image.version()));
+    assert_eq!(
+        object_store.try_multi_get_objects_by_key(&keys).unwrap(),
+        vec![Some(transferred_pre_image), Some(gas_pre_image)],
+        "a batched read must serve the relocated versions too"
+    );
+}
+
 #[tokio::test]
 async fn test_store_revert_wrap_move_call() {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
@@ -3802,7 +4045,350 @@ async fn test_store_get_dynamic_field() {
     assert_eq!(TypeTag::Bool, fields[0].name.type_tag)
 }
 
+/// `AuthorityState::get_owner_objects` returns exactly the sender's
+/// address-owned objects, not the object-owned field.
+#[tokio::test]
+async fn test_owner_objects_queryable_through_authority_state() {
+    let (authority_state, outer_id, gas_object_id, sender, fields) =
+        create_and_retrieve_df(&Identifier::from_static("add_field")).await;
+
+    let mut owned: Vec<_> = authority_state
+        .get_owner_objects(sender, None, 50, None, usize::MAX)
+        .unwrap()
+        .0
+        .iter()
+        .map(|(object, _)| object.id())
+        .collect();
+    owned.sort();
+    let mut expected = vec![gas_object_id, outer_id];
+    expected.sort();
+    assert_eq!(
+        owned, expected,
+        "the sender's objects must be served through the owner index"
+    );
+    assert!(
+        !owned.contains(&fields[0].object_id),
+        "the object-owned field must not appear under the sender"
+    );
+}
+
+/// `AuthorityState::get_dynamic_fields` returns one entry per index row, with
+/// `None` for a field that no longer resolves, so page sizes and cursors hold.
+#[tokio::test]
+async fn test_get_dynamic_fields_returns_one_entry_per_index_row() {
+    use typed_store::Map;
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let indexes = authority_state.rpc_indexes_store.clone().unwrap();
+
+    let parent = ObjectId::random();
+    // Index rows whose objects do not exist: unresolvable fields.
+    let mut ids: Vec<ObjectId> = (0..3).map(|_| ObjectId::random()).collect();
+    ids.sort();
+    for field_id in &ids {
+        indexes
+            .tables()
+            .dynamic_field
+            .insert(
+                &iota_types::storage::DynamicFieldKey::new(parent, *field_id),
+                &(),
+            )
+            .unwrap();
+    }
+
+    let rows = authority_state.get_dynamic_fields(parent, None, 2).unwrap();
+    assert_eq!(
+        rows.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+        ids[..2],
+        "each index row must occupy one slot, resolvable or not"
+    );
+    assert!(rows.iter().all(|(_, info)| info.is_none()));
+
+    // The cursor continues from the last returned row.
+    let rows = authority_state
+        .get_dynamic_fields(parent, Some(ids[1]), 2)
+        .unwrap();
+    assert_eq!(rows.iter().map(|(id, _)| *id).collect::<Vec<_>>(), ids[2..]);
+}
+
+/// A node with executed checkpoints but no index database, as after a
+/// formal-snapshot restore, rebuilds the RPC indexes on open.
+#[tokio::test]
+async fn test_rpc_index_rebuild_on_open() {
+    let authority_state = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .build()
+        .await;
+
+    let owner = dbg_addr(1);
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    authority_state.insert_genesis_objects(std::slice::from_ref(&gas_object));
+
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&genesis_checkpoint)
+        .unwrap();
+
+    let index_dir = iota_common::tempdir();
+    let index_store = crate::rpc_indexes::RpcIndexesStore::new(
+        index_dir.path().to_path_buf(),
+        None,
+        &prometheus_filtered::Registry::default(),
+        std::collections::BTreeSet::from([crate::rpc_indexes::IndexGroup::JsonRpc]),
+        Some(128),
+        None,
+        &authority_state.database_for_testing(),
+        checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+
+    // The live-object scan finished before the open returned: the object
+    // that is in no local checkpoint is already indexed.
+    let owned: Vec<_> = index_store
+        .get_owner_objects(
+            owner,
+            None,
+            10,
+            None,
+            usize::MAX,
+            authority_state.get_object_store().as_ref(),
+        )
+        .unwrap()
+        .0;
+    assert_eq!(owned.len(), 1);
+    assert_eq!(owned[0].0.id(), gas_object.id());
+    let balance = index_store
+        .get_balance(owner, TypeTag::from(StructTag::new_gas()))
+        .unwrap();
+    assert_eq!(balance.num_coins, 1);
+
+    // The background history replay indexes the genesis transaction.
+    index_store.wait_for_history_backfill_for_testing().await;
+    let genesis_contents = checkpoint_store
+        .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
+        .unwrap()
+        .unwrap();
+    let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
+    assert_eq!(
+        index_store.lookup_digest(&genesis_tx_digest).unwrap(),
+        Some(0)
+    );
+}
+
+/// History replay needs no objects, so it covers checkpoints whose object
+/// versions have expired.
+#[tokio::test]
+async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
+    use typed_store::Map;
+
+    let authority_state = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .build()
+        .await;
+
+    let owner = dbg_addr(1);
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    authority_state.insert_genesis_objects(std::slice::from_ref(&gas_object));
+
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&genesis_checkpoint)
+        .unwrap();
+
+    // Delete a genesis output object, as an expired bucket would.
+    let genesis_contents = checkpoint_store
+        .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
+        .unwrap()
+        .unwrap();
+    let genesis_digests = genesis_contents.iter().next().unwrap();
+    let genesis_effects = authority_state
+        .database_for_testing()
+        .get_effects(&genesis_digests.effects)
+        .unwrap()
+        .unwrap();
+    let pruned_ref = *genesis_effects.created()[0].reference();
+    authority_state
+        .database_for_testing()
+        .perpetual_tables
+        .objects
+        .remove(&iota_types::storage::ObjectKey(
+            pruned_ref.object_id,
+            pruned_ref.version,
+        ))
+        .unwrap();
+
+    let index_dir = iota_common::tempdir();
+    let index_store = crate::rpc_indexes::RpcIndexesStore::new(
+        index_dir.path().to_path_buf(),
+        None,
+        &prometheus_filtered::Registry::default(),
+        std::collections::BTreeSet::from([crate::rpc_indexes::IndexGroup::JsonRpc]),
+        Some(128),
+        None,
+        &authority_state.database_for_testing(),
+        checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+
+    index_store.wait_for_history_backfill_for_testing().await;
+    let genesis_tx_digest = genesis_digests.transaction;
+    assert_eq!(
+        index_store.lookup_digest(&genesis_tx_digest).unwrap(),
+        Some(0)
+    );
+
+    let owned: Vec<_> = index_store
+        .get_owner_objects(
+            owner,
+            None,
+            10,
+            None,
+            usize::MAX,
+            authority_state.get_object_store().as_ref(),
+        )
+        .unwrap()
+        .0;
+    assert_eq!(owned.len(), 1);
+    assert_eq!(owned[0].0.id(), gas_object.id());
+}
+
+/// History replay skips checkpoints below the pruned watermark, while the
+/// live-object scan still covers the live state.
+#[tokio::test]
+async fn test_rpc_index_rebuild_skips_contents_pruned_checkpoints() {
+    let authority_state = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .build()
+        .await;
+
+    let owner = dbg_addr(1);
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    authority_state.insert_genesis_objects(std::slice::from_ref(&gas_object));
+
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&genesis_checkpoint)
+        .unwrap();
+    checkpoint_store
+        .update_highest_pruned_checkpoint(&genesis_checkpoint)
+        .unwrap();
+
+    let index_dir = iota_common::tempdir();
+    let index_store = crate::rpc_indexes::RpcIndexesStore::new(
+        index_dir.path().to_path_buf(),
+        None,
+        &prometheus_filtered::Registry::default(),
+        std::collections::BTreeSet::from([crate::rpc_indexes::IndexGroup::JsonRpc]),
+        Some(128),
+        None,
+        &authority_state.database_for_testing(),
+        checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+
+    index_store.wait_for_history_backfill_for_testing().await;
+    let genesis_contents = checkpoint_store
+        .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
+        .unwrap()
+        .unwrap();
+    let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
+    assert_eq!(index_store.lookup_digest(&genesis_tx_digest).unwrap(), None);
+
+    let owned: Vec<_> = index_store
+        .get_owner_objects(
+            owner,
+            None,
+            10,
+            None,
+            usize::MAX,
+            authority_state.get_object_store().as_ref(),
+        )
+        .unwrap()
+        .0;
+    assert_eq!(owned.len(), 1);
+    assert_eq!(owned[0].0.id(), gas_object.id());
+}
+
+/// Runs an executed transaction through the per-checkpoint RPC indexing
+/// path, as the checkpoint executor does after executing a checkpoint.
+fn rpc_index_transaction(
+    authority_state: &AuthorityState,
+    checkpoint_seq: CheckpointSequenceNumber,
+    transaction: TransactionEnvelope,
+    effects: TransactionEffects,
+) {
+    let events = effects.events_digest().map(|_| {
+        authority_state
+            .get_transaction_events(effects.transaction_digest())
+            .unwrap()
+    });
+    let input_objects = authority_state
+        .get_transaction_input_objects(&effects)
+        .unwrap();
+    let output_objects = authority_state
+        .get_transaction_output_objects(&effects)
+        .unwrap();
+
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let checkpoint_data = CheckpointData {
+        checkpoint_summary: crate::test_utils::executed_checkpoint(
+            epoch_store.epoch(),
+            checkpoint_seq,
+        )
+        .into_inner(),
+        checkpoint_contents: CheckpointContents::new_with_digests_only_for_tests([
+            ExecutionDigests::new(*effects.transaction_digest(), effects.digest()),
+        ]),
+        transactions: vec![CheckpointTransaction {
+            transaction,
+            effects,
+            events,
+            input_objects,
+            output_objects,
+        }],
+    };
+
+    let rpc_indexes_store = authority_state.rpc_indexes_store.as_ref().unwrap();
+    rpc_indexes_store
+        .index_checkpoint(&checkpoint_data)
+        .unwrap();
+    rpc_indexes_store
+        .commit_update_for_checkpoint(checkpoint_seq)
+        .unwrap();
+}
+
 async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<DynamicFieldInfo>) {
+    let (_, _, _, sender, fields) = create_and_retrieve_df(function).await;
+    (sender, fields)
+}
+
+async fn create_and_retrieve_df(
+    function: &Identifier,
+) -> (
+    Arc<AuthorityState>,
+    ObjectId,
+    ObjectId,
+    Address,
+    Vec<DynamicFieldInfo>,
+) {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
@@ -3860,7 +4446,7 @@ async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<Dyn
         &sender_key,
     );
 
-    let add_cert = init_certified_transaction(add_txn, &authority_state);
+    let add_cert = init_certified_transaction(add_txn.clone(), &authority_state);
 
     let add_effects = authority_state
         .execute_for_test(&add_cert, ExecutionEnv::new())
@@ -3874,15 +4460,55 @@ async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<Dyn
     );
     assert_eq!(add_effects.created().len(), 1);
 
+    rpc_index_transaction(&authority_state, 0, add_txn, add_effects);
+
+    let fields = authority_state
+        .get_dynamic_fields(outer_v0.object_id, None, usize::MAX)
+        .unwrap()
+        .into_iter()
+        .filter_map(|x| x.1)
+        .collect();
     (
+        authority_state,
+        outer_v0.object_id,
+        gas_object_id,
         sender,
-        authority_state
-            .get_dynamic_fields(outer_v0.object_id, None, usize::MAX)
-            .unwrap()
-            .into_iter()
-            .map(|x| x.1)
-            .collect(),
+        fields,
     )
+}
+
+/// `get_dynamic_field_object_id` resolves a dynamic object field to the value
+/// object's id, also when given the wrapped name type, and a plain dynamic
+/// field to the `Field` object's id.
+#[tokio::test]
+async fn test_dynamic_object_field_lookup_with_wrapped_name_type() {
+    let (authority_state, parent, _, _, fields) =
+        create_and_retrieve_df(&Identifier::from_static("add_ofield_with_address_name")).await;
+    assert_eq!(fields.len(), 1);
+    let value_object_id = fields[0].object_id;
+    let name_type = fields[0].name.type_tag.clone();
+
+    let id = authority_state
+        .get_dynamic_field_object_id(parent, name_type.clone(), &fields[0].bcs_name)
+        .unwrap();
+    assert_eq!(id, Some(value_object_id));
+
+    let wrapped_name_type = TypeTag::Struct(Box::new(
+        DynamicFieldInfo::dynamic_object_field_wrapper(name_type),
+    ));
+    let id = authority_state
+        .get_dynamic_field_object_id(parent, wrapped_name_type, &fields[0].bcs_name)
+        .unwrap();
+    assert_eq!(id, Some(value_object_id));
+
+    // A plain dynamic field's id is the `Field` object's own.
+    let (authority_state, parent, _, _, fields) =
+        create_and_retrieve_df(&Identifier::from_static("add_field_with_address_name")).await;
+    assert_eq!(fields.len(), 1);
+    let id = authority_state
+        .get_dynamic_field_object_id(parent, fields[0].name.type_tag.clone(), &fields[0].bcs_name)
+        .unwrap();
+    assert_eq!(id, Some(fields[0].object_id));
 }
 
 #[tokio::test]
@@ -3969,6 +4595,140 @@ async fn test_dynamic_object_field_address_name_parsing() {
         fields[0].name.type_tag
     );
     assert_eq!(json!(sender), fields[0].name.value);
+}
+
+/// Serves several versions of the same object, the highest as the live one.
+struct VersionedObjects(Vec<Object>);
+
+impl iota_types::storage::ObjectStore for VersionedObjects {
+    fn try_get_object(
+        &self,
+        object_id: &ObjectId,
+    ) -> iota_types::storage::error::Result<Option<Object>> {
+        Ok(self
+            .0
+            .iter()
+            .filter(|o| o.id() == *object_id)
+            .max_by_key(|o| o.version())
+            .cloned())
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectId,
+        version: iota_types::base_types::VersionNumber,
+    ) -> iota_types::storage::error::Result<Option<Object>> {
+        Ok(self
+            .0
+            .iter()
+            .find(|o| o.id() == *object_id && o.version() == version)
+            .cloned())
+    }
+}
+
+/// A dynamic object field resolves to its child's latest version, and to
+/// nothing when the child is gone.
+#[tokio::test]
+async fn test_dynamic_object_field_child_is_read_at_its_latest_version() {
+    use iota_sdk_types::ObjectData;
+    use iota_types::object::MoveStructExt;
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object_id = ObjectId::random();
+    let (authority_state, object_basics) =
+        init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
+
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let create_outer_effects = create_move_object(
+        &object_basics.object_id,
+        &authority_state,
+        &gas_object_id,
+        &sender,
+        &sender_key,
+    )
+    .await
+    .unwrap();
+    let create_inner_effects = create_move_object(
+        &object_basics.object_id,
+        &authority_state,
+        &gas_object_id,
+        &sender,
+        &sender_key,
+    )
+    .await
+    .unwrap();
+    let outer_v0 = *create_outer_effects.created()[0].reference();
+    let inner_v0 = *create_inner_effects.created()[0].reference();
+
+    let add_txn = to_sender_signed_transaction(
+        Transaction::new_move_call(
+            sender,
+            object_basics.object_id,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("add_ofield"),
+            vec![],
+            *create_inner_effects.gas_object().reference(),
+            vec![
+                CallArg::ImmutableOrOwned(outer_v0),
+                CallArg::ImmutableOrOwned(inner_v0),
+            ],
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
+            rgp,
+        )
+        .unwrap(),
+        &sender_key,
+    );
+    let add_cert = init_certified_transaction(add_txn, &authority_state);
+    let add_effects = authority_state
+        .execute_for_test(&add_cert, ExecutionEnv::new())
+        .0
+        .into_message();
+    assert!(add_effects.status().is_success());
+
+    let wrapper = authority_state
+        .get_object(&add_effects.created()[0].reference().object_id)
+        .unwrap();
+    let child = authority_state.get_object(&inner_v0.object_id).unwrap();
+
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let mut layout_resolver = epoch_store.executor().type_layout_resolver(Box::new(
+        authority_state.get_backing_package_store().clone(),
+    ));
+    let resolve =
+        |object_store: &dyn iota_types::storage::ObjectStore,
+         layout_resolver: &mut dyn iota_types::layout_resolver::LayoutResolver| {
+            crate::rpc_indexes::jsonrpc_api::try_create_dynamic_field_info(
+                &wrapper,
+                object_store,
+                layout_resolver,
+            )
+            .unwrap()
+        };
+
+    let info = resolve(
+        authority_state.get_object_store().as_ref(),
+        layout_resolver.as_mut(),
+    )
+    .unwrap();
+    assert!(matches!(info.type_, DynamicFieldType::DynamicObject));
+    assert_eq!(info.object_id, inner_v0.object_id);
+    assert_eq!(info.version, child.version());
+
+    // `borrow_mut` leaves the wrapper at its old version.
+    let mut mutated_child = child.clone();
+    let bumped = child.version().next().unwrap();
+    match &mut mutated_child.data {
+        ObjectData::Struct(move_object) => move_object.increment_version_to(bumped),
+        _ => panic!("the child must be a move object"),
+    }
+    let both_versions = VersionedObjects(vec![child, mutated_child]);
+    let info = resolve(&both_versions, layout_resolver.as_mut()).unwrap();
+    assert_eq!(
+        info.version, bumped,
+        "the child must be read at its latest version, not the wrapper's"
+    );
+
+    assert!(resolve(&VersionedObjects(vec![]), layout_resolver.as_mut()).is_none());
 }
 
 #[tokio::test]
@@ -4980,7 +5740,10 @@ async fn make_test_transaction(
             CertifiedTransaction::new(transaction.clone().into_message(), sigs.clone(), &committee)
         {
             return cert
-                .try_into_verified_for_testing(&committee, &Default::default())
+                .try_into_verified_for_testing(
+                    &committee,
+                    &VerifyParams::from_protocol_config(epoch_store.protocol_config()),
+                )
                 .unwrap();
         }
     }
@@ -5062,6 +5825,7 @@ async fn test_execute_randomness_state_update_records_key_to_digest() {
     let key = TransactionKey::RandomnessRound(epoch_store.epoch(), round);
     assert_eq!(epoch_store.tx_key_to_digest(&key).unwrap(), None);
 
+    epoch_store.assign_to_a_new_commit_for_testing(&[key]);
     authority
         .try_execute_immediately(
             &transaction,
@@ -5200,11 +5964,15 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
         // Submit as UserTransactionV1 — no certificates needed.
         let transactions = vec![
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(shared_tx)),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(shared_tx, None),
+                )),
                 tracking_id: Default::default(),
             }),
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(clock_tx)),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(clock_tx, None),
+                )),
                 tracking_id: Default::default(),
             }),
         ];
@@ -6215,6 +6983,98 @@ async fn test_for_inc_201_dry_run() {
     assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
 }
 
+/// A query for a transaction's events is answered from the transaction
+/// itself, before its checkpoint exists: an executed transaction's event
+/// comes back without a timestamp, one without events gives an empty page,
+/// and a cursor naming another transaction's event is refused.
+#[tokio::test]
+async fn test_transaction_events_are_queryable_before_their_checkpoint() {
+    use iota_json_rpc_types::EventFilter;
+    use iota_storage::{
+        key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
+    };
+    use iota_types::event::EventID;
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object_id = ObjectId::random();
+    let (validator, fullnode, object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
+
+    let create = |value: u64| {
+        call_move_(
+            &validator,
+            Some(&fullnode),
+            &gas_object_id,
+            &sender,
+            &sender_key,
+            &object_basics.object_id,
+            "object_basics",
+            "create",
+            vec![],
+            vec![
+                TestCallArg::Pure(bcs::to_bytes(&value).unwrap()),
+                TestCallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+            ],
+            false,
+        )
+    };
+    let created = create(1).await.unwrap();
+    let first = created.created()[0].reference().object_id;
+    let second = create(2).await.unwrap().created()[0].reference().object_id;
+    let update = call_move_(
+        &validator,
+        Some(&fullnode),
+        &gas_object_id,
+        &sender,
+        &sender_key,
+        &object_basics.object_id,
+        "object_basics",
+        "update",
+        vec![],
+        vec![TestCallArg::Object(first), TestCallArg::Object(second)],
+        false,
+    )
+    .await
+    .unwrap();
+    assert!(update.status().is_success());
+
+    let kv_store = Arc::new(TransactionKeyValueStore::new(
+        "rocksdb",
+        KeyValueStoreMetrics::new_for_tests(),
+        fullnode.clone(),
+    ));
+    let query = |digest, cursor| {
+        fullnode.query_events(
+            &kv_store,
+            EventFilter::Transaction(digest),
+            cursor,
+            10,
+            false,
+        )
+    };
+
+    let events = query(*update.transaction_digest(), None).await.unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].id.tx_digest, *update.transaction_digest());
+    assert_eq!(
+        events[0].timestamp_ms, None,
+        "the transaction has no checkpoint yet"
+    );
+
+    let events = query(*created.transaction_digest(), None).await.unwrap();
+    assert!(events.is_empty());
+
+    let foreign_cursor = EventID {
+        tx_digest: *created.transaction_digest(),
+        event_seq: 0,
+    };
+    assert!(
+        query(*update.transaction_digest(), Some(foreign_cursor))
+            .await
+            .is_err()
+    );
+}
+
 #[tokio::test]
 async fn test_function_not_found() {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
@@ -7177,12 +8037,6 @@ fn get_object_lock(
 async fn test_post_consensus_white_flag_simple_conflict() {
     telemetry_subscribers::init_for_testing();
 
-    // Enable P-COOL flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     // Setup: Two transactions competing for the same owned object
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = dbg_addr(2);
@@ -7228,11 +8082,17 @@ async fn test_post_consensus_white_flag_simple_conflict() {
 
     // Create consensus transactions
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7303,12 +8163,6 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     // below double-checks the choice took effect.
     set_scheduler_env(use_execution_scheduler);
 
-    // Enable P-COOL flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     // Setup: two transactions competing for the same owned object.
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = dbg_addr(2);
@@ -7352,11 +8206,17 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     );
 
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7764,12 +8624,6 @@ async fn duplicate_enqueue_executes_once(use_execution_scheduler: bool) {
 async fn test_post_consensus_white_flag_no_conflict() {
     telemetry_subscribers::init_for_testing();
 
-    // Enable P-COOL flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     // Setup: Two transactions using different objects
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
@@ -7817,11 +8671,17 @@ async fn test_post_consensus_white_flag_no_conflict() {
 
     // Create consensus transactions
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7877,12 +8737,6 @@ async fn test_post_consensus_white_flag_no_conflict() {
 async fn test_post_consensus_white_flag_conflict_different_commits() {
     telemetry_subscribers::init_for_testing();
 
-    // Enable P-COOL flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     // Test that a transaction in a second commit is dropped if it conflicts
     // with a lock from a first commit that was persisted to DB
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
@@ -7917,7 +8771,10 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
     );
 
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7964,7 +8821,10 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
 
     let verified_tx2 = epoch_store.verify_transaction(tx2.into()).unwrap();
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -8036,7 +8896,7 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
     let shared_objects = create_shared_objects(1);
     let gas_objects = create_gas_objects(2, sender);
 
-    // Enable the P-COOL flow (where the bug lived) and force congestion-driven
+    // Under the P-COOL flow (where the bug lived), force congestion-driven
     // deferral: count each transaction as one unit of cost, allow only one unit
     // per shared object per commit, and forbid any overshoot, so the second
     // transaction touching the shared object in the same commit is deferred.
@@ -8044,7 +8904,6 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
     // execute in, rather than being cancelled.
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_enable_pcool_flow_for_testing(true);
     protocol_config.set_per_object_congestion_control_mode_for_testing(
         PerObjectCongestionControlMode::TotalTxCount,
     );
@@ -8097,7 +8956,10 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
 
     let seq = |tx: VerifiedTransaction| {
         SequencedConsensusTransaction::new_test(ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.into())),
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                tx.into(),
+                None,
+            ))),
             tracking_id: Default::default(),
         })
     };
@@ -8288,13 +9150,12 @@ async fn test_consensus_queue_graduated_load_shedding() {
     );
 }
 
-/// Builds an authority with the deny-rule-governance protocol flag toggled.
-async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityState> {
+/// Builds an authority with the P-COOL flow, and with it deny rule
+/// governance, toggled.
+async fn authority_with_pcool_flow(enabled: bool) -> Arc<AuthorityState> {
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    if enabled {
-        protocol_config.set_deny_rule_governance_for_testing(true);
-    }
+    protocol_config.set_enable_pcool_flow_for_testing(enabled);
     TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
         .build()
@@ -8302,7 +9163,7 @@ async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityStat
 }
 
 /// The end-of-epoch transaction creates the `TransactionDenyRules` object
-/// exactly when on-chain deny rule governance is enabled and the object does
+/// exactly when the P-COOL flow is enabled and the object does
 /// not exist at epoch start.
 #[rstest::rstest]
 #[tokio::test]
@@ -8316,12 +9177,7 @@ async fn advance_epoch_tx_creates_deny_rules_object_under_flag(
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    if enabled {
-        protocol_config.set_deny_rule_governance_for_testing(true);
-        protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
-        protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-        protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
-    }
+    protocol_config.set_enable_pcool_flow_for_testing(enabled);
     let authority = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
         .build()
@@ -8364,7 +9220,7 @@ async fn deny_rule_proposal_through_consensus_updates_active_set() {
         deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
 
-    let authority = authority_with_deny_rule_governance(true).await;
+    let authority = TestAuthorityBuilder::new().build().await;
     let epoch_store = authority.epoch_store_for_testing();
     // Single-validator test committee: this authority holds all stake and
     // clears both the f+1 and 2f+1 thresholds alone.
@@ -8449,7 +9305,7 @@ async fn deny_rule_proposal_ignored_when_flag_disabled() {
         deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
 
-    let authority = authority_with_deny_rule_governance(false).await;
+    let authority = authority_with_pcool_flow(false).await;
     let epoch_store = authority.epoch_store_for_testing();
     let me = epoch_store.name;
 
@@ -8546,6 +9402,7 @@ async fn test_effects_equivocation_prevented_at_signing_not_execution() {
 
     // Execution must not consult previously signed effects: it succeeds even
     // though the resulting effects differ from the previously signed digest.
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
     let (effects, execution_error) = authority_state
         .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();
@@ -8634,4 +9491,720 @@ async fn simulate_rejects_a_transaction_above_the_size_limit() {
         transaction,
         "serialized transaction size exceeded maximum",
     );
+}
+
+/// A simulation meters the packages a transaction publishes with the node's
+/// own `VerifierSigningConfig` under both `VmChecks` modes. Execution verifies
+/// a published package with neither a limit nor a meter, trusting signing to
+/// have bounded it, so a simulation that skips the signing-time checks has to
+/// bound it itself.
+#[tokio::test]
+async fn simulate_meters_published_packages_with_the_node_signing_limits() {
+    use iota_config::verifier_signing_config::VerifierSigningConfig;
+    use iota_move_build::BuildConfig;
+    use iota_types::crypto::get_authority_key_pair;
+
+    // A one-tick meter fails the first function it meters.
+    let node_limits: VerifierSigningConfig = serde_yaml::from_str(concat!(
+        "max-per-fun-meter-units: 1\n",
+        "max-per-mod-meter-units: 1\n",
+        "max-per-pkg-meter-units: 1\n",
+    ))
+    .unwrap();
+    let fullnode_key_pair = get_authority_key_pair().1;
+    let fullnode = TestAuthorityBuilder::new()
+        .with_keypair(&fullnode_key_pair)
+        .with_verifier_signing_config(node_limits)
+        .build()
+        .await;
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("src/unit_tests/data/object_basics");
+    let modules = BuildConfig::new_for_testing()
+        .build(&path)
+        .unwrap()
+        .get_package_bytes(false);
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.publish_immutable(modules, BuiltInFramework::all_package_ids());
+    // Gas is left unset for the simulation to fill in, the way the RPC layer
+    // leaves it.
+    let transaction =
+        Transaction::new_programmable(Address::random(), vec![], builder.finish(), 0, 0);
+
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        let Err(error) = fullnode.simulate_transaction(transaction.clone(), checks) else {
+            panic!("{checks:?} should reject the package under the node's signing limits");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::PackageVerificationTimedout { .. }
+                }
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
+
+/// The epoch boundary expires the historic-object buckets outside the
+/// retention, which counts the epochs kept beyond the current one.
+#[tokio::test]
+async fn reconfiguration_expires_buckets_beyond_the_retention() {
+    use iota_types::storage::ObjectKey;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain(1)
+        .build()
+        .await;
+    let historic = authority.get_historic_objects();
+
+    let relocated: Vec<ObjectKey> = (0..=3)
+        .map(|epoch| {
+            let object = Object::immutable_with_id_for_testing(ObjectId::random());
+            let key = ObjectKey(object.id(), object.version());
+            let bucket = historic.ensure(epoch).unwrap();
+            let objects = &authority.database_for_testing().perpetual_tables.objects;
+            let mut batch = objects.batch();
+            batch
+                .insert_batch_tagged(&bucket.objects, [(key, object)])
+                .unwrap();
+            batch.write().unwrap();
+            key
+        })
+        .collect();
+
+    // Retaining one epoch beyond epoch 3 keeps the buckets of 3 and 2.
+    authority.advance_historic_buckets(3).await.unwrap();
+    assert_eq!(historic.earliest_bucket_epoch(), Some(2));
+    assert_eq!(historic.get(&relocated[0]).unwrap(), None);
+    assert_eq!(historic.get(&relocated[1]).unwrap(), None);
+    assert!(historic.get(&relocated[2]).unwrap().is_some());
+    assert!(historic.get(&relocated[3]).unwrap().is_some());
+}
+
+/// A bucket from the epoch of a checkpoint an object retention guard holds on
+/// survives the epoch boundary that would expire it, so a response still
+/// reading the versions a transaction superseded finds them; the next boundary
+/// after the guard is dropped expires it.
+#[tokio::test]
+async fn reconfiguration_keeps_the_buckets_a_retention_guard_reads() {
+    use iota_types::storage::ObjectKey;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain(0)
+        .build()
+        .await;
+    let historic = authority.get_historic_objects();
+    let relocated: Vec<ObjectKey> = (0..=2)
+        .map(|epoch| {
+            let object = Object::immutable_with_id_for_testing(ObjectId::random());
+            let key = ObjectKey(object.id(), object.version());
+            let bucket = historic.ensure(epoch).unwrap();
+            let objects = &authority.database_for_testing().perpetual_tables.objects;
+            let mut batch = objects.batch();
+            batch
+                .insert_batch_tagged(&bucket.objects, [(key, object)])
+                .unwrap();
+            batch.write().unwrap();
+            key
+        })
+        .collect();
+
+    // A request arrives once checkpoint 5, of epoch 1, is executed.
+    let retained = crate::test_utils::executed_checkpoint(1, 5);
+    authority
+        .checkpoint_store
+        .insert_certified_checkpoint(&retained)
+        .unwrap();
+    authority.record_executed_for_object_retention(retained.sequence_number());
+    let guard = authority.retain_objects();
+
+    // A retention of 0 would keep only epoch 2's bucket.
+    authority.advance_historic_buckets(2).await.unwrap();
+    assert_eq!(historic.get(&relocated[0]).unwrap(), None);
+    assert!(historic.get(&relocated[1]).unwrap().is_some());
+    assert!(historic.get(&relocated[2]).unwrap().is_some());
+
+    drop(guard);
+    authority.advance_historic_buckets(3).await.unwrap();
+    assert_eq!(historic.get(&relocated[1]).unwrap(), None);
+    assert_eq!(historic.get(&relocated[2]).unwrap(), None);
+}
+
+/// The background expiry runs for each epoch announced to it, and again once
+/// a retention guard that kept a bucket is dropped, without waiting for the
+/// next epoch.
+#[tokio::test]
+async fn the_background_expiry_drops_a_kept_bucket_once_its_guard_is_dropped() {
+    use iota_types::storage::ObjectKey;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain(0)
+        .build()
+        .await;
+    let historic = authority.get_historic_objects();
+    let relocated: Vec<ObjectKey> = (0..=2)
+        .map(|epoch| {
+            let object = Object::immutable_with_id_for_testing(ObjectId::random());
+            let key = ObjectKey(object.id(), object.version());
+            let bucket = historic.ensure(epoch).unwrap();
+            let objects = &authority.database_for_testing().perpetual_tables.objects;
+            let mut batch = objects.batch();
+            batch
+                .insert_batch_tagged(&bucket.objects, [(key, object)])
+                .unwrap();
+            batch.write().unwrap();
+            key
+        })
+        .collect();
+
+    let retained = crate::test_utils::executed_checkpoint(1, 5);
+    authority
+        .checkpoint_store
+        .insert_certified_checkpoint(&retained)
+        .unwrap();
+    authority.record_executed_for_object_retention(retained.sequence_number());
+    let guard = authority.retain_objects();
+
+    let gone = |key: ObjectKey| async move {
+        for _ in 0..200 {
+            if historic.get(&key).unwrap().is_none() {
+                return true;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        false
+    };
+
+    authority.historic_bucket_expiry.send_replace(2);
+    assert!(gone(relocated[0]).await, "epoch 0's bucket must expire");
+    assert!(historic.get(&relocated[1]).unwrap().is_some());
+
+    drop(guard);
+    assert!(
+        gone(relocated[1]).await,
+        "epoch 1's bucket must expire once its guard is dropped"
+    );
+    assert!(historic.get(&relocated[2]).unwrap().is_some());
+}
+
+/// A retention of `u64::MAX` turns object expiry off.
+#[tokio::test]
+async fn reconfiguration_retains_every_bucket_when_expiry_is_disabled() {
+    use iota_types::storage::ObjectKey;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain(u64::MAX)
+        .build()
+        .await;
+    let historic = authority.get_historic_objects();
+
+    let object = Object::immutable_with_id_for_testing(ObjectId::random());
+    let relocated = ObjectKey(object.id(), object.version());
+    let bucket = historic.ensure(0).unwrap();
+    let objects = &authority.database_for_testing().perpetual_tables.objects;
+    let mut batch = objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.objects, [(relocated, object)])
+        .unwrap();
+    batch.write().unwrap();
+
+    for epoch in 1..=3 {
+        authority.advance_historic_buckets(epoch).await.unwrap();
+    }
+    assert_eq!(historic.earliest_bucket_epoch(), Some(0));
+    assert!(historic.get(&relocated).unwrap().is_some());
+}
+
+/// The epoch boundary expires the ledger and checkpoint buckets outside the
+/// retention, counted back from the epoch just executed. A bucket state sync
+/// wrote for a later epoch is neither dropped nor counted.
+#[tokio::test]
+async fn reconfiguration_expires_ledger_buckets_beyond_the_retention() {
+    use iota_sdk_types::TransactionEffectsDigest;
+    use iota_types::messages_checkpoint::{FullCheckpointContents, VerifiedCheckpoint};
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    const SYNCED_AHEAD_EPOCH: EpochId = 5;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain_for_checkpoints(2)
+        .build()
+        .await;
+    let ledger = authority.get_historic_ledger();
+    let checkpoint_store = &authority.checkpoint_store;
+    let historic_checkpoints = &checkpoint_store.historic_checkpoints;
+
+    let epochs = [0, 1, 2, 3, SYNCED_AHEAD_EPOCH];
+    let seeded: Vec<(TransactionDigest, VerifiedCheckpoint)> = epochs
+        .iter()
+        .map(|&epoch| {
+            let digest = TransactionDigest::random();
+            let bucket = ledger.ensure(epoch).unwrap();
+            let mut batch = bucket.executed_effects.batch();
+            batch
+                .insert_batch_tagged(
+                    &bucket.executed_effects,
+                    [(digest, TransactionEffectsDigest::random())],
+                )
+                .unwrap()
+                .insert_batch_tagged(&bucket.tx_to_checkpoint, [(digest, epoch)])
+                .unwrap();
+            batch.write().unwrap();
+
+            let full_contents = FullCheckpointContents::random_for_testing();
+            let checkpoint = test_checkpoint_with_contents(epoch, epoch, &full_contents);
+            checkpoint_store
+                .insert_checkpoint_contents(&checkpoint, full_contents.checkpoint_contents())
+                .unwrap();
+            checkpoint_store
+                .insert_certified_checkpoint(&checkpoint)
+                .unwrap();
+            (digest, checkpoint)
+        })
+        .collect();
+
+    // Entering epoch 4 leaves epoch 3, and retaining two epochs from there
+    // keeps 2 and 3.
+    authority.advance_historic_buckets(4).await.unwrap();
+    assert_eq!(ledger.earliest_bucket_epoch(), Some(2));
+    assert_eq!(historic_checkpoints.earliest_bucket_epoch(), Some(2));
+
+    for (&epoch, (digest, checkpoint)) in epochs.iter().zip(&seeded) {
+        let retained = epoch >= 2;
+        assert_eq!(
+            ledger
+                .get_transaction_checkpoint(digest)
+                .unwrap()
+                .map(|(_, sequence)| sequence),
+            retained.then_some(epoch),
+            "epoch {epoch}'s transaction history",
+        );
+        assert_eq!(
+            checkpoint_store
+                .get_checkpoint_by_digest(checkpoint.digest())
+                .unwrap()
+                .is_some(),
+            retained,
+            "epoch {epoch}'s checkpoint history",
+        );
+        assert_eq!(
+            checkpoint_store
+                .get_checkpoint_contents(&checkpoint.contents_digest)
+                .unwrap()
+                .is_some(),
+            retained,
+            "epoch {epoch}'s checkpoint contents",
+        );
+    }
+}
+
+/// The index history retains exactly the configured number of epochs,
+/// counting the epoch being entered.
+#[tokio::test]
+async fn the_index_history_retains_exactly_the_configured_epochs() {
+    const EPOCHS_TO_RETAIN: u64 = 2;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain_for_indexes(EPOCHS_TO_RETAIN)
+        .build()
+        .await;
+    let indexes = authority.rpc_indexes_store.clone().unwrap();
+
+    for epoch in 0..=3 {
+        indexes.ensure_history_bucket_exists(epoch).unwrap();
+    }
+    assert_eq!(indexes.retained_history_epochs(), vec![0, 1, 2, 3]);
+
+    authority.advance_historic_buckets(4).await.unwrap();
+
+    assert_eq!(indexes.retained_history_epochs(), vec![2, 3, 4]);
+    // A dropped epoch's bucket cannot be reopened.
+    assert!(indexes.ensure_history_bucket_exists(1).is_err());
+    assert!(indexes.ensure_history_bucket_exists(2).is_ok());
+}
+
+/// Expiring the checkpoint buckets moves `HighestPruned` up to the last
+/// checkpoint of the newest expired epoch, and never back down.
+#[tokio::test]
+async fn expiring_the_checkpoint_buckets_moves_the_pruned_watermark() {
+    use iota_types::messages_checkpoint::FullCheckpointContents;
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain_for_checkpoints(2)
+        .build()
+        .await;
+    let checkpoint_store = &authority.checkpoint_store;
+
+    // Two checkpoints per epoch, so landing on the epoch's last one is checked.
+    for epoch in 0..=3 {
+        for sequence in [epoch * 2, epoch * 2 + 1] {
+            let full_contents = FullCheckpointContents::random_for_testing();
+            let checkpoint = test_checkpoint_with_contents(epoch, sequence, &full_contents);
+            checkpoint_store
+                .insert_checkpoint_contents(&checkpoint, full_contents.checkpoint_contents())
+                .unwrap();
+            checkpoint_store
+                .insert_certified_checkpoint(&checkpoint)
+                .unwrap();
+            if sequence == epoch * 2 + 1 {
+                checkpoint_store
+                    .insert_epoch_last_checkpoint(epoch, &checkpoint)
+                    .unwrap();
+            }
+        }
+    }
+    assert_eq!(
+        checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()
+            .unwrap(),
+        None,
+    );
+
+    // Keeps epochs 2 and 3, so up to epoch 1's last checkpoint is gone.
+    authority.advance_historic_buckets(4).await.unwrap();
+    assert_eq!(
+        checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()
+            .unwrap(),
+        Some(3),
+    );
+
+    // A higher watermark, as a formal-snapshot restore leaves, stays.
+    let restored = checkpoint_store
+        .get_checkpoint_by_sequence_number(5)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_pruned_checkpoint(&restored)
+        .unwrap();
+    authority.advance_historic_buckets(4).await.unwrap();
+    assert_eq!(
+        checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()
+            .unwrap(),
+        Some(5),
+    );
+}
+
+/// `HighestPruned` follows the ledger history when it has dropped more epochs
+/// than the checkpoint history, since a checkpoint without its transactions
+/// cannot be served either.
+#[tokio::test]
+async fn the_pruned_watermark_follows_the_higher_of_the_ledger_and_checkpoint_floors() {
+    use iota_types::messages_checkpoint::FullCheckpointContents;
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain_for_checkpoints(2)
+        .build()
+        .await;
+    let checkpoint_store = &authority.checkpoint_store;
+    for epoch in 0..=3 {
+        let full_contents = FullCheckpointContents::random_for_testing();
+        let checkpoint = test_checkpoint_with_contents(epoch, epoch, &full_contents);
+        checkpoint_store
+            .insert_checkpoint_contents(&checkpoint, full_contents.checkpoint_contents())
+            .unwrap();
+        checkpoint_store
+            .insert_certified_checkpoint(&checkpoint)
+            .unwrap();
+        checkpoint_store
+            .insert_epoch_last_checkpoint(epoch, &checkpoint)
+            .unwrap();
+        authority.get_historic_ledger().ensure(epoch).unwrap();
+    }
+
+    // The ledger history already dropped everything below epoch 4, as an
+    // expiry whose checkpoint half failed leaves it.
+    authority.get_historic_ledger().prune(4, 0, &|| {}).unwrap();
+    authority.advance_historic_buckets(4).await.unwrap();
+
+    assert_eq!(
+        checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()
+            .unwrap(),
+        Some(3),
+    );
+}
+
+/// A restart does not write the genesis checkpoint again when only the flat
+/// table holds it, which would drag the synced watermark back to zero.
+#[tokio::test]
+async fn a_restart_leaves_the_genesis_checkpoint_alone_when_only_a_flat_row_holds_it() {
+    use iota_types::messages_checkpoint::FullCheckpointContents;
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    let authority = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .build()
+        .await;
+    let checkpoint_store = &authority.checkpoint_store;
+    let genesis = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    let genesis_contents = checkpoint_store
+        .get_checkpoint_contents(&genesis.contents_digest)
+        .unwrap()
+        .unwrap();
+
+    // Move epoch 0's checkpoint out of its bucket into the flat tables.
+    let bucket = checkpoint_store.historic_checkpoints.ensure(0).unwrap();
+    let mut batch = checkpoint_store.tables.checkpoint_by_digest.batch();
+    batch
+        .delete_batch_tagged(&bucket.checkpoint_by_digest, [*genesis.digest()])
+        .unwrap();
+    batch
+        .delete_batch_tagged(&bucket.checkpoint_content, [genesis.contents_digest])
+        .unwrap();
+    batch
+        .insert_batch(
+            &checkpoint_store.tables.checkpoint_by_digest,
+            [(genesis.digest(), genesis.serializable_ref())],
+        )
+        .unwrap();
+    batch
+        .insert_batch(
+            &checkpoint_store.tables.checkpoint_content,
+            [(&genesis.contents_digest, &genesis_contents)],
+        )
+        .unwrap();
+    batch.write().unwrap();
+    assert!(
+        checkpoint_store
+            .get_checkpoint_by_digest(genesis.digest())
+            .unwrap()
+            .is_none(),
+        "the flat row must be the only one for this to model an unmigrated database",
+    );
+
+    // A later checkpoint the node has synced, so that a reset of the synced
+    // watermark to genesis is observable.
+    let full_contents = FullCheckpointContents::random_for_testing();
+    let synced = test_checkpoint_with_contents(1, 9, &full_contents);
+    checkpoint_store
+        .insert_certified_checkpoint(&synced)
+        .unwrap();
+    checkpoint_store
+        .set_highest_synced_checkpoint_subtle(&synced)
+        .unwrap();
+
+    checkpoint_store.insert_genesis_checkpoint(
+        genesis,
+        genesis_contents,
+        &authority.epoch_store_for_testing(),
+    );
+    assert_eq!(
+        checkpoint_store
+            .get_highest_synced_checkpoint_seq_number()
+            .unwrap(),
+        Some(9),
+    );
+}
+
+/// A restart does not write the genesis checkpoint again once epoch 0's
+/// checkpoint bucket has expired.
+#[tokio::test]
+async fn a_restart_leaves_the_genesis_checkpoint_alone_once_its_epoch_expired() {
+    use iota_types::messages_checkpoint::FullCheckpointContents;
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    let authority = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .with_num_epochs_to_retain_for_checkpoints(2)
+        .build()
+        .await;
+    let checkpoint_store = &authority.checkpoint_store;
+    let genesis = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    let genesis_contents = checkpoint_store
+        .get_checkpoint_contents(&genesis.contents_digest)
+        .unwrap()
+        .unwrap();
+
+    // A later checkpoint the node has synced, so that a reset of the synced
+    // watermark to genesis is observable.
+    let full_contents = FullCheckpointContents::random_for_testing();
+    let synced = test_checkpoint_with_contents(1, 9, &full_contents);
+    checkpoint_store
+        .insert_certified_checkpoint(&synced)
+        .unwrap();
+    checkpoint_store
+        .set_highest_synced_checkpoint_subtle(&synced)
+        .unwrap();
+
+    for epoch in 1..=3 {
+        authority.advance_historic_buckets(epoch).await.unwrap();
+    }
+    assert!(
+        checkpoint_store
+            .get_checkpoint_by_digest(genesis.digest())
+            .unwrap()
+            .is_none(),
+        "epoch 0's bucket must have been expired for this to model a restart",
+    );
+
+    checkpoint_store.insert_genesis_checkpoint(
+        genesis,
+        genesis_contents,
+        &authority.epoch_store_for_testing(),
+    );
+    assert_eq!(
+        checkpoint_store
+            .get_highest_synced_checkpoint_seq_number()
+            .unwrap(),
+        Some(9),
+    );
+}
+
+/// The gRPC read store advertises object availability from the oldest bucket
+/// it holds, and claims nothing below the executed watermark when that
+/// bucket's epoch has no recorded start.
+#[tokio::test]
+async fn object_availability_follows_the_oldest_bucket_held() {
+    use iota_node_storage::GrpcStateReader;
+
+    // No genesis execution, so no bucket is written for epoch 0.
+    let authority = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .disable_execute_genesis_transactions()
+        .build()
+        .await;
+    let checkpoint_store = &authority.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&genesis_checkpoint)
+        .unwrap();
+
+    let grpc_read_store = GrpcReadStore::new(
+        authority.clone(),
+        RocksDbStore::new(
+            authority.execution_cache_trait_pointers.clone(),
+            authority.committee_store().clone(),
+            checkpoint_store.clone(),
+        ),
+    );
+
+    let historic = authority.get_historic_objects();
+    assert_eq!(
+        historic.earliest_bucket_epoch(),
+        None,
+        "the fixture must start with no bucket for this to model a restore"
+    );
+
+    assert_eq!(
+        grpc_read_store
+            .get_lowest_available_checkpoint_objects()
+            .unwrap(),
+        1
+    );
+
+    // Nothing records where epoch 7 started.
+    historic.ensure(7).unwrap();
+    assert_eq!(
+        grpc_read_store
+            .get_lowest_available_checkpoint_objects()
+            .unwrap(),
+        1
+    );
+
+    // Epoch 0 needs no recorded start.
+    historic.ensure(0).unwrap();
+    assert_eq!(
+        grpc_read_store
+            .get_lowest_available_checkpoint_objects()
+            .unwrap(),
+        0
+    );
+}
+
+/// A bucket that cannot be expired does not fail the reconfiguration; its
+/// durable expiring marker keeps its versions unreadable and the next open
+/// finishes the expiry.
+#[tokio::test]
+async fn a_failed_expiry_does_not_fail_reconfiguration() {
+    use typed_store::Map;
+
+    use crate::authority::historic_objects::HistoricObjects;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain(1)
+        .build()
+        .await;
+    let historic = authority.get_historic_objects();
+    let oldest = historic.ensure(0).unwrap();
+    for epoch in 1..=3 {
+        historic.ensure(epoch).unwrap();
+    }
+
+    let store = authority.database_for_testing();
+    HistoricObjects::corrupt_recorded_tombstones_for_testing(&store.perpetual_tables.objects.db, 0)
+        .unwrap();
+
+    authority
+        .advance_historic_buckets(3)
+        .await
+        .expect("a failed expiry must not fail the epoch boundary");
+
+    // The expiry did run and fail.
+    assert!(oldest.expiring.get(&()).unwrap().is_some());
+}
+
+/// The background compaction compacts a closed epoch's checkpoint bucket that
+/// holds several sorted runs, and does nothing once the work is stopped.
+#[tokio::test]
+async fn closed_bucket_compaction_compacts_until_stopped() {
+    use iota_types::messages_checkpoint::FullCheckpointContents;
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    let authority = TestAuthorityBuilder::new().build().await;
+    let checkpoint_store = authority.checkpoint_store.clone();
+    let flat = &checkpoint_store.tables.checkpoint_by_digest;
+    for sequence in [3, 4] {
+        let contents = FullCheckpointContents::random_for_testing();
+        let checkpoint = test_checkpoint_with_contents(1, sequence, &contents);
+        checkpoint_store
+            .insert_checkpoint_contents(&checkpoint, contents.checkpoint_contents())
+            .unwrap();
+        flat.flush_all().unwrap();
+    }
+    let cf_name = crate::epoch_buckets::bucket_cf_name("hist_ckpt_e", 1);
+    assert_eq!(flat.db.sorted_runs(&cf_name).unwrap(), 2);
+
+    let (_sender, mut epochs) = tokio::sync::watch::channel(2);
+    epochs.borrow_and_update();
+    let compact = |stopped: bool| {
+        AuthorityState::compact_closed_buckets(
+            2,
+            authority.historic_objects.clone(),
+            authority.historic_ledger.clone(),
+            checkpoint_store.clone(),
+            authority.rpc_indexes_store.clone(),
+            epochs.clone(),
+            Arc::new(std::sync::atomic::AtomicBool::new(stopped)),
+        )
+    };
+
+    compact(true).await;
+    assert_eq!(
+        flat.db.sorted_runs(&cf_name).unwrap(),
+        2,
+        "stopped work compacts nothing"
+    );
+    compact(false).await;
+    assert_eq!(flat.db.sorted_runs(&cf_name).unwrap(), 1);
 }

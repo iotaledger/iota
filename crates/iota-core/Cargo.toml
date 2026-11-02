@@ -16,7 +16,6 @@ anyhow = { workspace = true, features = ["backtrace"] }
 arc-swap.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
-bincode.workspace = true
 bytes.workspace = true
 dashmap.workspace = true
 diffy = "0.3"
@@ -104,6 +103,7 @@ fs_extra.workspace = true
 more-asserts = "0.3.1"
 num-bigint = "0.4.4"
 pretty_assertions.workspace = true
+proptest.workspace = true
 rstest.workspace = true
 serde-reflection.workspace = true
 serde_yaml.workspace = true

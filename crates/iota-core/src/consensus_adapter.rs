@@ -1140,7 +1140,7 @@ impl ConsensusAdapter {
                     }
                     _ = async move {
                         if let Some(d) = dropped_digest {
-                            let _err = epoch_store.notify_read_dropped_digests(d).await;
+                            let _err = epoch_store.notify_read_any_drop(d).await;
                         } else {
                             future::pending::<()>().await;
                         }

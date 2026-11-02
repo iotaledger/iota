@@ -83,6 +83,7 @@ impl HistoricalFallbackReader {
         package_resolver: PackageResolver,
         fallback_kv_multi_fetch_batch_size: usize,
         fallback_kv_concurrent_fetches: usize,
+        fallback_kv_max_response_size_bytes: usize,
         registry: &Registry,
     ) -> IndexerResult<Self> {
         let client = HttpRestKVClient::new(
@@ -90,6 +91,7 @@ impl HistoricalFallbackReader {
             cache_size,
             fallback_kv_multi_fetch_batch_size,
             fallback_kv_concurrent_fetches,
+            fallback_kv_max_response_size_bytes,
             HistoricalFallbackClientMetrics::new(registry),
         )?;
 

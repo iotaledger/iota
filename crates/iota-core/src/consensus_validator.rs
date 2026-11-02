@@ -99,7 +99,7 @@ impl IotaTxValidator {
                     });
                 }
 
-                ConsensusTransactionKind::UserTransactionV1(transaction) => {
+                ConsensusTransactionKind::UserTransactionV1(attested_tx) => {
                     if !self.epoch_store.protocol_config().enable_pcool_flow() {
                         return Err(IotaError::UnsupportedFeature {
                             error: "UserTransactionV1 not supported at current protocol version"
@@ -111,7 +111,7 @@ impl IotaTxValidator {
                     //  similar to how certificates are batch-verified above.
                     self.epoch_store
                         .signature_verifier
-                        .verify_tx(transaction.data())
+                        .verify_tx(attested_tx.transaction.data())
                         .tap_err(|e| {
                             warn!("UserTransactionV1 signature verification failed: {}", e)
                         })?;
@@ -142,7 +142,7 @@ impl IotaTxValidator {
                 // bounded by `max_transaction_size_bytes` (256 KiB), enforced
                 // on every received block by starfish's block verifier.
                 ConsensusTransactionKind::TransactionDenyRuleProposal(_) => {
-                    if !self.epoch_store.protocol_config().deny_rule_governance() {
+                    if !self.epoch_store.protocol_config().enable_pcool_flow() {
                         return Err(IotaError::UnsupportedFeature {
                             error: "TransactionDenyRuleProposal not supported at current protocol version"
                                 .into(),
@@ -268,6 +268,7 @@ mod tests {
     use iota_protocol_config::Chain;
     use iota_sdk_types::{ObjectId, UserSignature};
     use iota_types::{
+        attestation::AttestedTransaction,
         error::IotaError,
         messages_consensus::{
             ConsensusTransaction, ConsensusTransactionKind, MisbehaviorObservationsV1,
@@ -454,7 +455,9 @@ mod tests {
             ),
             (
                 "UserTransactionV1",
-                ConsensusTransactionKind::UserTransactionV1(Box::new(signed_tx)),
+                ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                    signed_tx, None,
+                ))),
             ),
             (
                 "OverloadNotificationV1",

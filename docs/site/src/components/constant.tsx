@@ -6,7 +6,6 @@ export const Networks: Record<string, NetworkProps> = {
       json: {
         official: {
           core: 'https://api.mainnet.iota.cafe',
-          websocket: 'wss://api.mainnet.iota.cafe',
           indexer: 'https://indexer.mainnet.iota.cafe',
         },
         thirdParty: [
@@ -57,7 +56,6 @@ export const Networks: Record<string, NetworkProps> = {
       json: {
         official: {
           core: 'https://api.testnet.iota.cafe',
-          websocket: 'wss://api.testnet.iota.cafe',
           indexer: 'https://indexer.testnet.iota.cafe',
         },
         thirdParty: [
@@ -108,7 +106,6 @@ export const Networks: Record<string, NetworkProps> = {
       json: {
         official: {
           core: 'https://api.devnet.iota.cafe',
-          websocket: 'wss://api.devnet.iota.cafe',
           indexer: 'https://indexer.devnet.iota.cafe',
         },
       },
@@ -128,7 +125,6 @@ export const Networks: Record<string, NetworkProps> = {
       json: {
         official: {
           core: 'http://127.0.0.1:9000',
-          websocket: 'ws://127.0.0.1:9000',
           indexer: 'http://127.0.0.1:9124',
         },
       },
@@ -191,6 +187,5 @@ export interface Rpc {
 export interface JsonRpcEndpoints {
   provider?: string;
   core?: string;
-  websocket?: string;
   indexer?: string;
 }

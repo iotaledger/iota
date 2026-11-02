@@ -117,10 +117,6 @@ name = "simulate_transaction"
 path = "examples/read_api/simulate_transaction.rs"
 
 [[example]]
-name = "transaction_subscription"
-path = "examples/read_api/transaction_subscription.rs"
-
-[[example]]
 name = "transactions_with_options"
 path = "examples/read_api/transactions_with_options.rs"
 

@@ -1,7 +1,9 @@
 
 Sustainable disk usage requires IOTA full nodes to prune the information about historic object versions as well as historic transactions with the corresponding effects and events, including old checkpoint data.
 
-Both transaction and object pruners run in the background. The logical deletion of entries from RocksDB ultimately triggers the physical compaction of data on disk, which is governed by RocksDB background jobs: the pruning effect on disk usage is not immediate and might take multiple days.
+All three kinds of pruning below run in the background right after each epoch boundary and once when the node starts, where an expired epoch's data is dropped as a whole set of RocksDB column families; the node keeps executing transactions meanwhile. A lowered retention therefore takes effect at the next start. Most of the disk space comes back with those files. What is left is a small amount of row-by-row deletion in the live object table, which RocksDB reclaims through background compaction, so the last part of the effect on disk usage is not immediate — see `periodic-compaction-threshold-days` below.
+
+Once the node has caught up with the network and no read holds back the expiry of historic objects, the same background task also compacts the data of each epoch that has ended, once, so a lookup in it reads a single sorted run of SST files instead of many level-0 files. An epoch is skipped while the disk has less free space than its data takes plus 10%. On the first start after the upgrade, once the node has caught up, this compacts every epoch the node holds, which takes disk I/O for a while on a node with a long history.
 
 :::tip
 
@@ -13,59 +15,102 @@ Testing indicates that aggressive pruning results in more efficient full node op
 
 ### Object Pruning
 
-IOTA adds new object versions to the database as part of transaction execution, which makes previous versions ready for garbage collection. Without pruning, this would result in database performance degradation and require large amounts of storage space. IOTA identifies the objects that are eligible for pruning in each checkpoint, and then performs the pruning in the background.
+IOTA adds new object versions to the database as part of transaction execution, which makes previous versions ready for garbage collection. Without pruning, this would result in database performance degradation and require large amounts of storage space. A superseded version is moved into its epoch's store as it is superseded, and the whole epoch is dropped once it falls outside the retention window.
 
 ### Transaction Pruning
 
-Transaction pruning removes previous transactions and their effects from the database. IOTA periodically creates checkpoints, and each checkpoint contains the transactions that occurred during the checkpoint and their associated effects. IOTA performs transaction pruning in the background after checkpoints complete.
+Transaction pruning removes previous transactions, their effects and events, and the corresponding checkpoint data from the database. Each is written into the store of the epoch that executed it, and the whole epoch is dropped once it falls outside the retention window.
 
 ### Index Pruning
 
-Index pruning advances a watermark in the secondary index stores (JSON-RPC and gRPC) so older entries are no longer served by index-backed queries (for example `iotax_getBalance()`, dynamic-field lookups, and event queries). Without it, the index tables grow with every transaction. Index pruning is only relevant for nodes that have indexing enabled (`enable-index-processing: true`).
+Index pruning drops the expired epochs of the `rpc_indexes` store, the single secondary index store both the JSON-RPC and the gRPC API read from, so older entries are no longer served by the history queries (`iotax_queryTransactionBlocks()` and `iotax_queryEvents()`). Balances, coins, owned objects and dynamic fields are read from tables of the live state, which index pruning does not touch. Without it, the index adds a set of tables per epoch and grows without bound. Index pruning is relevant for every node that maintains the store, which is any node serving the JSON-RPC API (`enable-jsonrpc-api: true`, the default) or the gRPC API (`enable-grpc-api: true`).
+
+On the first start after the upgrade to the per-epoch storage, a full node rebuilds its RPC index: the live state up front, the history in the background from the transactions the node still holds. Index history older than the node's checkpoint retention is not brought back, so `iotax_queryTransactionBlocks()` and `iotax_queryEvents()` reach no further back than that retention afterwards. Raising the retention before the upgrade does not help with transactions the node has already pruned; history queries older than that are for an indexer to answer.
+
+Back up the database before the first start after the upgrade. That start changes the database layout for good, and no older release must be started on the database afterwards: going back means restoring the backup or a snapshot.
+
+Before it changes anything an older release reads, the first start also refuses to start when `num-epochs-to-retain-for-checkpoints` is not set and the node holds transactions older than its default of 30 epochs keeps, since that start would delete them. Set it to `18446744073709551615` to keep them all, or to the number of epochs to keep. A start refused for this reason, or for too little disk space as described below, changes nothing an older release reads, so the older release can still be started on the database.
+
+The first start after the upgrade also needs free disk space for a second copy of what it keeps:
+- **Transactions and checkpoints:** the one-time migration copies the transactions, effects, events and checkpoints of the retained epochs into the per-epoch layout, and frees the old tables only once it is done. The node checks for this space before it starts the migration, and refuses to start with a message naming the space it needs if the disk is too small. The copy goes to `<db-path>/historic`.
+- **Object versions on a node that never pruned them:** a node that ran with `num-epochs-to-retain: 18446744073709551615` copies every superseded object version once.
+
+The old tables' space comes back through later compaction, not at once.
+
+If the one-time move of superseded object versions fails on a database row it cannot read, and does so on every start, `iota-tool db-tool --db-path <db-path>/live mark-object-backlog-swept`, run while the node is stopped, lets the node start without it. The versions it had not moved then stay in the live object table.
+
+The index window may be shorter than the checkpoint window, and the only thing that costs is query reach: `iotax_queryTransactionBlocks()` and other query-style endpoints stop returning entries older than the index window, while every transaction the checkpoint window still retains remains fetchable by digest on both APIs and still reports the checkpoint that confirmed it — that answer is read from the ledger, not from the index.
 
 ## Pruning Parameters
 
-Object pruning, transaction pruning, and index pruning are independent background tasks. Each task is gated by its own parameter, so you can enable or disable them individually:
+Object pruning and transaction pruning are independent of one another, and each is gated by its own parameter. Index pruning is not independent: the index holds pointers into the transaction history, so it follows transaction pruning unless you give it a shorter window of its own.
 
-| Pruning task          | Controlling parameter                  | Enabled when                      |
-| --------------------- | -------------------------------------- | --------------------------------- |
-| Object pruning        | `num-epochs-to-retain`                 | value is not `u64::MAX`           |
-| Transaction pruning   | `num-epochs-to-retain-for-checkpoints` | set to a value `>= 2`             |
-| Index pruning         | `num-epochs-to-retain-for-indexes`     | set                               |
+| Pruning task          | Controlling parameter                  | Enabled when                                        |
+| --------------------- | -------------------------------------- | --------------------------------------------------- |
+| Object pruning        | `num-epochs-to-retain`                 | value is not `u64::MAX`                             |
+| Transaction pruning   | `num-epochs-to-retain-for-checkpoints` | value is not `u64::MAX`                             |
+| Index pruning         | `num-epochs-to-retain-for-indexes`     | value is not `u64::MAX`, or transaction pruning is on when unset |
 
 All pruning parameters are configured in `fullnode.yaml`. The following annotated block shows every parameter with its default value — copy it into your config and adjust as needed:
 
 ```yaml
-# Enable indexing of additional data (ownership, balances, events).
-# Required for JSON-RPC and gRPC index queries. Default: true.
-# Set to false for validators or nodes that do not serve RPC requests.
-enable-index-processing: true
+# Enable the JSON-RPC API, including the index it relies on for queries
+# like ownership, balances, and events. Default: true.
+# Set to false for validators or nodes that do not serve JSON-RPC requests.
+# The gRPC API maintains the same index under its own flag (enable-grpc-api,
+# default: false), so a node with either of the two prunes its indexes.
+enable-jsonrpc-api: true
 
 authority-store-pruning-config:
-  # Number of epochs to keep historic object versions. Controls object pruning.
-  #   0        — aggressive pruning (default). Prunes old versions as soon as
-  #              possible. Lowest disk usage. Recommended for validators and full
-  #              nodes that do not serve historic object queries.
-  #   N (>= 1) — retains object versions from the last N epochs. Use this when
-  #              the node must serve lookups by object ID + version.
+  # Number of historic epochs of superseded object versions to keep, on top
+  # of the epoch the node is in. Controls object pruning.
+  #   0        — aggressive pruning (default). Keeps the versions superseded
+  #              during the epoch the node is in, and drops them at the next
+  #              epoch boundary. Lowest disk usage. Recommended for validators
+  #              and full nodes that do not serve historic object queries.
+  #   N (>= 1) — keeps the epoch the node is in plus the N epochs before it.
+  #              Use this when the node must serve lookups by object ID +
+  #              version.
   #   u64::MAX — disables object pruning entirely (18446744073709551615).
+  # Independent of num-epochs-to-retain-for-checkpoints below: historic object
+  # versions are retained per epoch and dropped a whole epoch at a time, so
+  # object pruning never reads a checkpoint's contents.
   num-epochs-to-retain: 0
 
-  # Number of epochs to keep historic transactions, effects, events, and
-  # checkpoint data. Controls transaction pruning.
-  #   unset / 0 / u64::MAX — transaction pruning disabled (default).
-  #   N (>= 2)             — prunes data older than current − N epochs. The
-  #                          minimum effective value is 2; IOTA always keeps
-  #                          the current and immediately prior epoch.
-  # num-epochs-to-retain-for-checkpoints: 2
+  # Number of historic epochs of transactions, effects, events, and checkpoint
+  # data to keep, on top of the epoch the node is in. Controls transaction
+  # pruning. Counted the same way as num-epochs-to-retain above.
+  #   0        — refused at startup: peers still sync the previous epoch's
+  #              checkpoints right after an epoch boundary.
+  #   N        — keeps the epoch the node is in plus the N epochs before it,
+  #              so N + 1 epochs in total.
+  #   u64::MAX — disables transaction pruning entirely (18446744073709551615).
+  #   unset    — 30 (default), about a month at one-day epochs. The first
+  #              start after the upgrade to the per-epoch storage refuses to
+  #              start while unset if the node holds older transactions.
+  # num-epochs-to-retain-for-checkpoints: 30
 
-  # Number of epochs to retain entries in the secondary index tables (JSON-RPC
-  # and gRPC). Controls index pruning. Only relevant when indexing is enabled
-  # (enable-index-processing: true).
-  #   unset    — index pruning disabled (default).
-  #   N (>= 7) — prunes index entries older than N epochs. Values below 7 are
-  #             silently coerced to 7.
-  # num-epochs-to-retain-for-indexes: 7
+  # Number of historic epochs to retain in the rpc_indexes store, on top of
+  # the current one. The store serves both the JSON-RPC and the gRPC API.
+  # Controls index pruning. Relevant whenever the node maintains that store
+  # (enable-jsonrpc-api: true or enable-grpc-api: true).
+  #   0        — keeps the epoch the node is in only.
+  #   N        — keeps the epoch the node is in plus the N epochs before it.
+  #   u64::MAX — disables index pruning entirely (18446744073709551615).
+  #   unset    — follows num-epochs-to-retain-for-checkpoints (default).
+  # The epoch currently being executed is always retained, whatever this is
+  # set to: a client that submits a transaction needs to read it back — the
+  # transaction, its effects, and the index rows behind queries — seconds
+  # later. Only at an epoch boundary is dropping that data acceptable.
+  # May be shorter than num-epochs-to-retain-for-checkpoints above — the
+  # only cost is query reach, since every retained transaction stays
+  # fetchable by digest and still reports its checkpoint regardless of
+  # index retention. It must not exceed that value: a node that maintains
+  # the store refuses to start otherwise, since iotax_queryTransactionBlocks()
+  # would then return transactions the ledger has already pruned. This is why
+  # leaving it unset follows the transaction retention rather than turning
+  # index pruning off.
+  # num-epochs-to-retain-for-indexes: 2
 
   # Number of recent per-epoch RocksDB databases to keep. Default: 3.
   num-latest-epoch-dbs-to-retain: 3
@@ -76,9 +121,74 @@ authority-store-pruning-config:
   periodic-compaction-threshold-days: 1
 ```
 
-Pruning is driven by checkpoint execution: after each executed checkpoint the
-node prunes data that has aged past the retention window, pacing the work
-against on-chain checkpoint timestamps.
+All three run right after the epoch boundary and once at the node's start, where the node drops the epochs that have
+fallen outside each retention window, and all three count that window the same
+way: `N` historic epochs on top of the epoch the node is in, keeping `N + 1`
+epochs in total. `u64::MAX` turns a pruning task off. Leaving
+`num-epochs-to-retain-for-checkpoints` unset keeps `30` historic epochs, and
+leaving `num-epochs-to-retain-for-indexes` unset follows the transaction
+retention: the index is a set of pointers into the transaction history, so it
+follows that history's retention rather than outliving it.
+
+:::info
+
+From `2` up, `num-epochs-to-retain-for-checkpoints` keeps one epoch more than
+it did in earlier releases, where the same value kept `N` epochs in total, and
+values below `2` were raised to `2`. Transaction
+and checkpoint history therefore takes roughly 50% more disk at the commonly
+used value of `2` — size disks accordingly, or lower the value by one to keep
+the previous window.
+
+Two further changes in the same release: `0` is now refused at startup, where
+it used to be raised to `2` like `1`, and leaving
+`num-epochs-to-retain-for-indexes` unset now follows the transaction retention
+instead of turning index pruning off. A node that prunes transactions and left
+the index setting unset therefore starts pruning its index history, which had
+been growing without bound.
+
+:::
+
+:::warning
+
+Leaving `num-epochs-to-retain-for-checkpoints` unset used to keep the whole
+transaction and checkpoint history. It now keeps `30` historic epochs. A node
+that relied on the old default no longer carries the older epochs over in the
+one-time migration at its first start on this release, and drops them for good.
+To keep the whole history, set the value to `18446744073709551615` before
+upgrading.
+
+:::
+
+:::info
+
+Even at `num-epochs-to-retain: 0`, the versions superseded during the epoch the
+node is in stay on disk until the next epoch boundary, where earlier releases
+deleted them within a few checkpoints. Disk usage therefore climbs over the
+course of an epoch and falls back at the boundary. Size disks for one epoch of
+superseded versions on top of the live state: the size of the newest
+`<db-path>/live/historic/epoch_<N>/objects` directory just before an epoch
+boundary shows how much that is on your network.
+
+:::
+
+## Where the History Is Kept
+
+The retained epochs of all three kinds of history are kept in one directory
+inside the live database directory, `<db-path>/live/historic`, with a
+subdirectory per epoch:
+
+```text
+<db-path>/live/historic/
+  epoch_594/
+    objects/        superseded object versions
+    ledger/         transactions, effects and events
+    checkpoints/    checkpoint contents and summaries
+    indexes/        JSON-RPC and gRPC index history
+  epoch_595/
+    ...
+```
+
+An expired epoch's directory is removed together with its data.
 
 ## Configuration Examples
 
@@ -89,8 +199,8 @@ The following examples cover common operator use cases. Each example shows the k
 This configuration keeps disk usage to a minimum. A node with this setup cannot answer queries that require indexing or historic data. It is the recommended setup for IOTA validators and for full nodes that do not serve RPC requests.
 
 ```yaml
-# Do not generate or maintain indexing of IOTA data on the node
-enable-index-processing: false
+# Do not serve the JSON-RPC API, or maintain the index it depends on
+enable-jsonrpc-api: false
 
 authority-store-pruning-config:
   # Aggressively prune historic object versions
@@ -120,7 +230,7 @@ authority-store-pruning-config:
 
 This configuration manages the full object history while still pruning historic transactions. A full node with this configuration can answer all historic and indexing queries (using the transaction query fallback for transactional data), including the ones that require historic objects such as the `showBalanceChanges` filter of `iota_getTransactionBlock()`.
 
-The main caveat is that the current setup enables the **transaction pruner** to go ahead of the **object pruner**. The object pruner might not be able to properly clean up the objects modified by the transactions that have been already pruned. You should closely monitor the disk space growth on a full node with this configuration.
+The main caveat is disk usage: the full object history grows without bound. You should closely monitor the disk space growth on a full node with this configuration.
 
 ```yaml
 authority-store-pruning-config:

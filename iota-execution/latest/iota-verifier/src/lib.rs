@@ -41,6 +41,16 @@ pub fn check_for_verifier_timeout(major_status_code: &StatusCode) -> bool {
         StatusCode::BORROWLOC_EXISTS_BORROW_ERROR,
         StatusCode::COPYLOC_EXISTS_BORROW_ERROR,
         StatusCode::DEPRECATED_BYTECODE_FORMAT,
+        // Signing always applies the stricter vector borrow rule of
+        // `deprecate_global_storage_ops`. Without this, a module that rule
+        // rejects is published under the old rule before the flag is set, and
+        // fails to load once it is.
+        StatusCode::VEC_BORROW_ELEMENT_EXISTS_MUTABLE_BORROW_ERROR,
+        // Not `CALL_BORROWED_MUTABLE_REFERENCE_ERROR`: calls get the same check
+        // whether `deprecate_global_storage_ops` is set or not, so listing it
+        // would only move the rejection from execution to signing, and
+        // validators with and without that change would disagree in
+        // post-consensus validation.
     ]
     .contains(major_status_code)
 }

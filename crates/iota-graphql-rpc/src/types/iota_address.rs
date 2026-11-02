@@ -5,7 +5,7 @@
 use std::str::FromStr;
 
 use async_graphql::*;
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_types::{Address, AddressParseError, ObjectId};
 use move_core_types::account_address::AccountAddress;
 use serde::{Deserialize, Serialize};
 
@@ -15,22 +15,6 @@ const IOTA_ADDRESS_LENGTH: usize = 32;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Copy)]
 pub(crate) struct IotaAddress(pub(crate) [u8; IOTA_ADDRESS_LENGTH]);
-
-#[derive(thiserror::Error, Debug, Eq, PartialEq)]
-pub(crate) enum FromStrError {
-    #[error("Invalid IotaAddress. Missing 0x prefix.")]
-    NoPrefix,
-
-    #[error(
-        "Expected IotaAddress string with between 1 and {} digits ({} bytes), received {0}",
-        IOTA_ADDRESS_LENGTH * 2,
-        IOTA_ADDRESS_LENGTH,
-    )]
-    WrongLength(usize),
-
-    #[error("Invalid character {0:?} at position {1}")]
-    BadHex(char, usize),
-}
 
 #[derive(thiserror::Error, Debug, Eq, PartialEq)]
 pub(crate) enum FromVecError {
@@ -129,34 +113,10 @@ impl From<IotaAddress> for Address {
 }
 
 impl FromStr for IotaAddress {
-    type Err = FromStrError;
+    type Err = AddressParseError;
 
-    fn from_str(s: &str) -> Result<Self, FromStrError> {
-        let Some(s) = s.strip_prefix("0x") else {
-            return Err(FromStrError::NoPrefix);
-        };
-
-        if s.is_empty() || s.len() > IOTA_ADDRESS_LENGTH * 2 {
-            return Err(FromStrError::WrongLength(s.len()));
-        }
-
-        let mut arr = [0u8; IOTA_ADDRESS_LENGTH];
-        hex::decode_to_slice(
-            // Left pad with `0`-s up to IOTA_ADDRESS_LENGTH * 2 characters long.
-            format!("{:0>width$}", s, width = IOTA_ADDRESS_LENGTH * 2),
-            &mut arr[..],
-        )
-        .map_err(|e| match e {
-            hex::FromHexError::InvalidHexCharacter { c, index } => {
-                FromStrError::BadHex(c, index + 2)
-            }
-            hex::FromHexError::OddLength => unreachable!("SAFETY: Prevented by padding"),
-            hex::FromHexError::InvalidStringLength => {
-                unreachable!("SAFETY: Prevented by bounds check")
-            }
-        })?;
-
-        Ok(IotaAddress(arr))
+    fn from_str(s: &str) -> Result<Self, AddressParseError> {
+        Address::from_prefixed_short_hex(s).map(Self::from)
     }
 }
 
@@ -178,7 +138,7 @@ pub(crate) fn addr(bytes: impl AsRef<[u8]>) -> Result<IotaAddress, Error> {
 
 #[cfg(test)]
 mod tests {
-    use async_graphql::Value;
+    use async_graphql::{Pos, Value};
 
     use super::*;
 
@@ -222,34 +182,58 @@ mod tests {
     #[test]
     fn test_parse_no_prefix() {
         let err = IotaAddress::from_str(&STR_ADDRESS[2..]).unwrap_err();
-        assert_eq!(FromStrError::NoPrefix, err);
+        assert_eq!(AddressParseError::MissingPrefix, err);
     }
 
     #[test]
     fn test_parse_invalid_prefix() {
         let input = "1x".to_string() + &STR_ADDRESS[2..];
         let err = IotaAddress::from_str(&input).unwrap_err();
-        assert_eq!(FromStrError::NoPrefix, err)
+        assert_eq!(AddressParseError::MissingPrefix, err)
     }
 
     #[test]
     fn test_parse_invalid_length() {
         let input = STR_ADDRESS.to_string() + "0123";
         let err = IotaAddress::from_str(&input).unwrap_err();
-        assert_eq!(FromStrError::WrongLength(68), err)
+        assert_eq!(AddressParseError::HexTooLong { actual: 68 }, err)
     }
 
     #[test]
     fn test_parse_invalid_characters() {
         let input = "0xg".to_string() + &STR_ADDRESS[3..];
         let err = IotaAddress::from_str(&input).unwrap_err();
-        assert_eq!(FromStrError::BadHex('g', 2), err);
+        assert_eq!(
+            AddressParseError::InvalidHexCharacter { c: 'g', index: 0 },
+            err
+        );
     }
 
     #[test]
-    fn test_unicode_gibberish() {
-        let parsed = IotaAddress::from_str("aAௗ0㌀0");
-        assert!(parsed.is_err());
+    fn test_parse_empty_hex_is_zero_address() {
+        let parsed = IotaAddress::from_str("0x").unwrap();
+        assert_eq!(parsed, IotaAddress([0; IOTA_ADDRESS_LENGTH]));
+    }
+
+    #[test]
+    fn test_parse_multibyte_chars() {
+        for input in ["0x\u{e9}", "0x\u{20ac}", "0xab\u{e9}", "0xaAௗ0㌀0"] {
+            let err = IotaAddress::from_str(input).unwrap_err();
+            assert_eq!(AddressParseError::NonAsciiCharacter, err, "{input}");
+        }
+    }
+
+    #[test]
+    fn test_scalar_parse_multibyte_char() {
+        let err = <IotaAddress as ScalarType>::parse(Value::String("0x\u{e9}".to_string()))
+            .unwrap_err()
+            .into_server_error(Pos::default());
+        assert!(
+            err.message
+                .contains(&AddressParseError::NonAsciiCharacter.to_string()),
+            "{}",
+            err.message
+        );
     }
 
     #[test]

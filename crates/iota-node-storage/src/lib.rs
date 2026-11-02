@@ -8,10 +8,15 @@
 //! `iota-types` with queries that are only available on full nodes (e.g. epoch
 //! info, transaction-to-checkpoint mapping, type layout resolution).
 //!
+//! It also defines [`TransactionKeyValueStoreTrait`], for reading transactions,
+//! effects, events, checkpoints and objects from a key-value store.
+//!
 //! These traits live in a dedicated lightweight crate so that:
 //! - `iota-core` can implement them without depending on `iota-grpc-server`
 //! - `iota-grpc-server` can consume them without depending on `iota-core`
 //! - `simulacrum` and other test harnesses can implement them freely
+
+mod key_value_store;
 
 use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, TypeTag};
 use iota_types::{
@@ -20,9 +25,12 @@ use iota_types::{
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     storage::{
         CoinInfo, DynamicFieldIteratorItem, EpochInfoV2, ObjectStore, OwnedObjectCursor,
-        OwnedObjectIteratorItem, PackageVersionIteratorItem, ReadStore, TransactionInfo,
-        error::Result,
+        OwnedObjectIteratorItem, PackageVersionIteratorItem, ReadStore, error::Result,
     },
+};
+
+pub use crate::key_value_store::{
+    KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
 };
 
 /// Trait extending [`ReadStore`] with full-node-specific queries that may
@@ -44,6 +52,14 @@ pub trait GrpcStateReader: ObjectStore + ReadStore + Send + Sync {
 
     /// Get a handle to an instance of the gRPC indexes.
     fn grpc_indexes(&self) -> Option<&dyn GrpcIndexes>;
+
+    /// The checkpoint that confirmed `digest`, or `None` if the transaction
+    /// is not in a checkpoint this node has executed and indexed yet, or
+    /// this node no longer holds it.
+    fn get_transaction_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Result<Option<CheckpointSequenceNumber>>;
 
     fn get_type_layout(
         &self,
@@ -75,12 +91,9 @@ pub trait GrpcStateReader: ObjectStore + ReadStore + Send + Sync {
 
 /// GRPC-index-specific queries.
 ///
-/// Provides access to the on-disk indexes needed by the gRPC server:
-/// transaction-to-checkpoint mapping, owned objects, dynamic fields, coin
-/// info, and package versions.
+/// Provides access to the on-disk indexes needed by the gRPC server: owned
+/// objects, dynamic fields, coin info, and package versions.
 pub trait GrpcIndexes: Send + Sync {
-    fn get_transaction_info(&self, digest: &TransactionDigest) -> Result<Option<TransactionInfo>>;
-
     /// Iterate over objects owned by `owner`, optionally filtered by
     /// `object_type`.
     ///

@@ -23,6 +23,10 @@ pub trait ExecutionMode {
     /// Controls the calling of arbitrary Move functions
     fn allow_arbitrary_function_calls() -> bool;
 
+    /// Controls calling private and `public(package)` native functions
+    /// directly. Only checked when `allow_arbitrary_function_calls` is set.
+    fn allow_non_public_native_calls() -> bool;
+
     /// Controls the ability to instantiate any Move function parameter with a
     /// Pure call arg.  In other words, you can instantiate any struct or
     /// object or other value with its BCS byte
@@ -83,6 +87,10 @@ impl ExecutionMode for Normal {
     type ExecutionResults = ();
 
     fn allow_arbitrary_function_calls() -> bool {
+        false
+    }
+
+    fn allow_non_public_native_calls() -> bool {
         false
     }
 
@@ -229,6 +237,10 @@ impl ExecutionMode for Genesis {
         true
     }
 
+    fn allow_non_public_native_calls() -> bool {
+        true
+    }
+
     fn allow_arbitrary_values() -> bool {
         true
     }
@@ -299,6 +311,10 @@ impl ExecutionMode for System {
 
     fn allow_arbitrary_function_calls() -> bool {
         // allows bypassing visibility for system calls
+        true
+    }
+
+    fn allow_non_public_native_calls() -> bool {
         true
     }
 
@@ -373,6 +389,10 @@ impl ExecutionMode for Authentication {
         false
     }
 
+    fn allow_non_public_native_calls() -> bool {
+        false
+    }
+
     fn allow_arbitrary_values() -> bool {
         false
     }
@@ -442,6 +462,10 @@ impl<const SKIP_ALL_CHECKS: bool> ExecutionMode for DevInspect<SKIP_ALL_CHECKS> 
 
     fn allow_arbitrary_function_calls() -> bool {
         SKIP_ALL_CHECKS
+    }
+
+    fn allow_non_public_native_calls() -> bool {
+        false
     }
 
     fn allow_arbitrary_values() -> bool {

@@ -2,11 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{BTreeSet, HashSet},
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
@@ -665,8 +661,23 @@ async fn test_inactive_validator_pool_read() {
     })
 }
 
+/// A validator joins the committee, catches up and leaves it, without the
+/// P-COOL flow, as on Mainnet and Testnet.
 #[sim_test]
 async fn test_reconfig_with_committee_change_basic() {
+    let _pcool_guard = override_pcool_flow(false);
+    run_reconfig_with_committee_change_basic().await;
+}
+
+/// The committee change of `test_reconfig_with_committee_change_basic` with
+/// the P-COOL flow: the joining validator waits for its own checkpoints once in
+/// the committee, and executes synced checkpoints again after leaving it.
+#[sim_test]
+async fn test_reconfig_with_committee_change_basic_skipping_synced_checkpoint_execution() {
+    run_reconfig_with_committee_change_basic().await;
+}
+
+async fn run_reconfig_with_committee_change_basic() {
     // This test exercise the full flow of a validator joining the network, catch up
     // and then leave.
 
@@ -1434,18 +1445,21 @@ async fn execute_add_validator_transactions(
 
     let address = new_validator.account_key_pair.public_key().derive_address();
     let min_validator_joining_stake = test_cluster.protocol_config().min_validator_joining_stake();
-    let stake_coin = test_cluster
-        .wallet
-        .gas_for_owner_budget(address, min_validator_joining_stake, Default::default())
-        .await
-        .unwrap()
+    // Pick coins by balance, not page order, so the coins a later join needs
+    // to stake are neither staked early nor spent on gas.
+    let coins = test_cluster.wallet.gas_objects(address).await.unwrap();
+    let stake_coin = coins
+        .iter()
+        .filter(|(balance, _)| *balance >= min_validator_joining_stake)
+        .min_by_key(|(balance, _)| *balance)
+        .expect("the validator address must own a coin covering the joining stake")
         .1
         .object_ref();
-    let gas = test_cluster
-        .wallet
-        .gas_for_owner_budget(address, 0, BTreeSet::from([stake_coin.object_id]))
-        .await
-        .unwrap()
+    let gas = coins
+        .iter()
+        .filter(|(_, coin)| coin.object_id != stake_coin.object_id)
+        .max_by_key(|(balance, _)| *balance)
+        .expect("the validator address must own a coin to pay for gas")
         .1
         .object_ref();
 
@@ -1480,4 +1494,145 @@ async fn execute_add_validator_transactions(
             address
         );
     });
+}
+
+/// With `enable_pcool_flow`, a validator that is down while its
+/// epoch ends, and restarts with the end of
+/// that epoch more than `max_checkpoints_ahead_of_execution` checkpoints
+/// ahead, still reaches the network's epoch. Its own consensus can no longer
+/// build the rest of the epoch, so it needs the summary that ends the epoch
+/// to fall back to executing synced checkpoints.
+#[sim_test]
+async fn validator_far_behind_catches_up_across_epoch_end() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_num_validators(4)
+        .with_epoch_duration_ms(15_000)
+        .build()
+        .await;
+    let lagging = test_cluster.get_validator_pubkeys()[0];
+
+    test_cluster.stop_node(&lagging);
+    let target_epoch = test_cluster.wait_for_epoch(Some(2)).await.epoch();
+
+    test_cluster
+        .swarm
+        .node(&lagging)
+        .unwrap()
+        .config()
+        .p2p_config
+        .state_sync
+        .get_or_insert_with(Default::default)
+        .max_checkpoints_ahead_of_execution = std::num::NonZeroU64::new(2);
+    test_cluster.start_node(&lagging).await;
+
+    let handle = test_cluster
+        .swarm
+        .node(&lagging)
+        .unwrap()
+        .get_node_handle()
+        .unwrap();
+    test_cluster
+        .wait_for_epoch_on_node(&handle, Some(target_epoch), Duration::from_secs(120))
+        .await;
+}
+
+/// With `enable_pcool_flow`, a validator killed after it certified its epoch's
+/// last checkpoint and marked it synced, but before it executed it, recovers
+/// on restart and reaches the next epochs. The transactions of its unexecuted
+/// checkpoints exist only in memory, so it has to replay its consensus commits
+/// and rebuild those checkpoints.
+///
+/// The test kills whichever validator marks the first epoch's last checkpoint
+/// synced before any other. Peers report only checkpoints they have marked
+/// synced, so that validator must have built and certified it itself.
+#[cfg(msim)]
+#[sim_test]
+async fn validator_restarted_after_certifying_epoch_end_reaches_next_epoch() {
+    use std::sync::OnceLock;
+
+    use iota_macros::register_fail_point;
+
+    let test_cluster = TestClusterBuilder::new()
+        .with_num_validators(4)
+        .with_epoch_duration_ms(10_000)
+        .build()
+        .await;
+    // Each validator as its simulator node id, its name, and a weak reference
+    // to its state that does not keep its store alive.
+    let validators: Vec<_> = test_cluster
+        .get_validator_pubkeys()
+        .into_iter()
+        .map(|name| {
+            test_cluster
+                .swarm
+                .node(&name)
+                .unwrap()
+                .get_node_handle()
+                .unwrap()
+                .with(|node| {
+                    (
+                        iota_simulator::current_simnode_id(),
+                        name,
+                        Arc::downgrade(&node.state()),
+                    )
+                })
+        })
+        .collect();
+    // The validator killed, and whether it had built the checkpoint.
+    let killed: Arc<OnceLock<(AuthorityName, bool)>> = Default::default();
+    {
+        let killed = killed.clone();
+        register_fail_point("synced-end-of-epoch-checkpoint", move || {
+            if killed.get().is_some() {
+                return;
+            }
+            let sim_id = iota_simulator::current_simnode_id();
+            let Some((_, name, state)) = validators.iter().find(|(id, ..)| *id == sim_id) else {
+                return;
+            };
+            let built = state.upgrade().is_some_and(|state| {
+                let store = state.get_checkpoint_store();
+                store
+                    .get_epoch_last_checkpoint_seq_number(0)
+                    .unwrap()
+                    .is_some_and(|last| {
+                        store
+                            .get_locally_computed_checkpoint(last)
+                            .unwrap()
+                            .is_some()
+                    })
+            });
+            if killed.set((*name, built)).is_ok() {
+                iota_simulator::task::kill_current_node(None);
+            }
+        });
+    }
+    let (crashed, built) = tokio::time::timeout(Duration::from_secs(60), async {
+        loop {
+            if let Some(&killed) = killed.get() {
+                return killed;
+            }
+            sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("a validator should mark the first epoch's last checkpoint synced");
+    assert!(
+        built,
+        "the validator killed should have built the checkpoint"
+    );
+
+    // The simulator restarts a killed node on its own; stop and start it
+    // explicitly to get a handle to the new instance.
+    test_cluster.stop_node(&crashed);
+    test_cluster.start_node(&crashed).await;
+    let handle = test_cluster
+        .swarm
+        .node(&crashed)
+        .unwrap()
+        .get_node_handle()
+        .unwrap();
+    test_cluster
+        .wait_for_epoch_on_node(&handle, Some(2), Duration::from_secs(120))
+        .await;
 }

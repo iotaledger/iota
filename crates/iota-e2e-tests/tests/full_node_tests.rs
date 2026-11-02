@@ -38,7 +38,7 @@ use iota_types::{
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, QuorumDriverResponse,
     },
-    storage::ObjectStore,
+    storage::{ObjectKey, ObjectStore},
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         TransactionAPI,
@@ -50,7 +50,7 @@ use move_core_types::annotated_value::MoveStructLayout;
 use test_cluster::{TestClusterBuilder, override_pcool_flow};
 use tokio::{
     sync::RwLock,
-    time::{Duration, sleep},
+    time::{Duration, sleep, timeout},
 };
 use tracing::info;
 
@@ -73,8 +73,8 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
         .notify_read_executed_effects_for_testing("", &[digest])
         .await;
 
-    // A small delay is needed for post processing operations following the
-    // transaction to finish.
+    // A small delay is necessary until the checkpoint of the transaction is
+    // processed.
     sleep(Duration::from_secs(1)).await;
 
     // verify that the node has seen the transfer
@@ -124,7 +124,7 @@ async fn test_json_rpc_and_validator_listeners_are_measured() -> Result<(), anyh
 /// test is `cfg(msim)` because only the simulator has `IotaNode::gather_metrics`.
 #[cfg(msim)]
 #[sim_test]
-async fn test_grpc_api_responses_are_measured() -> Result<(), anyhow::Error> {
+async fn test_grpc_api_is_measured() -> Result<(), anyhow::Error> {
     use iota_grpc_types::v1::ledger_service::GetServiceInfoRequest;
 
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -145,6 +145,16 @@ async fn test_grpc_api_responses_are_measured() -> Result<(), anyhow::Error> {
         .map(|metric| metric.get_histogram().sample_count())
         .sum::<u64>();
     assert!(response_messages > 0, "no response message was measured");
+    let accepted_connections = families
+        .iter()
+        .filter(|family| family.name() == "node_grpc_inbound_connections_accepted")
+        .flat_map(|family| family.get_metric())
+        .map(|metric| metric.get_counter().value())
+        .sum::<f64>();
+    assert!(
+        accepted_connections > 0.0,
+        "no connection of the gRPC API was counted"
+    );
     assert!(
         families
             .iter()
@@ -437,7 +447,7 @@ async fn test_full_node_indexes() -> Result<(), anyhow::Error> {
         .await?;
     assert_eq!(txes.len(), 0);
 
-    // This is a poor substitute for the post processing taking some time
+    // This is a poor replacement for a wait until the checkpoint is processed.
     // Unfortunately event store writes seem to add some latency so this wait is
     // needed
     sleep(Duration::from_millis(1000)).await;
@@ -789,7 +799,7 @@ async fn test_full_node_event_read_api_ok() {
             || (txes[0] == transfer_digest && txes[1] == publish_digest)
     );
 
-    // This is a poor substitute for the post processing taking some time
+    // This is a poor replacement for a wait until the checkpoint is processed.
     sleep(Duration::from_millis(1000)).await;
 
     let (_sender, _object_id, digest2) = create_nft(context, package_id).await;
@@ -819,7 +829,7 @@ async fn test_full_node_event_query_by_module_ok() {
 
     let (package_id, _, _) = publish_nfts_package(context).await;
 
-    // This is a poor substitute for the post processing taking some time
+    // This is a poor replacement for a wait until the checkpoint is processed.
     sleep(Duration::from_millis(1000)).await;
 
     let (_sender, _object_id, digest2) = create_nft(context, package_id).await;
@@ -1338,18 +1348,29 @@ async fn test_access_old_object_pruned() {
             .unwrap()
             .with_async(|node| async {
                 let state = node.state();
-                state
-                    .database_for_testing()
-                    .prune_objects_and_compact_for_testing(
-                        state.get_checkpoint_store(),
-                        state.grpc_indexes_store.as_deref(),
-                    )
-                    .await;
+                // The bucket expires in the background after the epoch change.
+                let key = ObjectKey(gas_object.object_id, gas_object.version);
+                timeout(Duration::from_secs(60), async {
+                    while state.get_historic_objects().get(&key).unwrap().is_some() {
+                        sleep(Duration::from_millis(100)).await;
+                    }
+                })
+                .await
+                .expect("the bucket of the old version should expire");
                 // Make sure the old version of the object is already pruned.
                 assert!(
                     state
                         .database_for_testing()
                         .get_object_by_key(&gas_object.object_id, gas_object.version)
+                        .is_none()
+                );
+                // The epoch boundary crossed above expired the bucket, since
+                // validators retain no historic epochs by default.
+                assert!(
+                    state
+                        .get_historic_objects()
+                        .get(&ObjectKey(gas_object.object_id, gas_object.version))
+                        .unwrap()
                         .is_none()
                 );
                 let epoch_store = state.epoch_store_for_testing();
@@ -1516,6 +1537,54 @@ async fn test_full_node_run_with_range_epoch() -> Result<(), anyhow::Error> {
     );
 
     Ok(())
+}
+
+/// Balance and object changes still resolve once the transaction's input
+/// versions have been moved out of the live objects table into the historic
+/// buckets.
+#[sim_test]
+async fn transaction_changes_resolve_after_relocation() {
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let (_, _, _, digest, _) = transfer_coin(&test_cluster.wallet).await.unwrap();
+
+    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
+    let options = IotaTransactionBlockResponseOptions::new()
+        .with_balance_changes()
+        .with_object_changes();
+
+    // The superseded versions are relocated once the checkpoint is executed.
+    let sequence_number = timeout(Duration::from_secs(60), async {
+        loop {
+            let response: IotaTransactionBlockResponse = jsonrpc_client
+                .request(
+                    "iota_getTransactionBlock",
+                    rpc_params![digest, options.clone()],
+                )
+                .await
+                .unwrap();
+            if let Some(sequence_number) = response.checkpoint {
+                break sequence_number;
+            }
+            sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("timeout waiting for the transaction to be checkpointed");
+    test_cluster
+        .wait_for_checkpoint(sequence_number, None)
+        .await;
+
+    let response: IotaTransactionBlockResponse = jsonrpc_client
+        .request("iota_getTransactionBlock", rpc_params![digest, options])
+        .await
+        .unwrap();
+    assert!(
+        response.errors.is_empty(),
+        "response errors: {:?}",
+        response.errors
+    );
+    assert!(response.balance_changes.is_some());
+    assert!(response.object_changes.is_some());
 }
 
 // This test checks that the fullnode is able to resolve events emitted from a

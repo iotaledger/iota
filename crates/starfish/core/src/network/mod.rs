@@ -44,6 +44,7 @@ mod tonic_gen {
 }
 
 mod admission;
+mod bounded_codec;
 pub(crate) mod metrics;
 mod metrics_layer;
 #[cfg(all(test, not(msim)))]

@@ -7,19 +7,23 @@ use std::{sync::Arc, time::Duration};
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Transaction, TransactionDigest,
+    Address, CheckpointSummary, EndOfEpochData, GasCostSummary, Identifier, ObjectId,
+    ObjectReference, Transaction, TransactionDigest,
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
     base_types::{AuthorityName, ExecutionDigests, random_object_ref},
-    committee::Committee,
+    committee::{Committee, EpochId},
     crypto::{
         AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo,
-        AuthoritySignature, Signer,
+        AuthoritySignature, AuthorityStrongQuorumSignInfo, Signer,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder},
     error::IotaError,
+    message_envelope::Envelope,
+    messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
     messages_consensus::ConsensusTransactionKind,
+    signature::VerifyParams,
     transaction::{
         CallArg, CertifiedTransaction, SenderSignedTransactionAPI, SignedTransaction,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
@@ -55,7 +59,10 @@ pub async fn send_and_confirm_transaction(
     let committee = authority.clone_committee_for_testing();
     let certificate = CertifiedTransaction::new(transaction.into_message(), vec![vote], &committee)
         .unwrap()
-        .try_into_verified_for_testing(&committee, &Default::default())
+        .try_into_verified_for_testing(
+            &committee,
+            &VerifyParams::from_protocol_config(epoch_store.protocol_config()),
+        )
         .unwrap();
 
     // Submit the confirmation. *Now* execution actually happens, and it should fail
@@ -67,10 +74,10 @@ pub async fn send_and_confirm_transaction(
     // set against GlobalStateHasher for testing and regression detection
     let state_acc =
         GlobalStateHasher::new_for_tests(authority.get_global_state_hash_store().clone());
-    let mut state = state_acc.accumulate_cached_live_object_set_for_testing();
+    let mut state = state_acc.accumulate_cached_live_object_set_for_testing()?;
     let (result, _execution_error_opt) =
         authority.try_execute_for_test(&certificate, ExecutionEnv::new())?;
-    let state_after = state_acc.accumulate_cached_live_object_set_for_testing();
+    let state_after = state_acc.accumulate_cached_live_object_set_for_testing()?;
     let effects_acc = state_acc.accumulate_effects(&[result.inner().data().clone()]);
     state.union(&effects_acc);
 
@@ -303,8 +310,11 @@ pub fn make_cert_with_large_committee(
         .collect();
 
     let cert = CertifiedTransaction::new(transaction.clone().into_data(), sigs, committee).unwrap();
-    cert.verify_signatures_authenticated(committee, &Default::default())
-        .unwrap();
+    cert.verify_signatures_authenticated(
+        committee,
+        &VerifyParams::from_protocol_config(&ProtocolConfig::get_for_max_version_UNSAFE()),
+    )
+    .unwrap();
     cert
 }
 
@@ -351,7 +361,40 @@ pub fn consensus_transaction_feature_gate(
         // for serialization compatibility.
         ConsensusTransactionKind::NewJWKFetchedDeprecated => Some(false),
         ConsensusTransactionKind::TransactionDenyRuleProposal(_) => {
-            Some(config.deny_rule_governance())
+            Some(config.enable_pcool_flow())
         }
     }
+}
+
+/// A certified checkpoint summary with a placeholder signature, for seeding
+/// a test `CheckpointStore`. `end_of_epoch_data` makes it an epoch boundary.
+pub fn certified_summary(
+    epoch: EpochId,
+    sequence_number: u64,
+    end_of_epoch_data: Option<EndOfEpochData>,
+) -> CertifiedCheckpointSummary {
+    let summary = CheckpointSummary {
+        epoch,
+        sequence_number,
+        network_total_transactions: 0,
+        contents_digest: Default::default(),
+        previous_digest: None,
+        epoch_rolling_gas_cost_summary: GasCostSummary::default(),
+        end_of_epoch_data,
+        timestamp_ms: 0,
+        version_specific_data: Vec::new(),
+        checkpoint_commitments: Vec::new(),
+    };
+    let sig = AuthorityStrongQuorumSignInfo {
+        epoch,
+        signature: Default::default(),
+        signers_map: Default::default(),
+    };
+    Envelope::new_from_data_and_sig(summary, sig)
+}
+
+/// An executed (non-boundary) checkpoint for seeding a test
+/// `CheckpointStore`.
+pub fn executed_checkpoint(epoch: EpochId, sequence_number: u64) -> VerifiedCheckpoint {
+    VerifiedCheckpoint::new_unchecked(certified_summary(epoch, sequence_number, None))
 }

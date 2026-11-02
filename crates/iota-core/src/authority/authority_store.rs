@@ -2,20 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{iter, mem, sync::Arc, thread};
+use std::{collections::HashSet, iter, mem, sync::Arc, thread};
 
 use either::Either;
 use fastcrypto::hash::{HashFunction, Sha3_256};
 use futures::stream::FuturesUnordered;
 use iota_common::sync::notify_read::NotifyRead;
-use iota_config::{migration_tx_data::MigrationTxData, node::AuthorityStorePruningConfig};
+use iota_config::migration_tx_data::MigrationTxData;
 use iota_genesis_common::MigrationTxDataExt;
 use iota_macros::fail_point_arg;
 use iota_sdk_types::{TransactionEffects, TransactionEvents, Version};
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     base_types::VerifiedExecutionData,
-    effects::TransactionEffectsExt,
     error::UserInputError,
     execution::TypeLayoutStore,
     fp_bail, fp_ensure,
@@ -33,7 +32,7 @@ use move_core_types::resolver::ModuleResolver;
 use tokio::time::Instant;
 use tracing::{debug, info, trace};
 use typed_store::{
-    TypedStoreError,
+    DbIterator,
     rocks::{DBBatch, DBMap},
     traits::Map,
 };
@@ -45,19 +44,21 @@ use super::{
 use crate::{
     authority::{
         authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
-        authority_store_pruner::{
-            AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
-        },
         authority_store_tables::TotalIotaSupplyCheck,
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
+        epoch_markers::EpochMarkers,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
+        historic_ledger::{HistoricLedger, HistoricLedgerBucket},
+        historic_objects::{HistoricObjects, HistoricObjectsBucket},
     },
     global_state_hasher::GlobalStateHashStore,
-    grpc_indexes::GrpcIndexesStore,
     transaction_outputs::TransactionOutputs,
 };
 
 const NUM_SHARDS: usize = 4096;
+
+/// The epoch a database initialized from genesis starts in.
+const GENESIS_EPOCH: EpochId = 0;
 
 struct AuthorityStoreMetrics {
     iota_conservation_check_latency: IntGauge,
@@ -132,6 +133,14 @@ pub struct AuthorityStore {
 
     pub(crate) perpetual_tables: Arc<AuthorityPerpetualTables>,
 
+    /// Superseded object versions, moved out of the live `objects` table in
+    /// the batch that commits the superseding transaction.
+    historic_objects: Arc<HistoricObjects>,
+
+    /// Transaction history, bucketed by the epoch that executed it.
+    historic_ledger: Arc<HistoricLedger>,
+    epoch_markers: Arc<EpochMarkers>,
+
     pub(crate) root_state_notify_read:
         NotifyRead<EpochId, (CheckpointSequenceNumber, GlobalStateHash)>,
 
@@ -149,6 +158,9 @@ impl AuthorityStore {
     /// If the store is empty, initialize it using genesis.
     pub async fn open(
         perpetual_tables: Arc<AuthorityPerpetualTables>,
+        historic_objects: Arc<HistoricObjects>,
+        historic_ledger: Arc<HistoricLedger>,
+        epoch_markers: Arc<EpochMarkers>,
         genesis: &Genesis,
         config: &NodeConfig,
         registry: &Registry,
@@ -189,6 +201,9 @@ impl AuthorityStore {
         let this = Self::open_inner(
             genesis,
             perpetual_tables,
+            historic_objects,
+            historic_ledger,
+            epoch_markers,
             enable_epoch_iota_conservation_check,
             registry,
             migration_tx_data,
@@ -216,34 +231,47 @@ impl AuthorityStore {
     // NB: This must only be called at time of reconfiguration. We take the
     // execution lock write guard as an argument to ensure that this is the
     // case.
-    pub fn clear_object_per_epoch_marker_table(
+    /// Drops the marker buckets of every epoch below `new_epoch`, after
+    /// opening the bucket of `new_epoch`.
+    pub fn expire_epoch_markers(
         &self,
+        new_epoch: EpochId,
         _execution_guard: &ExecutionLockWriteGuard<'_>,
     ) -> IotaResult<()> {
-        // We can safely delete all entries in the per epoch marker table since this is
-        // only called at epoch boundaries (during reconfiguration). Therefore
-        // any entries that currently exist can be removed. Because of this we
-        // can use the `schedule_delete_all` method.
-        Ok(self
-            .perpetual_tables
-            .object_per_epoch_marker_table
-            .schedule_delete_all()?)
+        self.epoch_markers.expire(new_epoch)?;
+        Ok(())
     }
 
     pub async fn open_with_committee_for_testing(
         perpetual_tables: Arc<AuthorityPerpetualTables>,
+        historic_objects: Arc<HistoricObjects>,
+        historic_ledger: Arc<HistoricLedger>,
+        epoch_markers: Arc<EpochMarkers>,
         committee: &Committee,
         genesis: &Genesis,
     ) -> IotaResult<Arc<Self>> {
         // TODO: Since we always start at genesis, the committee should be technically
         // the same as the genesis committee.
         assert_eq!(committee.epoch, 0);
-        Self::open_inner(genesis, perpetual_tables, true, &Registry::new(), None).await
+        Self::open_inner(
+            genesis,
+            perpetual_tables,
+            historic_objects,
+            historic_ledger,
+            epoch_markers,
+            true,
+            &Registry::new(),
+            None,
+        )
+        .await
     }
 
     async fn open_inner(
         genesis: &Genesis,
         perpetual_tables: Arc<AuthorityPerpetualTables>,
+        historic_objects: Arc<HistoricObjects>,
+        historic_ledger: Arc<HistoricLedger>,
+        epoch_markers: Arc<EpochMarkers>,
         enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
         migration_tx_data: Option<&MigrationTxData>,
@@ -251,6 +279,9 @@ impl AuthorityStore {
         let store = Arc::new(Self {
             mutex_table: MutexTable::new(NUM_SHARDS),
             perpetual_tables,
+            historic_objects,
+            historic_ledger,
+            epoch_markers,
             root_state_notify_read: NotifyRead::<
                 EpochId,
                 (CheckpointSequenceNumber, GlobalStateHash),
@@ -269,15 +300,18 @@ impl AuthorityStore {
                 .bulk_insert_genesis_objects(genesis.objects())
                 .expect("cannot bulk insert genesis objects");
 
+            let bucket = store
+                .historic_ledger
+                .ensure(GENESIS_EPOCH)
+                .expect("cannot open the genesis epoch's ledger bucket");
+
             // Then insert txn and effects of genesis
             let transaction = VerifiedTransaction::new_unchecked(genesis.transaction().clone());
-            store
-                .perpetual_tables
+            bucket
                 .transactions
                 .insert(transaction.digest(), transaction.serializable_ref())
                 .expect("cannot insert genesis transaction");
-            store
-                .perpetual_tables
+            bucket
                 .effects
                 .insert(&genesis.effects().digest(), genesis.effects())
                 .expect("cannot insert genesis effects");
@@ -287,9 +321,8 @@ impl AuthorityStore {
             // important for fullnodes to be able to generate indexing data
             // right now.
             if genesis.effects().events_digest().is_some() {
-                store
-                    .perpetual_tables
-                    .events_2
+                bucket
+                    .events
                     .insert(transaction.digest(), genesis.events())
                     .unwrap();
             }
@@ -309,12 +342,12 @@ impl AuthorityStore {
                 {
                     let tx_digest = &execution_digest.transaction;
                     // We can skip the genesis transaction and its data because above it was already
-                    // stored in the perpetual_tables.
+                    // stored in the genesis epoch's bucket.
                     if tx_digest == genesis.transaction().digest() {
                         continue;
                     }
-                    // Now we can store in the perpetual_tables this migration transaction, together
-                    // with its effects, events and created objects.
+                    // Now we can store this migration transaction, together with
+                    // its effects, events and created objects.
                     let Some((tx, effects, events)) = txs_data.get(tx_digest) else {
                         panic!("tx digest not found in migrated objects blob");
                     };
@@ -325,22 +358,16 @@ impl AuthorityStore {
                     store
                         .bulk_insert_genesis_objects(&objects)
                         .expect("cannot bulk insert migrated objects");
-                    store
-                        .perpetual_tables
+                    bucket
                         .transactions
                         .insert(transaction.digest(), transaction.serializable_ref())
                         .expect("cannot insert migration transaction");
-                    store
-                        .perpetual_tables
+                    bucket
                         .effects
                         .insert(&effects.digest(), effects)
                         .expect("cannot insert migration effects");
                     if effects.events_digest().is_some() {
-                        store
-                            .perpetual_tables
-                            .events_2
-                            .insert(transaction.digest(), events)
-                            .unwrap();
+                        bucket.events.insert(transaction.digest(), events).unwrap();
                     }
                 }
             }
@@ -354,12 +381,18 @@ impl AuthorityStore {
     /// or inserting genesis objects.
     pub fn open_no_genesis(
         perpetual_tables: Arc<AuthorityPerpetualTables>,
+        historic_objects: Arc<HistoricObjects>,
+        historic_ledger: Arc<HistoricLedger>,
+        epoch_markers: Arc<EpochMarkers>,
         enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
     ) -> IotaResult<Arc<Self>> {
         let store = Arc::new(Self {
             mutex_table: MutexTable::new(NUM_SHARDS),
             perpetual_tables,
+            historic_objects,
+            historic_ledger,
+            epoch_markers,
             root_state_notify_read: NotifyRead::<
                 EpochId,
                 (CheckpointSequenceNumber, GlobalStateHash),
@@ -370,6 +403,45 @@ impl AuthorityStore {
         Ok(store)
     }
 
+    /// Superseded object versions, bucketed by the epoch that superseded them.
+    pub fn get_historic_objects(&self) -> &Arc<HistoricObjects> {
+        &self.historic_objects
+    }
+
+    /// Transaction history, bucketed by the epoch that executed it.
+    pub fn get_historic_ledger(&self) -> &Arc<HistoricLedger> {
+        &self.historic_ledger
+    }
+
+    pub fn get_epoch_markers(&self) -> &Arc<EpochMarkers> {
+        &self.epoch_markers
+    }
+
+    /// Records the one-time passes over the pre-bucket tables as done, for a
+    /// database that has nothing for them to find. See
+    /// [`AuthorityPerpetualTables::mark_object_backlog_swept`] and
+    /// [`AuthorityPerpetualTables::mark_ledger_backlog_migrated`].
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove with the passes.
+    pub fn mark_pre_bucket_passes_done(&self) -> IotaResult<()> {
+        self.perpetual_tables.mark_object_backlog_swept()?;
+        self.historic_objects.mark_backlog_swept();
+        self.perpetual_tables.mark_ledger_backlog_migrated()
+    }
+
+    /// See [`AuthorityPerpetualTables::retire_objects_pruner_watermark`].
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove with the sweep.
+    pub fn retire_objects_pruner_watermark(&self) -> IotaResult<()> {
+        Ok(self.perpetual_tables.retire_objects_pruner_watermark()?)
+    }
+
+    /// Moves the markers in the flat marker table into their epoch's bucket.
+    /// See [`EpochMarkers::migrate_flat_markers`].
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove after the migration.
+    pub fn migrate_flat_markers(&self, epoch: EpochId) -> IotaResult<()> {
+        self.epoch_markers
+            .migrate_flat_markers(&self.perpetual_tables.object_per_epoch_marker_table, epoch)
+    }
+
     pub fn get_recovery_epoch_at_restart(&self) -> IotaResult<EpochId> {
         self.perpetual_tables.get_recovery_epoch_at_restart()
     }
@@ -378,50 +450,53 @@ impl AuthorityStore {
         &self,
         effects_digest: &TransactionEffectsDigest,
     ) -> IotaResult<Option<TransactionEffects>> {
-        Ok(self.perpetual_tables.effects.get(effects_digest)?)
+        self.historic_ledger.get_effects(effects_digest)
     }
 
     /// Returns true if we have an effects structure for this transaction digest
     pub fn effects_exists(&self, effects_digest: &TransactionEffectsDigest) -> IotaResult<bool> {
-        self.perpetual_tables
-            .effects
-            .contains_key(effects_digest)
-            .map_err(|e| e.into())
+        self.historic_ledger.contains_effects(effects_digest)
     }
 
-    pub fn get_events(
-        &self,
-        digest: &TransactionDigest,
-    ) -> Result<Option<TransactionEvents>, TypedStoreError> {
-        self.perpetual_tables.events_2.get(digest)
+    pub fn get_events(&self, digest: &TransactionDigest) -> IotaResult<Option<TransactionEvents>> {
+        self.historic_ledger.get_events(digest)
     }
 
     pub fn multi_get_events(
         &self,
         event_digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
-        Ok(event_digests
-            .iter()
-            .map(|digest| self.get_events(digest))
-            .collect::<Result<Vec<_>, _>>()?)
+        self.historic_ledger.multi_get_events(event_digests)
+    }
+
+    /// [`Self::multi_get_events`] read from `epoch`'s records alone; events
+    /// stored under another epoch are reported as absent.
+    pub fn multi_get_events_in_epoch(
+        &self,
+        epoch: EpochId,
+        tx_digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        self.historic_ledger
+            .multi_get_events_in_epoch(epoch, tx_digests)
     }
 
     pub fn multi_get_effects<'a>(
         &self,
         effects_digests: impl Iterator<Item = &'a TransactionEffectsDigest>,
-    ) -> Result<Vec<Option<TransactionEffects>>, TypedStoreError> {
-        self.perpetual_tables.effects.multi_get(effects_digests)
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        let effects_digests: Vec<_> = effects_digests.copied().collect();
+        self.historic_ledger.multi_get_effects(&effects_digests)
     }
 
-    pub fn get_executed_effects(
+    /// [`Self::multi_get_effects`] read from `epoch`'s records alone; effects
+    /// stored under another epoch are reported as absent.
+    pub fn multi_get_effects_in_epoch(
         &self,
-        tx_digest: &TransactionDigest,
-    ) -> Result<Option<TransactionEffects>, TypedStoreError> {
-        let effects_digest = self.perpetual_tables.executed_effects.get(tx_digest)?;
-        match effects_digest {
-            Some(digest) => Ok(self.perpetual_tables.effects.get(&digest)?),
-            None => Ok(None),
-        }
+        epoch: EpochId,
+        effects_digests: &[TransactionEffectsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        self.historic_ledger
+            .multi_get_effects_in_epoch(epoch, effects_digests)
     }
 
     /// Given a list of transaction digests, returns a list of the corresponding
@@ -430,8 +505,21 @@ impl AuthorityStore {
     pub fn multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
-    ) -> Result<Vec<Option<TransactionEffectsDigest>>, TypedStoreError> {
-        self.perpetual_tables.executed_effects.multi_get(digests)
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        self.historic_ledger
+            .multi_get_executed_effects_digests(digests)
+    }
+
+    /// [`Self::multi_get_executed_effects_digests`] for transactions that can
+    /// only have been executed in `epoch`: it reads that epoch's records
+    /// alone, and reports one executed in another epoch as not executed.
+    pub fn multi_get_executed_effects_digests_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        self.historic_ledger
+            .multi_get_executed_effects_digests_in_epoch(epoch, digests)
     }
 
     /// Given a list of transaction digests, returns a list of the corresponding
@@ -440,25 +528,12 @@ impl AuthorityStore {
     pub fn multi_get_executed_effects(
         &self,
         digests: &[TransactionDigest],
-    ) -> Result<Vec<Option<TransactionEffects>>, TypedStoreError> {
-        let executed_effects_digests = self.perpetual_tables.executed_effects.multi_get(digests)?;
-        let effects = self.multi_get_effects(executed_effects_digests.iter().flatten())?;
-        let mut tx_to_effects_map = effects
-            .into_iter()
-            .flatten()
-            .map(|effects| (*effects.transaction_digest(), effects))
-            .collect::<HashMap<_, _>>();
-        Ok(digests
-            .iter()
-            .map(|digest| tx_to_effects_map.remove(digest))
-            .collect())
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        self.historic_ledger.multi_get_executed_effects(digests)
     }
 
     pub fn is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
-        Ok(self
-            .perpetual_tables
-            .executed_effects
-            .contains_key(digest)?)
+        Ok(self.historic_ledger.find_epoch(digest)?.is_some())
     }
 
     pub fn get_marker_value(
@@ -467,11 +542,8 @@ impl AuthorityStore {
         version: &Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<MarkerValue>> {
-        let object_key = (epoch_id, ObjectKey(*object_id, *version));
-        Ok(self
-            .perpetual_tables
-            .object_per_epoch_marker_table
-            .get(&object_key)?)
+        self.epoch_markers
+            .get_marker_value(object_id, version, epoch_id)
     }
 
     pub fn get_latest_marker(
@@ -479,21 +551,7 @@ impl AuthorityStore {
         object_id: &ObjectId,
         epoch_id: EpochId,
     ) -> IotaResult<Option<(Version, MarkerValue)>> {
-        let marker_entry = self
-            .perpetual_tables
-            .object_per_epoch_marker_table
-            .safe_iter_with_prefix_reversed(&(epoch_id, *object_id))
-            .next();
-        match marker_entry {
-            Some(Ok(((epoch, key), marker))) => {
-                // because of the iterator bounds these cannot fail
-                assert_eq!(epoch, epoch_id);
-                assert_eq!(key.0, *object_id);
-                Ok(Some((key.1, marker)))
-            }
-            Some(Err(e)) => Err(e.into()),
-            None => Ok(None),
-        }
+        self.epoch_markers.get_latest_marker(object_id, epoch_id)
     }
 
     /// Returns future containing the state hash for the given epoch
@@ -524,13 +582,13 @@ impl AuthorityStore {
         epoch: EpochId,
         sequence: CheckpointSequenceNumber,
     ) -> IotaResult {
-        let mut batch = self
-            .perpetual_tables
-            .executed_transactions_to_checkpoint
-            .batch();
-        batch.insert_batch(
-            &self.perpetual_tables.executed_transactions_to_checkpoint,
-            digests.iter().map(|d| (*d, (epoch, sequence))),
+        // A transaction is finalized by a checkpoint of the epoch that
+        // executed it, so this row lands in the bucket holding its effects.
+        let bucket = self.historic_ledger.ensure(epoch)?;
+        let mut batch = bucket.tx_to_checkpoint.batch();
+        batch.insert_batch_tagged(
+            &bucket.tx_to_checkpoint,
+            digests.iter().map(|d| (*d, sequence)),
         )?;
         batch.write()?;
         trace!("Transactions {digests:?} finalized at checkpoint {sequence} epoch {epoch}");
@@ -542,10 +600,7 @@ impl AuthorityStore {
         &self,
         digest: &TransactionDigest,
     ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
-        Ok(self
-            .perpetual_tables
-            .executed_transactions_to_checkpoint
-            .get(digest)?)
+        self.historic_ledger.get_transaction_checkpoint(digest)
     }
 
     // Implementation of the corresponding method of `CheckpointCache` trait.
@@ -553,10 +608,8 @@ impl AuthorityStore {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
-        Ok(self
-            .perpetual_tables
-            .executed_transactions_to_checkpoint
-            .multi_get(digests)?)
+        self.historic_ledger
+            .multi_get_transaction_checkpoints(digests)
     }
 
     /// Returns true if there are no objects in the database
@@ -628,20 +681,9 @@ impl AuthorityStore {
     ) -> Result<bool, IotaError> {
         // Find the most recent version of the object that was deleted or wrapped.
         // Return true if the version is >= `version`. Otherwise return false.
-        let marker_entry = self
-            .perpetual_tables
-            .object_per_epoch_marker_table
-            .safe_iter_with_prefix_reversed(&(epoch_id, *object_id))
-            .next();
-        match marker_entry.transpose()? {
-            Some(((epoch, key), marker)) => {
-                // Make sure object id matches and version is >= `version`
-                let object_data_ok = key.0 == *object_id && key.1 >= version;
-                // Make sure we don't have a stale epoch for some reason (e.g., a revert)
-                let epoch_data_ok = epoch == epoch_id;
-                // Make sure the object was deleted or wrapped.
-                let mark_data_ok = marker == MarkerValue::OwnedDeleted;
-                Ok(object_data_ok && epoch_data_ok && mark_data_ok)
+        match self.epoch_markers.get_latest_marker(object_id, epoch_id)? {
+            Some((marked_version, marker)) => {
+                Ok(marked_version >= version && marker == MarkerValue::OwnedDeleted)
             }
             None => Ok(false),
         }
@@ -780,6 +822,12 @@ impl AuthorityStore {
     /// `checkpoint_sequence_number` is stamped onto each newly written object's
     /// `StoreObjectValueV2.previous_transaction_checkpoint` field.
     ///
+    /// In the same batch, the versions these transactions superseded move from
+    /// the live `objects` table into `epoch_id`'s historic bucket, and each
+    /// transaction's body, effects, execution record and events go into
+    /// `epoch_id`'s ledger bucket. `cached` answers for the object versions
+    /// not committed yet, which the live table does not hold.
+    ///
     /// **Invariant** Every `TransactionOutputs` in `tx_outputs` must belong to
     /// the checkpoint identified by `checkpoint_sequence_number`.
     #[instrument(level = "debug", skip_all)]
@@ -788,19 +836,25 @@ impl AuthorityStore {
         epoch_id: EpochId,
         checkpoint_sequence_number: CheckpointSequenceNumber,
         tx_outputs: &[Arc<TransactionOutputs>],
+        cached: &dyn Fn(&ObjectKey) -> Option<Object>,
     ) -> IotaResult<DBBatch> {
         let mut written = Vec::with_capacity(tx_outputs.len());
         for outputs in tx_outputs {
             written.extend(outputs.written.values().cloned());
         }
 
-        let mut write_batch = self.perpetual_tables.transactions.batch();
+        let historic_bucket = self.historic_objects.ensure(epoch_id)?;
+        let ledger_bucket = self.historic_ledger.ensure(epoch_id)?;
+        let mut write_batch = self.perpetual_tables.objects.batch();
         for outputs in tx_outputs {
+            let missed = self.missed_pre_images(outputs, cached)?;
             self.write_one_transaction_outputs(
                 &mut write_batch,
                 epoch_id,
                 checkpoint_sequence_number,
+                (&historic_bucket, &ledger_bucket),
                 outputs,
+                &missed,
             )?;
         }
         // test crashing before writing the batch
@@ -820,12 +874,58 @@ impl AuthorityStore {
         Ok(write_batch)
     }
 
+    /// The versions `outputs` superseded whose pre-image execution did not
+    /// capture, read from where they still are: `cached` while the transaction
+    /// that wrote them is not committed, or else the live table.
+    ///
+    /// Left in the live table, such a version would be read as the newest one
+    /// at or below a bound once the backlog sweep is done, instead of a newer
+    /// version that went into a bucket.
+    fn missed_pre_images(
+        &self,
+        outputs: &TransactionOutputs,
+        cached: &dyn Fn(&ObjectKey) -> Option<Object>,
+    ) -> IotaResult<Vec<(ObjectKey, Object)>> {
+        if outputs.superseded.len() == outputs.effects.modified_at_versions().len() {
+            return Ok(Vec::new());
+        }
+        let captured: HashSet<ObjectKey> = outputs.superseded.iter().map(|(key, _)| *key).collect();
+        let mut missed = Vec::new();
+        for modified in outputs.effects.modified_at_versions() {
+            let key = ObjectKey(*modified.object_id(), modified.version());
+            if captured.contains(&key) {
+                continue;
+            }
+            // The commit writes to the live table before it drops a version
+            // from the cache, so asking the cache first misses no version.
+            let pre_image = match cached(&key) {
+                Some(object) => Some(object),
+                None => match self.perpetual_tables.objects.get(&key)? {
+                    Some(row) => self.perpetual_tables.object(&key, row)?,
+                    None => None,
+                },
+            };
+            match pre_image {
+                Some(object) => missed.push((key, object)),
+                None => warn!(
+                    ?key,
+                    tx_digest = ?outputs.transaction.digest(),
+                    "a superseded version has no pre-image to move into its bucket"
+                ),
+            }
+        }
+        Ok(missed)
+    }
+
+    /// `buckets` are `epoch_id`'s historic objects and ledger buckets.
     fn write_one_transaction_outputs(
         &self,
         write_batch: &mut DBBatch,
         epoch_id: EpochId,
         checkpoint_sequence_number: CheckpointSequenceNumber,
+        (historic_bucket, ledger_bucket): (&HistoricObjectsBucket, &HistoricLedgerBucket),
         tx_outputs: &TransactionOutputs,
+        missed_pre_images: &[(ObjectKey, Object)],
     ) -> IotaResult {
         let TransactionOutputs {
             transaction,
@@ -837,24 +937,26 @@ impl AuthorityStore {
             events,
             live_object_markers_to_delete,
             new_live_object_markers_to_init,
+            superseded,
             ..
         } = tx_outputs;
 
         // Store the certificate indexed by transaction digest
         let transaction_digest = transaction.digest();
-        write_batch.insert_batch(
-            &self.perpetual_tables.transactions,
+        write_batch.insert_batch_tagged(
+            &ledger_bucket.transactions,
             iter::once((transaction_digest, transaction.serializable_ref())),
         )?;
 
         // Add batched writes for objects and locks.
         let effects_digest = effects.digest();
 
+        let marker_bucket = self.epoch_markers.ensure(epoch_id)?;
         write_batch.insert_batch(
-            &self.perpetual_tables.object_per_epoch_marker_table,
+            &marker_bucket.markers,
             markers
                 .iter()
-                .map(|(key, marker_value)| ((epoch_id, *key), *marker_value)),
+                .map(|(key, marker_value)| (*key, *marker_value)),
         )?;
 
         write_batch.insert_batch(
@@ -877,12 +979,32 @@ impl AuthorityStore {
 
         write_batch.insert_batch(&self.perpetual_tables.objects, new_objects)?;
 
-        // Write events into the new table keyed off of transaction_digest
+        // A delete survives only if nothing later in the batch writes the
+        // same key. Nothing does: a transaction never supersedes a version it
+        // writes, and `build_db_batch` appends transactions in checkpoint
+        // order, so the writer of a superseded version is earlier in the batch.
+        let superseded = superseded.iter().chain(missed_pre_images);
+        write_batch.insert_batch_tagged(
+            &historic_bucket.objects,
+            superseded
+                .clone()
+                .map(|(key, object)| (*key, object.clone())),
+        )?;
+        // Lets the bucket's expiry delete the tombstones written above from the
+        // live table.
+        write_batch.insert_batch_tagged(
+            &historic_bucket.tombstones,
+            deleted.iter().chain(wrapped.iter()).map(|key| (*key, ())),
+        )?;
+        write_batch.delete_batch(
+            &self.perpetual_tables.objects,
+            superseded.map(|(key, _)| *key),
+        )?;
+
+        // Write events into the epoch's bucket keyed off of transaction_digest
         if effects.events_digest().is_some() {
-            write_batch.insert_batch(
-                &self.perpetual_tables.events_2,
-                [(transaction_digest, events)],
-            )?;
+            write_batch
+                .insert_batch_tagged(&ledger_bucket.events, [(transaction_digest, events)])?;
         }
 
         self.initialize_live_object_markers_impl(write_batch, new_live_object_markers_to_init)?;
@@ -892,12 +1014,9 @@ impl AuthorityStore {
         self.delete_live_object_markers(write_batch, live_object_markers_to_delete)?;
 
         write_batch
-            .insert_batch(
-                &self.perpetual_tables.effects,
-                [(effects_digest, effects.clone())],
-            )?
-            .insert_batch(
-                &self.perpetual_tables.executed_effects,
+            .insert_batch_tagged(&ledger_bucket.effects, [(effects_digest, effects.clone())])?
+            .insert_batch_tagged(
+                &ledger_bucket.executed_effects,
                 [(transaction_digest, effects_digest)],
             )?;
 
@@ -908,10 +1027,14 @@ impl AuthorityStore {
 
     /// Commits transactions only (not effects or other transaction outputs) to
     /// the db. See ExecutionCache::persist_transaction for more info
+    ///
+    /// The body goes into the ledger bucket of `tx.epoch()`, where its outputs
+    /// land when it executes.
     pub(crate) fn persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult {
-        let mut batch = self.perpetual_tables.transactions.batch();
-        batch.insert_batch(
-            &self.perpetual_tables.transactions,
+        let bucket = self.historic_ledger.ensure(tx.epoch())?;
+        let mut batch = bucket.transactions.batch();
+        batch.insert_batch_tagged(
+            &bucket.transactions,
             [(tx.digest(), tx.clone().into_unsigned().serializable_ref())],
         )?;
         batch.write()?;
@@ -1137,117 +1260,41 @@ impl AuthorityStore {
         batch.write().unwrap();
     }
 
-    /// This function is called at the end of epoch for each transaction that's
-    /// executed locally on the validator but didn't make to the last
-    /// checkpoint. The effects of the execution is reverted here.
-    /// The following things are reverted:
-    /// 1. All new object states are deleted.
-    /// 2. owner_index table change is reverted.
+    /// The newest version of `object_id` at or below `version`, from the live
+    /// `objects` table and the historic buckets together. `None` if the object
+    /// was deleted or wrapped at or below the bound, or has no version in
+    /// range.
     ///
-    /// NOTE: transaction and effects are intentionally not deleted. It's
-    /// possible that if this node is behind, the network will execute the
-    /// transaction in a later epoch. In that case, we need to keep it saved
-    /// so that when we receive the checkpoint that includes it from state
-    /// sync, we are able to execute the checkpoint.
-    /// TODO: implement GC for transactions that are no longer needed.
-    pub fn revert_state_update(&self, tx_digest: &TransactionDigest) -> IotaResult {
-        let Some(effects) = self.get_executed_effects(tx_digest)? else {
-            info!("Not reverting {:?} as it was not executed", tx_digest);
-            return Ok(());
-        };
-
-        info!(?tx_digest, ?effects, "reverting transaction");
-
-        // We should never be reverting shared object transactions.
-        assert!(effects.input_shared_objects().is_empty());
-
-        let mut write_batch = self.perpetual_tables.transactions.batch();
-        write_batch.delete_batch(
-            &self.perpetual_tables.executed_effects,
-            iter::once(tx_digest),
-        )?;
-        if effects.events_digest().is_some() {
-            write_batch.delete_batch(&self.perpetual_tables.events_2, [tx_digest])?;
-        }
-
-        let tombstones = effects
-            .all_tombstones()
-            .into_iter()
-            .map(|(id, version)| ObjectKey(id, version));
-        write_batch.delete_batch(&self.perpetual_tables.objects, tombstones)?;
-
-        let all_new_object_keys = effects
-            .all_changed_objects()
-            .into_iter()
-            .map(|(changed, _)| {
-                ObjectKey(changed.reference().object_id, changed.reference().version)
-            });
-        write_batch.delete_batch(&self.perpetual_tables.objects, all_new_object_keys.clone())?;
-
-        let modified_object_keys = effects
-            .modified_at_versions()
-            .into_iter()
-            .map(|modified| ObjectKey(*modified.object_id(), modified.version()));
-
-        macro_rules! get_objects_and_locks {
-            ($object_keys: expr) => {
-                self.perpetual_tables
-                    .objects
-                    .multi_get($object_keys.clone())?
-                    .into_iter()
-                    .zip($object_keys)
-                    .filter_map(|(obj_opt, key)| {
-                        let obj = self
-                            .perpetual_tables
-                            .object(
-                                &key,
-                                obj_opt.unwrap_or_else(|| {
-                                    panic!("Older object version not found: {:?}", key)
-                                }),
-                            )
-                            .expect("Matching indirect object not found")?;
-
-                        if obj.is_immutable() {
-                            return None;
-                        }
-
-                        let obj_ref = obj.object_ref();
-                        Some(obj.is_address_owned().then_some(obj_ref))
-                    })
-            };
-        }
-
-        let old_locks = get_objects_and_locks!(modified_object_keys);
-        let new_locks = get_objects_and_locks!(all_new_object_keys);
-
-        let old_locks: Vec<_> = old_locks.flatten().collect();
-
-        // Re-create old live markers.
-        self.initialize_live_object_markers_impl(&mut write_batch, &old_locks)?;
-
-        // Delete new live markers
-        write_batch.delete_batch(
-            &self.perpetual_tables.live_owned_object_markers,
-            new_locks.flatten(),
-        )?;
-
-        write_batch.write()?;
-
-        Ok(())
-    }
-
-    /// Return the object with version less then or eq to the provided seq
-    /// number. This is used by indexer to find the correct version of
-    /// dynamic field child object. We do not store the version of the child
-    /// object, but because of lamport timestamp, we know the child must
-    /// have version number less then or eq to the parent.
-    pub fn find_object_lt_or_eq_version(
+    /// Safe for execution regardless of retention: what execution can observe
+    /// is in the current epoch's bucket, which expiry never drops.
+    pub fn find_object_lt_or_eq_version_with_historic_fallback(
         &self,
         object_id: ObjectId,
         version: Version,
     ) -> IotaResult<Option<Object>> {
-        self.perpetual_tables
-            .find_object_lt_or_eq_version(object_id, version)
+        let live = match self
+            .perpetual_tables
+            .find_object_lt_or_eq_version(object_id, version)?
+        {
+            Some((key, row)) => match self.perpetual_tables.object(&key, row)? {
+                Some(object) if self.historic_objects.backlog_swept() => return Ok(Some(object)),
+                object => Some((key.1, object)),
+            },
+            None => None,
+        };
+        // Asked for a live tombstone too: an unwrap leaves one in the live
+        // table below a newer relocated version. Read after the live table;
+        // see `HistoricObjectsBucket::tombstones`.
+        let relocated = self
+            .historic_objects
+            .find_lt_or_eq_version(object_id, version)?;
+        match live {
+            Some((live_version, object)) => match relocated {
+                Some(relocated) if live_version < relocated.version() => Ok(Some(relocated)),
+                _ => Ok(object),
+            },
+            None => Ok(relocated),
+        }
     }
 
     /// Returns the latest object reference we have for this object_id in the
@@ -1310,19 +1357,35 @@ impl AuthorityStore {
         Ok(Some((object_key, ObjectOrTombstone::Object(object))))
     }
 
+    /// Records a transaction and its effects ahead of executing them, in the
+    /// ledger bucket of the effects' epoch. Does nothing if that epoch has been
+    /// expired.
+    ///
+    /// The epoch may be one this node has not begun executing; see
+    /// [`HistoricLedger`].
     pub fn insert_transaction_and_effects(
         &self,
         transaction: &VerifiedTransaction,
         transaction_effects: &TransactionEffects,
-    ) -> Result<(), TypedStoreError> {
-        let mut write_batch = self.perpetual_tables.transactions.batch();
+    ) -> IotaResult {
+        let Some(bucket) = self
+            .historic_ledger
+            .ensure_retained(transaction_effects.epoch())?
+        else {
+            debug!(
+                epoch = transaction_effects.epoch(),
+                "not filing transaction history whose epoch has been expired",
+            );
+            return Ok(());
+        };
+        let mut write_batch = bucket.transactions.batch();
         write_batch
-            .insert_batch(
-                &self.perpetual_tables.transactions,
+            .insert_batch_tagged(
+                &bucket.transactions,
                 [(transaction.digest(), transaction.serializable_ref())],
             )?
-            .insert_batch(
-                &self.perpetual_tables.effects,
+            .insert_batch_tagged(
+                &bucket.effects,
                 [(transaction_effects.digest(), transaction_effects)],
             )?;
 
@@ -1330,21 +1393,41 @@ impl AuthorityStore {
         Ok(())
     }
 
+    /// Like [`Self::insert_transaction_and_effects`], for each of
+    /// `transactions`.
     pub fn multi_insert_transaction_and_effects<'a>(
         &self,
         transactions: impl Iterator<Item = &'a VerifiedExecutionData>,
-    ) -> Result<(), TypedStoreError> {
-        let mut write_batch = self.perpetual_tables.transactions.batch();
+    ) -> IotaResult {
+        let mut write_batch = self.perpetual_tables.objects.batch();
+        // A checkpoint's transactions all executed in its epoch, so the bucket
+        // rarely changes.
+        let mut current: Option<(EpochId, Option<Arc<HistoricLedgerBucket>>)> = None;
         for tx in transactions {
+            let epoch = tx.effects.epoch();
+            let bucket = match &current {
+                Some((current_epoch, bucket)) if *current_epoch == epoch => bucket.clone(),
+                _ => {
+                    let bucket = self.historic_ledger.ensure_retained(epoch)?;
+                    current = Some((epoch, bucket.clone()));
+                    bucket
+                }
+            };
+            // State sync can still carry a checkpoint whose epoch has since
+            // been expired.
+            let Some(bucket) = bucket else {
+                debug!(
+                    epoch,
+                    "not filing transaction history whose epoch has been expired"
+                );
+                continue;
+            };
             write_batch
-                .insert_batch(
-                    &self.perpetual_tables.transactions,
+                .insert_batch_tagged(
+                    &bucket.transactions,
                     [(tx.transaction.digest(), tx.transaction.serializable_ref())],
                 )?
-                .insert_batch(
-                    &self.perpetual_tables.effects,
-                    [(tx.effects.digest(), &tx.effects)],
-                )?;
+                .insert_batch_tagged(&bucket.effects, [(tx.effects.digest(), &tx.effects)])?;
         }
 
         write_batch.write()?;
@@ -1354,21 +1437,38 @@ impl AuthorityStore {
     pub fn multi_get_transaction_blocks(
         &self,
         tx_digests: &[TransactionDigest],
-    ) -> Result<Vec<Option<VerifiedTransaction>>, TypedStoreError> {
-        self.perpetual_tables
-            .transactions
-            .multi_get(tx_digests)
-            .map(|v| v.into_iter().map(|v| v.map(|v| v.into())).collect())
+    ) -> IotaResult<Vec<Option<VerifiedTransaction>>> {
+        Ok(self
+            .historic_ledger
+            .multi_get_transactions(tx_digests)?
+            .into_iter()
+            .map(|transaction| transaction.map(Into::into))
+            .collect())
+    }
+
+    /// [`Self::multi_get_transaction_blocks`] read from `epoch`'s records
+    /// alone; transactions stored under another epoch are reported as absent.
+    pub fn multi_get_transaction_blocks_in_epoch(
+        &self,
+        epoch: EpochId,
+        tx_digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<VerifiedTransaction>>> {
+        Ok(self
+            .historic_ledger
+            .multi_get_transactions_in_epoch(epoch, tx_digests)?
+            .into_iter()
+            .map(|transaction| transaction.map(Into::into))
+            .collect())
     }
 
     pub fn get_transaction_block(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> Result<Option<VerifiedTransaction>, TypedStoreError> {
-        self.perpetual_tables
-            .transactions
-            .get(tx_digest)
-            .map(|v| v.map(|v| v.into()))
+    ) -> IotaResult<Option<VerifiedTransaction>> {
+        Ok(self
+            .historic_ledger
+            .get_transaction(tx_digest)?
+            .map(|transaction| transaction.into()))
     }
 
     /// This function reads the DB directly to get the system state object.
@@ -1401,10 +1501,10 @@ impl AuthorityStore {
         let mut pending_objects = vec![];
         let mut count = 0;
         let mut size = 0;
-        let (mut total_iota, mut total_storage_rebate) = thread::scope(|s| {
+        let totals: IotaResult<(u64, u64)> = thread::scope(|s| {
             let pending_tasks = FuturesUnordered::new();
             for o in self.iter_live_object_set() {
-                let object = o.object;
+                let object = o?.object;
                 size += object.object_size_for_gas_metering();
                 count += 1;
                 pending_objects.push(object);
@@ -1430,11 +1530,12 @@ impl AuthorityStore {
                     }));
                 }
             }
-            pending_tasks.into_iter().fold((0, 0), |init, result| {
+            Ok(pending_tasks.into_iter().fold((0, 0), |init, result| {
                 let result = result.join().unwrap();
                 (init.0 + result.0, init.1 + result.1)
-            })
+            }))
         });
+        let (mut total_iota, mut total_storage_rebate) = totals?;
         let mut layout_resolver = executor.type_layout_resolver(Box::new(type_layout_store));
         for object in pending_objects {
             total_storage_rebate += object.storage_rebate;
@@ -1598,27 +1699,20 @@ impl AuthorityStore {
         Ok(())
     }
 
-    pub async fn prune_objects_and_compact_for_testing(
-        &self,
-        checkpoint_store: &Arc<CheckpointStore>,
-        grpc_indexes_store: Option<&GrpcIndexesStore>,
-    ) {
-        let pruning_config = AuthorityStorePruningConfig {
-            num_epochs_to_retain: 0,
-            ..Default::default()
-        };
-        let _ = AuthorityStorePruner::prune_objects_for_eligible_epochs(
-            &self.perpetual_tables,
-            checkpoint_store,
-            grpc_indexes_store,
-            pruning_config,
-            AuthorityStorePruningMetrics::new_for_test(),
-            EPOCH_DURATION_MS_FOR_TESTING,
-            None,
-            None,
-        )
-        .await;
-        let _ = AuthorityStorePruner::compact(&self.perpetual_tables);
+    /// Expires every historic bucket but the newest, deleting the tombstones
+    /// those epochs recorded, and compacts the live `objects` table.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn expire_historic_objects_and_compact_for_testing(&self) {
+        let current_epoch = self
+            .historic_objects
+            .newest_bucket_epoch()
+            .expect("a store with no bucket has nothing to expire");
+        self.historic_objects
+            .prune(current_epoch, 0)
+            .expect("expiring the historic buckets should not fail");
+        self.perpetual_tables
+            .compact()
+            .expect("compacting the live objects table should not fail");
     }
 
     #[cfg(test)]
@@ -1666,17 +1760,6 @@ impl GlobalStateHashStore for AuthorityStore {
             .map_err(Into::into)
     }
 
-    fn get_root_state_hash_for_highest_epoch(
-        &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, GlobalStateHash))>> {
-        Ok(self
-            .perpetual_tables
-            .root_state_hash_by_epoch
-            .safe_range_iter_reversed(..)
-            .next()
-            .transpose()?)
-    }
-
     fn insert_state_hash_for_epoch(
         &self,
         epoch: EpochId,
@@ -1692,7 +1775,7 @@ impl GlobalStateHashStore for AuthorityStore {
         Ok(())
     }
 
-    fn iter_live_object_set(&self) -> Box<dyn Iterator<Item = LiveObject> + '_> {
+    fn iter_live_object_set(&self) -> DbIterator<'_, LiveObject> {
         Box::new(self.perpetual_tables.iter_live_object_set())
     }
 }

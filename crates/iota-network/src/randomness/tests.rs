@@ -497,6 +497,92 @@ async fn test_byzantine_peer_handling() {
     }
 }
 
+#[sim_test]
+async fn test_full_sig_from_checkpoint() {
+    telemetry_subscribers::init_for_testing();
+    let committee_fixture =
+        CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
+    let committee = committee_fixture.committee();
+
+    let mut randomness_rxs = Vec::new();
+    let mut networks: Vec<anemo::Network> = Vec::new();
+    let mut nodes = Vec::new();
+    let mut handles = Vec::new();
+    let mut authority_info = HashMap::new();
+
+    for (i, (authority, stake)) in committee.members().enumerate() {
+        let (tx, rx) = mpsc::channel(3);
+        randomness_rxs.push(rx);
+        let (unstarted, router) = Builder::new(*authority, tx).build();
+
+        let network = utils::build_network(|r| r.merge(router));
+        // Authority 3 stays disconnected, so it can only complete a round from
+        // a signature handed to it directly.
+        if i < 3 {
+            for n in networks.iter() {
+                network.connect(n.local_addr()).await.unwrap();
+            }
+        }
+        networks.push(network.clone());
+
+        let node = node_from_committee(committee, authority, *stake);
+        authority_info.insert(*authority, (network.peer_id(), node.id));
+        nodes.push(node);
+
+        let (r, handle) = unstarted.build(network);
+        handles.push((authority, handle));
+        tokio::spawn(r.start());
+    }
+    let nodes = nodes::Nodes::new(nodes).unwrap();
+
+    for (i, (authority, handle)) in handles.iter().enumerate() {
+        // A non-zero full private key: with 0 every signature is the identity
+        // element, which verifies for any round.
+        let mock_dkg_output = mocked_dkg::generate_mocked_output::<PkG, EncG>(
+            nodes.clone(),
+            committee.validity_threshold().try_into().unwrap(),
+            1,
+            committee
+                .authority_index(authority)
+                .unwrap()
+                .try_into()
+                .unwrap(),
+        );
+        if i < 3 {
+            handle.send_partial_signatures(0, RandomnessRound::new(0));
+        }
+        handle.update_epoch(
+            0,
+            authority_info.clone(),
+            mock_dkg_output,
+            committee.validity_threshold().try_into().unwrap(),
+            None,
+        );
+    }
+    let (_, _, round_0_bytes) = randomness_rxs[0].recv().await.unwrap();
+    let round_0_sig: RandomnessSignature = bcs::from_bytes(&round_0_bytes).unwrap();
+
+    let handle_3 = &handles[3].1;
+    // A valid signature for round 0, and the same signature claimed for round
+    // 1, where it does not verify. Both arrive before local consensus
+    // requests either round.
+    handle_3.receive_full_signature_from_checkpoint(0, RandomnessRound::new(0), round_0_sig);
+    handle_3.receive_full_signature_from_checkpoint(0, RandomnessRound::new(1), round_0_sig);
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    assert!(randomness_rxs[3].try_recv().is_err());
+
+    handle_3.send_partial_signatures(0, RandomnessRound::new(0));
+    let (epoch, round, bytes) = randomness_rxs[3].recv().await.unwrap();
+    assert_eq!(0, epoch);
+    assert_eq!(0, round.value());
+    assert_eq!(round_0_bytes, bytes);
+
+    handle_3.send_partial_signatures(0, RandomnessRound::new(1));
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    let unexpected = randomness_rxs[3].try_recv();
+    assert!(unexpected.is_err(), "unexpected randomness: {unexpected:?}");
+}
+
 fn node_from_committee(
     committee: &Committee,
     authority: &AuthorityPublicKeyBytes,

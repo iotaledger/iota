@@ -10,15 +10,14 @@ use std::{
     io,
     io::{BufReader, Read, Write},
     path::PathBuf,
-    sync::Arc,
 };
 
 use anyhow::{Result, anyhow};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, Sha3_256};
+use iota_common::debug_fatal;
 use iota_types::{
-    committee::Committee,
     messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
     storage::WriteStore,
 };
@@ -220,23 +219,6 @@ pub fn verify_checkpoint_linkage(
 }
 
 #[expect(clippy::result_large_err)]
-pub fn verify_checkpoint_with_committee(
-    committee: Arc<Committee>,
-    current: &VerifiedCheckpoint,
-    checkpoint: CertifiedCheckpointSummary,
-) -> Result<VerifiedCheckpoint, CertifiedCheckpointSummary> {
-    let checkpoint = verify_checkpoint_linkage(current, checkpoint)?;
-
-    checkpoint
-        .verify_authority_signatures(&committee)
-        .map_err(|e| {
-            debug!("error verifying checkpoint: {e}");
-            checkpoint.clone()
-        })?;
-    Ok(VerifiedCheckpoint::new_unchecked(checkpoint))
-}
-
-#[expect(clippy::result_large_err)]
 pub fn verify_checkpoint<S>(
     current: &VerifiedCheckpoint,
     store: S,
@@ -245,13 +227,22 @@ pub fn verify_checkpoint<S>(
 where
     S: WriteStore,
 {
-    let committee = store.get_committee(checkpoint.epoch()).unwrap_or_else(|| {
-        panic!(
-            "BUG: should have committee for epoch {} before we try to verify checkpoint {}",
+    let checkpoint = verify_checkpoint_linkage(current, checkpoint)?;
+
+    let Some(committee) = store.get_committee(checkpoint.epoch()) else {
+        debug_fatal!(
+            "store has no committee for epoch {} of checkpoint {} after the linkage check",
             checkpoint.epoch(),
             checkpoint.sequence_number()
-        )
-    });
+        );
+        return Err(checkpoint);
+    };
 
-    verify_checkpoint_with_committee(committee, current, checkpoint)
+    checkpoint
+        .verify_authority_signatures(&committee)
+        .map_err(|e| {
+            debug!("error verifying checkpoint: {e}");
+            checkpoint.clone()
+        })?;
+    Ok(VerifiedCheckpoint::new_unchecked(checkpoint))
 }

@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::{
+    attestation::AttestedTransaction,
     base_types::{AuthorityName, ConciseableName},
     crypto::{AuthoritySignature, DefaultHash, default_hash},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
@@ -299,7 +300,7 @@ pub enum ConsensusTransactionKind {
     /// P-COOL user transaction. Raw, uncertified transaction submitted
     /// directly to consensus without pre-consensus object locking.
     /// Conflicts are resolved post-consensus.
-    UserTransactionV1(Box<TransactionEnvelope>),
+    UserTransactionV1(Box<AttestedTransaction>),
     OverloadNotificationV1(
         AuthorityName,
         u64, // generation
@@ -327,7 +328,7 @@ impl ConsensusTransactionKind {
     ) -> Option<R> {
         match self {
             Self::CertifiedTransaction(c) => Some(certified(c)),
-            Self::UserTransactionV1(t) => Some(raw(t)),
+            Self::UserTransactionV1(t) => Some(raw(&t.transaction)),
             Self::CheckpointSignature(_)
             | Self::EndOfPublish(_)
             | Self::CapabilityNotificationV1(_)
@@ -359,7 +360,7 @@ impl ConsensusTransactionKind {
     /// user transactions are not included here.
     pub fn as_user_transaction(&self) -> Option<&TransactionEnvelope> {
         match self {
-            Self::UserTransactionV1(tx) => Some(tx),
+            Self::UserTransactionV1(tx) => Some(&tx.transaction),
             Self::CertifiedTransaction(_)
             | Self::CheckpointSignature(_)
             | Self::EndOfPublish(_)
@@ -754,7 +755,10 @@ impl ConsensusTransaction {
         let tracking_id = hasher.finish().to_le_bytes();
         Self {
             tracking_id,
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                transaction,
+                None,
+            ))),
         }
     }
 
