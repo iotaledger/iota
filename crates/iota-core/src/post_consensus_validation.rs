@@ -39,9 +39,9 @@
 //!      without checks and takes no new locks. It was validated at the commit that kept it and
 //!      still holds the locks it took there.
 //! 4. `validity_check()` — drop with error.
-//! 5. Attestation checks (attested transactions only): the attestor is the block author and the
-//!    attested units are within bounds — drop with error. The attestation is the copy's own, so a
-//!    later copy of the digest is validated.
+//! 5. Attestation checks (attested transactions only): the attestor is the block author, the
+//!    attested units are within bounds, and the gas price and budget are within bounds — drop with
+//!    error. The attestation is the copy's own, so a later copy of the digest is validated.
 //! 6. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop with error, except a
 //!    lock held by the same transaction (with deterministic validation off, a deferred tx's own
 //!    lock from the commit that kept it), which is exempt. Cheap; performed before expensive
@@ -75,6 +75,7 @@ use iota_types::{
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
+    gas::check_gas_bounds,
     transaction::{
         InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction,
     },
@@ -535,6 +536,29 @@ pub async fn validate_and_resolve_conflicts(
                     "attested transaction failed attestation verification, dropping"
                 );
                 decisions.drop_copy(digest, e, false, from_signatures(FailedCheck::Attestation));
+                keep[i] = false;
+                continue;
+            }
+
+            // Payload-only gas bounds: a pure function of the transaction and
+            // epoch constants, so this drop needs no store read. The full gas
+            // check (owner, coin type, balance) runs with the loaded coins in
+            // Check #6.
+            let txn = transaction.data().transaction();
+            if let Err(e) = check_gas_bounds(
+                epoch_store.protocol_config(),
+                epoch_store.reference_gas_price(),
+                txn.gas_price(),
+                txn.gas_budget(),
+            ) {
+                let e: IotaError = e.into();
+                warn!(
+                    ?digest,
+                    commit_index,
+                    error = ?e,
+                    "attested transaction failed post-consensus gas bounds check, dropping"
+                );
+                decisions.drop_copy(digest, e, false, from_signatures(FailedCheck::Data));
                 keep[i] = false;
                 continue;
             }
