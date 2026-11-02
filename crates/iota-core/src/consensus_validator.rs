@@ -70,11 +70,18 @@ impl IotaTxValidator {
         let mut ckpt_messages = Vec::new();
         let mut ckpt_batch = Vec::new();
         let mut authority_cap_batch = Vec::new();
-        let mut user_tx_v1_count: u64 = 0;
+        let mut user_tx_count: u64 = 0;
 
         for tx in txs.iter() {
             match tx {
                 ConsensusTransactionKind::CertifiedTransaction(certificate) => {
+                    if self.epoch_store.protocol_config().enable_pcool_flow() {
+                        return Err(IotaError::UnsupportedFeature {
+                            error:
+                                "CertifiedTransaction not allowed when white-flag flow is enabled"
+                                    .into(),
+                        });
+                    }
                     self.identifiers_check(certificate.data())?;
                     cert_batch.push(certificate.as_ref());
                 }
@@ -125,6 +132,26 @@ impl IotaTxValidator {
                         });
                     }
                     self.identifiers_check(attested_tx.transaction.data())?;
+                    // An attestation is authenticated by the block signature,
+                    // so only its presence is checked here, against the flag;
+                    // post-consensus validation checks its content.
+                    let attested = attested_tx.attestation.is_some();
+                    let attestation_enabled = self
+                        .epoch_store
+                        .protocol_config()
+                        .enable_validator_attestation();
+                    if attested != attestation_enabled {
+                        return Err(IotaError::UnsupportedFeature {
+                            error: if attested {
+                                "attested UserTransactionV1 not supported at current protocol \
+                                 version"
+                            } else {
+                                "UserTransactionV1 must carry an attestation when validator \
+                                 attestation is enabled"
+                            }
+                            .into(),
+                        });
+                    }
                     // TODO: Batch signature verification for UserTransactionV1.
                     //  For now verify individually, but this should be batched for performance
                     //  similar to how certificates are batch-verified above.
@@ -134,7 +161,7 @@ impl IotaTxValidator {
                         .tap_err(|e| {
                             warn!("UserTransactionV1 signature verification failed: {}", e)
                         })?;
-                    user_tx_v1_count += 1;
+                    user_tx_count += 1;
                 }
 
                 ConsensusTransactionKind::EndOfPublish(_)
@@ -199,7 +226,7 @@ impl IotaTxValidator {
             .inc_by(authority_cap_count as u64);
         self.metrics
             .user_transaction_signatures_verified
-            .inc_by(user_tx_v1_count);
+            .inc_by(user_tx_count);
         Ok(())
 
         // todo - we should un-comment line below once we have a way to revert
@@ -271,7 +298,7 @@ impl IotaTxValidatorMetrics {
             .unwrap(),
             user_transaction_signatures_verified: register_int_counter_with_registry!(
                 "user_transaction_signatures_verified",
-                "Number of UserTransactionV1 signatures verified in consensus validator",
+                "Number of user transaction (V1 and V2) signatures verified in consensus validator",
                 registry
             )
             .unwrap(),
@@ -310,6 +337,13 @@ mod tests {
 
     #[sim_test]
     async fn accept_valid_transaction() {
+        // `CertifiedTransaction` is not submitted to consensus under the
+        // P-COOL flow, so this test runs with it off.
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(false);
+            config
+        });
+
         // Initialize an authority with a (owned) gas object and a shared object; then
         // make a test certificate.
         let mut objects = test_gas_objects();

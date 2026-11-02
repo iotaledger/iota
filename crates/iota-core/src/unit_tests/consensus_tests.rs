@@ -33,7 +33,8 @@ use tokio::time::sleep;
 use super::*;
 use crate::{
     authority::{
-        AuthorityState, ExecutionEnv, authority_tests::init_state_with_objects,
+        AuthorityState, ExecutionEnv, authority_test_utils::drop_attestations,
+        authority_tests::init_state_with_objects,
         shared_object_version_manager::AssignedTxAndVersions,
     },
     checkpoints::CheckpointServiceNoop,
@@ -174,7 +175,7 @@ pub fn make_consensus_adapter_for_test(
                                 self.state.as_ref(),
                             )
                             .await?;
-                        transactions.extend(txns);
+                        transactions.extend(drop_attestations(txns));
                         assigned_versions.extend(versions.0);
                     }
                 } else {
@@ -188,7 +189,7 @@ pub fn make_consensus_adapter_for_test(
                             self.state.as_ref(),
                         )
                         .await?;
-                    transactions.extend(txns);
+                    transactions.extend(drop_attestations(txns));
                     assigned_versions.extend(versions.0);
                 }
             }

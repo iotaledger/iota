@@ -9,12 +9,15 @@ use std::{
 
 use iota_sdk_types::{
     Argument, Event, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, TransactionDigest,
-    TypeTag, Version,
+    TransactionEffects, TypeTag, Version,
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    error::{ExecutionError, ExecutionErrorKind},
+    gas::IotaGasStatus,
+    inner_temporary_store::InnerTemporaryStore,
     object::{MoveStructExt, Object},
     storage::BackingPackageStore,
 };
@@ -86,6 +89,19 @@ pub type ExecutionResult = (
     Vec<(Argument, Vec<u8>, TypeTag)>,
     // return_values
     Vec<(Vec<u8>, TypeTag)>,
+);
+
+/// What authenticating and then executing a transaction returns: the temporary
+/// store, the gas status, the effects, the timings and the execution result,
+/// plus the Move authentication error when that phase failed. The body's own
+/// checks may replace that error in the effects.
+pub type AuthenticateThenExecuteOutput<R> = (
+    InnerTemporaryStore,
+    IotaGasStatus,
+    TransactionEffects,
+    Vec<ExecutionTiming>,
+    Result<R, ExecutionError>,
+    Option<ExecutionErrorKind>,
 );
 
 impl ExecutionResultsV1 {

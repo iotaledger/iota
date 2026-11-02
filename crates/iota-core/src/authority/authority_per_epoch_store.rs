@@ -130,6 +130,9 @@ use crate::{
         reconfiguration::ReconfigState,
     },
     execution_cache::{ObjectCacheRead, TransactionCacheRead, cache_types::CacheResult},
+    execution_scheduler::transaction_manager::{
+        SchedulableAttestedTransaction, VerifiedExecutableAttestedTransaction,
+    },
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
     overload_monitor::should_reject_tx,
@@ -326,12 +329,20 @@ impl CongestionControlParameters {
     /// from a given consensus commit.
     pub(super) fn get_estimated_execution_duration(
         &self,
-        transaction: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableAttestedTransaction,
     ) -> ExecutionTime {
         match self.per_object_congestion_control_mode {
             PerObjectCongestionControlMode::None => 0,
             PerObjectCongestionControlMode::TotalGasBudget => transaction.gas_budget(),
             PerObjectCongestionControlMode::TotalTxCount => 1,
+            PerObjectCongestionControlMode::TotalComputationUnits => {
+                transaction.attested_computation_units().unwrap_or_else(|| {
+                    transaction
+                        .gas_budget()
+                        .checked_div(transaction.transaction().gas_price())
+                        .unwrap_or(0)
+                })
+            }
         }
     }
 
@@ -512,7 +523,7 @@ pub enum ConsensusTransactionResult {
     /// start_time 0, meaning they are not dependent on another transaction
     /// and they will not wait for another transaction.
     Scheduled {
-        transaction: VerifiedExecutableTransaction,
+        transaction: VerifiedExecutableAttestedTransaction,
         start_time: ExecutionTime,
     },
 
@@ -544,7 +555,7 @@ pub enum ConsensusTransactionResult {
     /// `CancelConsensusTransactionReason`.
     Cancelled(
         (
-            VerifiedExecutableTransaction,
+            VerifiedExecutableAttestedTransaction,
             CancelConsensusTransactionReason,
         ),
     ),
@@ -3256,7 +3267,7 @@ impl AuthorityPerEpochStore {
     #[instrument("transactions_sequencing", level = "trace", skip_all, fields(tx_digest = ?transaction.digest(), scheduling_result = tracing::field::Empty))]
     fn try_schedule(
         &self,
-        transaction: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableAttestedTransaction,
         commit_round: CommitRound,
         dkg_failed: bool,
         generating_randomness: bool,
@@ -3357,11 +3368,11 @@ impl AuthorityPerEpochStore {
             .pending_consensus_transactions
             .multi_insert(key_value_pairs)?;
 
-        // NOTE: If the P-COOL flow is enabled, we do not
-        // insert `UserTransactionV1` into the pending set because there is no
-        // pre-consensus "promise" (a certificate) that `UserTransactionV1` will be
-        // executed before the end of epoch. Thus, the below insertion is only for
-        // certificates, i.e., when the P-COOL flow is disabled.
+        // NOTE: If the P-COOL flow is enabled, we do not insert user
+        // transactions (`UserTransactionV1`) into the pending set because
+        // there is no pre-consensus "promise" (a certificate) that they will
+        // be executed before the end of epoch. Thus, the below insertion is
+        // only for certificates, i.e., when the P-COOL flow is disabled.
         if !self.protocol_config.enable_pcool_flow() {
             // TODO: lock once for all insert() calls.
             for transaction in transactions {
@@ -4300,7 +4311,10 @@ impl AuthorityPerEpochStore {
             .apply_cached_deny_rule_proposal_for_test(proposal);
     }
 
-    fn process_user_signatures<'a>(&self, transactions: impl Iterator<Item = &'a Schedulable>) {
+    fn process_user_signatures<'a>(
+        &self,
+        transactions: impl Iterator<Item = &'a SchedulableAttestedTransaction>,
+    ) {
         let sigs: Vec<_> = transactions
             .filter_map(|schedulable| match schedulable {
                 Schedulable::Transaction(transaction) => {
@@ -4727,7 +4741,7 @@ impl AuthorityPerEpochStore {
         authority_state: &AuthorityState,
     ) -> Result<
         (
-            Vec<Schedulable>,
+            Vec<SchedulableAttestedTransaction>,
             AssignedTxAndVersions,
             Vec<SequencedConsensusTransactionKey>,
         ),
@@ -5449,7 +5463,7 @@ impl AuthorityPerEpochStore {
     pub(crate) fn add_deny_rule_update_transactions(
         &self,
         output: &mut ConsensusCommitOutput,
-        transactions: &mut VecDeque<Schedulable>,
+        transactions: &mut VecDeque<SchedulableAttestedTransaction>,
         roots: &mut BTreeSet<TransactionKey>,
         consensus_commit_info: &ConsensusCommitInfo,
     ) -> IotaResult<()> {
@@ -5552,7 +5566,7 @@ impl AuthorityPerEpochStore {
     fn add_consensus_commit_prologue_transaction(
         &self,
         output: &mut ConsensusCommitOutput,
-        transactions: &mut VecDeque<Schedulable>,
+        transactions: &mut VecDeque<SchedulableAttestedTransaction>,
         consensus_commit_info: &ConsensusCommitInfo,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
     ) -> IotaResult<Option<TransactionKey>> {
@@ -5625,8 +5639,8 @@ impl AuthorityPerEpochStore {
     fn process_consensus_transaction_shared_object_versions(
         &self,
         cache_reader: &dyn ObjectCacheRead,
-        non_randomness_transactions: &[Schedulable],
-        randomness_transactions: &[Schedulable],
+        non_randomness_transactions: &[SchedulableAttestedTransaction],
+        randomness_transactions: &[SchedulableAttestedTransaction],
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
         output: &mut ConsensusCommitOutput,
     ) -> IotaResult<AssignedTxAndVersions> {
@@ -5670,7 +5684,7 @@ impl AuthorityPerEpochStore {
         authority_metrics: &Arc<AuthorityMetrics>,
         skip_consensus_commit_prologue_in_test: bool,
         authority_state: &AuthorityState,
-    ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
+    ) -> IotaResult<(Vec<SchedulableAttestedTransaction>, AssignedTxAndVersions)> {
         let round = self.get_highest_pending_checkpoint_height() / 2 + 1;
         // With the handler object state, each commit takes a new index, and
         // the earlier ones count as fully executed: no execution watcher runs
@@ -5723,7 +5737,9 @@ impl AuthorityPerEpochStore {
         let transactions: Vec<_> = transactions
             .iter()
             .cloned()
-            .map(Schedulable::Transaction)
+            .map(|tx| {
+                Schedulable::Transaction(VerifiedExecutableAttestedTransaction::new(tx, None))
+            })
             .collect();
         let assigned_versions = self.process_consensus_transaction_shared_object_versions(
             cache_reader,
@@ -5787,8 +5803,10 @@ impl AuthorityPerEpochStore {
         >,
     ) -> Result<
         (
-            Vec<Schedulable>,                      // non-randomness transactions to schedule
-            Vec<Schedulable>,                      // randomness transactions to schedule
+            // non-randomness transactions to schedule
+            Vec<SchedulableAttestedTransaction>,
+            // randomness transactions to schedule
+            Vec<SchedulableAttestedTransaction>,
             Vec<SequencedConsensusTransactionKey>, // keys to notify as complete
             Option<RwLockWriteGuard<'_, ReconfigState>>,
             bool,                   // true if final round
@@ -6345,8 +6363,11 @@ impl AuthorityPerEpochStore {
                     return Ok(ConsensusTransactionResult::Ignored);
                 }
 
+                let attested_transaction =
+                    VerifiedExecutableAttestedTransaction::new(transaction, None);
+
                 let scheduling_result = self.try_schedule(
-                    &transaction,
+                    &attested_transaction,
                     commit_round,
                     dkg_failed,
                     generating_randomness,
@@ -6356,7 +6377,7 @@ impl AuthorityPerEpochStore {
 
                 self.handle_scheduling_result(
                     scheduling_result,
-                    transaction,
+                    attested_transaction,
                     previously_deferred_tx_digests,
                     dkg_failed,
                     shared_object_congestion_tracker,
@@ -6590,11 +6611,14 @@ impl AuthorityPerEpochStore {
                 // In contrast to `new_from_certificate` (the proof was authorized by 2f+1
                 // pre-consensus signatures), the `ConsensusOrdered` certificate proof
                 // is authorized by consensus ordering post owned-object conflict resolution.
-                let executable_tx = VerifiedExecutableTransaction::new_unchecked(
-                    ExecutableTransaction::new_from_data_and_sig(
-                        transaction.data().clone(),
-                        CertificateProof::ConsensusOrdered(self.epoch()),
+                let executable_tx = VerifiedExecutableAttestedTransaction::new(
+                    VerifiedExecutableTransaction::new_unchecked(
+                        ExecutableTransaction::new_from_data_and_sig(
+                            transaction.data().clone(),
+                            CertificateProof::ConsensusOrdered(self.epoch()),
+                        ),
                     ),
+                    attested_tx.attestation.clone(),
                 );
 
                 let scheduling_result = self.try_schedule(
@@ -6681,7 +6705,7 @@ impl AuthorityPerEpochStore {
     fn handle_scheduling_result(
         &self,
         scheduling_result: SchedulingResult,
-        verified_executable_tx: VerifiedExecutableTransaction,
+        verified_executable_tx: VerifiedExecutableAttestedTransaction,
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         dkg_failed: bool,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
@@ -6852,7 +6876,10 @@ impl AuthorityPerEpochStore {
         // If needed we can support owned object system transactions as well...
         assert!(system_transaction.contains_shared_object());
         ConsensusTransactionResult::Scheduled {
-            transaction: system_transaction.clone(),
+            transaction: VerifiedExecutableAttestedTransaction::new(
+                system_transaction.clone(),
+                None,
+            ),
             start_time: 0,
         }
     }

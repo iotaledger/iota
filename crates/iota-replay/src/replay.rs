@@ -883,24 +883,29 @@ impl LocalExec {
                 sponsor_authenticator_function_ref,
             };
 
-            executor.authenticate_then_execute_transaction_to_effects(
-                &self,
-                protocol_config,
-                metrics.clone(),
-                expensive_checks,
-                &certificate_deny_set,
-                &tx_info.executed_epoch,
-                tx_info.epoch_start_timestamp,
-                gas_data,
-                gas_status,
-                MoveAuthenticatorsForExecution::Resolved(move_authenticators),
-                CheckedInputObjects::new_for_replay(input_objects.clone()),
-                transaction_kind.clone(),
-                tx_info.sender,
-                *tx_digest,
-                auth_context_data,
-                &mut None,
-            )
+            // The authentication error only feeds the validator's attestation
+            // verdict; replay must reproduce effects regardless, so drop it.
+            let (inner_store, gas_status, effects, timings, result, _authentication_error) =
+                executor.authenticate_then_execute_transaction_to_effects(
+                    &self,
+                    protocol_config,
+                    metrics.clone(),
+                    expensive_checks,
+                    &certificate_deny_set,
+                    &tx_info.executed_epoch,
+                    tx_info.epoch_start_timestamp,
+                    gas_data,
+                    gas_status,
+                    MoveAuthenticatorsForExecution::Resolved(move_authenticators),
+                    CheckedInputObjects::new_for_replay(input_objects.clone()),
+                    transaction_kind.clone(),
+                    tx_info.sender,
+                    *tx_digest,
+                    auth_context_data,
+                    &mut None,
+                );
+
+            (inner_store, gas_status, effects, timings, result)
         };
 
         if let Err(err) = self.pretty_print_for_tracing(
@@ -1146,7 +1151,7 @@ impl LocalExec {
             let authenticator_gas_budget = protocol_config.max_auth_gas();
             let (gas_status, per_authenticator_checked_input_objects, union_checked_input_objects) =
                 iota_transaction_checks::check_certificate_and_move_authenticator_input(
-                    &executable,
+                    executable.data().transaction(),
                     tx_input_objects,
                     per_authenticator_input_objects,
                     authenticator_gas_budget,
@@ -1201,24 +1206,29 @@ impl LocalExec {
                 sponsor_authenticator_function_ref,
             };
 
-            executor.authenticate_then_execute_transaction_to_effects(
-                &store,
-                &protocol_config,
-                Arc::new(LimitsMetrics::new(&Registry::new())),
-                true,
-                &HashSet::new(),
-                &executed_epoch,
-                epoch_start_timestamp,
-                gas_data,
-                gas_status,
-                MoveAuthenticatorsForExecution::Resolved(move_authenticators),
-                union_checked_input_objects,
-                kind,
-                signer,
-                *executable.digest(),
-                auth_context_data,
-                &mut None,
-            )
+            // The authentication error only feeds the validator's attestation
+            // verdict; replay must reproduce effects regardless, so drop it.
+            let (inner_store, gas_status, effects, timings, exec_res, _authentication_error) =
+                executor.authenticate_then_execute_transaction_to_effects(
+                    &store,
+                    &protocol_config,
+                    Arc::new(LimitsMetrics::new(&Registry::new())),
+                    true,
+                    &HashSet::new(),
+                    &executed_epoch,
+                    epoch_start_timestamp,
+                    gas_data,
+                    gas_status,
+                    MoveAuthenticatorsForExecution::Resolved(move_authenticators),
+                    union_checked_input_objects,
+                    kind,
+                    signer,
+                    *executable.digest(),
+                    auth_context_data,
+                    &mut None,
+                );
+
+            (inner_store, gas_status, effects, timings, exec_res)
         };
 
         let effects =
