@@ -100,7 +100,7 @@ pub fn tls_configs() -> (
     tokio_rustls::rustls::ServerConfig,
     tokio_rustls::rustls::ClientConfig,
 ) {
-    let private_key = private_key(SERVER_SEED);
+    let private_key = Ed25519PrivateKey::new([SERVER_SEED; 32]);
     let public_key = private_key.public_key();
     (
         iota_tls::create_rustls_server_config(private_key, SERVER_NAME.to_string()),
@@ -116,9 +116,11 @@ pub fn serve_tls(config: Config, metrics: &ListenerMetrics, app: Router) -> Sock
 /// A TLS listener that accepts the client key `CLIENT_SEED` only.
 pub fn serve_mutual_tls(config: Config, metrics: &ListenerMetrics, app: Router) -> SocketAddr {
     let server_config = iota_tls::create_rustls_server_config_with_client_verifier(
-        private_key(SERVER_SEED),
+        Ed25519PrivateKey::new([SERVER_SEED; 32]),
         SERVER_NAME.to_string(),
-        iota_tls::AllowPublicKeys::new([private_key(CLIENT_SEED).public_key()].into()),
+        iota_tls::AllowPublicKeys::new(
+            [Ed25519PrivateKey::new([CLIENT_SEED; 32]).public_key()].into(),
+        ),
     );
     keep_running(serve_handle(config, metrics, Some(server_config), app))
 }
@@ -126,9 +128,9 @@ pub fn serve_mutual_tls(config: Config, metrics: &ListenerMetrics, app: Router) 
 /// Opens a TLS connection with the client key `CLIENT_SEED`.
 pub async fn connect_mutual_tls(addr: SocketAddr) -> tokio_rustls::client::TlsStream<TcpStream> {
     let client_config = iota_tls::create_rustls_client_config(
-        private_key(SERVER_SEED).public_key(),
+        Ed25519PrivateKey::new([SERVER_SEED; 32]).public_key(),
         SERVER_NAME.to_string(),
-        Some(private_key(CLIENT_SEED)),
+        Some(Ed25519PrivateKey::new([CLIENT_SEED; 32])),
     );
     let tcp = TcpStream::connect(addr).await.unwrap();
     tokio_rustls::TlsConnector::from(Arc::new(client_config))
@@ -139,7 +141,3 @@ pub async fn connect_mutual_tls(addr: SocketAddr) -> tokio_rustls::client::TlsSt
 
 const SERVER_SEED: u8 = 42;
 const CLIENT_SEED: u8 = 43;
-
-fn private_key(seed: u8) -> Ed25519PrivateKey {
-    Ed25519PrivateKey::new([seed; 32])
-}
