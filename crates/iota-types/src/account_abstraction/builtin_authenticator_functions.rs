@@ -127,10 +127,7 @@ pub fn verify_builtin_signature(
         })?;
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
 
-    let verify_params = VerifyParams::new(
-        protocol_config.accept_passkey_in_multisig(),
-        protocol_config.additional_multisig_checks(),
-    );
+    let verify_params = VerifyParams::from_protocol_config(protocol_config);
 
     signature.verify_claims(&intent_msg, address, &verify_params)
 }
