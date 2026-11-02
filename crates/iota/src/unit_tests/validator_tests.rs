@@ -123,12 +123,9 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
     }
     .execute(&mut test_cluster.wallet, json)
     .await?;
-    if let IotaValidatorCommandResponse::UpdateMetadata(tx) = response {
-        assert!(
-            tx.errors.is_empty(),
-            "Updating the network address should not error"
-        )
-    } else {
+    // `call_0x5` bails on a failed execution, so reaching here means the update
+    // succeeded.
+    let IotaValidatorCommandResponse::UpdateMetadata(_tx) = response else {
         panic!("Expected UpdateMetadata");
     };
 
@@ -140,24 +137,14 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
     }
     .execute(&mut test_cluster.wallet, json)
     .await?;
-    if let IotaValidatorCommandResponse::UpdateMetadata(tx) = response {
-        assert!(
-            tx.errors.is_empty(),
-            "Updating the protocol pubkey should not error"
-        )
-    } else {
+    let IotaValidatorCommandResponse::UpdateMetadata(_tx) = response else {
         panic!("Expected UpdateMetadata");
     };
 
     let response = IotaValidatorCommand::LeaveValidators { gas_budget: None }
         .execute(&mut test_cluster.wallet, json)
         .await?;
-    if let IotaValidatorCommandResponse::LeaveValidators(tx) = response {
-        assert!(
-            tx.errors.is_empty(),
-            "Leaving the validators should not error"
-        )
-    } else {
+    let IotaValidatorCommandResponse::LeaveValidators(_tx) = response else {
         panic!("Expected LeaveValidators");
     };
 

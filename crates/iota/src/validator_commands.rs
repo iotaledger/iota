@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashSet},
-    fmt::{self, Debug, Display, Formatter, Write},
+    collections::{BTreeSet, HashSet},
+    fmt::{Debug, Display, Formatter, Write},
     fs,
     path::PathBuf,
 };
@@ -16,12 +16,9 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     traits::{KeyPair, ToFromBytes},
 };
-use futures::TryStreamExt;
 use iota_genesis_builder::validator_info::GenesisValidatorInfo;
-use iota_json_rpc_types::{
-    IotaData, IotaMoveValue, IotaObjectDataOptions, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions,
-};
+use iota_grpc_client::{GrpcClient, read_mask_fields::EpochField};
+use iota_grpc_types::v1::transaction::ExecutedTransaction;
 use iota_keys::{
     key_derive::generate_new_key,
     keypair_file::{
@@ -31,14 +28,20 @@ use iota_keys::{
     keystore::{AccountKeystore, StoredKey},
 };
 use iota_multiaddr::Multiaddr;
-use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
+use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_move_types::{
     iota_framework::dynamic_field::Field,
-    iota_system::{validator_cap::UnverifiedValidatorOperationCap, validator_wrapper::Validator},
+    iota_system::{
+        iota_system_state_inner::{IotaSystemStateV1, IotaSystemStateV2},
+        validator::ValidatorV1,
+        validator_cap::UnverifiedValidatorOperationCap,
+        validator_wrapper::Validator,
+    },
 };
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, SignatureScheme, Transaction, TypeTag,
+    Address, ExecutionStatus, Identifier, ObjectId, ObjectReference, Owner, SignatureScheme,
+    Transaction, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
@@ -47,11 +50,8 @@ use iota_types::{
         NetworkKeyPair, NetworkPublicKey, Signable, generate_proof_of_possession,
         get_authority_key_pair,
     },
-    dynamic_field::DynamicFieldName,
-    iota_system_state::{
-        iota_system_state_inner_v1::ValidatorV1,
-        iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
-    },
+    dynamic_field::derive_dynamic_field_id,
+    effects::TransactionEffectsAPI,
     transaction::{CallArg, TransactionAPI, TransactionEnvelope},
 };
 use serde::Serialize;
@@ -63,7 +63,7 @@ use tabled::{
     },
 };
 
-use crate::{PrintableResult, signing::sign_transaction};
+use crate::{PrintableResult, displays::Pretty, signing::sign_transaction};
 
 #[path = "unit_tests/validator_tests.rs"]
 #[cfg(test)]
@@ -159,11 +159,21 @@ pub enum IotaValidatorCommand {
 pub enum IotaValidatorCommandResponse {
     MakeValidatorInfo,
     DisplayMetadata(String),
-    BecomeCandidate(IotaTransactionBlockResponse),
-    JoinValidators(IotaTransactionBlockResponse),
-    LeaveValidators(IotaTransactionBlockResponse),
-    UpdateMetadata(IotaTransactionBlockResponse),
-    ReportValidator(IotaTransactionBlockResponse),
+    BecomeCandidate(
+        #[serde(serialize_with = "serialize_executed_transaction")] Box<ExecutedTransaction>,
+    ),
+    JoinValidators(
+        #[serde(serialize_with = "serialize_executed_transaction")] Box<ExecutedTransaction>,
+    ),
+    LeaveValidators(
+        #[serde(serialize_with = "serialize_executed_transaction")] Box<ExecutedTransaction>,
+    ),
+    UpdateMetadata(
+        #[serde(serialize_with = "serialize_executed_transaction")] Box<ExecutedTransaction>,
+    ),
+    ReportValidator(
+        #[serde(serialize_with = "serialize_executed_transaction")] Box<ExecutedTransaction>,
+    ),
     SerializedPayload(String),
     List(String),
 }
@@ -297,14 +307,14 @@ impl IotaValidatorCommand {
                 ];
                 let response =
                     call_0x5(context, "request_add_validator_candidate", args, gas_budget).await?;
-                IotaValidatorCommandResponse::BecomeCandidate(response)
+                IotaValidatorCommandResponse::BecomeCandidate(Box::new(response))
             }
 
             IotaValidatorCommand::JoinValidators { gas_budget } => {
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let response =
                     call_0x5(context, "request_add_validator", vec![], gas_budget).await?;
-                IotaValidatorCommandResponse::JoinValidators(response)
+                IotaValidatorCommandResponse::JoinValidators(Box::new(response))
             }
 
             IotaValidatorCommand::LeaveValidators { gas_budget } => {
@@ -316,14 +326,13 @@ impl IotaValidatorCommand {
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let response =
                     call_0x5(context, "request_remove_validator", vec![], gas_budget).await?;
-                IotaValidatorCommandResponse::LeaveValidators(response)
+                IotaValidatorCommandResponse::LeaveValidators(Box::new(response))
             }
 
             IotaValidatorCommand::DisplayMetadata { validator_address } => {
                 let validator_address = validator_address.unwrap_or(context.active_address()?);
                 // Default display with json serialization for better UX.
-                let iota_client = context.get_client().await?;
-                let resp = display_metadata(&iota_client, validator_address, json).await?;
+                let resp = display_metadata(context, validator_address, json).await?;
                 IotaValidatorCommandResponse::DisplayMetadata(resp)
             }
 
@@ -333,7 +342,7 @@ impl IotaValidatorCommand {
             } => {
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let resp = update_metadata(context, metadata, gas_budget).await?;
-                IotaValidatorCommandResponse::UpdateMetadata(resp)
+                IotaValidatorCommandResponse::UpdateMetadata(Box::new(resp))
             }
 
             IotaValidatorCommand::ReportValidator {
@@ -352,7 +361,7 @@ impl IotaValidatorCommand {
                     gas_budget,
                 )
                 .await?;
-                IotaValidatorCommandResponse::ReportValidator(resp)
+                IotaValidatorCommandResponse::ReportValidator(Box::new(resp))
             }
 
             IotaValidatorCommand::SerializePayloadForPoP {
@@ -381,40 +390,21 @@ impl IotaValidatorCommand {
                     "committee member",
                 ]);
 
-                let client = context.get_client().await?;
-
-                let iota_system_state = client
-                    .governance_api()
-                    .get_latest_iota_system_state()
-                    .await?;
-                let (active_validators, committee_members) = match iota_system_state {
-                    IotaSystemStateSummary::V1(v1) => (v1.active_validators, None),
-                    IotaSystemStateSummary::V2(v2) => {
-                        (v2.active_validators, Some(v2.committee_members))
-                    }
-                    _ => bail!(
-                        "Unsupported IotaSystemStateSummary found. You may need to upgrade your iota binary."
-                    ),
-                };
+                let system_state = get_system_state(context).await?;
 
                 let mut entries = Vec::new();
-                for (
-                    index,
-                    IotaValidatorSummary {
-                        iota_address,
-                        name,
-                        staking_pool_iota_balance,
-                        pending_stake,
-                        ..
-                    },
-                ) in active_validators.into_iter().enumerate()
-                {
-                    let committee_member = committee_members
+                for (index, validator) in system_state.active_validators.iter().enumerate() {
+                    let committee_member = system_state
+                        .committee_members
                         .as_ref()
                         .map(|members| members.contains(&(index as u64)))
-                        // There was no committee in IotaSystemStateSummary::V1, so for consistency
+                        // There is no committee in `IotaSystemStateV1`, so for consistency
                         // in the table we just add all validators.
                         .unwrap_or(true);
+                    let iota_address = validator.metadata.iota_address;
+                    let name = move_string(&validator.metadata.name.bytes);
+                    let staking_pool_iota_balance = validator.staking_pool.iota_balance;
+                    let pending_stake = validator.staking_pool.pending_stake;
                     builder.push_record([
                         iota_address.to_string(),
                         name.clone(),
@@ -449,50 +439,253 @@ impl IotaValidatorCommand {
     }
 }
 
+/// Decode a UTF-8 Move string (or ASCII URL) for display, lossily substituting
+/// any invalid bytes.
+fn move_string(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
+/// The validator information a command needs, mapped from the raw on-chain
+/// `0x3::validator::ValidatorV1` (and its `ValidatorMetadataV1` /
+/// `StakingPoolV1`) as read from the system state over gRPC.
+///
+/// This mirrors the fields the previous `IotaValidatorSummary` exposed, with
+/// one exception: `effective_commission_rate` (the IIP8 protocol-adjusted rate)
+/// is computed by the node and not present in the raw system state, so it is
+/// omitted here.
+#[derive(Serialize)]
+struct ValidatorDisplay {
+    iota_address: Address,
+    authority_pubkey_bytes: String,
+    network_pubkey_bytes: String,
+    protocol_pubkey_bytes: String,
+    proof_of_possession_bytes: String,
+    name: String,
+    description: String,
+    image_url: String,
+    project_url: String,
+    net_address: String,
+    p2p_address: String,
+    primary_address: String,
+    next_epoch_authority_pubkey_bytes: Option<String>,
+    next_epoch_proof_of_possession: Option<String>,
+    next_epoch_network_pubkey_bytes: Option<String>,
+    next_epoch_protocol_pubkey_bytes: Option<String>,
+    next_epoch_net_address: Option<String>,
+    next_epoch_p2p_address: Option<String>,
+    next_epoch_primary_address: Option<String>,
+    voting_power: u64,
+    operation_cap_id: ObjectId,
+    gas_price: u64,
+    commission_rate: u64,
+    next_epoch_stake: u64,
+    next_epoch_gas_price: u64,
+    next_epoch_commission_rate: u64,
+    staking_pool_id: ObjectId,
+    staking_pool_activation_epoch: Option<u64>,
+    staking_pool_deactivation_epoch: Option<u64>,
+    staking_pool_iota_balance: u64,
+    rewards_pool: u64,
+    pool_token_balance: u64,
+    pending_stake: u64,
+    pending_total_iota_withdraw: u64,
+    pending_pool_token_withdraw: u64,
+    exchange_rates_id: ObjectId,
+    exchange_rates_size: u64,
+}
+
+impl ValidatorDisplay {
+    fn from_validator(validator: &ValidatorV1) -> Self {
+        let metadata = &validator.metadata;
+        let pool = &validator.staking_pool;
+        Self {
+            iota_address: metadata.iota_address,
+            authority_pubkey_bytes: Base64::encode(&metadata.authority_pubkey_bytes),
+            network_pubkey_bytes: Base64::encode(&metadata.network_pubkey_bytes),
+            protocol_pubkey_bytes: Base64::encode(&metadata.protocol_pubkey_bytes),
+            proof_of_possession_bytes: Base64::encode(&metadata.proof_of_possession),
+            name: move_string(&metadata.name.bytes),
+            description: move_string(&metadata.description.bytes),
+            image_url: move_string(&metadata.image_url.url.bytes),
+            project_url: move_string(&metadata.project_url.url.bytes),
+            net_address: move_string(&metadata.net_address.bytes),
+            p2p_address: move_string(&metadata.p2p_address.bytes),
+            primary_address: move_string(&metadata.primary_address.bytes),
+            next_epoch_authority_pubkey_bytes: metadata
+                .next_epoch_authority_pubkey_bytes
+                .as_ref()
+                .map(|b| Base64::encode(b)),
+            next_epoch_proof_of_possession: metadata
+                .next_epoch_proof_of_possession
+                .as_ref()
+                .map(|b| Base64::encode(b)),
+            next_epoch_network_pubkey_bytes: metadata
+                .next_epoch_network_pubkey_bytes
+                .as_ref()
+                .map(|b| Base64::encode(b)),
+            next_epoch_protocol_pubkey_bytes: metadata
+                .next_epoch_protocol_pubkey_bytes
+                .as_ref()
+                .map(|b| Base64::encode(b)),
+            next_epoch_net_address: metadata
+                .next_epoch_net_address
+                .as_ref()
+                .map(|s| move_string(&s.bytes)),
+            next_epoch_p2p_address: metadata
+                .next_epoch_p2p_address
+                .as_ref()
+                .map(|s| move_string(&s.bytes)),
+            next_epoch_primary_address: metadata
+                .next_epoch_primary_address
+                .as_ref()
+                .map(|s| move_string(&s.bytes)),
+            voting_power: validator.voting_power,
+            operation_cap_id: validator.operation_cap_id.bytes,
+            gas_price: validator.gas_price,
+            commission_rate: validator.commission_rate,
+            next_epoch_stake: validator.next_epoch_stake,
+            next_epoch_gas_price: validator.next_epoch_gas_price,
+            next_epoch_commission_rate: validator.next_epoch_commission_rate,
+            staking_pool_id: *pool.id.object_id(),
+            staking_pool_activation_epoch: pool.activation_epoch,
+            staking_pool_deactivation_epoch: pool.deactivation_epoch,
+            staking_pool_iota_balance: pool.iota_balance,
+            rewards_pool: pool.rewards_pool.value(),
+            pool_token_balance: pool.pool_token_balance,
+            pending_stake: pool.pending_stake,
+            pending_total_iota_withdraw: pool.pending_total_iota_withdraw,
+            pending_pool_token_withdraw: pool.pending_pool_token_withdraw,
+            exchange_rates_id: *pool.exchange_rates.id.object_id(),
+            exchange_rates_size: pool.exchange_rates.size,
+        }
+    }
+}
+
+/// The parts of the on-chain system state the validator commands need.
+struct SystemStateInfo {
+    active_validators: Vec<ValidatorV1>,
+    /// Indices into `active_validators` of the current committee members.
+    /// `None` for the pre-committee `IotaSystemStateV1`.
+    committee_members: Option<Vec<u64>>,
+    /// Object ID of the table backing the pending active validators.
+    pending_active_validators_id: ObjectId,
+    /// Object ID of the table of validator candidates, keyed by address.
+    validator_candidates_id: ObjectId,
+    /// Object ID of the table of inactive validators, keyed by staking pool ID.
+    inactive_validators_id: ObjectId,
+}
+
+impl From<IotaSystemStateV1> for SystemStateInfo {
+    fn from(state: IotaSystemStateV1) -> Self {
+        let validators = state.validators;
+        Self {
+            pending_active_validators_id: *validators
+                .pending_active_validators
+                .contents
+                .id
+                .object_id(),
+            validator_candidates_id: *validators.validator_candidates.id.object_id(),
+            inactive_validators_id: *validators.inactive_validators.id.object_id(),
+            active_validators: validators.active_validators,
+            committee_members: None,
+        }
+    }
+}
+
+impl From<IotaSystemStateV2> for SystemStateInfo {
+    fn from(state: IotaSystemStateV2) -> Self {
+        let validators = state.validators;
+        Self {
+            pending_active_validators_id: *validators
+                .pending_active_validators
+                .contents
+                .id
+                .object_id(),
+            validator_candidates_id: *validators.validator_candidates.id.object_id(),
+            inactive_validators_id: *validators.inactive_validators.id.object_id(),
+            active_validators: validators.active_validators,
+            committee_members: Some(validators.committee_members),
+        }
+    }
+}
+
+/// BCS mirror of the node's `0x3::iota_system::IotaSystemState` enum wrapper, so
+/// the raw system-state bytes returned by gRPC can be decoded into the matching
+/// inner-state mirror.
+#[derive(serde::Deserialize)]
+enum IotaSystemStateBcs {
+    V1(IotaSystemStateV1),
+    V2(IotaSystemStateV2),
+}
+
+/// Fetch and deserialize the current system state over gRPC.
+async fn get_system_state(context: &WalletContext) -> Result<SystemStateInfo> {
+    let client = context.get_grpc_client().await?;
+    let epoch = client
+        .epoch()
+        .read_mask(EpochField::BCS_SYSTEM_STATE)
+        .await?
+        .into_inner();
+    let bcs = epoch.system_state_bcs()?;
+    let state: IotaSystemStateBcs = bcs::from_bytes(bcs)
+        .map_err(|e| anyhow!("failed to deserialize the on-chain system state: {e}"))?;
+    Ok(match state {
+        IotaSystemStateBcs::V1(v1) => v1.into(),
+        IotaSystemStateBcs::V2(v2) => v2.into(),
+    })
+}
+
+/// Read the BCS contents of an object's Move struct.
+fn move_struct_contents(object: &iota_sdk_types::Object) -> Result<&[u8]> {
+    Ok(object
+        .as_opt_struct()
+        .ok_or_else(|| {
+            anyhow!(
+                "object {} is not a Move struct",
+                object.object_ref().object_id()
+            )
+        })?
+        .contents())
+}
+
+/// Fetch a single object (with its BCS contents and owner) over gRPC.
+async fn fetch_object(client: &GrpcClient, object_id: ObjectId) -> Result<iota_sdk_types::Object> {
+    let object = client
+        .objects([object_id])
+        .await?
+        .into_inner()
+        .into_iter()
+        .next()
+        .ok_or_else(|| anyhow!("object {object_id} not found"))??;
+    Ok(object.object()?)
+}
+
 async fn get_cap_object_ref(
-    context: &mut WalletContext,
+    context: &WalletContext,
     operation_cap_id: Option<ObjectId>,
-) -> Result<(ValidatorStatus, IotaValidatorSummary, ObjectReference)> {
-    let iota_client = context.get_client().await?;
+) -> Result<(ValidatorStatus, ValidatorDisplay, ObjectReference)> {
+    let client = context.get_grpc_client().await?;
     if let Some(operation_cap_id) = operation_cap_id {
         let (status, summary) =
-            get_validator_summary_from_cap_id(&iota_client, operation_cap_id).await?;
-        let cap_obj_ref = iota_client
-            .read_api()
-            .get_object_with_options(
-                summary.operation_cap_id,
-                IotaObjectDataOptions::default().with_owner(),
-            )
-            .await?
-            .object_ref_if_exists()
-            .ok_or_else(|| anyhow!("OperationCap {operation_cap_id} does not exist"))?;
-        Ok::<(ValidatorStatus, IotaValidatorSummary, ObjectReference), anyhow::Error>((
-            status,
-            summary,
-            cap_obj_ref,
-        ))
+            get_validator_summary_from_cap_id(context, operation_cap_id).await?;
+        let cap_object = fetch_object(&client, summary.operation_cap_id).await?;
+        let cap_obj_ref = cap_object.object_ref();
+        Ok((status, summary, cap_obj_ref))
     } else {
         // Sender is Reporter Validator itself.
         let validator_address = context.active_address()?;
-        let (status, summary) = get_validator_summary(&iota_client, validator_address)
+        let (status, summary) = get_validator_summary(context, validator_address)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("{validator_address} is not a validator."))?;
+            .ok_or_else(|| anyhow!("{validator_address} is not a validator."))?;
         // TODO we should allow validator to perform this operation even though the Cap
         // is not at hand. But for now we need to make sure the cap is owned by
         // the sender.
         let cap_object_id = summary.operation_cap_id;
-        let resp = iota_client
-            .read_api()
-            .get_object_with_options(cap_object_id, IotaObjectDataOptions::default().with_owner())
-            .await
-            .map_err(|e| anyhow!(e))?;
-        // Safe to unwrap as we ask with `with_owner`.
-        let owner = resp.owner().unwrap();
-        let cap_obj_ref = resp
-            .object_ref_if_exists()
-            .unwrap_or_else(|| panic!("OperationCap {cap_object_id} does not exist"));
-        if owner != Owner::Address(context.active_address()?) {
-            anyhow::bail!(
+        let cap_object = fetch_object(&client, cap_object_id).await?;
+        let owner = cap_object.owner();
+        let cap_obj_ref = cap_object.object_ref();
+        if *owner != Owner::Address(context.active_address()?) {
+            bail!(
                 "OperationCap {} is not owned by the sender address {} but {:?}",
                 summary.operation_cap_id,
                 validator_address,
@@ -509,13 +702,13 @@ async fn report_validator(
     operation_cap_id: Option<ObjectId>,
     undo_report: bool,
     gas_budget: u64,
-) -> Result<IotaTransactionBlockResponse> {
+) -> Result<ExecutedTransaction> {
     let (status, summary, cap_obj_ref) = get_cap_object_ref(context, operation_cap_id).await?;
 
     let validator_address = summary.iota_address;
     // Only committee members can report/un-report.
     if !matches!(status, ValidatorStatus::CommitteeMember) {
-        anyhow::bail!(
+        bail!(
             "Only committee members can report/un-report Validators, but {validator_address} is {status:?}."
         );
     }
@@ -532,29 +725,20 @@ async fn report_validator(
 }
 
 async fn get_validator_summary_from_cap_id(
-    client: &IotaClient,
+    context: &WalletContext,
     operation_cap_id: ObjectId,
-) -> anyhow::Result<(ValidatorStatus, IotaValidatorSummary)> {
-    let resp = client
-        .read_api()
-        .get_object_with_options(
-            operation_cap_id,
-            IotaObjectDataOptions::default().with_bcs(),
-        )
-        .await?;
-    let bcs = resp.move_object_bcs().ok_or_else(|| {
-        anyhow::anyhow!("Object {operation_cap_id} does not exist or does not return bcs bytes")
-    })?;
-    let cap = bcs::from_bytes::<UnverifiedValidatorOperationCap>(bcs).map_err(|e| {
-        anyhow::anyhow!(
-            "Can't convert bcs bytes of object {operation_cap_id} to UnverifiedValidatorOperationCapV1: {e}")
+) -> Result<(ValidatorStatus, ValidatorDisplay)> {
+    let client = context.get_grpc_client().await?;
+    let cap_object = fetch_object(&client, operation_cap_id).await?;
+    let cap = UnverifiedValidatorOperationCap::try_from(&cap_object).map_err(|e| {
+        anyhow!("Can't decode object {operation_cap_id} as an UnverifiedValidatorOperationCap: {e}")
     })?;
     let validator_address = cap.authorizer_validator_address;
-    let (status, summary) = get_validator_summary(client, validator_address)
+    let (status, summary) = get_validator_summary(context, validator_address)
         .await?
-        .ok_or_else(|| anyhow::anyhow!("{validator_address} is not a validator"))?;
+        .ok_or_else(|| anyhow!("{validator_address} is not a validator"))?;
     if summary.operation_cap_id != operation_cap_id {
-        anyhow::bail!(
+        bail!(
             "Validator {}'s current operation cap id is {}",
             validator_address,
             summary.operation_cap_id
@@ -564,28 +748,29 @@ async fn get_validator_summary_from_cap_id(
 }
 
 async fn construct_unsigned_0x5_txn(
-    context: &mut WalletContext,
+    context: &WalletContext,
     sender: Address,
     function: &'static str,
     call_args: Vec<CallArg>,
     gas_budget: u64,
-) -> anyhow::Result<Transaction> {
-    let iota_client = context.get_client().await?;
+) -> Result<Transaction> {
     let mut args = vec![CallArg::IOTA_SYSTEM_MUTABLE];
     args.extend(call_args);
-    let rgp = iota_client
-        .governance_api()
-        .get_reference_gas_price()
-        .await?;
+    let rgp = context.get_reference_gas_price().await?;
 
-    let gas_obj_ref = get_gas_obj_ref(sender, &iota_client, gas_budget).await?;
+    let (_balance, gas_object) = context
+        .gas_for_owner_budget(sender, gas_budget, BTreeSet::new())
+        .await
+        .map_err(|_| {
+            anyhow!("Validator doesn't have enough IOTA coins to cover transaction fees.")
+        })?;
     Transaction::new_move_call(
         sender,
         ObjectId::SYSTEM,
         Identifier::IOTA_SYSTEM_MODULE,
         Identifier::from_static(function),
         vec![],
-        gas_obj_ref,
+        gas_object.object_ref(),
         args,
         gas_budget,
         rgp,
@@ -597,26 +782,20 @@ async fn call_0x5(
     function: &'static str,
     call_args: Vec<CallArg>,
     gas_budget: u64,
-) -> anyhow::Result<IotaTransactionBlockResponse> {
+) -> Result<ExecutedTransaction> {
     let sender = context.active_address()?;
     let tx_data =
         construct_unsigned_0x5_txn(context, sender, function, call_args, gas_budget).await?;
-    let iota_client = context.get_client().await?;
 
     let signature = sign_transaction(context, &tx_data, &tx_data.sender(), None).await?;
     let transaction = TransactionEnvelope::from_user_sig_data(tx_data, vec![signature]);
 
-    iota_client
-        .quorum_driver_api()
-        .execute_transaction_block(
-            transaction,
-            IotaTransactionBlockResponseOptions::new()
-                .with_input()
-                .with_effects(),
-            Some(iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await
-        .map_err(|err| anyhow::anyhow!(err.to_string()))
+    let executed = context.execute_transaction_may_fail(transaction).await?;
+    let effects = executed.effects()?.effects()?;
+    if !matches!(effects.status(), ExecutionStatus::Success) {
+        bail!("Transaction failed: {effects:?}");
+    }
+    Ok(executed)
 }
 
 impl PrintableResult for IotaValidatorCommandResponse {
@@ -640,7 +819,7 @@ impl Display for IotaValidatorCommandResponse {
             | IotaValidatorCommandResponse::LeaveValidators(resp)
             | IotaValidatorCommandResponse::UpdateMetadata(resp)
             | IotaValidatorCommandResponse::ReportValidator(resp) => {
-                write!(writer, "{}", write_transaction_response(resp)?)?;
+                write!(writer, "{}", Pretty(&**resp))?;
             }
             IotaValidatorCommandResponse::SerializedPayload(response) => {
                 write!(writer, "Serialized payload: {response}")?;
@@ -650,26 +829,27 @@ impl Display for IotaValidatorCommandResponse {
     }
 }
 
-pub fn write_transaction_response(
-    response: &IotaTransactionBlockResponse,
-) -> Result<String, fmt::Error> {
-    // we requested with for full_content, so the following content should be
-    // available.
-    let success = response.status_ok().unwrap();
-    let lines = vec![
-        String::from("----- Transaction Digest ----"),
-        response.digest.to_string(),
-        String::from("\n----- Transaction Data ----"),
-        response.transaction.as_ref().unwrap().to_string(),
-        String::from("----- Transaction Effects ----"),
-        response.effects.as_ref().unwrap().to_string(),
-    ];
-    let mut writer = String::new();
-    for line in lines {
-        let colorized_line = if success { line.green() } else { line.red() };
-        writeln!(writer, "{colorized_line}")?;
-    }
-    Ok(writer)
+/// Serialize the parts of a gRPC execution result that the CLI surfaces as JSON:
+/// the transaction digest, effects, and events. Fields the read mask omitted are
+/// serialized as `null`.
+fn serialize_executed_transaction<S>(
+    executed: &ExecutedTransaction,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    use serde::ser::SerializeStruct;
+
+    let digest = executed.transaction().and_then(|t| t.digest()).ok();
+    let effects = executed.effects().and_then(|e| e.effects()).ok();
+    let events = executed.events().and_then(|e| e.events()).ok();
+
+    let mut state = serializer.serialize_struct("ExecutedTransaction", 3)?;
+    state.serialize_field("digest", &digest)?;
+    state.serialize_field("effects", &effects)?;
+    state.serialize_field("events", &events)?;
+    state.end()
 }
 
 impl Debug for IotaValidatorCommandResponse {
@@ -692,165 +872,140 @@ pub enum ValidatorStatus {
     Pending,
 }
 
-pub async fn get_validator_summary(
-    client: &IotaClient,
+/// Look up a validator by address in the current system state, returning its
+/// status and the metadata the commands display.
+async fn get_validator_summary(
+    context: &WalletContext,
     validator_address: Address,
-) -> anyhow::Result<Option<(ValidatorStatus, IotaValidatorSummary)>> {
-    let iota_system_state = client
-        .governance_api()
-        .get_latest_iota_system_state()
-        .await?;
-    let (
-        committee_members,
-        active_validators,
-        pending_active_validators_id,
-        validator_candidates_id,
-        inactive_pools_id,
-        protocol_version,
-    ) = match iota_system_state {
-        IotaSystemStateSummary::V1(v1) => (
-            None,
-            v1.active_validators,
-            v1.pending_active_validators_id,
-            v1.validator_candidates_id,
-            v1.inactive_pools_id,
-            v1.protocol_version,
-        ),
-        IotaSystemStateSummary::V2(v2) => (
-            Some(v2.committee_members),
-            v2.active_validators,
-            v2.pending_active_validators_id,
-            v2.validator_candidates_id,
-            v2.inactive_pools_id,
-            v2.protocol_version,
-        ),
-        _ => bail!(
-            "Unsupported IotaSystemStateSummary found. You may need to upgrade your iota binary."
-        ),
-    };
+) -> Result<Option<(ValidatorStatus, ValidatorDisplay)>> {
+    let system_state = get_system_state(context).await?;
+    let client = context.get_grpc_client().await?;
 
-    let mut active_validators = active_validators
-        .into_iter()
-        .enumerate()
-        .map(|(index, summary)| {
-            let committee_member = committee_members
+    // Check active and committee members.
+    for (index, validator) in system_state.active_validators.iter().enumerate() {
+        if validator.metadata.iota_address == validator_address {
+            let committee_member = system_state
+                .committee_members
                 .as_ref()
                 .map(|members| members.contains(&(index as u64)))
-                // There was no committee in IotaSystemStateSummary::V1, so for consistency
-                // we just set all validators also as committee_member.
+                // There is no committee in `IotaSystemStateV1`, so for consistency
+                // we treat all validators as committee members.
                 .unwrap_or(true);
-            (summary.iota_address, (summary, committee_member))
-        })
-        .collect::<BTreeMap<_, _>>();
+            let status = if committee_member {
+                ValidatorStatus::CommitteeMember
+            } else {
+                ValidatorStatus::Active
+            };
+            return Ok(Some((status, ValidatorDisplay::from_validator(validator))));
+        }
+    }
 
-    // Check active and committee members
-    if let Some((validator_summary, committee_member)) =
-        active_validators.remove(&validator_address)
+    // Check pending validators.
+    if let Some(validator) = get_pending_candidate_summary(
+        &client,
+        validator_address,
+        system_state.pending_active_validators_id,
+    )
+    .await?
     {
-        let status = if committee_member {
-            ValidatorStatus::CommitteeMember
-        } else {
-            ValidatorStatus::Active
-        };
-        return Ok(Some((status, validator_summary)));
+        return Ok(Some((
+            ValidatorStatus::Pending,
+            ValidatorDisplay::from_validator(&validator),
+        )));
     }
 
-    // Check pending validators
-    let pending_validator_summary =
-        get_pending_candidate_summary(validator_address, client, pending_active_validators_id)
-            .await?
-            .map(|v| v.into_iota_validator_summary(Some(protocol_version)));
-
-    if let Some(pending_validator_summary) = pending_validator_summary {
-        return Ok(Some((ValidatorStatus::Pending, pending_validator_summary)));
+    // Check candidates. The candidates table is keyed by validator address, so
+    // the field object ID can be derived directly.
+    let candidate_field_id = derive_dynamic_field_id(
+        system_state.validator_candidates_id,
+        &TypeTag::Address,
+        &bcs::to_bytes(&validator_address)?,
+    )?;
+    if let Some(validator) = get_validator_from_wrapper(&client, candidate_field_id).await? {
+        return Ok(Some((
+            ValidatorStatus::Candidate,
+            ValidatorDisplay::from_validator(&validator),
+        )));
     }
 
-    // Check candidates
-    let name = DynamicFieldName {
-        type_tag: TypeTag::Address,
-        value: IotaMoveValue::Address(validator_address).to_json_value(),
-    };
-    let res = client
-        .read_api()
-        .get_dynamic_field_object(validator_candidates_id, name)
-        .await?;
-    if res.error.is_none() {
-        let object_id = res.data.expect("no data in result").object_id;
-        let validator_summary =
-            get_validator_summary_from_validator_wrapper(client, object_id, Some(protocol_version))
-                .await?;
-        return Ok(Some((ValidatorStatus::Candidate, validator_summary)));
-    };
-
-    // Check inactive
-    let mut stream = PagedFn::stream(async |cursor| {
-        client
-            .read_api()
-            .get_dynamic_fields(inactive_pools_id, cursor, None)
-            .await
-    });
-    while let Some(dynamic_field_info) = stream.try_next().await? {
-        let validator_summary = get_validator_summary_from_validator_wrapper(
-            client,
-            dynamic_field_info.object_id,
-            Some(protocol_version),
-        )
-        .await?;
-        if validator_summary.iota_address == validator_address {
-            return Ok(Some((ValidatorStatus::Inactive, validator_summary)));
+    // Check inactive validators.
+    let inactive_fields = client
+        .dynamic_fields(system_state.inactive_validators_id)
+        .collect(None)
+        .await?
+        .into_inner();
+    for field in inactive_fields {
+        let field_id = proto_object_id(field.field_id.as_ref())?;
+        if let Some(validator) = get_validator_from_wrapper(&client, field_id).await? {
+            if validator.metadata.iota_address == validator_address {
+                return Ok(Some((
+                    ValidatorStatus::Inactive,
+                    ValidatorDisplay::from_validator(&validator),
+                )));
+            }
         }
     }
 
     Ok(None)
 }
 
-async fn get_validator_summary_from_validator_wrapper(
-    client: &IotaClient,
-    validator_object_id: ObjectId,
-    protocol_version: Option<u64>,
-) -> anyhow::Result<IotaValidatorSummary> {
-    let validator = client
-        .read_api()
-        .get_object_with_options(
-            validator_object_id,
-            IotaObjectDataOptions::default().with_bcs(),
-        )
-        .await?
-        .into_object()?
-        .bcs
-        .expect("missing bcs")
-        .try_into_move()
-        .expect("invalid move type")
-        .deserialize::<Field<Address, Validator>>()?;
+/// Convert an optional proto `ObjectId` into an [`ObjectId`].
+fn proto_object_id(object_id: Option<&iota_grpc_types::v1::types::ObjectId>) -> Result<ObjectId> {
+    let object_id = object_id.ok_or_else(|| anyhow!("dynamic field is missing its field id"))?;
+    Ok(ObjectId::try_from(object_id)?)
+}
 
-    let object_id = iota_types::dynamic_field::derive_dynamic_field_id(
-        *validator.value.inner.id.object_id(),
+/// Resolve the inner `ValidatorV1` of a `0x3::validator_wrapper::Validator`
+/// stored in a dynamic field (used for candidate and inactive validators).
+///
+/// `wrapper_field_id` is the object ID of the `Field<_, Validator>`. Returns
+/// `None` when that object does not exist.
+async fn get_validator_from_wrapper(
+    client: &GrpcClient,
+    wrapper_field_id: ObjectId,
+) -> Result<Option<ValidatorV1>> {
+    let result = client
+        .objects([wrapper_field_id])
+        .await?
+        .into_inner()
+        .into_iter()
+        .next()
+        .ok_or_else(|| anyhow!("no result for object {wrapper_field_id}"))?;
+    let wrapper_object = match result {
+        Ok(object) => object.object()?,
+        Err(e) if e.is_not_found() => return Ok(None),
+        Err(e) => return Err(e.into()),
+    };
+    // The inactive-validators table is keyed by staking-pool ID, the candidates
+    // table by address; both are 32-byte Move keys, so `Field<Address, _>`
+    // matches either BCS layout. Only the `value` is needed here.
+    let wrapper =
+        bcs::from_bytes::<Field<Address, Validator>>(move_struct_contents(&wrapper_object)?)
+            .map_err(|e| {
+                anyhow!("Can't decode object {wrapper_field_id} as a Field<_, Validator>: {e}")
+            })?;
+
+    // The wrapper holds the inner `ValidatorV1` as a dynamic field keyed by its
+    // version.
+    let versioned = wrapper.value.inner;
+    let inner_id = derive_dynamic_field_id(
+        *versioned.id.object_id(),
         &TypeTag::U64,
-        &bcs::to_bytes(&1u64)?,
+        &bcs::to_bytes(&versioned.version)?,
     )?;
-    let validator = client
-        .read_api()
-        .get_object_with_options(object_id, IotaObjectDataOptions::default().with_bcs())
-        .await?
-        .into_object()?
-        .bcs
-        .expect("missing bcs")
-        .try_into_move()
-        .expect("invalid move type")
-        .deserialize::<Field<u64, ValidatorV1>>()?;
-
-    Ok(validator
-        .value
-        .into_iota_validator_summary(protocol_version))
+    let inner_object = fetch_object(client, inner_id).await?;
+    let field = bcs::from_bytes::<Field<u64, ValidatorV1>>(move_struct_contents(&inner_object)?)
+        .map_err(|e| anyhow!("Can't decode object {inner_id} as a Field<u64, ValidatorV1>: {e}"))?;
+    Ok(Some(field.value))
 }
 
 async fn display_metadata(
-    client: &IotaClient,
+    context: &WalletContext,
     validator_address: Address,
     json: bool,
-) -> anyhow::Result<String> {
+) -> Result<String> {
     Ok(
-        match get_validator_summary(client, validator_address).await? {
+        match get_validator_summary(context, validator_address).await? {
             None => format!("{validator_address} is not a validator"),
             Some((status, metadata)) => {
                 if json {
@@ -874,39 +1029,35 @@ async fn display_metadata(
     )
 }
 
+/// Look for a validator by address among the pending active validators.
 async fn get_pending_candidate_summary(
+    client: &GrpcClient,
     validator_address: Address,
-    iota_client: &IotaClient,
     pending_active_validators_id: ObjectId,
-) -> anyhow::Result<Option<ValidatorV1>> {
-    let pending_validators = iota_client
-        .read_api()
-        .get_dynamic_fields(pending_active_validators_id, None, None)
+) -> Result<Option<ValidatorV1>> {
+    let pending_fields = client
+        .dynamic_fields(pending_active_validators_id)
+        .collect(None)
         .await?
-        .data
-        .into_iter()
-        .map(|dyi| dyi.object_id)
-        .collect::<Vec<_>>();
-    let resps = iota_client
-        .read_api()
-        .multi_get_object_with_options(
-            pending_validators,
-            IotaObjectDataOptions::default().with_bcs(),
-        )
-        .await?;
-    for resp in resps {
-        // We always expect an objectId from the response as one of data/error should be
-        // included.
-        let object_id = resp.object_id()?;
-        let bcs = resp.move_object_bcs().ok_or_else(|| {
-            anyhow::anyhow!("Object {object_id} does not exist or does not return bcs bytes",)
-        })?;
-        let field = bcs::from_bytes::<Field<u64, ValidatorV1>>(bcs).map_err(|e| {
-            anyhow::anyhow!(
-                "Can't convert bcs bytes of object {object_id} to Field<u64, ValidatorV1>: {e}",
-            )
-        })?;
-        if field.value.verified_metadata().iota_address == validator_address {
+        .into_inner();
+    let pending_ids = pending_fields
+        .iter()
+        .map(|field| proto_object_id(field.field_id.as_ref()))
+        .collect::<Result<Vec<_>>>()?;
+    if pending_ids.is_empty() {
+        return Ok(None);
+    }
+    let objects = client.objects(pending_ids).await?.into_inner();
+    for result in objects {
+        let object = result?.object()?;
+        let field = bcs::from_bytes::<Field<u64, ValidatorV1>>(move_struct_contents(&object)?)
+            .map_err(|e| {
+                anyhow!(
+                    "Can't decode object {} as a Field<u64, ValidatorV1>: {e}",
+                    object.object_ref().object_id()
+                )
+            })?;
+        if field.value.metadata.iota_address == validator_address {
             return Ok(Some(field.value));
         }
     }
@@ -951,7 +1102,7 @@ async fn update_metadata(
     context: &mut WalletContext,
     metadata: MetadataUpdate,
     gas_budget: u64,
-) -> anyhow::Result<IotaTransactionBlockResponse> {
+) -> Result<ExecutedTransaction> {
     match metadata {
         MetadataUpdate::Name { name } => {
             let args = vec![CallArg::pure(&name.into_bytes())];
@@ -1065,9 +1216,8 @@ async fn check_status(
     context: &mut WalletContext,
     allowed_status: HashSet<ValidatorStatus>,
 ) -> Result<ValidatorStatus> {
-    let iota_client = context.get_client().await?;
     let validator_address = context.active_address()?;
-    let summary = get_validator_summary(&iota_client, validator_address).await?;
+    let summary = get_validator_summary(context, validator_address).await?;
     if summary.is_none() {
         bail!("{validator_address} is not a Validator.");
     }
@@ -1091,21 +1241,4 @@ async fn can_validator_mutate_all_data(context: &mut WalletContext) -> Result<()
     )
     .await?;
     Ok(())
-}
-
-async fn get_gas_obj_ref(
-    iota_address: Address,
-    iota_client: &IotaClient,
-    minimal_gas_balance: u64,
-) -> anyhow::Result<ObjectReference> {
-    let coins = iota_client
-        .coin_read_api()
-        .get_coins(iota_address, Some("0x2::iota::IOTA".into()), None, None)
-        .await?
-        .data;
-    let gas_obj = coins.iter().find(|c| c.balance >= minimal_gas_balance);
-    if gas_obj.is_none() {
-        bail!("Validator doesn't have enough IOTA coins to cover transaction fees.");
-    }
-    Ok(gas_obj.unwrap().object_ref())
 }
