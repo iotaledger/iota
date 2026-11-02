@@ -7260,7 +7260,6 @@ dependencies = [
  "bcs 0.2.1",
  "bytes",
  "dashmap",
- "ed25519-consensus",
  "fastcrypto",
  "fastcrypto-tbls",
  "futures",

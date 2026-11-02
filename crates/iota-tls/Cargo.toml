@@ -28,7 +28,7 @@ x509-parser = "0.17.0"
 
 # internal dependencies
 iota-sdk-crypto = { workspace = true, features = ["ed25519"] }
-iota-sdk-types = { workspace = true, features = ["serde"] }
+iota-sdk-types.workspace = true
 
 [dev-dependencies]
 iota-sdk-crypto = { workspace = true, features = ["ed25519", "rand"] }
