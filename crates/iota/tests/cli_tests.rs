@@ -5141,12 +5141,12 @@ fn assert_same_dev_inspect(
 // Dev inspects differ from dry runs in what they report, so this compares
 // the full results of both backends. A framework call with a return value
 // exercises the per-command results; a run that aborts exercises the error
-// string and the missing results; an event emitted by a package's `init`
-// exercises the event type layouts.
+// string and the missing results; a stake request exercises the event type
+// layouts.
 #[cfg(not(msim))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_local_dev_inspect_matches_node_dev_inspect() -> Result<(), anyhow::Error> {
-    let (mut test_cluster, _, rgp, [gas_id, _, _], _, _) = test_cluster_helper().await;
+    let (mut test_cluster, _, rgp, [gas_id, stake_id, _], _, _) = test_cluster_helper().await;
     let context = &mut test_cluster.wallet;
 
     // No gas coin of its own, so each path funds the run with a coin of its
@@ -5222,10 +5222,30 @@ async fn test_local_dev_inspect_matches_node_dev_inspect() -> Result<(), anyhow:
     ));
     assert_same_dev_inspect(&node, &local);
 
-    // `init` runs in the publishing transaction, so the event's type resolves
-    // only from the run's own output, and its `String` field from the store.
+    let validator = context
+        .get_client()
+        .await?
+        .governance_api()
+        .get_latest_iota_system_state()
+        .await?
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
     let (node, local) = dev_inspect_on_both_backends(context, |local| {
-        publish("init_event", gas_id, rgp, dev_inspect(local))
+        move_call(
+            ObjectId::SYSTEM,
+            "iota_system",
+            "request_add_stake",
+            vec![
+                IotaJsonValue::new(json!(ObjectId::SYSTEM_STATE)).unwrap(),
+                IotaJsonValue::new(json!(stake_id)).unwrap(),
+                IotaJsonValue::new(json!(validator)).unwrap(),
+            ],
+            vec![],
+            GasDataArgs::default(),
+            dev_inspect(local),
+        )
     })
     .await?;
     assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
