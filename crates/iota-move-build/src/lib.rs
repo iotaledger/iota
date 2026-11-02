@@ -387,11 +387,18 @@ fn fill_metadata(
     fn_info_map: &FnInfoMap,
     protocol_build_config: &ProtocolBuildConfig,
 ) -> IotaResult<()> {
-    for module in package
+    let root_modules = package
         .root_compiled_units
         .iter_mut()
-        .map(|unit| &mut unit.unit.module)
-    {
+        .map(|unit| &mut unit.unit.module);
+    // A publish that bundles the unpublished dependencies publishes their
+    // modules as part of the package, so they carry metadata like root modules.
+    let unpublished_dependency_modules = package
+        .deps_compiled_units
+        .iter_mut()
+        .map(|(_, unit)| &mut unit.unit.module)
+        .filter(|module| module.address() == &AccountAddress::ZERO);
+    for module in root_modules.chain(unpublished_dependency_modules) {
         // View functions are only representable in V2 (dynamic) runtime metadata,
         // which is gated behind the `package_metadata_with_dynamic_module_metadata`
         // protocol feature.
