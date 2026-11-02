@@ -11,8 +11,8 @@
 //! returns, so they render through the same display code.
 //!
 //! The gas price defaults to the reference gas price the gRPC endpoint
-//! reports, and a Move abort is rendered from the packages the run fetched,
-//! so the run needs no JSON-RPC.
+//! reports, and a dry run's Move abort is rendered from the packages the run
+//! fetched, so the run needs no JSON-RPC.
 //!
 //! Two checks a validator applies are out of reach here, so a transaction the
 //! node rejects can still succeed locally: the operator's transaction

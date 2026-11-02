@@ -5179,7 +5179,7 @@ async fn test_local_dev_inspect_matches_node_dev_inspect() -> Result<(), anyhow:
     assert_eq!(bcs::from_bytes::<Vec<u8>>(bytes)?, SHA3_256_OF_ABC);
 
     // A real gas coin and no budget: both backends must fill in the same
-    // budget from the coin's balance.
+    // budget.
     let (node, local) = dev_inspect_on_both_backends(context, |local| {
         move_call(
             ObjectId::STD,
