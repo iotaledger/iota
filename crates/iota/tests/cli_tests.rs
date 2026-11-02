@@ -5141,7 +5141,8 @@ fn assert_same_dev_inspect(
 // Dev inspects differ from dry runs in what they report, so this compares
 // the full results of both backends. A framework call with a return value
 // exercises the per-command results; a run that aborts exercises the error
-// string and the missing results.
+// string and the missing results; an event emitted by a package's `init`
+// exercises the event type layouts.
 #[cfg(not(msim))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_local_dev_inspect_matches_node_dev_inspect() -> Result<(), anyhow::Error> {
@@ -5221,7 +5222,40 @@ async fn test_local_dev_inspect_matches_node_dev_inspect() -> Result<(), anyhow:
     ));
     assert_same_dev_inspect(&node, &local);
 
+    // `init` runs in the publishing transaction, so the event's type resolves
+    // only from the run's own output, and its `String` field from the store.
+    let (node, local) = dev_inspect_on_both_backends(context, |local| {
+        publish("init_event", gas_id, rgp, dev_inspect(local))
+    })
+    .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_eq!(node.events.data.len(), 1);
+    assert_same_dev_inspect(&node, &local);
+
     Ok(())
+}
+
+#[test]
+fn local_requires_a_simulation_mode() {
+    use clap::{Parser, error::ErrorKind};
+
+    let parse = |flags: &[&str]| {
+        let argv = "iota client call --package 0x2 --module m --function f"
+            .split_whitespace()
+            .chain(flags.iter().copied());
+        IotaCommand::try_parse_from(argv).map(|_| ())
+    };
+    assert_eq!(
+        parse(&["--local"]).unwrap_err().kind(),
+        ErrorKind::MissingRequiredArgument
+    );
+    for flags in [
+        &["--local", "--dry-run"][..],
+        &["--local", "--dev-inspect"],
+        &["--dry-run", "--dev-inspect"],
+    ] {
+        assert!(parse(flags).is_ok(), "{flags:?}");
+    }
 }
 
 // The PTB command reaches the local path through its own parser rather than

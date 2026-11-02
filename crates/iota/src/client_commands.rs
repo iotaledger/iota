@@ -645,6 +645,7 @@ impl GasDataArgs {
 
 /// Arguments specifying how to use a transaction after it has been built.
 #[derive(Args, Debug, Default)]
+#[command(group(ArgGroup::new("simulation").multiple(true).args(["dry_run", "dev_inspect"])))]
 pub struct TxProcessingArgs {
     /// Compute the transaction digest and print it out, but do not execute the
     /// transaction.
@@ -657,10 +658,9 @@ pub struct TxProcessingArgs {
     #[arg(long)]
     pub dev_inspect: bool,
     /// Run the simulation locally through the Move VM instead of on the node.
-    /// Supported with --dry-run and --dev-inspect. A local dry run skips the node's transaction
-    /// deny-list and uses the default signing verifier limits, so a transaction the node rejects
-    /// can still succeed locally.
-    #[arg(long)]
+    /// Supported with --dry-run and --dev-inspect. Skips the node's transaction deny-list and
+    /// signing verifier limits, so a transaction the node rejects can still succeed locally.
+    #[arg(long, requires = "simulation")]
     pub local: bool,
     /// Instead of executing the transaction, serialize the bcs bytes of the
     /// unsigned transaction data (Transaction) using base64 encoding,
@@ -3393,9 +3393,10 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
         "Cannot specify both flags: --serialize-unsigned-transaction and --serialize-signed-transaction."
     );
-    // `iota client ptb` builds its flags by hand, so clap cannot enforce
-    // these there. Without `--local`, `--dev-inspect` wins over `--dry-run`;
-    // with it the pair is rejected rather than silently picking one.
+    // `iota client ptb` builds its flags by hand, so clap's `requires` on
+    // `--local` does not apply there. Without `--local`, `--dev-inspect` wins
+    // over `--dry-run`; with it the pair is rejected rather than silently
+    // picking one.
     ensure!(
         !local || dry_run || dev_inspect,
         "--local requires --dry-run or --dev-inspect"

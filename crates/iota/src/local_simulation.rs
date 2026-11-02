@@ -14,12 +14,11 @@
 //! reports, and a Move abort is rendered from the packages the run fetched,
 //! so the run needs no JSON-RPC.
 //!
-//! Two checks a validator applies are out of reach in a dry run, so a
-//! transaction a node's dry run rejects can still succeed locally: the
-//! operator's transaction deny-list, and the network's signing verifier
-//! limits — this runs with an empty deny-list and the default limits. A
-//! dev-inspect skips those checks on a node by default, so the local one
-//! matches.
+//! Two checks a validator applies are out of reach here, so a transaction the
+//! node rejects can still succeed locally: the operator's transaction
+//! deny-list, and the network's signing verifier limits — this runs with an
+//! empty deny-list, and with the default limits in a dry run and none in a
+//! dev-inspect.
 
 use std::sync::Arc;
 
