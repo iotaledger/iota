@@ -12,6 +12,7 @@ use iota_sdk_types::{
     TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
 };
 use iota_types::{
+    attestation::AttestationRecord,
     committee::EpochId,
     error::{IotaError, IotaResult},
     messages_checkpoint::CheckpointSequenceNumber,
@@ -47,6 +48,7 @@ const DB_PREFIX_HISTORIC_EFFECTS: u8 = 1;
 const DB_PREFIX_HISTORIC_EXECUTED_EFFECTS: u8 = 2;
 const DB_PREFIX_HISTORIC_EVENTS: u8 = 3;
 const DB_PREFIX_HISTORIC_TX_TO_CHECKPOINT: u8 = 4;
+const DB_PREFIX_HISTORIC_ATTESTATION_RECORDS: u8 = 5;
 
 /// Column family holding the earliest-retained-epoch marker
 /// [`EpochBuckets`] persists on a prune; empty until the first prune.
@@ -71,6 +73,7 @@ pub struct HistoricLedgerBucket {
     pub(crate) executed_effects: TaggedDBMap<TransactionDigest, TransactionEffectsDigest>,
     pub(crate) events: TaggedDBMap<TransactionDigest, TransactionEvents>,
     pub(crate) tx_to_checkpoint: TaggedDBMap<TransactionDigest, CheckpointSequenceNumber>,
+    pub(crate) attestation_records: TaggedDBMap<TransactionDigest, AttestationRecord>,
 }
 
 impl BucketReopen for HistoricLedgerBucket {
@@ -112,6 +115,14 @@ impl BucketReopen for HistoricLedgerBucket {
                 db,
                 cf_name,
                 DB_PREFIX_HISTORIC_TX_TO_CHECKPOINT,
+                &ReadWriteOptions::default(),
+                true,
+            )?
+            .with_metrics_label(bucket_metrics_label(cf_name)),
+            attestation_records: TaggedDBMap::reopen(
+                db,
+                cf_name,
+                DB_PREFIX_HISTORIC_ATTESTATION_RECORDS,
                 &ReadWriteOptions::default(),
                 true,
             )?
@@ -392,6 +403,17 @@ impl HistoricLedger {
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
         self.multi_get_in_epoch(epoch, digests, |bucket| &bucket.executed_effects)
+    }
+
+    /// The attestation records of `digests` read from `epoch`'s bucket alone,
+    /// in one batched read; `None` for an unattested transaction or one
+    /// executed in another epoch.
+    pub fn multi_get_attestation_records_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<AttestationRecord>>> {
+        self.multi_get_in_epoch(epoch, digests, |bucket| &bucket.attestation_records)
     }
 
     /// [`Self::multi_get_transactions`] read from `epoch`'s bucket alone, in
@@ -721,6 +743,7 @@ impl HistoricLedger {
             bucket.executed_effects.try_catch_up_with_primary()?;
             bucket.events.try_catch_up_with_primary()?;
             bucket.tx_to_checkpoint.try_catch_up_with_primary()?;
+            bucket.attestation_records.try_catch_up_with_primary()?;
             let rows = dump_rows("transaction:", bucket.transactions.safe_iter())
                 .chain(dump_rows("effects:", bucket.effects.safe_iter()))
                 .chain(dump_rows(
@@ -731,6 +754,10 @@ impl HistoricLedger {
                 .chain(dump_rows(
                     "tx_to_checkpoint:",
                     bucket.tx_to_checkpoint.safe_iter(),
+                ))
+                .chain(dump_rows(
+                    "attestation_record:",
+                    bucket.attestation_records.safe_iter(),
                 ));
             return dump_page(rows, page_size, page_number).map(Some);
         }

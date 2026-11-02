@@ -38,8 +38,8 @@ mod checked {
         committee::EpochId,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{
-            ExecutionResults, ExecutionResultsV1, ExecutionTiming, ResultWithTimings, SharedInput,
-            is_certificate_denied,
+            AuthenticateThenExecuteOutput, ExecutionResults, ExecutionResultsV1, ExecutionTiming,
+            ResultWithTimings, SharedInput, is_certificate_denied,
         },
         execution_config_utils::to_binary_config,
         gas::{IotaGasStatus, IotaGasStatusAPI},
@@ -330,13 +330,7 @@ mod checked {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
         move_vm: &Arc<MoveVM>,
-    ) -> (
-        InnerTemporaryStore,
-        IotaGasStatus,
-        TransactionEffects,
-        Vec<ExecutionTiming>,
-        Result<Mode::ExecutionResults, ExecutionError>,
-    ) {
+    ) -> AuthenticateThenExecuteOutput<Mode::ExecutionResults> {
         // Preparation
         // It involves setting up the TemporaryStore, GasCharger, and TxContext, that
         // will be common for both the authentication and transaction execution.
@@ -594,23 +588,39 @@ mod checked {
             }
         };
 
+        // The body's own checks may replace this error in the effects, so its
+        // kind is reported alongside.
+        let authentication_error = authentication_execution_result
+            .as_ref()
+            .err()
+            .map(|error| error.kind().clone());
+
         // Under deterministic validation, the gas owner's authenticator runs for
         // the first time here, so a transaction it did not authorize can reach
         // execution. Nobody pays for it.
         let authentication_execution_result = match authentication_execution_result {
             Err(error) if !gas_owner_authorized && protocol_config.enable_pcool_flow() => {
-                return execute_without_gas_charge_to_effects::<Mode>(
-                    temporary_store,
-                    gas_charger,
-                    shared_object_refs,
-                    transaction_dependencies,
-                    contains_deleted_input,
-                    cancelled_objects,
-                    transaction_digest,
-                    epoch_id,
-                    protocol_config,
-                    certificate_deny_set,
-                    error,
+                let (inner_temp_store, gas_status, effects, timings, execution_result) =
+                    execute_without_gas_charge_to_effects::<Mode>(
+                        temporary_store,
+                        gas_charger,
+                        shared_object_refs,
+                        transaction_dependencies,
+                        contains_deleted_input,
+                        cancelled_objects,
+                        transaction_digest,
+                        epoch_id,
+                        protocol_config,
+                        certificate_deny_set,
+                        error,
+                    );
+                return (
+                    inner_temp_store,
+                    gas_status,
+                    effects,
+                    timings,
+                    execution_result,
+                    authentication_error,
                 );
             }
             result => result,
@@ -622,26 +632,35 @@ mod checked {
         // authentication failure or for a normal execution of the transaction.
 
         // Run the transaction execution and return the effects.
-        execute_transaction_to_effects_inner::<Mode>(
-            temporary_store,
-            gas_charger,
-            tx_ctx,
-            &mutable_inputs,
-            shared_object_refs,
-            transaction_dependencies,
-            contains_deleted_input,
-            cancelled_objects,
-            transaction_kind,
-            transaction_signer,
-            transaction_digest,
-            move_vm,
-            epoch_id,
-            protocol_config,
-            metrics,
-            enable_expensive_checks,
-            certificate_deny_set,
-            trace_builder_opt,
-            Some(authentication_execution_result),
+        let (inner_temp_store, gas_status, effects, timings, execution_result) =
+            execute_transaction_to_effects_inner::<Mode>(
+                temporary_store,
+                gas_charger,
+                tx_ctx,
+                &mutable_inputs,
+                shared_object_refs,
+                transaction_dependencies,
+                contains_deleted_input,
+                cancelled_objects,
+                transaction_kind,
+                transaction_signer,
+                transaction_digest,
+                move_vm,
+                epoch_id,
+                protocol_config,
+                metrics,
+                enable_expensive_checks,
+                certificate_deny_set,
+                trace_builder_opt,
+                Some(authentication_execution_result),
+            );
+        (
+            inner_temp_store,
+            gas_status,
+            effects,
+            timings,
+            execution_result,
+            authentication_error,
         )
     }
 
@@ -722,7 +741,8 @@ mod checked {
     /// This function checks the authentication of a transaction without
     /// returning effects. It executes an authenticate function using the
     /// information of an authenticator. If the execution fails, it returns
-    /// an execution error; otherwise it returns an empty value.
+    /// an execution error; otherwise it returns an empty value. The gas
+    /// status the authentication was metered on is returned alongside.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
     pub fn authenticate_transaction(
         store: &dyn BackingStore,
@@ -751,8 +771,10 @@ mod checked {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
         move_vm: &Arc<MoveVM>,
-    ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
-    {
+    ) -> (
+        IotaGasStatus,
+        Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>,
+    ) {
         // Prepare the gas charger for authentication execution.
         let sponsor = resolve_sponsor(&gas_data, &transaction_signer);
         let gas_price = gas_status.gas_price();
@@ -809,7 +831,8 @@ mod checked {
             },
         );
 
-        report_authentication_error(authentication_execution_result, protocol_config)
+        let result = report_authentication_error(authentication_execution_result, protocol_config);
+        (gas_charger.into_gas_status(), result)
     }
 
     // This function implements the authentication execution. It checks that the

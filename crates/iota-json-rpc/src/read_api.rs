@@ -1711,6 +1711,8 @@ mod tests {
             None,
             0,
             Vec::new(),
+            Vec::new(),
+            Default::default(),
         );
         let auth_sig = AuthorityStrongQuorumSignInfo {
             epoch: 0,

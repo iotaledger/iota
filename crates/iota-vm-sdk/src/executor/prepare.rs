@@ -225,6 +225,9 @@ pub(super) fn prepare_transaction(
             &env.bytecode_verifier_metrics,
             iota_transaction_checks::VerifierLimitsSource::NodeConfig(&verifier_signing_config),
             0,
+            // Authenticator and body run together to effects; with a `0`
+            // authentication budget this flag does not change metering.
+            true,
         )
         .map_err(|e| ValidationError::new("transaction input check", e))?;
         (gas_status, checked_input_objects)
@@ -413,7 +416,7 @@ pub(super) fn execute_with_move_authenticators(
         })
         .collect::<Vec<_>>();
 
-    let (inner_temp_store, _, effects, _timings, execution_result) = env
+    let (inner_temp_store, _, effects, _timings, execution_result, _) = env
         .executor
         .authenticate_then_execute_transaction_to_effects(
             store,
@@ -580,7 +583,7 @@ pub(super) fn authenticate_only(
         iota_transaction_checks::aggregate_authenticator_input_objects(&checked_refs)
             .map_err(|e| ValidationError::new("aggregate authenticator inputs", e))?;
     let (kind, signer, gas_data) = transaction.execution_parts();
-    Ok(env.executor.authenticate_transaction(
+    let (_gas_status, result) = env.executor.authenticate_transaction(
         store,
         &env.protocol_config,
         env.limits_metrics.clone(),
@@ -595,7 +598,8 @@ pub(super) fn authenticate_only(
         transaction.digest(),
         auth_context_data,
         &mut None,
-    ))
+    );
+    Ok(result)
 }
 
 /// Run the regulated-coin deny-list check over the given inputs, mapping a
@@ -609,9 +613,12 @@ fn run_coin_deny_list_check(
 ) -> Result<(), VmSdkError> {
     iota_types::deny_list_v1::check_coin_deny_list_v1(
         sender,
-        tx_input_objects,
+        tx_input_objects.inner(),
         receiving_objects,
-        &per_authenticator_input_objects.to_vec(),
+        &per_authenticator_input_objects
+            .iter()
+            .map(|c| c.inner())
+            .collect(),
         store.as_object_store(),
         // `None`: read the latest deny-list value. This offline check has no
         // cross-validator determinism requirement.

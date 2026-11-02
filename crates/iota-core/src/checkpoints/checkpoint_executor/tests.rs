@@ -10,6 +10,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{CheckpointCommitment, EndOfEpochData, GasCostSummary};
 use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
+    attestation::AttestationVerdict,
     committee::ProtocolVersion,
     crypto::{AuthorityKeyPair, get_key_pair},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
@@ -813,6 +814,25 @@ pub async fn test_reconfig_crash_recovery() {
             .unwrap(),
         end_of_epoch_checkpoint.sequence_number(),
     );
+}
+
+/// Only records other than `Valid` are certified, so a valid local record
+/// matches an absent certified one.
+#[test]
+fn attestation_record_differs_ignores_a_valid_local_record() {
+    use AttestationVerdict::{Inaccurate, Refuted, Valid};
+    let record = |verdict| {
+        Some(AttestationRecord {
+            attestor: 1,
+            verdict,
+        })
+    };
+    assert!(!attestation_record_differs(record(Valid), None));
+    assert!(!attestation_record_differs(None, None));
+    assert!(attestation_record_differs(record(Inaccurate), None));
+    assert!(attestation_record_differs(None, record(Inaccurate)));
+    let refuted = record(Refuted { units: 7 });
+    assert!(!attestation_record_differs(refuted, refuted));
 }
 
 /// Builds the executor for a committee validator when `in_committee`, or for a

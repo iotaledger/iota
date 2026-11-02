@@ -50,7 +50,10 @@ use crate::{
     epoch::randomness::AdvanceDkgError,
     epoch_start_consensus_committee::get_consensus_committee,
     execution_cache::ObjectCacheRead,
-    execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
+    execution_scheduler::{
+        ExecutionSchedulerAPI, ExecutionSchedulerWrapper,
+        transaction_manager::{AttestationSource, SchedulableAttestedTransaction},
+    },
     scoring_decision::update_low_scoring_authorities,
 };
 
@@ -628,7 +631,7 @@ fn publish_scoring_gauges(
 }
 
 struct AsyncTransactionScheduler {
-    sender: tokio::sync::mpsc::Sender<(Vec<Schedulable>, AssignedTxAndVersions)>,
+    sender: tokio::sync::mpsc::Sender<(Vec<SchedulableAttestedTransaction>, AssignedTxAndVersions)>,
 }
 
 impl AsyncTransactionScheduler {
@@ -643,7 +646,7 @@ impl AsyncTransactionScheduler {
 
     pub async fn schedule(
         &self,
-        transactions: Vec<Schedulable>,
+        transactions: Vec<SchedulableAttestedTransaction>,
         assigned_versions: AssignedTxAndVersions,
     ) {
         tracing::trace_span!("transaction_scheduler_enqueue");
@@ -654,7 +657,10 @@ impl AsyncTransactionScheduler {
     }
 
     pub async fn run(
-        mut recv: tokio::sync::mpsc::Receiver<(Vec<Schedulable>, AssignedTxAndVersions)>,
+        mut recv: tokio::sync::mpsc::Receiver<(
+            Vec<SchedulableAttestedTransaction>,
+            AssignedTxAndVersions,
+        )>,
         execution_scheduler: Arc<ExecutionSchedulerWrapper>,
         epoch_store: Arc<AuthorityPerEpochStore>,
     ) {
@@ -665,11 +671,25 @@ impl AsyncTransactionScheduler {
                 .into_iter()
                 .map(|txn| {
                     let key = txn.key();
+                    // The attestation travels in the execution environment,
+                    // where execution judges it.
+                    let (txn, attestation) = match txn {
+                        Schedulable::Transaction(attested) => {
+                            let (tx, attestation) = attested.into_parts();
+                            (Schedulable::Transaction(tx), attestation)
+                        }
+                        Schedulable::RandomnessStateUpdate(epoch, round) => (
+                            Schedulable::RandomnessStateUpdate(epoch, round),
+                            AttestationSource::Unattested,
+                        ),
+                    };
                     (
                         txn,
-                        ExecutionEnv::new().with_assigned_versions(
-                            assigned_versions.get(&key).cloned().unwrap_or_default(),
-                        ),
+                        ExecutionEnv::new()
+                            .with_assigned_versions(
+                                assigned_versions.get(&key).cloned().unwrap_or_default(),
+                            )
+                            .with_attestation(attestation),
                     )
                 })
                 .collect();
@@ -867,7 +887,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
             if attested_tx.transaction.data().contains_shared_object() {
                 "shared_user_transaction"
             } else {
-                "owned_user_transaction"
+                "owned_user_transaction_v1"
             }
         }
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
@@ -989,10 +1009,11 @@ impl SequencedConsensusTransactionKind {
     }
 
     /// Returns the digest for transactions that get executed -- user-originated
-    /// (`CertifiedTransaction` and `UserTransactionV1`) and system transactions
-    /// -- and `None` for internal consensus messages (checkpoint signatures,
-    /// capability notifications, randomness DKG, etc.). Used to build
-    /// checkpoint roots and to schedule transactions for execution.
+    /// (`CertifiedTransaction` and `UserTransactionV1`) and system
+    /// transactions -- and `None` for internal consensus messages
+    /// (checkpoint signatures, capability notifications, randomness DKG, etc.).
+    /// Used to build checkpoint roots and to schedule transactions for
+    /// execution.
     pub fn executable_transaction_digest(&self) -> Option<TransactionDigest> {
         match self {
             SequencedConsensusTransactionKind::External(ext) => ext.kind.transaction_digest(),
@@ -1001,10 +1022,11 @@ impl SequencedConsensusTransactionKind {
     }
 
     /// Returns the digest only for user-originated transaction kinds
-    /// (`CertifiedTransaction` and `UserTransactionV1`). Used by post-consensus
-    /// load shedding to guarantee that no internal consensus messages
-    /// (checkpoint signatures, capability notifications, randomness DKG, etc.)
-    /// and system transactions are eligible to be dropped.
+    /// (`CertifiedTransaction` and `UserTransactionV1`).
+    /// Used by post-consensus load shedding to guarantee that no internal
+    /// consensus messages (checkpoint signatures, capability notifications,
+    /// randomness DKG, etc.) and system transactions are eligible to be
+    /// dropped.
     pub fn user_transaction_digest(&self) -> Option<TransactionDigest> {
         match self {
             SequencedConsensusTransactionKind::External(ext) => ext.kind.transaction_digest(),
@@ -1048,9 +1070,9 @@ impl SequencedConsensusTransaction {
     }
 
     /// Returns `true` if this is a user-originated transaction
-    /// (`CertifiedTransaction` or `UserTransactionV1`) that uses randomness.
-    /// Non-user kinds (internal consensus messages, system transactions) are
-    /// always `false`, since only user transactions can request randomness.
+    /// (`CertifiedTransaction` or `UserTransactionV1`) that uses randomness. Non-user kinds
+    /// (internal consensus messages, system transactions) are always `false`, since only user
+    /// transactions can request randomness.
     pub fn is_user_tx_with_randomness(&self) -> bool {
         match &self.transaction {
             SequencedConsensusTransactionKind::External(ext) => {
@@ -1063,8 +1085,9 @@ impl SequencedConsensusTransaction {
 
     /// Returns the transaction data if this is a user-originated
     /// (`CertifiedTransaction` or `UserTransactionV1`) or system transaction
-    /// that touches at least one shared object, and `None` otherwise (internal
-    /// consensus messages, or a transaction with only owned objects).
+    /// that touches at least one shared object, and
+    /// `None` otherwise (internal consensus messages, or a transaction with
+    /// only owned objects).
     pub fn as_shared_object_txn(&self) -> Option<&SenderSignedTransaction> {
         match &self.transaction {
             SequencedConsensusTransactionKind::External(ext) => ext
@@ -1186,7 +1209,7 @@ mod tests {
     use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction, Transaction};
     use iota_swarm_config::network_config::NetworkConfig;
     use iota_types::{
-        attestation::AttestedTransaction,
+        attestation::{Attestation, AttestationData, AttestedTransaction},
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
         crypto::{
@@ -2168,6 +2191,69 @@ mod tests {
                     (1, ConsensusTransaction::new_user_transaction(failing_copy)),
                     (0, ConsensusTransaction::new_user_transaction(honest)),
                 ],
+            ))
+            .await;
+
+        assert_eq!(
+            epoch
+                .post_consensus_decision(1, digest)
+                .unwrap()
+                .map(|saved| saved.decision),
+            Some(PostConsensusDecision::Kept),
+            "the honest copy must be kept at the commit"
+        );
+        assert!(
+            epoch
+                .is_consensus_message_processed(&user_transaction_key(digest))
+                .unwrap(),
+            "the honest copy must be scheduled"
+        );
+    }
+
+    /// Two copies of an honest transaction in one commit, one with a failing
+    /// attestation first in consensus order: its attestor is not the block's
+    /// author. The honest copy, attested by its own author, must still be
+    /// validated and kept at that commit.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn copy_with_failing_attestation_first_in_a_commit_does_not_hide_the_honest_copy() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_enable_validator_attestation_for_testing(true);
+            config.set_checkpoint_summary_version_specific_data_for_testing(2);
+            config
+        });
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let objects: Vec<_> = (0..2)
+            .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
+            .collect();
+        let ids: Vec<_> = objects.iter().map(|object| object.id()).collect();
+        let (state, epoch, mut handler) = four_member_committee_handler(objects).await;
+        let honest = transfer_in_current_epoch(&state, &epoch, sender, &key, ids[0], ids[1]);
+        let digest = *honest.digest();
+        let protocol_config = epoch.protocol_config();
+        let computation_units = protocol_config
+            .base_tx_cost_fixed()
+            .min(protocol_config.gas_rounding_step());
+        let attested_by = |authority_index| {
+            ConsensusTransaction::new_attested_user_transaction(AttestedTransaction::new(
+                honest.clone(),
+                Some(Attestation::Authority {
+                    payload: AttestationData::V1 {
+                        computation_units,
+                        object_versions: vec![],
+                    },
+                    authority_index,
+                }),
+            ))
+        };
+
+        // The first block is authored by validator 1 but its copy claims
+        // validator 0 as the attestor.
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                1,
+                100,
+                vec![(1, attested_by(0)), (0, attested_by(0))],
             ))
             .await;
 

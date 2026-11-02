@@ -6,8 +6,9 @@
 //!
 //! This module merges two formerly separate pipeline stages into a single pass:
 //!
-//! 1. **Semantic validation** — deduplication, already-executed check, structural validity, and
-//!    deny checks (deny lists, gas, ownership, coin deny list, Move authenticator).
+//! 1. **Semantic validation** — deduplication, already-executed check, structural validity,
+//!    attestation checks, and deny checks (deny lists, gas, ownership, coin deny list, Move
+//!    authenticator).
 //! 2. **Owned-object conflict resolution** (white-flag) — three-tier lock check and lock
 //!    acquisition.
 //!
@@ -19,8 +20,9 @@
 //!
 //! 1. Non-`UserTransactionV1` — pass through unchanged.
 //! 2. Dedup by `ConsensusTransactionKey` — silent drop. With deterministic validation, a later copy
-//!    of a user transaction with other signatures is validated when every earlier copy was dropped
-//!    for a reason that may come from its own signatures (see `drop_may_come_from_signatures`).
+//!    of a user transaction with other signatures or another attestation is validated when every
+//!    earlier copy was dropped for a reason that may come from its own signatures or attestation
+//!    (see `drop_may_come_from_signatures`).
 //! 3. Saved decisions, already-executed and deferred transactions:
 //!    - Replayed commit (deterministic validation only): a commit replayed after a restart repeats
 //!      the decisions saved on its first run. A saved drop is repeated without checks. Once the
@@ -37,21 +39,25 @@
 //!      without checks and takes no new locks. It was validated at the commit that kept it and
 //!      still holds the locks it took there.
 //! 4. `validity_check()` — drop with error.
-//! 5. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop with error, except a
+//! 5. Attestation checks (attested transactions only): the attestor is the block author, the
+//!    attested units are within bounds, and the gas price and budget are within bounds — drop with
+//!    error. The attestation is the copy's own, so a later copy of the digest is validated.
+//! 6. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop with error, except a
 //!    lock held by the same transaction (with deterministic validation off, a deferred tx's own
 //!    lock from the commit that kept it), which is exempt. Cheap; performed before expensive
 //!    checks.
-//! 6. `handle_transaction_validation_checks()` — drop with error. Only reached when all locks are
-//!    free.
-//! 7. All passed — acquire locks in the local tracking map, keep transaction.
+//! 7. `handle_transaction_validation_checks()` — drop with error. An attested transaction runs the
+//!    input checks execution runs, gas included, instead of the admission checks. Only reached when
+//!    all locks are free.
+//! 8. All passed — acquire locks in the local tracking map, keep transaction.
 //!
 //! Non-`UserTransactionV1` transactions pass through unchanged.
 //!
 //! # Which references get locked
 //!
-//! Step 5 probes every `ImmOrOwnedMoveObject` reference, but only genuinely
+//! Step 6 probes every `ImmOrOwnedMoveObject` reference, but only genuinely
 //! owned references are locked — an immutable input never takes a new
-//! version, so its lock would hold until the epoch ends. Step 7 filters via
+//! version, so its lock would hold until the epoch ends. Step 8 filters via
 //! the loaded objects, step 3 via the executed transaction's effects.
 
 use std::{
@@ -65,9 +71,11 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{ObjectReference, SenderSignedTransaction, TransactionDigest, UserSignature};
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
+    attestation::Attestation,
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
+    gas::check_gas_bounds,
     transaction::{
         InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction,
     },
@@ -77,6 +85,7 @@ use tracing::{debug, warn};
 use typed_store::Map;
 
 use crate::{
+    attestation_checks::check_attested_units,
     authority::{
         AuthorityState,
         authority_per_epoch_store::{
@@ -88,6 +97,7 @@ use crate::{
         SequencedConsensusTransactionKey, SequencedConsensusTransactionKind,
         VerifiedSequencedConsensusTransaction,
     },
+    consensus_types::AuthorityIndex,
     post_consensus_input_reader::{ValidationAtCommit, reader::CommitIndexedReader},
 };
 
@@ -152,6 +162,14 @@ impl SavedPostConsensusDecision {
         })
     }
 }
+
+/// What tells one copy of a digest from another at a commit: its signatures
+/// and, if attested, its attestation and block author, which the attestor
+/// check reads.
+type ValidatedCopy<'a> = (
+    &'a [UserSignature],
+    Option<(&'a Attestation, AuthorityIndex)>,
+);
 
 /// Validates `UserTransactionV1` transactions and resolves owned-object
 /// conflicts in a single pass.
@@ -219,9 +237,8 @@ pub async fn validate_and_resolve_conflicts(
 )> {
     // Keys of the transactions other than user transactions seen so far.
     let mut seen_keys: HashSet<SequencedConsensusTransactionKey> = HashSet::new();
-    // The signatures of each copy of a digest validated at this commit, in
-    // consensus order.
-    let mut validated_copies: HashMap<TransactionDigest, Vec<&[UserSignature]>> = HashMap::new();
+    // The copies of each digest validated at this commit, in consensus order.
+    let mut validated_copies: HashMap<TransactionDigest, Vec<ValidatedCopy<'_>>> = HashMap::new();
     let mut decisions = CommitDecisions::default();
     // Every validated copy's digest, in consensus order: a digest appears once
     // per copy validated.
@@ -300,8 +317,10 @@ pub async fn validate_and_resolve_conflicts(
     for (i, tx) in transactions.iter().enumerate() {
         // Only validate UserTransactionV1; pass everything else through
         // unchanged, once per key.
-        let Some(transaction) = (match &tx.0.transaction {
-            SequencedConsensusTransactionKind::External(ext) => ext.kind.as_user_transaction(),
+        let Some((transaction, attestation)) = (match &tx.0.transaction {
+            SequencedConsensusTransactionKind::External(ext) => {
+                ext.kind.as_user_transaction_with_attestation()
+            }
             SequencedConsensusTransactionKind::System(_) => None,
         }) else {
             if !seen_keys.insert(tx.0.key()) {
@@ -317,20 +336,25 @@ pub async fn validate_and_resolve_conflicts(
         // The same UserTransactionV1 may appear in DAG blocks from multiple
         // validators within the same consensus commit. Silent drop — not added
         // to `dropped`. With deterministic validation, a copy with other
-        // signatures is validated while no earlier copy has decided the
-        // digest. A copy with the same signatures as one already validated
+        // signatures or another attestation is validated while no earlier
+        // copy has decided the digest. A copy with the same signatures,
+        // attestation and, if attested, block author as one already validated
         // would get the same decision.
+        let copy = (
+            signatures,
+            attestation.map(|attestation| (attestation, tx.0.certificate_author_index)),
+        );
         let copies = validated_copies.entry(digest).or_default();
         if copies.is_empty() {
             all_user_tx_digests.push(digest);
         } else if !deterministic_validation
             || decisions.is_decided(&digest)
-            || copies.contains(&signatures)
+            || copies.contains(&copy)
         {
             keep[i] = false;
             continue;
         }
-        copies.push(signatures);
+        copies.push(copy);
         let copy_number = copies.len();
         candidates.push(digest);
 
@@ -455,8 +479,9 @@ pub async fn validate_and_resolve_conflicts(
             warn!(
                 ?digest,
                 commit_index,
+                attested = attestation.is_some(),
                 error = ?e,
-                "UserTransactionV1 failed validity_check post-consensus, dropping"
+                "user transaction failed validity_check post-consensus, dropping"
             );
             let from_signatures = from_signatures(FailedCheck::Validity(&e));
             decisions.drop_copy(digest, e, false, from_signatures);
@@ -464,7 +489,61 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
-        // Check #3: Extract owned input objects for lock conflict detection.
+        // Check #3: Attestation checks (attested transactions only).
+        // The block signature transitively authenticates the attestation;
+        // verify the claimed attestor matches the actual block author and that
+        // the payload is not malformed.
+        if let Some(attestation) = attestation {
+            let block_author = u8::try_from(tx.0.certificate_author_index)
+                .expect("consensus committee indices should fit in a u8");
+            let Attestation::Authority {
+                authority_index, ..
+            } = attestation;
+            let checked = if *authority_index != block_author {
+                Err(IotaError::AttestationAuthorMismatch {
+                    expected: *authority_index,
+                    actual: block_author,
+                })
+            } else {
+                check_attested_units(epoch_store.protocol_config(), transaction, attestation)
+            };
+            if let Err(e) = checked {
+                warn!(
+                    ?digest,
+                    commit_index,
+                    error = ?e,
+                    "attested transaction failed attestation verification, dropping"
+                );
+                decisions.drop_copy(digest, e, false, from_signatures(FailedCheck::Attestation));
+                keep[i] = false;
+                continue;
+            }
+
+            // Payload-only gas bounds: a pure function of the transaction and
+            // epoch constants, so this drop needs no store read. The full gas
+            // check (owner, coin type, balance) runs with the loaded coins in
+            // Check #6.
+            let txn = transaction.data().transaction();
+            if let Err(e) = check_gas_bounds(
+                epoch_store.protocol_config(),
+                epoch_store.reference_gas_price(),
+                txn.gas_price(),
+                txn.gas_budget(),
+            ) {
+                let e: IotaError = e.into();
+                warn!(
+                    ?digest,
+                    commit_index,
+                    error = ?e,
+                    "attested transaction failed post-consensus gas bounds check, dropping"
+                );
+                decisions.drop_copy(digest, e, false, from_signatures(FailedCheck::Data));
+                keep[i] = false;
+                continue;
+            }
+        }
+
+        // Check #4: Extract owned input objects for lock conflict detection.
         let owned_inputs = match extract_owned_input_objects(tx) {
             Ok(inputs) => inputs,
             Err(e) => {
@@ -480,15 +559,15 @@ pub async fn validate_and_resolve_conflicts(
             }
         };
 
-        // Check #4: Three-tier lock conflict check.
+        // Check #5: Three-tier lock conflict check.
         // Cheap (HashMap + quarantine + DB lookups); performed before the
         // expensive deny checks so conflicting transactions are filtered first.
         //
         // Locks are keyed by full ObjectReference (id + version + digest), not just
-        // ObjectID. Two transactions referencing the same object at different
-        // versions will NOT conflict here — version freshness is validated
-        // later in Check #5 (deny checks load objects from DB and verify
-        // that the transaction's input refs match the current state).
+        // ObjectID, so two transactions referencing the same object at different
+        // versions do NOT conflict here. Version freshness is validated in Check #6
+        // on both paths, whose input checks load the objects from DB and verify the
+        // input refs against current state.
         //
         // Probing the raw set is safe though immutable inputs are never
         // locked: acquisition never inserts one, and the lock tables are
@@ -546,10 +625,9 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
-        // Check #5: Deny list, gas, ownership, coin deny list, Move
-        // authenticator. Only reached if all locks are free — skips the
-        // expensive object loading for transactions that would be dropped
-        // by the lock conflict check.
+        // Check #6: Validation and deny checks. Only reached when all locks are
+        // free, so the expensive object loading is skipped for transactions the
+        // lock conflict check would drop.
         //
         // Safe to skip signature re-verification: the consensus block verifier
         // (`IotaTxValidator::validate_transactions`) already called
@@ -576,7 +654,9 @@ pub async fn validate_and_resolve_conflicts(
             // authenticator runs at execution instead. Here only whether each
             // account is one is checked, and its authenticator function field
             // is read for the deny check of its package, both as of the
-            // horizon. The coin deny list is read as of the horizon too.
+            // horizon. The coin deny list is read as of the horizon too. An
+            // attested transaction runs the input checks execution runs, gas
+            // included, instead of the admission checks.
             Some(reader) => authority_state
                 .handle_transaction_validation_checks_at_commit(
                     reader,
@@ -584,6 +664,7 @@ pub async fn validate_and_resolve_conflicts(
                     epoch_store,
                     deny_config,
                     VerifierLimitsSource::ProtocolConfig,
+                    attestation.is_some(),
                 )
                 .and_then(|verdict| {
                     let verdicts = &authority_state
@@ -629,6 +710,13 @@ pub async fn validate_and_resolve_conflicts(
                     }
                 }),
             None => {
+                // The config asserts `enable_validator_attestation ⇒
+                // enable_pcool_flow`, so an attested transaction always has
+                // a reader.
+                assert!(
+                    attestation.is_none(),
+                    "an attested transaction is accepted only with the P-COOL flow"
+                );
                 authority_state
                     .handle_transaction_validation_checks(
                         &verified_tx,
@@ -685,6 +773,13 @@ pub async fn validate_and_resolve_conflicts(
             owned_inputs = ?validated_owned_objects,
             "Transaction passed post-consensus validation, acquired all object locks"
         );
+        if attestation.is_some() {
+            authority_state
+                .metrics
+                .consensus_handler_validation_attested_transactions
+                .with_label_values(&["authority"])
+                .inc();
+        }
         decisions.decide(digest, PostConsensusDecision::Kept, None);
     }
 
@@ -829,6 +924,8 @@ impl CommitDecisions {
 enum FailedCheck<'a> {
     /// `validity_check`, with its error.
     Validity(&'a IotaError),
+    /// The attestation of this copy: its attestor or its units.
+    Attestation,
     /// Listing the owned inputs.
     OwnedInputs,
     /// Another transaction holds a lock on this input.
@@ -855,12 +952,16 @@ enum FailedCheck<'a> {
 /// dropped or unseen input is one the data names, or the package holding a
 /// signer account's authenticate function is denied. Any other drop of such
 /// a copy, including the other checks of the inputs, deny rules and gas, may
-/// come from the authenticator.
+/// come from the authenticator. A failed attestation is the copy's own
+/// whatever its signatures: a later copy may carry a valid one.
 fn drop_may_come_from_signatures(
     transaction: &SenderSignedTransaction,
     check: FailedCheck<'_>,
     config: &ProtocolConfig,
 ) -> bool {
+    if matches!(check, FailedCheck::Attestation) {
+        return true;
+    }
     if transaction.move_authenticators().is_empty() {
         return false;
     }
@@ -870,6 +971,7 @@ fn drop_may_come_from_signatures(
             .is_ok_and(|inputs| inputs.contains(kind))
     };
     match check {
+        FailedCheck::Attestation => true,
         FailedCheck::Validity(error) => {
             !matches!(error, IotaError::TransactionExpired)
                 && !data.is_system_tx()

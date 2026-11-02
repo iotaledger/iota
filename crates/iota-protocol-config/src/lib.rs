@@ -811,6 +811,13 @@ struct FeatureFlags {
     // of the bytecode verifier. Signing always meters it.
     #[serde(skip_serializing_if = "is_false")]
     meter_instantiation_loops: bool,
+
+    // If true, the block-proposing validator attests each received user transaction
+    // before sending it to consensus. The attestor certifies that Move authentication
+    // passed and the attestation carries a computation cost estimate for
+    // shared-object scheduling.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_validator_attestation: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -843,8 +850,9 @@ impl ConsensusTransactionOrdering {
 pub enum PerObjectCongestionControlMode {
     #[default]
     None, // No congestion control.
-    TotalGasBudget, // Use txn gas budget as execution cost.
-    TotalTxCount,   // Use total txn count as execution cost.
+    TotalGasBudget,        // Use txn gas budget as execution cost.
+    TotalTxCount,          // Use total txn count as execution cost.
+    TotalComputationUnits, // Use attested computation units as execution cost.
 }
 
 impl PerObjectCongestionControlMode {
@@ -1631,7 +1639,24 @@ pub struct ProtocolConfig {
     checkpoint_rate_window_size: Option<u64>,
 
     /// Version number to use for version_specific_data in `CheckpointSummary`.
+    /// 2 adds the attestation entries and totals and is required by
+    /// `enable_validator_attestation`.
     checkpoint_summary_version_specific_data: Option<u64>,
+
+    /// Tolerance, in percent of the executed computation units, within which
+    /// an attestor's claimed units count as accurate. Both sides are rounded
+    /// up to `gas_rounding_step` and capped at the budget on out-of-gas, and
+    /// the check only applies when the transaction body ran. Unset disables
+    /// it.
+    attestor_accuracy_tolerance_percentage: Option<u64>,
+
+    /// Wasted authentication units at which one refuted attestation takes the
+    /// attestor's whole epoch reward, through its entry in the change-epoch
+    /// scores; a smaller fault takes the square of its fraction, and zero
+    /// takes the whole reward on the first refuted attestation. The cut
+    /// reaches the reward only under `adjust_rewards_by_score`. Unset
+    /// disables the penalty.
+    attestation_max_fault_units: Option<u64>,
 
     /// The max number of transactions that can be included in a single Soft
     /// Bundle.
@@ -2334,6 +2359,11 @@ impl ProtocolConfig {
     pub fn meter_instantiation_loops(&self) -> bool {
         self.feature_flags.meter_instantiation_loops
     }
+
+    /// Its prerequisites are checked once, in [`Self::get_for_version`].
+    pub fn enable_validator_attestation(&self) -> bool {
+        self.feature_flags.enable_validator_attestation
+    }
 }
 
 #[cfg(not(msim))]
@@ -2466,6 +2496,32 @@ impl ProtocolConfig {
                 }),
             "deny_rule_update_max_entries_per_tx must be positive, at most {DENY_RULE_UPDATE_MAX_ENTRIES_PER_TX_CEILING}, and within the system transaction object limits"
         );
+
+        if ret.enable_validator_attestation() {
+            assert!(
+                ret.enable_pcool_flow(),
+                "enable_validator_attestation requires enable_pcool_flow to be set"
+            );
+            assert!(
+                ret.report_move_authentication_error(),
+                "enable_validator_attestation requires report_move_authentication_error to be set"
+            );
+            // The attestation verdicts are certified in the summary's version 2.
+            assert!(
+                ret.checkpoint_summary_version_specific_data == Some(2),
+                "enable_validator_attestation requires checkpoint_summary_version_specific_data = 2"
+            );
+        }
+        if ret.attestation_max_fault_units.is_some() {
+            assert!(
+                ret.enable_validator_attestation(),
+                "attestation_max_fault_units requires enable_validator_attestation"
+            );
+            assert!(
+                ret.pass_validator_scores_to_advance_epoch(),
+                "attestation_max_fault_units requires pass_validator_scores_to_advance_epoch"
+            );
+        }
 
         ret
     }
@@ -2980,6 +3036,8 @@ impl ProtocolConfig {
             checkpoint_rate_window_size: None,
 
             checkpoint_summary_version_specific_data: Some(1),
+            attestor_accuracy_tolerance_percentage: None,
+            attestation_max_fault_units: None,
 
             max_soft_bundle_size: Some(5),
 
@@ -4245,6 +4303,10 @@ impl ProtocolConfig {
         if !val {
             self.feature_flags.enable_pcool_flow = false;
         }
+    }
+
+    pub fn set_enable_validator_attestation_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_validator_attestation = val;
     }
 }
 

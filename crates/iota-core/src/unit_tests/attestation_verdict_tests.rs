@@ -1,0 +1,264 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//! Tests for the verdict reached when an attested transaction's Move
+//! authenticator *function* aborts at execution.
+//!
+//! The effects always carry the issuer's `MoveAuthentication`; the verdict
+//! is recorded separately as `AttestationRecord::verdict`. An attestation is
+//! refuted when authentication failed at exactly the recorded state, a recorded
+//! version is ahead of the executed one or was not superseded this epoch, or
+//! the re-run rejects. Most tests rotate the account after the transaction is
+//! built - its key or its authenticator function - so the same transaction
+//! authenticates differently at two versions of the same account.
+
+use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{ExecutionError, ExecutionStatus, TransactionEffects};
+use iota_types::{
+    attestation::{Attestation, AttestationRecord, AttestationVerdict},
+    crypto::{AccountPrivateKey, get_key_pair},
+    effects::TransactionEffectsAPI,
+};
+
+use crate::authority::abstract_account_test_utils::{
+    AA_AUTHENTICATE_ED25519_VIA_SIGNING_DIGEST, AbstractAccountTestEnv,
+};
+
+fn attestation_config(tolerance_percentage: Option<u64>) -> impl Drop {
+    ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        // Every submission is a commit of its own, so the previous commit's
+        // writes must already be visible to the next one.
+        config.set_pcool_deterministic_validation_horizon_distance_for_testing(1);
+        if let Some(tolerance) = tolerance_percentage {
+            config.set_attestor_accuracy_tolerance_percentage_for_testing(tolerance);
+        }
+        config
+    })
+}
+
+fn assert_move_authentication_error(effects: &TransactionEffects) {
+    let ExecutionStatus::Failure { error, .. } = effects.status() else {
+        panic!("expected an execution failure, got {:?}", effects.status());
+    };
+    assert!(
+        matches!(error, ExecutionError::MoveAuthentication { .. }),
+        "the effects carry the issuer's error regardless of the verdict, got {error:?}"
+    );
+}
+
+/// The record is keyed by the block author, which
+/// `SequencedConsensusTransaction::new_test` fixes at index 0.
+fn assert_record(
+    env: &AbstractAccountTestEnv,
+    effects: &TransactionEffects,
+    verdict: AttestationVerdict,
+) {
+    assert_eq!(
+        env.attestation_record(effects.transaction_digest()),
+        Some(AttestationRecord {
+            attestor: 0,
+            verdict,
+        })
+    );
+}
+
+/// The computation units execution charged, at the transaction's gas price,
+/// which the environment sets to the reference gas price.
+fn charged_units(env: &AbstractAccountTestEnv, effects: &TransactionEffects) -> u64 {
+    effects.gas_cost_summary().computation_cost / env.rgp()
+}
+
+/// A refuted record carries the units of both failed runs: the one execution
+/// charged, exactly, plus the judge's re-run, which meters the authenticator
+/// alone against the claimed units, so its share is a whole number of rounding
+/// steps below the claim.
+fn assert_refuted(
+    env: &AbstractAccountTestEnv,
+    effects: &TransactionEffects,
+    attestation: &Attestation,
+) {
+    let record = env
+        .attestation_record(effects.transaction_digest())
+        .expect("an attested transaction has a record");
+    assert_eq!(record.attestor, 0);
+    let AttestationVerdict::Refuted { units } = record.verdict else {
+        panic!("expected a refuted record, got {:?}", record.verdict);
+    };
+    let charged_units = charged_units(env, effects);
+    let rerun_units = units
+        .checked_sub(charged_units)
+        .unwrap_or_else(|| panic!("{units} units do not cover the {charged_units} charged ones"));
+    let step = env
+        .authority
+        .epoch_store_for_testing()
+        .protocol_config()
+        .gas_rounding_step();
+    let claimed_units = attestation.computation_units();
+    assert!(
+        rerun_units > 0 && rerun_units % step == 0 && rerun_units < claimed_units,
+        "expected the re-run's share to be whole steps of {step} below the claimed {claimed_units} units, got {rerun_units}"
+    );
+}
+
+/// An attestor that vouched for a transaction which authenticated at the time
+/// is not accountable for a later key rotation: re-running authentication at
+/// the recorded versions proves the attestation honest.
+#[tokio::test]
+async fn honest_attestation_of_a_rotated_account_is_recorded_valid() {
+    let _guard = attestation_config(None);
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let tx = env.account_transaction();
+
+    // Attest while authentication still passes, so the attestation is genuine
+    // and records the account at the version it authenticated against.
+    let attestation = env.attest(&tx);
+    let attested_version = env.account_ref().version();
+
+    env.rotate_owner_key().await;
+    assert_ne!(
+        env.account_ref().version(),
+        attested_version,
+        "the rotation must supersede the attested version"
+    );
+
+    let effects = env.submit(tx, Some(attestation)).await;
+
+    assert_move_authentication_error(&effects);
+    assert_record(&env, &effects, AttestationVerdict::Valid);
+}
+
+/// An attestor that vouched for a transaction which fails authentication at the
+/// very versions it recorded is accountable for it, even though the account
+/// moved on in the meantime.
+#[tokio::test]
+async fn attestation_that_fails_at_its_own_versions_is_recorded_refuted() {
+    let _guard = attestation_config(None);
+
+    let mut env = AbstractAccountTestEnv::new().await;
+
+    // The version the attestor will claim, superseded by the rotation below so
+    // the drift is real and the recorded version is still re-runnable.
+    let claimed_version = env.account_ref();
+    env.rotate_owner_key().await;
+
+    // Signed with a key the account has never held, so authentication fails
+    // both at the current version and at the claimed one.
+    let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
+    let tx = env.account_transaction_signed_with(&unrelated_key);
+    let attestation = env.attest_with_versions(vec![claimed_version]);
+    let effects = env.submit(tx, Some(attestation.clone())).await;
+
+    assert_move_authentication_error(&effects);
+    assert_refuted(&env, &effects, &attestation);
+}
+
+/// An attestation at the very versions execution ran against: the failure
+/// reproduces at the recorded state, so nothing is re-run and the record
+/// carries the units execution charged alone.
+#[tokio::test]
+async fn attestation_that_fails_at_the_executed_versions_is_recorded_refuted() {
+    let _guard = attestation_config(None);
+
+    let mut env = AbstractAccountTestEnv::new().await;
+
+    // Signed with a key the account has never held, so authentication fails
+    // at the one version the attestor recorded, the account's current one.
+    let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
+    let tx = env.account_transaction_signed_with(&unrelated_key);
+    let attestation = env.attest_with_versions(vec![env.account_ref()]);
+    let effects = env.submit(tx, Some(attestation)).await;
+
+    assert_move_authentication_error(&effects);
+    assert_record(
+        &env,
+        &effects,
+        AttestationVerdict::Refuted {
+            units: charged_units(&env, &effects),
+        },
+    );
+}
+
+/// The account can rotate to a different authenticator, not just a new key. An
+/// attestor that vouched for the transaction under the previous authenticator
+/// is not accountable for the rotation: the re-run resolves the authenticator
+/// recorded in the attestation rather than the one the account switched to, so
+/// authentication still passes there.
+#[tokio::test]
+async fn honest_attestation_of_a_rotated_authenticator_is_recorded_valid() {
+    let _guard = attestation_config(None);
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let tx = env.account_transaction();
+
+    let attestation = env.attest(&tx);
+
+    // Rotate to an authenticator that rejects the signature the transaction
+    // carries, so the live authentication run fails and triggers the re-run.
+    env.rotate_authenticator_function(AA_AUTHENTICATE_ED25519_VIA_SIGNING_DIGEST)
+        .await;
+
+    let effects = env.submit(tx, Some(attestation)).await;
+
+    assert_move_authentication_error(&effects);
+    assert_record(&env, &effects, AttestationVerdict::Valid);
+}
+
+/// The transaction authenticates and runs, but the attestation claims the
+/// largest computation estimate consensus accepts for a trivial transaction, so
+/// it is recorded inaccurate rather than valid.
+#[tokio::test]
+async fn overclaimed_units_are_recorded_inaccurate() {
+    let _guard = attestation_config(Some(10));
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let tx = env.account_transaction();
+    let attestation = env.attest_with_versions(vec![env.account_ref()]);
+
+    let effects = env.submit(tx, Some(attestation)).await;
+
+    assert!(
+        matches!(effects.status(), ExecutionStatus::Success),
+        "got {:?}",
+        effects.status()
+    );
+    assert_record(&env, &effects, AttestationVerdict::Inaccurate);
+}
+
+/// The same overclaim on a transaction whose authentication fails after an
+/// honest attestation is not assessed: the body never ran, so the executed
+/// units measure only the authenticator and say nothing about the claim.
+#[tokio::test]
+async fn overclaim_is_not_assessed_when_the_body_never_ran() {
+    let _guard = attestation_config(Some(10));
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let tx = env.account_transaction();
+    let attestation = env.attest_with_versions(vec![env.account_ref()]);
+    env.rotate_owner_key().await;
+
+    let effects = env.submit(tx, Some(attestation)).await;
+
+    assert_move_authentication_error(&effects);
+    assert_record(&env, &effects, AttestationVerdict::Valid);
+}
+
+#[tokio::test]
+async fn unattested_submission_leaves_no_record() {
+    let _guard = attestation_config(None);
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let tx = env.account_transaction();
+
+    let effects = env.submit(tx, None).await;
+
+    assert!(
+        matches!(effects.status(), ExecutionStatus::Success),
+        "got {:?}",
+        effects.status()
+    );
+    assert_eq!(env.attestation_record(effects.transaction_digest()), None);
+}
