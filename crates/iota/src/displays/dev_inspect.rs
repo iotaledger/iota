@@ -4,51 +4,66 @@
 
 use std::fmt::{Display, Formatter};
 
-use iota_json_rpc_types::{DevInspectResults, IotaTransactionBlockEffectsAPI};
+use iota_grpc_types::v1::{
+    command::CommandOutput, transaction_execution_service::SimulatedTransaction,
+};
+use iota_types::effects::TransactionEffectsAPI;
 
 use crate::displays::Pretty;
 
-impl Display for Pretty<'_, DevInspectResults> {
+impl Display for Pretty<'_, SimulatedTransaction> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let Pretty(response) = self;
+        let Pretty(simulated) = self;
 
-        if let Some(error) = &response.error {
-            writeln!(f, "Dev inspect failed: {error}")?;
+        if let Some(error) = simulated.execution_error() {
+            match &error.source {
+                Some(source) => writeln!(f, "Dev inspect failed: {source}")?,
+                None => writeln!(f, "Dev inspect failed")?,
+            }
             return Ok(());
         }
 
-        writeln!(
-            f,
-            "Dev inspect completed, execution status: {}",
-            response.effects.status()
-        )?;
+        let executed = simulated.executed_transaction().ok();
 
-        writeln!(f, "{}", response.effects)?;
-        write!(f, "{}", response.events)?;
+        if let Some(effects) = executed.and_then(|e| e.effects().and_then(|e| e.effects()).ok()) {
+            writeln!(
+                f,
+                "Dev inspect completed, execution status: {:?}",
+                effects.status()
+            )?;
+        }
 
-        if let Some(results) = &response.results {
-            if results.is_empty() {
-                writeln!(f, "No execution results")?;
-                return Ok(());
-            }
+        if let Some(executed) = executed {
+            write!(f, "{}", Pretty(executed))?;
+        }
 
-            writeln!(f, "Execution Result")?;
-            for result in results {
-                if !result.mutable_reference_outputs.is_empty() {
-                    writeln!(f, "  Mutable Reference Outputs")?;
-                    for m in result.mutable_reference_outputs.iter() {
-                        writeln!(f, "    IOTA Argument: {}", m.0)?;
-                        writeln!(f, "    IOTA TypeTag: {:?}", m.2)?;
-                        writeln!(f, "    Bytes: {:?}", m.1)?;
+        let Some(command_results) = simulated.command_results() else {
+            return Ok(());
+        };
+
+        if command_results.results.is_empty() {
+            writeln!(f, "No execution results")?;
+            return Ok(());
+        }
+
+        writeln!(f, "Execution Result")?;
+        for (index, result) in command_results.results.iter().enumerate() {
+            writeln!(f, "  Command {index}:")?;
+
+            if let Ok(mutated) = result.mutated_by_ref() {
+                if !mutated.outputs.is_empty() {
+                    writeln!(f, "    Mutable Reference Outputs")?;
+                    for output in &mutated.outputs {
+                        write_command_output(f, output, true)?;
                     }
                 }
+            }
 
-                if !result.return_values.is_empty() {
-                    writeln!(f, "  Return values")?;
-
-                    for val in result.return_values.iter() {
-                        writeln!(f, "    IOTA TypeTag: {:?}", val.1)?;
-                        writeln!(f, "    Bytes: {:?}", val.0)?;
+            if let Ok(returned) = result.return_values() {
+                if !returned.outputs.is_empty() {
+                    writeln!(f, "    Return values")?;
+                    for output in &returned.outputs {
+                        write_command_output(f, output, false)?;
                     }
                 }
             }
@@ -56,4 +71,23 @@ impl Display for Pretty<'_, DevInspectResults> {
 
         Ok(())
     }
+}
+
+fn write_command_output(
+    f: &mut Formatter<'_>,
+    output: &CommandOutput,
+    with_argument: bool,
+) -> std::fmt::Result {
+    if with_argument {
+        if let Ok(argument) = output.argument() {
+            writeln!(f, "      Argument: {argument:?}")?;
+        }
+    }
+    if let Ok(type_tag) = output.type_tag() {
+        writeln!(f, "      TypeTag: {type_tag}")?;
+    }
+    if let Ok(bytes) = output.output_bcs() {
+        writeln!(f, "      Bytes: {bytes:?}")?;
+    }
+    Ok(())
 }

@@ -4321,14 +4321,18 @@ async fn key_identity_test() {
 }
 
 fn assert_dry_run(dry_run: IotaClientCommandResult, object_id: ObjectId, command: &str) {
-    if let IotaClientCommandResult::DryRun(response) = dry_run {
-        assert_eq!(
-            *response.effects.status(),
-            IotaExecutionStatus::Success,
+    if let IotaClientCommandResult::DryRun(response, _) = dry_run {
+        let effects = response
+            .executed_transaction()
+            .and_then(|e| e.effects())
+            .and_then(|e| e.effects())
+            .expect("dry run effects");
+        assert!(
+            matches!(effects.status(), iota_sdk_types::ExecutionStatus::Success),
             "{command} dry run test effects is not success"
         );
         assert_eq!(
-            response.effects.gas_object().object_id(),
+            *effects.gas_object().reference().object_id(),
             object_id,
             "{command} dry run test failed, gas object used is not the expected one"
         );
@@ -4407,9 +4411,17 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     .execute(context)
     .await?;
 
-    if let IotaClientCommandResult::DryRun(response) = pay_dry_run {
-        assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
-        assert_ne!(response.effects.gas_object().object_id(), object_id);
+    if let IotaClientCommandResult::DryRun(response, _) = pay_dry_run {
+        let effects = response
+            .executed_transaction()
+            .and_then(|e| e.effects())
+            .and_then(|e| e.effects())
+            .expect("dry run effects");
+        assert!(matches!(
+            effects.status(),
+            iota_sdk_types::ExecutionStatus::Success
+        ));
+        assert_ne!(*effects.gas_object().reference().object_id(), object_id);
     } else {
         panic!("Pay dry run failed");
     }
@@ -5948,9 +5960,17 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
     else {
         panic!("unexpected PTB result");
     };
-    assert!(res.results.expect("missing results").iter().any(|res| {
-        res.return_values.iter().any(|(bytes, tag)| {
-            tag.as_ref() == "0x1::string::String" && bytes == &[5, 72, 101, 108, 108, 111]
+    let command_results = res.command_results().expect("missing results");
+    assert!(command_results.results.iter().any(|result| {
+        result.return_values().is_ok_and(|outputs| {
+            outputs.outputs.iter().any(|output| {
+                output
+                    .type_tag()
+                    .is_ok_and(|tag| tag.to_string() == "0x1::string::String")
+                    && output
+                        .output_bcs()
+                        .is_ok_and(|bytes| bytes == [5, 72, 101, 108, 108, 111].as_slice())
+            })
         })
     }));
     Ok(())

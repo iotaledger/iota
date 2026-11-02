@@ -7,12 +7,15 @@ use std::collections::HashSet;
 use anyhow::{Error, anyhow, bail, ensure};
 use clap::{Args, ValueHint, arg, builder::StyledStr};
 use iota_grpc_client::GrpcClient;
-use iota_json_rpc_types::{DevInspectResults, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
+use iota_grpc_types::v1::transaction_execution_service::SimulatedTransaction;
+use iota_json_rpc_types::IotaExecutionStatus;
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{
-    Address, GasCostSummary, ProgrammableTransaction, TransactionDigest, TransactionKind,
+    Address, ExecutionStatus, GasCostSummary, ProgrammableTransaction, TransactionDigest,
+    TransactionKind,
 };
+use iota_types::effects::TransactionEffectsAPI;
 use move_core_types::account_address::AccountAddress;
 use serde::Serialize;
 
@@ -60,7 +63,7 @@ pub enum PTBCommandResult {
     Preview(PTBPreview),
     Summary(Summary),
     CommandResult(Box<IotaClientCommandResult>),
-    DevInspect(Box<DevInspectResults>),
+    DevInspect(Box<SimulatedTransaction>),
     Json(serde_json::Value),
     Help { long: bool },
 }
@@ -311,39 +314,41 @@ impl PTB {
             dry_run_or_execute_or_serialize(sender, tx_kind, context, gas, gas_data, processing)
                 .await?;
 
-        let transaction_response = match transaction_response {
+        let executed = match transaction_response {
             IotaClientCommandResult::ComputeTransactionDigest(_)
-            | IotaClientCommandResult::DryRun(_)
+            | IotaClientCommandResult::DryRun(_, _)
             | IotaClientCommandResult::SerializedUnsignedTransaction(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_) => {
                 return Ok(PTBCommandResult::CommandResult(Box::new(
                     transaction_response,
                 )));
             }
-            IotaClientCommandResult::TransactionBlock(response) => response,
+            IotaClientCommandResult::ExecutedTransaction(executed) => executed,
             IotaClientCommandResult::DevInspect(response) => {
-                return Ok(PTBCommandResult::DevInspect(Box::new(response)));
+                return Ok(PTBCommandResult::DevInspect(response));
             }
             _ => anyhow::bail!("Internal error, unexpected response from PTB execution."),
         };
 
-        if let Some(effects) = transaction_response.effects.as_ref() {
-            if effects.status().is_err() {
-                bail!(
-                    "PTB execution {}. Transaction digest is: {}",
-                    Pretty(effects.status()),
-                    effects.transaction_digest()
-                );
-            }
+        let effects = executed.effects()?.effects()?;
+
+        if let ExecutionStatus::Failure { error, .. } = effects.status() {
+            bail!(
+                "PTB execution failed due to {error:?}. Transaction digest is: {}",
+                effects.transaction_digest()
+            );
         }
 
         if program_metadata.summary_set {
-            let effects = transaction_response.effects.as_ref().ok_or_else(|| {
-                anyhow!("Internal error: no transaction effects after PTB was executed.")
-            })?;
+            let status = match effects.status() {
+                ExecutionStatus::Failure { error, .. } => IotaExecutionStatus::Failure {
+                    error: format!("{error:?}"),
+                },
+                _ => IotaExecutionStatus::Success,
+            };
             let summary = Summary {
-                digest: transaction_response.digest,
-                status: effects.status().clone(),
+                digest: *effects.transaction_digest(),
+                status,
                 gas_cost: effects.gas_cost_summary().clone(),
             };
 
@@ -355,15 +360,16 @@ impl PTB {
             } else {
                 Ok(PTBCommandResult::Summary(summary))
             }
-        } else if program_metadata.json_set {
-            Ok(PTBCommandResult::Json(
-                serde_json::to_value(&transaction_response)
-                    .map_err(|_| anyhow!("Cannot serialize PTB result to json"))?,
-            ))
         } else {
-            Ok(PTBCommandResult::CommandResult(Box::new(
-                IotaClientCommandResult::TransactionBlock(transaction_response),
-            )))
+            let result = IotaClientCommandResult::ExecutedTransaction(executed);
+            if program_metadata.json_set {
+                Ok(PTBCommandResult::Json(
+                    serde_json::to_value(&result)
+                        .map_err(|_| anyhow!("Cannot serialize PTB result to json"))?,
+                ))
+            } else {
+                Ok(PTBCommandResult::CommandResult(Box::new(result)))
+            }
         }
     }
 
