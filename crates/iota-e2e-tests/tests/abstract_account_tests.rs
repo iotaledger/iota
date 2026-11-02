@@ -11,7 +11,9 @@
 //! package, which contains a basic implementation of an abstract account
 //! inspired by the `examples/move/iotaccount` implementation. This is needed in
 //! order to not depend on an external folder and to enable easier changes to
-//! the Move code.
+//! the Move code. The built-in authenticator tests publish
+//! `./tests/abstract_account/builtin_abstract_account` on top of it, since
+//! that package needs framework modules of the latest protocol version only.
 use std::{net::SocketAddr, str::FromStr};
 
 use fastcrypto::{
@@ -39,7 +41,7 @@ use iota_sdk_types::{
         PasskeyAuthenticator, SimpleSignature,
     },
 };
-use iota_test_transaction_builder::publish_package;
+use iota_test_transaction_builder::{publish_package, publish_package_with_unpublished_deps};
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     account_abstraction::builtin_authenticator_functions::{
@@ -97,8 +99,9 @@ const AA_AUTHENTICATE_FN_NAME_ED25519_VIA_SIGNING_DIGEST: &str =
 const AA_RECEIVE_OBJECT_FN_NAME: &str = "receive_object";
 const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_sender_check";
 
-// Built-in authenticator module / function names (used by the new
-// builtin_keyed_aa Move module).
+// The package of the `builtin_keyed_aa` Move module, published together with
+// the `abstract_account` package it depends on.
+const AA_BUILTIN_PACKAGE_PATH: &str = "tests/abstract_account/builtin_abstract_account";
 const AA_BUILTIN_MODULE_NAME: &str = "builtin_keyed_aa";
 const AA_BUILTIN_CREATE_FN: &str = "create";
 
@@ -3946,7 +3949,7 @@ async fn test_builtin_ed25519_authenticator() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
-    test_env.init_abstract_account_state("").await;
+    test_env.init_builtin_abstract_account_state().await;
 
     let owner = test_env.owner.unwrap();
     let kp = test_env
@@ -3987,7 +3990,7 @@ async fn test_builtin_secp256k1_authenticator() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
-    test_env.init_abstract_account_state("").await;
+    test_env.init_builtin_abstract_account_state().await;
 
     let kp = SimpleKeypair::from(Secp256k1PrivateKey::random_with(StdRng::from_seed(
         [1u8; 32],
@@ -4022,7 +4025,7 @@ async fn test_builtin_secp256r1_authenticator() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
-    test_env.init_abstract_account_state("").await;
+    test_env.init_builtin_abstract_account_state().await;
 
     let kp = SimpleKeypair::from(Secp256r1PrivateKey::random_with(StdRng::from_seed(
         [2u8; 32],
@@ -4057,7 +4060,7 @@ async fn test_builtin_multisig_authenticator() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
-    test_env.init_abstract_account_state("").await;
+    test_env.init_builtin_abstract_account_state().await;
 
     // Build a 2-of-2 multisig key.
     let kp1 = Ed25519PrivateKey::random_with(StdRng::from_seed([3u8; 32]));
@@ -4115,7 +4118,7 @@ async fn test_builtin_passkey_authenticator() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
-    test_env.init_abstract_account_state("").await;
+    test_env.init_builtin_abstract_account_state().await;
 
     // Set up a mock WebAuthn authenticator and register a passkey credential.
     let store: Option<Passkey> = None;
@@ -4245,7 +4248,7 @@ async fn test_builtin_ed25519_authenticator_wrong_key() -> Result<(), anyhow::Er
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
-    test_env.init_abstract_account_state("").await;
+    test_env.init_builtin_abstract_account_state().await;
 
     // Register the account with kp1.
     let kp1 = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
@@ -4299,7 +4302,7 @@ async fn test_builtin_secp256k1_authenticator_wrong_key() -> Result<(), anyhow::
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
-    test_env.init_abstract_account_state("").await;
+    test_env.init_builtin_abstract_account_state().await;
 
     // Register the account with kp1.
     let kp1 = SimpleKeypair::from(Secp256k1PrivateKey::random_with(StdRng::from_seed(
@@ -4353,7 +4356,7 @@ async fn test_builtin_secp256r1_authenticator_wrong_key() -> Result<(), anyhow::
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
-    test_env.init_abstract_account_state("").await;
+    test_env.init_builtin_abstract_account_state().await;
 
     // Register the account with kp1.
     let kp1 = SimpleKeypair::from(Secp256r1PrivateKey::random_with(StdRng::from_seed(
@@ -4408,7 +4411,7 @@ async fn test_builtin_multisig_authenticator_threshold_not_met() -> Result<(), a
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
-    test_env.init_abstract_account_state("").await;
+    test_env.init_builtin_abstract_account_state().await;
 
     // Build a 2-of-2 multisig key.
     let kp1 = Ed25519PrivateKey::random_with(StdRng::from_seed([40u8; 32]));
@@ -4481,7 +4484,7 @@ async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Er
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
-    test_env.init_abstract_account_state("").await;
+    test_env.init_builtin_abstract_account_state().await;
 
     let origin = Url::parse("https://www.iota.org").unwrap();
 
@@ -4644,7 +4647,7 @@ async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Resul
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
-    test_env.init_abstract_account_state("").await;
+    test_env.init_builtin_abstract_account_state().await;
 
     let owner = test_env.owner.unwrap();
     let ed25519_kp = test_env
@@ -4849,7 +4852,7 @@ async fn test_builtin_move_gate_blocks_account_creation() -> Result<(), anyhow::
     });
 
     let mut test_env = TestEnvironment::new().await;
-    test_env.init_abstract_account_state("").await;
+    test_env.init_builtin_abstract_account_state().await;
 
     let owner = test_env.owner.unwrap();
     let kp = test_env
@@ -4948,6 +4951,18 @@ impl TestEnvironment {
     /// - derive owner from keystore
     /// - publish AA package and store its ID
     async fn init_abstract_account_state(&mut self, authenticate_fn_name: &str) {
+        self.init_account_state(authenticate_fn_name, false).await;
+    }
+
+    /// The initialization for the tests that create their account with the
+    /// built-in authenticator: publishes the `builtin_abstract_account`
+    /// package together with the `abstract_account` package it depends on, as
+    /// one package.
+    async fn init_builtin_abstract_account_state(&mut self) {
+        self.init_account_state("", true).await;
+    }
+
+    async fn init_account_state(&mut self, authenticate_fn_name: &str, builtin: bool) {
         // Store the authenticate function name
         self.authenticate_fn_name = Some(authenticate_fn_name.to_string());
 
@@ -4964,10 +4979,18 @@ impl TestEnvironment {
         );
 
         // Publish the Move Account Abstraction package
-        let (aa_package_id, aa_package_metadata_ref) =
-            self.publish_account_abstraction_package().await;
+        let (aa_package_id, aa_package_metadata_ref) = if builtin {
+            (
+                self.publish_builtin_account_abstraction_package().await,
+                None,
+            )
+        } else {
+            let (aa_package_id, aa_package_metadata_ref) =
+                self.publish_account_abstraction_package().await;
+            (aa_package_id, Some(aa_package_metadata_ref))
+        };
         self.aa_package_id = Some(aa_package_id);
-        self.aa_package_metadata_ref = Some(aa_package_metadata_ref);
+        self.aa_package_metadata_ref = aa_package_metadata_ref;
     }
 
     /// Setup an Abstract Account that must be created successfully. This method
@@ -5081,6 +5104,20 @@ impl TestEnvironment {
             .await;
 
         (aa_package_id, aa_package_metadata_ref)
+    }
+
+    /// Publishes the `builtin_abstract_account` package with the
+    /// `abstract_account` package it depends on bundled into it. The bundled
+    /// modules carry no runtime metadata (#13425), so the package has no
+    /// metadata object; the built-in authenticator tests authenticate through
+    /// the framework and do not need it.
+    async fn publish_builtin_account_abstraction_package(&mut self) -> ObjectId {
+        let path = [env!("CARGO_MANIFEST_DIR"), AA_BUILTIN_PACKAGE_PATH]
+            .iter()
+            .collect();
+        publish_package_with_unpublished_deps(self.test_cluster.wallet(), path)
+            .await
+            .object_id
     }
 
     /// Main method to create an Abstract Account on the ledger. Can be invoked
@@ -5961,7 +5998,7 @@ async fn setup_builtin_ed25519_tx(
     seed: [u8; 32],
 ) -> anyhow::Result<(TestEnvironment, SimpleKeypair, Transaction, ObjectReference)> {
     let mut test_env = TestEnvironment::new().await;
-    test_env.init_abstract_account_state("").await;
+    test_env.init_builtin_abstract_account_state().await;
 
     let kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(seed)));
     test_env

@@ -584,6 +584,24 @@ pub async fn publish_package(context: &WalletContext, path: PathBuf) -> ObjectRe
     get_new_package_obj_from_response(&resp).unwrap()
 }
 
+/// Executes a transaction to publish the package at `path` together with its
+/// unpublished dependencies, as one package, and returns the package object
+/// ref.
+pub async fn publish_package_with_unpublished_deps(
+    context: &WalletContext,
+    path: PathBuf,
+) -> ObjectReference {
+    let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
+    let gas_price = context.get_reference_gas_price().await.unwrap();
+    let txn = context.sign_transaction(
+        &TestTransactionBuilder::new(sender, gas_object, gas_price)
+            .publish_with_deps(path)
+            .build(),
+    );
+    let resp = context.execute_transaction_must_succeed(txn).await;
+    get_new_package_obj_from_response(&resp).unwrap()
+}
+
 /// Executes a transaction to publish the `basics` package and returns the
 /// package object ref.
 pub async fn publish_basics_package(context: &WalletContext) -> ObjectReference {
