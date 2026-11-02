@@ -15,6 +15,7 @@ use serde::{Serialize, de::DeserializeOwned};
 
 pub const MAX_VARINT_LENGTH: usize = 10;
 pub const BLOB_ENCODING_BYTES: usize = 1;
+const MAX_PREALLOCATION: usize = 1 << 20;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
@@ -42,14 +43,31 @@ impl Blob {
         let res = bcs::from_bytes(&data)?;
         Ok(res)
     }
+    /// Reads one blob from `rbuf`.
+    ///
+    /// Memory grows with the bytes actually read, not with the length the
+    /// blob declares: at most 1 MiB is reserved before reading.
+    ///
+    /// # Errors
+    ///
+    /// Fails if reading `rbuf` fails, if the declared length is 0, if `rbuf`
+    /// ends before that many data bytes, or if the encoding is unknown.
     pub fn read<R: Read>(rbuf: &mut R) -> Result<Blob> {
-        let len = rbuf.read_varint::<u64>()? as usize;
+        let len = rbuf.read_varint::<u64>()?;
         if len == 0 {
             bail!("Invalid object length of 0 in file");
         }
         let encoding = rbuf.read_u8()?;
-        let mut data = vec![0u8; len];
-        rbuf.read_exact(&mut data)?;
+        // The length comes from the input, so only part of it is reserved up
+        // front.
+        let mut data = Vec::with_capacity(len.min(MAX_PREALLOCATION as u64) as usize);
+        rbuf.take(len).read_to_end(&mut data)?;
+        if data.len() as u64 != len {
+            bail!(
+                "blob length {len} is beyond the remaining input of {} bytes",
+                data.len()
+            );
+        }
         let blob = Blob {
             data,
             encoding: BlobEncoding::try_from(encoding)?,
@@ -111,5 +129,76 @@ impl<T: DeserializeOwned> Iterator for BlobIter<T> {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         self.next_blob().ok()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use super::*;
+    use crate::{FileCompression, StorageFormat, make_iterator};
+
+    const MAGIC: u32 = 0x0000BEEF;
+
+    /// Encodes a blob header: the length varint followed by the BCS encoding
+    /// byte.
+    fn header(len: u64) -> Vec<u8> {
+        let mut bytes = len.encode_var_vec();
+        bytes.push(BlobEncoding::Bcs.into());
+        bytes
+    }
+
+    #[test]
+    fn write_read() {
+        // The second value is larger than the space reserved before reading.
+        for value in [vec![1u8, 2, 3], vec![7u8; 3 * MAX_PREALLOCATION]] {
+            let blob = Blob::encode(&value, BlobEncoding::Bcs).unwrap();
+            let mut bytes = Vec::new();
+            blob.write(&mut bytes).unwrap();
+            let read = Blob::read(&mut Cursor::new(bytes)).unwrap();
+            assert_eq!(read.data, blob.data);
+            assert_eq!(read.decode::<Vec<u8>>().unwrap(), value);
+        }
+    }
+
+    #[test]
+    fn rejects_length_beyond_input() {
+        for len in [u64::MAX, 1 << 40, 4] {
+            let mut bytes = header(len);
+            bytes.extend_from_slice(&[0u8; 3]);
+            let err = Blob::read(&mut Cursor::new(bytes)).err().unwrap();
+            assert!(
+                err.to_string()
+                    .contains("is beyond the remaining input of 3 bytes"),
+                "{err}"
+            );
+        }
+    }
+
+    #[test]
+    fn blob_iter_stops_at_length_beyond_input() {
+        for compression in [FileCompression::None, FileCompression::Zstd] {
+            let mut blobs = Vec::new();
+            Blob::encode(&7u64, BlobEncoding::Bcs)
+                .unwrap()
+                .write(&mut blobs)
+                .unwrap();
+            blobs.extend(header(u64::MAX));
+            blobs.extend_from_slice(&[0u8; 3]);
+
+            let mut file = MAGIC.to_be_bytes().to_vec();
+            file.push(StorageFormat::Blob.into());
+            file.push(compression.into());
+            match compression {
+                FileCompression::None => file.extend(blobs),
+                FileCompression::Zstd => {
+                    FileCompression::zstd_compress(&mut Cursor::new(blobs), &mut file).unwrap()
+                }
+            }
+
+            let values: Vec<u64> = make_iterator(MAGIC, Cursor::new(file)).unwrap().collect();
+            assert_eq!(values, vec![7]);
+        }
     }
 }

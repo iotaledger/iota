@@ -148,3 +148,39 @@ pub(crate) fn read_magic_blob<T: DeserializeOwned>(
     reader.seek(SeekFrom::Start(MAGIC_BYTES as u64))?;
     Ok(Blob::read(&mut reader)?.decode()?)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        epoch_boundaries::read_epoch_boundaries_from_bytes, manifest::read_manifest_from_bytes, *,
+    };
+
+    /// Builds a file whose checksum is valid but whose blob declares a length
+    /// of `u64::MAX` and holds no data.
+    fn file_with_oversized_blob(magic: u32) -> Vec<u8> {
+        let mut bytes = magic.to_be_bytes().to_vec();
+        // The varint encoding of `u64::MAX`.
+        bytes.extend_from_slice(&[0xFF; 9]);
+        bytes.push(0x01);
+        bytes.push(BlobEncoding::Bcs.into());
+        let digest = Sha3_256::digest(&bytes).digest;
+        bytes.extend_from_slice(&digest);
+        bytes
+    }
+
+    #[test]
+    fn rejects_blob_length_beyond_file() {
+        let errors = [
+            read_manifest_from_bytes(file_with_oversized_blob(MANIFEST_FILE_MAGIC)).err(),
+            read_epoch_boundaries_from_bytes(file_with_oversized_blob(EPOCH_BOUNDARIES_FILE_MAGIC))
+                .err(),
+        ];
+        for err in errors {
+            let err = err.unwrap();
+            assert!(
+                matches!(&err, IngestionError::Upstream(e) if e.to_string().contains("is beyond the remaining input")),
+                "{err}"
+            );
+        }
+    }
+}
