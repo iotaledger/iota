@@ -25,6 +25,7 @@ use std::{
 
 use iota_sdk_types::{ObjectId, Version};
 use iota_types::object::Object;
+#[cfg(not(msim))]
 use tokio::{
     runtime::{Handle, RuntimeFlavor},
     task::block_in_place,
@@ -123,17 +124,30 @@ impl<F: ObjectFetcher> CachingStore<F> {
         &self,
         refs: &[(ObjectId, Option<Version>)],
     ) -> Result<Vec<Object>, StoreError> {
-        let handle = Handle::try_current().map_err(|e| {
-            StoreError::new("on-demand fetch requires a multi-threaded Tokio runtime", e)
-        })?;
-        if !matches!(handle.runtime_flavor(), RuntimeFlavor::MultiThread) {
-            return Err(StoreError::new(
-                "on-demand fetch requires a multi-threaded Tokio runtime",
-                "called from a current-thread runtime, where block_in_place is unavailable",
-            ));
-        }
-        block_in_place(|| handle.block_on(self.fetcher.fetch_objects(refs)))
+        block_on(self.fetcher.fetch_objects(refs))?
     }
+}
+
+#[cfg(not(msim))]
+fn block_on<F: Future>(future: F) -> Result<F::Output, StoreError> {
+    let handle = Handle::try_current().map_err(|e| {
+        StoreError::new("on-demand fetch requires a multi-threaded Tokio runtime", e)
+    })?;
+    if !matches!(handle.runtime_flavor(), RuntimeFlavor::MultiThread) {
+        return Err(StoreError::new(
+            "on-demand fetch requires a multi-threaded Tokio runtime",
+            "called from a current-thread runtime, where block_in_place is unavailable",
+        ));
+    }
+    Ok(block_in_place(|| handle.block_on(future)))
+}
+
+#[cfg(msim)]
+fn block_on<F: Future>(_future: F) -> Result<F::Output, StoreError> {
+    Err(StoreError::new(
+        "on-demand fetch requires a multi-threaded Tokio runtime",
+        "the simulator cannot block on a fetch",
+    ))
 }
 
 impl<F: ObjectFetcher> Store for CachingStore<F> {
