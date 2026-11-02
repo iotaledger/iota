@@ -22,6 +22,7 @@ aws-smithy-http-client.workspace = true
 bcs.workspace = true
 bip32.workspace = true
 blake2 = { version = "0.10", optional = true }
+bytes.workspace = true
 camino.workspace = true
 chrono = { workspace = true, optional = true }
 clap.workspace = true
