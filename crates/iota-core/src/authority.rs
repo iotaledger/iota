@@ -207,6 +207,10 @@ pub mod transaction_tests;
 mod batch_transaction_tests;
 
 #[cfg(test)]
+#[path = "unit_tests/consensus_queue_shedding_tests.rs"]
+mod consensus_queue_shedding_tests;
+
+#[cfg(test)]
 #[path = "unit_tests/move_integration_tests.rs"]
 pub mod move_integration_tests;
 
