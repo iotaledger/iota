@@ -489,7 +489,9 @@ impl ServerBuilder {
 
         // subscriptions replay from their own pool for better performance.
         let mut subscription_pool_config = ConnectionPoolConfig::default();
-        subscription_pool_config.set_pool_size(config.connection.db_pool_size);
+        // half the main pool size, to limit the extra connections opened on the database.
+        let pool_size = (config.connection.db_pool_size / 2).max(1);
+        subscription_pool_config.set_pool_size(pool_size);
         subscription_pool_config.set_statement_timeout(Duration::from_millis(
             config.service.limits.request_timeout_ms.into(),
         ));
