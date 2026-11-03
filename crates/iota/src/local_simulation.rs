@@ -17,8 +17,7 @@
 //! Two checks a validator applies are out of reach here, so a transaction the
 //! node rejects can still succeed locally: the operator's transaction
 //! deny-list, and the network's signing verifier limits — this runs with an
-//! empty deny-list, and with the default limits in a dry run and none in a
-//! dev-inspect.
+//! empty deny-list and the default limits.
 
 use std::sync::Arc;
 

@@ -456,9 +456,9 @@ pub fn ptb_description() -> clap::Command {
         .arg(arg!(
             --"local"
             "Run the simulation locally through the Move VM instead of on the node. Supported \
-            with --dry-run and --dev-inspect. Skips the node's transaction deny-list and \
-            signing verifier limits, so a transaction the node rejects can still succeed \
-            locally."
+            with --dry-run and --dev-inspect. Skips the node's transaction deny-list and uses \
+            the default signing verifier limits, so a transaction the node rejects can still \
+            succeed locally."
         ))
         .arg(arg!(
             --"gas-coins" <ID> ...
