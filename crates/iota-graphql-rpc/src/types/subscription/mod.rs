@@ -4,7 +4,7 @@
 use std::num::NonZeroUsize;
 
 use async_graphql::{Context, ErrorExtensions, OutputType, SimpleObject, Subscription, Union};
-use futures::{Stream, StreamExt, TryStreamExt, future, stream};
+use futures::{FutureExt, Stream, StreamExt, TryStreamExt, future, stream};
 use iota_indexer::read::IndexerReader;
 use iota_indexer_streaming::{
     error::IndexerStreamingError,
@@ -169,21 +169,20 @@ impl GraphQLStream {
     /// Sends the first error to the client and ends the stream right after
     /// it, without waiting for another item. The permit is held as long as
     /// the stream is alive.
-    fn terminate_on_error<'a, T: 'a>(
-        stream: impl Stream<Item = Result<T, Error>> + 'a,
-        permit: SemaphorePermit<'a>,
-    ) -> impl Stream<Item = Result<T, Error>> + 'a {
-        Box::pin(stream::unfold(
-            (Box::pin(stream), permit, false),
-            |(mut stream, permit, failed)| async move {
-                if failed {
-                    return None;
-                }
-                let item = stream.next().await?;
+    fn terminate_on_error<'stream, T: 'stream>(
+        stream: impl Stream<Item = Result<T, Error>> + Unpin + 'stream,
+        permit: SemaphorePermit<'stream>,
+    ) -> impl Stream<Item = Result<T, Error>> + 'stream {
+        stream::unfold((stream, permit, false), |(stream, permit, failed)| {
+            if failed {
+                return future::Either::Left(future::ready(None));
+            }
+            future::Either::Right(stream.into_future().map(|(item, stream)| {
+                let item = item?;
                 let failed = item.is_err();
                 Some((item, (stream, permit, failed)))
-            },
-        ))
+            }))
+        })
     }
 
     /// Checks if the provided filter matches the item.
@@ -198,12 +197,12 @@ impl GraphQLStream {
     }
 
     /// Subscribe to transactions from IOTA Network.
-    pub(crate) fn subscribe_transactions<'s, 'p>(
-        &'s self,
+    pub(crate) fn subscribe_transactions<'stream>(
+        &'stream self,
         start_after: Option<Digest>,
         filter: Option<SubscriptionTransactionFilter>,
-        permit: SemaphorePermit<'p>,
-    ) -> impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>> + use<'s, 'p> {
+        permit: SemaphorePermit<'stream>,
+    ) -> impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>> + 'stream {
         let stream = self
             .streamer
             .subscribe_transactions(
@@ -233,12 +232,12 @@ impl GraphQLStream {
     }
 
     /// Subscribe to events from IOTA Network.
-    pub(crate) fn subscribe_events<'s, 'p>(
-        &'s self,
+    pub(crate) fn subscribe_events<'stream>(
+        &'stream self,
         start_after: Option<Digest>,
         filter: Option<SubscriptionEventFilter>,
-        permit: SemaphorePermit<'p>,
-    ) -> impl Stream<Item = Result<SubscriptionItem<Event>, Error>> + use<'s, 'p> {
+        permit: SemaphorePermit<'stream>,
+    ) -> impl Stream<Item = Result<SubscriptionItem<Event>, Error>> + 'stream {
         let stream = self
             .streamer
             .subscribe_events(
