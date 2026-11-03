@@ -28,8 +28,8 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     move_authenticator::MoveAuthenticatorExt,
     transaction::{
-        CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, TransactionAPI,
-        VerifiedTransaction,
+        CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjects,
+        TransactionAPI, VerifiedTransaction,
     },
 };
 
@@ -256,9 +256,8 @@ impl AuthorityState {
     /// attested transaction: the input checks execution runs, through the
     /// same function, so the two cannot drift: Move-authenticator inputs, gas
     /// (owner, coin type, balance), the transaction's own inputs and their
-    /// union. The receiving objects were read through the commit-indexed
-    /// reader, which decides whether they are available; the rest of their
-    /// validity and the publish verifier stay at execution, where a failure
+    /// union, and the receiving objects the reader loaded. The publish
+    /// verifier and the account object stay at execution, where a failure
     /// produces failure effects.
     pub(crate) fn check_attested_transaction_inputs_at_commit(
         &self,
@@ -266,6 +265,7 @@ impl AuthorityState {
         reference_gas_price: u64,
         tx: &Transaction,
         tx_input_objects: InputObjects,
+        tx_receiving_objects: &ReceivingObjects,
         move_authenticators: &[&MoveAuthenticator],
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
     ) -> IotaResult<(CheckedInputObjects, Vec<CheckedInputObjects>)> {
@@ -285,6 +285,7 @@ impl AuthorityState {
                 tx,
                 tx_input_objects,
                 per_authenticator_input_objects,
+                Some(tx_receiving_objects),
                 authenticator_gas_budget,
                 protocol_config,
                 reference_gas_price,

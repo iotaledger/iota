@@ -856,7 +856,7 @@ impl AuthorityMetrics {
             ).unwrap(),
             consensus_handler_validation_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_validation_dropped_transactions",
-                "Number of UserTransactionV1/V2 transactions dropped by post-consensus validation",
+                "Number of user transactions dropped by post-consensus validation",
                 registry,
             ).unwrap(),
             consensus_handler_validation_reader_verdicts: register_int_counter_vec_with_registry!(
@@ -1445,6 +1445,7 @@ impl AuthorityState {
                 reference_gas_price,
                 tx,
                 tx_input_objects,
+                &tx_receiving_objects,
                 &move_authenticators,
                 per_authenticator_inputs,
             )?
@@ -2471,6 +2472,7 @@ impl AuthorityState {
                 tx,
                 tx_input_objects,
                 per_authenticator_input_objects,
+                None,
                 authenticator_gas_budget,
                 protocol_config,
                 reference_gas_price,
@@ -6546,7 +6548,6 @@ impl AuthorityState {
         }
     }
 
-    #[allow(clippy::type_complexity)]
     /// Shared validation pipeline for `handle_transaction_validation_checks`
     /// and `attest_transaction`. Runs, in order:
     ///   1. transaction deny checks

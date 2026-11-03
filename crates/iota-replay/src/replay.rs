@@ -1152,6 +1152,7 @@ impl LocalExec {
                     executable.data().transaction(),
                     tx_input_objects,
                     per_authenticator_input_objects,
+                    None,
                     authenticator_gas_budget,
                     &protocol_config,
                     reference_gas_price,

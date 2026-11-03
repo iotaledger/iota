@@ -261,14 +261,17 @@ mod checked {
 
     /// Checks the inputs of a transaction bound for execution: the Move
     /// authenticator inputs, gas, the transaction's own inputs and their
-    /// union. Returns an execution-mode gas status plus the checked input
-    /// objects. Post-consensus validation of an attested transaction runs
-    /// this same function, so the two cannot drift.
+    /// union, and the receiving objects when given. Returns an execution-mode
+    /// gas status plus the checked input objects. Post-consensus validation of
+    /// an attested transaction runs this same function, with the receiving
+    /// objects it loaded, so the two cannot drift; execution gives none, since
+    /// the Move runtime resolves receives.
     #[instrument(level = "trace", skip_all)]
     pub fn check_certificate_and_move_authenticator_input(
         transaction: &Transaction,
         tx_input_objects: InputObjects,
         per_authenticator_input_objects: Vec<InputObjects>,
+        receiving_objects: Option<&ReceivingObjects>,
         authenticator_gas_budget: u64,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
@@ -288,6 +291,9 @@ mod checked {
             authenticator_gas_budget,
             true, // execution mode — full transaction_gas_budget
         )?;
+        if let Some(receiving_objects) = receiving_objects {
+            check_receiving_objects(&tx_input_objects, receiving_objects)?;
+        }
 
         let per_authenticator_checked_input_objects = per_authenticator_input_objects
             .into_iter()

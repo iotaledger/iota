@@ -5689,11 +5689,6 @@ async fn validation_at_commit_reads_receiving_objects_through_the_reader() {
 
         // An immutable object and an object owned by another object are live at
         // the horizon, and the receiving checks reject them from their bytes.
-        // An attested transaction gets no receiving checks at the commit yet,
-        // so these cases are left to execution for it.
-        if attested {
-            continue;
-        }
         let result = validate(immutable, None, attested);
         assert!(
             matches!(
