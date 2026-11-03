@@ -5107,10 +5107,10 @@ impl TestEnvironment {
     }
 
     /// Publishes the `builtin_abstract_account` package with the
-    /// `abstract_account` package it depends on bundled into it. The bundled
-    /// modules carry no runtime metadata (#13425), so the package has no
-    /// metadata object; the built-in authenticator tests authenticate through
-    /// the framework and do not need it.
+    /// `abstract_account` package it depends on bundled into it. A bundled
+    /// publish ships the dependency modules without their runtime metadata,
+    /// so the package has no metadata object; the built-in authenticator
+    /// tests authenticate through the framework and do not need it.
     async fn publish_builtin_account_abstraction_package(&mut self) -> ObjectId {
         let path = [env!("CARGO_MANIFEST_DIR"), AA_BUILTIN_PACKAGE_PATH]
             .iter()
