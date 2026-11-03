@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub use balance_changes::*;
+pub use display_template::*;
 use fastcrypto::{
     encoding::{Base58, Base64},
     traits::VerifyingKey,
@@ -41,6 +42,7 @@ use serde_with::{DeserializeAs, SerializeAs, serde_as};
 mod rpc_types_tests;
 
 mod balance_changes;
+mod display_template;
 mod displays;
 mod iota_checkpoint;
 mod iota_coin;

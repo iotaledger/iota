@@ -5,9 +5,9 @@
 use async_graphql::*;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use iota_indexer::{models::display::StoredDisplay, schema::display};
-use iota_json_rpc_types::IotaMoveValue;
+use iota_json_rpc_types::{MAX_DISPLAY_OUTPUT_SIZE, render_display_template};
 use iota_sdk_types::TypeTag;
-use move_core_types::annotated_value::{MoveStruct, MoveValue};
+use move_core_types::annotated_value::MoveStruct;
 
 use crate::{
     data::{Db, DbConnection, QueryExecutor},
@@ -29,20 +29,6 @@ pub(crate) struct DisplayEntry {
     pub value: Option<String>,
     /// An error string describing why the template could not be rendered.
     pub error: Option<String>,
-}
-
-#[derive(thiserror::Error, Debug)]
-pub(crate) enum DisplayRenderError {
-    #[error("Display template value cannot be empty")]
-    TemplateValueEmpty,
-    #[error("Display template value of {0} exceeds maximum depth of {1}")]
-    ExceedsLookupDepth(usize, u64),
-    #[error("Vector of name {0} is not supported as a Display value")]
-    Vector(String),
-    #[error("Field '{0}' not found")]
-    FieldNotFound(String),
-    #[error("Unexpected MoveValue")]
-    UnexpectedMoveValue,
 }
 
 impl Display {
@@ -72,11 +58,14 @@ impl Display {
             .map_err(|e| Error::Internal(e.to_string()))?;
 
         let mut rendered = vec![];
+        let mut output_budget = MAX_DISPLAY_OUTPUT_SIZE;
         for entry in display_fields.contents {
-            rendered.push(match parse_template(&entry.value, struct_) {
-                Ok(v) => DisplayEntry::create_value(entry.key, v),
-                Err(e) => DisplayEntry::create_error(entry.key, e.to_string()),
-            });
+            rendered.push(
+                match render_display_template(&entry.value, struct_, &mut output_budget) {
+                    Ok(v) => DisplayEntry::create_value(entry.key, v),
+                    Err(e) => DisplayEntry::create_error(entry.key, e.to_string()),
+                },
+            );
         }
 
         Ok(rendered)
@@ -98,93 +87,5 @@ impl DisplayEntry {
             value: None,
             error: Some(error),
         }
-    }
-}
-
-/// Handles the PART of the grammar, defined as:
-/// PART   ::= '{' CHAIN '}'
-///          | '\{' | '\}'
-///          | [:utf8:]
-/// Defers resolution down to the IDENT to get_value_from_move_struct,
-/// and substitutes the result into the PART template.
-fn parse_template(template: &str, move_struct: &MoveStruct) -> Result<String, DisplayRenderError> {
-    let mut output = template.to_string();
-    let mut var_name = String::new();
-    let mut in_braces = false;
-    let mut escaped = false;
-
-    for ch in template.chars() {
-        match ch {
-            '\\' => {
-                escaped = true;
-                continue;
-            }
-            '{' if !escaped => {
-                in_braces = true;
-                var_name.clear();
-            }
-            '}' if !escaped => {
-                in_braces = false;
-                let value = get_value_from_move_struct(move_struct, &var_name)?;
-                output = output.replace(&format!("{{{var_name}}}"), &value.to_string());
-            }
-            _ if !escaped && in_braces => {
-                var_name.push(ch);
-            }
-            _ => {}
-        }
-        escaped = false;
-    }
-
-    Ok(output.replace('\\', ""))
-}
-
-/// Handles the CHAIN and IDENT of the grammar, defined as:
-/// CHAIN  ::= IDENT | CHAIN '.' IDENT
-/// IDENT  ::= /* Move identifier */
-pub(crate) fn get_value_from_move_struct(
-    move_struct: &MoveStruct,
-    var_name: &str,
-) -> Result<String, DisplayRenderError> {
-    let parts: Vec<&str> = var_name.split('.').collect();
-    if parts.is_empty() {
-        return Err(DisplayRenderError::TemplateValueEmpty);
-    }
-    // todo: 10 is a carry-over from the iota-json-rpc implementation
-    // we should introduce this as a new limit on the config
-    if parts.len() > 10 {
-        return Err(DisplayRenderError::ExceedsLookupDepth(parts.len(), 10));
-    }
-
-    // update this as we iterate through the parts
-    let start_value = &MoveValue::Struct(move_struct.clone());
-
-    let result = parts
-        .iter()
-        .try_fold(start_value, |current_value, part| match current_value {
-            MoveValue::Struct(s) => s
-                .fields
-                .iter()
-                .find_map(|(id, value)| {
-                    if id.as_str() == *part {
-                        Some(value)
-                    } else {
-                        None
-                    }
-                })
-                .ok_or_else(|| DisplayRenderError::FieldNotFound(part.to_string())),
-            _ => Err(DisplayRenderError::UnexpectedMoveValue),
-        })?;
-
-    // TODO: move off dependency on IotaMoveValue
-    let iota_move_value: IotaMoveValue = result.clone().into();
-
-    match iota_move_value {
-        IotaMoveValue::Option(move_option) => match move_option.as_ref() {
-            Some(move_value) => Ok(move_value.to_string()),
-            None => Ok("".to_string()),
-        },
-        IotaMoveValue::Vector(_) => Err(DisplayRenderError::Vector(var_name.to_string())),
-        _ => Ok(iota_move_value.to_string()),
     }
 }
