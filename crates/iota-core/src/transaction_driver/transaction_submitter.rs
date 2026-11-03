@@ -220,7 +220,7 @@ impl TransactionSubmitter {
             });
 
         // Since only one transaction is submitted, it is ok to return error when the
-        // submission is rejected or expired.
+        // submission is rejected, expired or timed out.
         match &result {
             TxStatusUpdate::Rejected { error } => {
                 let err = error.clone();
@@ -231,6 +231,9 @@ impl TransactionSubmitter {
             }
             TxStatusUpdate::Expired { epoch } => {
                 return Err(TransactionRequestError::StatusExpired(*epoch));
+            }
+            TxStatusUpdate::TimedOut => {
+                return Err(TransactionRequestError::TimedOutSubmittingTransaction);
             }
             _ => {}
         }

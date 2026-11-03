@@ -338,12 +338,14 @@ where
                 options,
             )
             .await?;
-        // `submit_transaction` is contracted to convert `Rejected`/`Expired`
-        // into `Err` before returning; reaching them here means that
-        // contract was broken upstream. Surface loudly in debug/test, hide
-        // the implementation detail from the client.
+        // `submit_transaction` is contracted to convert `Rejected`, `Expired`
+        // and `TimedOut` into `Err` before returning; reaching them here
+        // means that contract was broken upstream. Surface loudly in
+        // debug/test, hide the implementation detail from the client.
         match &submit_txn_result {
-            TxStatusUpdate::Rejected { .. } | TxStatusUpdate::Expired { .. } => {
+            TxStatusUpdate::Rejected { .. }
+            | TxStatusUpdate::Expired { .. }
+            | TxStatusUpdate::TimedOut => {
                 debug_fatal!(
                     "submit_transaction returned non-actionable status: {submit_txn_result:?}"
                 );
