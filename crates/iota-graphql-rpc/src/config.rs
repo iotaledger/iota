@@ -208,7 +208,7 @@ pub struct Limits {
     pub max_subscription_recovery_checkpoints: NonZeroU32,
     /// Maximum number of subscriptions that may be active at the same time
     /// across all connections.
-    pub max_active_subscriptions: u32,
+    pub max_active_subscriptions: NonZeroU32,
 }
 
 #[GraphQLConfig]
@@ -612,7 +612,7 @@ impl Default for Limits {
             max_tx_payload_size: (128u32 * 1024u32 * 4u32).div_ceil(3),
             max_subscription_recovery_checkpoints: NonZeroU32::new(20_000)
                 .expect("value must be non zero"),
-            max_active_subscriptions: 1000,
+            max_active_subscriptions: NonZeroU32::new(1000).expect("value must be non zero"),
         }
     }
 }
@@ -703,7 +703,7 @@ mod tests {
                 max_transaction_ids: 11,
                 max_scan_limit: 50,
                 max_subscription_recovery_checkpoints: NonZeroU32::new(500).unwrap(),
-                max_active_subscriptions: 20,
+                max_active_subscriptions: NonZeroU32::new(20).unwrap(),
             },
             ..Default::default()
         };
@@ -797,7 +797,7 @@ mod tests {
                 max_transaction_ids: 42,
                 max_scan_limit: 420,
                 max_subscription_recovery_checkpoints: NonZeroU32::new(4200).unwrap(),
-                max_active_subscriptions: 42,
+                max_active_subscriptions: NonZeroU32::new(42).unwrap(),
             },
             disabled_features: BTreeSet::from([FunctionalGroup::Analytics]),
             experiments: Experiments { test_flag: true },

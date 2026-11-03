@@ -1118,12 +1118,11 @@ impl HistoricalFetch {
                             }
                             Err(e) => {
                                 state.should_close_stream = true;
-                                let e = IndexerStreamingError::NotFound(format!(
-                                    "unable to resolve transaction {}: {e}",
+                                error!(
+                                    "unable to resolve transaction {}: {e:?}",
                                     state.start_from_digest
-                                ));
-                                error!("{e}");
-                                return Some((Err(e), state));
+                                );
+                                return Some((Err(IndexerStreamingError::Postgres), state));
                             }
                         }
                     }

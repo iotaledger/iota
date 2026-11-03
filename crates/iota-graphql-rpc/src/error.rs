@@ -130,7 +130,8 @@ impl From<IndexerError> for Error {
 impl From<IndexerStreamingError> for Error {
     fn from(e: IndexerStreamingError) -> Self {
         match e {
-            IndexerStreamingError::RecoveryDistanceExceeded { .. } => Error::Client(e.to_string()),
+            IndexerStreamingError::RecoveryDistanceExceeded { .. }
+            | IndexerStreamingError::NotFound(_) => Error::Client(e.to_string()),
             _ => Error::Internal(e.to_string()),
         }
     }

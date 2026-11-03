@@ -154,7 +154,7 @@ impl GraphQLStream {
             .map_err(|e| Error::Internal(format!("failed to connect to postgres: {e}")))?;
         Ok(Self {
             streamer,
-            active_subscriptions: Semaphore::new(limits.max_active_subscriptions as usize),
+            active_subscriptions: Semaphore::new(limits.max_active_subscriptions.get() as usize),
         })
     }
 
@@ -167,8 +167,8 @@ impl GraphQLStream {
     }
 
     /// Sends the first error to the client and ends the stream right after
-    /// it, without waiting for another item. The permit is held as long as
-    /// the stream is alive.
+    /// it, without waiting for another item. The permit is released when the
+    /// stream ends or is dropped.
     fn terminate_on_error<'stream, T: 'stream>(
         stream: impl Stream<Item = Result<T, Error>> + Unpin + 'stream,
         permit: SemaphorePermit<'stream>,
@@ -263,7 +263,7 @@ impl GraphQLStream {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{num::NonZeroU32, time::Duration};
 
     use diesel::r2d2::{ConnectionManager, Pool};
     use futures::FutureExt;
@@ -280,7 +280,7 @@ mod tests {
                 "postgres://unused",
             ));
         let limits = Limits {
-            max_active_subscriptions: 1,
+            max_active_subscriptions: NonZeroU32::new(1).unwrap(),
             ..Default::default()
         };
         let stream = GraphQLStream::new(
