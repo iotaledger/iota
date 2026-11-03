@@ -226,29 +226,29 @@ impl TransactionBlockFilter {
         if self.only_at_checkpoint().is_some() {
             return OldestAvailableCheckpoint::for_tables(
                 &db.inner,
-                &[],
                 &[Transactions, PrunerCpWatermark, TxGlobalOrder],
+                true,
             );
         }
         if self.only_affected_address().is_some() {
             return OldestAvailableCheckpoint::for_tables(
                 &db.inner,
-                &[],
                 &[TxSenders, TxRecipients, Transactions, TxGlobalOrder],
+                true,
             );
         }
         if self.only_transaction_ids().is_some() {
             return OldestAvailableCheckpoint::for_tables(
                 &db.inner,
-                &[],
                 &[Transactions, TxGlobalOrder],
+                true,
             );
         }
         // The general query reads the lookup tables of its subqueries, and
         // `transactions` for the contents.
         let mut tables = vec![Transactions];
         tables.extend(subquery_tables(self));
-        OldestAvailableCheckpoint::for_tables(&db.inner, &tables, &[])
+        OldestAvailableCheckpoint::for_tables(&db.inner, &tables, false)
     }
 
     pub(crate) fn is_empty(&self) -> bool {

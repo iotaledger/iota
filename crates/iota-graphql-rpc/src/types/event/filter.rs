@@ -82,6 +82,6 @@ impl EventFilter {
         if self.transaction_digest.is_some() {
             tables.push(CommitterTables::TxGlobalOrder);
         }
-        OldestAvailableCheckpoint::for_tables(&db.inner, &tables, &[])
+        OldestAvailableCheckpoint::for_tables(&db.inner, &tables, false)
     }
 }

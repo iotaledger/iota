@@ -265,7 +265,7 @@ impl Checkpoint {
     /// The oldest checkpoint a page of checkpoints is available from: the
     /// value reported on `DATA_PRUNED`.
     pub(crate) fn oldest_available_checkpoint(db: &Db) -> OldestAvailableCheckpoint {
-        OldestAvailableCheckpoint::for_tables(&db.inner, &[], &[CommitterTables::Checkpoints])
+        OldestAvailableCheckpoint::for_tables(&db.inner, &[CommitterTables::Checkpoints], true)
     }
 
     pub(crate) fn sequence_number_impl(&self) -> u64 {

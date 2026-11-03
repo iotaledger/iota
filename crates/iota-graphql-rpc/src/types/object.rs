@@ -771,11 +771,11 @@ impl Object {
     pub(crate) fn oldest_available_checkpoint_at_version(db: &Db) -> OldestAvailableCheckpoint {
         OldestAvailableCheckpoint::for_tables(
             &db.inner,
-            &[],
             &[
                 CommitterTables::ObjectsVersion,
                 CommitterTables::ObjectsBackwardHistory,
             ],
+            true,
         )
     }
 
@@ -785,11 +785,12 @@ impl Object {
     /// fallback keeps no version history and cannot pick it. The fallback
     /// serves the content.
     pub(crate) fn oldest_available_checkpoint_under_parent(db: &Db) -> OldestAvailableCheckpoint {
-        OldestAvailableCheckpoint::for_tables(
-            &db.inner,
-            &[CommitterTables::ObjectsVersion],
-            &[CommitterTables::ObjectsBackwardHistory],
-        )
+        OldestAvailableCheckpoint::for_tables(&db.inner, &[CommitterTables::ObjectsVersion], false)
+            .max(OldestAvailableCheckpoint::for_tables(
+                &db.inner,
+                &[CommitterTables::ObjectsBackwardHistory],
+                true,
+            ))
     }
 
     /// Construct a GraphQL object from a native object, without its stored
