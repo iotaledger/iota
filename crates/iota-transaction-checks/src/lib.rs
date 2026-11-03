@@ -651,6 +651,7 @@ mod checked {
                     check_shared_object_declaration(
                         &input_object_kind,
                         transaction.is_system_tx(),
+                        input_checks,
                     )?;
                 }
             }
@@ -738,9 +739,9 @@ mod checked {
                         // This object is a mutable shared object. However the transaction
                         // specifies it as an owned object. This is inconsistent.
                         //
-                        // The relaxation stays off for the system objects the arms below
-                        // restrict, since those arms match on the declared input kind and
-                        // an owned input would otherwise never reach them.
+                        // The relaxation stays off for the system objects
+                        // `check_shared_object_declaration` restricts, since it matches on
+                        // the declared input kind and an owned input would never reach it.
                         fp_ensure!(
                             input_checks.shared_object_as_owned_input
                                 && !is_restricted_system_object(object_ref.object_id),
@@ -753,70 +754,11 @@ mod checked {
                 };
             }
             InputObjectKind::SharedMoveObject {
-                id: ObjectId::CLOCK,
-                initial_shared_version,
-                mutable: true,
-            } if initial_shared_version == IOTA_CLOCK_OBJECT_SHARED_VERSION
-                // Without the second condition, a relaxed version check would let a
-                // wrong declared version carry a mutable Clock past this arm.
-                || input_checks.any_initial_shared_version =>
-            {
-                // Only system transactions can accept the Clock
-                // object as a mutable parameter.
-                if system_transaction {
-                    return Ok(());
-                } else {
-                    return Err(UserInputError::ImmutableParameterExpected {
-                        object_id: ObjectId::CLOCK,
-                    });
-                }
-            }
-            InputObjectKind::SharedMoveObject {
-                id: ObjectId::AUTHENTICATOR_STATE,
-                ..
-            } => {
-                if system_transaction {
-                    return Ok(());
-                } else {
-                    return Err(UserInputError::InaccessibleSystemObject {
-                        object_id: ObjectId::AUTHENTICATOR_STATE,
-                    });
-                }
-            }
-            InputObjectKind::SharedMoveObject {
-                id: ObjectId::RANDOMNESS_STATE,
-                mutable: true,
-                ..
-            } => {
-                // Only system transactions can accept the Random
-                // object as a mutable parameter.
-                if system_transaction {
-                    return Ok(());
-                } else {
-                    return Err(UserInputError::ImmutableParameterExpected {
-                        object_id: ObjectId::RANDOMNESS_STATE,
-                    });
-                }
-            }
-            InputObjectKind::SharedMoveObject {
-                id: ObjectId::TRANSACTION_DENY_RULES,
-                ..
-            } => {
-                // The deny rules object is written only by system
-                // transactions and has no user-callable readers.
-                if system_transaction {
-                    return Ok(());
-                } else {
-                    return Err(UserInputError::InaccessibleSystemObject {
-                        object_id: ObjectId::TRANSACTION_DENY_RULES,
-                    });
-                }
-            }
-            InputObjectKind::SharedMoveObject {
                 initial_shared_version: input_initial_shared_version,
                 ..
             } => {
-                if check_shared_object_declaration(&object_kind, system_transaction)? {
+                if check_shared_object_declaration(&object_kind, system_transaction, input_checks)?
+                {
                     return Ok(());
                 }
 
@@ -853,16 +795,22 @@ mod checked {
     /// or the randomness state as mutable. Fails if a rule forbids the input.
     /// Returns `true` if a rule allows it, so no further check is needed, and
     /// `false` if no rule covers it.
+    ///
+    /// With [`InputCheckRules::any_initial_shared_version`] set, a mutable
+    /// clock is rejected whatever initial shared version it is declared with.
     fn check_shared_object_declaration(
         object_kind: &InputObjectKind,
         system_transaction: bool,
+        input_checks: InputCheckRules,
     ) -> UserInputResult<bool> {
         match object_kind {
             InputObjectKind::SharedMoveObject {
                 id: ObjectId::CLOCK,
-                initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
+                initial_shared_version,
                 mutable: true,
-            } => {
+            } if *initial_shared_version == IOTA_CLOCK_OBJECT_SHARED_VERSION
+                || input_checks.any_initial_shared_version =>
+            {
                 // Only system transactions can accept the Clock
                 // object as a mutable parameter.
                 if system_transaction {
@@ -918,8 +866,8 @@ mod checked {
         }
     }
 
-    /// Whether [`check_one_object`] restricts how a user transaction may take
-    /// this object as an input.
+    /// Whether [`check_shared_object_declaration`] restricts how a user
+    /// transaction may take this object as an input.
     fn is_restricted_system_object(id: ObjectId) -> bool {
         matches!(
             id,
