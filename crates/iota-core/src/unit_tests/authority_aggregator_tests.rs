@@ -3412,3 +3412,52 @@ async fn quorum_driver_returns_the_events_and_objects_of_the_certified_effects()
         response.output_objects,
     );
 }
+
+/// An already-executed transaction is answered with the events its certified
+/// effects record, also when the validator that completes the quorum returns
+/// other events with the same effects.
+#[tokio::test(start_paused = true)]
+async fn executed_effects_carry_their_own_events() {
+    let (authorities, mut clients, authority_keys) = make_fake_authorities();
+    let tx = create_fake_transaction();
+    let event = |value: u64| iota_sdk_types::Event {
+        package_id: ObjectId::ZERO,
+        module: Identifier::from_static("object_basics"),
+        sender: Address::ZERO,
+        struct_tag: iota_sdk_types::StructTag::new_gas(),
+        contents: bcs::to_bytes(&value).unwrap(),
+    };
+    let events = TransactionEvents(vec![event(1)]);
+    let effects = TestEffectsBuilder::new(tx.data())
+        .with_events_digest(events.digest())
+        .build();
+    // Two validators answer at once, the third sends other events with the
+    // same effects, and the fourth answers last.
+    let delays_ms = [0, 0, 100, 300];
+    for (i, (name, key)) in authority_keys.iter().enumerate() {
+        let returned_events = if i == 2 {
+            TransactionEvents(vec![event(1_000_000)])
+        } else {
+            events.clone()
+        };
+        let client = clients.get_mut(name).unwrap();
+        client.set_tx_info_response(HandleTransactionResponse {
+            status: TransactionStatus::Executed(
+                None,
+                sign_tx_effects(effects.clone(), 0, *name, key),
+                returned_events,
+            ),
+        });
+        client.set_sleep_duration_before_responding(Duration::from_millis(delays_ms[i]));
+    }
+    let agg = get_genesis_agg(authorities, clients);
+
+    let ProcessTransactionResult::Executed(certified_effects, returned_events) =
+        agg.process_transaction(tx, None).await.unwrap()
+    else {
+        panic!("expected the executed effects");
+    };
+
+    assert_eq!(*certified_effects.digest(), effects.digest());
+    assert_eq!(returned_events, events);
+}
