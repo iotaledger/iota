@@ -168,6 +168,11 @@ impl ExecutionMode for PrivateCall {
         true
     }
 
+    fn allow_non_public_native_calls() -> bool {
+        // the node only calls private Move functions, never a native directly
+        false
+    }
+
     fn allow_arbitrary_values() -> bool {
         false
     }

@@ -253,14 +253,6 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Validate PTB indices at signing time.
 // Version 39: Allow random beacon DKG to complete after its timeout on devnet
 //             and testnet.
-//             Enable built-in Move authenticators in devnet.
-//             Accept the `ClaimAccount` transaction kind in devnet, which
-//             creates an account object at the sender's address.
-//             Introduce Move native functions for validating public keys for
-//             Ed25519, Secp256k1, Secp256r1, and MultiSig signature schemes,
-//             and deriving IOTA addresses from public keys.
-//             Set the gas costs of those natives and of the built-in Move
-//             authenticators on all networks.
 //             The consensus handler's processed-transaction cache holds only
 //             messages recorded as processed, so a cache hit gives the same
 //             answer as the processed-message table on every validator. A
@@ -280,6 +272,14 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 40: Post-consensus validation takes the instantiation-loop graph
 //             edge limit, and whether the instantiation-loop check is
 //             metered, from the protocol config.
+//             Enable built-in Move authenticators in devnet.
+//             Accept the `ClaimAccount` transaction kind in devnet, which
+//             creates an account object at the sender's address.
+//             Introduce Move native functions for validating public keys for
+//             Ed25519, Secp256k1, Secp256r1, and MultiSig signature schemes,
+//             and deriving IOTA addresses from public keys.
+//             Set the gas costs of those natives and of the built-in Move
+//             authenticators on all networks.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3862,28 +3862,6 @@ impl ProtocolConfig {
                         cfg.feature_flags.allow_dkg_completion_after_timeout = true;
                     }
 
-                    if chain != Chain::Testnet && chain != Chain::Mainnet {
-                        // Enable built-in Move authenticators in devnet.
-                        cfg.feature_flags.enable_builtin_move_authenticators = true;
-                        // Enable claiming an account for the sender's address in
-                        // devnet only.
-                        cfg.feature_flags.enable_claim_account_transaction = true;
-
-                        // Bounds on a ClaimAccount's cost, so a claim cannot run
-                        // out of gas at any admissible gas price or key size.
-                        cfg.claim_account_max_computation_units = Some(5_000);
-                        cfg.claim_account_storage_bytes_bound = Some(2_000);
-                    }
-
-                    // Set the cost for built-in Move authenticators to 0 for now.
-                    cfg.builtin_move_authenticator_cost_base = Some(0);
-
-                    cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(52);
-                    cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(52);
-                    cfg.ecdsa_r1_secp256r1_validate_pubkey_cost_base = Some(52);
-                    cfg.multisig_multisig_validate_pubkey_cost_base = Some(52);
-                    cfg.public_key_to_iota_address_impl_cost_base = Some(52);
-
                     cfg.feature_flags.consensus_dedup_only_recorded_messages = true;
 
                     // Raise the minimum validator joining stake to 6M IOTA, the low
@@ -3925,6 +3903,28 @@ impl ProtocolConfig {
                     // also uses.
                     cfg.feature_flags.meter_instantiation_loops = true;
                     cfg.max_instantiation_loop_graph_edges = Some(100_000);
+
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable built-in Move authenticators in devnet.
+                        cfg.feature_flags.enable_builtin_move_authenticators = true;
+                        // Enable claiming an account for the sender's address in
+                        // devnet only.
+                        cfg.feature_flags.enable_claim_account_transaction = true;
+
+                        // Bounds on a ClaimAccount's cost, so a claim cannot run
+                        // out of gas at any admissible gas price or key size.
+                        cfg.claim_account_max_computation_units = Some(5_000);
+                        cfg.claim_account_storage_bytes_bound = Some(2_000);
+                    }
+
+                    // Set the cost for built-in Move authenticators to 0 for now.
+                    cfg.builtin_move_authenticator_cost_base = Some(0);
+
+                    cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(52);
+                    cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(52);
+                    cfg.ecdsa_r1_secp256r1_validate_pubkey_cost_base = Some(52);
+                    cfg.multisig_multisig_validate_pubkey_cost_base = Some(52);
+                    cfg.public_key_to_iota_address_impl_cost_base = Some(52);
                 }
                 // Use this template when making changes:
                 //

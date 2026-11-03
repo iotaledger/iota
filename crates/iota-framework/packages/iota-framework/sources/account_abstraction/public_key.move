@@ -21,8 +21,8 @@
 /// **Validation scope**: `create` checks that the scheme is recognized, that the raw bytes form
 /// a valid curve point (which implicitly rejects wrong-length inputs), and — for MultiSig — that
 /// the BCS structure is well-formed (signer count, weights, threshold), every signer weight is
-/// non-zero, and no signer is duplicated. These MultiSig rules match the committee validation of
-/// the SDK. MultiSig member keys are not checked against their curves.
+/// non-zero, no signer is duplicated, and no Ed25519 signer among other schemes. These
+/// rules match the committee validation of the SDK. Member keys are not checked against curves.
 module iota::public_key;
 
 use iota::ecdsa_k1;
@@ -58,7 +58,7 @@ public struct PublicKey has copy, drop, store {
 /// key material. Byte lengths after stripping the flag:
 /// 32 bytes for Ed25519, 33 bytes (compressed) for Secp256k1 / Secp256r1 / Passkey,
 /// BCS-encoded `MultiSigPublicKey` for MultiSig (1–10 distinct signers, each weight > 0,
-/// threshold > 0, total weight ≥ threshold).
+/// threshold > 0, total weight ≥ threshold, no Ed25519 signer among other schemes).
 ///
 /// Aborts if `prefixed_bytes` is empty, if the flag byte is not a recognized scheme, if the
 /// remaining bytes are not a valid curve point, or if a MultiSig payload fails structural validation.
@@ -73,7 +73,7 @@ public fun from_prefixed_bytes(mut prefixed_bytes: vector<u8>): PublicKey {
 /// `raw_bytes` must be the raw key material **without** the scheme flag prefix:
 /// 32 bytes for Ed25519, 33 bytes (compressed) for Secp256k1 / Secp256r1 / Passkey,
 /// and a valid BCS-encoded `MultiSigPublicKey` for MultiSig (1–10 distinct signers, each
-/// weight > 0, threshold > 0, total weight ≥ threshold).
+/// weight > 0, threshold > 0, total weight ≥ threshold, no Ed25519 signer among other schemes).
 ///
 /// Aborts if `raw_bytes` is empty, if `scheme` is not a recognized scheme, if the bytes do not
 /// form a valid curve point, or if a MultiSig payload fails structural validation.

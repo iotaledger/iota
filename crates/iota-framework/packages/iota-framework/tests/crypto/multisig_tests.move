@@ -15,10 +15,10 @@ fun multisig_validate_pubkey_valid() {
         x"0100cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010100";
     assert!(multisig::multisig_validate_pubkey(&one_of_one));
 
-    // 1-of-2 mixed: Ed25519 (weight=1) + Secp256k1 (weight=1), threshold=1
-    let mixed =
-        x"0200cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c010100";
-    assert!(multisig::multisig_validate_pubkey(&mixed));
+    // 1-of-2 Secp256k1 (weight=1) + Secp256r1 (weight=1), threshold=1
+    let two_schemes =
+        x"020102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c01020227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a010100";
+    assert!(multisig::multisig_validate_pubkey(&two_schemes));
 
     // A Secp256k1 member that is not a valid curve point (prefix 0x00): member keys are not
     // checked against their curves.
@@ -48,12 +48,20 @@ fun multisig_validate_pubkey_invalid() {
             &x"01000000000000000000000000000000000000000000000000000000000000000000010200",
         ),
     );
-    // Zero-weight member: the mixed committee from the valid test with the Ed25519 member's
-    // weight set to 0. Total weight (1, from the Secp256k1 member) still meets the threshold,
-    // so only the zero-weight rule is violated.
+    // Zero-weight member: the two-scheme committee from the valid test with the Secp256k1
+    // member's weight set to 0. Total weight (1, from the Secp256r1 member) still meets the
+    // threshold, so only the zero-weight rule is violated.
     assert!(
         !multisig::multisig_validate_pubkey(
-            &x"0200cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88000102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c010100",
+            &x"020102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c00020227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a010100",
+        ),
+    );
+    // Ed25519 mixed with another scheme: 1-of-2 Ed25519 (weight=1) + Secp256k1 (weight=1),
+    // threshold=1. Ed25519 members carry no scheme flag in the address preimage, so two
+    // different mixed committees can derive the same address.
+    assert!(
+        !multisig::multisig_validate_pubkey(
+            &x"0200cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c010100",
         ),
     );
     // Duplicate Ed25519 members.

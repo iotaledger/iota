@@ -27,10 +27,11 @@ pub struct MultisigValidatePubkeyCostParams {
 ///
 /// Returns `true` if `public_key` deserializes into a MultiSig committee that
 /// passes `MultisigCommittee::validate()` — 1 to 10 distinct members, every
-/// weight greater than zero, threshold greater than zero, and total weight at
-/// least the threshold — and `false` otherwise (including on deserialization
-/// failure or trailing bytes). Member keys are not checked against their
-/// curves, matching the SDK.
+/// weight greater than zero, threshold greater than zero, total weight at
+/// least the threshold, and no Ed25519 member together with members of other
+/// schemes — and `false` otherwise (including on deserialization failure or
+/// trailing bytes). Member keys are not checked against their curves,
+/// matching the SDK.
 ///
 /// gas cost: multisig_multisig_validate_pubkey_cost_base
 pub fn multisig_validate_pubkey(

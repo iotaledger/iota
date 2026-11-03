@@ -12,7 +12,8 @@ use iota_sdk_crypto::{
 };
 use iota_sdk_types::{
     Address, MoveAuthenticator, MoveAuthenticatorV1, ObjectDigest, ObjectId, ObjectReference,
-    SignatureScheme, SimpleSignature, Transaction, TypeTag, UserSignature, Version,
+    SharedObjectReference, SignatureScheme, SimpleSignature, Transaction, TypeTag, UserSignature,
+    Version,
     crypto::{
         Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
         PasskeyAuthenticator,
@@ -114,8 +115,8 @@ fn verify_builtin_signature_ok_secp256r1() {
 #[test]
 fn verify_builtin_signature_ok_multisig() {
     let mut rng = seeded_rng();
-    let kp1 = Ed25519PrivateKey::random_with(&mut rng);
-    let kp2 = Secp256k1PrivateKey::random_with(&mut rng);
+    let kp1 = Secp256k1PrivateKey::random_with(&mut rng);
+    let kp2 = Secp256r1PrivateKey::random_with(&mut rng);
     let multisig_public_key = MultisigCommittee::new(
         vec![
             MultisigMember::new(kp1.public_key(), 1),
@@ -316,10 +317,10 @@ fn seeded_rng() -> StdRng {
 }
 
 fn make_authenticator(call_args: Vec<CallArg>, type_args: Vec<TypeTag>) -> MoveAuthenticator {
-    MoveAuthenticatorV1::new_with_immutable_account_object(
+    MoveAuthenticatorV1::new(
         call_args,
         type_args,
-        ObjectReference::new(ObjectId::ZERO, Version::default(), ObjectDigest::MIN),
+        SharedObjectReference::new(ObjectId::ZERO, Version::default(), false),
     )
     .into()
 }

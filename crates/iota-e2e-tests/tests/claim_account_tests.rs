@@ -147,6 +147,12 @@ async fn test_claim_account_twice_is_not_yet_prevented() {
         .clone();
 
     let rgp = test_cluster.get_reference_gas_price().await;
+    // Both claims pay with the same coin, so the second claim has a higher
+    // lamport version than the first; a second claim at the same version is a
+    // different case.
+    let gas_coin_id = *first_gas_coin(&test_cluster.wallet, owner)
+        .await
+        .object_id();
     let mut claimed = Vec::new();
 
     for attempt in 1..=2 {
@@ -158,7 +164,7 @@ async fn test_claim_account_twice_is_not_yet_prevented() {
         let tx_data = Transaction::new(
             TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim)),
             owner,
-            first_gas_coin(&test_cluster.wallet, owner).await,
+            test_cluster.get_latest_object_ref(&gas_coin_id).await,
             rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
             rgp,
         );
