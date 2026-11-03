@@ -61,12 +61,10 @@ impl PgManager {
         let store = PgIndexerStore::new(connection_pool.clone(), indexer_metrics);
         let watermark_cache = WatermarkCache::new();
 
-        let watermark_task = WatermarkTask::new(store, watermark_cache.clone());
-        watermark_task
-            .update_watermarks()
+        WatermarkTask::new(store, watermark_cache.clone())
+            .start(cancellation_token)
             .await
             .map_err(|e| Error::Internal(format!("Failed to fill the watermark cache: {e}")))?;
-        watermark_task.start(cancellation_token);
 
         // Create reader with watermark cache
         let mut reader = IndexerReader::new(connection_pool, watermark_cache);
