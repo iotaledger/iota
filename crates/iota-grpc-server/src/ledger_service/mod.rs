@@ -68,7 +68,9 @@ fn validate_read_batch_size(item_count: usize, max: u32) -> Result<(), Status> {
 /// traffic control. The request is marked as accounted so the layer skips its
 /// default per-request tally, and is instead charged one request per produced
 /// item, so batching cannot dilute the spam rate; an empty batch produces no
-/// per-item tallies and is charged as one request up front instead. Per-item
+/// per-item tallies and is charged as one request up front instead. A stream
+/// dropped before it tallies anything, such as one the client cancels before
+/// its first item, is charged as one request when dropped. Per-item
 /// read failures ride inside `Ok` responses and are tallied as `Ok`: a client
 /// cannot know an object or transaction was pruned, so they must not feed the
 /// error policy. A stream-level error terminates the stream and is tallied by
@@ -79,23 +81,49 @@ fn tally_read_stream<T>(
     request_item_count: usize,
     response_item_count: impl Fn(&T) -> usize + Send,
 ) -> impl Stream<Item = Result<T, Status>> + Send {
-    if let Some(tally_handle) = &tally_handle {
+    let mut tally = tally_handle.map(|tally_handle| {
         if request_item_count == 0 {
             tally_handle.tally_item(Code::Ok);
         } else {
             tally_handle.mark_accounted();
         }
-    }
+        ReadStreamTally {
+            tally_handle,
+            tallied: request_item_count == 0,
+        }
+    });
     stream.map(move |result| {
-        if let Some(tally_handle) = &tally_handle {
+        if let Some(tally) = &mut tally {
             match &result {
-                Ok(response) => tally_handle
-                    .tally_items(std::iter::repeat_n(Code::Ok, response_item_count(response))),
-                Err(status) => tally_handle.tally_item(status.code()),
+                Ok(response) => {
+                    let item_count = response_item_count(response);
+                    tally.tallied |= item_count > 0;
+                    tally
+                        .tally_handle
+                        .tally_items(std::iter::repeat_n(Code::Ok, item_count));
+                }
+                Err(status) => {
+                    tally.tallied = true;
+                    tally.tally_handle.tally_item(status.code());
+                }
             }
         }
         result
     })
+}
+
+/// Charges one request when dropped if the read stream tallied nothing.
+struct ReadStreamTally {
+    tally_handle: TallyHandle,
+    tallied: bool,
+}
+
+impl Drop for ReadStreamTally {
+    fn drop(&mut self) {
+        if !self.tallied {
+            self.tally_handle.tally_item(Code::Ok);
+        }
+    }
 }
 
 #[tonic::async_trait]
@@ -204,5 +232,82 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
     ) -> Result<Response<grpc_ledger_service::GetEpochResponse>, Status> {
         let response = get_epoch::get_epoch(self, request.into_inner()).map(Response::new)?;
         Ok(append_info_headers!(response, self.reader.clone()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        net::{IpAddr, Ipv4Addr},
+        sync::Arc,
+    };
+
+    use futures::stream;
+    use iota_traffic_controller::TrafficController;
+    use iota_types::traffic_control::{PolicyConfig, PolicyType, Weight};
+
+    use super::*;
+
+    const CLIENT: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
+
+    /// How many requests a read stream of `request_item_count` items is charged
+    /// for when `read` of its `responses` are read and it is then dropped. Each
+    /// response is the number of items it carries. Counts up to 5.
+    async fn charges(
+        request_item_count: usize,
+        responses: Vec<Result<usize, Status>>,
+        read: usize,
+    ) -> u64 {
+        let mut charges = 0;
+        for threshold in 1..=5 {
+            // Blocks a client on its `threshold`-th request.
+            let traffic_controller = Arc::new(TrafficController::init_for_test(PolicyConfig {
+                connection_blocklist_ttl_sec: 120,
+                spam_policy_type: PolicyType::TestNConnIP(threshold),
+                error_policy_type: PolicyType::NoOp,
+                spam_sample_rate: Weight::one(),
+                dry_run: false,
+                ..Default::default()
+            }));
+            let tally_handle = TallyHandle::new_for_test(traffic_controller.clone(), Some(CLIENT));
+            let read_stream = tally_read_stream(
+                stream::iter(responses.clone()),
+                Some(tally_handle),
+                request_item_count,
+                |item_count| *item_count,
+            );
+            drop(read_stream.take(read).collect::<Vec<_>>().await);
+            // Charged at least `threshold` times.
+            if !traffic_controller.check(&Some(CLIENT), &None) {
+                charges = threshold;
+            }
+        }
+        charges
+    }
+
+    /// A non-empty read stream dropped before its first item, as when the
+    /// client cancels it, is still charged as one request.
+    #[tokio::test]
+    async fn read_stream_dropped_before_its_first_item_is_charged() {
+        assert_eq!(charges(2, vec![Ok(1), Ok(1)], 0).await, 1);
+    }
+
+    /// A read stream that produced items is charged once per item, and not
+    /// again when dropped.
+    #[tokio::test]
+    async fn read_stream_is_charged_once_per_item() {
+        assert_eq!(charges(2, vec![Ok(1), Ok(1)], 2).await, 2);
+        assert_eq!(charges(2, vec![Ok(1), Ok(1)], 1).await, 1);
+        assert_eq!(
+            charges(1, vec![Err(Status::invalid_argument("too large"))], 1).await,
+            1
+        );
+    }
+
+    /// A read stream with no items is charged as one request, once.
+    #[tokio::test]
+    async fn read_stream_without_items_is_charged_once() {
+        assert_eq!(charges(0, vec![], 1).await, 1);
+        assert_eq!(charges(1, vec![Ok(0)], 1).await, 1);
     }
 }

@@ -165,6 +165,14 @@ impl TallyHandle {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn new_for_test(
+        traffic_controller: Arc<TrafficController>,
+        client: Option<IpAddr>,
+    ) -> Self {
+        Self::new(traffic_controller, client)
+    }
+
     /// Whether a handler has accounted for this request's items itself, in
     /// which case the layer skips its default one-tally-per-request
     /// accounting.
@@ -176,7 +184,9 @@ impl TallyHandle {
     /// the layer skips its default one-tally-per-request accounting. Call this
     /// when the per-item tallies happen later than the handler returns — e.g. a
     /// streaming handler that tallies each item as its response stream is
-    /// consumed, after the layer has already checked the flag.
+    /// consumed, after the layer has already checked the flag. The handler must
+    /// then tally the request at least once, even if its stream is dropped
+    /// before it produces an item.
     pub fn mark_accounted(&self) {
         self.per_item_accounted.store(true, Ordering::Relaxed);
     }
