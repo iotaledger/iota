@@ -298,12 +298,67 @@ fn is_validator_error(category: ErrorCategory) -> bool {
 #[cfg(test)]
 mod tests {
     use iota_config::validator_client_monitor_config::ValidatorClientMonitorConfig;
+    use iota_sdk_types::{ObjectId, Version};
+    use iota_types::error::UserInputError;
 
     use super::*;
     use crate::{
         authority_aggregator::AuthorityAggregatorBuilder, test_authority_clients::MockAuthorityApi,
         validator_client_monitor::ValidatorClientMetrics,
     };
+
+    /// Every validator rejects the transaction for an input object it does
+    /// not have. The submission is rejected once a quorum answered, without
+    /// asking the rest, and the error names the object.
+    #[tokio::test(start_paused = true)]
+    async fn submission_rejected_by_a_quorum_for_a_missing_input_is_final() {
+        let aggregator =
+            AuthorityAggregatorBuilder::from_committee_size(4).build_mock_authority_aggregator();
+        let transaction = iota_types::utils::create_fake_transaction();
+        let rejected = TxStatusUpdate::Rejected {
+            error: IotaError::from(UserInputError::ObjectNotFound {
+                object_id: ObjectId::ZERO,
+                version: Some(Version::from_u64(1)),
+            }),
+        };
+        for client in aggregator.authority_clients.values() {
+            client
+                .authority_client()
+                .stub_submit_tx(Ok(vec![(*transaction.digest(), rejected.clone())]));
+        }
+        let submitter =
+            TransactionSubmitter::new(Arc::new(TransactionDriverMetrics::new_for_tests()));
+        let monitor = ValidatorClientMonitor::new_for_test();
+
+        let error = submitter
+            .submit_transaction(
+                &aggregator,
+                &monitor,
+                1,
+                Some(transaction),
+                &SubmitTransactionOptions::default(),
+            )
+            .await
+            .expect_err("a quorum rejecting for a missing input is final");
+
+        assert!(
+            matches!(error, TransactionDriverError::RejectedByValidators { .. }),
+            "{error}"
+        );
+        assert!(!error.is_submission_retriable(), "{error}");
+        assert!(
+            error
+                .to_string()
+                .contains("Could not find the referenced object"),
+            "{error}"
+        );
+        let asked = aggregator
+            .authority_clients
+            .values()
+            .filter(|client| !client.authority_client().submit_requests().is_empty())
+            .count();
+        assert_eq!(asked, 3);
+    }
 
     /// Longer than the mock client's delay.
     const PING_TIMEOUT: Duration = Duration::from_secs(1);
