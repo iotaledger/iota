@@ -1099,27 +1099,9 @@ transfer
 transfer_multiple
 	fun
 	0x3::timelocked_staking
-secp256k1_ecrecover
-	public fun
-	0x2::ecdsa_k1
-decompress_pubkey
-	public fun
-	0x2::ecdsa_k1
-secp256k1_verify
-	public fun
-	0x2::ecdsa_k1
-secp256r1_ecrecover
-	public fun
-	0x2::ecdsa_r1
-secp256r1_verify
-	public fun
-	0x2::ecdsa_r1
 ecvrf_verify
 	public fun
 	0x2::ecvrf
-ed25519_verify
-	public fun
-	0x2::ed25519
 hash_to_input
 	public fun
 	0x2::vdf
@@ -1632,6 +1614,9 @@ module_name
 	0x2::authenticator_function
 function_name
 	public fun
+	0x2::authenticator_function
+create_auth_function_ref_v1_inner
+	public(package) fun
 	0x2::authenticator_function
 ImmutableAccountCreated
 	public struct
@@ -2440,6 +2425,144 @@ put_back
 destroy
 	public fun
 	0x2::borrow
+SignatureScheme
+	public struct
+	0x2::signature_scheme
+ed25519
+	public fun
+	0x2::signature_scheme
+secp256k1
+	public fun
+	0x2::signature_scheme
+secp256r1
+	public fun
+	0x2::signature_scheme
+multisig
+	public fun
+	0x2::signature_scheme
+passkey
+	public fun
+	0x2::signature_scheme
+from_flag
+	public fun
+	0x2::signature_scheme
+flag
+	public fun
+	0x2::signature_scheme
+multisig_validate_pubkey
+	public fun
+	0x2::multisig
+ed25519_validate_pubkey
+	public fun
+	0x2::ed25519
+ed25519_verify
+	public fun
+	0x2::ed25519
+secp256r1_ecrecover
+	public fun
+	0x2::ecdsa_r1
+secp256r1_validate_pubkey
+	public fun
+	0x2::ecdsa_r1
+secp256r1_verify
+	public fun
+	0x2::ecdsa_r1
+secp256k1_ecrecover
+	public fun
+	0x2::ecdsa_k1
+secp256k1_validate_pubkey
+	public fun
+	0x2::ecdsa_k1
+decompress_pubkey
+	public fun
+	0x2::ecdsa_k1
+secp256k1_verify
+	public fun
+	0x2::ecdsa_k1
+PublicKey
+	public struct
+	0x2::public_key
+from_prefixed_bytes
+	public fun
+	0x2::public_key
+create
+	public fun
+	0x2::public_key
+scheme
+	public fun
+	0x2::public_key
+raw_bytes
+	public fun
+	0x2::public_key
+to_iota_address
+	public fun
+	0x2::public_key
+validate_public_key
+	fun
+	0x2::public_key
+to_iota_address_impl
+	fun
+	0x2::public_key
+PublicKeyAttached
+	public struct
+	0x2::builtin_authenticator_functions
+PublicKeyDetached
+	public struct
+	0x2::builtin_authenticator_functions
+PublicKeyRotated
+	public struct
+	0x2::builtin_authenticator_functions
+PublicKeyFieldName
+	public struct
+	0x2::builtin_authenticator_functions
+builtin_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+attach_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+detach_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+rotate_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+ensure_builtin_auth_and_public_key_together
+	public fun
+	0x2::builtin_authenticator_functions
+is_builtin_authenticator
+	public fun
+	0x2::builtin_authenticator_functions
+has_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+borrow_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+builtin_authenticator_v1
+	fun
+	0x2::builtin_authenticator_functions
+public_key_field_name
+	fun
+	0x2::builtin_authenticator_functions
+add_public_key
+	fun
+	0x2::builtin_authenticator_functions
+remove_public_key
+	fun
+	0x2::builtin_authenticator_functions
+check_builtin_authenticators_enabled
+	fun
+	0x2::builtin_authenticator_functions
+borrow_account_uid
+	fun
+	0x2::builtin_authenticator_functions
+verify_builtin_signature
+	fun
+	0x2::builtin_authenticator_functions
+claim_address
+	public(package) fun
+	0x2::claim
 Clock
 	public struct
 	0x2::clock
@@ -3667,6 +3790,90 @@ generate_u8_in_range
 shuffle
 	public fun
 	0x2::random
+SmartAccount
+	public struct
+	0x2::smart_account
+SmartAccountBuilder
+	public struct
+	0x2::smart_account
+builder_v1
+	public fun
+	0x2::smart_account
+with_field
+	public fun
+	0x2::smart_account
+build_v1
+	public fun
+	0x2::smart_account
+account_address
+	public fun
+	0x2::smart_account
+has_field
+	public fun
+	0x2::smart_account
+borrow_field
+	public fun
+	0x2::smart_account
+borrow_auth_function_ref_v1
+	public fun
+	0x2::smart_account
+ensure_tx_sender_is_smart_account
+	public fun
+	0x2::smart_account
+add_field
+	public fun
+	0x2::smart_account
+remove_field
+	public fun
+	0x2::smart_account
+borrow_field_mut
+	public fun
+	0x2::smart_account
+rotate_field
+	public fun
+	0x2::smart_account
+rotate_auth_function_ref_v1
+	public fun
+	0x2::smart_account
+claim_builder
+	public(package) fun
+	0x2::smart_account
+account_uid_mut
+	public(package) fun
+	0x2::smart_account
+uid
+	public(package) fun
+	0x2::smart_account
+uid_mut
+	public(package) fun
+	0x2::smart_account
+builder_v1
+	public fun
+	0x2::smart_account_builtin_auth
+has_builtin_auth
+	public fun
+	0x2::smart_account_builtin_auth
+has_public_key
+	public fun
+	0x2::smart_account_builtin_auth
+borrow_public_key
+	public fun
+	0x2::smart_account_builtin_auth
+rotate_to_builtin_auth_v1
+	public fun
+	0x2::smart_account_builtin_auth
+rotate_to_custom_auth_v1
+	public fun
+	0x2::smart_account_builtin_auth
+rotate_public_key
+	public fun
+	0x2::smart_account_builtin_auth
+claim_account_v1
+	fun
+	0x2::smart_account_builtin_auth
+with_public_key
+	fun
+	0x2::smart_account_builtin_auth
 IotaSystemAdminCap
 	public struct
 	0x2::system_admin_cap

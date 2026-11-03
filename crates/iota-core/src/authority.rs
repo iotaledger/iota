@@ -6432,7 +6432,7 @@ impl AuthorityState {
         let authenticator_function_ref_field_id =
             derive_authenticator_function_ref_v1_dynamic_field_id(auth_account_object_id)?;
 
-        let authenticator_function_ref_field = self
+        let authenticator_function_ref_field_obj = self
             .get_object_cache_reader()
             .try_find_object_lt_or_eq_version(
                 authenticator_function_ref_field_id,
@@ -6440,7 +6440,7 @@ impl AuthorityState {
             )
             .map_err(MoveAccountCheckError::Storage)?;
 
-        if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field {
+        if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field_obj {
             Ok(authenticator_function_ref_v1_from_dynamic_field_object(
                 auth_account_object_id,
                 &authenticator_function_ref_field_obj,

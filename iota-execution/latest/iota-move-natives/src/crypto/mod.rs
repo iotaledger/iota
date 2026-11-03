@@ -11,6 +11,7 @@ pub mod groth16;
 pub mod group_ops;
 pub mod hash;
 pub mod hmac;
+pub mod multisig;
 pub mod poseidon;
 pub mod vdf;
 pub mod zklogin;

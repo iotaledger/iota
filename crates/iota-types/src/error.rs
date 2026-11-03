@@ -354,7 +354,6 @@ pub enum UserInputError {
         "Invalid authenticator function ref field value found for the account {account_object_id}"
     )]
     InvalidAuthenticatorFunctionRefField { account_object_id: ObjectId },
-
     #[error("Package {package_id} is in the `MoveAuthenticator` input that is unsupported")]
     PackageIsInMoveAuthenticatorInput { package_id: ObjectId },
     #[error(
