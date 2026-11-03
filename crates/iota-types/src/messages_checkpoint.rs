@@ -614,9 +614,9 @@ impl FullCheckpointContents {
 
     /// Pairs the signatures pinned in `contents` with transactions from this
     /// node's own store, and puts the pinned signatures on each transaction
-    /// the checkpoint pins signatures for, except where the stored and the
-    /// pinned signatures hold different `MoveAuthenticator`s; those are left
-    /// as stored.
+    /// the checkpoint pins signatures for, except where the stored or the
+    /// pinned signatures hold a `MoveAuthenticator`; those are left as stored,
+    /// so the contents fail [`Self::verify`] if the two copies differ.
     ///
     /// Only for transactions this node stored itself. Contents received from
     /// elsewhere must pass [`Self::verify`] as received.
@@ -636,23 +636,21 @@ impl FullCheckpointContents {
             .zip(&full_contents.user_signatures)
         {
             let stored_signatures = execution_data.transaction.data().signatures();
-            let move_authenticators = |signatures: &[UserSignature]| {
-                signatures
-                    .iter()
-                    .filter(|signature| matches!(signature, UserSignature::MoveAuthenticator(_)))
-                    .cloned()
-                    .collect::<Vec<_>>()
-            };
             // Genesis and end-of-epoch transactions pin no signatures and keep
-            // their placeholder. A different `MoveAuthenticator` can change
-            // what the transaction executes, so the stored copy's effects
-            // might not match the pinned one. Only checkpoints before protocol
-            // version 36 can hold such a pair: from that version the account
-            // object must be shared, so the transaction is ordered by consensus
-            // and every node executes the copy consensus sequenced.
+            // their placeholder.
             if !pinned_signatures.is_empty()
                 && stored_signatures != pinned_signatures.as_slice()
-                && move_authenticators(stored_signatures) == move_authenticators(pinned_signatures)
+                // A `MoveAuthenticator` decides part of what the transaction
+                // executes and can read the digests of the other signatures, so
+                // with one in either copy the stored copy's effects might not
+                // match the pinned one. Only checkpoints before protocol version
+                // 36 can hold such a pair: from that version the account object
+                // must be shared, so the transaction is ordered by consensus and
+                // every node executes the copy consensus sequenced.
+                && !stored_signatures
+                    .iter()
+                    .chain(pinned_signatures)
+                    .any(UserSignature::is_move_authenticator)
             {
                 execution_data.transaction = TransactionEnvelope::from_user_sig_data(
                     execution_data.transaction.data().transaction().clone(),
@@ -1297,10 +1295,11 @@ mod tests {
     }
 
     /// Copies with the same `MoveAuthenticator` that differ in their other
-    /// signatures get the pinned signatures.
+    /// signatures are left as stored: the authenticator can read the digests
+    /// of the other signatures.
     #[test]
-    fn local_execution_data_with_the_same_move_authenticator_gets_the_pinned_signatures() {
-        let (digest, mut contents, mut executed_copy) = contents_with_a_swapped_envelope();
+    fn local_execution_data_with_the_same_move_authenticator_keeps_the_stored_copy() {
+        let (_, mut contents, mut executed_copy) = contents_with_a_swapped_envelope();
         let transaction = contents.transactions[0]
             .transaction
             .data()
@@ -1319,17 +1318,15 @@ mod tests {
                 TransactionEnvelope::from_user_sig_data(transaction.clone(), signatures.clone());
             full_contents.user_signatures[0] = signatures;
         }
-        let digest_with_authenticator = contents.checkpoint_contents().digest();
-        assert_ne!(digest_with_authenticator, digest);
+        assert_ne!(contents.transactions, executed_copy.transactions);
 
         let built = FullCheckpointContents::from_contents_and_local_execution_data(
             contents.checkpoint_contents(),
-            executed_copy.into_iter(),
+            executed_copy.clone().into_iter(),
         )
         .unwrap();
 
-        assert_eq!(built, contents);
-        built.verify_digests(digest_with_authenticator).unwrap();
+        assert_eq!(built.transactions, executed_copy.transactions);
     }
 
     /// A copy whose `MoveAuthenticator` differs from the pinned one is left as
