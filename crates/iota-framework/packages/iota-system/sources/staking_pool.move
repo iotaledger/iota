@@ -34,6 +34,7 @@ const EDelegationOfZeroIota: u64 = 17;
 const EStakedIotaBelowThreshold: u64 = 18;
 const EPendingWithdrawExceedsPoolBalance: u64 = 19;
 const EPendingPoolTokenWithdrawExceedsBalance: u64 = 20;
+const EStakeNotProcessed: u64 = 21;
 
 /// A staking pool embedded in each validator struct in the system state object.
 public struct StakingPoolV1 has key, store {
@@ -156,6 +157,7 @@ public(package) fun request_withdraw_stake(
     let (pool_token_withdraw_amount, mut principal_withdraw) = withdraw_from_principal(
         pool,
         staked_iota,
+        ctx.epoch(),
     );
     let principal_withdraw_amount = principal_withdraw.value();
 
@@ -178,18 +180,20 @@ public(package) fun request_withdraw_stake(
 }
 
 /// Withdraw the principal IOTA stored in the StakedIota object, and calculate the corresponding amount of pool
-/// tokens using exchange rate at staking epoch.
+/// tokens using the exchange rate the stake was added to the pool at.
 /// Returns values are amount of pool tokens withdrawn and withdrawn principal portion of IOTA.
 public(package) fun withdraw_from_principal(
     pool: &StakingPoolV1,
     staked_iota: StakedIota,
+    current_epoch: u64,
 ): (u64, Balance<IOTA>) {
     // Check that the stake information matches the pool.
     assert!(staked_iota.pool_id == object::id(pool), EWrongPool);
 
-    let exchange_rate_at_staking_epoch = pool_token_exchange_rate_at_epoch(
+    let exchange_rate_at_staking_epoch = pool_token_exchange_rate_at_stake_activation(
         pool,
         staked_iota.stake_activation_epoch,
+        current_epoch,
     );
     let principal_withdraw = unwrap_staked_iota(staked_iota);
     let pool_token_withdraw_amount = get_token_amount(
@@ -459,6 +463,17 @@ fun latest_exchange_rate_epoch(pool: &StakingPoolV1, lower: u64, upper: u64): Op
     if (pool.exchange_rates.contains(lower)) option::some(lower) else option::none()
 }
 
+/// The earliest epoch in `[lower, upper]` with an exchange rate entry, if any.
+fun earliest_exchange_rate_epoch(pool: &StakingPoolV1, lower: u64, upper: u64): Option<u64> {
+    if (upper < lower) return option::none();
+    let mut epoch = lower;
+    while (epoch < upper) {
+        if (pool.exchange_rates.contains(epoch)) return option::some(epoch);
+        epoch = epoch + 1;
+    };
+    if (pool.exchange_rates.contains(upper)) option::some(upper) else option::none()
+}
+
 /// Whether the stake behind a receipt is still waiting to be processed into the
 /// pool's balances. An epoch change that ran in safe mode runs no Move code, so a
 /// stake can reach its activation epoch with its principal still in `pending_stake`.
@@ -473,6 +488,26 @@ fun is_stake_pending(
     if (is_preactive_at_epoch(pool, stake_activation_epoch)) return false;
     let upper = pool.deactivation_epoch.get_with_default(current_epoch).min(current_epoch);
     latest_exchange_rate_epoch(pool, stake_activation_epoch, upper).is_none()
+}
+
+/// The exchange rate at which the stake activated at `stake_activation_epoch` was
+/// added to the pool. Normally that is the rate recorded at that epoch. If that
+/// epoch change ran in safe mode, the stake was added by the next normal epoch
+/// change, so it is the first rate recorded after it. Aborts if the stake has not
+/// been added to the pool yet.
+fun pool_token_exchange_rate_at_stake_activation(
+    pool: &StakingPoolV1,
+    stake_activation_epoch: u64,
+    current_epoch: u64,
+): PoolTokenExchangeRate {
+    // Stake added to a preactive pool is processed on request at the initial rate.
+    if (is_preactive_at_epoch(pool, stake_activation_epoch)) {
+        return initial_exchange_rate()
+    };
+    let upper = pool.deactivation_epoch.get_with_default(current_epoch).min(current_epoch);
+    let epoch = earliest_exchange_rate_epoch(pool, stake_activation_epoch, upper);
+    assert!(epoch.is_some(), EStakeNotProcessed);
+    pool.exchange_rates[epoch.destroy_some()]
 }
 
 fun get_iota_amount(exchange_rate: &PoolTokenExchangeRate, token_amount: u64): u64 {
@@ -523,10 +558,14 @@ public fun calculate_rewards(
     current_epoch: u64,
 ): u64 {
     let staked_amount = staked_iota_amount(staked_iota);
+    if (is_stake_pending(pool, staked_iota.stake_activation_epoch, current_epoch)) {
+        return staked_amount
+    };
     let pool_token_withdraw_amount = {
-        let exchange_rate_at_staking_epoch = pool_token_exchange_rate_at_epoch(
+        let exchange_rate_at_staking_epoch = pool_token_exchange_rate_at_stake_activation(
             pool,
             staked_iota.stake_activation_epoch,
+            current_epoch,
         );
         get_token_amount(&exchange_rate_at_staking_epoch, staked_amount)
     };

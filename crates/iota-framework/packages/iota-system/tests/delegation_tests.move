@@ -1111,6 +1111,72 @@ fun test_withdraw_stake_processed_one_epoch_late() {
 }
 
 #[test]
+fun test_withdraw_stake_processed_one_epoch_late_with_rewards() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    stake_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 100, scenario);
+    advance_epoch_safe_mode(scenario);
+    // The epoch change that processes the stake also pays 20 IOTA of rewards per
+    // validator, earned while the pool held only the validator's 100 IOTA: half
+    // is commission staked back by the validator, half goes to the pool.
+    advance_epoch_with_balanced_reward_amounts(0, 40, scenario);
+    assert_pending_amounts(VALIDATOR_ADDR_1, 0, 0, scenario);
+    assert_validator_total_stake_amounts(
+        vector[VALIDATOR_ADDR_1],
+        vector[220 * NANOS_PER_IOTA],
+        scenario,
+    );
+
+    // The stake was added at the post-reward rate, so it earns none of the rewards.
+    unstake(STAKER_ADDR_1, 0, scenario);
+    assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * NANOS_PER_IOTA);
+
+    // The validator's genesis stake and commission receipt get the whole reward.
+    unstake(VALIDATOR_ADDR_1, 0, scenario);
+    unstake(VALIDATOR_ADDR_1, 0, scenario);
+    assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 120 * NANOS_PER_IOTA);
+    assert_pending_amounts(VALIDATOR_ADDR_1, 0, 220 * NANOS_PER_IOTA, scenario);
+
+    // Every receipt was valued at the rate it was added at, so draining the pool
+    // leaves it with enough pool tokens for the epoch change.
+    advance_epoch(scenario);
+    assert_validator_total_stake_amounts(
+        vector[VALIDATOR_ADDR_1, VALIDATOR_ADDR_2],
+        vector[0, 120 * NANOS_PER_IOTA],
+        scenario,
+    );
+    scenario_val.end();
+}
+
+#[test]
+fun test_withdraw_stake_processed_one_epoch_late_from_inactive_pool() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    // The departure below subtracts the validator's processed pool from a
+    // committee total that the safe-mode epoch change leaves at 200 IOTA, so
+    // the pool must stay below that.
+    stake_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 50, scenario);
+    advance_epoch_safe_mode(scenario);
+    remove_validator(VALIDATOR_ADDR_1, scenario);
+    // The epoch change that processes the stake pays the same rewards as above
+    // and then deactivates the pool.
+    advance_epoch_with_balanced_reward_amounts(0, 40, scenario);
+
+    // Withdrawals from the inactive pool settle immediately, at the rate each
+    // stake was added at; the last one does not run the pool short.
+    unstake(STAKER_ADDR_1, 0, scenario);
+    assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 50 * NANOS_PER_IOTA);
+    unstake(VALIDATOR_ADDR_1, 0, scenario);
+    unstake(VALIDATOR_ADDR_1, 0, scenario);
+    assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 120 * NANOS_PER_IOTA);
+    scenario_val.end();
+}
+
+#[test]
 fun test_withdraw_active_stake_during_safe_mode_epoch() {
     set_up_iota_system_state();
     let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
