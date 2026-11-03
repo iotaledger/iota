@@ -867,9 +867,8 @@ fn write_history_archive(damaged: bool) -> tempfile::TempDir {
         file.push(FileCompression::None.into());
         for seq in range.clone() {
             if damaged && seq == 1 {
-                // The varint encoding of `u64::MAX`, then the BCS encoding byte.
-                file.extend_from_slice(&[0xFF; 9]);
-                file.extend_from_slice(&[0x01, BlobEncoding::Bcs.into()]);
+                // The varint encoding of 4096, then the BCS encoding byte.
+                file.extend_from_slice(&[0x80, 0x20, BlobEncoding::Bcs.into()]);
             } else {
                 Blob::encode(
                     &mock_checkpoint_data_with_opt(seq, 0, vec![]),

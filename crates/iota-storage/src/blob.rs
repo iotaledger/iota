@@ -16,6 +16,9 @@ use serde::{Serialize, de::DeserializeOwned};
 pub const MAX_VARINT_LENGTH: usize = 10;
 pub const BLOB_ENCODING_BYTES: usize = 1;
 const MAX_PREALLOCATION: usize = 1 << 20;
+/// The largest blob [`Blob::read`] accepts. The length comes from the input,
+/// and a small zstd-compressed file can decompress to any length.
+const MAX_BLOB_LENGTH: u64 = 1 << 30;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
@@ -46,16 +49,21 @@ impl Blob {
     /// Reads one blob from `rbuf`.
     ///
     /// Memory grows with the bytes actually read, not with the length the
-    /// blob declares: at most 1 MiB is reserved before reading.
+    /// blob declares: at most 1 MiB is reserved before reading, and at most
+    /// 1 GiB is read.
     ///
     /// # Errors
     ///
-    /// Fails if reading `rbuf` fails, if the declared length is 0, if `rbuf`
-    /// ends before that many data bytes, or if the encoding is unknown.
+    /// Fails if reading `rbuf` fails, if the declared length is 0 or above
+    /// 1 GiB, if `rbuf` ends before that many data bytes, or if the encoding
+    /// is unknown.
     pub fn read<R: Read>(rbuf: &mut R) -> Result<Blob> {
         let len = rbuf.read_varint::<u64>()?;
         if len == 0 {
             bail!("Invalid object length of 0 in file");
+        }
+        if len > MAX_BLOB_LENGTH {
+            bail!("blob length {len} is above the maximum of {MAX_BLOB_LENGTH} bytes");
         }
         let encoding = rbuf.read_u8()?;
         // The length comes from the input, so only part of it is reserved up
@@ -164,7 +172,7 @@ mod tests {
 
     #[test]
     fn rejects_length_beyond_input() {
-        for len in [u64::MAX, 1 << 40, 4] {
+        for len in [MAX_BLOB_LENGTH, 4] {
             let mut bytes = header(len);
             bytes.extend_from_slice(&[0u8; 3]);
             let err = Blob::read(&mut Cursor::new(bytes)).err().unwrap();
@@ -176,6 +184,36 @@ mod tests {
         }
     }
 
+    /// A blob longer than the maximum is refused, also from a zstd-compressed
+    /// file.
+    #[test]
+    fn rejects_length_above_maximum() {
+        for compression in [FileCompression::None, FileCompression::Zstd] {
+            for len in [MAX_BLOB_LENGTH + 1, u64::MAX] {
+                let mut blob = header(len);
+                blob.extend_from_slice(&[0u8; 3]);
+                let mut file = MAGIC.to_be_bytes().to_vec();
+                file.push(StorageFormat::Blob.into());
+                file.push(compression.into());
+                match compression {
+                    FileCompression::None => file.extend(blob),
+                    FileCompression::Zstd => {
+                        FileCompression::zstd_compress(&mut Cursor::new(blob), &mut file).unwrap()
+                    }
+                }
+
+                let (mut reader, _) = crate::read(MAGIC, Cursor::new(file)).unwrap();
+                let err = Blob::read(&mut reader).err().unwrap();
+                assert!(
+                    err.to_string().contains(&format!(
+                        "blob length {len} is above the maximum of {MAX_BLOB_LENGTH} bytes"
+                    )),
+                    "{err}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn blob_iter_stops_at_length_beyond_input() {
         for compression in [FileCompression::None, FileCompression::Zstd] {
@@ -184,7 +222,7 @@ mod tests {
                 .unwrap()
                 .write(&mut blobs)
                 .unwrap();
-            blobs.extend(header(u64::MAX));
+            blobs.extend(header(4));
             blobs.extend_from_slice(&[0u8; 3]);
 
             let mut file = MAGIC.to_be_bytes().to_vec();

@@ -156,12 +156,11 @@ mod tests {
     };
 
     /// Builds a file whose checksum is valid but whose blob declares a length
-    /// of `u64::MAX` and holds no data.
+    /// of 4096, more than the rest of the file.
     fn file_with_oversized_blob(magic: u32) -> Vec<u8> {
         let mut bytes = magic.to_be_bytes().to_vec();
-        // The varint encoding of `u64::MAX`.
-        bytes.extend_from_slice(&[0xFF; 9]);
-        bytes.push(0x01);
+        // The varint encoding of 4096.
+        bytes.extend_from_slice(&[0x80, 0x20]);
         bytes.push(BlobEncoding::Bcs.into());
         let digest = Sha3_256::digest(&bytes).digest;
         bytes.extend_from_slice(&digest);
