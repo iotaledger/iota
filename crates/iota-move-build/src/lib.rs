@@ -381,24 +381,51 @@ fn collect_bytecode_deps(
     Ok(bytecode_deps)
 }
 
+/// The modules a publish of `package` ships: its root modules and, since a
+/// publish may bundle the unpublished dependencies, the modules of the
+/// dependencies that are not published (at address `0x0`).
+fn modules_to_publish(package: &MoveCompiledPackage) -> impl Iterator<Item = &CompiledModule> {
+    let root_modules = package
+        .root_compiled_units
+        .iter()
+        .map(|unit| &unit.unit.module);
+    let unpublished_dependency_modules = package
+        .deps_compiled_units
+        .iter()
+        .map(|(_, unit)| &unit.unit.module)
+        .filter(|module| is_unpublished(module));
+    root_modules.chain(unpublished_dependency_modules)
+}
+
+/// The mutable counterpart of [`modules_to_publish`].
+fn modules_to_publish_mut(
+    package: &mut MoveCompiledPackage,
+) -> impl Iterator<Item = &mut CompiledModule> {
+    let root_modules = package
+        .root_compiled_units
+        .iter_mut()
+        .map(|unit| &mut unit.unit.module);
+    let unpublished_dependency_modules = package
+        .deps_compiled_units
+        .iter_mut()
+        .map(|(_, unit)| &mut unit.unit.module)
+        .filter(|module| is_unpublished(module));
+    root_modules.chain(unpublished_dependency_modules)
+}
+
+/// Whether `module` has not been published, the criterion by which a publish
+/// bundles a dependency module into the package.
+fn is_unpublished(module: &CompiledModule) -> bool {
+    module.address() == &AccountAddress::ZERO
+}
+
 /// Fill metadata
 fn fill_metadata(
     package: &mut MoveCompiledPackage,
     fn_info_map: &FnInfoMap,
     protocol_build_config: &ProtocolBuildConfig,
 ) -> IotaResult<()> {
-    let root_modules = package
-        .root_compiled_units
-        .iter_mut()
-        .map(|unit| &mut unit.unit.module);
-    // A publish that bundles the unpublished dependencies publishes their
-    // modules as part of the package, so they carry metadata like root modules.
-    let unpublished_dependency_modules = package
-        .deps_compiled_units
-        .iter_mut()
-        .map(|(_, unit)| &mut unit.unit.module)
-        .filter(|module| module.address() == &AccountAddress::ZERO);
-    for module in root_modules.chain(unpublished_dependency_modules) {
+    for module in modules_to_publish_mut(package) {
         // View functions are only representable in V2 (dynamic) runtime metadata,
         // which is gated behind the `package_metadata_with_dynamic_module_metadata`
         // protocol feature.
@@ -459,8 +486,7 @@ fn verify_bytecode(
     fn_info: &FnInfoMap,
     protocol_build_config: &ProtocolBuildConfig,
 ) -> IotaResult<()> {
-    let compiled_modules = package.root_modules_map();
-    for m in compiled_modules.iter_modules() {
+    for m in modules_to_publish(package) {
         move_bytecode_verifier::verify_module_unmetered(m).map_err(|err| {
             IotaError::ModuleVerificationFailure {
                 error: err.to_string(),
