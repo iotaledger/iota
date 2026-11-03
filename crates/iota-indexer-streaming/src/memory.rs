@@ -122,19 +122,21 @@ pub struct Config {
     /// The value of 50 provides good balance between indexer synchronization
     /// and subscriber responsiveness for typical workloads.
     pub transaction_batch_size: NonZeroI64,
-    /// The maximum number of transactions a recovery stream may replay from
+    /// The maximum number of checkpoints a recovery stream may replay from
     /// the database before switching to live data.
     ///
-    /// The distance is the difference between the sequence number of the
-    /// latest indexed transaction and that of the [`RecoveryPoint`], so it
-    /// equals the number of transactions to replay. For example, resuming from
-    /// transaction 4000 when the latest one is 15000 is a distance of 11000.
-    /// A larger distance than this fails the stream with
-    /// [`IndexerStreamingError::RecoveryDistanceExceeded`]. `None` leaves the
-    /// replay distance unbounded.
+    /// The distance is measured between the latest indexed checkpoint and the
+    /// checkpoint containing the [`RecoveryPoint`]. A larger distance fails the
+    /// stream with [`IndexerStreamingError::RecoveryDistanceExceeded`]. `None`
+    /// leaves the distance unbounded.
+    ///
+    /// # Example
+    ///
+    /// With a limit of 10000, resuming from a transaction in checkpoint 4000
+    /// while the latest one is 15000 is rejected, since the distance is 11000.
     ///
     /// - default: `None`
-    pub max_recovery_distance: Option<NonZeroI64>,
+    pub max_recovery_checkpoints: Option<NonZeroI64>,
 }
 
 impl Default for Config {
@@ -143,7 +145,7 @@ impl Default for Config {
             channel_buffer_size: NonZeroUsize::new(1000).expect("value should be greater than 0"),
             transaction_batch_size: NonZeroI64::new(50).expect("value should be greater than 0"),
             notification_chunk_size: NonZeroUsize::new(10).expect("value should be greater than 0"),
-            max_recovery_distance: None,
+            max_recovery_checkpoints: None,
         }
     }
 }
@@ -381,7 +383,7 @@ impl InMemory {
             recovery_point.digest(),
             self.reader.clone(),
             self.config.transaction_batch_size.get(),
-            self.config.max_recovery_distance.map(NonZeroI64::get),
+            self.config.max_recovery_checkpoints.map(NonZeroI64::get),
             self.metrics.clone(),
         );
 
@@ -519,7 +521,7 @@ impl InMemory {
             recovery_point.digest(),
             self.reader.clone(),
             self.config.transaction_batch_size.get(),
-            self.config.max_recovery_distance.map(NonZeroI64::get),
+            self.config.max_recovery_checkpoints.map(NonZeroI64::get),
             self.metrics.clone(),
         );
 
@@ -949,9 +951,9 @@ struct HistoricalFetch {
     buffer: VecDeque<StoredTransaction>,
     /// Number of transactions to fetch per database query.
     batch_size: i64,
-    /// Maximum allowed distance between the resolved cursor and the latest
-    /// committed transaction, if bounded.
-    max_recovery_distance: Option<i64>,
+    /// Maximum allowed number of checkpoints between the resolved cursor and
+    /// the latest committed checkpoint, if bounded.
+    max_recovery_checkpoints: Option<i64>,
     /// Upon an unrecoverable error, the stream should be closed.
     should_close_stream: bool,
     /// Tracks the latency of querying transaction batch from the indexer
@@ -965,7 +967,7 @@ impl HistoricalFetch {
         start_from_digest: TransactionDigest,
         reader: IndexerReader,
         batch_size: i64,
-        max_recovery_distance: impl Into<Option<i64>>,
+        max_recovery_checkpoints: impl Into<Option<i64>>,
         metrics: Arc<InMemoryStreamMetrics>,
     ) -> Self {
         let active_subscriber_number = metrics.active_subscriber_number.with_label_values(&[label]);
@@ -979,7 +981,7 @@ impl HistoricalFetch {
             reader,
             buffer: VecDeque::new(),
             batch_size,
-            max_recovery_distance: max_recovery_distance.into(),
+            max_recovery_checkpoints: max_recovery_checkpoints.into(),
             should_close_stream: false,
             query_tx_from_indexer_db_latency: metrics.query_tx_from_indexer_db_latency.clone(),
         }
@@ -1020,6 +1022,51 @@ impl HistoricalFetch {
         backoff::future::retry(backoff, f).await
     }
 
+    /// Checks whether the resolved cursor is more than [`Config::max_recovery_checkpoints`]
+    /// behind the latest one in the database.
+    ///
+    /// Always succeeds when the bound is unset.
+    ///
+    /// # Errors
+    /// Returns an error if:
+    /// - The database query fails after retries [`IndexerStreamingError::Postgres`].
+    /// - The transaction/cursor does not exist or has been pruned
+    ///   [`IndexerStreamingError::NotFound`].
+    /// - The calculated distance exceeds the maximum allowed recovery window
+    ///   [`IndexerStreamingError::RecoveryDistanceExceeded`].
+    async fn check_recovery_distance(&self) -> Result<(), IndexerStreamingError> {
+        let Some(max) = self.max_recovery_checkpoints else {
+            return Ok(());
+        };
+        let cursor = self.cursor_value();
+        let distance = Self::with_retry(|| async {
+            self.reader
+                .db()
+                .checkpoints_behind_latest(cursor)
+                .await
+                .map_err(backoff::Error::transient)
+        })
+        .await
+        .map_err(|e| {
+            error!("unable to compute recovery distance: {e:?}");
+            IndexerStreamingError::Postgres
+        })?
+        .ok_or_else(|| {
+            let e = IndexerStreamingError::NotFound(format!(
+                "transaction {} may not exist or has been pruned",
+                self.start_from_digest
+            ));
+            error!("{e}");
+            e
+        })?;
+        if distance > max {
+            let e = IndexerStreamingError::RecoveryDistanceExceeded { distance, max };
+            debug!("{e}");
+            return Err(e);
+        }
+        Ok(())
+    }
+
     /// Converts into a stream that yields historical transactions from the
     /// database in batches. The stream ends once all transactions up to
     /// the latest committed transaction to database have been yielded, at which
@@ -1055,6 +1102,10 @@ impl HistoricalFetch {
                             Ok(Some(cursor)) => {
                                 state.cursor_resolved = true;
                                 state.update_cursor(cursor);
+                                if let Err(e) = state.check_recovery_distance().await {
+                                    state.should_close_stream = true;
+                                    return Some((Err(e), state));
+                                }
                             }
                             Ok(None) => {
                                 state.should_close_stream = true;
@@ -1118,19 +1169,6 @@ impl HistoricalFetch {
                         if state.cursor_value() > state.latest_tx_in_db {
                             debug!("reached the tip and are in sync with live data");
                             return None;
-                        }
-
-                        if let Some(max) = state.max_recovery_distance {
-                            let distance = state.latest_tx_in_db - state.cursor_value();
-                            if distance > max {
-                                state.should_close_stream = true;
-                                let e = IndexerStreamingError::RecoveryDistanceExceeded {
-                                    distance,
-                                    max,
-                                };
-                                debug!("{e}");
-                                return Some((Err(e), state));
-                            }
                         }
                     }
 

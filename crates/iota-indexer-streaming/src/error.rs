@@ -21,9 +21,7 @@ pub enum IndexerStreamingError {
     Lagged(#[from] BroadcastStreamRecvError),
     #[error("not found: {0}")]
     NotFound(String),
-    #[error(
-        "recovery point is {distance} transactions behind the latest one, max allowed is {max}"
-    )]
+    #[error("recovery point is {distance} checkpoints behind the latest one, max allowed is {max}")]
     RecoveryDistanceExceeded { distance: i64, max: i64 },
 }
 

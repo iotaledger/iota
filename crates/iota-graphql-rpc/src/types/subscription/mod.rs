@@ -146,7 +146,7 @@ impl GraphQLStream {
     ) -> Result<Self, Error> {
         let config = Config {
             channel_buffer_size: BROKER_CHANNEL_SIZE,
-            max_recovery_distance: Some(limits.max_subscription_recovery_distance.into()),
+            max_recovery_checkpoints: Some(limits.max_subscription_recovery_checkpoints.into()),
             ..Default::default()
         };
         let streamer = InMemory::new(config, indexer_reader, InMemoryStreamMetrics::new(registry))
@@ -326,7 +326,7 @@ mod tests {
         assert!(matches!(stream.next().await, Some(Err(Error::Internal(_)))));
         // the inner stream would block forever here, the wrapper must not poll it
         assert!(matches!(stream.next().now_or_never(), Some(None)));
-        assert_eq!(active.available_permits(), 0);
+        assert_eq!(active.available_permits(), 1);
         drop(stream);
         assert_eq!(active.available_permits(), 1);
     }

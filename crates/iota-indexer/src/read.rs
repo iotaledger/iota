@@ -3578,6 +3578,36 @@ impl<'a> DBReader<'a> {
         .map(Option::flatten)
     }
 
+    /// Returns the number of checkpoints the transaction with `tx_sequence_number`
+    /// is behind the latest checkpoint in the database.
+    ///
+    /// Returns `None` if either the transaction or the latest checkpoint
+    /// cannot be found.
+    pub async fn checkpoints_behind_latest(
+        &self,
+        tx_sequence_number: i64,
+    ) -> Result<Option<i64>, IndexerError> {
+        let pool = self.main_reader.get_pool();
+
+        run_query_async!(&pool, move |conn| {
+            let tx_checkpoint = transactions::table
+                .filter(transactions::tx_sequence_number.eq(tx_sequence_number))
+                .select(transactions::checkpoint_sequence_number)
+                .first::<i64>(conn)
+                .optional()?;
+            let latest_checkpoint = checkpoints::table
+                .select(checkpoints::sequence_number)
+                .order(checkpoints::sequence_number.desc())
+                .first::<i64>(conn)
+                .optional()?;
+            Ok::<_, diesel::result::Error>(
+                tx_checkpoint
+                    .zip(latest_checkpoint)
+                    .map(|(tx, latest)| latest - tx),
+            )
+        })
+    }
+
     /// Resolve transaction sequence numbers to their corresponding digests.
     async fn resolve_tx_sequence_numbers_to_digests(
         &self,
