@@ -79,6 +79,17 @@ impl ValidatorClientMetrics {
         Self::new(&registry)
     }
 
+    /// The number of successful and failed interactions recorded for
+    /// `validator` and `operation`.
+    #[cfg(test)]
+    pub fn operation_counts(&self, validator: &str, operation: super::OperationType) -> (u64, u64) {
+        let labels = &[validator, operation.as_str()];
+        (
+            self.operation_success.with_label_values(labels).get(),
+            self.operation_failure.with_label_values(labels).get(),
+        )
+    }
+
     pub(super) fn record_interaction_result(
         &self,
         feedback: &super::OperationFeedback,
