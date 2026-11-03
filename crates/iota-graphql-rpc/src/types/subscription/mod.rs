@@ -80,11 +80,13 @@ impl Subscription {
         start_after: Option<Digest>,
         filter: Option<SubscriptionTransactionFilter>,
     ) -> async_graphql::Result<
-        impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>> + use<'c, 'r>,
+        impl Stream<Item = async_graphql::Result<SubscriptionItem<TransactionBlock>>> + use<'c, 'r>,
     > {
         let stream = ctx.data_unchecked::<GraphQLStream>();
         let permit = stream.acquire_permit().map_err(|e| e.extend())?;
-        Ok(stream.subscribe_transactions(start_after, filter, permit))
+        Ok(stream
+            .subscribe_transactions(start_after, filter, permit)
+            .map_err(|e| e.extend()))
     }
 
     /// Subscribe to incoming events from the IOTA network.
@@ -115,11 +117,13 @@ impl Subscription {
         start_after: Option<Digest>,
         filter: Option<SubscriptionEventFilter>,
     ) -> async_graphql::Result<
-        impl Stream<Item = Result<SubscriptionItem<Event>, Error>> + use<'c, 'r>,
+        impl Stream<Item = async_graphql::Result<SubscriptionItem<Event>>> + use<'c, 'r>,
     > {
         let stream = ctx.data_unchecked::<GraphQLStream>();
         let permit = stream.acquire_permit().map_err(|e| e.extend())?;
-        Ok(stream.subscribe_events(start_after, filter, permit))
+        Ok(stream
+            .subscribe_events(start_after, filter, permit)
+            .map_err(|e| e.extend()))
     }
 }
 

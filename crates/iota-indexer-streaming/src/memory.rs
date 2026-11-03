@@ -1056,7 +1056,7 @@ impl HistoricalFetch {
                 "transaction {} may not exist or has been pruned",
                 self.start_from_digest
             ));
-            error!("{e}");
+            debug!("{e}");
             e
         })?;
         if distance > max {
@@ -1113,7 +1113,7 @@ impl HistoricalFetch {
                                     "transaction {} may not exist or has been pruned",
                                     state.start_from_digest
                                 ));
-                                error!("{e}");
+                                debug!("{e}");
                                 return Some((Err(e), state));
                             }
                             Err(e) => {
