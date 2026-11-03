@@ -490,7 +490,8 @@ impl ServerBuilder {
         // subscriptions replay from their own pool for better performance.
         let mut subscription_pool_config = ConnectionPoolConfig::default();
         // half the main pool size, to limit the extra connections opened on the database.
-        let pool_size = (config.connection.db_pool_size / 2).max(1);
+        // The live broker holds one connection for LISTEN, so keep at least one more for replays.
+        let pool_size = (config.connection.db_pool_size / 2).max(2);
         subscription_pool_config.set_pool_size(pool_size);
         subscription_pool_config.set_statement_timeout(Duration::from_millis(
             config.service.limits.request_timeout_ms.into(),
