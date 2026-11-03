@@ -144,7 +144,6 @@ pub(crate) enum ReasonToCreateBlock {
     Recover,
     QuorumSubscribersExist,
     KnownLastBlock,
-    #[allow(dead_code)]
     FastSyncComplete,
 }
 
@@ -714,7 +713,8 @@ impl Core {
     /// Reinitialize consensus components after fast sync completes.
     /// This stores block headers on disk and reinitializes DagState,
     /// BlockManager, and CommitObserver so that regular syncer can take
-    /// over.
+    /// over. Afterwards it proposes if a proposal is due and signals the
+    /// current round.
     ///
     /// Block headers should cover the cached_rounds window (~500 rounds).
     pub(crate) async fn reinitialize_components(
@@ -769,6 +769,11 @@ impl Core {
 
         // 8. Reset signaling state
         self.last_signaled_round = threshold_round.saturating_sub(1);
+
+        // 9. Proposal triggers that arrived during fast sync were dropped and
+        // no new header may come, so propose now if due and signal the round.
+        self.try_propose(ReasonToCreateBlock::FastSyncComplete)?;
+        self.try_signal_new_round();
 
         info!("Components reinitialized successfully");
         Ok(())
@@ -4717,5 +4722,47 @@ mod test {
             sent_indices.push(sub_dag.commit_ref.index);
         }
         assert_eq!(sent_indices, (1..=last_commit_index).collect::<Vec<_>>());
+    }
+
+    /// When fast sync ends, a node whose stored DAG already allows a proposal
+    /// proposes without waiting for another header.
+    #[tokio::test]
+    async fn fast_sync_reinitialization_proposes_when_due() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN a node that stored peer headers before fast sync: authorities
+        // 1, 2 and 3 up to round 4, and only 1 and 2 at round 5, so a quorum at
+        // round 5 needs this node's block.
+        let (context, _) = Context::new_for_test(4);
+        let own_index = AuthorityIndex::new_for_test(0);
+        let mut fixture =
+            CoreTestFixture::new(context.clone(), vec![1; 4], own_index, false, false, None).await;
+        let mut dag_builder = DagBuilder::new(Arc::new(context));
+        dag_builder
+            .layers(1..=4)
+            .authorities(vec![own_index])
+            .skip_block()
+            .build();
+        dag_builder
+            .layers(5..=5)
+            .authorities(vec![own_index, AuthorityIndex::new_for_test(3)])
+            .skip_block()
+            .build();
+        {
+            let mut dag_state = fixture.core.dag_state.write();
+            dag_state.accept_block_headers(dag_builder.block_headers(1..=5), DataSource::Test);
+            dag_state.set_fast_sync_ongoing_flag(true);
+            dag_state.flush();
+        }
+        assert_eq!(fixture.core.last_proposed_round(), 1);
+        let mut new_round_receiver = fixture.signal_receivers.new_round_receiver();
+        new_round_receiver.mark_unchanged();
+
+        // WHEN fast sync ends.
+        fixture.core.reinitialize_components(vec![]).await.unwrap();
+
+        // THEN the node proposes at round 5 and signals the next round.
+        assert_eq!(fixture.core.last_proposed_round(), 5);
+        assert!(new_round_receiver.has_changed().unwrap());
+        assert_eq!(*new_round_receiver.borrow(), 6);
     }
 }
