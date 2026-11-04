@@ -1736,6 +1736,12 @@ impl IotaNode {
         // every request to this validator over one connection, so the cap must
         // stay well above a busy fullnode's peak concurrency.
         const VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS: u32 = 1000;
+        // A response holds its admission slot until it has been sent, and a
+        // client that stops reading would otherwise hold it for good. The
+        // longest legitimate response is a `GetTxStatus` stream, which waits at
+        // most 30 s for its transactions; twice that leaves room for a slow
+        // reader.
+        const VALIDATOR_GRPC_RESPONSE_SEND_TIMEOUT: Duration = Duration::from_secs(60);
 
         let mut server_conf = iota_network_stack::config::Config::new();
         server_conf.http2_keepalive_interval = Some(VALIDATOR_GRPC_KEEPALIVE);
@@ -1748,16 +1754,19 @@ impl IotaNode {
                     ValidatorServer::new(validator_service.clone()),
                     concurrency_limit,
                     load_shed,
+                    VALIDATOR_GRPC_RESPONSE_SEND_TIMEOUT,
                 )
                 .add_service_with_concurrency_limit(
                     ValidatorV2Server::new(validator_service.clone()),
                     concurrency_limit,
                     load_shed,
+                    VALIDATOR_GRPC_RESPONSE_SEND_TIMEOUT,
                 )
                 .add_service_with_concurrency_limit(
                     ValidatorPeerServer::new(validator_service),
                     concurrency_limit,
                     load_shed,
+                    VALIDATOR_GRPC_RESPONSE_SEND_TIMEOUT,
                 );
 
         let tls_config = iota_tls::create_rustls_server_config(
