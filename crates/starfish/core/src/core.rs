@@ -1420,14 +1420,14 @@ impl Core {
                 .commit_observer
                 .handle_committed_leaders(sequenced_leaders, source)?;
 
-            // Check for duplicates before extending
-            assert!(
-                !missing_transactions_refs
-                    .keys()
-                    .any(|k| all_missing_committed_txns.contains_key(k)),
-                "duplicate committed missing transactions reference found"
-            );
-            all_missing_committed_txns.extend(missing_transactions_refs);
+            // Headers with the same payload share one ref, so it can be missing in
+            // commits on both sides of a schedule change; merge its acknowledgers.
+            for (transaction_ref, authors) in missing_transactions_refs {
+                all_missing_committed_txns
+                    .entry(transaction_ref)
+                    .or_insert_with(BTreeSet::new)
+                    .extend(authors);
+            }
 
             // After a positive commit advance, refresh the quorum commit index
             // on `DagState` so the eviction of `pending_commit_votes` is bounded.
