@@ -61,7 +61,7 @@
 //! the loaded objects, step 3 via the executed transaction's effects.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     sync::Arc,
 };
 
@@ -98,7 +98,10 @@ use crate::{
         VerifiedSequencedConsensusTransaction,
     },
     consensus_types::AuthorityIndex,
-    post_consensus_input_reader::{ValidationAtCommit, reader::CommitIndexedReader},
+    post_consensus_input_reader::{
+        ValidationAtCommit,
+        reader::{CommitIndexedReader, horizon},
+    },
 };
 
 /// The post-consensus validation decision for one transaction at one
@@ -313,6 +316,9 @@ pub async fn validate_and_resolve_conflicts(
             commit_index,
         )
     });
+    // The attestors cut off as of this commit's horizon, read at the first
+    // attested transaction.
+    let mut attestors_cut_off: Option<BTreeSet<u8>> = None;
 
     for (i, tx) in transactions.iter().enumerate() {
         // Only validate UserTransactionV1; pass everything else through
@@ -491,8 +497,8 @@ pub async fn validate_and_resolve_conflicts(
 
         // Check #3: Attestation checks (attested transactions only).
         // The block signature transitively authenticates the attestation;
-        // verify the claimed attestor matches the actual block author and that
-        // the payload is not malformed.
+        // verify the claimed attestor matches the actual block author, that
+        // the payload is not malformed and that the attestor is not cut off.
         if let Some(attestation) = attestation {
             let block_author = u8::try_from(tx.0.certificate_author_index)
                 .expect("consensus committee indices should fit in a u8");
@@ -515,6 +521,38 @@ pub async fn validate_and_resolve_conflicts(
                     "attested transaction failed attestation verification, dropping"
                 );
                 decisions.drop_copy(digest, e, false, from_signatures(FailedCheck::Attestation));
+                keep[i] = false;
+                continue;
+            }
+            if attestors_cut_off
+                .get_or_insert_with(|| {
+                    epoch_store.attestors_cut_off_as_of(horizon(
+                        epoch_store.protocol_config(),
+                        commit_index,
+                    ))
+                })
+                .contains(authority_index)
+            {
+                // Every transaction in a cut-off attestor's blocks drops here:
+                // debug, not warn.
+                debug!(
+                    ?digest,
+                    commit_index,
+                    attestor = authority_index,
+                    "attestor cut off for the rest of the epoch, dropping"
+                );
+                authority_state
+                    .metrics
+                    .consensus_handler_validation_attestor_cut_off_transactions
+                    .inc();
+                decisions.drop_copy(
+                    digest,
+                    IotaError::AttestorCutOff {
+                        attestor: *authority_index,
+                    },
+                    false,
+                    from_signatures(FailedCheck::Attestation),
+                );
                 keep[i] = false;
                 continue;
             }

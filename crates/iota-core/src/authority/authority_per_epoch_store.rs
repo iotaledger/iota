@@ -38,6 +38,7 @@ use iota_sdk_types::{
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
+    attestation::AttestationTotals,
     base_types::{AuthorityName, CommitRound, ConciseableName, EpochId},
     committee::{Committee, CommitteeTrait, StakeUnit},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
@@ -888,6 +889,11 @@ pub struct AuthorityEpochTables {
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
     handler_processed_objects: DBMap<ObjectKey, HandlerProcessedObject>,
 
+    /// The `Refuted` attestation totals of each commit that has any (see
+    /// [`handler_object_state`]). Written by the commit's quarantine flush in
+    /// the same batch as `last_consensus_stats`; read when the store opens.
+    attestation_totals_by_commit: DBMap<CommitIndex, AttestationTotals>,
+
     /// Signatures over transaction effects that we have signed and returned to
     /// users. We store this to avoid re-signing the same effects twice.
     /// Note that this may contain signatures for effects from previous epochs,
@@ -1358,8 +1364,14 @@ impl AuthorityPerEpochStore {
                 .unwrap_or_default()
                 .sub_dag_index
         });
-        let handler_object_state =
-            resume_point.map(|resume_point| HandlerObjectState::new(resume_point, metrics.clone()));
+        let handler_object_state = resume_point.map(|resume_point| {
+            let attestation_totals = tables
+                .attestation_totals_by_commit
+                .safe_iter()
+                .collect::<Result<BTreeMap<_, _>, _>>()
+                .expect("AuthorityEpochTables should contain valid attestation totals");
+            HandlerObjectState::new(resume_point, attestation_totals, metrics.clone())
+        });
         let pcool_bookkeeping_enabled =
             committee.authority_exists(&name) && protocol_config.enable_pcool_flow();
 
@@ -2108,6 +2120,7 @@ impl AuthorityPerEpochStore {
         &self,
         index: CommitIndex,
         upserts: &[(ObjectKey, HandlerProcessedObject)],
+        attestation_totals: AttestationTotals,
     ) -> IotaResult {
         let Some(handler_object_state) = &self.handler_object_state else {
             return Ok(());
@@ -2121,8 +2134,54 @@ impl AuthorityPerEpochStore {
         // Held so a flush cannot complete this commit between the guard inside
         // and the upserts: the flush runs under the write lock throughout.
         let _quarantine = self.consensus_quarantine.read();
-        handler_object_state.record_commit_fully_executed(index, upserts, &inserts);
+        handler_object_state.record_commit_fully_executed(
+            index,
+            upserts,
+            &inserts,
+            attestation_totals,
+        );
         Ok(())
+    }
+
+    /// The `Refuted` attestation totals of `roots`, one commit's transactions;
+    /// empty when this node does not cut off attestors.
+    pub fn commit_attestation_totals(
+        &self,
+        roots: &[TransactionDigest],
+    ) -> IotaResult<AttestationTotals> {
+        if self.attestation_cutoff_max_fault_units().is_none() {
+            return Ok(AttestationTotals::default());
+        }
+        let records = self
+            .effects_store()
+            .try_multi_get_attestation_records_in_epoch(self.epoch(), roots)?;
+        Ok(AttestationTotals::default().with_records(&records))
+    }
+
+    /// The attestors whose refuted attestations in the commits through
+    /// `horizon` reached `attestation_max_fault_units`; empty when this node
+    /// does not cut off attestors.
+    pub fn attestors_cut_off_as_of(&self, horizon: CommitIndex) -> BTreeSet<u8> {
+        match (
+            &self.handler_object_state,
+            self.attestation_cutoff_max_fault_units(),
+        ) {
+            (Some(state), Some(max_fault_units)) => {
+                state.attestors_cut_off_as_of(horizon, max_fault_units)
+            }
+            _ => BTreeSet::new(),
+        }
+    }
+
+    /// `attestation_max_fault_units`, when set and this node keeps the P-COOL
+    /// bookkeeping.
+    fn attestation_cutoff_max_fault_units(&self) -> Option<u64> {
+        self.pcool_bookkeeping_enabled
+            .then(|| {
+                self.protocol_config()
+                    .attestation_max_fault_units_as_option()
+            })
+            .flatten()
     }
 
     /// Stages the rows of a commit flushing out of the quarantine into
@@ -2152,27 +2211,33 @@ impl AuthorityPerEpochStore {
         let rows = match handler_object_state.take_completed_commit_rows(index) {
             Some(rows) => rows,
             None => {
-                let rows = self.handler_rows_from_effects(&tables, index, pending_checkpoints)?;
-                handler_object_state.complete_commit_at_flush(index, &rows);
+                let roots = self.commit_root_digests(&tables, index, pending_checkpoints)?;
+                let rows = self.handler_rows_from_effects(index, &roots)?;
+                handler_object_state.complete_commit_at_flush(
+                    index,
+                    &rows,
+                    self.commit_attestation_totals(&roots)?,
+                );
                 rows
             }
         };
         handler_object_state.write_commit_rows_to_batch(&tables, batch, &rows)?;
+        handler_object_state.write_commit_attestation_totals_to_batch(&tables, batch, index)?;
         Ok(Some(FlushedCommitRows { index, rows }))
     }
 
-    /// The rows of commit `index`, derived from the effects of the
-    /// transactions its pending checkpoints hold.
+    /// The digests of the roots of commit `index`, the transactions its
+    /// pending checkpoints hold.
     ///
     /// Every root of a flushing commit is in a checkpoint that has been built
     /// and executed, so it has a digest and effects. A root missing either is
     /// an error, so the flush batch is never written without its rows.
-    fn handler_rows_from_effects(
+    fn commit_root_digests(
         &self,
         tables: &AuthorityEpochTables,
         index: CommitIndex,
         pending_checkpoints: &[PendingCheckpoint],
-    ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
+    ) -> IotaResult<Vec<TransactionDigest>> {
         let mut digests = Vec::new();
         for key in pending_checkpoints
             .iter()
@@ -2188,12 +2253,20 @@ impl AuthorityPerEpochStore {
             };
             digests.push(digest);
         }
+        Ok(digests)
+    }
 
+    /// The rows of commit `index`, derived from the effects of its `roots`.
+    fn handler_rows_from_effects(
+        &self,
+        index: CommitIndex,
+        roots: &[TransactionDigest],
+    ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
         let effects = self
             .effects_store()
-            .multi_get_executed_effects(&digests)
+            .multi_get_executed_effects(roots)
             .into_iter()
-            .zip(&digests)
+            .zip(roots)
             .map(|(effects, digest)| {
                 effects.ok_or(IotaError::TransactionEffectsNotFound { digest: *digest })
             })

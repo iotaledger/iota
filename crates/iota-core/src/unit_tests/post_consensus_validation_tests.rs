@@ -3505,6 +3505,7 @@ impl HandlerObjectStateSetup {
                         deleted_by: None,
                     },
                 )],
+                Default::default(),
             )
             .unwrap();
     }
@@ -3527,7 +3528,7 @@ impl HandlerObjectStateSetup {
         self.epoch_store
             .assign_commit_to_transactions(index, vec![]);
         self.epoch_store
-            .record_commit_fully_executed(index, &[row])
+            .record_commit_fully_executed(index, &[row], Default::default())
             .unwrap();
         self.authority.insert_genesis_object(object);
     }
@@ -3661,7 +3662,7 @@ impl HandlerObjectStateSetup {
         self.epoch_store
             .assign_commit_to_transactions(index, vec![]);
         self.epoch_store
-            .record_commit_fully_executed(index, &[])
+            .record_commit_fully_executed(index, &[], Default::default())
             .unwrap();
     }
 
@@ -3786,7 +3787,7 @@ impl HandlerObjectStateSetup {
             .flat_map(|effects| handler_processed_upserts(effects, index))
             .collect();
         self.epoch_store
-            .record_commit_fully_executed(index, &upserts)
+            .record_commit_fully_executed(index, &upserts, Default::default())
             .unwrap();
     }
 
@@ -7794,7 +7795,11 @@ async fn executed_deferred_transaction_replays_both_occurrences() {
         .find(|effects| effects.transaction_digest() == first[0].digest())
         .unwrap();
     s.epoch_store
-        .record_commit_fully_executed(1, &handler_processed_upserts(first_effects, 1))
+        .record_commit_fully_executed(
+            1,
+            &handler_processed_upserts(first_effects, 1),
+            Default::default(),
+        )
         .unwrap();
     assert!(
         s.process_at(3, std::slice::from_ref(&deferred))
@@ -8529,7 +8534,7 @@ async fn retry_after_retired_drop_matches_reopened_store() {
     assert_eq!(retry.dropped.len(), 1);
     normal
         .epoch_store
-        .record_commit_fully_executed(13, &[])
+        .record_commit_fully_executed(13, &[], Default::default())
         .unwrap();
     let accepted = normal
         .validate_at(17, std::slice::from_ref(&consumer))

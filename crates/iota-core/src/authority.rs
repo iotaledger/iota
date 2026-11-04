@@ -377,6 +377,9 @@ pub struct AuthorityMetrics {
     /// Attested transactions that passed post-consensus validation, by
     /// attestation kind; a deferred transaction counts again when reloaded.
     pub(crate) consensus_handler_validation_attested_transactions: IntCounterVec,
+    /// Attested transactions dropped by post-consensus validation because
+    /// their attestor is cut off for the rest of the epoch.
+    pub(crate) consensus_handler_validation_attestor_cut_off_transactions: IntCounter,
     /// Number of user transactions dropped during a consensus commit by
     /// post-consensus load shedding, i.e. probabilistically rejected at the
     /// quorum `consensus_handler_load_shedding_percentage` rate.
@@ -876,6 +879,11 @@ impl AuthorityMetrics {
                 &["attestation"],
                 registry;
                 MetricLevel::Warn,
+            ).unwrap(),
+            consensus_handler_validation_attestor_cut_off_transactions: register_int_counter_with_registry!(
+                "consensus_handler_validation_attestor_cut_off_transactions",
+                "Number of attested transactions dropped by post-consensus validation because their attestor is cut off for the rest of the epoch",
+                registry,
             ).unwrap(),
             consensus_handler_load_shedding_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_load_shedding_dropped_transactions",

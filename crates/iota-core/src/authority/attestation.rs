@@ -329,6 +329,18 @@ pub(super) fn attestation_record(
     }
 }
 
+/// The squared units at which the cut takes an attestor's whole score:
+/// `max_fault_units²`, at least 1.
+fn full_cut_units_squared(max_fault_units: u64) -> u128 {
+    u128::from(max_fault_units).saturating_pow(2).max(1)
+}
+
+/// Whether `units_squared` takes the attestor's whole score, which also
+/// stops its attestations for the rest of the epoch.
+pub(crate) fn takes_whole_score(units_squared: u64, max_fault_units: u64) -> bool {
+    u128::from(units_squared) >= full_cut_units_squared(max_fault_units)
+}
+
 /// Cuts each attestor's score by the squared units its refuted attestations
 /// wasted, relative to `max_fault_units`: a fault of that size takes the
 /// whole score, a smaller one the square of its fraction, and zero takes the
@@ -348,7 +360,7 @@ pub(crate) fn apply_fault_penalties(
     committee: &Committee,
     committee_members: &[AuthorityName],
 ) {
-    let full_cut = u128::from(max_fault_units).saturating_pow(2).max(1);
+    let full_cut = full_cut_units_squared(max_fault_units);
     for (&attestor, &units_squared) in &totals.refuted_units_squared {
         let name = committee
             .authority_by_index(u32::from(attestor))
@@ -441,5 +453,33 @@ mod tests {
         );
         // Index 3 sits first in Move's order, index 0 last.
         assert_eq!(scores, vec![0, MAX_SCORE - MAX_SCORE / 4, MAX_SCORE, 0]);
+    }
+
+    /// The cutoff threshold is where the epoch-end cut takes the whole score.
+    #[test]
+    fn cutoff_matches_the_whole_score_cut() {
+        let (committee, _) = Committee::new_simple_test_committee();
+        let committee_members: Vec<AuthorityName> = committee.names().copied().collect();
+        for (max_fault_units, units_squared, whole) in [
+            (10, 99, false),
+            (10, 100, true),
+            // Zero takes the whole score on any fault.
+            (0, 0, false),
+            (0, 1, true),
+        ] {
+            assert_eq!(takes_whole_score(units_squared, max_fault_units), whole);
+            let totals = AttestationTotals {
+                refuted_units_squared: [(0, units_squared)].into(),
+            };
+            let mut scores = vec![MAX_SCORE; 4];
+            apply_fault_penalties(
+                &mut scores,
+                &totals,
+                max_fault_units,
+                &committee,
+                &committee_members,
+            );
+            assert_eq!(scores[0] == 0, whole);
+        }
     }
 }

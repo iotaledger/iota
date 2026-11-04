@@ -775,6 +775,12 @@ pub enum IotaError {
          an honest dry-run cannot exceed what the tx can pay for"
     )]
     AttestationUnitsAboveBudget { actual: u64, maximum: u64 },
+
+    #[error(
+        "Attestor {attestor:?} is cut off for the rest of the epoch: its refuted \
+         attestations reached the maximum fault (`attestation_max_fault_units`)"
+    )]
+    AttestorCutOff { attestor: AuthorityIndex },
 }
 
 #[repr(u64)]

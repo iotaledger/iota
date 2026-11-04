@@ -551,14 +551,15 @@ fn wait_for_epoch_db_to_close() {
 }
 
 /// Empties every table a run of P-COOL deterministic validation writes: the
-/// handler object state, the saved validation decisions, the owned-object locks, the
-/// processed consensus messages, the resume point and the commit the node
-/// switched to synced checkpoints after. A [`reopen`] after it
-/// starts from an empty epoch.
+/// handler object state and its attestation totals, the saved validation
+/// decisions, the owned-object locks, the processed consensus messages, the
+/// resume point and the commit the node switched to synced checkpoints after.
+/// A [`reopen`] after it starts from an empty epoch.
 #[cfg(not(msim))]
 pub(crate) fn clear_pcool_validation_tables(store: &AuthorityPerEpochStore) -> IotaResult {
     let tables = store.tables()?;
     tables.handler_processed_objects.schedule_delete_all()?;
+    tables.attestation_totals_by_commit.schedule_delete_all()?;
     tables.post_consensus_decisions.schedule_delete_all()?;
     tables
         .post_consensus_decision_candidates
@@ -2786,12 +2787,15 @@ async fn start_executing_synced_checkpoints_saves_the_last_handled_commit() {
 // table are held in memory.
 
 mod handler_object_state_storage {
+    use std::collections::BTreeSet;
+
     use futures::FutureExt;
     use iota_sdk_types::{
         Address, ObjectDigest, ObjectReference, Owner, SenderSignedTransaction, TransactionEffects,
     };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
+        attestation::AttestationTotals,
         effects::{TestEffectsBuilder, TransactionEffectsAPI},
         storage::ObjectKey,
     };
@@ -2857,7 +2861,7 @@ mod handler_object_state_storage {
         let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
             epoch_store.assign_commit_to_transactions(index, vec![]);
             epoch_store
-                .record_commit_fully_executed(index, rows)
+                .record_commit_fully_executed(index, rows, Default::default())
                 .unwrap();
         };
 
@@ -2923,11 +2927,11 @@ mod handler_object_state_storage {
         let v5 = generate_live_entry(2);
         epoch_store.assign_commit_to_transactions(1, vec![]);
         epoch_store
-            .record_commit_fully_executed(1, &[(key(3), v3)])
+            .record_commit_fully_executed(1, &[(key(3), v3)], Default::default())
             .unwrap();
         epoch_store.assign_commit_to_transactions(2, vec![]);
         epoch_store
-            .record_commit_fully_executed(2, &[(key(5), v5)])
+            .record_commit_fully_executed(2, &[(key(5), v5)], Default::default())
             .unwrap();
 
         // Commit 2's row for the same id lands beside commit 1's rather than
@@ -2974,7 +2978,7 @@ mod handler_object_state_storage {
         let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
             epoch_store.assign_commit_to_transactions(index, vec![]);
             epoch_store
-                .record_commit_fully_executed(index, rows)
+                .record_commit_fully_executed(index, rows, Default::default())
                 .unwrap();
         };
 
@@ -3033,7 +3037,7 @@ mod handler_object_state_storage {
         let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
             epoch_store.assign_commit_to_transactions(index, vec![]);
             epoch_store
-                .record_commit_fully_executed(index, rows)
+                .record_commit_fully_executed(index, rows, Default::default())
                 .unwrap();
         };
 
@@ -3188,9 +3192,58 @@ mod handler_object_state_storage {
         // the earlier completion arriving afterwards does not lower it.
         reopened.assign_commit_to_transactions(3, vec![]);
         reopened.assign_commit_to_transactions(4, vec![]);
-        reopened.record_commit_fully_executed(4, &[]).unwrap();
-        reopened.record_commit_fully_executed(3, &[]).unwrap();
+        reopened
+            .record_commit_fully_executed(4, &[], Default::default())
+            .unwrap();
+        reopened
+            .record_commit_fully_executed(3, &[], Default::default())
+            .unwrap();
         assert_highest(&reopened, 4);
+    }
+
+    /// The attestors cut off as of a horizon count only the commits through
+    /// it, and a reopened epoch store reads the same from the flushed totals.
+    #[tokio::test]
+    async fn attestors_cut_off_count_only_commits_through_the_horizon() {
+        // At 10 max fault units, 100 squared units take the whole score.
+        const MAX_FAULT_UNITS: u64 = 10;
+        let authority = TestAuthorityBuilder::new().build().await;
+        let store = authority.epoch_store_for_testing().clone();
+        let totals = |entries: &[(u8, u64)]| AttestationTotals {
+            refuted_units_squared: entries.iter().copied().collect(),
+        };
+        for index in 1..=5 {
+            let commit_totals = match index {
+                // Attestor 0 reaches the whole cut at commit 2, attestor 1
+                // only with commit 5.
+                2 => totals(&[(0, 100), (1, 64)]),
+                5 => totals(&[(1, 36)]),
+                _ => AttestationTotals::default(),
+            };
+            store.assign_commit_to_transactions(index, vec![]);
+            store
+                .record_commit_fully_executed(index, &[], commit_totals)
+                .unwrap();
+        }
+        let cut_off = |store: &AuthorityPerEpochStore, horizon| {
+            store
+                .handler_object_state_for_testing()
+                .attestors_cut_off_as_of(horizon, MAX_FAULT_UNITS)
+        };
+        assert_eq!(cut_off(&store, 1), BTreeSet::new());
+        assert_eq!(cut_off(&store, 4), BTreeSet::from([0]));
+        assert_eq!(cut_off(&store, 5), BTreeSet::from([0, 1]));
+        // A lower horizon read after a higher one still stops at it.
+        assert_eq!(cut_off(&store, 4), BTreeSet::from([0]));
+
+        for index in 1..=5 {
+            store
+                .flush_commit_through_quarantine_for_testing(index, vec![])
+                .unwrap();
+        }
+        let reopened = reopen(&authority, &store);
+        assert_eq!(cut_off(&reopened, 4), BTreeSet::from([0]));
+        assert_eq!(cut_off(&reopened, 5), BTreeSet::from([0, 1]));
     }
 }
 

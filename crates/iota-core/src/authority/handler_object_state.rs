@@ -55,6 +55,12 @@
 //! ([`HandlerObjectState::wait_for_fully_executed_commit`]). Validation of a
 //! commit waits on it, so that it reads rows no execution can still add to.
 //!
+//! Completing a commit also records its `Refuted` attestation totals. They
+//! stay in memory for the whole epoch, and the commit's quarantine flush
+//! writes them to the epoch table `attestation_totals_by_commit`. Validation
+//! at `C` reads their sum as of the horizon
+//! ([`HandlerObjectState::attestors_cut_off_as_of`]).
+//!
 //! Rows are written to the table at two points:
 //! - the quarantine flush of a commit's output, once its checkpoint is certified and executed,
 //!   writes the commit's rows not yet in the table, in the same batch as `last_consensus_stats`
@@ -71,7 +77,7 @@
 //! holds across a process crash but not across a power loss or kernel crash.
 
 use std::{
-    collections::{BTreeMap, btree_map::Entry},
+    collections::{BTreeMap, BTreeSet, btree_map::Entry},
     ops::Bound,
     sync::{Arc, OnceLock},
 };
@@ -84,6 +90,7 @@ use iota_sdk_types::{
     Version, WriteKind,
 };
 use iota_types::{
+    attestation::AttestationTotals,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     storage::ObjectKey,
@@ -94,10 +101,12 @@ use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
+use tracing::warn;
 use typed_store::{Map, rocks::DBBatch};
 
 use crate::{
-    authority::authority_per_epoch_store::AuthorityEpochTables, epoch::epoch_metrics::EpochMetrics,
+    authority::{attestation::takes_whole_score, authority_per_epoch_store::AuthorityEpochTables},
+    epoch::epoch_metrics::EpochMetrics,
 };
 
 /// Position of a consensus commit in the epoch's commit sequence: dense,
@@ -312,6 +321,70 @@ pub(super) struct FlushedCommitRows {
     pub rows: Vec<(ObjectKey, HandlerProcessedObject)>,
 }
 
+/// The `Refuted` attestation totals of each completed commit that has any,
+/// and their sum through the highest horizon read so far.
+#[derive(Default)]
+struct AttestationTotalsByCommit {
+    by_commit: BTreeMap<CommitIndex, AttestationTotals>,
+    sum: AttestationTotals,
+    summed_through: CommitIndex,
+}
+
+impl AttestationTotalsByCommit {
+    fn insert(&mut self, index: CommitIndex, totals: AttestationTotals) {
+        if totals.refuted_units_squared.is_empty() {
+            return;
+        }
+        if index <= self.summed_through {
+            self.sum = std::mem::take(&mut self.sum).with_totals(&totals);
+        }
+        self.by_commit.insert(index, totals);
+    }
+
+    /// The attestors whose totals through `horizon` take their whole score;
+    /// warns once per attestor when its sum first gets there.
+    fn cut_off_as_of(&mut self, horizon: CommitIndex, max_fault_units: u64) -> BTreeSet<u8> {
+        let cut_off = |sum: &AttestationTotals| -> BTreeSet<u8> {
+            sum.refuted_units_squared
+                .iter()
+                .filter(|&(_, &units_squared)| takes_whole_score(units_squared, max_fault_units))
+                .map(|(&attestor, _)| attestor)
+                .collect()
+        };
+        // Horizons only rise within a process; recompute rather than unwind.
+        if horizon < self.summed_through {
+            let sum = self
+                .by_commit
+                .range(..=horizon)
+                .fold(AttestationTotals::default(), |sum, (_, totals)| {
+                    sum.with_totals(totals)
+                });
+            return cut_off(&sum);
+        }
+        let before = cut_off(&self.sum);
+        self.sum = self
+            .by_commit
+            .range((
+                Bound::Excluded(self.summed_through),
+                Bound::Included(horizon),
+            ))
+            .fold(std::mem::take(&mut self.sum), |sum, (_, totals)| {
+                sum.with_totals(totals)
+            });
+        self.summed_through = horizon;
+        let after = cut_off(&self.sum);
+        for attestor in after.difference(&before) {
+            warn!(
+                attestor,
+                horizon,
+                "attestor cut off for the rest of the epoch: its refuted attestations reached \
+                 attestation_max_fault_units"
+            );
+        }
+        after
+    }
+}
+
 /// The rows held in memory and the map from transaction key to assigned
 /// commit, with every operation that combines them with the table. A row
 /// held in memory is removed only after it is written to the table, and
@@ -356,6 +429,10 @@ pub struct HandlerObjectState {
     /// changes once written, so a flush has nothing to update.
     handler_processed_cache: MokaCache<ObjectKey, HandlerProcessedObject>,
 
+    /// The `Refuted` attestation totals of the completed commits; see
+    /// [`Self::attestors_cut_off_as_of`].
+    attestation_totals: Mutex<AttestationTotalsByCommit>,
+
     metrics: Arc<EpochMetrics>,
 }
 
@@ -369,8 +446,13 @@ fn new_handler_processed_cache(capacity: u64) -> MokaCache<ObjectKey, HandlerPro
 impl HandlerObjectState {
     /// `resume_point` is the commit index the handler resumes from, which is
     /// also the highest commit known to be fully executed: every commit at or
-    /// below it has its rows in the table.
-    pub fn new(resume_point: CommitIndex, metrics: Arc<EpochMetrics>) -> Self {
+    /// below it has its rows in the table. `attestation_totals` are the totals
+    /// the table holds for those commits.
+    pub fn new(
+        resume_point: CommitIndex,
+        attestation_totals: BTreeMap<CommitIndex, AttestationTotals>,
+        metrics: Arc<EpochMetrics>,
+    ) -> Self {
         let (assigned_commits, assigned_commits_receiver) =
             unbounded_channel("handler_assigned_commits");
         // The gauges outlive the epoch, and a new state holds no rows in
@@ -391,6 +473,10 @@ impl HandlerObjectState {
             execution_watcher_error: OnceLock::new(),
             handler_processed_overlay: RwLock::new(BTreeMap::new()),
             handler_processed_cache: new_handler_processed_cache(100_000),
+            attestation_totals: Mutex::new(AttestationTotalsByCommit {
+                by_commit: attestation_totals,
+                ..Default::default()
+            }),
             metrics,
         }
     }
@@ -550,8 +636,8 @@ impl HandlerObjectState {
 
     /// Marks commit `index` fully executed: puts the commit's rows in memory,
     /// keeps their keys for the commit's flush
-    /// ([`Self::take_completed_commit_rows`]), and removes the commit's map
-    /// entries.
+    /// ([`Self::take_completed_commit_rows`]), records its
+    /// `attestation_totals`, and removes the commit's map entries.
     ///
     /// `upserts` are all the commit's rows, and `inserts` the ones
     /// [`Self::rows_not_yet_present`] returned for them. Only `inserts` are
@@ -570,6 +656,7 @@ impl HandlerObjectState {
         index: CommitIndex,
         upserts: &[(ObjectKey, HandlerProcessedObject)],
         inserts: &[(ObjectKey, HandlerProcessedObject)],
+        attestation_totals: AttestationTotals,
     ) {
         if !self.is_commit_assigned(index) {
             return;
@@ -578,9 +665,12 @@ impl HandlerObjectState {
         self.row_keys_by_completed_commit
             .lock()
             .insert(index, upserts.iter().map(|(key, _)| *key).collect());
+        self.attestation_totals
+            .lock()
+            .insert(index, attestation_totals);
         self.drop_commit_assignments(index);
         // Strictly after the upserts: a validation released by this value
-        // must find this commit's rows already readable.
+        // must find this commit's rows and attestation totals already readable.
         self.advance_highest_fully_executed_commit(index);
     }
 
@@ -617,8 +707,9 @@ impl HandlerObjectState {
     /// reaches it before the execution watcher does, as in a replay after a
     /// restart. Does nothing once the watcher has completed it.
     ///
-    /// Like [`Self::record_commit_fully_executed`], this puts `rows` in memory
-    /// and removes the commit's map entries. The caller writes `rows` with
+    /// Like [`Self::record_commit_fully_executed`], this puts `rows` in memory,
+    /// records `attestation_totals` and removes the commit's map entries. The
+    /// caller writes `rows` with
     /// [`Self::write_commit_rows_to_batch`] right after, and passes the same
     /// rows to [`Self::evict_flushed_commit_rows`] once that batch is written.
     /// That call, not this one, raises the highest fully executed commit.
@@ -626,11 +717,15 @@ impl HandlerObjectState {
         &self,
         index: CommitIndex,
         rows: &[(ObjectKey, HandlerProcessedObject)],
+        attestation_totals: AttestationTotals,
     ) {
         if !self.is_commit_assigned(index) {
             return;
         }
         self.upsert_handler_processed_rows(rows);
+        self.attestation_totals
+            .lock()
+            .insert(index, attestation_totals);
         self.drop_commit_assignments(index);
     }
 
@@ -795,6 +890,18 @@ impl HandlerObjectState {
         })
     }
 
+    /// The attestors whose `Refuted` totals through `horizon` take their whole
+    /// score. Call it only once commit `horizon` is fully executed.
+    pub fn attestors_cut_off_as_of(
+        &self,
+        horizon: CommitIndex,
+        max_fault_units: u64,
+    ) -> BTreeSet<u8> {
+        self.attestation_totals
+            .lock()
+            .cut_off_as_of(horizon, max_fault_units)
+    }
+
     /// Stages a commit's rows into `batch`, the batch of the quarantine flush
     /// of the commit's output, which also writes `last_consensus_stats`.
     /// After the batch is written, and not before, pass the same commit index
@@ -812,6 +919,20 @@ impl HandlerObjectState {
             &tables.handler_processed_objects,
             handler_rows.iter().map(|(key, row)| (key, row)),
         )?;
+        Ok(())
+    }
+
+    /// Stages commit `index`'s attestation totals, if it has any, into the
+    /// batch of the commit's quarantine flush.
+    pub fn write_commit_attestation_totals_to_batch(
+        &self,
+        tables: &AuthorityEpochTables,
+        batch: &mut DBBatch,
+        index: CommitIndex,
+    ) -> IotaResult {
+        if let Some(totals) = self.attestation_totals.lock().by_commit.get(&index) {
+            batch.insert_batch(&tables.attestation_totals_by_commit, [(index, totals)])?;
+        }
         Ok(())
     }
 
@@ -1160,6 +1281,7 @@ mod tests {
             execution_watcher_error: OnceLock::new(),
             handler_processed_overlay: RwLock::new(BTreeMap::new()),
             handler_processed_cache: new_handler_processed_cache(100),
+            attestation_totals: Mutex::new(AttestationTotalsByCommit::default()),
             metrics: EpochMetrics::new(&Registry::new()),
         }
     }
@@ -1175,10 +1297,10 @@ mod tests {
         assert_eq!(state.commit_index_of(&key_a), Some(3));
         assert_eq!(state.commit_index_of(&key_b), Some(4));
         assert_eq!(state.commit_index_of(&key_c), Some(4));
-        state.record_commit_fully_executed(3, &[], &[]);
+        state.record_commit_fully_executed(3, &[], &[], Default::default());
         assert_eq!(state.commit_index_of(&key_a), None);
         assert_eq!(state.commit_index_of(&key_b), Some(4));
-        state.record_commit_fully_executed(4, &[], &[]);
+        state.record_commit_fully_executed(4, &[], &[], Default::default());
         assert_eq!(state.commit_index_of(&key_b), None);
         assert_eq!(state.commit_index_of(&key_c), None);
     }
@@ -1216,18 +1338,18 @@ mod tests {
 
         // The flush completes commit 3 first, as in a replay after a restart.
         state.assign_commit_to_transactions(3, vec![]);
-        state.complete_commit_at_flush(3, &[(key(1), row(3))]);
+        state.complete_commit_at_flush(3, &[(key(1), row(3))], Default::default());
         assert_eq!(state.overlay_size_for_testing(), 1);
         let late = [(key(2), row(3))];
-        state.record_commit_fully_executed(3, &late, &late);
+        state.record_commit_fully_executed(3, &late, &late, Default::default());
         assert_eq!(state.overlay_size_for_testing(), 1);
 
         // Full execution completes commit 4 first.
         state.assign_commit_to_transactions(4, vec![]);
         let executed = [(key(3), row(4))];
-        state.record_commit_fully_executed(4, &executed, &executed);
+        state.record_commit_fully_executed(4, &executed, &executed, Default::default());
         assert_eq!(state.overlay_size_for_testing(), 2);
-        state.complete_commit_at_flush(4, &[(key(4), row(4))]);
+        state.complete_commit_at_flush(4, &[(key(4), row(4))], Default::default());
         assert_eq!(state.overlay_size_for_testing(), 2);
     }
 }

@@ -1654,8 +1654,10 @@ pub struct ProtocolConfig {
     /// attestor's whole epoch reward, through its entry in the change-epoch
     /// scores; a smaller fault takes the square of its fraction, and zero
     /// takes the whole reward on the first refuted attestation. The cut
-    /// reaches the reward only under `adjust_rewards_by_score`. Unset
-    /// disables the penalty.
+    /// reaches the reward only under `adjust_rewards_by_score`. An attestor
+    /// whose refuted attestations add up to the whole cut has its attested
+    /// transactions dropped at post-consensus validation for the rest of the
+    /// epoch. Unset disables the penalty and the cutoff.
     attestation_max_fault_units: Option<u64>,
 
     /// The max number of transactions that can be included in a single Soft

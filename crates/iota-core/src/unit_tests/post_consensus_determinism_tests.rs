@@ -2277,8 +2277,9 @@ impl<'a> Validator<'a> {
     /// upserts.
     fn complete_by_watcher(&mut self, commit: CommitIndex) -> Outcome<()> {
         let rows = self.commit_rows(commit);
-        let result = self
-            .against_staged_flush(move |store| store.record_commit_fully_executed(commit, &rows))?;
+        let result = self.against_staged_flush(move |store| {
+            store.record_commit_fully_executed(commit, &rows, Default::default())
+        })?;
         self.storage(result)?;
         self.assigned.remove(&commit);
         Ok(())
@@ -2441,7 +2442,7 @@ impl<'a> Validator<'a> {
                 Some(rows) => (rows, "watcher"),
                 None => {
                     let rows = self.commit_rows(commit);
-                    state.complete_commit_at_flush(commit, &rows);
+                    state.complete_commit_at_flush(commit, &rows, Default::default());
                     (rows, "flush")
                 }
             };
