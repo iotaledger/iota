@@ -2,30 +2,31 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Run transaction simulations locally through [`iota_vm_sdk::LocalVm`]
-//! instead of a node's dry-run endpoint.
+//! instead of the node's dry-run and dev-inspect endpoints.
 //!
 //! Objects and chain parameters are resolved on demand from the active env's
 //! gRPC endpoint; execution itself happens in-process, against the same Move
-//! engine a node uses. The result is assembled into the same
-//! [`DryRunTransactionBlockResponse`] the node returns, so it renders through
-//! the same display code.
+//! engine a node uses. The results are assembled into the same
+//! [`DryRunTransactionBlockResponse`] / [`DevInspectResults`] the node
+//! returns, so they render through the same display code.
 //!
 //! The gas price defaults to the reference gas price the gRPC endpoint
-//! reports, and a Move abort is rendered from the packages the run fetched,
-//! so the run needs no JSON-RPC.
+//! reports, and a dry run's Move abort is rendered from the packages the run
+//! fetched, so the run needs no JSON-RPC.
 //!
-//! Two checks a validator applies are out of reach here, so a transaction a
-//! node's dry run rejects can still succeed locally: the operator's
-//! transaction deny-list, and the network's signing verifier limits — this
-//! runs with an empty deny-list and the default limits.
+//! Two checks a validator applies are out of reach here, so a transaction the
+//! node rejects can still succeed locally: the operator's transaction
+//! deny-list, and the network's signing verifier limits — this runs with an
+//! empty deny-list and the default limits.
 
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use iota_json_rpc_types::{
-    DryRunTransactionBlockResponse, IotaExecutionStatus, IotaTransactionBlockData,
-    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents,
+    DevInspectResults, DryRunTransactionBlockResponse, IotaExecutionStatus,
+    IotaTransactionBlockData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockEvents,
 };
 use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
@@ -43,7 +44,7 @@ use iota_vm_sdk::{
 
 use crate::{
     client_commands::{IotaClientCommandResult, estimate_gas_budget_from_gas_cost},
-    displays::DryRunOutput,
+    displays::{DevInspectOutput, DryRunOutput},
 };
 
 /// Run a dry run locally and return the same
@@ -78,6 +79,58 @@ pub(crate) async fn execute_local_dry_run(
     let IotaTransactionBlockEffects::V1(effects) = &mut response.effects;
     effects.status = IotaExecutionStatus::from_native_with_clever_error(status, &resolver).await?;
     Ok(IotaClientCommandResult::DryRun(DryRunOutput {
+        response,
+        local: true,
+    }))
+}
+
+/// Run a dev inspect locally and return the same [`DevInspectResults`] a node
+/// returns.
+///
+/// The run blocks the calling thread until it is done. Resolving an object
+/// the run asks for needs a multi-threaded Tokio runtime.
+pub(crate) async fn execute_local_dev_inspect(
+    context: &WalletContext,
+    signer: Address,
+    kind: TransactionKind,
+    gas_budget: Option<u64>,
+    gas_price: Option<u64>,
+    gas_payment: Vec<ObjectReference>,
+    sponsor: Option<Address>,
+) -> Result<IotaClientCommandResult> {
+    let (store, chain_context) = connect(context).await?;
+    let mut vm = LocalVm::new(chain_context, store)?;
+    // A zero budget or price is filled in by the run the same way the node's
+    // dev-inspect fills it in, so neither is resolved here.
+    let tx_data = Transaction::new_with_gas_coins_allow_sponsor(
+        kind,
+        signer,
+        gas_payment,
+        gas_budget.unwrap_or_default(),
+        gas_price.unwrap_or_default(),
+        sponsor.unwrap_or(signer),
+    );
+    let mut result = vm.execute(tx_data, ExecuteOptions::dev_inspect())?;
+
+    let return_values = match result.execution_error.take() {
+        Some(error) => Err(error),
+        None => Ok(std::mem::take(&mut result.command_results)),
+    };
+    let events = result.events.take().unwrap_or_default();
+    let effects = result.effects.clone();
+    let mut layout_resolver = result.layout_resolver(&vm)?;
+    // The node's dev inspect converts the effects as-is, so a Move abort is
+    // reported raw, unlike a dry run. The CLI does not ask for the raw
+    // transaction or effects bytes.
+    let response = DevInspectResults::new(
+        effects,
+        events,
+        return_values,
+        vec![],
+        vec![],
+        layout_resolver.as_mut(),
+    )?;
+    Ok(IotaClientCommandResult::DevInspect(DevInspectOutput {
         response,
         local: true,
     }))

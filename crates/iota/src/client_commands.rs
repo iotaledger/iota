@@ -22,12 +22,11 @@ use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_grpc_client::GrpcClient;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
-    IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData, IotaObjectDataOptions,
-    IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData, IotaProtocolConfigValue,
-    IotaRawData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, OwnedObjectCursor,
-    get_new_package_obj_from_response,
+    Coin, DevInspectArgs, DryRunTransactionBlockResponse, DynamicFieldPage, IotaCoinMetadata,
+    IotaData, IotaExecutionStatus, IotaObjectData, IotaObjectDataOptions, IotaObjectResponse,
+    IotaObjectResponseQuery, IotaParsedData, IotaProtocolConfigValue, IotaRawData,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, OwnedObjectCursor, get_new_package_obj_from_response,
 };
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
@@ -107,10 +106,12 @@ use crate::{
     PrintableResult,
     clever_error_rendering::render_clever_error_opt,
     client_ptb::ptb::{PTB, PTBCommandResult},
-    displays::{DryRunOutput, Pretty},
+    displays::{DevInspectOutput, DryRunOutput, Pretty},
     key_identity::{KeyIdentity, get_identity_address, get_identity_address_from_keystore},
     keytool::{Key, lowercase_key_scheme},
-    local_simulation::{estimate_local_gas_budget, execute_local_dry_run},
+    local_simulation::{
+        estimate_local_gas_budget, execute_local_dev_inspect, execute_local_dry_run,
+    },
     signing::{SignData, get_shared_object_version, sign_secure, sign_transaction},
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
@@ -644,6 +645,7 @@ impl GasDataArgs {
 
 /// Arguments specifying how to use a transaction after it has been built.
 #[derive(Args, Debug, Default)]
+#[command(group(ArgGroup::new("simulation").multiple(true).args(["dry_run", "dev_inspect"])))]
 pub struct TxProcessingArgs {
     /// Compute the transaction digest and print it out, but do not execute the
     /// transaction.
@@ -656,9 +658,10 @@ pub struct TxProcessingArgs {
     #[arg(long)]
     pub dev_inspect: bool,
     /// Run the simulation locally through the Move VM instead of on the node.
-    /// Supported with --dry-run. Skips the node's transaction deny-list and uses the default
-    /// signing verifier limits, so a transaction the node rejects can still succeed locally.
-    #[arg(long, requires = "dry_run", conflicts_with = "dev_inspect")]
+    /// Requires --dry-run or --dev-inspect. Skips the node's transaction deny-list and uses the
+    /// default signing verifier limits, so a transaction the node rejects can still succeed
+    /// locally.
+    #[arg(long, requires = "simulation")]
     pub local: bool,
     /// Instead of executing the transaction, serialize the bcs bytes of the
     /// unsigned transaction data (Transaction) using base64 encoding,
@@ -2683,8 +2686,8 @@ impl Display for IotaClientCommandResult {
             IotaClientCommandResult::DryRun(output) => {
                 writeln!(f, "{}", Pretty(output))?;
             }
-            IotaClientCommandResult::DevInspect(response) => {
-                writeln!(f, "{}", Pretty(response))?;
+            IotaClientCommandResult::DevInspect(output) => {
+                writeln!(f, "{}", Pretty(output))?;
             }
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
@@ -2945,7 +2948,7 @@ pub enum IotaClientCommandResult {
     ComputeTransactionDigest(Transaction),
     DynamicFieldQuery(DynamicFieldPage),
     DryRun(DryRunOutput),
-    DevInspect(DevInspectResults),
+    DevInspect(DevInspectOutput),
     Envs(Vec<IotaEnv>, Option<String>),
     Gas(Vec<GasCoin>),
     NewAddress(NewAddressOutput),
@@ -3391,15 +3394,6 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
         "Cannot specify both flags: --serialize-unsigned-transaction and --serialize-signed-transaction."
     );
-    // `--local` picks the local backend for whichever simulation mode was
-    // asked for, so these guards list the modes that have one. `iota client
-    // ptb` builds its flags by hand, so clap's `requires` and
-    // `conflicts_with` on `--local` do not apply there.
-    ensure!(!local || dry_run, "--local requires --dry-run");
-    ensure!(
-        !(local && dev_inspect),
-        "--local is not supported with --dev-inspect"
-    );
     let signer = sender.unwrap_or(signer);
 
     ensure!(
@@ -3411,7 +3405,20 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     let gas_payment = gas_payment.into().resolve(context).await?;
     let takes_from_given_gas_coins = !gas_payment.is_empty() && takes_from_gas_coin(&tx_kind);
 
-    if dry_run && local {
+    if local && dev_inspect {
+        return execute_local_dev_inspect(
+            context,
+            signer,
+            tx_kind,
+            gas_budget,
+            gas_price,
+            gas_payment,
+            gas_sponsor,
+        )
+        .await;
+    }
+
+    if local && dry_run {
         let result = execute_local_dry_run(
             context,
             signer,
@@ -3617,7 +3624,10 @@ async fn execute_dev_inspect(
             Some(dev_inspect_args),
         )
         .await?;
-    Ok(IotaClientCommandResult::DevInspect(dev_inspect_result))
+    Ok(IotaClientCommandResult::DevInspect(DevInspectOutput {
+        response: dev_inspect_result,
+        local: false,
+    }))
 }
 
 pub(crate) async fn prerender_clever_errors(
