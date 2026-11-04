@@ -15,7 +15,6 @@ anyhow.workspace = true
 arc-swap.workspace = true
 async-trait.workspace = true
 axum.workspace = true
-backoff.workspace = true
 bcs.workspace = true
 cached.workspace = true
 chrono.workspace = true

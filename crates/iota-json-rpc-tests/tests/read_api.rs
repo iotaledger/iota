@@ -19,7 +19,8 @@ use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest, Version};
 use iota_types::{
-    effects::TransactionEffectsAPI, messages_checkpoint::CheckpointSequenceNumber,
+    effects::TransactionEffectsAPI, error::IotaError,
+    messages_checkpoint::CheckpointSequenceNumber,
     quorum_driver_types::ExecuteTransactionRequestType, transaction::CallArg,
 };
 use jsonrpsee::types::error::INVALID_PARAMS_CODE;
@@ -682,7 +683,12 @@ async fn multi_get_transaction_blocks() {
 /// empty entry indistinguishable from a found transaction.
 #[sim_test]
 async fn multi_get_transaction_blocks_marks_unknown_digests() {
-    let cluster = TestClusterBuilder::new().build().await;
+    // Balance changes of the known transaction read object versions that
+    // fullnode pruning may already have removed.
+    let cluster = TestClusterBuilder::new()
+        .disable_fullnode_pruning()
+        .build()
+        .await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
@@ -729,7 +735,10 @@ async fn multi_get_transaction_blocks_marks_unknown_digests() {
                 "unknown digest must carry exactly the not-found error, got {:?}",
                 missing.errors
             );
-            assert!(missing.errors[0].contains("Could not find"));
+            assert_eq!(
+                missing.errors[0],
+                IotaError::TransactionNotFound { digest: unknown }.to_string()
+            );
         }
     }
 }
