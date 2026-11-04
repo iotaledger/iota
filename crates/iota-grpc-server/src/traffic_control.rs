@@ -6,9 +6,12 @@
 //!
 //! The layer extracts the client IP and tallies each request against the
 //! traffic controller, deriving the error weight from the response's gRPC
-//! status code. A batch API's items are invisible at this level: their results
-//! ride in the response body — embedded in a unary response or produced lazily
-//! by a stream — while the layer only inspects the response status, so a batch
+//! status code. A request dropped before it is answered, such as one the client
+//! resets while its handler awaits, is tallied as one request without an error,
+//! unless its handler accounts for its items itself. A batch API's items are
+//! invisible at this level: their results ride in the response body — embedded
+//! in a unary response or produced lazily by a stream — while the layer only
+//! inspects the response status, so a batch
 //! would count as a single request regardless of how many items it carries.
 //! Handlers report each item through the [`TallyHandle`] request extension: an
 //! item counts as one request for the spam policy, and a per-item client error
@@ -125,7 +128,12 @@ where
                 return Ok(Status::resource_exhausted("Too many requests").into_http());
             }
 
+            let mut unanswered = UnansweredRequestTally {
+                tally_handle: tally_handle.clone(),
+                answered: false,
+            };
             let result = inner.call(req).await;
+            unanswered.answered = true;
             if let Ok(response) = &result {
                 // Batch handlers account for each embedded item themselves; only
                 // tally the request here when a handler didn't.
@@ -137,6 +145,25 @@ where
             }
             result
         })
+    }
+}
+
+/// Charges one request when dropped before the inner service answered, unless a
+/// handler accounts for the request's items itself.
+struct UnansweredRequestTally {
+    tally_handle: TallyHandle,
+    answered: bool,
+}
+
+impl Drop for UnansweredRequestTally {
+    fn drop(&mut self) {
+        if !self.answered && !self.tally_handle.per_item_accounted() {
+            tally(
+                &self.tally_handle.traffic_controller,
+                self.tally_handle.client,
+                Code::Ok,
+            );
+        }
     }
 }
 
@@ -239,5 +266,107 @@ fn normalize(code: Code) -> Weight {
         | Code::Unauthenticated
         | Code::PermissionDenied => Weight::one(),
         _ => Weight::zero(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        convert::Infallible,
+        net::{IpAddr, Ipv4Addr, SocketAddr},
+    };
+
+    use futures::FutureExt;
+    use iota_types::traffic_control::{PolicyConfig, PolicyType};
+    use tower::ServiceExt;
+
+    use super::*;
+
+    const CLIENT: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9000);
+
+    /// What the handler behind the layer does in [`charges`].
+    #[derive(Clone, Copy)]
+    enum Handler {
+        Answers,
+        TalliesTwoItemsAndAnswers,
+        TalliesTwoItemsAndNeverAnswers,
+        NeverAnswers,
+        MarksAccountedAndNeverAnswers,
+    }
+
+    /// How many requests one request through the layer is charged for when it
+    /// is polled once and then dropped. Counts up to 5.
+    async fn charges(handler: Handler) -> u64 {
+        let mut charges = 0;
+        for threshold in 1..=5 {
+            // Blocks a client on its `threshold`-th request.
+            let traffic_controller = Arc::new(TrafficController::init_for_test(PolicyConfig {
+                connection_blocklist_ttl_sec: 120,
+                spam_policy_type: PolicyType::TestNConnIP(threshold),
+                error_policy_type: PolicyType::NoOp,
+                spam_sample_rate: Weight::one(),
+                dry_run: false,
+                ..Default::default()
+            }));
+            let service =
+                TrafficControlLayer::new(traffic_controller.clone(), ClientIdSource::SocketAddr)
+                    .layer(tower::service_fn(move |request: http::Request<()>| {
+                        let tally_handle = request.extensions().get::<TallyHandle>().cloned();
+                        async move {
+                            let tally_handle = tally_handle.unwrap();
+                            match handler {
+                                Handler::Answers => {}
+                                Handler::TalliesTwoItemsAndAnswers => {
+                                    tally_handle.tally_items([Code::Ok, Code::Ok])
+                                }
+                                Handler::TalliesTwoItemsAndNeverAnswers => {
+                                    tally_handle.tally_items([Code::Ok, Code::Ok]);
+                                    std::future::pending::<()>().await
+                                }
+                                Handler::NeverAnswers => std::future::pending::<()>().await,
+                                Handler::MarksAccountedAndNeverAnswers => {
+                                    tally_handle.mark_accounted();
+                                    std::future::pending::<()>().await
+                                }
+                            }
+                            Ok::<_, Infallible>(http::Response::new(()))
+                        }
+                    }));
+            let mut request = http::Request::new(());
+            request.extensions_mut().insert(TcpConnectInfo {
+                local_addr: None,
+                remote_addr: Some(CLIENT),
+            });
+            drop(service.oneshot(request).now_or_never());
+            // Charged at least `threshold` times.
+            if !traffic_controller.check(&Some(CLIENT.ip()), &None) {
+                charges = threshold;
+            }
+        }
+        charges
+    }
+
+    /// A request dropped before it is answered, as when the client resets it
+    /// while its handler awaits, is charged as one request.
+    #[tokio::test]
+    async fn a_request_dropped_before_it_is_answered_is_charged_once() {
+        assert_eq!(charges(Handler::NeverAnswers).await, 1);
+    }
+
+    /// An answered request is charged once, or once per item its handler
+    /// tallied.
+    #[tokio::test]
+    async fn an_answered_request_is_charged_once_or_per_item() {
+        assert_eq!(charges(Handler::Answers).await, 1);
+        assert_eq!(charges(Handler::TalliesTwoItemsAndAnswers).await, 2);
+    }
+
+    /// A dropped request whose handler accounts for it itself, such as a read
+    /// stream or a batch that tallied its items, is not charged again by the
+    /// layer.
+    #[tokio::test]
+    async fn a_dropped_request_accounted_by_its_handler_is_not_charged_by_the_layer() {
+        assert_eq!(charges(Handler::MarksAccountedAndNeverAnswers).await, 0);
+        assert_eq!(charges(Handler::TalliesTwoItemsAndNeverAnswers).await, 2);
     }
 }
