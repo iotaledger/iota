@@ -260,15 +260,40 @@ pub(crate) fn check_cursor_not_pruned(
         .watermark_cache()
         .get_lowest_available_cp_for_tables(&[CommitterTables::Checkpoints]);
     if lowest_available_cp.is_some_and(|cp| cursor_viewed_at < cp as u64) {
-        return Err(Error::DataPruned {
-            message: format!(
-                "the cursor has expired: checkpoint {cursor_viewed_at} it was issued at has been \
-                 pruned"
-            ),
+        return Err(pruned_checkpoint_viewed_at_error(
+            db,
+            cursor_viewed_at,
             oldest_available_checkpoint,
-        });
+        ));
     }
     Ok(())
+}
+
+/// The `DATA_PRUNED` error for a query viewed at `checkpoint_viewed_at`, when
+/// that checkpoint has been pruned from the `checkpoints` table.
+///
+/// The error reports two values: `oldest_available_checkpoint`, the lower bound
+/// of the data the query reads, and the lowest checkpoint a query can still be
+/// viewed at, which defines how long cursors stay valid.
+pub(crate) fn pruned_checkpoint_viewed_at_error(
+    db: &Db,
+    checkpoint_viewed_at: u64,
+    oldest_available_checkpoint: OldestAvailableCheckpoint,
+) -> Error {
+    let served_from = db
+        .inner
+        .watermark_cache()
+        .get_lowest_available_cp_for_tables(&[CommitterTables::Checkpoints])
+        .unwrap_or(0);
+    let data_available_from = u64::from(oldest_available_checkpoint);
+    Error::DataPruned {
+        message: format!(
+            "checkpoint {checkpoint_viewed_at} the query is viewed at has been pruned, queries \
+             viewed at checkpoint {served_from} or later are served, data is available from \
+             checkpoint {data_available_from}"
+        ),
+        oldest_available_checkpoint,
+    }
 }
 
 pub(crate) type ConsistentPageCursor = JsonCursor<ConsistentIndexCursor>;

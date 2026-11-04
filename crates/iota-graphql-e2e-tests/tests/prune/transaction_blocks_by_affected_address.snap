@@ -246,7 +246,7 @@ Response: {
   "data": null,
   "errors": [
     {
-      "message": "Requested data has been pruned: the cursor has expired: checkpoint 1 it was issued at has been pruned",
+      "message": "Requested data has been pruned: checkpoint 1 the query is viewed at has been pruned, queries viewed at checkpoint 7 or later are served, data is available from checkpoint 7",
       "locations": [
         {
           "line": 4,

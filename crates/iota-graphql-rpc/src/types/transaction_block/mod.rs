@@ -42,7 +42,9 @@ use crate::{
     types::{
         address::Address,
         base64::Base64,
-        cursor::{JsonCursor, Page, Target, check_cursor_not_pruned},
+        cursor::{
+            JsonCursor, Page, Target, check_cursor_not_pruned, pruned_checkpoint_viewed_at_error,
+        },
         digest::Digest,
         epoch::Epoch,
         gas::GasInput,
@@ -648,8 +650,8 @@ impl TransactionBlock {
 
     /// Paginates the transactions that affect `address`, with fallback
     /// support when part of the history has been pruned from Postgres.
-    /// `oldest_available_checkpoint` is reported when the cursor's
-    /// `checkpoint_viewed_at` has been pruned.
+    /// `oldest_available_checkpoint` is reported when `checkpoint_viewed_at`
+    /// has been pruned.
     async fn paginate_by_affected_address_with_fallback(
         db: &Db,
         page: Page<Cursor>,
@@ -670,12 +672,12 @@ impl TransactionBlock {
                 .optional()
             })
             .await?
-            .ok_or_else(|| Error::DataPruned {
-                message: format!(
-                    "the cursor has expired: checkpoint {checkpoint_viewed_at} it was issued at \
-                     has been pruned"
-                ),
-                oldest_available_checkpoint,
+            .ok_or_else(|| {
+                pruned_checkpoint_viewed_at_error(
+                    db,
+                    checkpoint_viewed_at,
+                    oldest_available_checkpoint,
+                )
             })?;
 
         // Page cursors are inclusive, we need to convert them to exclusive
