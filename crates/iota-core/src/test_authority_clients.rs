@@ -316,7 +316,7 @@ impl LocalAuthorityClient {
     }
 }
 
-type GetTxStatusResult = IotaResult<Vec<(TransactionDigest, TxStatusUpdate)>>;
+type TxStatusesResult = IotaResult<Vec<(TransactionDigest, TxStatusUpdate)>>;
 
 #[derive(Clone)]
 pub struct MockAuthorityApi {
@@ -325,7 +325,10 @@ pub struct MockAuthorityApi {
     handle_object_info_request_result: Option<IotaResult<ObjectInfoResponse>>,
     handle_capability_notification_result:
         Option<IotaResult<HandleCapabilityNotificationResponseV1>>,
-    tx_status_stub: Arc<Mutex<Option<GetTxStatusResult>>>,
+    submit_tx_stub: Arc<Mutex<Option<TxStatusesResult>>>,
+    /// The transactions of every `submit_tx` request received, in order.
+    submit_requests: Arc<Mutex<Vec<Vec<TransactionEnvelope>>>>,
+    tx_status_stub: Arc<Mutex<Option<TxStatusesResult>>>,
 }
 
 impl MockAuthorityApi {
@@ -335,6 +338,8 @@ impl MockAuthorityApi {
             count,
             handle_object_info_request_result: None,
             handle_capability_notification_result: None,
+            submit_tx_stub: Arc::new(Mutex::new(None)),
+            submit_requests: Arc::new(Mutex::new(Vec::new())),
             tx_status_stub: Arc::new(Mutex::new(None)),
         }
     }
@@ -350,7 +355,16 @@ impl MockAuthorityApi {
         self.handle_capability_notification_result = Some(result);
     }
 
-    pub fn stub_tx_status(&self, response: GetTxStatusResult) {
+    pub fn stub_submit_tx(&self, response: TxStatusesResult) {
+        *self.submit_tx_stub.lock().unwrap() = Some(response);
+    }
+
+    /// The transactions of every `submit_tx` request received so far.
+    pub fn submit_requests(&self) -> Vec<Vec<TransactionEnvelope>> {
+        self.submit_requests.lock().unwrap().clone()
+    }
+
+    pub fn stub_tx_status(&self, response: TxStatusesResult) {
         *self.tx_status_stub.lock().unwrap() = Some(response);
     }
 }
@@ -368,10 +382,17 @@ impl ValidatorPeerAPI for MockAuthorityApi {
 impl ValidatorV2API for MockAuthorityApi {
     async fn submit_tx(
         &self,
-        _transactions: Vec<TransactionEnvelope>,
+        transactions: Vec<TransactionEnvelope>,
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
-        unimplemented!()
+        self.submit_requests.lock().unwrap().push(transactions);
+        let Some(result) = self.submit_tx_stub.lock().unwrap().clone() else {
+            return Err(IotaError::Unknown(
+                "MockAuthorityApi::submit_tx was called without a stub".to_string(),
+            ));
+        };
+        tokio::time::sleep(self.delay).await;
+        result
     }
     async fn get_tx_status(
         &self,

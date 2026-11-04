@@ -25,6 +25,7 @@ use super::*;
 use crate::{
     authority::{
         AuthorityState,
+        authority_per_epoch_store::scorer::MAX_SCORE,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
         test_authority_builder::TestAuthorityBuilder,
     },
@@ -890,13 +891,14 @@ async fn sync_end_of_epoch_checkpoint(
 ) -> (VerifiedCheckpoint, CommitteeFixture) {
     let new_committee = next_committee(committee);
     let checkpoint = make_end_of_epoch_checkpoint(previous_checkpoint, committee, &new_committee);
+    let epoch_store = authority_state.epoch_store_for_testing().clone();
     authority_state
         .create_and_execute_advance_epoch_tx(
-            &authority_state.epoch_store_for_testing().clone(),
+            &epoch_store,
             &GasCostSummary::new(0, 0, 0, 0, 0),
             checkpoint.sequence_number(),
-            0,      // epoch_start_timestamp_ms
-            vec![], // scores
+            0, // epoch_start_timestamp_ms
+            vec![MAX_SCORE; epoch_store.committee().num_members()],
         )
         .await
         .expect("Failed to create and execute advance epoch tx");
