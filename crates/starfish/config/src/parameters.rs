@@ -99,13 +99,6 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_max_transactions_per_transaction_sync_fetch")]
     pub max_transactions_per_transaction_sync_fetch: usize,
 
-    /// Byte budget of one transaction fetch reply this node serves: entries
-    /// are added until the next one would exceed it, but the first entry is
-    /// always sent. The reply is held until the peer reads it; the requester
-    /// fetches what is left later.
-    #[serde(default = "Parameters::default_max_fetch_transactions_reply_bytes")]
-    pub max_fetch_transactions_reply_bytes: usize,
-
     /// Time to wait during node start up until the node has synced the last
     /// proposed block via the network peers. When set to `0` the sync
     /// mechanism is disabled. This property is meant to be used for amnesia
@@ -352,10 +345,6 @@ impl Parameters {
                 self.max_transactions_per_transaction_sync_fetch as u128,
             ),
             (
-                "max_fetch_transactions_reply_bytes",
-                self.max_fetch_transactions_reply_bytes as u128,
-            ),
-            (
                 "dag_state_cached_rounds",
                 self.dag_state_cached_rounds as u128,
             ),
@@ -513,10 +502,6 @@ impl Parameters {
         if cfg!(msim) { 10 } else { 1000 }
     }
 
-    pub(crate) fn default_max_fetch_transactions_reply_bytes() -> usize {
-        32 << 20
-    }
-
     pub(crate) fn default_sync_last_known_own_block_timeout() -> Duration {
         if cfg!(msim) {
             Duration::from_millis(500)
@@ -663,8 +648,6 @@ impl Default for Parameters {
                 Parameters::default_max_headers_per_header_sync_fetch(),
             max_transactions_per_transaction_sync_fetch:
                 Parameters::default_max_transactions_per_transaction_sync_fetch(),
-            max_fetch_transactions_reply_bytes:
-                Parameters::default_max_fetch_transactions_reply_bytes(),
             sync_last_known_own_block_timeout:
                 Parameters::default_sync_last_known_own_block_timeout(),
             dag_state_cached_rounds: Parameters::default_dag_state_cached_rounds(),

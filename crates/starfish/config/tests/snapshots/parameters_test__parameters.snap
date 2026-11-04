@@ -18,7 +18,6 @@ max_headers_per_commit_sync_fetch: 1000
 max_transactions_per_commit_sync_fetch: 1000
 max_headers_per_header_sync_fetch: 100
 max_transactions_per_transaction_sync_fetch: 1000
-max_fetch_transactions_reply_bytes: 33554432
 sync_last_known_own_block_timeout:
   secs: 5
   nanos: 0

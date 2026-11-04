@@ -76,8 +76,8 @@ pub(crate) struct FetchedCommitsAndTransactions {
 /// shards.
 pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBundle> + Send>>;
 
-/// Transaction entries of a fast commit-sync response, one response message per
-/// item. An error item is the last one.
+/// Transaction entries of a response, one response message per item. An error
+/// item is the last one.
 pub(crate) type TransactionChunkStream =
     Pin<Box<dyn Stream<Item = ConsensusResult<Vec<Bytes>>> + Send>>;
 
@@ -236,12 +236,13 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<Vec<Bytes>>;
 
     /// Handles the request to fetch transactions by references from the peer.
-    /// Results are truncated to the per-fetch transaction count cap.
+    /// Results are truncated to the per-fetch transaction count cap, and each
+    /// response message is built when the transport asks for it.
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
         transactions_refs: Vec<TransactionRef>,
-    ) -> ConsensusResult<Vec<Bytes>>;
+    ) -> ConsensusResult<TransactionChunkStream>;
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -1321,23 +1321,22 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             })
             .collect();
 
-        let vec_serialized_transactions = self
+        let transactions = self
             .service
             .handle_fetch_transactions(peer_index, committed_transactions_refs)
             .await
             .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?;
-
-        let responses: std::vec::IntoIter<Result<FetchTransactionsResponse, tonic::Status>> =
-            chunk_data(vec_serialized_transactions, MAX_FETCH_RESPONSE_BYTES)
-                .into_iter()
-                .map(|transactions| {
-                    Ok(FetchTransactionsResponse {
-                        vec_serialized_transactions: transactions,
+        let stream = transactions
+            .map(|chunk| {
+                chunk
+                    .map(|vec_serialized_transactions| FetchTransactionsResponse {
+                        vec_serialized_transactions,
                     })
-                })
-                .collect::<Vec<_>>()
-                .into_iter();
-        let stream = iter(responses).boxed();
+                    .map_err(|e| {
+                        tonic::Status::internal(format!("fetch_transactions failed: {e:?}"))
+                    })
+            })
+            .boxed();
         Ok(Response::new(stream))
     }
 }
