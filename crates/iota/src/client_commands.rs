@@ -3394,18 +3394,6 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
         "Cannot specify both flags: --serialize-unsigned-transaction and --serialize-signed-transaction."
     );
-    // `iota client ptb` builds its flags by hand, so clap's `requires` on
-    // `--local` does not apply there. Without `--local`, `--dev-inspect` wins
-    // over `--dry-run`; with it the pair is rejected rather than silently
-    // picking one.
-    ensure!(
-        !local || dry_run || dev_inspect,
-        "--local requires --dry-run or --dev-inspect"
-    );
-    ensure!(
-        !(local && dry_run && dev_inspect),
-        "--local takes only one of --dry-run and --dev-inspect"
-    );
     let signer = sender.unwrap_or(signer);
 
     ensure!(

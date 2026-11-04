@@ -214,6 +214,12 @@ impl PTB {
             !program_metadata.serialize_unsigned_set || !program_metadata.serialize_signed_set,
             "Cannot specify both flags: --serialize-unsigned-transaction and --serialize-signed-transaction."
         );
+        ensure!(
+            !program_metadata.local_set
+                || program_metadata.dry_run_set
+                || program_metadata.dev_inspect_set,
+            "--local requires --dry-run or --dev-inspect"
+        );
 
         if program_metadata.preview_set {
             return Ok(PTBCommandResult::Preview(PTBPreview {

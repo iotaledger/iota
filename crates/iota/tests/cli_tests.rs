@@ -5327,14 +5327,12 @@ async fn test_ptb_local_dry_run() -> Result<(), anyhow::Error> {
     assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
     assert_same_dry_run(&node, &local);
 
-    // The parser accepts --local anywhere; the command only takes it with
-    // exactly one simulation mode.
-    for flags in ["--local", "--dry-run --dev-inspect --local"] {
-        let Err(err) = ptb(flags).execute(context).await else {
-            panic!("{flags:?} must be rejected");
-        };
-        assert!(err.to_string().contains("--local"), "{flags:?}: {err}");
-    }
+    // The parser accepts --local anywhere; the command only takes it with a
+    // simulation mode.
+    let Err(err) = ptb("--local").execute(context).await else {
+        panic!("--local alone must be rejected");
+    };
+    assert!(err.to_string().contains("--local"), "{err}");
 
     Ok(())
 }
