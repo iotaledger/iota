@@ -3418,7 +3418,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         .await;
     }
 
-    if dry_run && local {
+    if local && dry_run {
         let result = execute_local_dry_run(
             context,
             signer,
