@@ -1196,7 +1196,8 @@ impl AuthorityState {
         iota_transaction_checks::deny::check_transaction_for_validation(
             tx,
             transaction.signatures(),
-            &transaction.input_objects()?,
+            &transaction
+                .input_objects(protocol_config.move_authenticator_type_arg_packages_as_inputs())?,
             &tx.receiving_objects(),
             deny_config,
             self.get_backing_package_store().as_ref(),
@@ -1207,7 +1208,7 @@ impl AuthorityState {
         // reference — missing object, wrong version, inaccessible object — causes a
         // pre-consensus rejection.
         let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
-            self.read_objects_for_validation(transaction, epoch)?;
+            self.read_objects_for_validation(transaction, epoch, protocol_config)?;
 
         let move_authenticators = transaction.move_authenticators();
 
@@ -1410,24 +1411,25 @@ impl AuthorityState {
 
         let tx = transaction.data().transaction();
 
-        let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
-            match self.read_objects_for_validation_at_commit(reader, transaction)? {
-                ValidationInputsAtCommit::Loaded {
-                    tx_input_objects,
-                    tx_receiving_objects,
-                    per_authenticator_inputs,
-                } => (
-                    tx_input_objects,
-                    tx_receiving_objects,
-                    per_authenticator_inputs,
-                ),
-                ValidationInputsAtCommit::Drop(kind, reason) => {
-                    return Ok(ValidationAtCommit::Drop(kind, reason));
-                }
-                ValidationInputsAtCommit::Missing(kind, reason) => {
-                    return Ok(ValidationAtCommit::Missing(kind, reason));
-                }
-            };
+        let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) = match self
+            .read_objects_for_validation_at_commit(reader, transaction, protocol_config)?
+        {
+            ValidationInputsAtCommit::Loaded {
+                tx_input_objects,
+                tx_receiving_objects,
+                per_authenticator_inputs,
+            } => (
+                tx_input_objects,
+                tx_receiving_objects,
+                per_authenticator_inputs,
+            ),
+            ValidationInputsAtCommit::Drop(kind, reason) => {
+                return Ok(ValidationAtCommit::Drop(kind, reason));
+            }
+            ValidationInputsAtCommit::Missing(kind, reason) => {
+                return Ok(ValidationAtCommit::Missing(kind, reason));
+            }
+        };
 
         // The deny rules load packages through the reader. They run after the
         // inputs are loaded, so a call into a package not visible at this
@@ -1436,7 +1438,8 @@ impl AuthorityState {
         iota_transaction_checks::deny::check_transaction_for_validation(
             tx,
             transaction.signatures(),
-            &transaction.input_objects()?,
+            &transaction
+                .input_objects(protocol_config.move_authenticator_type_arg_packages_as_inputs())?,
             &tx.receiving_objects(),
             deny_config,
             reader,
@@ -1931,7 +1934,11 @@ impl AuthorityState {
             .execution_load_input_objects_latency
             .start_timer();
 
-        let input_objects = transaction.collect_all_input_object_kind_for_reading()?;
+        let input_objects = transaction.collect_all_input_object_kind_for_reading(
+            epoch_store
+                .protocol_config()
+                .move_authenticator_type_arg_packages_as_inputs(),
+        )?;
 
         let input_objects = self.input_loader.read_objects_for_execution(
             &transaction.key(),
@@ -5849,6 +5856,12 @@ impl AuthorityState {
     /// final checkpoint. As long as the network is able to create a certified
     /// checkpoint (which should be ensured by the capabilities vote), it
     /// will arrive via state sync and be executed by CheckpointExecutor.
+    ///
+    /// `scores` is indexed by authority index, see
+    /// [`Committee::authority_index()`], as `Scoreboard::current_scores()`
+    /// returns it. The transaction carries the scores in committee member
+    /// index order, which is where Move reads them, so this is the one place
+    /// that converts between the two orders.
     #[instrument(level = "error", skip_all)]
     pub async fn create_and_execute_advance_epoch_tx(
         &self,
@@ -5977,7 +5990,7 @@ impl AuthorityState {
                     epoch_start_timestamp_ms,
                     next_epoch_system_package_bytes,
                     eligible_active_validators,
-                    scores,
+                    epoch_store.scores_for_advance_epoch(&scores),
                     config.adjust_rewards_by_score(),
                 ));
             } else {
@@ -6454,6 +6467,7 @@ impl AuthorityState {
         &self,
         transaction: &VerifiedTransaction,
         epoch: u64,
+        protocol_config: &ProtocolConfig,
     ) -> IotaResult<(
         InputObjects,
         ReceivingObjects,
@@ -6461,7 +6475,9 @@ impl AuthorityState {
     )> {
         let (input_objects, tx_receiving_objects) = self.input_loader.read_objects_for_signing(
             Some(transaction.digest()),
-            &transaction.collect_all_input_object_kind_for_reading()?,
+            &transaction.collect_all_input_object_kind_for_reading(
+                protocol_config.move_authenticator_type_arg_packages_as_inputs(),
+            )?,
             &transaction.data().transaction().receiving_objects(),
             epoch,
         )?;
@@ -6485,10 +6501,13 @@ impl AuthorityState {
         &self,
         reader: &CommitIndexedReader,
         transaction: &VerifiedTransaction,
+        protocol_config: &ProtocolConfig,
     ) -> IotaResult<ValidationInputsAtCommit> {
         let input_objects = match self.input_loader.read_objects_at_commit(
             reader,
-            &transaction.collect_all_input_object_kind_for_reading()?,
+            &transaction.collect_all_input_object_kind_for_reading(
+                protocol_config.move_authenticator_type_arg_packages_as_inputs(),
+            )?,
         )? {
             InputResolution::Loaded(input_objects) => input_objects,
             InputResolution::Drop(kind, reason) => {

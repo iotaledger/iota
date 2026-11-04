@@ -19,7 +19,10 @@ use iota_sdk_types::{
     ObjectReference, RandomnessStateUpdate, Transaction, TransactionEffects, TransactionKind,
     Version,
 };
-use iota_storage::blob::{Blob, BlobEncoding};
+use iota_storage::{
+    FileCompression, StorageFormat,
+    blob::{Blob, BlobEncoding},
+};
 use iota_types::{
     committee::EpochId,
     crypto::KeypairTraits,
@@ -41,7 +44,12 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionError, IngestionLimit,
     IngestionResult, ProgressStore, ReaderOptions, Reducer, ShutdownAction, Worker, WorkerPool,
-    progress_store::ExecutorProgress, reader::v2::CheckpointReaderConfig,
+    history::{
+        CHECKPOINT_FILE_MAGIC, MANIFEST_FILENAME,
+        manifest::{FileMetadata, Manifest, create_file_metadata_from_bytes, finalize_manifest},
+    },
+    progress_store::ExecutorProgress,
+    reader::v2::{CheckpointReader, CheckpointReaderConfig, RemoteUrl},
 };
 
 async fn add_worker_pool<W: Worker + 'static>(
@@ -802,6 +810,19 @@ fn mock_checkpoint_data_bytes_with_opt(
     epoch: EpochId,
     transactions: Vec<CheckpointTransaction>,
 ) -> Vec<u8> {
+    Blob::encode(
+        &mock_checkpoint_data_with_opt(seq_number, epoch, transactions),
+        BlobEncoding::Bcs,
+    )
+    .unwrap()
+    .to_bytes()
+}
+
+fn mock_checkpoint_data_with_opt(
+    seq_number: CheckpointSequenceNumber,
+    epoch: EpochId,
+    transactions: Vec<CheckpointTransaction>,
+) -> CheckpointData {
     let mut rng = StdRng::from_seed(RNG_SEED);
     let (keys, committee) = make_committee_key(&mut rng);
     let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
@@ -826,13 +847,131 @@ fn mock_checkpoint_data_bytes_with_opt(
         })
         .collect();
 
-    let checkpoint_data = CheckpointData {
+    CheckpointData {
         checkpoint_summary: CertifiedCheckpointSummary::new(summary, sign_infos, &committee)
             .unwrap(),
         checkpoint_contents: contents,
         transactions,
+    }
+}
+
+/// Writes a history archive holding `0.chk` (checkpoints 0 and 1), `2.chk`
+/// (checkpoints 2 and 3) and the MANIFEST listing them. If `damaged`, the blob
+/// in place of checkpoint 1 declares a length beyond the end of `0.chk`.
+fn write_history_archive(damaged: bool) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let mut manifest = Manifest::new(0);
+    for range in [0..2, 2..4] {
+        let mut file = CHECKPOINT_FILE_MAGIC.to_be_bytes().to_vec();
+        file.push(StorageFormat::Blob.into());
+        file.push(FileCompression::None.into());
+        for seq in range.clone() {
+            if damaged && seq == 1 {
+                // The varint encoding of 4096, then the BCS encoding byte.
+                file.extend_from_slice(&[0x80, 0x20, BlobEncoding::Bcs.into()]);
+            } else {
+                Blob::encode(
+                    &mock_checkpoint_data_with_opt(seq, 0, vec![]),
+                    BlobEncoding::Bcs,
+                )
+                .unwrap()
+                .write(&mut file)
+                .unwrap();
+            }
+        }
+        let metadata = create_file_metadata_from_bytes(file.clone().into(), range.clone()).unwrap();
+        std::fs::write(dir.path().join(metadata.file_path().as_ref()), file).unwrap();
+        manifest.update(range.end, metadata);
+    }
+    std::fs::write(
+        dir.path().join(MANIFEST_FILENAME),
+        finalize_manifest(manifest).unwrap(),
+    )
+    .unwrap();
+    dir
+}
+
+async fn history_archive_reader(
+    archive: &std::path::Path,
+    starting_checkpoint_number: CheckpointSequenceNumber,
+) -> CheckpointReader {
+    let config = CheckpointReaderConfig {
+        reader_options: ReaderOptions {
+            tick_interval_ms: 10,
+            ..Default::default()
+        },
+        ingestion_path: None,
+        remote_store_url: Some(RemoteUrl::HybridHistoricalStore {
+            historical_url: format!("file://{}", archive.display()),
+            live_url: None,
+        }),
     };
-    Blob::encode(&checkpoint_data, BlobEncoding::Bcs)
+    CheckpointReader::new(starting_checkpoint_number, config.into())
+        .await
         .unwrap()
-        .to_bytes()
+}
+
+#[tokio::test]
+async fn historical_reader_reads_every_checkpoint_of_an_archive() {
+    let archive = write_history_archive(false);
+    // Starting at 1 begins in the middle of `0.chk`.
+    for start in [0, 1] {
+        let mut reader = history_archive_reader(archive.path(), start).await;
+        for seq in start..4 {
+            let checkpoint = timeout(Duration::from_secs(10), reader.checkpoint())
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(checkpoint.checkpoint_summary.sequence_number, seq);
+        }
+        reader.shutdown().await.unwrap();
+    }
+}
+
+/// A checkpoint file that ends early because a blob declares a length beyond
+/// the file is a read error for that file: the reader sends none of its
+/// checkpoints, retries, and keeps running.
+#[tokio::test]
+async fn historical_reader_rejects_a_checkpoint_file_with_a_blob_length_beyond_the_file() {
+    let archive = write_history_archive(true);
+    let mut reader = history_archive_reader(archive.path(), 0).await;
+    // A panic in the reader task closes the channel and ends this wait early.
+    assert!(
+        timeout(Duration::from_secs(2), reader.checkpoint())
+            .await
+            .is_err()
+    );
+    reader.shutdown().await.unwrap();
+}
+
+/// A MANIFEST whose files leave a gap or do not start at checkpoint 0 is a read
+/// error: the reader sends nothing, retries, and keeps running.
+#[tokio::test]
+async fn historical_reader_rejects_a_manifest_whose_files_leave_a_gap() {
+    for ranges in [[0..2, 3..5], [1..3, 3..5]] {
+        let archive = write_history_archive(false);
+        let mut manifest = Manifest::new(0);
+        for range in ranges {
+            let end = range.end;
+            let metadata = FileMetadata {
+                checkpoint_seq_range: range,
+                sha3_digest: [0; 32],
+            };
+            manifest.update(end, metadata);
+        }
+        std::fs::write(
+            archive.path().join(MANIFEST_FILENAME),
+            finalize_manifest(manifest).unwrap(),
+        )
+        .unwrap();
+        let mut reader = history_archive_reader(archive.path(), 0).await;
+        // A panic in the reader task closes the channel and ends this wait
+        // early.
+        assert!(
+            timeout(Duration::from_secs(2), reader.checkpoint())
+                .await
+                .is_err()
+        );
+        reader.shutdown().await.unwrap();
+    }
 }

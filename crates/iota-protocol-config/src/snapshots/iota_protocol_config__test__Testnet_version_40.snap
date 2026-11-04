@@ -71,6 +71,7 @@ feature_flags:
   check_groth16_pvk_length: true
   deprecate_global_storage_ops: true
   meter_instantiation_loops: true
+  move_authenticator_type_arg_packages_as_inputs: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000

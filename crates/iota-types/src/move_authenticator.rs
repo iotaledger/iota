@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
@@ -13,7 +13,7 @@ use serde::Serialize;
 use crate::{
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
     signature::{AuthenticatorTrait, VerifyParams},
-    transaction::{CallArg, CallArgExt, InputObjectKind},
+    transaction::{CallArg, CallArgExt, InputObjectKind, add_type_tag_packages},
 };
 
 mod move_authenticator_ext {
@@ -41,7 +41,14 @@ pub trait MoveAuthenticatorExt: Sized + move_authenticator_ext::Sealed {
         &self,
     ) -> UserInputResult<(ObjectId, Option<Version>, Option<ObjectDigest>)>;
 
-    fn input_objects(&self) -> Vec<InputObjectKind>;
+    /// Returns the objects passed to the authenticate function, including the
+    /// object to authenticate, followed, if `include_type_arg_packages` is
+    /// set, by the packages named by the type arguments.
+    fn input_objects(&self, include_type_arg_packages: bool) -> Vec<InputObjectKind>;
+
+    /// Returns the packages that define the types named by the type
+    /// arguments, including the types nested in them.
+    fn type_arg_packages(&self) -> BTreeSet<ObjectId>;
 
     fn receiving_objects(&self) -> Vec<ObjectReference>;
 
@@ -98,9 +105,18 @@ impl MoveAuthenticatorExt for MoveAuthenticator {
         }
     }
 
-    fn input_objects(&self) -> Vec<InputObjectKind> {
+    fn input_objects(&self, include_type_arg_packages: bool) -> Vec<InputObjectKind> {
         match self {
-            Self::V1(v1) => v1.input_objects(),
+            Self::V1(v1) => v1.input_objects(include_type_arg_packages),
+            _ => unimplemented!(
+                "a new MoveAuthenticator enum variant was added and needs to be handled"
+            ),
+        }
+    }
+
+    fn type_arg_packages(&self) -> BTreeSet<ObjectId> {
+        match self {
+            Self::V1(v1) => v1.type_arg_packages(),
             _ => unimplemented!(
                 "a new MoveAuthenticator enum variant was added and needs to be handled"
             ),
@@ -189,14 +205,29 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
         })
     }
 
-    /// Returns all input objects used by the MoveAuthenticatorV1,
-    /// including those from the object to authenticate.
-    fn input_objects(&self) -> Vec<InputObjectKind> {
-        self.call_args()
+    fn input_objects(&self, include_type_arg_packages: bool) -> Vec<InputObjectKind> {
+        let mut inputs = self
+            .call_args()
             .iter()
             .filter_map(|arg| arg.input_object_kind())
             .chain(self.object_to_authenticate().input_object_kind())
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+        if include_type_arg_packages {
+            inputs.extend(
+                self.type_arg_packages()
+                    .into_iter()
+                    .map(InputObjectKind::MovePackage),
+            );
+        }
+        inputs
+    }
+
+    fn type_arg_packages(&self) -> BTreeSet<ObjectId> {
+        let mut packages = BTreeSet::new();
+        for type_arg in self.type_args() {
+            add_type_tag_packages(&mut packages, type_arg);
+        }
+        packages
     }
 
     fn receiving_objects(&self) -> Vec<ObjectReference> {
@@ -246,12 +277,17 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
             )
         );
 
+        // Leave out the packages named by the type arguments. They are allowed,
+        // but the checks below reject every package input. The type arguments
+        // are checked at the end of this function, and their packages when
+        // they are read as inputs of the authenticator.
+        let input_objects = self.input_objects(false);
+
         // An authenticate function cannot derive randomness, so naming the
         // randomness state object only schedules the transaction as
         // randomness-using for nothing. Checked on the object id alone, so it
         // covers the call arguments and the object to authenticate whatever
         // their input kind.
-        let input_objects = self.input_objects();
         if config.disallow_randomness_in_move_authenticator() {
             fp_ensure!(
                 input_objects

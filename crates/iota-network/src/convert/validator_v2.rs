@@ -18,7 +18,7 @@ use iota_types::{
 use super::{bcs_deserialize, bcs_serialize};
 use crate::api::{
     self, ExecutedStatus, ExpiredStatus, RejectedStatus, StatusDetail, SubmittedStatus,
-    status_detail::Kind,
+    TimedOutStatus, status_detail::Kind,
 };
 
 // --- TxDigest ↔ TransactionDigest ---
@@ -154,6 +154,7 @@ impl TryFrom<TxStatusUpdate> for StatusDetail {
                 error: bcs_serialize(&error, "RejectedStatus.error")?,
             }),
             TxStatusUpdate::Expired { epoch } => Kind::Expired(ExpiredStatus { epoch }),
+            TxStatusUpdate::TimedOut => Kind::TimedOut(TimedOutStatus {}),
         };
         Ok(StatusDetail { kind: Some(kind) })
     }
@@ -204,6 +205,7 @@ impl TryFrom<StatusDetail> for TxStatusUpdate {
                 Ok(TxStatusUpdate::Rejected { error })
             }
             Kind::Expired(e) => Ok(TxStatusUpdate::Expired { epoch: e.epoch }),
+            Kind::TimedOut(_) => Ok(TxStatusUpdate::TimedOut),
         }
     }
 }
@@ -311,7 +313,7 @@ mod tests {
         transaction::TransactionEnvelope,
     };
 
-    use crate::api::{self, SubmittedStatus, status_detail::Kind};
+    use crate::api::{self, StatusDetail, SubmittedStatus, status_detail::Kind};
 
     // --- TxDigest round-trip ---
 
@@ -444,6 +446,24 @@ mod tests {
         }
     }
 
+    /// A client on a previous schema decodes a status kind it does not know
+    /// as a missing kind. The error is retriable for the transaction driver.
+    #[test]
+    fn missing_status_kind_is_a_retriable_error() {
+        let error = TxStatusUpdate::try_from(StatusDetail { kind: None }).unwrap_err();
+        assert!(error.categorize().is_submission_retriable(), "{error}");
+    }
+
+    #[test]
+    fn tx_status_update_timed_out() {
+        let digest = TransactionDigest::random();
+        let tx_status: api::TxStatus = (digest, TxStatusUpdate::TimedOut).try_into().unwrap();
+        assert!(matches!(
+            tx_status.status.unwrap().kind,
+            Some(Kind::TimedOut(_))
+        ));
+    }
+
     // --- TxStatusQuery domain → proto round-trip ---
 
     #[test]
@@ -496,6 +516,16 @@ mod tests {
             proto.try_into().unwrap();
         assert_eq!(digest, back_digest);
         assert!(matches!(back_update, TxStatusUpdate::Submitted));
+    }
+
+    #[test]
+    fn tx_status_timed_out_round_trip() {
+        let digest = TransactionDigest::random();
+        let proto: api::TxStatus = (digest, TxStatusUpdate::TimedOut).try_into().unwrap();
+        let (back_digest, back_update): (TransactionDigest, TxStatusUpdate) =
+            proto.try_into().unwrap();
+        assert_eq!(digest, back_digest);
+        assert!(matches!(back_update, TxStatusUpdate::TimedOut));
     }
 
     #[test]

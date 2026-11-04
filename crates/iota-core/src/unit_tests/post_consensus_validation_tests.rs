@@ -2841,7 +2841,13 @@ impl HandlerObjectStateSetup {
         commit_index: CommitIndex,
         tx: &VerifiedTransaction,
     ) -> InputResolution {
-        let kinds = tx.collect_all_input_object_kind_for_reading().unwrap();
+        let kinds = tx
+            .collect_all_input_object_kind_for_reading(
+                self.epoch_store
+                    .protocol_config()
+                    .move_authenticator_type_arg_packages_as_inputs(),
+            )
+            .unwrap();
         TransactionInputLoader::new(self.authority.get_object_cache_reader().clone())
             .read_objects_at_commit(&self.reader_at(commit_index), &kinds)
             .unwrap()
@@ -6358,6 +6364,74 @@ async fn validation_at_commit_does_not_check_the_authenticator_package_with_the_
     let (s, tx) = setup_account_with_authenticator_in_object_basics(Some(config_guard)).await;
 
     assert_kept(s.validate_at_commit_under(12, &tx, &deny_package(s.package_id)));
+}
+
+/// [`setup_account_with_authenticator_in_object_basics`], but the account's
+/// authenticator names a type of the `object_basics` package as its type
+/// argument, and the package's publish is recorded at commit 11. The transfer
+/// names no package itself.
+async fn setup_account_with_object_basics_type_arg_published_at_11(
+    config_guard: Option<OverrideGuard>,
+) -> (HandlerObjectStateSetup, VerifiedTransaction) {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let account_id = ObjectId::random();
+    let s = setup_handler_object_state_with_config_guard(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sponsor),
+            shared_object_with_id(account_id),
+        ],
+        config_guard,
+    )
+    .await;
+    s.authority
+        .insert_genesis_object(authenticator_function_ref_field(
+            account_id,
+            s.package_id,
+            Version::OBJECT_START,
+        ));
+    let authenticator = MoveAuthenticatorV1::new(
+        vec![],
+        vec![TypeTag::from_str(&format!("{}::object_basics::Object", s.package_id)).unwrap()],
+        SharedObjectReference::new(account_id, Version::OBJECT_START, false),
+    );
+    let tx = s.build_account_authenticated_transfer(authenticator, &gas_id, sponsor, &sponsor_key);
+    s.record_package_published_at(11);
+    (s, tx)
+}
+
+/// A package a Move authenticator's type arguments name is an input of the
+/// authenticator. Published above the horizon, it is missing at the commit, as
+/// the package of a call would be. Once the horizon reaches the publish, the
+/// transaction is kept.
+#[tokio::test]
+async fn validation_at_commit_reports_an_authenticator_type_arg_package_above_the_horizon_missing()
+{
+    let (s, tx) = setup_account_with_object_basics_type_arg_published_at_11(None).await;
+
+    match s.validate_at_commit_under(12, &tx, &DenyRuleSet::default()) {
+        Ok(ValidationAtCommit::Missing(InputObjectKind::MovePackage(id), reason)) => {
+            assert_eq!(id, s.package_id);
+            assert_eq!(reason.kind(), MissingKind::PackageAboveHorizon);
+        }
+        other => panic!("expected missing on the package, got {other:?}"),
+    }
+    assert_kept(s.validate_at_commit_under(15, &tx, &DenyRuleSet::default()));
+}
+
+/// With `move_authenticator_type_arg_packages_as_inputs` off, the packages a
+/// Move authenticator's type arguments name are not inputs, so one published
+/// above the horizon does not hold the transaction back.
+#[tokio::test]
+async fn validation_at_commit_does_not_read_authenticator_type_arg_packages_with_the_flag_off() {
+    let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_move_authenticator_type_arg_packages_as_inputs_for_testing(false);
+        config
+    });
+    let (s, tx) =
+        setup_account_with_object_basics_type_arg_published_at_11(Some(config_guard)).await;
+
+    assert_kept(s.validate_at_commit_under(12, &tx, &DenyRuleSet::default()));
 }
 
 /// A Move authenticator naming a mutable shared object as a call argument is
@@ -11118,7 +11192,11 @@ async fn reads_of_a_transaction_with_a_pruned_child_and_a_dropping_input_end_ali
     let outcomes: std::collections::BTreeSet<&str> = (0..32)
         .map(|_| {
             let kinds = consumer
-                .collect_all_input_object_kind_for_reading()
+                .collect_all_input_object_kind_for_reading(
+                    s.epoch_store
+                        .protocol_config()
+                        .move_authenticator_type_arg_packages_as_inputs(),
+                )
                 .unwrap();
             match loader.read_objects_at_commit(&s.reader_at(9), &kinds) {
                 Ok(InputResolution::Drop(..)) => "drop",
