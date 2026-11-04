@@ -804,6 +804,39 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
     }
 }
 
+/// Transaction refs whose payloads are read at a time while a fetch reply is
+/// filled.
+const FETCH_TRANSACTIONS_READ_BATCH: usize = 16;
+
+/// Builds a transaction fetch reply in request order, reading payloads one
+/// batch at a time, and stops before the reply exceeds `max_bytes`; it always
+/// holds at least one entry. The reply is held until the peer reads it, so its
+/// size must not grow with how much the peer asks for.
+fn fill_transactions_reply(
+    refs: &[TransactionRef],
+    max_bytes: usize,
+    mut read_batch: impl FnMut(&[TransactionRef]) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>>,
+) -> ConsensusResult<Vec<Bytes>> {
+    let mut reply = Vec::new();
+    let mut reply_bytes = 0;
+    for batch in refs.chunks(FETCH_TRANSACTIONS_READ_BATCH) {
+        let mut payloads = read_batch(batch)?;
+        for transaction_ref in batch {
+            // Drained, so a payload is freed as soon as its envelope is built.
+            let Some(payload) = payloads.remove(transaction_ref) else {
+                continue;
+            };
+            let entry = serialize_transactions_entry(*transaction_ref, payload)?;
+            if !reply.is_empty() && reply_bytes + entry.len() > max_bytes {
+                return Ok(reply);
+            }
+            reply_bytes += entry.len();
+            reply.push(entry);
+        }
+    }
+    Ok(reply)
+}
+
 /// Reads the payloads for `refs`, taking those at or above the GC round from
 /// the DAG state and leaving the rest to `read_below_gc`, which the caller
 /// picks so its store access matches the refs it asks for. A result missing
@@ -1954,42 +1987,38 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             &self.context.committee,
         )?;
 
-        // Refs below the GC round are looked up one by one: they are whatever
-        // the requester asked for, so a scan over the range they span would
-        // read entries no one wants.
-        let mut transactions_by_ref =
-            read_transaction_payloads(&self.dag_state, &committed_transactions_refs, |below_gc| {
-                let refs: Vec<GenericTransactionRef> =
-                    below_gc.iter().copied().map(Into::into).collect();
-                Ok(self
-                    .store
-                    .read_serialized_transactions(&refs)?
-                    .into_iter()
-                    .zip(below_gc)
-                    .filter_map(|(payload, transaction_ref)| {
-                        payload
-                            .or_else(|| {
-                                self.context
-                                    .empty_transactions_for_ref(transaction_ref.into())
-                                    .map(|empty| empty.serialized().clone())
-                            })
-                            .map(|payload| (transaction_ref, payload))
-                    })
-                    .collect())
-            })?;
+        // A repeated ref would be read and sent once per repeat.
+        let mut seen = BTreeSet::new();
+        committed_transactions_refs.retain(|transaction_ref| seen.insert(*transaction_ref));
 
-        let mut result = Vec::new();
-        for transaction_ref in committed_transactions_refs {
-            // Drained, so a payload is freed as soon as its envelope is built.
-            if let Some(serialized_tx) = transactions_by_ref.remove(&transaction_ref) {
-                result.push(serialize_transactions_entry(
-                    transaction_ref,
-                    serialized_tx,
-                )?);
-            }
-        }
-
-        Ok(result)
+        fill_transactions_reply(
+            &committed_transactions_refs,
+            self.context.parameters.max_fetch_transactions_reply_bytes,
+            |batch| {
+                // Refs below the GC round are looked up one by one: they are
+                // whatever the requester asked for, so a scan over the range
+                // they span would read entries no one wants.
+                read_transaction_payloads(&self.dag_state, batch, |below_gc| {
+                    let refs: Vec<GenericTransactionRef> =
+                        below_gc.iter().copied().map(Into::into).collect();
+                    Ok(self
+                        .store
+                        .read_serialized_transactions(&refs)?
+                        .into_iter()
+                        .zip(below_gc)
+                        .filter_map(|(payload, transaction_ref)| {
+                            payload
+                                .or_else(|| {
+                                    self.context
+                                        .empty_transactions_for_ref(transaction_ref.into())
+                                        .map(|empty| empty.serialized().clone())
+                                })
+                                .map(|payload| (transaction_ref, payload))
+                        })
+                        .collect())
+                })
+            },
+        )
     }
 }
 
@@ -2256,10 +2285,10 @@ mod tests {
     use crate::{
         CommitConsumer, CommitIndex, Round, Transaction, TransactionClient,
         authority_service::{
-            AuthorityService, BroadcastedBlockStream, FilterForHeaders, MAX_FILTER_SIZE,
-            SubscriptionCounter, TransactionCursor, check_first_commit_payloads,
-            fast_sync_search_bound, filtered_header_info, serialize_transactions_entry,
-            transaction_chunk_stream,
+            AuthorityService, BroadcastedBlockStream, FETCH_TRANSACTIONS_READ_BATCH,
+            FilterForHeaders, MAX_FILTER_SIZE, SubscriptionCounter, TransactionCursor,
+            check_first_commit_payloads, fast_sync_search_bound, fill_transactions_reply,
+            filtered_header_info, serialize_transactions_entry, transaction_chunk_stream,
         },
         block_header::{
             BlockHeaderAPI, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions,
@@ -5561,6 +5590,14 @@ mod tests {
             );
         }
 
+        // A repeated ref is served once, also across read batches.
+        let repeated = vec![tx_refs_to_request_first_batch[0]; FETCH_TRANSACTIONS_READ_BATCH + 1];
+        let serialized_transactions = authority_service
+            .handle_fetch_transactions(peer, repeated)
+            .await
+            .unwrap();
+        assert_eq!(serialized_transactions.len(), 1);
+
         tx_refs_to_request_second_batch.truncate(
             context
                 .parameters
@@ -5606,6 +5643,34 @@ mod tests {
             bcs::from_bytes(&returned.serialized_transactions).unwrap();
         assert_eq!(returned.transaction_ref, empty_ref);
         assert!(transactions.is_empty());
+    }
+
+    #[test]
+    fn transactions_reply_stops_at_the_byte_budget() {
+        let refs: Vec<TransactionRef> = (1..=40)
+            .map(|round| TransactionRef {
+                round,
+                author: AuthorityIndex::new_for_test(0),
+                transactions_commitment: TransactionsCommitment::default(),
+            })
+            .collect();
+        let payload = Bytes::from(vec![0u8; 1000]);
+        let read = |batch: &[TransactionRef]| -> crate::error::ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
+            Ok(batch
+                .iter()
+                .map(|transaction_ref| (*transaction_ref, payload.clone()))
+                .collect())
+        };
+        let entry_bytes = serialize_transactions_entry(refs[0], payload.clone())
+            .unwrap()
+            .len();
+
+        // The reply spans several read batches and stops before the budget.
+        let reply = fill_transactions_reply(&refs, 25 * entry_bytes, &read).unwrap();
+        assert_eq!(reply.len(), 25);
+        // An entry larger than the budget is still sent, so the peer progresses.
+        let reply = fill_transactions_reply(&refs, 1, &read).unwrap();
+        assert_eq!(reply.len(), 1);
     }
 
     /// Tests request order across the GC boundary.
