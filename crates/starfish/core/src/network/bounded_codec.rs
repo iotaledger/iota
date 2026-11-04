@@ -11,7 +11,7 @@
 
 use std::marker::PhantomData;
 
-use bytes::{Buf, BufMut};
+use bytes::{Buf, BufMut, Bytes};
 use prost::{
     DecodeError, Message,
     encoding::{DecodeContext, WireType},
@@ -100,13 +100,35 @@ fn decode_bounded<U: Message + Default + EntryLimit>(buf: impl Buf) -> Result<U,
     let mut bounded = Bounded::<U>::default();
     // Parse errors map to INTERNAL, as in tonic-prost.
     bounded
-        .merge(buf)
+        .merge(CopyingBuf(buf))
         .map_err(|e| Status::internal(e.to_string()))?;
     if bounded.entries > U::MAX_ENTRIES {
         // OUT_OF_RANGE, as tonic answers a message over its size limit.
         return Err(Status::out_of_range(U::REFUSAL));
     }
     Ok(bounded.message)
+}
+
+/// Copies byte fields out of the message buffer, so a decoded field does not
+/// keep the whole gRPC message alive.
+struct CopyingBuf<B>(B);
+
+impl<B: Buf> Buf for CopyingBuf<B> {
+    fn remaining(&self) -> usize {
+        self.0.remaining()
+    }
+
+    fn chunk(&self) -> &[u8] {
+        self.0.chunk()
+    }
+
+    fn advance(&mut self, count: usize) {
+        self.0.advance(count);
+    }
+
+    fn copy_to_bytes(&mut self, len: usize) -> Bytes {
+        Bytes::copy_from_slice(&self.0.copy_to_bytes(len))
+    }
 }
 
 /// `M` decoded up to its first `M::MAX_ENTRIES` entries; an entry past them
@@ -175,6 +197,25 @@ mod tests {
         let decoded: Entries = decode_bounded(encoded(entries.clone())).unwrap();
 
         assert_eq!(decoded.entries, entries);
+    }
+
+    #[test]
+    fn byte_fields_do_not_retain_the_message_buffer() {
+        // A small field followed by 1 MiB of an unknown field.
+        let mut encoded = encoded(vec![Bytes::from_static(b"header")]).to_vec();
+        prost::encoding::encode_key(2, WireType::LengthDelimited, &mut encoded);
+        prost::encoding::encode_varint(1 << 20, &mut encoded);
+        encoded.resize(encoded.len() + (1 << 20), 0);
+        let message = Bytes::from(encoded);
+
+        let decoded: Entries = decode_bounded(message.clone()).unwrap();
+
+        assert_eq!(decoded.entries, vec![Bytes::from_static(b"header")]);
+        assert!(
+            !message
+                .as_ptr_range()
+                .contains(&decoded.entries[0].as_ptr())
+        );
     }
 
     #[test]
