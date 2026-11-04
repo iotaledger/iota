@@ -283,23 +283,25 @@ impl IotaTxValidatorMetrics {
 mod tests {
     use std::sync::Arc;
 
+    use fastcrypto::traits::KeyPair as _;
     use iota_macros::sim_test;
-    use iota_protocol_config::Chain;
-    use iota_sdk_types::{ObjectId, UserSignature};
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+    use iota_sdk_types::{Identifier, ObjectId, UserSignature};
     use iota_types::{
         attestation::AttestedTransaction,
-        error::IotaError,
+        crypto::AuthorityKeyPair,
+        error::{IotaError, UserInputError},
         messages_consensus::{
             ConsensusTransaction, ConsensusTransactionKind, MisbehaviorObservationsV1,
             VersionedMisbehaviorReport,
         },
         object::Object,
-        transaction::SenderSignedTransactionAPI,
+        transaction::{CertifiedTransaction, SenderSignedTransactionAPI, TransactionEnvelope},
     };
     use starfish_core::TransactionVerifier as _;
 
     use crate::{
-        authority::test_authority_builder::TestAuthorityBuilder,
+        authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
         checkpoints::CheckpointServiceNoop,
         consensus_adapter::consensus_tests::{test_certificates, test_gas_objects},
         consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
@@ -518,21 +520,41 @@ mod tests {
             }
         }
     }
-
-    fn self_identifier_validator(state: &Arc<crate::authority::AuthorityState>) -> IotaTxValidator {
-        IotaTxValidator::new(
+    /// A single-validator authority at `protocol_version`, or at the latest
+    /// version when `None`, with its validator keypair and a block verifier
+    /// over its epoch store.
+    async fn self_identifier_fixture(
+        protocol_version: Option<ProtocolVersion>,
+    ) -> (Arc<AuthorityState>, AuthorityKeyPair, IotaTxValidator) {
+        let mut network_config_builder =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir();
+        if let Some(version) = protocol_version {
+            network_config_builder = network_config_builder.with_protocol_version(version);
+        }
+        let network_config = network_config_builder.build();
+        let keypair = network_config.validator_configs()[0]
+            .authority_key_pair()
+            .copy();
+        let mut builder = TestAuthorityBuilder::new().with_network_config(&network_config, 0);
+        if let Some(version) = protocol_version {
+            builder = builder
+                .with_protocol_config(ProtocolConfig::get_for_version(version, Chain::Unknown));
+        }
+        let state = builder.build().await;
+        let validator = IotaTxValidator::new(
             state.epoch_store_for_testing().clone(),
             Arc::new(CheckpointServiceNoop {}),
             IotaTxValidatorMetrics::new(&Default::default()),
-        )
+        );
+        (state, keypair, validator)
     }
 
     /// A signed Move call of `0x2::coin::zero<0x2::iota::<type_name>>`.
     fn move_call_with_type_name(
-        state: &Arc<crate::authority::AuthorityState>,
-        type_name: iota_sdk_types::Identifier,
-    ) -> ConsensusTransactionKind {
-        use iota_sdk_types::{Address, Identifier, StructTag, Transaction, TypeTag};
+        state: &AuthorityState,
+        type_name: Identifier,
+    ) -> TransactionEnvelope {
+        use iota_sdk_types::{Address, StructTag, Transaction, TypeTag};
         use iota_types::{
             base_types::random_object_ref,
             crypto::{AccountPrivateKey, deterministic_random_account_private_key},
@@ -565,19 +587,45 @@ mod tests {
             gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
             gas_price,
         );
-        ConsensusTransactionKind::UserTransactionV1(Box::new(to_sender_signed_transaction(
-            transaction,
-            &sender_key,
+        to_sender_signed_transaction(transaction, &sender_key)
+    }
+
+    fn user_transaction(signed_tx: TransactionEnvelope) -> ConsensusTransactionKind {
+        ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            signed_tx, None,
         )))
+    }
+
+    /// `signed_tx` certified by the single validator of `state`.
+    fn certificate(
+        signed_tx: TransactionEnvelope,
+        state: &AuthorityState,
+        keypair: &AuthorityKeyPair,
+    ) -> ConsensusTransactionKind {
+        ConsensusTransactionKind::CertifiedTransaction(Box::new(
+            CertifiedTransaction::new_from_keypairs_for_testing(
+                signed_tx.into_data(),
+                std::slice::from_ref(keypair),
+                &state.clone_committee_for_testing(),
+            ),
+        ))
+    }
+
+    fn assert_self_identifier_rejected(result: &Result<(), IotaError>) {
+        assert!(
+            matches!(
+                result,
+                Err(IotaError::UserInput {
+                    error: UserInputError::InvalidIdentifier { error }
+                }) if error == "<SELF>"
+            ),
+            "{result:?}"
+        );
     }
 
     #[tokio::test]
     async fn reject_identifier_move_core_rejects_in_user_transaction() {
-        use iota_sdk_types::Identifier;
-        use iota_types::error::UserInputError;
-
-        let state = TestAuthorityBuilder::new().build().await;
-        let validator = self_identifier_validator(&state);
+        let (state, _, validator) = self_identifier_fixture(None).await;
         assert!(
             validator
                 .epoch_store
@@ -585,24 +633,41 @@ mod tests {
                 .disallow_self_identifier_in_transactions()
         );
 
-        let result = validator.validate_transactions(vec![move_call_with_type_name(
-            &state,
-            Identifier::new_unchecked("<SELF>"),
+        let result = validator.validate_transactions(vec![user_transaction(
+            move_call_with_type_name(&state, Identifier::new_unchecked("<SELF>")),
         )]);
-        assert!(
-            matches!(
-                &result,
-                Err(IotaError::UserInput {
-                    error: UserInputError::InvalidIdentifier { error }
-                }) if error == "<SELF>"
-            ),
-            "{result:?}"
-        );
+        assert_self_identifier_rejected(&result);
 
         validator
-            .validate_transactions(vec![move_call_with_type_name(
+            .validate_transactions(vec![user_transaction(move_call_with_type_name(
                 &state,
                 Identifier::from_static("IOTA"),
+            ))])
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn reject_identifier_move_core_rejects_in_certificate() {
+        let (state, keypair, validator) = self_identifier_fixture(None).await;
+        assert!(
+            validator
+                .epoch_store
+                .protocol_config()
+                .disallow_self_identifier_in_transactions()
+        );
+
+        let result = validator.validate_transactions(vec![certificate(
+            move_call_with_type_name(&state, Identifier::new_unchecked("<SELF>")),
+            &state,
+            &keypair,
+        )]);
+        assert_self_identifier_rejected(&result);
+
+        validator
+            .validate_transactions(vec![certificate(
+                move_call_with_type_name(&state, Identifier::from_static("IOTA")),
+                &state,
+                &keypair,
             )])
             .unwrap();
     }
@@ -610,16 +675,12 @@ mod tests {
     #[tokio::test]
     async fn reject_system_transaction_in_user_transaction() {
         use iota_sdk_types::{
-            Address, Event, GenesisTransaction, Identifier, SenderSignedTransaction, StructTag,
-            Transaction, TransactionKind,
+            Address, Event, GenesisTransaction, SenderSignedTransaction, StructTag, Transaction,
+            TransactionKind,
         };
-        use iota_types::{
-            error::UserInputError,
-            transaction::{TransactionAPI, TransactionEnvelope},
-        };
+        use iota_types::transaction::TransactionAPI;
 
-        let state = TestAuthorityBuilder::new().build().await;
-        let validator = self_identifier_validator(&state);
+        let (_, _, validator) = self_identifier_fixture(None).await;
         assert!(
             validator
                 .epoch_store
@@ -648,10 +709,7 @@ mod tests {
             })),
             vec![],
         ));
-        let result =
-            validator.validate_transactions(vec![ConsensusTransactionKind::UserTransactionV1(
-                Box::new(signed_tx),
-            )]);
+        let result = validator.validate_transactions(vec![user_transaction(signed_tx)]);
         assert!(
             matches!(
                 &result,
@@ -665,17 +723,8 @@ mod tests {
 
     #[tokio::test]
     async fn accept_identifier_move_core_rejects_before_the_flag() {
-        use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-        use iota_sdk_types::Identifier;
-
-        let state = TestAuthorityBuilder::new()
-            .with_protocol_config(ProtocolConfig::get_for_version(
-                ProtocolVersion::new(38),
-                Chain::Unknown,
-            ))
-            .build()
-            .await;
-        let validator = self_identifier_validator(&state);
+        let (state, keypair, validator) =
+            self_identifier_fixture(Some(ProtocolVersion::new(39))).await;
         assert!(
             !validator
                 .epoch_store
@@ -684,10 +733,17 @@ mod tests {
         );
 
         validator
-            .validate_transactions(vec![move_call_with_type_name(
-                &state,
-                Identifier::new_unchecked("<SELF>"),
-            )])
+            .validate_transactions(vec![
+                user_transaction(move_call_with_type_name(
+                    &state,
+                    Identifier::new_unchecked("<SELF>"),
+                )),
+                certificate(
+                    move_call_with_type_name(&state, Identifier::new_unchecked("<SELF>")),
+                    &state,
+                    &keypair,
+                ),
+            ])
             .unwrap();
     }
 }

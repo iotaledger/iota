@@ -106,6 +106,66 @@ pub fn move_core_identifier_validity_check(identifier: &Identifier) -> UserInput
     Ok(())
 }
 
+/// Rejects an identifier that move-core rejects in the module or name of any
+/// struct type in `type_tags`, nested type parameters included.
+fn type_tags_identifiers_validity_check<'a>(
+    type_tags: impl IntoIterator<Item = &'a TypeTag>,
+) -> UserInputResult {
+    let mut stack: Vec<&TypeTag> = type_tags.into_iter().collect();
+    while let Some(type_tag) = stack.pop() {
+        match type_tag {
+            TypeTag::Vector(inner) => stack.push(inner.as_ref()),
+            TypeTag::Struct(s) => {
+                move_core_identifier_validity_check(s.module())?;
+                move_core_identifier_validity_check(s.name())?;
+                stack.extend(s.type_params());
+            }
+            TypeTag::Bool
+            | TypeTag::U8
+            | TypeTag::U16
+            | TypeTag::U32
+            | TypeTag::U64
+            | TypeTag::U128
+            | TypeTag::U256
+            | TypeTag::Address
+            | TypeTag::Signer => {}
+        }
+    }
+    Ok(())
+}
+
+/// Rejects an identifier that move-core rejects in a command: the module and
+/// function names and the type arguments of a Move call, or the element type
+/// of a `MakeMoveVector`.
+fn command_identifiers_validity_check(command: &Command) -> UserInputResult {
+    match command {
+        Command::MoveCall(call) => {
+            move_core_identifier_validity_check(&call.module)?;
+            move_core_identifier_validity_check(&call.function)?;
+            type_tags_identifiers_validity_check(&call.type_arguments)
+        }
+        Command::MakeMoveVector(MakeMoveVector {
+            type_tag: Some(type_tag),
+            ..
+        }) => type_tags_identifiers_validity_check([type_tag]),
+        Command::MakeMoveVector(MakeMoveVector { type_tag: None, .. })
+        | Command::TransferObjects(_)
+        | Command::SplitCoins(_)
+        | Command::MergeCoins(_)
+        | Command::Publish(_)
+        | Command::Upgrade(_) => Ok(()),
+        _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
+    }
+}
+
+/// Rejects an identifier that move-core rejects in the type arguments of a
+/// Move authenticator.
+pub(crate) fn move_authenticator_identifiers_validity_check(
+    authenticator: &impl MoveAuthenticatorExt,
+) -> UserInputResult {
+    type_tags_identifiers_validity_check(authenticator.type_args())
+}
+
 pub fn type_tag_validity_check(
     tag: &TypeTag,
     config: &ProtocolConfig,
@@ -156,10 +216,6 @@ pub fn type_tag_validity_check(
                             error: s.name().as_str().to_owned()
                         }
                     );
-                }
-                if config.disallow_self_identifier_in_transactions() {
-                    move_core_identifier_validity_check(s.module())?;
-                    move_core_identifier_validity_check(s.name())?;
                 }
                 stack.extend(s.type_params().iter().map(|t| (t, next_depth)));
             }
@@ -439,10 +495,6 @@ impl MoveCallExt for MoveCall {
                 }
             );
         }
-        if config.disallow_self_identifier_in_transactions() {
-            move_core_identifier_validity_check(&self.module)?;
-            move_core_identifier_validity_check(&self.function)?;
-        }
         Ok(())
     }
 
@@ -570,6 +622,9 @@ impl CommandExt for Command {
             }
             _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         };
+        if config.disallow_self_identifier_in_transactions() {
+            command_identifiers_validity_check(self)?;
+        }
 
         Ok(())
     }
@@ -2444,52 +2499,15 @@ pub fn transaction_identifiers_validity_check(
             "SenderSignedTransaction must not contain system transaction".to_string()
         )
     );
-    let mut type_tags: Vec<&TypeTag> = Vec::new();
     if let TransactionKind::Programmable(pt) = signed_tx.transaction().kind() {
-        for command in &pt.commands {
-            match command {
-                Command::MoveCall(call) => {
-                    move_core_identifier_validity_check(&call.module)?;
-                    move_core_identifier_validity_check(&call.function)?;
-                    type_tags.extend(&call.type_arguments);
-                }
-                Command::MakeMoveVector(MakeMoveVector {
-                    type_tag: Some(type_tag),
-                    ..
-                }) => type_tags.push(type_tag),
-                Command::MakeMoveVector(MakeMoveVector { type_tag: None, .. })
-                | Command::TransferObjects(_)
-                | Command::SplitCoins(_)
-                | Command::MergeCoins(_)
-                | Command::Publish(_)
-                | Command::Upgrade(_) => {}
-                _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
-            }
-        }
+        pt.commands
+            .iter()
+            .try_for_each(command_identifiers_validity_check)?;
     }
-    for authenticator in signed_tx.move_authenticators() {
-        type_tags.extend(authenticator.type_args());
-    }
-    while let Some(type_tag) = type_tags.pop() {
-        match type_tag {
-            TypeTag::Vector(inner) => type_tags.push(inner.as_ref()),
-            TypeTag::Struct(s) => {
-                move_core_identifier_validity_check(s.module())?;
-                move_core_identifier_validity_check(s.name())?;
-                type_tags.extend(s.type_params());
-            }
-            TypeTag::Bool
-            | TypeTag::U8
-            | TypeTag::U16
-            | TypeTag::U32
-            | TypeTag::U64
-            | TypeTag::U128
-            | TypeTag::U256
-            | TypeTag::Address
-            | TypeTag::Signer => {}
-        }
-    }
-    Ok(())
+    signed_tx
+        .move_authenticators()
+        .into_iter()
+        .try_for_each(move_authenticator_identifiers_validity_check)
 }
 
 fn move_authenticators_validity_check(

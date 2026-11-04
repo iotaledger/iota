@@ -2565,7 +2565,7 @@ fn config_with_self_identifier_check() -> ProtocolConfig {
 }
 
 fn config_without_self_identifier_check() -> ProtocolConfig {
-    let config = ProtocolConfig::get_for_version(ProtocolVersion::new(38), Chain::Unknown);
+    let config = ProtocolConfig::get_for_version(ProtocolVersion::new(39), Chain::Unknown);
     assert!(!config.disallow_self_identifier_in_transactions());
     config
 }
@@ -2595,56 +2595,56 @@ fn assert_self_identifier_rejected(result: UserInputResult) {
 }
 
 #[test]
-fn type_tag_validity_check_rejects_self_name() {
-    let tag = self_type();
-    assert_self_identifier_rejected(type_tag_validity_check(
-        &tag,
-        &config_with_self_identifier_check(),
-        &mut 0,
-    ));
-    type_tag_validity_check(&tag, &config_without_self_identifier_check(), &mut 0).unwrap();
+fn command_validity_check_rejects_self_type_arg_name() {
+    let command = move_call_command(vec![self_type()]);
+    assert_self_identifier_rejected(command.validity_check(&config_with_self_identifier_check()));
+    command
+        .validity_check(&config_without_self_identifier_check())
+        .unwrap();
 }
 
 #[test]
-fn type_tag_validity_check_rejects_self_module() {
-    let tag = struct_type(self_identifier(), Identifier::from_static("IOTA"), vec![]);
-    assert_self_identifier_rejected(type_tag_validity_check(
-        &tag,
-        &config_with_self_identifier_check(),
-        &mut 0,
-    ));
-    type_tag_validity_check(&tag, &config_without_self_identifier_check(), &mut 0).unwrap();
+fn command_validity_check_rejects_self_type_arg_module() {
+    let command = move_call_command(vec![struct_type(
+        self_identifier(),
+        Identifier::from_static("IOTA"),
+        vec![],
+    )]);
+    assert_self_identifier_rejected(command.validity_check(&config_with_self_identifier_check()));
+    command
+        .validity_check(&config_without_self_identifier_check())
+        .unwrap();
 }
 
 #[test]
-fn type_tag_validity_check_rejects_nested_self_name() {
+fn command_validity_check_rejects_nested_self_type_arg() {
     let coin_of_self = struct_type(
         Identifier::from_static("coin"),
         Identifier::from_static("Coin"),
         vec![self_type()],
     );
-    let tag = TypeTag::Vector(Box::new(coin_of_self));
-    assert_self_identifier_rejected(type_tag_validity_check(
-        &tag,
-        &config_with_self_identifier_check(),
-        &mut 0,
-    ));
-    type_tag_validity_check(&tag, &config_without_self_identifier_check(), &mut 0).unwrap();
+    let command = move_call_command(vec![TypeTag::Vector(Box::new(coin_of_self))]);
+    assert_self_identifier_rejected(command.validity_check(&config_with_self_identifier_check()));
+    command
+        .validity_check(&config_without_self_identifier_check())
+        .unwrap();
 }
 
 #[test]
-fn type_tag_validity_check_accepts_regular_names_with_flag() {
+fn command_validity_check_accepts_regular_names_with_flag() {
     let iota = struct_type(
         Identifier::from_static("iota"),
         Identifier::from_static("IOTA"),
         vec![],
     );
-    let tag = struct_type(
+    let command = move_call_command(vec![struct_type(
         Identifier::from_static("coin"),
         Identifier::from_static("Coin"),
         vec![iota],
-    );
-    type_tag_validity_check(&tag, &config_with_self_identifier_check(), &mut 0).unwrap();
+    )]);
+    command
+        .validity_check(&config_with_self_identifier_check())
+        .unwrap();
 }
 
 fn move_call(module: Identifier, function: Identifier, type_arguments: Vec<TypeTag>) -> MoveCall {
@@ -2658,19 +2658,25 @@ fn move_call(module: Identifier, function: Identifier, type_arguments: Vec<TypeT
 }
 
 #[test]
-fn move_call_validity_check_rejects_self_module_and_function() {
-    let calls = [
-        move_call(self_identifier(), Identifier::from_static("zero"), vec![]),
-        move_call(Identifier::from_static("coin"), self_identifier(), vec![]),
-        move_call(
-            Identifier::from_static("coin"),
+fn command_validity_check_rejects_self_module_and_function() {
+    let commands = [
+        Command::MoveCall(move_call(
+            self_identifier(),
             Identifier::from_static("zero"),
-            vec![self_type()],
-        ),
+            vec![],
+        )),
+        Command::MoveCall(move_call(
+            Identifier::from_static("coin"),
+            self_identifier(),
+            vec![],
+        )),
     ];
-    for call in &calls {
-        assert_self_identifier_rejected(call.validity_check(&config_with_self_identifier_check()));
-        call.validity_check(&config_without_self_identifier_check())
+    for command in &commands {
+        assert_self_identifier_rejected(
+            command.validity_check(&config_with_self_identifier_check()),
+        );
+        command
+            .validity_check(&config_without_self_identifier_check())
             .unwrap();
     }
 }

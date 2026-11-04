@@ -355,6 +355,9 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
         self.type_args().iter().try_for_each(|type_arg| {
             crate::transaction::type_tag_validity_check(type_arg, config, &mut type_arguments_count)
         })?;
+        if config.disallow_self_identifier_in_transactions() {
+            crate::transaction::move_authenticator_identifiers_validity_check(self)?;
+        }
 
         Ok(())
     }
