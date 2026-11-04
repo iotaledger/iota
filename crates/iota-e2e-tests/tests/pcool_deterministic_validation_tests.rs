@@ -124,7 +124,7 @@ fn spawn_transfer_traffic_with_double_spends(
             succeeded += responses
                 .iter()
                 .filter(|response| {
-                    matches!(response, Ok(Ok(response)) if response.status_ok() == Some(true))
+                    matches!(response, Ok(Ok(response)) if matches!(response.effects().unwrap().effects().unwrap().status(), ExecutionStatus::Success))
                 })
                 .count();
             sleep(Duration::from_millis(100)).await;
@@ -1248,13 +1248,17 @@ async fn create_counter(
     .await
     .ok()?
     .ok()?;
-    response.effects.as_ref().and_then(|effects| {
-        effects
-            .created()
-            .iter()
-            .find(|created| matches!(created.owner, Owner::Shared(_)))
-            .map(|created| created.reference)
-    })
+    response
+        .effects()
+        .ok()
+        .and_then(|effects| effects.effects().ok())
+        .and_then(|effects| {
+            effects
+                .created()
+                .iter()
+                .find(|created| matches!(created.owner(), Owner::Shared(_)))
+                .map(|created| created.reference().clone())
+        })
 }
 
 /// In every epoch until `stop` is set, each of `senders` creates two shared
@@ -1377,7 +1381,7 @@ fn spawn_shared_object_deletions_around_epoch_close(
                                 );
                                 matches!(
                                     deletion,
-                                    Ok(Ok(ref response)) if response.status_ok() == Some(true)
+                                    Ok(Ok(ref response)) if matches!(response.effects().unwrap().effects().unwrap().status(), ExecutionStatus::Success)
                                 )
                             }
                         },
@@ -1456,7 +1460,7 @@ fn spawn_shared_object_deletions_and_uses(
                             .await
                         },
                     );
-                    if matches!(deletion, Ok(Ok(ref response)) if response.status_ok() == Some(true))
+                    if matches!(deletion, Ok(Ok(ref response)) if matches!(response.effects().unwrap().effects().unwrap().status(), ExecutionStatus::Success))
                     {
                         deleted += 1;
                     }

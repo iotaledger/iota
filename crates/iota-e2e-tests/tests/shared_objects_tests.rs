@@ -11,9 +11,10 @@ use std::{
 use futures::{future::join_all, join};
 use iota_config::node::AuthorityOverloadConfig;
 use iota_core::consensus_adapter::position_submit_certificate;
-use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::{register_fail_point_async, sim_test};
-use iota_sdk_types::{Event, ExecutionStatus, SharedObjectReference};
+use iota_sdk_types::{
+    CommandArgumentError, Event, ExecutionError, ExecutionStatus, SharedObjectReference,
+};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, publish_basics_package, publish_basics_package_and_make_counter,
@@ -463,15 +464,22 @@ async fn call_shared_object_contract() {
         .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&transaction))
         .await
         .unwrap()
-        .effects
+        .effects()
+        .unwrap()
+        .effects()
         .unwrap();
     // Transaction fails
-    assert!(effects.status().is_err(),);
+    assert!(effects.status().is_failure());
     assert!(
-        effects
-            .status()
-            .to_string()
-            .contains("Immutable objects cannot be passed by mutable reference")
+        matches!(
+            effects.status().error(),
+            Some(ExecutionError::CommandArgumentError {
+                kind: CommandArgumentError::InvalidObjectByMutRef,
+                ..
+            })
+        ),
+        "unexpected failure status: {:?}",
+        effects.status()
     );
     assert!(
         effects

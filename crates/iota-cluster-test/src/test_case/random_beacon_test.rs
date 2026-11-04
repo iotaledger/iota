@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_sdk::wallet_context::WalletContext;
+use iota_sdk_types::ExecutionStatus;
 use iota_test_transaction_builder::{emit_new_random_u128, publish_basics_package};
+use iota_types::effects::TransactionEffectsAPI;
 use tracing::info;
 
 use crate::{TestCaseImpl, TestContext};
@@ -33,28 +34,29 @@ impl TestCaseImpl for RandomBeaconTest {
         let package_ref = publish_basics_package(wallet_context).await;
 
         let response = emit_new_random_u128(wallet_context, package_ref.object_id).await;
-        assert_eq!(
-            *response.effects.as_ref().unwrap().status(),
-            IotaExecutionStatus::Success,
+        let effects = response.effects().unwrap().effects().unwrap();
+        assert!(
+            matches!(effects.status(), ExecutionStatus::Success),
             "generate new random value txn failed: {:?}",
-            *response.effects.as_ref().unwrap().status()
+            effects.status()
         );
 
         // Check that only the expected event was emitted.
-        let events = response.events.unwrap();
+        let events = response.events().unwrap().events().unwrap();
         assert_eq!(
             1,
-            events.data.len(),
+            events.0.len(),
             "expected 1 event, got {:?}",
-            events.data.len()
+            events.0.len()
         );
         assert_eq!(
             "RandomU128Event".to_string(),
-            events.data[0].struct_tag.name().to_string()
+            events.0[0].struct_tag.name().to_string()
         );
 
         // Verify fullnode observes the txn
-        ctx.let_fullnode_sync(vec![response.digest], 5).await;
+        ctx.let_fullnode_sync(vec![response.transaction().unwrap().digest().unwrap()], 5)
+            .await;
 
         Ok(())
     }

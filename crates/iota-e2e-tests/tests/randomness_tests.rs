@@ -99,11 +99,11 @@ async fn run_randomness_using_transaction_reaches_finality(use_execution_schedul
 
     // Success is already asserted inside the helper; the emitted event is what
     // proves the transaction actually consumed a random value.
-    let events = response.events.unwrap();
-    assert_eq!(1, events.data.len(), "expected 1 event: {:?}", events.data);
+    let events = response.events().unwrap().events().unwrap();
+    assert_eq!(1, events.0.len(), "expected 1 event: {:?}", events.0);
     assert_eq!(
         "RandomU128Event",
-        events.data[0].struct_tag.name().to_string().as_str()
+        events.0[0].struct_tag.name().to_string().as_str()
     );
 }
 
@@ -188,19 +188,17 @@ mod dkg_timeout {
         time::Duration,
     };
 
-    use iota_json_rpc_types::{
-        IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    };
     use iota_macros::{clear_fail_point, register_fail_point_if, sim_test};
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk::wallet_context::WalletContext;
-    use iota_sdk_types::{ExecutionError, ObjectId};
+    use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId};
     use iota_test_transaction_builder::{TestTransactionBuilder, randomness_state_call_arg};
+    use iota_types::effects::TransactionEffectsAPI;
     use test_cluster::TestClusterBuilder;
 
     async fn execute_randomness_transaction(
         context: &WalletContext,
-    ) -> IotaTransactionBlockResponse {
+    ) -> iota_grpc_types::v1::transaction::ExecutedTransaction {
         let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
         let gas_price = context.get_reference_gas_price().await.unwrap();
         let random_call_arg = randomness_state_call_arg(context).await;
@@ -221,11 +219,11 @@ mod dkg_timeout {
             .unwrap()
     }
 
-    fn is_canceled_for_randomness(status: &IotaExecutionStatus) -> bool {
+    fn is_canceled_for_randomness(status: &ExecutionStatus) -> bool {
         matches!(
             status,
-            IotaExecutionStatus::Failure { error }
-                if *error == ExecutionError::ExecutionCanceledDueToRandomnessUnavailable.to_string()
+            ExecutionStatus::Failure { error, .. }
+                if matches!(error, ExecutionError::ExecutionCanceledDueToRandomnessUnavailable)
         )
     }
 
@@ -250,8 +248,8 @@ mod dkg_timeout {
             .build()
             .await;
         let response = execute_randomness_transaction(&test_cluster.wallet).await;
-        let effects = response.effects.unwrap();
-        let initial_epoch = effects.executed_epoch();
+        let effects = response.effects().unwrap().effects().unwrap();
+        let initial_epoch = effects.epoch();
         assert!(is_canceled_for_randomness(effects.status()));
 
         suppress_dkg.store(false, Ordering::Relaxed);
@@ -261,15 +259,15 @@ mod dkg_timeout {
         tokio::time::timeout(Duration::from_secs(60), async {
             loop {
                 let response = execute_randomness_transaction(&test_cluster.wallet).await;
-                let effects = response.effects.unwrap();
+                let effects = response.effects().unwrap().effects().unwrap();
                 assert_eq!(
                     initial_epoch,
-                    effects.executed_epoch(),
+                    effects.epoch(),
                     "epoch changed during DKG recovery; recovery must complete within the \
                      initial epoch for this test to be meaningful"
                 );
                 match effects.status() {
-                    IotaExecutionStatus::Success => break,
+                    ExecutionStatus::Success => break,
                     status if is_canceled_for_randomness(status) => {
                         tokio::time::sleep(Duration::from_millis(200)).await;
                     }
@@ -305,7 +303,7 @@ mod dkg_timeout {
 
         let response = execute_randomness_transaction(&test_cluster.wallet).await;
         assert!(is_canceled_for_randomness(
-            response.effects.unwrap().status()
+            response.effects().unwrap().effects().unwrap().status()
         ));
 
         // DKG remains incomplete; the epoch change must not be blocked by it.

@@ -40,7 +40,7 @@ async fn transfer_coin(context: &WalletContext) -> (Address, TransactionDigest) 
             .build(),
     );
     let resp = context.execute_transaction_must_succeed(txn).await;
-    (sender, resp.digest)
+    (sender, resp.transaction().unwrap().digest().unwrap())
 }
 
 /// The sender's transactions of both epochs, through the fullnode's own
@@ -208,10 +208,9 @@ async fn index_backed_reads_see_a_transaction_reported_by_the_quorum_driver() {
         let recipient = Address::random();
         let txn = make_transfer_iota_transaction(&cluster.wallet, Some(recipient), Some(9)).await;
         let response = cluster.wallet.execute_transaction_must_succeed(txn).await;
-        assert_eq!(
-            response.confirmed_local_execution,
-            Some(true),
-            "the quorum driver path must confirm local execution"
+        assert!(
+            response.checkpoint.is_some(),
+            "the quorum driver path must finalize the transaction into a checkpoint"
         );
 
         let owned = client
