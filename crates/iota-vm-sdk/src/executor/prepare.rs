@@ -174,22 +174,10 @@ pub(super) fn prepare_transaction(
     });
 
     // Offline default: the verifier-signing limits may differ from those a
-    // live validator enforces, so this check will not match a real chain.
+    // live validator enforces, so these checks will not match a real chain.
     let verifier_signing_config =
         iota_config::verifier_signing_config::VerifierSigningConfig::default();
     let (gas_status, checked_input_objects) = if matches!(mode, ExecutionMode::DevInspect) {
-        // Execution verifies the packages a transaction publishes with neither a
-        // limit nor a meter, trusting signing to have bounded them, so with the
-        // signing checks skipped here this bounds them, as the node's dev-inspect
-        // does.
-        iota_transaction_checks::check_non_system_packages_to_be_published(
-            &transaction,
-            &env.protocol_config,
-            &env.bytecode_verifier_metrics,
-            iota_transaction_checks::VerifierLimitsSource::NodeConfig(&verifier_signing_config),
-        )
-        .map_err(|e| ValidationError::new("package verification", e))?;
-
         // Dev-inspect meters against the transaction's budget, which the fill-in
         // above resolves to `max_tx_gas`, capped at the gas coins' balance, when
         // the caller declares none, matching the node's dev-inspect entry point.
@@ -209,6 +197,18 @@ pub(super) fn prepare_transaction(
             receiving_objects,
         )
         .map_err(|e| ValidationError::new("simulation input check", e))?;
+
+        // Execution verifies the packages a transaction publishes with neither a
+        // limit nor a meter, trusting signing to have bounded them, so with the
+        // signing checks skipped here this bounds them, as the node's dev-inspect
+        // does.
+        iota_transaction_checks::check_non_system_packages_to_be_published(
+            &transaction,
+            &env.protocol_config,
+            &env.bytecode_verifier_metrics,
+            iota_transaction_checks::VerifierLimitsSource::NodeConfig(&verifier_signing_config),
+        )
+        .map_err(|e| ValidationError::new("package verification", e))?;
 
         let gas_status = IotaGasStatus::new(
             gas_budget,
