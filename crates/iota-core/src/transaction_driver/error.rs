@@ -34,7 +34,8 @@ pub(crate) enum TransactionRequestError {
     // Rejected by the validator when voting on the transaction.
     #[error("{0}")]
     RejectedAtValidator(IotaError),
-    // Transaction status has been dropped from cache at the validator.
+    // The epoch ended at the validator before the transaction was executed
+    // or dropped.
     #[error("Transaction status expired")]
     StatusExpired(EpochId),
     // Request to submit transaction or get full effects failed.
