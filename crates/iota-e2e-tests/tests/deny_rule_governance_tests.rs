@@ -1,16 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// The protocol config override used to enable the feature flags is
-// thread-local, so these tests only work under the simulator, where all nodes
-// share one thread.
 #[cfg(msim)]
 mod simtests {
     use std::time::Duration;
 
     use iota_config::transaction_deny_config::TransactionDenyConfigBuilder;
     use iota_macros::sim_test;
-    use iota_protocol_config::ProtocolConfig;
     use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::crypto::get_account_private_key;
@@ -22,11 +18,6 @@ mod simtests {
     #[sim_test]
     async fn deny_rule_proposals_converge_across_validators() {
         telemetry_subscribers::init_for_testing();
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config.set_deny_rule_governance_for_testing(true);
-            config
-        });
 
         // A funded account whose address every validator's local config
         // denies, and a funded non-denied account for the positive path.

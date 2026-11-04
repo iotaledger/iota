@@ -37,9 +37,10 @@ use crate::{
 /// delay
 pub(crate) const MAX_ROUND_GAP_FOR_USEFUL_PARTS: Round = 40;
 /// Round gap within which a peer that reported an author's headers useful
-/// still receives that author's leader blocks our blocks vote for. Ordinary
-/// reports expire after `MAX_ROUND_GAP_FOR_USEFUL_PARTS`, before the author
-/// leads again, and a peer that is late on the leader block loses the round.
+/// still receives that author's headers with a block of ours that votes for
+/// the author's leader block. Ordinary reports expire after
+/// `MAX_ROUND_GAP_FOR_USEFUL_PARTS`, before the author leads again, and a peer
+/// that is late on the leader block loses the round.
 pub(crate) const MAX_ROUND_GAP_FOR_LEADER_HEADERS: Round = 500;
 /// Capacity of the cordial knowledge channel. For normal operation with
 /// 100 authorities, this allows buffering up to 5 seconds of headers at 20
@@ -1063,8 +1064,9 @@ pub struct EvictionRounds {
 pub struct ConnectionKnowledge {
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
-    /// Keeps track of which headers are not known by the peer yet.
-    headers_not_known: Vec<BTreeMap<Round, AHashSet<BlockRef>>>,
+    /// Keeps track of which headers are not known by the peer yet, at most one
+    /// per slot.
+    headers_not_known: Vec<BTreeMap<Round, BlockRef>>,
     /// Keeps track of which shards are not known by the peer yet.
     shards_not_known: Vec<BTreeMap<Round, AHashSet<GenericTransactionRef>>>,
     /// Last rounds for (potentially) useful shards that can be sent to this
@@ -1106,8 +1108,8 @@ impl ConnectionKnowledge {
     /// up to the given round (exclusive), up to max_take total.
     /// Generic function that works with both BlockRef and
     /// GenericTransactionRef.
-    fn take_useful_refs_round<T>(
-        maps: &mut [BTreeMap<Round, AHashSet<T>>],
+    fn take_useful_refs_round<T, S>(
+        maps: &mut [BTreeMap<Round, S>],
         round_upper_bound_exclusive: Round,
         useful_authorities: &[usize],
         max_take: usize,
@@ -1115,7 +1117,8 @@ impl ConnectionKnowledge {
         get_round: impl Fn(&T) -> Round,
     ) -> Vec<T>
     where
-        T: Copy + Eq + std::hash::Hash,
+        T: Copy,
+        S: SlotRefs<T>,
     {
         if useful_authorities.is_empty() || max_take == 0 {
             return Vec::new();
@@ -1137,7 +1140,7 @@ impl ConnectionKnowledge {
             for &authority in useful_authorities {
                 let map = &maps[authority];
                 if let Some(refs_from_authority_in_round) = map.get(&current_round) {
-                    for &item_ref in refs_from_authority_in_round {
+                    for item_ref in refs_from_authority_in_round.refs() {
                         taken.push(item_ref);
                         if taken.len() >= max_take {
                             break 'outer;
@@ -1150,28 +1153,24 @@ impl ConnectionKnowledge {
 
         // Remove the taken refs from the corresponding authorities
         for item_ref in &taken {
-            let authority = get_author(item_ref);
-            let round = get_round(item_ref);
-            if let Some(refs_from_authority_in_round) = maps[authority].get_mut(&round) {
-                refs_from_authority_in_round.remove(item_ref);
-                // Remove empty rounds to keep map small
-                if refs_from_authority_in_round.is_empty() {
-                    maps[authority].remove(&round);
-                }
-            }
+            S::remove_ref(
+                &mut maps[get_author(item_ref)],
+                get_round(item_ref),
+                item_ref,
+            );
         }
 
         taken
     }
 
-    /// Take useful header block refs from the given authorities up to the given
-    /// round (exclusive).
+    /// Take at most `max_take` useful header block refs from the given
+    /// authorities up to the given round (exclusive).
     fn take_useful_header_block_refs_round(
         &mut self,
         round_upper_bound_exclusive: Round,
         useful_authorities: &[usize],
+        max_take: usize,
     ) -> Vec<BlockRef> {
-        let max_take = self.context.parameters.max_headers_per_bundle;
         Self::take_useful_refs_round(
             &mut self.headers_not_known,
             round_upper_bound_exclusive,
@@ -1338,13 +1337,23 @@ impl ConnectionKnowledge {
             .map(|(authority_index, _opt_round)| authority_index)
             .collect();
 
-        let mut useful_headers_block_refs_to_peer =
-            self.take_useful_header_block_refs_round(block_round, &useful_headers_authors_to_peer);
-        if let Some(leader_ref) =
-            self.take_voted_leader_header(&block, &useful_headers_authors_to_peer)
-        {
-            useful_headers_block_refs_to_peer.push(leader_ref);
-        }
+        // The headers of the author of the leader our block votes for go
+        // first, as the receiver drops the headers beyond its cap: the leader
+        // block is the one whose late delivery costs the peer the round, and
+        // its own ancestors go with it.
+        let max_take = self.context.parameters.max_headers_per_bundle;
+        let mut useful_headers_block_refs_to_peer = match self.voted_leader_author(&block) {
+            Some(leader) => {
+                self.take_useful_header_block_refs_round(block_round, &[leader.value()], max_take)
+            }
+            None => Vec::new(),
+        };
+        let ordinary_headers_block_refs_to_peer = self.take_useful_header_block_refs_round(
+            block_round,
+            &useful_headers_authors_to_peer,
+            max_take - useful_headers_block_refs_to_peer.len(),
+        );
+        useful_headers_block_refs_to_peer.extend(ordinary_headers_block_refs_to_peer);
 
         let useful_headers_to_peer: Vec<VerifiedBlockHeader> = {
             let dag_state_read = self.dag_state.read();
@@ -1424,29 +1433,14 @@ impl ConnectionKnowledge {
         }
     }
 
-    /// The leader block that `block` votes for, for a peer that reported the
-    /// leader's headers useful within `MAX_ROUND_GAP_FOR_LEADER_HEADERS`
-    /// rounds but not within the ordinary window, so `served_authors` does not
-    /// cover it.
-    fn take_voted_leader_header(
-        &mut self,
-        block: &VerifiedBlock,
-        served_authors: &[usize],
-    ) -> Option<BlockRef> {
+    /// The author of the leader block that `block` votes for, for a peer that
+    /// reported that author's headers useful within
+    /// `MAX_ROUND_GAP_FOR_LEADER_HEADERS` rounds.
+    fn voted_leader_author(&self, block: &VerifiedBlock) -> Option<AuthorityIndex> {
         let leader = block.strong_vote_leader()?;
-        if served_authors.contains(&leader.value()) {
-            return None;
-        }
         let reported_round = self.last_useful_headers_to_peer_round[leader.value()]?;
-        if reported_round.saturating_add(MAX_ROUND_GAP_FOR_LEADER_HEADERS) < block.round() {
-            return None;
-        }
-        let leader_ref = *block
-            .ancestors()
-            .iter()
-            .find(|ancestor| ancestor.author == leader && ancestor.round + 1 == block.round())?;
-        self.handle_remove_header(leader_ref);
-        Some(leader_ref)
+        (reported_round.saturating_add(MAX_ROUND_GAP_FOR_LEADER_HEADERS) >= block.round())
+            .then_some(leader)
     }
 
     /// Handles adding a new header to the set of potentially unknown headers.
@@ -1454,24 +1448,16 @@ impl ConnectionKnowledge {
     /// receiver drops additional headers of a slot as spam protection. An
     /// equivocating header a peer needs is obtained by reference instead.
     fn handle_new_header(&mut self, block_ref: BlockRef) {
-        let round = block_ref.round;
-        let authority = block_ref.author.value();
-
-        let refs_at_slot = self.headers_not_known[authority].entry(round).or_default();
-        if refs_at_slot.is_empty() {
-            refs_at_slot.insert(block_ref);
-        }
+        self.headers_not_known[block_ref.author.value()]
+            .entry(block_ref.round)
+            .or_insert(block_ref);
     }
 
     /// Records `block_ref` as the header to offer for its slot, replacing any
     /// header tracked there. Used for the ancestors of a block we are about to
     /// send: the peer needs them to accept it.
     fn set_referenced_header(&mut self, block_ref: BlockRef) {
-        let refs_at_slot = self.headers_not_known[block_ref.author.value()]
-            .entry(block_ref.round)
-            .or_default();
-        refs_at_slot.clear();
-        refs_at_slot.insert(block_ref);
+        self.headers_not_known[block_ref.author.value()].insert(block_ref.round, block_ref);
     }
 
     /// Handles adding a new shard to the set of potentially unknown shards.
@@ -1487,11 +1473,7 @@ impl ConnectionKnowledge {
 
     /// Returns (total_headers_not_known, total_shards_not_known) entry counts.
     fn sizes(&self) -> (usize, usize) {
-        let headers: usize = self
-            .headers_not_known
-            .iter()
-            .map(|m| m.values().map(|s| s.len()).sum::<usize>())
-            .sum();
+        let headers: usize = self.headers_not_known.iter().map(BTreeMap::len).sum();
         let shards: usize = self
             .shards_not_known
             .iter()
@@ -1502,27 +1484,55 @@ impl ConnectionKnowledge {
 
     /// Handles removing a header that this peer now knows.
     fn handle_remove_header(&mut self, block_ref: BlockRef) {
-        let authority = block_ref.author.value();
-        let round = block_ref.round;
-
-        if let Some(set) = self.headers_not_known[authority].get_mut(&round) {
-            set.remove(&block_ref);
-            // Optional: remove empty round entries to keep map clean
-            if set.is_empty() {
-                self.headers_not_known[authority].remove(&round);
-            }
-        }
+        SlotRefs::remove_ref(
+            &mut self.headers_not_known[block_ref.author.value()],
+            block_ref.round,
+            &block_ref,
+        );
     }
 
     /// Handles removing a shard that this peer now knows.
     fn handle_remove_shard(&mut self, gen_tx_ref: GenericTransactionRef) {
-        let authority = gen_tx_ref.author().value();
-        let round = gen_tx_ref.round();
+        SlotRefs::remove_ref(
+            &mut self.shards_not_known[gen_tx_ref.author().value()],
+            gen_tx_ref.round(),
+            &gen_tx_ref,
+        );
+    }
+}
 
-        if let Some(set) = self.shards_not_known[authority].get_mut(&round) {
-            set.remove(&gen_tx_ref);
-            if set.is_empty() {
-                self.shards_not_known[authority].remove(&round);
+/// The refs a `ConnectionKnowledge` slot holds: a single header, or a set of
+/// shards.
+trait SlotRefs<T>: Sized {
+    fn refs(&self) -> impl Iterator<Item = T> + '_;
+
+    /// Removes `item_ref` from the slot at `round`, and drops the slot once it
+    /// holds no refs.
+    fn remove_ref(slots: &mut BTreeMap<Round, Self>, round: Round, item_ref: &T);
+}
+
+impl SlotRefs<BlockRef> for BlockRef {
+    fn refs(&self) -> impl Iterator<Item = BlockRef> + '_ {
+        std::iter::once(*self)
+    }
+
+    fn remove_ref(slots: &mut BTreeMap<Round, Self>, round: Round, item_ref: &BlockRef) {
+        if slots.get(&round) == Some(item_ref) {
+            slots.remove(&round);
+        }
+    }
+}
+
+impl<T: Copy + Eq + std::hash::Hash> SlotRefs<T> for AHashSet<T> {
+    fn refs(&self) -> impl Iterator<Item = T> + '_ {
+        self.iter().copied()
+    }
+
+    fn remove_ref(slots: &mut BTreeMap<Round, Self>, round: Round, item_ref: &T) {
+        if let Some(refs) = slots.get_mut(&round) {
+            refs.remove(item_ref);
+            if refs.is_empty() {
+                slots.remove(&round);
             }
         }
     }
@@ -2848,5 +2858,98 @@ mod tests {
         assert!(headers_sent(past_window + 2, false).is_empty());
         // Past the long window nothing is sent.
         assert!(headers_sent(MAX_ROUND_GAP_FOR_LEADER_HEADERS + 5, true).is_empty());
+    }
+
+    /// The headers of the author of the leader our block votes for come first,
+    /// oldest to newest, and the ordinary headers fill the rest of the bundle
+    /// cap in round order; the ordinary header that no longer fits goes out
+    /// with the next bundle. This holds whether the peer reported the leader's
+    /// headers useful only past the ordinary window or within it.
+    #[tokio::test]
+    async fn test_voted_leader_headers_come_first_within_bundle_cap() {
+        telemetry_subscribers::init_for_testing();
+        let [our_index, leader_index, ordinary_a, ordinary_b] =
+            [0, 2, 3, 4].map(AuthorityIndex::new_for_test);
+        let leader_round = MAX_ROUND_GAP_FOR_USEFUL_PARTS + 5;
+        let header = |round: Round, author: AuthorityIndex| {
+            VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(round, author.value() as u8).build(),
+            )
+        };
+        for leader_reported_round in [1, leader_round] {
+            let (mut context, _) = Context::new_for_test(5);
+            context.parameters.max_headers_per_bundle = 3;
+            let context = Arc::new(context);
+            let dag_state = Arc::new(RwLock::new(DagState::new(
+                context.clone(),
+                Arc::new(MemStore::new()),
+            )));
+            let mut connection_knowledge = ConnectionKnowledge::new(context, dag_state.clone());
+
+            // The peer reported the ordinary authors useful just now.
+            connection_knowledge.process_one_message(ConnectionKnowledgeMessage::UsefulAuthors {
+                useful_headers_to_peer: BTreeMap::from([
+                    (leader_index, leader_reported_round),
+                    (ordinary_a, leader_round),
+                    (ordinary_b, leader_round),
+                ]),
+                useful_shards_to_peer: BTreeMap::new(),
+            });
+
+            // The peer also lacks an older header of the leader's author, and
+            // the ordinary headers are older than the leader block.
+            let older_leader_header = header(leader_round - 2, leader_index);
+            let ancestors = [
+                header(leader_round, leader_index),
+                header(leader_round - 1, ordinary_a),
+                header(leader_round - 1, ordinary_b),
+            ];
+            dag_state.write().accept_block_headers(
+                ancestors
+                    .iter()
+                    .chain([&older_leader_header])
+                    .cloned()
+                    .collect(),
+                DataSource::Test,
+            );
+            connection_knowledge.process_one_message(ConnectionKnowledgeMessage::NewHeader {
+                block_ref: older_leader_header.reference(),
+            });
+            let mut headers_sent = |own_block: VerifiedBlock| {
+                connection_knowledge
+                    .create_bundle(own_block)
+                    .verified_headers
+                    .iter()
+                    .map(|header| (header.round(), header.author()))
+                    .collect::<Vec<_>>()
+            };
+
+            let voting_block = VerifiedBlock::new_for_test(
+                TestBlockHeader::new(leader_round + 1, our_index.value() as u8)
+                    .set_version(TestBlockHeaderVersion::V2)
+                    .set_ancestors(ancestors.iter().map(|header| header.reference()).collect())
+                    .set_strong_vote(Some(StrongVote {
+                        leader_authority: leader_index,
+                        missing: AuthoritySet::new(),
+                    }))
+                    .build(),
+            );
+            assert_eq!(
+                headers_sent(voting_block),
+                vec![
+                    (leader_round - 2, leader_index),
+                    (leader_round, leader_index),
+                    (leader_round - 1, ordinary_a),
+                ]
+            );
+
+            let next_block = VerifiedBlock::new_for_test(
+                TestBlockHeader::new(leader_round + 2, our_index.value() as u8).build(),
+            );
+            assert_eq!(
+                headers_sent(next_block),
+                vec![(leader_round - 1, ordinary_b)]
+            );
+        }
     }
 }

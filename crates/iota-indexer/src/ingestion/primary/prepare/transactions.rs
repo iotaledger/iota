@@ -118,7 +118,7 @@ impl<'chk> TransactionTransformer<'chk> {
         let move_calls = inner_tx
             .move_calls()
             .iter()
-            .map(|(p, m, f)| (*<&ObjectId>::clone(p), m.to_string(), f.to_string()))
+            .map(|(p, m, f)| (**p, m.to_string(), f.to_string()))
             .collect();
 
         Ok(TxIndex {
@@ -236,7 +236,7 @@ impl<'m> InMemTxChanges<'m> {
     pub fn new(objects: &[&Object], metrics: &'m IndexerMetrics) -> Self {
         let mut object_cache = InMemObjectCache::new();
         for obj in objects {
-            object_cache.insert_object(<&Object>::clone(obj).clone());
+            object_cache.insert_object((*obj).clone());
         }
         Self {
             object_cache,
@@ -290,7 +290,7 @@ impl ObjectProvider for InMemTxChanges<'_> {
             .object_cache
             .get(id, Some(version))
             .as_ref()
-            .map(|o| <&Object>::clone(o).clone());
+            .map(|o| (*o).clone());
         if let Some(o) = object {
             self.metrics.indexing_get_object_in_mem_hit.inc();
             return Ok(o);
@@ -311,7 +311,7 @@ impl ObjectProvider for InMemTxChanges<'_> {
             .object_cache
             .get(id, Some(version))
             .as_ref()
-            .map(|o| <&Object>::clone(o).clone());
+            .map(|o| (*o).clone());
         if let Some(o) = object {
             self.metrics.indexing_get_object_in_mem_hit.inc();
             return Ok(Some(o));
@@ -324,7 +324,7 @@ impl ObjectProvider for InMemTxChanges<'_> {
             .object_cache
             .get(id, None)
             .as_ref()
-            .map(|o| <&Object>::clone(o).clone());
+            .map(|o| (*o).clone());
         if let Some(o) = object {
             if o.version() > *version {
                 panic!(

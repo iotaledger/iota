@@ -401,7 +401,8 @@ impl Linearizer {
 
     /// This method accepts a vector of missing transaction references and
     /// returns a map of the passed transactions along with authorities that
-    /// have acknowledged this reference.
+    /// have acknowledged this reference. A reference with no known
+    /// acknowledger maps to an empty set.
     pub fn get_transaction_ack_authors(
         &self,
         missing_refs: Vec<GenericTransactionRef>,
@@ -409,25 +410,26 @@ impl Linearizer {
         let mut acknowledged_map = BTreeMap::new();
 
         for missing_ref in missing_refs {
-            let block_ref = match missing_ref {
-                GenericTransactionRef::BlockRef(br) => br,
+            let block_refs: Vec<BlockRef> = match missing_ref {
+                GenericTransactionRef::BlockRef(br) => vec![br],
                 GenericTransactionRef::TransactionRef(tx_ref) => {
-                    let dag = self.dag_state.read();
-                    match dag.resolve_block_ref(&tx_ref) {
-                        Some(br) => br,
-                        None => {
-                            error!(
-                                "block_digest not found for {tx_ref:?} in transactions_ack_tracker lookup; \
-                                 entry should exist since missing txns are above eviction boundary"
-                            );
-                            continue;
-                        }
+                    let block_refs = self.dag_state.read().resolve_block_refs(&tx_ref);
+                    if block_refs.is_empty() {
+                        error!(
+                            "block_digest not found for {tx_ref:?} in transactions_ack_tracker lookup; \
+                             entry should exist since missing txns are above eviction boundary"
+                        );
                     }
+                    block_refs
                 }
             };
-            if let Some(acknowledgments) = self.transactions_ack_tracker.get(&block_ref) {
-                acknowledged_map.insert(missing_ref, acknowledgments.votes());
-            }
+            // More than one header can carry the same payload.
+            let acknowledgers = block_refs
+                .iter()
+                .filter_map(|block_ref| self.transactions_ack_tracker.get(block_ref))
+                .flat_map(|acknowledgments| acknowledgments.votes())
+                .collect();
+            acknowledged_map.insert(missing_ref, acknowledgers);
         }
 
         acknowledged_map
@@ -542,11 +544,11 @@ mod tests {
     use super::*;
     use crate::{
         CommitIndex, TestBlockHeader,
-        commit::{CommitDigest, WAVE_LENGTH, with_no_metastate},
+        commit::{CommitDigest, WAVE_LENGTH, max_commit_bytes, with_no_metastate},
         context::Context,
         dag_state::DataSource,
         leader_schedule::{LeaderSchedule, LeaderSwapTable},
-        storage::mem_store::MemStore,
+        storage::{Store, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
         transaction_ref::GenericTransactionRefAPI,
@@ -1029,6 +1031,7 @@ mod tests {
 
             let ack_authors = linearizer.get_transaction_ack_authors(round_references.clone());
             assert_eq!(ack_authors.len(), 4);
+            assert!(ack_authors.values().all(|authors| !authors.is_empty()));
         }
 
         linearizer.evict_linearizer(num_rounds);
@@ -1041,10 +1044,11 @@ mod tests {
                 .map(|bh| GenericTransactionRef::from(bh.reference()))
                 .collect();
             let ack_authors = linearizer.get_transaction_ack_authors(round_references.clone());
+            assert_eq!(ack_authors.len(), 4);
             if round <= num_rounds_to_evict {
-                assert!(ack_authors.is_empty());
+                assert!(ack_authors.values().all(BTreeSet::is_empty));
             } else {
-                assert_eq!(ack_authors.len(), 4);
+                assert!(ack_authors.values().all(|authors| !authors.is_empty()));
             }
         }
     }
@@ -1546,6 +1550,118 @@ mod tests {
         assert!(
             !contains_orphan,
             "Optimistic path must not commit a ref whose header is not traversed"
+        );
+    }
+
+    /// More than one header with the same payload shares one TransactionRef,
+    /// and the acknowledgers of each of them can serve that payload.
+    #[tokio::test]
+    async fn transaction_ack_authors_merge_headers_with_same_payload() {
+        telemetry_subscribers::init_for_testing();
+        let context = Arc::new(Context::new_for_test(4).0);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context, dag_state.clone(), leader_schedule);
+
+        let genesis: Vec<BlockRef> = dag_state
+            .read()
+            .genesis_block_headers()
+            .iter()
+            .map(|header| header.reference())
+            .collect();
+        let header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(1, 3)
+                .set_ancestors(genesis.clone())
+                .set_timestamp_ms(1_000)
+                .build(),
+        );
+        let other_header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(1, 3)
+                .set_ancestors(genesis)
+                .set_timestamp_ms(2_000)
+                .build(),
+        );
+        assert_eq!(header.transaction_ref(), other_header.transaction_ref());
+        assert_ne!(header.digest(), other_header.digest());
+
+        dag_state
+            .write()
+            .accept_block_header(header.clone(), DataSource::BlockStreaming);
+        for author in [0, 1] {
+            linearizer.add_committed_transaction_acks(
+                2,
+                AuthorityIndex::new_for_test(author),
+                &[header.reference()],
+            );
+        }
+        dag_state.write().accept_block_header(
+            other_header.clone(),
+            DataSource::HeaderSynchronizerRequested,
+        );
+        linearizer.add_committed_transaction_acks(
+            2,
+            AuthorityIndex::new_for_test(2),
+            &[other_header.reference()],
+        );
+
+        let tx_ref = GenericTransactionRef::from(header.transaction_ref());
+        let ack_authors = linearizer.get_transaction_ack_authors(vec![tx_ref]);
+        assert_eq!(
+            ack_authors[&tx_ref],
+            (0..3).map(AuthorityIndex::new_for_test).collect()
+        );
+    }
+
+    /// A leader with no commit in the `gc_depth` rounds below it has the
+    /// largest sub-DAG: itself plus every block of those rounds. Its commit
+    /// fits `max_commit_bytes`.
+    #[tokio::test]
+    async fn maximal_sub_dag_fits_max_commit_bytes() {
+        let num_authorities = 4;
+        let gc_depth = 3;
+        let mut context = Context::new_for_test(num_authorities).0;
+        context.protocol_config.set_gc_depth_for_testing(gc_depth);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+
+        let leader_round = gc_depth + 1;
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder
+            .layers(1..=leader_round)
+            .build()
+            .persist_layers(dag_state.clone());
+        let leader = dag_builder
+            .leader_block(leader_round)
+            .expect("leader block should exist");
+
+        let subdags = linearizer.get_pending_sub_dags(with_no_metastate(vec![leader]));
+        assert_eq!(subdags.len(), 1);
+        let max_subdag_blocks = gc_depth as usize * num_authorities + 1;
+        assert_eq!(subdags[0].headers.len(), max_subdag_blocks);
+
+        dag_state.write().flush();
+        let commit = store
+            .read_last_commit()
+            .expect("store read should succeed")
+            .expect("commit should be stored");
+        assert_eq!(commit.block_headers().len(), max_subdag_blocks);
+        assert!(
+            commit.serialized().len() <= max_commit_bytes(num_authorities, gc_depth as usize),
+            "a commit of {} bytes exceeds the bound of {} bytes",
+            commit.serialized().len(),
+            max_commit_bytes(num_authorities, gc_depth as usize),
         );
     }
 }

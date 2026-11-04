@@ -118,28 +118,27 @@ impl CommitObserver {
         observer
     }
 
-    /// Reinitialize the CommitObserver at a new commit index.
-    /// Uses the existing `recover_and_send_commits` method which handles:
-    /// - Recovering linearizer state (transaction ack tracker, traversed headers)
-    /// - Only re-sends commits that are > last_commit_index (none in this case)
-    pub(crate) async fn reinitialize(
-        &mut self,
-        last_commit_index: CommitIndex,
-    ) -> ConsensusResult<()> {
+    /// Reinitializes the CommitObserver after fast sync. Stored commits above
+    /// the last one sent to execution are sent once their transactions are
+    /// available.
+    pub(crate) async fn reinitialize(&mut self) -> ConsensusResult<()> {
         let now = Instant::now();
 
         // Clear linearizer state
         self.linearizer.clear_state();
-        self.last_sent_commit_index = last_commit_index;
 
-        // Reuse existing recovery logic - it won't resend commits since
-        // they're all <= last_commit_index
-        self.recover_and_send_commits(last_commit_index, CommittedSubDagSource::FastCommitSyncer)
-            .await?;
+        let last_sent_commit_index = self.last_sent_commit_index;
+        self.recover_and_send_commits(
+            last_sent_commit_index,
+            CommittedSubDagSource::FastCommitSyncer,
+        )
+        .await?;
 
         info!(
-            "CommitObserver reinitialized at commit index {}, took {:?}",
-            last_commit_index,
+            "CommitObserver reinitialized: commits up to {} were already sent to execution, \
+             recovery sent up to {}, took {:?}",
+            last_sent_commit_index,
+            self.last_sent_commit_index,
             now.elapsed()
         );
         Ok(())

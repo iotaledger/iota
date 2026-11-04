@@ -33,7 +33,10 @@ impl AuthenticatorTrait for MultisigAggregatedSignature {
         let verifier = MultisigVerifier::new()
             .with_address(multisig_address)
             .with_accept_passkey_in_multisig(verify_params.accept_passkey_in_multisig)
-            .with_additional_multisig_checks(verify_params.additional_multisig_checks);
+            .with_additional_multisig_checks(verify_params.additional_multisig_checks)
+            .with_reject_partially_signed_mixed_ed25519(
+                verify_params.reject_partially_signed_mixed_ed25519_multisig,
+            );
 
         verifier
             .verify(&digest, self)

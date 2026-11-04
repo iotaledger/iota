@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::{Verifier, simple::SimpleVerifier};
 use iota_sdk_types::{
     Address, UserSignature,
@@ -15,14 +16,29 @@ use crate::error::{IotaError, IotaResult};
 pub struct VerifyParams {
     pub accept_passkey_in_multisig: bool,
     pub additional_multisig_checks: bool,
+    pub reject_partially_signed_mixed_ed25519_multisig: bool,
 }
 
 impl VerifyParams {
-    pub fn new(accept_passkey_in_multisig: bool, additional_multisig_checks: bool) -> Self {
+    pub fn new(
+        accept_passkey_in_multisig: bool,
+        additional_multisig_checks: bool,
+        reject_partially_signed_mixed_ed25519_multisig: bool,
+    ) -> Self {
         Self {
             accept_passkey_in_multisig,
             additional_multisig_checks,
+            reject_partially_signed_mixed_ed25519_multisig,
         }
+    }
+
+    /// The parameters the network applies at `config`'s protocol version.
+    pub fn from_protocol_config(config: &ProtocolConfig) -> Self {
+        Self::new(
+            config.accept_passkey_in_multisig(),
+            config.additional_multisig_checks(),
+            config.reject_partially_signed_mixed_ed25519_multisig(),
+        )
     }
 }
 

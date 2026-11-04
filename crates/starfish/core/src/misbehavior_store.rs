@@ -337,10 +337,10 @@ impl MisbehaviorStore {
         }
     }
 
-    /// Attributes a fetch response the collector rejected to the peer that
-    /// served it: the peer is both the sender and the only party the error
-    /// can name. The block classifier decides the fault type, leaving
-    /// transport failures untracked.
+    /// Attributes a rejected fetch response to the peer that served it: the
+    /// peer is both the sender and the only party the error can name. The
+    /// block classifier decides the fault type, leaving transport failures
+    /// untracked.
     pub(crate) fn record_fetch_fault(&self, peer: AuthorityIndex, error: &ConsensusError) {
         self.record_faulty_block(peer, peer, error);
     }
@@ -375,7 +375,10 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // block that repeats or lowers the peer's own round is charged the
         // same way: the signed header proves authorship, not the send order.
         // So is a fetch response with more entries than the request allows,
-        // or with an entry larger than any valid one.
+        // with an entry larger than any valid one, or with commits after its
+        // transactions. So is a commit-sync response an honest server never
+        // sends: it serves only the certified commit chain it stores, with the
+        // first commit's transactions whole.
         ConsensusError::WrongEpoch { .. }
         | ConsensusError::UnexpectedGenesisHeader
         | ConsensusError::UnexpectedAuthority(..)
@@ -394,7 +397,16 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::TooManyCommitsFromPeer { .. }
         | ConsensusError::TooManyCommitVoteHeaders { .. }
         | ConsensusError::SerializedBlockHeaderTooLarge { .. }
-        | ConsensusError::StreamedBlockRoundNotIncreasing { .. } => FaultType::Unprovable,
+        | ConsensusError::StreamedBlockRoundNotIncreasing { .. }
+        | ConsensusError::CommitDataAfterTransactions { .. }
+        | ConsensusError::MalformedCommit(_)
+        | ConsensusError::WrongCommitVersionForFlags { .. }
+        | ConsensusError::InvalidAuthorityIndexRequested { .. }
+        | ConsensusError::UnexpectedStartCommit { .. }
+        | ConsensusError::UnexpectedCommitSequence { .. }
+        | ConsensusError::NotEnoughCommitVotes { .. }
+        | ConsensusError::FetchedTransactionsMismatch { .. }
+        | ConsensusError::TooManyCommitSyncEntries { .. } => FaultType::Unprovable,
 
         // Relayed bundle parts that are corrupt or invalid (framing,
         // additional-header round, shard structure/proof) or that the peer had
@@ -435,12 +447,11 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         ConsensusError::BlockHeaderEquivocation { .. }
 
         // Not attributable as misbehavior from a signed block alone: subjective
-        // rejections, commit-chain and commit-sync inconsistencies, fetch-shape
-        // mismatches, reconstruction and encoder failures, storage, network
+        // rejections, commit-sync inconsistencies, fetch-shape mismatches,
+        // reconstruction and encoder failures, storage, network
         // transport, request-shape checks, local lifecycle signals, and version
         // mismatches that may stem from a benign upgrade misconfiguration rather
         // than a faulty peer.
-        | ConsensusError::MalformedCommit(_)
         | ConsensusError::UnexpectedGenesisRequested { .. }
         | ConsensusError::NotEnoughHeadersFetched { .. }
         | ConsensusError::UnexpectedLastOwnHeader { .. }
@@ -449,9 +460,9 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // tracked again here.
         | ConsensusError::UnrequestedTransactionFetched { .. }
         | ConsensusError::UnexpectedTransactionForCommit { .. }
+        | ConsensusError::TransactionsOutOfCommitOrder { .. }
         | ConsensusError::TooManyAuthoritiesProvided(_)
         | ConsensusError::InvalidSizeOfHighestAcceptedRounds(..)
-        | ConsensusError::InvalidAuthorityIndexRequested { .. }
         | ConsensusError::TransactionCommitmentMismatch { .. }
         | ConsensusError::SynchronizerSaturated(_)
         | ConsensusError::TransactionSynchronizerSaturated
@@ -460,12 +471,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::MissingBlockHeader { .. }
         | ConsensusError::CommitRangeExceededAfterScanning { .. }
         | ConsensusError::NoCommitReceived { .. }
-        | ConsensusError::UnexpectedStartCommit { .. }
-        | ConsensusError::UnexpectedCommitSequence { .. }
-        | ConsensusError::NotEnoughCommitVotes { .. }
-        | ConsensusError::SerializedCommitTooLarge { .. }
+        | ConsensusError::TooManyCommitBytes { .. }
         | ConsensusError::InvalidCommitRange { .. }
-        | ConsensusError::FetchedTransactionsMismatch { .. }
         | ConsensusError::RocksDBFailure(_)
         | ConsensusError::NetworkConfig(_)
         | ConsensusError::NetworkClientConnection(_)
@@ -484,9 +491,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::FailedToFetchBlockHeaders { .. }
         | ConsensusError::MissingVotingBlockHeaderInStorage { .. }
         | ConsensusError::WrongShardVersion { .. }
-        | ConsensusError::WrongCommitVersionForFlags { .. }
         | ConsensusError::WrongBlockHeaderVersionForFlag { .. }
-        | ConsensusError::OversizedCommitAlreadyServed
         | ConsensusError::TransactionsNotAvailable { .. } => FaultType::Untracked,
     }
 }
@@ -817,6 +822,7 @@ mod tests {
     use super::*;
     use crate::{
         block_header::{BlockHeaderDigest, BlockRef},
+        commit::{Commit, CommitV3},
         context::Context,
         dag_state::{DagState, DataSource},
         error::ConsensusError,
@@ -1383,6 +1389,41 @@ mod tests {
                 round: 4,
                 last_round: 5,
             },
+            ConsensusError::TooManyCommitSyncEntries {
+                peer: AuthorityIndex::new_for_test(0),
+                limit: 4,
+            },
+            // Commit lists an honest server never sends.
+            ConsensusError::MalformedCommit(bcs::Error::Custom("bad".to_string())),
+            ConsensusError::WrongCommitVersionForFlags {
+                actual: "V2",
+                starfish_speed: true,
+            },
+            ConsensusError::InvalidAuthorityIndexRequested {
+                index: AuthorityIndex::new_for_test(4),
+                max: 4,
+                peer: AuthorityIndex::new_for_test(0),
+            },
+            ConsensusError::UnexpectedStartCommit {
+                peer: AuthorityIndex::new_for_test(0),
+                start: 1,
+                commit: Box::new(Commit::V3(CommitV3::default())),
+            },
+            ConsensusError::UnexpectedCommitSequence {
+                peer: AuthorityIndex::new_for_test(0),
+                prev_commit: Box::new(Commit::V3(CommitV3::default())),
+                curr_commit: Box::new(Commit::V3(CommitV3::default())),
+            },
+            ConsensusError::NotEnoughCommitVotes {
+                stake: 0,
+                peer: AuthorityIndex::new_for_test(0),
+                commit: Box::new(Commit::V3(CommitV3::default())),
+            },
+            ConsensusError::FetchedTransactionsMismatch {
+                peer: AuthorityIndex::new_for_test(0),
+                expected: 3,
+                received: 1,
+            },
         ];
         for e in cases {
             let (prov, unprov, bundle) = classify_via_record(e);
@@ -1436,33 +1477,27 @@ mod tests {
 
     #[tokio::test]
     async fn test_untracked_errors() {
-        // Subjective rejections, commit-chain inconsistencies, and fetch-shape
-        // errors are not block header faults — they belong to separate metrics
-        // and should not increment the faulty_blocks counters.
+        // Subjective rejections, commit lists an honest server can send, and
+        // fetch-shape errors are not block header faults — they belong to
+        // separate metrics and should not increment the faulty_blocks counters.
         let authority = AuthorityIndex::new_for_test(1);
         let cases: &[ConsensusError] = &[
             ConsensusError::BlockRejected {
                 block_ref: BlockRef::MIN,
                 reason: "test".to_string(),
             },
-            // Commit-chain inconsistencies.
+            // Commit lists an honest server can send.
             ConsensusError::NoCommitReceived { peer: authority },
-            ConsensusError::MalformedCommit(bcs::Error::Custom("bad".to_string())),
-            ConsensusError::SerializedCommitTooLarge {
+            ConsensusError::TooManyCommitBytes {
                 peer: authority,
                 size: 2,
                 limit: 1,
             },
-            // Fetch shortfalls (client-side truncation can produce them).
+            // Fetch shortfall (client-side truncation can produce it).
             ConsensusError::NotEnoughHeadersFetched {
                 peer: authority,
                 requested: 5,
                 received: 3,
-            },
-            ConsensusError::FetchedTransactionsMismatch {
-                peer: authority,
-                expected: 3,
-                received: 1,
             },
             // Version mismatch may be a benign upgrade misconfiguration, so it
             // is not charged as misbehavior.

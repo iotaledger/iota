@@ -23,14 +23,13 @@ mod checked {
     use iota_types::{
         auth_context,
         base_types::{
-            MoveLegacyTxContext, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR,
-            TxContext, TxContextKind,
+            MoveLegacyTxContext, RESOLVED_ASCII_STR, RESOLVED_IOTA_ID, RESOLVED_STD_OPTION,
+            RESOLVED_UTF8_STR, TxContext, TxContextKind,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, IotaError, command_argument_error},
         execution::{ExecutionTiming, ResultWithTimings},
         execution_config_utils::to_binary_config,
-        id::RESOLVED_IOTA_ID,
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
@@ -1346,6 +1345,14 @@ mod checked {
             (Visibility::Private | Visibility::Friend, false)
                 if Mode::allow_arbitrary_function_calls() =>
             {
+                // A non-public native trusts its Move callers to check its
+                // arguments.
+                if fdef.is_native() && !Mode::allow_non_public_native_calls() {
+                    return Err(ExecutionError::new_with_source(
+                        ExecutionErrorKind::NonEntryFunctionInvoked,
+                        "Cannot call a non-public native function directly",
+                    ));
+                }
                 FunctionKind::NonEntry
             }
             (Visibility::Private | Visibility::Friend, false) => {

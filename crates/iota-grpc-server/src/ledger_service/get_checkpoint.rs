@@ -92,9 +92,9 @@ use crate::{
     transaction_filter::TransactionFilter, types::CheckpointStreamResult,
 };
 
-/// Helper function to convert proto filters to internal filters and validate
-/// their complexity
-fn convert_and_validate_filters(
+/// Converts the proto filters to internal filters. Returns `invalid_argument`
+/// if a filter is malformed or exceeds the depth or size limits.
+fn convert_filters(
     transactions_filter: Option<iota_grpc_types::v1::filter::TransactionFilter>,
     events_filter: Option<iota_grpc_types::v1::filter::EventFilter>,
 ) -> Result<(Option<TransactionFilter>, Option<EventFilter>), Status> {
@@ -108,18 +108,6 @@ fn convert_and_validate_filters(
         .map(EventFilter::try_from)
         .transpose()
         .map_err(|e| Status::invalid_argument(format!("invalid event filter: {e}")))?;
-
-    // Validate filter complexity
-    if let Some(ref filter) = transaction_filter {
-        filter
-            .validate_complexity()
-            .map_err(Status::invalid_argument)?;
-    }
-    if let Some(ref filter) = event_filter {
-        filter
-            .validate_complexity()
-            .map_err(Status::invalid_argument)?;
-    }
 
     Ok((transaction_filter, event_filter))
 }
@@ -266,7 +254,7 @@ pub(crate) fn get_checkpoint(
 
     // Convert proto filters to internal filters and validate complexity
     let (transaction_filter, event_filter) =
-        convert_and_validate_filters(req.transactions_filter, req.events_filter)?;
+        convert_filters(req.transactions_filter, req.events_filter)?;
 
     if transaction_filter.is_some() && transactions_mask.is_none() {
         return Err(Status::invalid_argument(
@@ -366,7 +354,7 @@ pub(crate) fn stream_checkpoints(
 
     // Convert proto filters to internal filters and validate complexity
     let (transaction_filter, event_filter) =
-        convert_and_validate_filters(req.transactions_filter, req.events_filter)?;
+        convert_filters(req.transactions_filter, req.events_filter)?;
 
     // Validate filter_checkpoints constraints
     if filter_checkpoints && transaction_filter.is_none() && event_filter.is_none() {
@@ -410,7 +398,30 @@ pub(crate) fn stream_checkpoints(
 
 #[cfg(test)]
 mod tests {
+    use iota_grpc_types::v1::filter as proto_filter;
+
     use super::*;
+    use crate::constants::MAX_FILTER_DEPTH;
+
+    #[test]
+    fn filters_over_the_limits_are_invalid_arguments() {
+        let mut filter = proto_filter::TransactionFilter::default();
+        filter.filter = Some(proto_filter::transaction_filter::Filter::TransactionKinds(
+            Default::default(),
+        ));
+        for _ in 0..=MAX_FILTER_DEPTH {
+            let mut not = proto_filter::NotTransactionFilter::default();
+            not.filter = Some(Box::new(filter));
+            filter = proto_filter::TransactionFilter::default();
+            filter.filter = Some(proto_filter::transaction_filter::Filter::Negation(
+                Box::new(not),
+            ));
+        }
+
+        let status = convert_filters(Some(filter), None).unwrap_err();
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+        assert!(status.message().contains("levels"), "{}", status.message());
+    }
 
     #[test]
     fn default_read_mask_paths_are_valid() {

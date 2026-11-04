@@ -70,38 +70,6 @@ policy-config:
   dry-run: false
 ```
 
-### (Optional) RemoteFirewallConfig
-
-For more advanced setups, you can delegate blocking to an external firewall:
-
-```yaml
-# The following parameters are defined in the RemoteFirewallConfig struct, which
-# allows you to delegate traffic blocking to an external firewall service. This is
-# useful for more advanced setups where you want to integrate with existing
-# firewall infrastructure or need more sophisticated blocking capabilities beyond
-# what the built-in traffic controller provides.
-firewall-config:
-  # URL of the remote firewall service
-  remote-fw-url: "http://127.0.0.1:65000"
-  
-  # Destination port to block
-  
-  destination-port: 8080
-  # Whether to delegate spam blocking to the firewall
-  delegate-spam-blocking: true
-  
-  # Whether to delegate error blocking to the firewall
-  delegate-error-blocking: false
-  
-  # Path to the drain file for dead man's switch
-  drain-path: "/tmp/drain"
-  
-  # Timeout in seconds after which the dead man's switch is triggered
-  drain-timeout-secs: 300
-```
-
-While `dry-run` is enabled, the node sends no blocks to the firewall. Set `dry-run: false` in `policy-config` to start delegating.
-
 The `burst-secs` key had the name `window-size-secs` before. The node continues to accept the old name, but the old name is deprecated. Change your configuration to `burst-secs`.
 
 ## Non-Proxy Mode Configuration
@@ -237,10 +205,8 @@ After enabling the `TrafficController`, monitor your node's metrics to ensure le
 - `connection_ip_blocklist_len`
 - `proxy_ip_blocklist_len`
 - `requests_blocked_at_protocol`
-- `blocks_delegated_to_firewall`
 - `traffic_control_num_dry_run_blocked_requests`
 - `traffic_control_unresolved_client_requests`
-- `firewall_delegation_overflow`
 - `connection_blocklist_ttl_sec`
 - `proxy_blocklist_ttl_sec`
 
@@ -258,4 +224,3 @@ If you're still experiencing DoS attacks:
 
 1. Decrease the thresholds.
 2. Increase the blocklist TTL values.
-3. Consider implementing an external firewall using the `firewall-config` option.

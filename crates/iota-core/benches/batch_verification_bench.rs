@@ -82,6 +82,7 @@ fn async_verifier_bench(c: &mut Criterion) {
                         metrics.clone(),
                         true, // accept_passkey_in_multisig
                         true, // additional_multisig_checks
+                        true, // reject_partially_signed_mixed_ed25519_multisig
                     ));
 
                     b.iter(|| {

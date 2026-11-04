@@ -124,7 +124,7 @@ async fn test_json_rpc_and_validator_listeners_are_measured() -> Result<(), anyh
 /// test is `cfg(msim)` because only the simulator has `IotaNode::gather_metrics`.
 #[cfg(msim)]
 #[sim_test]
-async fn test_grpc_api_responses_are_measured() -> Result<(), anyhow::Error> {
+async fn test_grpc_api_is_measured() -> Result<(), anyhow::Error> {
     use iota_grpc_types::v1::ledger_service::GetServiceInfoRequest;
 
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -145,6 +145,16 @@ async fn test_grpc_api_responses_are_measured() -> Result<(), anyhow::Error> {
         .map(|metric| metric.get_histogram().sample_count())
         .sum::<u64>();
     assert!(response_messages > 0, "no response message was measured");
+    let accepted_connections = families
+        .iter()
+        .filter(|family| family.name() == "node_grpc_inbound_connections_accepted")
+        .flat_map(|family| family.get_metric())
+        .map(|metric| metric.get_counter().value())
+        .sum::<f64>();
+    assert!(
+        accepted_connections > 0.0,
+        "no connection of the gRPC API was counted"
+    );
     assert!(
         families
             .iter()

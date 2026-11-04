@@ -290,7 +290,10 @@ impl From<tonic::Status> for RpcError {
 
 impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
     fn from(error: iota_types::quorum_driver_types::QuorumDriverError) -> Self {
-        use iota_types::{error::IotaError, quorum_driver_types::QuorumDriverError::*};
+        use iota_types::{
+            error::IotaError,
+            quorum_driver_types::{NON_RECOVERABLE_ERROR_MSG, QuorumDriverError::*},
+        };
         use itertools::Itertools;
 
         // gRPC mirror of the JSON-RPC `data.reason` discriminant.
@@ -351,7 +354,7 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
             }
             NonRecoverableTransactionError { errors } => {
                 let new_errors: Vec<String> = errors
-                    .into_iter()
+                    .iter()
                     .sorted_by(|(_, a, _), (_, b, _)| b.cmp(a))
                     .filter_map(|(err, _, _)| match &err {
                         IotaError::UserInput { error } => Some(error.to_string()),
@@ -365,10 +368,18 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                     })
                     .collect();
 
-                assert!(
-                    !new_errors.is_empty(),
-                    "NonRecoverableTransactionError should have at least one non-retryable error"
-                );
+                // The aggregator builds this variant only from errors with
+                // non-retryable stake, but rendering an error must never
+                // panic: fall back to the unfiltered list. Every error in it
+                // is then retryable, so the code is the one of a transient
+                // failure.
+                if new_errors.is_empty() {
+                    let error_list = errors.iter().map(|(err, _, _)| err.to_string()).join(", ");
+                    return RpcError::new(
+                        Code::Unavailable,
+                        format!("{NON_RECOVERABLE_ERROR_MSG}: {error_list}."),
+                    );
+                }
 
                 let error_list = new_errors.join(", ");
                 let error_msg = format!(
@@ -398,5 +409,24 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Missing indexes are a client-visible contract: `FailedPrecondition`,
+    /// both directly and through an anyhow chain.
+    #[test]
+    fn missing_indexes_render_as_failed_precondition() {
+        let expected: i32 = Code::FailedPrecondition.into();
+
+        let direct = RpcError::from(MissingIndexesError);
+        assert_eq!(direct.into_status_proto().code, expected);
+
+        let chained = anyhow::Error::from(MissingIndexesError).context("listing owned objects");
+        let via_chain = RpcError::from(chained);
+        assert_eq!(via_chain.into_status_proto().code, expected);
     }
 }

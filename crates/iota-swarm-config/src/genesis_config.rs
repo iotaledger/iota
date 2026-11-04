@@ -139,6 +139,7 @@ pub struct ValidatorGenesisConfigBuilder {
     /// testing on AWS.
     p2p_listen_ip_address: Option<IpAddr>,
     metrics_ip_address: Option<IpAddr>,
+    protocol_version: Option<ProtocolVersion>,
 }
 
 impl ValidatorGenesisConfigBuilder {
@@ -181,6 +182,13 @@ impl ValidatorGenesisConfigBuilder {
     /// testbed can scrape it, and localhost otherwise.
     pub fn with_metrics_ip_address(mut self, metrics_ip_address: IpAddr) -> Self {
         self.metrics_ip_address = Some(metrics_ip_address);
+        self
+    }
+
+    /// Stake the validator with the low stake threshold of
+    /// `protocol_version` rather than that of `ProtocolVersion::MAX`.
+    pub fn with_protocol_version(mut self, protocol_version: ProtocolVersion) -> Self {
+        self.protocol_version = Some(protocol_version);
         self
     }
 
@@ -253,12 +261,15 @@ impl ValidatorGenesisConfigBuilder {
             gas_price,
             commission_rate: DEFAULT_COMMISSION_RATE,
             primary_address,
-            // A test-wide protocol config override can replace even the MAX lookup
-            // with a pre-version-32 config where the threshold is absent, so fall
-            // back to the historical value.
-            stake: ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown)
-                .validator_low_stake_threshold_as_option()
-                .unwrap_or(PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD),
+            // Below protocol version 32 the threshold isn't present in the protocol
+            // config, and a test-wide protocol config override can replace even the
+            // MAX lookup with such a config, so fall back to the historical value.
+            stake: ProtocolConfig::get_for_version(
+                self.protocol_version.unwrap_or(ProtocolVersion::MAX),
+                Chain::Unknown,
+            )
+            .validator_low_stake_threshold_as_option()
+            .unwrap_or(PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD),
             name: None,
         }
     }

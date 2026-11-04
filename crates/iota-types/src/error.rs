@@ -385,6 +385,22 @@ pub enum UserInputError {
         argument_idx: usize,
         index: u16,
     },
+    #[error(
+        "Input object {object_id}{} can't be used: at the consensus commit that sequenced the transaction, it was already consumed, deleted, or didn't match what the transaction declared",
+        at_version(.version)
+    )]
+    InputObjectNotAvailableAtCommit {
+        object_id: ObjectId,
+        version: Option<Version>,
+    },
+}
+
+/// Formats `version` as " at version {version}", or as nothing when it is
+/// absent.
+fn at_version(version: &Option<Version>) -> String {
+    version
+        .map(|version| format!(" at version {version}"))
+        .unwrap_or_default()
 }
 
 /// Custom error type for Iota.
@@ -889,6 +905,9 @@ impl IotaError {
                     // Only ObjectNotFound and DependentPackageNotFound is potentially retryable
                     UserInputError::ObjectNotFound { .. } => true,
                     UserInputError::DependentPackageNotFound { .. } => true,
+                    // Every validator drops the transaction at the commit for
+                    // good, so a resubmission of it gets the same answer.
+                    UserInputError::InputObjectNotAvailableAtCommit { .. } => false,
                     _ => false,
                 }
             }
@@ -998,6 +1017,9 @@ pub fn categorize(error: &IotaError) -> ErrorCategory {
         IotaError::UserInput { error } => match error {
             UserInputError::ObjectNotFound { .. } => ErrorCategory::Aborted,
             UserInputError::DependentPackageNotFound { .. } => ErrorCategory::Aborted,
+            UserInputError::InputObjectNotAvailableAtCommit { .. } => {
+                ErrorCategory::InvalidTransaction
+            }
             _ => ErrorCategory::InvalidTransaction,
         },
         IotaError::InvalidSignature { .. }

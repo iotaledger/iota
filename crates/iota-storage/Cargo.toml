@@ -48,6 +48,7 @@ zstd = "0.13"
 iota-common.workspace = true
 iota-config.workspace = true
 iota-metrics.workspace = true
+iota-node-storage.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk-types.workspace = true
 iota-types.workspace = true

@@ -20,7 +20,10 @@ use iota_types::{
     auth_context::AuthContext,
     base_types::VersionDigest,
     committee::EpochId,
-    deny_list_v1::check_coin_deny_list_v1_during_execution,
+    deny_list_v1::{
+        check_coin_deny_list_v1_during_execution,
+        check_coin_deny_list_v1_for_sender_during_execution,
+    },
     effects::TransactionEffectsExt,
     error::{ExecutionError, IotaResult},
     execution::{
@@ -1145,6 +1148,27 @@ impl Storage for TemporaryStore<'_> {
                 .insert(ObjectId::DENY_LIST);
         }
         result
+    }
+
+    fn check_received_coin_deny_list(
+        &self,
+        sender: Address,
+        coin_types: BTreeSet<String>,
+    ) -> Result<(), ExecutionError> {
+        // The outcome depends on the deny list as soon as one coin type is
+        // looked up, so the deny list is recorded as read, as for written
+        // coins in `check_coin_deny_list`.
+        if !coin_types.is_empty() && !self.input_objects.contains_key(&ObjectId::DENY_LIST) {
+            self.loaded_per_epoch_config_objects
+                .write()
+                .insert(ObjectId::DENY_LIST);
+        }
+        check_coin_deny_list_v1_for_sender_during_execution(
+            sender,
+            coin_types,
+            self.cur_epoch,
+            self.store.as_object_store(),
+        )
     }
 
     fn read_auth_context(&self) -> Option<Rc<RefCell<AuthContext>>> {

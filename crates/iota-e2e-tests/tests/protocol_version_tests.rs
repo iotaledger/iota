@@ -73,15 +73,16 @@ mod sim_only_tests {
     use iota_macros::*;
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_protocol_config::Chain;
+    use iota_sdk_move_types::iota_framework::object::ID;
     use iota_sdk_types::{
         Address, Command, Identifier, MoveCall, ObjectId, ObjectReference, Owner,
         ProgrammableTransaction, Transaction, TransactionDigest, TransactionEffects,
         TransactionKind, Version,
     };
     use iota_types::{
+        IOTA_TRANSACTION_DENY_RULES_OBJECT_ID,
         base_types::ConciseableName,
         effects::TransactionEffectsAPI,
-        id::ID,
         iota_system_state::{
             IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1, IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V1,
             IOTA_SYSTEM_STATE_SIM_TEST_V1, IotaSystemState, IotaSystemStateTrait,
@@ -421,6 +422,7 @@ mod sim_only_tests {
                         ObjectId::CLOCK,
                         ObjectId::AUTHENTICATOR_STATE,
                         ObjectId::RANDOMNESS_STATE,
+                        IOTA_TRANSACTION_DENY_RULES_OBJECT_ID,
                     ]
                     .contains(&obj.reference().object_id);
                     (!is_framework_obj).then_some(obj.reference().object_id)

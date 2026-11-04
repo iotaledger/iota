@@ -153,16 +153,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
             );
 
         let route_layers = ServiceBuilder::new()
-            .map_request(|mut request: http::Request<_>| {
-                if let Some(connect_info) = request.extensions().get::<iota_http::ConnectInfo>() {
-                    let tonic_connect_info = tonic::transport::server::TcpConnectInfo {
-                        local_addr: Some(connect_info.local_addr),
-                        remote_addr: Some(connect_info.remote_addr),
-                    };
-                    request.extensions_mut().insert(tonic_connect_info);
-                }
-                request
-            })
+            .map_request(insert_tonic_connect_info)
             .layer(RequestLifetimeLayer { metrics_provider })
             .layer(SetRequestHeaderLayer::overriding(
                 GRPC_ENDPOINT_PATH_HEADER.clone(),
@@ -232,6 +223,20 @@ impl Server {
     }
 }
 
+/// Copies the client address and the listener address of a connection served
+/// by iota-http into tonic's `TcpConnectInfo`, which
+/// `tonic::Request::remote_addr` reads.
+pub fn insert_tonic_connect_info<B>(mut request: Request<B>) -> Request<B> {
+    if let Some(connect_info) = request.extensions().get::<iota_http::ConnectInfo>() {
+        let tonic_connect_info = tonic::transport::server::TcpConnectInfo {
+            local_addr: Some(connect_info.local_addr),
+            remote_addr: Some(connect_info.remote_addr),
+        };
+        request.extensions_mut().insert(tonic_connect_info);
+    }
+    request
+}
+
 fn update_tcp_port_in_multiaddr(addr: &Multiaddr, port: u16) -> Multiaddr {
     addr.replace(1, |protocol| {
         if let Protocol::Tcp(_) = protocol {
@@ -257,6 +262,26 @@ mod test {
     use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
 
     use crate::{Multiaddr, config::Config, metrics::MetricsCallbackProvider};
+
+    #[test]
+    fn insert_tonic_connect_info_copies_both_addresses() {
+        let local_addr = "127.0.0.1:1".parse().unwrap();
+        let remote_addr = "127.0.0.2:2".parse().unwrap();
+        let mut request = http::Request::new(());
+        request.extensions_mut().insert(iota_http::ConnectInfo {
+            local_addr,
+            remote_addr,
+        });
+
+        let request = super::insert_tonic_connect_info(request);
+
+        let connect_info = request
+            .extensions()
+            .get::<tonic::transport::server::TcpConnectInfo>()
+            .unwrap();
+        assert_eq!(connect_info.local_addr(), Some(local_addr));
+        assert_eq!(connect_info.remote_addr(), Some(remote_addr));
+    }
 
     #[tokio::test]
     async fn test_metrics_layer_successful() {
@@ -768,6 +793,65 @@ mod test {
         for request in in_flight {
             request.abort();
         }
+        server.server_handle.shutdown().await;
+    }
+
+    /// A request path that is valid UTF-8 but not visible ASCII cannot be read
+    /// back from the path header, so the metrics get "invalid" instead of the
+    /// server panicking.
+    #[tokio::test]
+    async fn non_ascii_path_is_answered_and_reported_as_invalid() {
+        #[derive(Clone, Default)]
+        struct ResponsePaths(Arc<Mutex<Vec<String>>>);
+
+        impl MetricsCallbackProvider for ResponsePaths {
+            fn on_request(&self, _path: String) {}
+
+            fn on_response(
+                &self,
+                path: String,
+                _latency: Duration,
+                _status: u16,
+                _grpc_status_code: Code,
+            ) {
+                self.0.lock().unwrap().push(path);
+            }
+        }
+
+        let paths = ResponsePaths::default();
+        let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
+        let server = Config::new()
+            .server_builder_with_metrics(paths.clone())
+            .bind(&address, None)
+            .await
+            .unwrap();
+
+        let stream = tokio::net::TcpStream::connect(server.local_addr().to_socket_addr().unwrap())
+            .await
+            .unwrap();
+        let (mut sender, connection) = hyper::client::conn::http2::handshake(
+            hyper_util::rt::TokioExecutor::new(),
+            hyper_util::rt::TokioIo::new(stream),
+        )
+        .await
+        .unwrap();
+        tokio::spawn(connection);
+
+        let response = sender
+            .send_request(
+                http::Request::post("/é")
+                    .header("content-type", "application/grpc")
+                    .body(TestBody::Empty)
+                    .unwrap(),
+            )
+            .await
+            .expect("the server must answer a request with a non-ASCII path");
+        assert_eq!(
+            response.headers()["grpc-status"],
+            (Code::Unimplemented as i32).to_string()
+        );
+        assert_eq!(*paths.0.lock().unwrap(), ["invalid"]);
+
         server.server_handle.shutdown().await;
     }
 }

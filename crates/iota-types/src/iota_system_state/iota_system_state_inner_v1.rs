@@ -8,7 +8,8 @@ use iota_multiaddr::Multiaddr;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
 use iota_sdk_move_types::{
     iota_framework::{
-        bag::Bag, system_admin_cap::IotaSystemAdminCap, vec_map::VecMap, vec_set::VecSet,
+        bag::Bag, object::ID, system_admin_cap::IotaSystemAdminCap, vec_map::VecMap,
+        vec_set::VecSet,
     },
     iota_system::iota_system_state_inner::SystemParametersV1,
 };
@@ -36,7 +37,6 @@ use crate::{
     },
     error::IotaError,
     gas_coin::IotaTreasuryCap,
-    id::ID,
     storage::ObjectStore,
 };
 

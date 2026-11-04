@@ -10,7 +10,6 @@ description = "Rate limiting and IP blocking for the IOTA node RPC endpoints"
 [dependencies]
 # external dependencies
 arc-swap.workspace = true
-axum.workspace = true
 dashmap.workspace = true
 futures.workspace = true
 governor.workspace = true
@@ -18,10 +17,7 @@ http.workspace = true
 lru.workspace = true
 parking_lot.workspace = true
 rand.workspace = true
-reqwest.workspace = true
-rustls.workspace = true
-serde.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "net"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 tokio-util.workspace = true
 tracing.workspace = true
 
@@ -32,6 +28,11 @@ iota-types.workspace = true
 prometheus-filtered.workspace = true
 
 [dev-dependencies]
+# external dependencies
+serde_json.workspace = true
+tracing-subscriber.workspace = true
+
+# internal dependencies
 iota-macros.workspace = true
 
 [target.'cfg(msim)'.dependencies]

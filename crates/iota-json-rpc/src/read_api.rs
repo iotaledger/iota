@@ -7,7 +7,11 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use backoff::{ExponentialBackoff, future::retry};
-use futures::{StreamExt, TryStreamExt, future::join_all, stream};
+use futures::{
+    StreamExt, TryStreamExt,
+    future::{OptionFuture, join_all},
+    stream,
+};
 use indexmap::map::IndexMap;
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{
@@ -16,11 +20,11 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     BalanceChange, Checkpoint, CheckpointId, CheckpointPage, DisplayFieldsResponse, EventFilter,
-    IotaEvent, IotaGetPastObjectRequest, IotaMoveStruct, IotaMoveValue, IotaMoveVariant,
-    IotaObjectData, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError,
-    IotaPastObjectResponse, IotaTransactionBlock, IotaTransactionBlockEffects,
-    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    ObjectChange, ProtocolConfigResponse, iota_primitives::SequenceNumberU64,
+    IotaEvent, IotaGetPastObjectRequest, IotaMoveValue, IotaObjectData, IotaObjectDataOptions,
+    IotaObjectResponse, IotaObjectResponseError, IotaPastObjectResponse, IotaTransactionBlock,
+    IotaTransactionBlockEffects, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, MAX_DISPLAY_OUTPUT_SIZE, ObjectChange,
+    ProtocolConfigResponse, iota_primitives::SequenceNumberU64, render_display_template,
 };
 use iota_metrics::{add_server_timing, spawn_monitored_task};
 use iota_open_rpc::Module;
@@ -57,7 +61,6 @@ use crate::{
     logger::FutureWithTracing as _,
 };
 
-const MAX_DISPLAY_NESTED_LEVEL: usize = 10;
 /// Size of buffer of concurrent tasks
 const FUTURES_BUFFERED_SIZE: usize = 10;
 
@@ -234,14 +237,59 @@ impl ReadApi {
         if opts.require_effects() {
             trace!("getting effects");
             let digests_clone = digests.clone();
-            let effects_list = self.transaction_kv_store
-                .multi_get_fx_by_tx_digest(&digests_clone)
+            if opts.require_input() {
+                let effects_list = self.transaction_kv_store
+                    .multi_get_fx_by_tx_digest(&digests_clone)
+                    .await
+                    .tap_err(
+                        |err| debug!(digests=?digests_clone, "Failed to multi get effects for transactions: {:?}", err),
+                    )?;
+                for ((_digest, cache_entry), e) in temp_response.iter_mut().zip(effects_list) {
+                    cache_entry.effects = e;
+                }
+            } else {
+                // Fetch the transactions in the same round trip: existence is
+                // determined from the transaction, never from the effects.
+                let (transactions, effects_list) = self.transaction_kv_store
+                    .multi_get(&digests_clone, &digests_clone)
+                    .await
+                    .tap_err(
+                        |err| debug!(digests=?digests_clone, "Failed to multi get transactions and effects: {:?}", err),
+                    )?;
+                for ((_digest, cache_entry), (txn, e)) in temp_response
+                    .iter_mut()
+                    .zip(transactions.into_iter().zip(effects_list))
+                {
+                    cache_entry.transaction = txn;
+                    cache_entry.effects = e;
+                }
+            }
+        }
+
+        // An unknown digest gets a not-found error in its entry, the error
+        // the single-digest endpoint reports for it.
+        trace!("checking digest existence");
+        let missing: Vec<bool> = if opts.require_input() || opts.require_effects() {
+            temp_response
+                .values()
+                .map(|entry| entry.transaction.is_none())
+                .collect()
+        } else {
+            self.transaction_kv_store
+                .multi_get_tx(&digests)
                 .await
                 .tap_err(
-                    |err| debug!(digests=?digests_clone, "Failed to multi get effects for transactions: {:?}", err),
-                )?;
-            for ((_digest, cache_entry), e) in temp_response.iter_mut().zip(effects_list) {
-                cache_entry.effects = e;
+                    |err| debug!(digests=?digests, "Failed to multi get transactions: {:?}", err),
+                )?
+                .iter()
+                .map(|txn| txn.is_none())
+                .collect()
+        };
+        for ((digest, cache_entry), missing) in temp_response.iter_mut().zip(&missing) {
+            if *missing {
+                cache_entry
+                    .errors
+                    .push(IotaError::TransactionNotFound { digest: *digest }.to_string());
             }
         }
 
@@ -336,7 +384,10 @@ impl ReadApi {
             .into_iter();
 
             // fill cache with the events
-            for (_, cache_entry) in temp_response.iter_mut() {
+            for ((_, cache_entry), missing) in temp_response.iter_mut().zip(&missing) {
+                if *missing {
+                    continue;
+                }
                 let transaction_digest = cache_entry.digest;
                 if let Some(events_digest) =
                     cache_entry.effects.as_ref().and_then(|e| e.events_digest())
@@ -368,33 +419,40 @@ impl ReadApi {
         if opts.show_balance_changes {
             trace!("getting balance changes");
 
-            let mut results = vec![];
-            for resp in temp_response.values() {
-                let input_objects = if let Some(tx) = resp.transaction() {
-                    tx.data().transaction().input_objects().unwrap_or_default()
-                } else {
-                    // don't have the input tx, so not much we can do. perhaps this is an Err?
-                    Vec::new()
-                };
-                results.push(get_balance_changes_from_effect(
+            // An unknown digest keeps its not-found error. A known entry
+            // without effects gets its own error, and the other entries still
+            // answer.
+            let computations = temp_response.values().zip(&missing).map(|(resp, missing)| {
+                if *missing {
+                    return None;
+                }
+                let effects = resp.effects.as_ref()?;
+                let input_objects = resp
+                    .transaction()
+                    .as_ref()
+                    .map(|tx| tx.data().transaction().input_objects().unwrap_or_default())
+                    .unwrap_or_default();
+                Some(get_balance_changes_from_effect(
                     &object_cache,
-                    resp.effects.as_ref().ok_or_else(|| {
-                        IotaRpcInputError::GenericNotFound(
-                            "unable to derive balance changes because effect is empty".to_string(),
-                        )
-                    })?,
+                    effects,
                     input_objects,
                     None,
-                ));
-            }
-            let results = join_all(results).await;
-            for (result, entry) in results.into_iter().zip(temp_response.iter_mut()) {
+                ))
+            });
+            let results = join_all(computations.map(OptionFuture::from)).await;
+            for ((entry, missing), result) in temp_response.values_mut().zip(&missing).zip(results)
+            {
+                if *missing {
+                    continue;
+                }
                 match result {
-                    Ok(balance_changes) => entry.1.balance_changes = Some(balance_changes),
-                    Err(e) => entry
-                        .1
+                    Some(Ok(balance_changes)) => entry.balance_changes = Some(balance_changes),
+                    Some(Err(e)) => entry
                         .errors
                         .push(format!("Failed to fetch balance changes {e:?}")),
+                    None => entry.errors.push(
+                        "unable to derive balance changes because effect is empty".to_string(),
+                    ),
                 }
             }
         }
@@ -402,40 +460,35 @@ impl ReadApi {
         if opts.show_object_changes {
             trace!("getting object changes");
 
-            let mut results = vec![];
-            for resp in temp_response.values() {
-                let effects = resp.effects.as_ref().ok_or_else(|| {
-                    IotaRpcInputError::GenericNotFound(
-                        "unable to derive object changes because effect is empty".to_string(),
-                    )
-                })?;
-
-                results.push(get_object_changes(
+            let computations = temp_response.values().zip(&missing).map(|(resp, missing)| {
+                if *missing {
+                    return None;
+                }
+                let effects = resp.effects.as_ref()?;
+                let transaction = resp.transaction().as_ref()?;
+                Some(get_object_changes(
                     &object_cache,
-                    resp.transaction
-                        .as_ref()
-                        .ok_or_else(|| {
-                            IotaRpcInputError::GenericNotFound(
-                                "unable to derive object changes because transaction is empty"
-                                    .to_string(),
-                            )
-                        })?
-                        .data()
-                        .transaction()
-                        .sender(),
+                    transaction.data().transaction().sender(),
                     effects.modified_at_versions(),
                     effects.all_changed_objects(),
                     effects.all_removed_objects(),
-                ));
-            }
-            let results = join_all(results).await;
-            for (result, entry) in results.into_iter().zip(temp_response.iter_mut()) {
+                ))
+            });
+            let results = join_all(computations.map(OptionFuture::from)).await;
+            for ((entry, missing), result) in temp_response.values_mut().zip(&missing).zip(results)
+            {
+                if *missing {
+                    continue;
+                }
                 match result {
-                    Ok(object_changes) => entry.1.object_changes = Some(object_changes),
-                    Err(e) => entry
-                        .1
+                    Some(Ok(object_changes)) => entry.object_changes = Some(object_changes),
+                    Some(Err(e)) => entry
                         .errors
                         .push(format!("Failed to fetch object changes {e:?}")),
+                    None => entry.errors.push(
+                        "unable to derive object changes because effect or transaction is empty"
+                            .to_string(),
+                    ),
                 }
             }
         }
@@ -1030,6 +1083,7 @@ impl ReadApiServer for ReadApi {
                 data,
                 next_cursor,
                 has_next_page,
+                oldest_available_checkpoint: None,
             })
         }
         .trace()
@@ -1205,22 +1259,24 @@ pub fn get_rendered_fields(
 ) -> Result<DisplayFieldsResponse, ObjectDisplayError> {
     let iota_move_value: IotaMoveValue = MoveValue::Struct(move_struct.clone()).into();
     if let IotaMoveValue::Struct(move_struct) = iota_move_value {
-        let fields =
-            fields
-                .contents
-                .iter()
-                .map(|entry| match parse_template(&entry.value, &move_struct) {
-                    Ok(value) => Ok((entry.key.clone(), value)),
-                    Err(e) => Err(e),
-                });
+        let mut output_budget = MAX_DISPLAY_OUTPUT_SIZE;
+        let fields = fields.contents.iter().map(|entry| {
+            match render_display_template(&entry.value, &move_struct, &mut output_budget) {
+                Ok(value) => Ok((entry.key.clone(), value)),
+                Err(e) => Err(e),
+            }
+        });
         let (oks, errs): (Vec<_>, Vec<_>) = fields.partition(Result::is_ok);
         let success = oks.into_iter().filter_map(Result::ok).collect();
-        let errors: Vec<_> = errs.into_iter().filter_map(Result::err).collect();
-        let error_string = errors
-            .iter()
+        let mut errors: Vec<_> = errs
+            .into_iter()
+            .filter_map(Result::err)
             .map(|e| e.to_string())
-            .collect::<Vec<String>>()
-            .join("; ");
+            .collect();
+        // Once the output limit is reached, every remaining field fails with
+        // the same error.
+        errors.dedup();
+        let error_string = errors.join("; ");
         let error = if !error_string.is_empty() {
             Some(IotaObjectResponseError::Display {
                 error: anyhow!("{error_string}").to_string(),
@@ -1235,105 +1291,6 @@ pub fn get_rendered_fields(
         });
     }
     Err(ObjectDisplayError::NotMoveStruct)?
-}
-
-fn parse_template(template: &str, move_struct: &IotaMoveStruct) -> Result<String, Error> {
-    let mut output = template.to_string();
-    let mut var_name = String::new();
-    let mut in_braces = false;
-    let mut escaped = false;
-
-    for ch in template.chars() {
-        match ch {
-            '\\' => {
-                escaped = true;
-                continue;
-            }
-            '{' if !escaped => {
-                in_braces = true;
-                var_name.clear();
-            }
-            '}' if !escaped => {
-                in_braces = false;
-                let value = get_value_from_move_struct(move_struct, &var_name)?;
-                output = output.replace(&format!("{{{var_name}}}"), &value.to_string());
-            }
-            _ if !escaped && in_braces => {
-                var_name.push(ch);
-            }
-            _ => {}
-        }
-        escaped = false;
-    }
-
-    Ok(output.replace('\\', ""))
-}
-
-fn get_value_from_move_struct(
-    move_struct: &IotaMoveStruct,
-    var_name: &str,
-) -> Result<String, Error> {
-    let parts: Vec<&str> = var_name.split('.').collect();
-    if parts.is_empty() {
-        Err(anyhow!("Display template value cannot be empty"))?;
-    }
-    if parts.len() > MAX_DISPLAY_NESTED_LEVEL {
-        Err(anyhow!(
-            "Display template value nested depth cannot exist {MAX_DISPLAY_NESTED_LEVEL}"
-        ))?;
-    }
-    let mut current_value = &IotaMoveValue::Struct(move_struct.clone());
-    // iterate over the parts and try to access the corresponding field
-    for part in parts {
-        match current_value {
-            IotaMoveValue::Struct(move_struct) => {
-                if let IotaMoveStruct::WithTypes {
-                    struct_tag: _,
-                    fields,
-                }
-                | IotaMoveStruct::WithFields(fields) = move_struct
-                {
-                    if let Some(value) = fields.get(part) {
-                        current_value = value;
-                    } else {
-                        Err(anyhow!("Field value {var_name} cannot be found in struct"))?;
-                    }
-                } else {
-                    Err(Error::Unexpected(format!(
-                        "Unexpected move struct type for field {var_name}"
-                    )))?;
-                }
-            }
-            IotaMoveValue::Variant(IotaMoveVariant {
-                fields, variant, ..
-            }) => {
-                if let Some(value) = fields.get(part) {
-                    current_value = value;
-                } else {
-                    Err(anyhow!(
-                        "Field value {var_name} cannot be found in variant {variant}",
-                    ))?
-                }
-            }
-            _ => {
-                Err(Error::Unexpected(format!(
-                    "Unexpected move value type for field {var_name}"
-                )))?;
-            }
-        }
-    }
-
-    match current_value {
-        IotaMoveValue::Option(move_option) => match move_option.as_ref() {
-            Some(move_value) => Ok(move_value.to_string()),
-            None => Ok("".to_string()),
-        },
-        IotaMoveValue::Vector(_) => Err(anyhow!(
-            "Vector is not supported as a Display value {var_name}"
-        ))?,
-
-        _ => Ok(current_value.to_string()),
-    }
 }
 
 async fn convert_to_response<S: PackageStore>(

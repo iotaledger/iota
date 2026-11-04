@@ -9,7 +9,7 @@
 // treated the same way by every later update, so the snapshot does not depend
 // on that order.
 
-//# init --simulator --deny-rule-governance true
+//# init --simulator
 
 //# advance-epoch --create-deny-rules-object
 

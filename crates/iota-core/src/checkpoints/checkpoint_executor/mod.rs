@@ -23,12 +23,12 @@
 
 use std::{future::Future, sync::Arc, time::Instant};
 
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use iota_common::{debug_fatal, fatal};
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
-use iota_macros::fail_point;
+use iota_macros::{fail_point, fail_point_async};
 use iota_sdk_types::{
-    CheckpointContents, RandomnessRound, TransactionDigest, TransactionEffects,
+    CheckpointContents, CheckpointSummary, RandomnessRound, TransactionDigest, TransactionEffects,
     TransactionEffectsDigest, TransactionKind,
 };
 use iota_types::{
@@ -45,6 +45,7 @@ use iota_types::{
 };
 use parking_lot::Mutex;
 use tap::{TapFallible, TapOptional};
+use tokio::task::JoinError;
 use tracing::{debug, info, instrument};
 
 use crate::{
@@ -67,7 +68,9 @@ pub(crate) mod utils;
 #[cfg(test)]
 pub(crate) mod tests;
 
-use data_ingestion_handler::{load_checkpoint_data, store_checkpoint_locally};
+use data_ingestion_handler::{
+    load_checkpoint_data, load_epoch_boundary_data, store_checkpoint_locally,
+};
 use metrics::CheckpointExecutorMetrics;
 use utils::*;
 
@@ -77,6 +80,9 @@ type CheckpointDataSender = Box<dyn Fn(&CheckpointData) + Send + Sync>;
 pub enum StopReason {
     EpochComplete,
     RunWithRangeCondition,
+    /// The tokio runtime is shutting down and cancelled checkpoint execution
+    /// work.
+    RuntimeShutdown,
 }
 
 pub(crate) struct CheckpointExecutionData {
@@ -138,6 +144,10 @@ pub struct CheckpointExecutor {
     tps_estimator: Mutex<TPSEstimator>,
     checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     data_sender: Option<CheckpointDataSender>,
+    /// The next synced checkpoint whose randomness has not been forwarded
+    /// yet; `CheckpointSequenceNumber::MAX` once every synced checkpoint of
+    /// this epoch has been.
+    next_randomness_to_forward: Mutex<CheckpointSequenceNumber>,
 }
 
 impl CheckpointExecutor {
@@ -166,6 +176,7 @@ impl CheckpointExecutor {
             tps_estimator: Mutex::new(TPSEstimator::default()),
             checkpoint_progress_tracker,
             data_sender,
+            next_randomness_to_forward: Mutex::new(0),
         }
     }
 
@@ -280,21 +291,26 @@ impl CheckpointExecutor {
                 let pipeline_handle = async move { pipeline_stages.handle(seq).await };
                 tokio::spawn(this.execute_checkpoint(checkpoint, pipeline_handle))
                     .await
-                    .unwrap()
+                    .and_then(|result| result)
             }
         })
         .buffered(concurrency)
         // Take the last value from the stream to determine if we completed the epoch
-        .fold(false, |state, is_final_checkpoint| async move {
+        .try_fold(false, |state, is_final_checkpoint| async move {
             assert!(!state, "Cannot execute checkpoint after epoch end");
-            is_final_checkpoint
+            Ok(is_final_checkpoint)
         })
         .await;
 
-        if final_checkpoint_executed {
-            StopReason::EpochComplete
-        } else {
-            StopReason::RunWithRangeCondition
+        match final_checkpoint_executed {
+            Ok(true) => StopReason::EpochComplete,
+            Ok(false) => StopReason::RunWithRangeCondition,
+            Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
+            // Tasks are only cancelled when the runtime shuts down.
+            Err(e) => {
+                info!("Checkpoint execution cancelled by runtime shutdown: {e}");
+                StopReason::RuntimeShutdown
+            }
         }
     }
 }
@@ -307,7 +323,7 @@ impl CheckpointExecutor {
         self: Arc<Self>,
         checkpoint: VerifiedCheckpoint,
         pipeline_handle: impl Future<Output = PipelineHandle> + Send,
-    ) -> bool /* is final checkpoint */ {
+    ) -> Result<bool /* is final checkpoint */, JoinError> {
         debug!("executing checkpoint");
         let sequence_number = checkpoint.sequence_number;
         let is_last_checkpoint_of_epoch = checkpoint.is_last_checkpoint_of_epoch();
@@ -342,6 +358,39 @@ impl CheckpointExecutor {
             self.checkpoint_store
                 .notify_read_executed_checkpoint(sequence_number - 1)
                 .await;
+        }
+
+        // A committee validator that has not built the last checkpoint itself
+        // executes it from synced data like the checkpoints before, so it
+        // switches first.
+        if is_last_checkpoint_of_epoch
+            && self.epoch_store.pcool_bookkeeping_enabled()
+            && self
+                .checkpoint_store
+                .get_locally_computed_checkpoint(sequence_number)
+                .expect("db error")
+                .is_none()
+        {
+            self.epoch_store.start_executing_synced_checkpoints().await;
+        }
+
+        // The last checkpoint is executed from synced data even when this node
+        // built it, which schedules every transaction in it not executed yet.
+        // The epoch's last checkpoint is already known here, so the call below
+        // does not wait for the consensus handler: unless the handler has
+        // executed every transaction in it, the call switches this node to
+        // executing synced checkpoints.
+        if let Some((_, tx_data)) = loaded
+            .as_ref()
+            .filter(|_| is_last_checkpoint_of_epoch && self.epoch_store.pcool_bookkeeping_enabled())
+        {
+            let digests: Vec<_> = tx_data
+                .transactions
+                .iter()
+                .filter(|tx| !tx.transaction().is_end_of_epoch_tx())
+                .map(|tx| *tx.digest())
+                .collect();
+            self.wait_for_handler_execution(&checkpoint, &digests).await;
         }
 
         let _parallel_step_guard =
@@ -389,6 +438,13 @@ impl CheckpointExecutor {
         let mut ckpt_state = tokio::task::spawn_blocking({
             let this = self.clone();
             move || {
+                // Before the outputs, so no durable object lacks its
+                // bookkeeping. A transaction whose outputs are already durable
+                // is not in `batch` and needs nothing: its bookkeeping was
+                // written before them.
+                this.epoch_store
+                    .persist_checkpoint_bookkeeping(batch.0.iter().map(|outputs| &outputs.effects))
+                    .expect("the epoch tables should accept the checkpoint's bookkeeping batch");
                 // Commit all transaction effects to disk
                 let cache_commit = this.state.get_cache_commit();
                 debug!(?seq, "committing checkpoint transactions to disk");
@@ -400,8 +456,7 @@ impl CheckpointExecutor {
                 ckpt_state
             }
         })
-        .await
-        .unwrap();
+        .await?;
 
         finish_stage!(pipeline_handle, CommitTransactionOutputs);
 
@@ -465,9 +520,10 @@ impl CheckpointExecutor {
 
         // Nudge the pruner now that this checkpoint is executed and available;
         // pruning of aged-out data runs off the propagation path.
-        self.state
-            .pruner()
-            .nudge(ckpt_state.data.checkpoint.sequence_number());
+        self.state.pruner().nudge(
+            ckpt_state.data.checkpoint.sequence_number(),
+            self.epoch_store.object_pruning_limit(),
+        );
 
         finish_stage!(pipeline_handle, BumpHighestExecutedCheckpoint);
 
@@ -478,7 +534,7 @@ impl CheckpointExecutor {
         // Important: code after the last pipeline stage is finished can run out of
         // checkpoint order.
 
-        ckpt_state.data.checkpoint.is_last_checkpoint_of_epoch()
+        Ok(ckpt_state.data.checkpoint.is_last_checkpoint_of_epoch())
     }
 
     // On validators, checkpoints have often already been constructed locally, in
@@ -495,18 +551,15 @@ impl CheckpointExecutor {
         );
 
         let sequence_number = checkpoint.sequence_number;
-        let locally_built_checkpoint = self
-            .checkpoint_store
-            .get_locally_computed_checkpoint(sequence_number)
-            .expect("db error");
-
-        let Some(locally_built_checkpoint) = locally_built_checkpoint else {
-            // fall back to tx-by-tx execution path if we are catching up.
+        let Some(locally_built_checkpoint) =
+            self.wait_for_locally_built_checkpoint(&checkpoint).await
+        else {
             let (ckpt_state, tx_data) = self.load_checkpoint_transactions(checkpoint);
             return self
                 .execute_transactions_from_synced_checkpoint(ckpt_state, tx_data, pipeline_handle)
                 .await;
         };
+        fail_point_async!("execute-locally-built-checkpoint");
 
         self.metrics.checkpoint_executor_validator_path.inc();
 
@@ -516,22 +569,6 @@ impl CheckpointExecutor {
             &checkpoint,
             &self.checkpoint_store,
         );
-
-        // Checkpoint builder triggers accumulation of the checkpoint, so this is
-        // guaranteed to finish.
-        let state_hash = {
-            let _metrics_scope =
-                iota_metrics::monitored_scope("CheckpointExecutor::notify_read_state_hash");
-            self.epoch_store
-                .notify_read_checkpoint_state_hasher(&[sequence_number])
-                .await
-                .unwrap()
-                .pop()
-                .unwrap()
-        };
-
-        // Checkpoint builder triggers accumulation of the checkpoint, so this is
-        // guaranteed to finish.
 
         let checkpoint_contents = self
             .checkpoint_store
@@ -543,6 +580,63 @@ impl CheckpointExecutor {
             .iter()
             .map(|digests| (digests.transaction, digests.effects))
             .unzip();
+
+        let state_hash = if self.epoch_store.pcool_bookkeeping_enabled() {
+            if !self
+                .wait_for_handler_execution(&checkpoint, &tx_digests)
+                .await
+            {
+                let (ckpt_state, tx_data) = self.load_checkpoint_transactions(checkpoint);
+                return self
+                    .execute_transactions_from_synced_checkpoint(
+                        ckpt_state,
+                        tx_data,
+                        pipeline_handle,
+                    )
+                    .await;
+            }
+            // Every transaction of the checkpoint has executed here, so hash
+            // its effects now instead of waiting for the builder's hash. The
+            // builder saves a checkpoint's hash a moment after its summary, so
+            // a crash can leave the summary without it, and after the restart
+            // the builder rebuilds the checkpoint only once the consensus
+            // replay is done. The replay waits on this executor, through the
+            // handler's wait for fully executed commits, so waiting here for
+            // the builder could wait forever.
+            let effects: Vec<_> = self
+                .transaction_cache_reader
+                .multi_get_executed_effects(&tx_digests)
+                .into_iter()
+                .zip(&tx_digests)
+                .zip(&fx_digests)
+                .map(|((effects, tx_digest), expected_fx_digest)| {
+                    let effects = effects
+                        .expect("every transaction of a checkpoint this node built has executed");
+                    assert_not_forked(
+                        &checkpoint,
+                        tx_digest,
+                        expected_fx_digest,
+                        &effects.digest(),
+                        &*self.transaction_cache_reader,
+                    );
+                    effects
+                })
+                .collect();
+            self.global_state_hasher
+                .accumulate_checkpoint(&effects, sequence_number, &self.epoch_store)
+                .expect("epoch cannot have ended")
+        } else {
+            // Checkpoint builder triggers accumulation of the checkpoint, so
+            // this is guaranteed to finish.
+            let _metrics_scope =
+                iota_metrics::monitored_scope("CheckpointExecutor::notify_read_state_hash");
+            self.epoch_store
+                .notify_read_checkpoint_state_hasher(&[sequence_number])
+                .await
+                .unwrap()
+                .pop()
+                .unwrap()
+        };
 
         pipeline_handle
             .skip_to(PipelineStage::FinalizeTransactions)
@@ -564,6 +658,181 @@ impl CheckpointExecutor {
             },
             state_hash,
         )
+    }
+
+    /// Returns this node's own summary of `checkpoint`, waiting for the
+    /// checkpoint builder if needed. Returns `None` when the caller should
+    /// execute the synced checkpoint instead: always without
+    /// `enable_pcool_flow`; with it, for the genesis
+    /// checkpoint, and for any checkpoint once the certified last checkpoint of this epoch
+    /// is known, because peers then stop serving this epoch's consensus
+    /// commits. In that last case it first switches this node to executing
+    /// synced checkpoints for the rest of the epoch, which stops the consensus
+    /// handler and the checkpoint builder. Once switched, it returns `None`
+    /// for every checkpoint, built locally or not.
+    async fn wait_for_locally_built_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Option<CheckpointSummary> {
+        let seq = checkpoint.sequence_number;
+        let skip_synced_execution = self.epoch_store.protocol_config().enable_pcool_flow();
+        // Once switched, the builder no longer runs, so the state hash of a
+        // checkpoint it built may never be computed; the synced path computes
+        // it.
+        if skip_synced_execution && self.epoch_store.is_executing_synced_checkpoints() {
+            return None;
+        }
+        if let Some(summary) = self
+            .checkpoint_store
+            .get_locally_computed_checkpoint(seq)
+            .expect("db error")
+        {
+            return Some(summary);
+        }
+        if seq == 0 || !skip_synced_execution {
+            return None;
+        }
+        let epoch = self.epoch_store.epoch();
+        if self
+            .checkpoint_store
+            .get_epoch_last_checkpoint_seq_number(epoch)
+            .expect("db error")
+            .is_some()
+        {
+            self.epoch_store.start_executing_synced_checkpoints().await;
+            return None;
+        }
+        let _backpressure_guard = self.backpressure_manager.wait_for_local_build();
+        // The builder resolves every randomness round of a build before it
+        // writes any chunk of it, so the round this checkpoint waits for may
+        // only appear in a later synced chunk. Forward from all of them, each
+        // once per epoch.
+        let mut next_to_forward = (*self.next_randomness_to_forward.lock()).max(seq);
+        loop {
+            let highest_synced = self
+                .checkpoint_store
+                .get_highest_synced_checkpoint_seq_number()
+                .expect("db error")
+                .unwrap_or_default();
+            while next_to_forward <= highest_synced {
+                let synced = self
+                    .checkpoint_store
+                    .get_checkpoint_by_sequence_number(next_to_forward)
+                    .expect("db error")
+                    .expect("synced checkpoint should be in the store");
+                if synced.epoch() != epoch {
+                    next_to_forward = CheckpointSequenceNumber::MAX;
+                    break;
+                }
+                self.forward_randomness_from_checkpoint(synced);
+                next_to_forward += 1;
+                tokio::task::yield_now().await;
+            }
+            *self.next_randomness_to_forward.lock() = next_to_forward;
+            tokio::select! {
+                summary = self.checkpoint_store.notify_read_locally_computed_checkpoint(seq) => return Some(summary),
+                _ = self.checkpoint_store.notify_read_epoch_last_checkpoint_seq_number(epoch) => {
+                    self.epoch_store.start_executing_synced_checkpoints().await;
+                    return None;
+                }
+                _ = self.checkpoint_store.notify_read_synced_checkpoint(next_to_forward), if next_to_forward != CheckpointSequenceNumber::MAX => {}
+            }
+        }
+    }
+
+    /// Waits until every transaction in `digests`, all of `checkpoint`, has
+    /// executed, and returns `true`. Returns `false` once this node executes
+    /// synced checkpoints for the rest of the epoch instead, switching first
+    /// when the certified last checkpoint of the epoch becomes known.
+    ///
+    /// For a committee validator keeping the deterministic validation
+    /// bookkeeping, which writes a transaction's handler rows only when the
+    /// consensus handler has assigned its commit. Until the switch only the
+    /// handler schedules these transactions, so they execute with their rows.
+    /// Normally they have executed before this node built the checkpoint. A
+    /// checkpoint built before a restart is the exception: its outputs were
+    /// only in memory, and the handler executes them again only once it
+    /// replays their commits.
+    async fn wait_for_handler_execution(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+        digests: &[TransactionDigest],
+    ) -> bool {
+        if self.epoch_store.is_executing_synced_checkpoints() {
+            return false;
+        }
+        if self
+            .transaction_cache_reader
+            .multi_get_executed_effects_digests(digests)
+            .iter()
+            .all(Option::is_some)
+        {
+            return true;
+        }
+        let _backpressure_guard = self.backpressure_manager.wait_for_local_build();
+        // Peers drop their partial signatures for a round they completed, so
+        // the handler may get this checkpoint's randomness only from here.
+        self.forward_randomness_from_synced_contents(checkpoint);
+        let epoch = self.epoch_store.epoch();
+        tokio::select! {
+            biased;
+            _ = self.epoch_store.wait_for_synced_checkpoint_execution() => false,
+            _ = self.checkpoint_store.notify_read_epoch_last_checkpoint_seq_number(epoch) => {
+                self.epoch_store.start_executing_synced_checkpoints().await;
+                false
+            }
+            _ = self.transaction_cache_reader.notify_read_executed_effects_digests(
+                "CheckpointExecutor::wait_for_handler_execution",
+                digests,
+            ) => true,
+        }
+    }
+
+    /// [`Self::forward_randomness_from_checkpoint`] when state sync stored the
+    /// checkpoint's full contents; does nothing otherwise, since the
+    /// transactions of a checkpoint this node built may not be stored.
+    fn forward_randomness_from_synced_contents(&self, checkpoint: &VerifiedCheckpoint) {
+        let Some(reporter) = self.epoch_store.randomness_reporter() else {
+            return;
+        };
+        let Some(full_contents) = self
+            .checkpoint_store
+            .get_full_checkpoint_contents_by_sequence_number(checkpoint.sequence_number)
+        else {
+            return;
+        };
+        for execution_data in full_contents.iter() {
+            if let TransactionKind::RandomnessStateUpdate(rsu) =
+                execution_data.transaction.transaction().kind()
+            {
+                reporter
+                    .forward_randomness_from_checkpoint(rsu.randomness_round, &rsu.random_bytes);
+            }
+        }
+    }
+
+    fn forward_randomness_from_checkpoint(&self, checkpoint: VerifiedCheckpoint) {
+        let Some(reporter) = self.epoch_store.randomness_reporter() else {
+            return;
+        };
+        let contents = self
+            .checkpoint_store
+            .get_checkpoint_contents(&checkpoint.contents_digest)
+            .expect("db error")
+            .expect("checkpoint contents not found");
+        if self
+            .extract_randomness_rounds(&checkpoint, &contents)
+            .is_empty()
+        {
+            return;
+        }
+        let (_, tx_data) = self.load_checkpoint_transactions(checkpoint);
+        for tx in &tx_data.transactions {
+            if let TransactionKind::RandomnessStateUpdate(rsu) = tx.transaction().kind() {
+                reporter
+                    .forward_randomness_from_checkpoint(rsu.randomness_round, &rsu.random_bytes);
+            }
+        }
     }
 
     #[instrument(level = "info", skip_all)]
@@ -686,10 +955,25 @@ impl CheckpointExecutor {
         tx_data: &CheckpointTransactionData,
     ) -> Option<CheckpointData> {
         let is_checkpoint_data_enabled = self.checkpoint_data_enabled();
-        // Boundaries always need full `CheckpointData` to persist `epoch_info`,
-        // even when no other consumer is configured.
         let is_last_checkpoint_of_epoch = ckpt_data.checkpoint.is_last_checkpoint_of_epoch();
         if !is_checkpoint_data_enabled && !is_last_checkpoint_of_epoch {
+            return None;
+        }
+
+        if !is_checkpoint_data_enabled {
+            // With no checkpoint data consumer, the `epoch_info` row is the only
+            // user of this data, and it reads just the epoch-change transaction,
+            // so the other transactions are not loaded.
+            let boundary_data = load_epoch_boundary_data(
+                ckpt_data,
+                tx_data,
+                self.state.get_object_store(),
+                &*self.transaction_cache_reader,
+            )
+            .expect("failed to load epoch boundary data");
+            self.checkpoint_store
+                .index_epoch_boundary(&boundary_data)
+                .expect("failed to persist epoch info at boundary");
             return None;
         }
 
@@ -701,23 +985,10 @@ impl CheckpointExecutor {
         )
         .expect("failed to load checkpoint data");
 
-        // Persist the boundary's `epoch_info` row eagerly. Two properties make
-        // that safe. Boundaries run in epoch order: the boundary waits for every
-        // earlier checkpoint (`notify_read_executed_checkpoint(seq - 1)` in
-        // `execute_checkpoint`) and the stream stops at epoch end, so two
-        // boundaries are never in flight. And `index_epoch_boundary` is
-        // idempotent — a row upsert plus a contiguous +1 watermark guard — so a
-        // crash before the executed watermark advances just re-applies it on the
-        // next run.
         if is_last_checkpoint_of_epoch {
             self.checkpoint_store
                 .index_epoch_boundary(&checkpoint_data)
                 .expect("failed to persist epoch info at boundary");
-        }
-
-        if !is_checkpoint_data_enabled {
-            // Data was built solely to seed `epoch_info`; skip the other consumers.
-            return None;
         }
 
         // Index the checkpoint. The grpc indexes accumulate non-idempotent state

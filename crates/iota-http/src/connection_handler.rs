@@ -5,6 +5,7 @@
 use std::{pin::pin, time::Duration};
 
 use http::{Request, Response};
+use hyper_util::server::graceful::GracefulConnection;
 use tracing::{debug, trace};
 
 use crate::{
@@ -29,9 +30,38 @@ pub async fn serve_connection<IO, S, B, C>(
     S::Future: Send + 'static,
     S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
+    // `serve_connection_with_upgrades` serves HTTP/1 even when the builder
+    // allows only HTTP/2.
+    if builder.is_http1_available() {
+        serve_until_closed(
+            builder.serve_connection_with_upgrades(hyper_io, hyper_svc),
+            graceful_shutdown_token,
+            max_connection_age,
+        )
+        .await;
+    } else {
+        serve_until_closed(
+            builder.serve_connection(hyper_io, hyper_svc),
+            graceful_shutdown_token,
+            max_connection_age,
+        )
+        .await;
+    }
+
+    trace!("connection closed");
+    drop(on_connection_close);
+}
+
+/// Serves `conn` until it closes. Starts a graceful shutdown of `conn` on the
+/// shutdown signal and when it reaches `max_connection_age`.
+async fn serve_until_closed(
+    conn: impl GracefulConnection<Error = BoxError>,
+    graceful_shutdown_token: tokio_util::sync::CancellationToken,
+    max_connection_age: Option<Duration>,
+) {
     let mut sig = pin!(Fuse::new(graceful_shutdown_token.cancelled_owned()));
 
-    let mut conn = pin!(builder.serve_connection_with_upgrades(hyper_io, hyper_svc));
+    let mut conn = pin!(conn);
 
     let sleep = sleep_or_pending(max_connection_age);
     tokio::pin!(sleep);
@@ -53,9 +83,6 @@ pub async fn serve_connection<IO, S, B, C>(
             },
         }
     }
-
-    trace!("connection closed");
-    drop(on_connection_close);
 }
 
 pub(crate) async fn sleep_or_pending(wait_for: Option<Duration>) {

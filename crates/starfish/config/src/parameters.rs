@@ -12,12 +12,29 @@ use serde::{Deserialize, Serialize};
 /// caps allow it to keep. Both caps are validated against it at startup.
 pub const MAX_HEADERS_OR_SHARDS_PER_BUNDLE: usize = 1024;
 
-/// Ceiling on the headers a header-sync fetch response may carry. The server
-/// truncates its response to its own `max_headers_per_header_sync_fetch`,
-/// validated against this at startup, so a client can reject a response past
-/// it as misbehaviour while still accepting a peer configured above its own
-/// cap.
-pub const MAX_HEADERS_PER_HEADER_SYNC_FETCH: usize = 1024;
+/// Ceiling on the headers a fetch response may carry, for header sync and
+/// commit sync alike. The server truncates its response to its own
+/// `max_headers_per_header_sync_fetch` or `max_headers_per_commit_sync_fetch`,
+/// both validated against this at startup, so a client can reject a response
+/// past it as misbehaviour while still accepting a peer configured above its
+/// own cap. Enforced while decoding each response message, before its entries
+/// are materialised.
+pub const HEADERS_PER_FETCH_CEILING: usize = 1024;
+
+/// Ceiling on the transaction entries a fetch request or response may carry,
+/// for transaction sync and regular commit sync alike. A client requests at
+/// most its own `max_transactions_per_transaction_sync_fetch` or
+/// `max_transactions_per_commit_sync_fetch`, both validated against this at
+/// startup, and the server returns at most one entry per requested reference.
+/// Enforced while decoding each message, before its entries are materialised.
+pub const TRANSACTIONS_PER_FETCH_CEILING: usize = 1024;
+
+/// Ceiling on the commits a commit-sync fetch may request, for regular and
+/// fast commit sync alike. A client requests at most its own
+/// `commit_sync_batch_size` or `fast_commit_sync_batch_size` commits, both
+/// validated against this at startup. Enforced while decoding each response
+/// message, before its entries are materialised.
+pub const COMMITS_PER_FETCH_CEILING: usize = 1024;
 
 /// Operational configurations of a consensus authority.
 ///
@@ -237,7 +254,8 @@ pub struct Parameters {
     /// A fetch covering more commits than this is answered with the commits
     /// whose payloads fit, and the requester asks for the rest in its next
     /// fetch. When the range's first commit exceeds this on its own it is
-    /// still served whole, one such response at a time.
+    /// still served whole. A requester stops reading a response once it passes
+    /// this and its first commit is complete.
     #[serde(default = "Parameters::default_max_fast_commit_sync_transaction_bytes")]
     pub max_fast_commit_sync_transaction_bytes: usize,
 }
@@ -396,10 +414,53 @@ impl Parameters {
                 ));
             }
         }
-        if self.max_headers_per_header_sync_fetch > MAX_HEADERS_PER_HEADER_SYNC_FETCH {
-            return Err(format!(
-                "max_headers_per_header_sync_fetch must not exceed {MAX_HEADERS_PER_HEADER_SYNC_FETCH}"
-            ));
+        let header_fetch_fields = [
+            (
+                "max_headers_per_header_sync_fetch",
+                self.max_headers_per_header_sync_fetch,
+            ),
+            (
+                "max_headers_per_commit_sync_fetch",
+                self.max_headers_per_commit_sync_fetch,
+            ),
+        ];
+        for (name, value) in header_fetch_fields {
+            if value > HEADERS_PER_FETCH_CEILING {
+                return Err(format!(
+                    "{name} must not exceed {HEADERS_PER_FETCH_CEILING}"
+                ));
+            }
+        }
+        let transaction_fetch_fields = [
+            (
+                "max_transactions_per_transaction_sync_fetch",
+                self.max_transactions_per_transaction_sync_fetch,
+            ),
+            (
+                "max_transactions_per_commit_sync_fetch",
+                self.max_transactions_per_commit_sync_fetch,
+            ),
+        ];
+        for (name, value) in transaction_fetch_fields {
+            if value > TRANSACTIONS_PER_FETCH_CEILING {
+                return Err(format!(
+                    "{name} must not exceed {TRANSACTIONS_PER_FETCH_CEILING}"
+                ));
+            }
+        }
+        let commit_fetch_fields = [
+            ("commit_sync_batch_size", self.commit_sync_batch_size),
+            (
+                "fast_commit_sync_batch_size",
+                self.fast_commit_sync_batch_size,
+            ),
+        ];
+        for (name, value) in commit_fetch_fields {
+            if value as usize > COMMITS_PER_FETCH_CEILING {
+                return Err(format!(
+                    "{name} must not exceed {COMMITS_PER_FETCH_CEILING}"
+                ));
+            }
         }
         Ok(())
     }
@@ -795,9 +856,10 @@ pub struct AdmissionParameters {
     pub max_commit_fetches_per_peer: u32,
 
     /// Max concurrent commit fetches across all peers, beyond which a peer is
-    /// still granted its first. A fast commit-sync response is held in memory
-    /// until it has been sent, so this caps what serving them can cost the node
-    /// at once, short of one response per peer.
+    /// still granted its first. A fast commit-sync response holds its commits
+    /// and certifier headers until it has been sent, and reads its transactions
+    /// from the store while it is being sent, so this caps what serving them
+    /// can cost the node at once, short of one response per peer.
     ///
     /// If unspecified, this will default to 16.
     #[serde(default = "AdmissionParameters::default_max_commit_fetches_total")]

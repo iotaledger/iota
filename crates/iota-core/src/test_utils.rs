@@ -351,7 +351,7 @@ pub fn consensus_transaction_feature_gate(
         // for serialization compatibility.
         ConsensusTransactionKind::NewJWKFetchedDeprecated => Some(false),
         ConsensusTransactionKind::TransactionDenyRuleProposal(_) => {
-            Some(config.deny_rule_governance())
+            Some(config.enable_pcool_flow())
         }
     }
 }

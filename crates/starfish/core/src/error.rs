@@ -264,8 +264,8 @@ pub(crate) enum ConsensusError {
         limit: usize,
     },
 
-    #[error("Peer {peer} sent a commit that is too large: {size} > {limit}")]
-    SerializedCommitTooLarge {
+    #[error("Peer {peer} sent too many commit bytes: {size} > {limit}")]
+    TooManyCommitBytes {
         peer: AuthorityIndex,
         size: usize,
         limit: usize,
@@ -450,11 +450,20 @@ pub(crate) enum ConsensusError {
         last_round: Round,
     },
 
-    #[error("Another fetch is already serving a commit that does not fit the response budget")]
-    OversizedCommitAlreadyServed,
-
     #[error("Transaction {transaction_ref} of a requested commit is not available on this node")]
     TransactionsNotAvailable { transaction_ref: TransactionRef },
+
+    #[error("Peer {peer} sent commits or certifier headers after transactions")]
+    CommitDataAfterTransactions { peer: AuthorityIndex },
+
+    #[error("Peer {peer} sent transactions {received} before an earlier commit's transactions")]
+    TransactionsOutOfCommitOrder {
+        peer: AuthorityIndex,
+        received: TransactionRef,
+    },
+
+    #[error("Peer {peer} sent a commit-sync response message with more than {limit} entries")]
+    TooManyCommitSyncEntries { peer: AuthorityIndex, limit: usize },
 }
 
 impl ConsensusError {
