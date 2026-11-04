@@ -131,6 +131,14 @@ public fun authenticate_ed25519_via_signing_digest(
 #[authenticator]
 public fun authenticate_free_access(_: &AbstractAccount, _: &AuthContext, _: &TxContext) {}
 
+/// Free access, do nothing, with a type parameter that no argument uses.
+#[authenticator]
+public fun authenticate_free_access_generic<T>(
+    _: &AbstractAccount,
+    _: &AuthContext,
+    _: &TxContext,
+) {}
+
 /// An authenticator that checks both the sender and sponsor of the transaction against the provided accounts.
 #[authenticator]
 public fun authenticate_with_sponsor_and_sender(

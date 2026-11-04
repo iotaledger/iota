@@ -1347,6 +1347,7 @@
                 "metadata_in_module_bytes": true,
                 "meter_instantiation_loops": true,
                 "minimize_child_object_mutations": true,
+                "move_authenticator_type_arg_packages_as_inputs": true,
                 "move_native_tx_context": true,
                 "native_charging_v2": true,
                 "no_extraneous_module_bytes": true,

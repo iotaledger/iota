@@ -272,6 +272,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 40: Post-consensus validation takes the instantiation-loop graph
 //             edge limit, and whether the instantiation-loop check is
 //             metered, from the protocol config.
+//             Make the packages named by a `MoveAuthenticator`'s type
+//             arguments inputs of that authenticator.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -811,6 +813,13 @@ struct FeatureFlags {
     // of the bytecode verifier. Signing always meters it.
     #[serde(skip_serializing_if = "is_false")]
     meter_instantiation_loops: bool,
+
+    // If true, the packages named by a `MoveAuthenticator`'s type arguments are
+    // inputs of that authenticator, as those of a `MoveCall` are. Without it no
+    // node waits for them, so a node that has not executed such a package's
+    // publish yet fails an authentication that the others pass.
+    #[serde(skip_serializing_if = "is_false")]
+    move_authenticator_type_arg_packages_as_inputs: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2334,6 +2343,11 @@ impl ProtocolConfig {
     pub fn meter_instantiation_loops(&self) -> bool {
         self.feature_flags.meter_instantiation_loops
     }
+
+    pub fn move_authenticator_type_arg_packages_as_inputs(&self) -> bool {
+        self.feature_flags
+            .move_authenticator_type_arg_packages_as_inputs
+    }
 }
 
 #[cfg(not(msim))]
@@ -3810,6 +3824,11 @@ impl ProtocolConfig {
                     // also uses.
                     cfg.feature_flags.meter_instantiation_loops = true;
                     cfg.max_instantiation_loop_graph_edges = Some(100_000);
+
+                    // Make the packages named by a `MoveAuthenticator`'s type
+                    // arguments inputs of that authenticator.
+                    cfg.feature_flags
+                        .move_authenticator_type_arg_packages_as_inputs = true;
                 }
                 // Use this template when making changes:
                 //
@@ -4186,6 +4205,11 @@ impl ProtocolConfig {
 
     pub fn set_disallow_randomness_in_move_authenticator_for_testing(&mut self, val: bool) {
         self.feature_flags.disallow_randomness_in_move_authenticator = val;
+    }
+
+    pub fn set_move_authenticator_type_arg_packages_as_inputs_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .move_authenticator_type_arg_packages_as_inputs = val;
     }
 
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
