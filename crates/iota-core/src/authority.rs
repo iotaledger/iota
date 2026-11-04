@@ -144,6 +144,7 @@ pub use crate::checkpoints::checkpoint_executor::utils::{
 };
 use crate::{
     authority::{
+        attestation_semaphore::{AttestationPermit, AttestationSemaphore},
         authority_per_epoch_store::{AuthorityPerEpochStore, TxGuard},
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
@@ -254,6 +255,7 @@ mod attestation_verdict_tests;
 pub mod authority_test_utils;
 
 pub(crate) mod attestation;
+pub(crate) mod attestation_semaphore;
 mod attestation_verdict;
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
@@ -349,6 +351,14 @@ pub struct AuthorityMetrics {
     pub(crate) local_post_consensus_load_shedding_percentage: IntGauge,
 
     pub(crate) transaction_overload_sources: IntCounterVec,
+
+    /// Attestation dry runs running now.
+    pub(crate) attestations_in_progress: IntGauge,
+    /// Submissions waiting for a free attestation dry run.
+    pub(crate) attestations_waiting: IntGauge,
+    /// Submissions rejected because every attestation dry run was taken and
+    /// the queue was full.
+    pub(crate) attestations_rejected_total: IntCounter,
 
     /// Checkpoint-inclusion waits that timed out before the RPC indexes
     /// caught up.
@@ -748,6 +758,24 @@ impl AuthorityMetrics {
                 &["source"],
                 registry)
                 .unwrap(),
+            attestations_in_progress: register_int_gauge_with_registry!(
+                "attestations_in_progress",
+                "Number of attestation dry runs running",
+                registry,
+            )
+                .unwrap(),
+            attestations_waiting: register_int_gauge_with_registry!(
+                "attestations_waiting",
+                "Number of submissions waiting for a free attestation dry run",
+                registry,
+            )
+                .unwrap(),
+            attestations_rejected_total: register_int_counter_with_registry!(
+                "attestations_rejected_total",
+                "Number of submissions rejected because every attestation dry run was taken and the queue was full",
+                registry,
+            )
+                .unwrap(),
             execution_driver_executed_transactions: register_int_counter_with_registry!(
                 "execution_driver_executed_transactions",
                 "Cumulative number of transaction executed by execution driver",
@@ -1130,6 +1158,9 @@ pub struct AuthorityState {
 
     /// Current overload status in this authority. Updated periodically.
     pub overload_info: AuthorityOverloadInfo,
+
+    /// Limits the attestation dry runs of the submit path.
+    attestation_semaphore: AttestationSemaphore,
 
     pub validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
 
@@ -1694,8 +1725,8 @@ impl AuthorityState {
     /// The P-COOL flow uses
     /// [`AuthorityState::reserve_consensus_queue_slot()`] instead, which
     /// counts the transaction in the consensus queue and then checks only
-    /// the queue, since execution-based overload is handled after
-    /// consensus.
+    /// the queue and the attestation dry runs, since execution-based
+    /// overload is handled after consensus.
     pub(crate) fn check_system_overload(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
@@ -1737,15 +1768,17 @@ impl AuthorityState {
     /// Takes a P-COOL transaction's [`InflightSlot`] in the consensus queue,
     /// then runs graduated shedding against
     /// [`InflightSlot::queue_length_before()`], which also counts admissions
-    /// still in progress, and the permit check of
-    /// [`ConsensusAdapter::check_submit_permits()`]. Returns the slot, to be
-    /// passed to [`ConsensusAdapter::submit_with_slot()`]; on an error, the
-    /// slot is released.
+    /// still in progress, the permit check of
+    /// [`ConsensusAdapter::check_submit_permits()`], and the check on
+    /// attestation dry runs. Returns the slot, to be passed to
+    /// [`ConsensusAdapter::submit_with_slot()`]; on an error, the slot is
+    /// released.
     ///
     /// # Errors
     ///
     /// [`IotaError::ValidatorOverloadedRetryAfter`] when graduated shedding
-    /// rejects the transaction between the soft and hard limits, and
+    /// rejects the transaction between the soft and hard limits, or when every
+    /// attestation dry run is taken and the queue for them is full, and
     /// [`IotaError::TooManyTransactionsPendingConsensus`] when the queue has
     /// reached `max_pending_transactions` or `submit_semaphore` has no
     /// permits left.
@@ -1777,7 +1810,23 @@ impl AuthorityState {
             self.update_overload_metrics("consensus");
         })?;
 
+        self.attestation_semaphore.check_overload().tap_err(|_| {
+            self.update_overload_metrics("attestation");
+        })?;
+
         Ok(slot)
+    }
+
+    /// Waits for a free attestation dry run, within the limits of
+    /// `max_concurrent_attestations` and `max_queued_attestations`. The dry
+    /// run must hold the permit until it ends.
+    ///
+    /// # Errors
+    ///
+    /// [`IotaError::ValidatorOverloadedRetryAfter`] when every dry run is
+    /// taken and the queue for them is full.
+    pub(crate) async fn acquire_attestation_permit(&self) -> IotaResult<AttestationPermit> {
+        self.attestation_semaphore.acquire().await
     }
 
     /// Rejects `tx` via graduated shedding at `queue_length`, the number of
@@ -3277,6 +3326,8 @@ impl AuthorityState {
                 traffic_controller_metrics,
             ))
         });
+        let attestation_semaphore =
+            AttestationSemaphore::new(&config.authority_overload_config, &metrics);
         let state = Arc::new_cyclic(|this| AuthorityState {
             this: this.clone(),
             name,
@@ -3297,6 +3348,7 @@ impl AuthorityState {
             object_retention,
             config,
             overload_info: AuthorityOverloadInfo::default(),
+            attestation_semaphore,
             validator_tx_finalizer,
             chain_identifier,
             congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
