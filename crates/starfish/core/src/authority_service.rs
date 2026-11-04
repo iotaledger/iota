@@ -825,8 +825,6 @@ struct RequestedTransactionsCursor {
     chunk_bytes: usize,
     /// Refs not served yet, in request order and without repeats.
     refs: VecDeque<TransactionRef>,
-    /// An entry that did not fit the previous chunk.
-    carried_entry: Option<Bytes>,
 }
 
 impl RequestedTransactionsCursor {
@@ -849,18 +847,21 @@ impl RequestedTransactionsCursor {
             dag_state,
             chunk_bytes,
             refs,
-            carried_entry: None,
         }
     }
 }
 
 impl TransactionChunks for RequestedTransactionsCursor {
     fn next_chunk(&mut self) -> ConsensusResult<Option<Vec<Bytes>>> {
-        let mut chunk: Vec<Bytes> = self.carried_entry.take().into_iter().collect();
-        let mut chunk_size: usize = chunk.iter().map(Bytes::len).sum();
+        let mut chunk = Vec::new();
+        let mut chunk_size = 0;
         while chunk_size < self.chunk_bytes && !self.refs.is_empty() {
-            let batch_len = self.refs.len().min(FETCH_TRANSACTIONS_READ_BATCH);
-            let batch: Vec<TransactionRef> = self.refs.drain(..batch_len).collect();
+            let batch: Vec<TransactionRef> = self
+                .refs
+                .iter()
+                .take(FETCH_TRANSACTIONS_READ_BATCH)
+                .copied()
+                .collect();
             // Refs below the GC round are looked up one by one: they are
             // whatever the requester asked for, so a scan over the range they
             // span would read entries no one wants.
@@ -877,22 +878,17 @@ impl TransactionChunks for RequestedTransactionsCursor {
                     })
                     .collect())
             })?;
-            for (i, &transaction_ref) in batch.iter().enumerate() {
-                let Some(payload) = take_payload(&self.context, &mut payloads, transaction_ref)
-                else {
-                    continue;
-                };
-                let entry = serialize_transactions_entry(transaction_ref, payload)?;
-                if !chunk.is_empty() && chunk_size + entry.len() > self.chunk_bytes {
-                    // The rest of the batch is read again for the next chunk.
-                    self.carried_entry = Some(entry);
-                    for &rest in batch[i + 1..].iter().rev() {
-                        self.refs.push_front(rest);
+            for transaction_ref in batch {
+                if let Some(payload) = take_payload(&self.context, &mut payloads, transaction_ref) {
+                    let entry = serialize_transactions_entry(transaction_ref, payload)?;
+                    // The ref stays first and is read again for the next chunk.
+                    if !chunk.is_empty() && chunk_size + entry.len() > self.chunk_bytes {
+                        return Ok(Some(chunk));
                     }
-                    return Ok(Some(chunk));
+                    chunk_size += entry.len();
+                    chunk.push(entry);
                 }
-                chunk_size += entry.len();
-                chunk.push(entry);
+                self.refs.pop_front();
             }
         }
         Ok((!chunk.is_empty()).then_some(chunk))
@@ -6162,7 +6158,12 @@ mod tests {
 
     /// Two rounds of four blocks, each carrying a payload of the same size.
     fn two_rounds_of_payloads() -> Vec<VerifiedBlock> {
-        (1..=2)
+        rounds_of_payloads(2)
+    }
+
+    /// `rounds` rounds of four blocks, each carrying a payload of the same size.
+    fn rounds_of_payloads(rounds: Round) -> Vec<VerifiedBlock> {
+        (1..=rounds)
             .flat_map(|round| {
                 (0..4).map(move |author| {
                     let header = VerifiedBlockHeader::new_for_test(
@@ -6273,10 +6274,10 @@ mod tests {
         assert_eq!(entry_refs(&chunks.concat()), refs);
     }
 
-    /// Payloads are taken only for the chunk being built.
+    /// Payloads are read only when the stream is polled, one batch at a time.
     #[tokio::test]
-    async fn requested_transactions_are_read_one_chunk_at_a_time() {
-        let blocks = two_rounds_of_payloads();
+    async fn requested_transactions_are_read_when_polled() {
+        let blocks = rounds_of_payloads(5);
         let context = context_with_budget(usize::MAX);
         let store = Arc::new(MemStore::new());
         write_payloads(&store, &blocks);
@@ -6285,20 +6286,30 @@ mod tests {
             .iter()
             .map(|block| block.verified_block_header.transaction_ref())
             .collect();
+        assert!(refs.len() > FETCH_TRANSACTIONS_READ_BATCH);
         let entry_bytes = serialize_transactions_entry(
             refs[0],
             blocks[0].verified_transactions.serialized().clone(),
         )
         .unwrap()
         .len();
-        let mut cursor =
-            RequestedTransactionsCursor::new(context, store, dag_state, entry_bytes, refs.clone());
+        let mut stream = transaction_chunk_stream(RequestedTransactionsCursor::new(
+            context,
+            store.clone(),
+            dag_state,
+            entry_bytes,
+            refs.clone(),
+        ));
+        assert!(store.take_transaction_reads().is_empty());
 
-        let chunk = cursor.next_chunk().unwrap().unwrap();
+        let chunk = stream.next().await.unwrap().unwrap();
 
         assert_eq!(entry_refs(&chunk), refs[..1]);
-        // Besides the served entry, only the one carried to the next chunk.
-        assert_eq!(cursor.refs.len(), refs.len() - 2);
+        // One batch filled the chunk; nothing more is read until the next poll.
+        assert_eq!(
+            store.take_transaction_reads(),
+            [FETCH_TRANSACTIONS_READ_BATCH]
+        );
     }
 
     /// A commit this node lacks a payload of ends the response, and none of its
