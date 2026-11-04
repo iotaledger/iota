@@ -99,8 +99,9 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_max_transactions_per_transaction_sync_fetch")]
     pub max_transactions_per_transaction_sync_fetch: usize,
 
-    /// Upper bound on the bytes of one transaction fetch reply this node
-    /// serves. The reply is held until the peer reads it; the requester
+    /// Byte budget of one transaction fetch reply this node serves: entries
+    /// are added until the next one would exceed it, but the first entry is
+    /// always sent. The reply is held until the peer reads it; the requester
     /// fetches what is left later.
     #[serde(default = "Parameters::default_max_fetch_transactions_reply_bytes")]
     pub max_fetch_transactions_reply_bytes: usize,

@@ -809,9 +809,9 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
 const FETCH_TRANSACTIONS_READ_BATCH: usize = 16;
 
 /// Builds a transaction fetch reply in request order, reading payloads one
-/// batch at a time, and stops before the reply exceeds `max_bytes`; it always
-/// holds at least one entry. The reply is held until the peer reads it, so its
-/// size must not grow with how much the peer asks for.
+/// batch at a time, and stops before the next entry would exceed `max_bytes`;
+/// the first entry found is always included. The reply is held until the peer
+/// reads it, so its size must not grow with how much the peer asks for.
 fn fill_transactions_reply(
     refs: &[TransactionRef],
     max_bytes: usize,
@@ -5655,7 +5655,9 @@ mod tests {
             })
             .collect();
         let payload = Bytes::from(vec![0u8; 1000]);
+        let reads = std::cell::RefCell::new(Vec::new());
         let read = |batch: &[TransactionRef]| -> crate::error::ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
+            reads.borrow_mut().push(batch.len());
             Ok(batch
                 .iter()
                 .map(|transaction_ref| (*transaction_ref, payload.clone()))
@@ -5668,9 +5670,12 @@ mod tests {
         // The reply spans several read batches and stops before the budget.
         let reply = fill_transactions_reply(&refs, 25 * entry_bytes, &read).unwrap();
         assert_eq!(reply.len(), 25);
+        // Payloads are read one batch at a time, and no further than needed.
+        assert_eq!(reads.take(), vec![FETCH_TRANSACTIONS_READ_BATCH; 2]);
         // An entry larger than the budget is still sent, so the peer progresses.
         let reply = fill_transactions_reply(&refs, 1, &read).unwrap();
         assert_eq!(reply.len(), 1);
+        assert_eq!(reads.take(), vec![FETCH_TRANSACTIONS_READ_BATCH]);
     }
 
     /// Tests request order across the GC boundary.
