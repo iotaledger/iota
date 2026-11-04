@@ -2557,3 +2557,271 @@ fn check_serialized_size_rejects_a_transaction_above_the_size_limit() {
         .check_serialized_size(&config)
         .unwrap();
 }
+
+fn config_with_self_identifier_check() -> ProtocolConfig {
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
+    assert!(config.disallow_self_identifier_in_transactions());
+    config
+}
+
+fn config_without_self_identifier_check() -> ProtocolConfig {
+    let config = ProtocolConfig::get_for_version(ProtocolVersion::new(38), Chain::Unknown);
+    assert!(!config.disallow_self_identifier_in_transactions());
+    config
+}
+
+fn self_identifier() -> Identifier {
+    Identifier::new_unchecked("<SELF>")
+}
+
+fn struct_type(module: Identifier, name: Identifier, type_params: Vec<TypeTag>) -> TypeTag {
+    TypeTag::Struct(Box::new(StructTag::new(
+        "0x2".parse::<Address>().unwrap(),
+        module,
+        name,
+        type_params,
+    )))
+}
+
+fn self_type() -> TypeTag {
+    struct_type(Identifier::from_static("iota"), self_identifier(), vec![])
+}
+
+fn assert_self_identifier_rejected(result: UserInputResult) {
+    assert!(
+        matches!(&result, Err(UserInputError::InvalidIdentifier { error }) if error == "<SELF>"),
+        "{result:?}"
+    );
+}
+
+#[test]
+fn type_tag_validity_check_rejects_self_name() {
+    let tag = self_type();
+    assert_self_identifier_rejected(type_tag_validity_check(
+        &tag,
+        &config_with_self_identifier_check(),
+        &mut 0,
+    ));
+    type_tag_validity_check(&tag, &config_without_self_identifier_check(), &mut 0).unwrap();
+}
+
+#[test]
+fn type_tag_validity_check_rejects_self_module() {
+    let tag = struct_type(self_identifier(), Identifier::from_static("IOTA"), vec![]);
+    assert_self_identifier_rejected(type_tag_validity_check(
+        &tag,
+        &config_with_self_identifier_check(),
+        &mut 0,
+    ));
+    type_tag_validity_check(&tag, &config_without_self_identifier_check(), &mut 0).unwrap();
+}
+
+#[test]
+fn type_tag_validity_check_rejects_nested_self_name() {
+    let coin_of_self = struct_type(
+        Identifier::from_static("coin"),
+        Identifier::from_static("Coin"),
+        vec![self_type()],
+    );
+    let tag = TypeTag::Vector(Box::new(coin_of_self));
+    assert_self_identifier_rejected(type_tag_validity_check(
+        &tag,
+        &config_with_self_identifier_check(),
+        &mut 0,
+    ));
+    type_tag_validity_check(&tag, &config_without_self_identifier_check(), &mut 0).unwrap();
+}
+
+#[test]
+fn type_tag_validity_check_accepts_regular_names_with_flag() {
+    let iota = struct_type(
+        Identifier::from_static("iota"),
+        Identifier::from_static("IOTA"),
+        vec![],
+    );
+    let tag = struct_type(
+        Identifier::from_static("coin"),
+        Identifier::from_static("Coin"),
+        vec![iota],
+    );
+    type_tag_validity_check(&tag, &config_with_self_identifier_check(), &mut 0).unwrap();
+}
+
+fn move_call(module: Identifier, function: Identifier, type_arguments: Vec<TypeTag>) -> MoveCall {
+    MoveCall {
+        package: ObjectId::random(),
+        module,
+        function,
+        type_arguments,
+        arguments: vec![],
+    }
+}
+
+#[test]
+fn move_call_validity_check_rejects_self_module_and_function() {
+    let calls = [
+        move_call(self_identifier(), Identifier::from_static("zero"), vec![]),
+        move_call(Identifier::from_static("coin"), self_identifier(), vec![]),
+        move_call(
+            Identifier::from_static("coin"),
+            Identifier::from_static("zero"),
+            vec![self_type()],
+        ),
+    ];
+    for call in &calls {
+        assert_self_identifier_rejected(call.validity_check(&config_with_self_identifier_check()));
+        call.validity_check(&config_without_self_identifier_check())
+            .unwrap();
+    }
+}
+
+#[test]
+fn make_move_vector_validity_check_rejects_self_type() {
+    let command = Command::MakeMoveVector(MakeMoveVector {
+        type_tag: Some(self_type()),
+        elements: vec![],
+    });
+    assert_self_identifier_rejected(command.validity_check(&config_with_self_identifier_check()));
+    command
+        .validity_check(&config_without_self_identifier_check())
+        .unwrap();
+}
+
+#[test]
+fn move_authenticator_validity_check_rejects_self_type_arg() {
+    let authenticator = MoveAuthenticator::from(MoveAuthenticatorV1::new(
+        vec![],
+        vec![self_type()],
+        SharedObjectReference::new(
+            ObjectId::random(),
+            crate::object::OBJECT_START_VERSION,
+            false,
+        ),
+    ));
+    assert_self_identifier_rejected(
+        authenticator.validity_check(&config_with_self_identifier_check()),
+    );
+    authenticator
+        .validity_check(&config_without_self_identifier_check())
+        .unwrap();
+}
+
+fn signed_transaction_with_commands(commands: Vec<Command>) -> SenderSignedTransaction {
+    let data = Transaction::new_programmable(
+        Address::random(),
+        vec![random_object_ref()],
+        ProgrammableTransaction {
+            inputs: vec![],
+            commands,
+        },
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        1,
+    );
+    SenderSignedTransaction::new(data, vec![])
+}
+
+fn move_call_command(type_arguments: Vec<TypeTag>) -> Command {
+    Command::MoveCall(move_call(
+        Identifier::from_static("coin"),
+        Identifier::from_static("zero"),
+        type_arguments,
+    ))
+}
+
+#[test]
+fn transaction_identifiers_validity_check_rejects_self_type_arg() {
+    let tx = signed_transaction_with_commands(vec![move_call_command(vec![self_type()])]);
+    assert_self_identifier_rejected(transaction_identifiers_validity_check(&tx));
+}
+
+#[test]
+fn transaction_identifiers_validity_check_rejects_self_call_target() {
+    let module = Command::MoveCall(move_call(
+        self_identifier(),
+        Identifier::from_static("zero"),
+        vec![],
+    ));
+    let function = Command::MoveCall(move_call(
+        Identifier::from_static("coin"),
+        self_identifier(),
+        vec![],
+    ));
+    for command in [module, function] {
+        let tx = signed_transaction_with_commands(vec![command]);
+        assert_self_identifier_rejected(transaction_identifiers_validity_check(&tx));
+    }
+}
+
+#[test]
+fn transaction_identifiers_validity_check_rejects_self_vector_type() {
+    let tx = signed_transaction_with_commands(vec![Command::MakeMoveVector(MakeMoveVector {
+        type_tag: Some(self_type()),
+        elements: vec![],
+    })]);
+    assert_self_identifier_rejected(transaction_identifiers_validity_check(&tx));
+}
+
+#[test]
+fn transaction_identifiers_validity_check_rejects_self_in_authenticator() {
+    let authenticator = MoveAuthenticator::from(MoveAuthenticatorV1::new(
+        vec![],
+        vec![self_type()],
+        SharedObjectReference::new(
+            ObjectId::random(),
+            crate::object::OBJECT_START_VERSION,
+            false,
+        ),
+    ));
+    let tx = SenderSignedTransaction::new(
+        make_transaction_data(Address::random()),
+        vec![UserSignature::MoveAuthenticator(authenticator)],
+    );
+    assert_self_identifier_rejected(transaction_identifiers_validity_check(&tx));
+}
+
+#[test]
+fn transaction_identifiers_validity_check_accepts_clean_transaction() {
+    let iota = struct_type(
+        Identifier::from_static("iota"),
+        Identifier::from_static("IOTA"),
+        vec![],
+    );
+    let tx = signed_transaction_with_commands(vec![
+        move_call_command(vec![TypeTag::Vector(Box::new(iota.clone()))]),
+        Command::MakeMoveVector(MakeMoveVector {
+            type_tag: Some(iota),
+            elements: vec![],
+        }),
+    ]);
+    transaction_identifiers_validity_check(&tx).unwrap();
+    transaction_identifiers_validity_check(make_move_authenticator_tx(Address::random()).data())
+        .unwrap();
+}
+
+#[test]
+fn transaction_identifiers_validity_check_rejects_system_transaction() {
+    let event = Event {
+        package_id: ObjectId::random(),
+        module: self_identifier(),
+        sender: Address::random(),
+        struct_tag: StructTag::new(
+            "0x2".parse::<Address>().unwrap(),
+            Identifier::from_static("iota"),
+            Identifier::from_static("IOTA"),
+            vec![],
+        ),
+        contents: vec![],
+    };
+    let tx = SenderSignedTransaction::new(
+        Transaction::new_system_transaction(TransactionKind::Genesis(GenesisTransaction {
+            objects: vec![],
+            events: vec![event],
+        })),
+        vec![],
+    );
+    let result = transaction_identifiers_validity_check(&tx);
+    assert!(
+        matches!(&result, Err(UserInputError::Unsupported(_))),
+        "{result:?}"
+    );
+}

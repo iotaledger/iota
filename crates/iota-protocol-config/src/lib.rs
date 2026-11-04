@@ -274,6 +274,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             metered, from the protocol config.
 //             Make the packages named by a `MoveAuthenticator`'s type
 //             arguments inputs of that authenticator.
+//             Reject `<SELF>` as an identifier in transactions, at signing,
+//             after consensus and in block verification.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -739,6 +741,13 @@ struct FeatureFlags {
     // Disallow self identifier
     #[serde(skip_serializing_if = "is_false")]
     disallow_self_identifier: bool,
+
+    // Reject a transaction whose type arguments, Move call module or function
+    // name, or Move authenticator type arguments carry an identifier that
+    // move-core rejects (`<SELF>`), at signing, after consensus and in block
+    // verification.
+    #[serde(skip_serializing_if = "is_false")]
+    disallow_self_identifier_in_transactions: bool,
 
     // If true, the version field of a published module header must be the encoding
     // the serializer produces for the version it decodes to. Below binary format
@@ -2319,6 +2328,10 @@ impl ProtocolConfig {
         self.feature_flags.allow_dkg_completion_after_timeout
     }
 
+    pub fn disallow_self_identifier_in_transactions(&self) -> bool {
+        self.feature_flags.disallow_self_identifier_in_transactions
+    }
+
     pub fn consensus_dedup_only_recorded_messages(&self) -> bool {
         self.feature_flags.consensus_dedup_only_recorded_messages
     }
@@ -3829,6 +3842,8 @@ impl ProtocolConfig {
                     // arguments inputs of that authenticator.
                     cfg.feature_flags
                         .move_authenticator_type_arg_packages_as_inputs = true;
+
+                    cfg.feature_flags.disallow_self_identifier_in_transactions = true;
                 }
                 // Use this template when making changes:
                 //

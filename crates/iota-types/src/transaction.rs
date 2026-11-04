@@ -94,6 +94,18 @@ fn input_object_version_validity_check(version: Version) -> UserInputResult {
     Ok(())
 }
 
+/// Rejects an identifier that move-core rejects. The SDK `Identifier` also
+/// accepts `<SELF>`, which no module or type can be named.
+pub fn move_core_identifier_validity_check(identifier: &Identifier) -> UserInputResult {
+    fp_ensure!(
+        move_core_types::identifier::Identifier::is_valid(identifier.as_str()),
+        UserInputError::InvalidIdentifier {
+            error: identifier.to_string()
+        }
+    );
+    Ok(())
+}
+
 pub fn type_tag_validity_check(
     tag: &TypeTag,
     config: &ProtocolConfig,
@@ -144,6 +156,10 @@ pub fn type_tag_validity_check(
                             error: s.name().as_str().to_owned()
                         }
                     );
+                }
+                if config.disallow_self_identifier_in_transactions() {
+                    move_core_identifier_validity_check(s.module())?;
+                    move_core_identifier_validity_check(s.name())?;
                 }
                 stack.extend(s.type_params().iter().map(|t| (t, next_depth)));
             }
@@ -422,6 +438,10 @@ impl MoveCallExt for MoveCall {
                     error: self.function.to_string()
                 }
             );
+        }
+        if config.disallow_self_identifier_in_transactions() {
+            move_core_identifier_validity_check(&self.module)?;
+            move_core_identifier_validity_check(&self.function)?;
         }
         Ok(())
     }
@@ -2402,6 +2422,73 @@ fn check_user_signature_protocol_compatibility(
         }
     }
 
+    Ok(())
+}
+
+/// Rejects a signed transaction that a user may not submit, or that carries an
+/// identifier move-core rejects: in Move call module and function names, and in
+/// the type arguments of Move calls, `MakeMoveVector` commands and Move
+/// authenticators.
+///
+/// Independent of the protocol config, so the caller gates it; the consensus
+/// block verifier uses it to reject exactly the blocks a decoder that follows
+/// the move-core rules would fail to decode.
+pub fn transaction_identifiers_validity_check(
+    signed_tx: &SenderSignedTransaction,
+) -> UserInputResult {
+    // A system transaction needs no signature and can carry identifiers in
+    // genesis objects and events, so it is rejected instead of walked.
+    fp_ensure!(
+        !signed_tx.transaction().is_system_tx(),
+        UserInputError::Unsupported(
+            "SenderSignedTransaction must not contain system transaction".to_string()
+        )
+    );
+    let mut type_tags: Vec<&TypeTag> = Vec::new();
+    if let TransactionKind::Programmable(pt) = signed_tx.transaction().kind() {
+        for command in &pt.commands {
+            match command {
+                Command::MoveCall(call) => {
+                    move_core_identifier_validity_check(&call.module)?;
+                    move_core_identifier_validity_check(&call.function)?;
+                    type_tags.extend(&call.type_arguments);
+                }
+                Command::MakeMoveVector(MakeMoveVector {
+                    type_tag: Some(type_tag),
+                    ..
+                }) => type_tags.push(type_tag),
+                Command::MakeMoveVector(MakeMoveVector { type_tag: None, .. })
+                | Command::TransferObjects(_)
+                | Command::SplitCoins(_)
+                | Command::MergeCoins(_)
+                | Command::Publish(_)
+                | Command::Upgrade(_) => {}
+                _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
+            }
+        }
+    }
+    for authenticator in signed_tx.move_authenticators() {
+        type_tags.extend(authenticator.type_args());
+    }
+    while let Some(type_tag) = type_tags.pop() {
+        match type_tag {
+            TypeTag::Vector(inner) => type_tags.push(inner.as_ref()),
+            TypeTag::Struct(s) => {
+                move_core_identifier_validity_check(s.module())?;
+                move_core_identifier_validity_check(s.name())?;
+                type_tags.extend(s.type_params());
+            }
+            TypeTag::Bool
+            | TypeTag::U8
+            | TypeTag::U16
+            | TypeTag::U32
+            | TypeTag::U64
+            | TypeTag::U128
+            | TypeTag::U256
+            | TypeTag::Address
+            | TypeTag::Signer => {}
+        }
+    }
     Ok(())
 }
 

@@ -7,10 +7,12 @@ use std::sync::Arc;
 use eyre::WrapErr;
 use fastcrypto_tbls::dkg_v1;
 use iota_metrics::monitored_scope;
+use iota_sdk_types::SenderSignedTransaction;
 use iota_types::{
     base_types::ConciseableName,
     error::IotaError,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
+    transaction::transaction_identifiers_validity_check,
 };
 use prometheus_filtered::{IntCounter, Registry, register_int_counter_with_registry};
 use starfish_core;
@@ -47,6 +49,21 @@ impl IotaTxValidator {
         }
     }
 
+    /// Rejects the block when a transaction carries an identifier that
+    /// move-core rejects, once the protocol disallows them: a validator whose
+    /// decoder follows the move-core rules cannot decode such a block, so every
+    /// validator must refuse it the same way.
+    fn identifiers_check(&self, signed_tx: &SenderSignedTransaction) -> Result<(), IotaError> {
+        if self
+            .epoch_store
+            .protocol_config()
+            .disallow_self_identifier_in_transactions()
+        {
+            transaction_identifiers_validity_check(signed_tx)?;
+        }
+        Ok(())
+    }
+
     #[instrument(level = "trace", skip_all)]
     fn validate_transactions(&self, txs: Vec<ConsensusTransactionKind>) -> Result<(), IotaError> {
         let mut cert_batch = Vec::new();
@@ -58,6 +75,7 @@ impl IotaTxValidator {
         for tx in txs.iter() {
             match tx {
                 ConsensusTransactionKind::CertifiedTransaction(certificate) => {
+                    self.identifiers_check(certificate.data())?;
                     cert_batch.push(certificate.as_ref());
                 }
                 ConsensusTransactionKind::CheckpointSignature(signature) => {
@@ -106,6 +124,7 @@ impl IotaTxValidator {
                                 .into(),
                         });
                     }
+                    self.identifiers_check(attested_tx.transaction.data())?;
                     // TODO: Batch signature verification for UserTransactionV1.
                     //  For now verify individually, but this should be batched for performance
                     //  similar to how certificates are batch-verified above.
@@ -498,5 +517,177 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn self_identifier_validator(state: &Arc<crate::authority::AuthorityState>) -> IotaTxValidator {
+        IotaTxValidator::new(
+            state.epoch_store_for_testing().clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            IotaTxValidatorMetrics::new(&Default::default()),
+        )
+    }
+
+    /// A signed Move call of `0x2::coin::zero<0x2::iota::<type_name>>`.
+    fn move_call_with_type_name(
+        state: &Arc<crate::authority::AuthorityState>,
+        type_name: iota_sdk_types::Identifier,
+    ) -> ConsensusTransactionKind {
+        use iota_sdk_types::{Address, Identifier, StructTag, Transaction, TypeTag};
+        use iota_types::{
+            base_types::random_object_ref,
+            crypto::{AccountPrivateKey, deterministic_random_account_private_key},
+            programmable_transaction_builder::ProgrammableTransactionBuilder,
+            transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
+            utils::to_sender_signed_transaction,
+        };
+
+        let (sender, sender_key): (_, AccountPrivateKey) =
+            deterministic_random_account_private_key();
+        let gas_price = state.epoch_store_for_testing().reference_gas_price();
+        let type_arg = TypeTag::Struct(Box::new(StructTag::new(
+            "0x2".parse::<Address>().unwrap(),
+            Identifier::from_static("iota"),
+            type_name,
+            vec![],
+        )));
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.programmable_move_call(
+            ObjectId::from("0x2".parse::<Address>().unwrap()),
+            Identifier::from_static("coin"),
+            Identifier::from_static("zero"),
+            vec![type_arg],
+            vec![],
+        );
+        let transaction = Transaction::new_programmable(
+            sender,
+            vec![random_object_ref()],
+            builder.finish(),
+            gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            gas_price,
+        );
+        ConsensusTransactionKind::UserTransactionV1(Box::new(to_sender_signed_transaction(
+            transaction,
+            &sender_key,
+        )))
+    }
+
+    #[tokio::test]
+    async fn reject_identifier_move_core_rejects_in_user_transaction() {
+        use iota_sdk_types::Identifier;
+        use iota_types::error::UserInputError;
+
+        let state = TestAuthorityBuilder::new().build().await;
+        let validator = self_identifier_validator(&state);
+        assert!(
+            validator
+                .epoch_store
+                .protocol_config()
+                .disallow_self_identifier_in_transactions()
+        );
+
+        let result = validator.validate_transactions(vec![move_call_with_type_name(
+            &state,
+            Identifier::new_unchecked("<SELF>"),
+        )]);
+        assert!(
+            matches!(
+                &result,
+                Err(IotaError::UserInput {
+                    error: UserInputError::InvalidIdentifier { error }
+                }) if error == "<SELF>"
+            ),
+            "{result:?}"
+        );
+
+        validator
+            .validate_transactions(vec![move_call_with_type_name(
+                &state,
+                Identifier::from_static("IOTA"),
+            )])
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn reject_system_transaction_in_user_transaction() {
+        use iota_sdk_types::{
+            Address, Event, GenesisTransaction, Identifier, SenderSignedTransaction, StructTag,
+            Transaction, TransactionKind,
+        };
+        use iota_types::{
+            error::UserInputError,
+            transaction::{TransactionAPI, TransactionEnvelope},
+        };
+
+        let state = TestAuthorityBuilder::new().build().await;
+        let validator = self_identifier_validator(&state);
+        assert!(
+            validator
+                .epoch_store
+                .protocol_config()
+                .disallow_self_identifier_in_transactions()
+        );
+
+        // A system transaction needs no signature and can carry identifiers in
+        // genesis events.
+        let event = Event {
+            package_id: ObjectId::random(),
+            module: Identifier::new_unchecked("<SELF>"),
+            sender: Address::random(),
+            struct_tag: StructTag::new(
+                "0x2".parse::<Address>().unwrap(),
+                Identifier::from_static("iota"),
+                Identifier::from_static("IOTA"),
+                vec![],
+            ),
+            contents: vec![],
+        };
+        let signed_tx = TransactionEnvelope::new(SenderSignedTransaction::new(
+            Transaction::new_system_transaction(TransactionKind::Genesis(GenesisTransaction {
+                objects: vec![],
+                events: vec![event],
+            })),
+            vec![],
+        ));
+        let result =
+            validator.validate_transactions(vec![ConsensusTransactionKind::UserTransactionV1(
+                Box::new(signed_tx),
+            )]);
+        assert!(
+            matches!(
+                &result,
+                Err(IotaError::UserInput {
+                    error: UserInputError::Unsupported(_)
+                })
+            ),
+            "{result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn accept_identifier_move_core_rejects_before_the_flag() {
+        use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+        use iota_sdk_types::Identifier;
+
+        let state = TestAuthorityBuilder::new()
+            .with_protocol_config(ProtocolConfig::get_for_version(
+                ProtocolVersion::new(38),
+                Chain::Unknown,
+            ))
+            .build()
+            .await;
+        let validator = self_identifier_validator(&state);
+        assert!(
+            !validator
+                .epoch_store
+                .protocol_config()
+                .disallow_self_identifier_in_transactions()
+        );
+
+        validator
+            .validate_transactions(vec![move_call_with_type_name(
+                &state,
+                Identifier::new_unchecked("<SELF>"),
+            )])
+            .unwrap();
     }
 }
