@@ -1377,8 +1377,8 @@ impl AuthorityState {
     /// to a denied package above the horizon is not caught here.
     ///
     /// An attested transaction (`attested`) runs the input checks execution
-    /// runs instead of the admission checks, so a kept one cannot fail them
-    /// at execution; the publish verifier stays at execution.
+    /// runs, so a kept one cannot fail them at execution. It also runs the
+    /// checks on receiving objects; the publish verifier stays at execution.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) fn handle_transaction_validation_checks_at_commit(
         &self,
