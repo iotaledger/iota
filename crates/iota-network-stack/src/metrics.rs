@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use tonic::{
     Code, Status,
-    codegen::http::{HeaderValue, Request, Response, header::HeaderName},
+    codegen::http::{Request, Response, header::HeaderName},
 };
 use tower_http::{
     classify::GrpcFailureClass,
@@ -83,14 +83,15 @@ impl<B, M: MetricsCallbackProvider> OnResponse<B> for MetricsHandler<M> {
         let grpc_status = Status::from_header_map(response.headers());
         let grpc_status_code = grpc_status.map_or(Code::Ok, |s| s.code());
 
-        let path: HeaderValue = response
+        let path = response
             .headers()
             .get(&GRPC_ENDPOINT_PATH_HEADER)
-            .unwrap()
-            .clone();
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("invalid")
+            .to_string();
 
         self.metrics_provider.on_response(
-            path.to_str().unwrap().to_string(),
+            path,
             latency,
             response.status().as_u16(),
             grpc_status_code,
