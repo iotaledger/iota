@@ -113,11 +113,18 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
     /// With `load_shed` enabled, requests over the limit are rejected
     /// immediately with gRPC `RESOURCE_EXHAUSTED`; otherwise they wait for a
     /// slot to free up.
+    ///
+    /// A request keeps its slot until its response body has been sent, so a
+    /// streaming response counts for as long as it streams.
+    /// `response_send_timeout` bounds that: a response still unsent that long
+    /// after its headers is given up and frees its slot. It must exceed the
+    /// longest a response of `svc` legitimately takes to send.
     pub fn add_service_with_concurrency_limit<S>(
         mut self,
         svc: S,
         limit: NonZeroUsize,
         load_shed: bool,
+        response_send_timeout: Duration,
     ) -> Self
     where
         S: Service<Request<Body>, Response = Response<Body>, Error = Infallible>
@@ -128,9 +135,12 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
             + 'static,
         S::Future: Send + 'static,
     {
-        self.router = self
-            .router
-            .add_service(ServiceConcurrencyLimit::new(svc, limit, load_shed));
+        self.router = self.router.add_service(ServiceConcurrencyLimit::new(
+            svc,
+            limit,
+            load_shed,
+            response_send_timeout,
+        ));
         self
     }
 
@@ -680,7 +690,12 @@ mod test {
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let server = config
             .server_builder()
-            .add_service_with_concurrency_limit(DrainBody, std::num::NonZeroUsize::MIN, false)
+            .add_service_with_concurrency_limit(
+                DrainBody,
+                std::num::NonZeroUsize::MIN,
+                false,
+                Duration::from_secs(60),
+            )
             .bind(&address, None)
             .await
             .unwrap();
@@ -726,6 +741,103 @@ mod test {
         let served = sender.send_request(request(TestBody::Empty)).await.unwrap();
         assert_eq!(grpc_status(&served), (Code::Ok as i32).to_string());
 
+        server.server_handle.shutdown().await;
+    }
+
+    /// Answers at once with a body that has data ready, so whether the body is
+    /// sent depends only on the client granting flow-control window.
+    #[derive(Clone)]
+    struct ImmediateData;
+
+    impl tower::Service<http::Request<tonic::body::Body>> for ImmediateData {
+        type Response = http::Response<tonic::body::Body>;
+        type Error = std::convert::Infallible;
+        type Future = std::future::Ready<Result<Self::Response, Self::Error>>;
+
+        fn poll_ready(
+            &mut self,
+            _cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Result<(), Self::Error>> {
+            std::task::Poll::Ready(Ok(()))
+        }
+
+        fn call(&mut self, _request: http::Request<tonic::body::Body>) -> Self::Future {
+            let body = http_body_util::Full::new(bytes::Bytes::from_static(&[0; 1024]));
+            std::future::ready(Ok(http::Response::builder()
+                .header("content-type", "application/grpc")
+                .body(tonic::body::Body::new(body))
+                .unwrap()))
+        }
+    }
+
+    impl tonic::server::NamedService for ImmediateData {
+        const NAME: &'static str = "test.ImmediateData";
+    }
+
+    /// A client that grants no flow-control window never lets its response
+    /// body be sent. The admission slot it holds must still come back once the
+    /// response send timeout passes, and not before.
+    #[tokio::test]
+    async fn a_response_the_client_does_not_read_gives_back_its_slot_after_the_send_timeout() {
+        const SEND_TIMEOUT: Duration = Duration::from_millis(300);
+
+        let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
+        let server = Config::new()
+            .server_builder()
+            .add_service_with_concurrency_limit(
+                ImmediateData,
+                std::num::NonZeroUsize::MIN,
+                true,
+                SEND_TIMEOUT,
+            )
+            .bind(&address, None)
+            .await
+            .unwrap();
+
+        let stream = tokio::net::TcpStream::connect(server.local_addr().to_socket_addr().unwrap())
+            .await
+            .unwrap();
+        let (mut sender, connection) =
+            hyper::client::conn::http2::Builder::new(hyper_util::rt::TokioExecutor::new())
+                .initial_stream_window_size(0)
+                .handshake::<_, http_body_util::Empty<bytes::Bytes>>(hyper_util::rt::TokioIo::new(
+                    stream,
+                ))
+                .await
+                .unwrap();
+        tokio::spawn(connection);
+
+        let request = || {
+            http::Request::post("/test.ImmediateData/Get")
+                .header("content-type", "application/grpc")
+                .body(http_body_util::Empty::new())
+                .unwrap()
+        };
+        let shed = |response: &http::Response<hyper::body::Incoming>| {
+            response
+                .headers()
+                .get("grpc-status")
+                .is_some_and(|status| *status == (Code::ResourceExhausted as i32).to_string())
+        };
+
+        // Its headers arrive, but its body can never be sent.
+        let unread = sender.send_request(request()).await.unwrap();
+        assert!(!shed(&unread));
+
+        let while_unread = sender.send_request(request()).await.unwrap();
+        assert!(
+            shed(&while_unread),
+            "the slot must stay taken while the first response is unsent"
+        );
+
+        tokio::time::sleep(SEND_TIMEOUT * 3).await;
+        let after_timeout = sender.send_request(request()).await.unwrap();
+        assert!(
+            !shed(&after_timeout),
+            "the slot must be free once the send timeout has passed"
+        );
+
+        drop(unread);
         server.server_handle.shutdown().await;
     }
 

@@ -1749,6 +1749,12 @@ impl IotaNode {
         // that comes back reconnects, paying one TLS handshake, which is cheap
         // next to five minutes without a request.
         const VALIDATOR_GRPC_MAX_CONNECTION_IDLE: Duration = Duration::from_secs(300);
+        // A response holds its admission slot until it has been sent, and a
+        // client that stops reading would otherwise hold it for good. The
+        // longest legitimate response is a `GetTxStatus` stream, which waits at
+        // most 30 s for its transactions; twice that leaves room for a slow
+        // reader.
+        const VALIDATOR_GRPC_RESPONSE_SEND_TIMEOUT: Duration = Duration::from_secs(60);
 
         let limits = &config.validator_grpc_listener_limits;
         let http_config = iota_http::Config::default()
@@ -1808,16 +1814,19 @@ impl IotaNode {
             ValidatorServer::new(validator_service.clone()),
             concurrency_limit,
             load_shed,
+            VALIDATOR_GRPC_RESPONSE_SEND_TIMEOUT,
         )
         .add_service_with_concurrency_limit(
             ValidatorV2Server::new(validator_service.clone()),
             concurrency_limit,
             load_shed,
+            VALIDATOR_GRPC_RESPONSE_SEND_TIMEOUT,
         )
         .add_service_with_concurrency_limit(
             ValidatorPeerServer::new(validator_service),
             concurrency_limit,
             load_shed,
+            VALIDATOR_GRPC_RESPONSE_SEND_TIMEOUT,
         );
 
         let tls_config = iota_tls::create_rustls_server_config(
