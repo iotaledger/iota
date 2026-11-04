@@ -1,0 +1,92 @@
+A host firewall is useful on every node and needs no integration with it. The following nftables ruleset:
+
+- drops all inbound traffic except to the ports the node serves, so that metrics (`9184`) and the admin interface (`1337`) stay closed to the public;
+- caps the open connections per client address on the ports that serve clients;
+- limits the rate of new connections per client address on those ports.
+
+Keep only the ports your node configuration uses, set the port of your SSH server, and tune the limits to your traffic. On a node behind a reverse proxy, every client connection comes from the proxy, so remove the per-client limits there and set them in the proxy instead (see [Behind a Reverse Proxy](#behind-a-reverse-proxy)).
+
+```text file=<rootDir>/setups/traffic-control/iota-node.nft
+```
+
+Check the file, then load it:
+
+```bash
+sudo nft -c -f iota-node.nft
+sudo nft -f iota-node.nft
+```
+
+The ruleset replaces only its own `iota_node` table when you reload it, so the rules of Docker or fail2ban stay in place. To load it at boot, include it from `/etc/nftables.conf` and enable the `nftables` service. The stock `/etc/nftables.conf` of Debian and Ubuntu starts with `flush ruleset`, which removes the tables of Docker and fail2ban whenever the `nftables` service reloads; remove that line, or load the ruleset from a unit of its own.
+
+Floods of TCP connection requests from spoofed addresses cannot be blocked by address. The kernel handles them with SYN cookies, which are on by default (`net.ipv4.tcp_syncookies = 1`).
+
+## Run the Node in Docker
+
+The ruleset and the fail2ban bans below filter the traffic that reaches the host itself, in the `input` hook of nftables. On Docker's default bridge network, traffic to a port the container publishes is forwarded to the container instead, so it passes the `forward` hook and neither of them sees it: the bans do nothing, and a published metrics port stays open.
+
+Run the node on the host's network instead. The node then binds its ports on the host, and the ruleset and the bans apply as on a node without Docker. With the Docker Compose setups in `setups/validator` and `setups/fullnode/docker`, copy the override for your node type next to the Compose file and start the node with both files. The override needs Docker Compose 2.24 or later:
+
+```yaml file=<rootDir>/setups/traffic-control/docker/validator-host-network.yml
+```
+
+```yaml file=<rootDir>/setups/traffic-control/docker/fullnode-host-network.yml
+```
+
+```bash
+docker compose -f docker-compose-mainnet.yml -f validator-host-network.yml up -d
+```
+
+The override also names the container `iota-node` and writes its log to the journal, where the fail2ban jail below reads it.
+
+On the host's network, the admin interface (`127.0.0.1:1337` by default) listens on the host's loopback rather than inside the container, so every local user of the host can call it, for example to turn dry run on. Keep shell access to the host limited to its operators.
+
+## Ban Blocked Clients in the Firewall
+
+The TrafficController refuses a blocked client, but each refused request still costs the node a connection, and the block ends when the node restarts. fail2ban can read the [block log line](#read-the-block-log-line) and add the client to an nftables set, so that the kernel drops its packets for the same time.
+
+fail2ban bans for the `bantime` in its jail, not for the time in the log line. Set it to the node's `connection-blocklist-ttl-sec`. The bans expire on their own.
+
+For an IPv6 client the line names the address prefix the node blocks, such as `2001:db8:1:2::/64` (see `ipv6-prefix-len`), and fail2ban bans that whole prefix.
+
+The filter matches only a line that starts like the block line and is logged under its target, so text a client manages to get into the middle of another log line cannot ban an address.
+
+1. Install fail2ban and copy the filter to `/etc/fail2ban/filter.d/iota-node.conf`:
+
+   ```ini file=<rootDir>/setups/traffic-control/fail2ban/filter.d/iota-node.conf
+   ```
+
+2. On fail2ban older than 1.1.1 (`fail2ban-client --version`), copy the action override to `/etc/fail2ban/action.d/nftables.local`. Those versions cannot ban an address prefix with their nftables actions, so nftables rejects every IPv6 ban. Do not install it on 1.1.1 or later, which handle prefixes themselves:
+
+   ```ini file=<rootDir>/setups/traffic-control/fail2ban/action.d/nftables.local
+   ```
+
+3. Copy the jail to `/etc/fail2ban/jail.d/iota-node.conf`. It reads the journal of the `iota-node` systemd unit and bans each blocked client on the ports that serve clients:
+
+   ```ini file=<rootDir>/setups/traffic-control/fail2ban/jail.d/iota-node.conf
+   ```
+
+   For a node in Docker, run it as in [Run the Node in Docker](#run-the-node-in-docker) and add `journalmatch = CONTAINER_NAME=iota-node` to the jail. Without the override, run the container with the `journald` log driver (`--log-driver=journald`) and use its name in `journalmatch = CONTAINER_NAME=<container name>`: the default `json-file` driver wraps each line in JSON of its own, which the filter does not match.
+
+4. Check the filter against the node's log, then restart fail2ban:
+
+   ```bash
+   sudo fail2ban-regex systemd-journal /etc/fail2ban/filter.d/iota-node.conf
+   sudo systemctl restart fail2ban
+   sudo fail2ban-client status iota-node
+   ```
+
+   For a node in Docker, `fail2ban-regex` does not read the jail, so pass it the container's journal match instead: `sudo fail2ban-regex -m 'CONTAINER_NAME=iota-node' systemd-journal /etc/fail2ban/filter.d/iota-node.conf`.
+
+Other tools, such as CrowdSec, can match the line as well, since its format is stable. Make sure such a tool bans an IPv6 entry as a prefix: a tool that bans it as a single address bans only the first address of the prefix.
+
+## Behind a Reverse Proxy
+
+When a reverse proxy sits in front of the node, every connection on the node host comes from the proxy. A ban on the node host would ban the proxy, and with it every client.
+
+- Set `client-id-source: x-forwarded-for: <hops>` so that the TrafficController blocks the client and not the proxy. The node trusts only the entry of the header that your own proxy writes; see [Proxy Mode Configuration](#proxy-mode-configuration).
+- Apply the bans on the proxy host, where the client addresses arrive: send the node's log to the proxy host, and run fail2ban there.
+- Limit connections per client in the proxy rather than in the node host's firewall. For Traefik, the `InFlightReq` and `RateLimit` middlewares limit concurrent and new requests per client, and the entry point's `respondingTimeouts` (`readTimeout`, `idleTimeout`) close slow and idle connections.
+
+## Use Upstream DDoS Protection
+
+No host firewall helps once a flood fills the network link to the host. Put nodes that serve a public RPC endpoint behind the DDoS protection of your hosting provider, or behind a scrubbing service.
