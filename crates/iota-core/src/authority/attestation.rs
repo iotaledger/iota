@@ -256,9 +256,10 @@ impl AuthorityState {
     /// attested transaction: the input checks execution runs, through the
     /// same function, so the two cannot drift: Move-authenticator inputs, gas
     /// (owner, coin type, balance), the transaction's own inputs and their
-    /// union, and the receiving objects the reader loaded. The publish
-    /// verifier and the account object stay at execution, where a failure
-    /// produces failure effects.
+    /// union. It also checks the receiving objects the reader loaded, as
+    /// admission does; execution does not, since the Move runtime resolves
+    /// receives. The publish verifier and the account object stay at
+    /// execution, where a failure produces failure effects.
     pub(crate) fn check_attested_transaction_inputs_at_commit(
         &self,
         protocol_config: &ProtocolConfig,
