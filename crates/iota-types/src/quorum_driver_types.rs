@@ -51,6 +51,13 @@ pub enum QuorumDriverError {
     },
     #[error("Transaction timed out before reaching finality")]
     TimeoutBeforeFinality,
+    /// The fullnode resubmitted the transaction until its finality timeout.
+    /// The last attempt's error says what kept it from finalizing. Handled
+    /// by clients as `TimeoutBeforeFinality`.
+    #[error(
+        "Transaction timed out before reaching finality. Last recorded retriable error: {last_error}"
+    )]
+    TimeoutBeforeFinalityWithErrors { last_error: String },
     #[error(
         "Transaction failed to reach finality with transient error after {total_attempts} attempts."
     )]
@@ -94,7 +101,10 @@ impl QuorumDriverError {
             QuorumDriverError::InvalidTransaction(_) => "invalid_transaction",
             QuorumDriverError::RejectedByValidators(_) => "rejected_by_validators",
             QuorumDriverError::ObjectsDoubleUsed { .. } => "objects_double_used",
-            QuorumDriverError::TimeoutBeforeFinality => "timeout_before_finality",
+            QuorumDriverError::TimeoutBeforeFinality
+            | QuorumDriverError::TimeoutBeforeFinalityWithErrors { .. } => {
+                "timeout_before_finality"
+            }
             QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. } => {
                 "failed_with_transient_error_after_maximum_attempts"
             }
@@ -123,6 +133,7 @@ impl QuorumDriverError {
                     .to_string()
             }
             QuorumDriverError::TimeoutBeforeFinality
+            | QuorumDriverError::TimeoutBeforeFinalityWithErrors { .. }
             | QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. }
             | QuorumDriverError::SystemOverload { .. }
             | QuorumDriverError::SystemOverloadRetryAfter { .. } => self.to_string(),

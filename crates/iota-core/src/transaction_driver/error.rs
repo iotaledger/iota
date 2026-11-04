@@ -4,11 +4,11 @@
 
 use std::{collections::BTreeMap, time::Duration};
 
-use iota_sdk_types::TransactionEffectsDigest;
+use iota_sdk_types::{ObjectId, TransactionEffectsDigest, Version};
 use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{EpochId, StakeUnit},
-    error::{ErrorCategory, IotaError},
+    error::{ErrorCategory, IotaError, UserInputError},
 };
 use itertools::Itertools as _;
 use thiserror::Error;
@@ -71,6 +71,36 @@ impl TransactionRequestError {
     pub(crate) fn is_submission_retriable(&self) -> bool {
         self.categorize().is_submission_retriable()
     }
+
+    /// The input the validator rejected the transaction for, because it does
+    /// not have it.
+    pub(crate) fn missing_input(&self) -> Option<MissingInput> {
+        let TransactionRequestError::RejectedAtValidator(IotaError::UserInput { error }) = self
+        else {
+            return None;
+        };
+        match error {
+            UserInputError::ObjectNotFound { object_id, version } => Some(MissingInput::Object {
+                object_id: *object_id,
+                version: *version,
+            }),
+            UserInputError::DependentPackageNotFound { package_id } => {
+                Some(MissingInput::Package(*package_id))
+            }
+            _ => None,
+        }
+    }
+}
+
+/// An input a validator rejected a transaction for, because it does not have
+/// it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum MissingInput {
+    Object {
+        object_id: ObjectId,
+        version: Option<Version>,
+    },
+    Package(ObjectId),
 }
 
 /// Client facing errors on transaction processing via Transaction Driver.
@@ -93,7 +123,8 @@ pub enum TransactionDriverError {
         observed_effects_digests: AggregatedEffectsDigests,
     },
     /// Over validity threshold of validators rejected the transaction as
-    /// invalid. Non-retriable.
+    /// invalid, or a quorum rejected it for an input object or package they
+    /// do not have. Non-retriable.
     RejectedByValidators {
         submission_non_retriable_errors: AggregatedRequestErrors,
         submission_retriable_errors: AggregatedRequestErrors,
@@ -180,19 +211,16 @@ impl TransactionDriverError {
             }
             TransactionDriverError::RejectedByValidators {
                 submission_non_retriable_errors,
-                submission_retriable_errors,
                 ..
-            } => {
-                if let Some((_, _, _, category)) = submission_non_retriable_errors.errors.first() {
-                    *category
-                } else if let Some((_, _, _, category)) = submission_retriable_errors.errors.first()
-                {
-                    *category
-                } else {
-                    // There should be at least one error.
-                    ErrorCategory::Internal
-                }
-            }
+            } => submission_non_retriable_errors
+                .errors
+                .first()
+                .map(|(_, _, _, category)| *category)
+                // A quorum rejecting for a missing input is the largest bucket
+                // when present, and its single verdicts carry a retriable
+                // category.
+                .filter(|category| !category.is_submission_retriable())
+                .unwrap_or(ErrorCategory::InvalidTransaction),
             TransactionDriverError::ForkedExecution { .. } => ErrorCategory::Internal,
             TransactionDriverError::TimeoutWithLastRetriableError { .. } => {
                 ErrorCategory::Unavailable
@@ -245,7 +273,10 @@ impl TransactionDriverError {
         else {
             return Ok(());
         };
-        let mut msgs = vec!["Transaction is rejected as invalid by more than 1/3 of validators by stake (non-retriable).".to_string()];
+        let mut msgs = vec![
+            "Transaction is rejected by more than 1/3 of validators by stake (non-retriable)."
+                .to_string(),
+        ];
         if submission_non_retriable_errors.total_stake > 0 {
             msgs.push(format!(
                 "Non-retriable errors: [{submission_non_retriable_errors}]."

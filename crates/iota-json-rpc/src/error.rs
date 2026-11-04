@@ -207,6 +207,7 @@ impl From<Error> for RpcError {
                         RpcError::Call(error_object)
                     }
                     QuorumDriverError::TimeoutBeforeFinality
+                    | QuorumDriverError::TimeoutBeforeFinalityWithErrors { .. }
                     | QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. }
                     | QuorumDriverError::SystemOverload { .. }
                     | QuorumDriverError::SystemOverloadRetryAfter { .. } => {
@@ -381,6 +382,25 @@ mod tests {
             let expected_code = expect!["-32050"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect!["Transaction timed out before reaching finality"];
+            expected_message.assert_eq(error_object.message());
+            let expected_data = expect![[r#"{"reason":"timeout_before_finality"}"#]];
+            expected_data.assert_eq(&error_object.data().unwrap().to_string());
+        }
+
+        #[test]
+        fn test_timeout_before_finality_with_errors() {
+            let quorum_driver_error = QuorumDriverError::TimeoutBeforeFinalityWithErrors {
+                last_error: "Retriable errors: [Could not find the referenced object 0x1 at version 5 { k#1 } with 5000 stake]".to_string(),
+            };
+
+            let rpc_error: RpcError = Error::QuorumDriver(quorum_driver_error).into();
+
+            let error_object = error_object_from_rpc(rpc_error);
+            let expected_code = expect!["-32050"];
+            expected_code.assert_eq(&error_object.code().to_string());
+            let expected_message = expect![
+                "Transaction timed out before reaching finality. Last recorded retriable error: Retriable errors: [Could not find the referenced object 0x1 at version 5 { k#1 } with 5000 stake]"
+            ];
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[r#"{"reason":"timeout_before_finality"}"#]];
             expected_data.assert_eq(&error_object.data().unwrap().to_string());
