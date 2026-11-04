@@ -5141,8 +5141,9 @@ fn assert_same_dev_inspect(
 // Dev inspects differ from dry runs in what they report, so this compares
 // the full results of both backends. A framework call with a return value
 // exercises the per-command results; a run that aborts exercises the error
-// string and the missing results; a stake request exercises the event type
-// layouts.
+// string and the missing results; a stake request and a package's `init`
+// exercise the event type layouts, from the store and from the run's own
+// published package.
 #[cfg(not(msim))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_local_dev_inspect_matches_node_dev_inspect() -> Result<(), anyhow::Error> {
@@ -5251,6 +5252,19 @@ async fn test_local_dev_inspect_matches_node_dev_inspect() -> Result<(), anyhow:
     assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
     assert_eq!(node.events.data.len(), 1);
     assert_same_dev_inspect(&node, &local);
+
+    // A dev inspect commits nothing, so the event's type resolves only from
+    // the package the run itself publishes.
+    let (node, local) = dev_inspect_on_both_backends(context, |local| {
+        publish("init_event", gas_id, rgp, dev_inspect(local))
+    })
+    .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_same_dev_inspect(&node, &local);
+    let [event] = local.events.data.as_slice() else {
+        panic!("expected the event `init` emits");
+    };
+    assert_eq!(event.parsed_json, json!({ "value": "42" }));
 
     Ok(())
 }
