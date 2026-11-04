@@ -25,7 +25,7 @@
 //! | Tx processed by consensus        | Released in `authority_per_epoch_store` after quarantine               |
 //! | Tx dropped in post-consensus     | Released in `authority_per_epoch_store` after quarantine               |
 //! | Tx forgotten by consensus        | TTL expiry releases locks via background sweep                        |
-//! | Consensus submission fails       | Locks released immediately in error path                              |
+//! | Rejected after locking           | Released when the admission drops its `SoftLockGuard`                 |
 //! | Crash / restart                  | All soft locks lost → clean slate; post-consensus is authoritative    |
 //! | Epoch boundary                   | Same instance is `clear()`-ed; all locks dropped                      |
 //! | Object version mismatch          | Keyed on full `ObjectReference`; different versions don't conflict          |
@@ -100,6 +100,32 @@ pub struct PreConsensusSoftLocks {
 impl Default for PreConsensusSoftLocks {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// The soft locks one admission took for its transaction. Dropping the guard
+/// releases them; [`Self::keep`] leaves them held once the transaction is
+/// submitted to consensus.
+#[must_use = "dropping the guard releases the soft locks"]
+pub struct SoftLockGuard {
+    soft_locks: Arc<PreConsensusSoftLocks>,
+    tx_digest: TransactionDigest,
+    release_on_drop: bool,
+}
+
+impl SoftLockGuard {
+    /// Leaves the locks held after the guard is gone, until consensus
+    /// processes or drops the transaction, or the TTL expires.
+    pub fn keep(mut self) {
+        self.release_on_drop = false;
+    }
+}
+
+impl Drop for SoftLockGuard {
+    fn drop(&mut self) {
+        if self.release_on_drop {
+            self.soft_locks.release(&self.tx_digest);
+        }
     }
 }
 
@@ -215,6 +241,25 @@ impl PreConsensusSoftLocks {
 
         self.lock_count.store(inner.locks.len(), Ordering::Relaxed);
         Ok(())
+    }
+
+    /// Like [`Self::try_acquire`], but the locks are released when the
+    /// returned guard is dropped, unless [`SoftLockGuard::keep`] is called. An
+    /// error leaves untouched the locks another admission of the same digest
+    /// holds.
+    pub fn try_acquire_guard(
+        self: &Arc<Self>,
+        tx_digest: TransactionDigest,
+        owned_objects: &[ObjectReference],
+    ) -> Result<SoftLockGuard, IotaError> {
+        self.try_acquire(tx_digest, owned_objects)?;
+        Ok(SoftLockGuard {
+            soft_locks: self.clone(),
+            tx_digest,
+            // `try_acquire` takes nothing for an empty set, so the guard must
+            // not release locks another admission of this digest may hold.
+            release_on_drop: self.enabled && !owned_objects.is_empty(),
+        })
     }
 
     /// Releases all soft locks held by `tx_digest`.
@@ -917,5 +962,71 @@ mod tests {
         table.sweep_expired();
         table.clear();
         assert_eq!(table.lock_count(), 0);
+    }
+
+    #[test]
+    fn a_dropped_guard_releases_its_locks() {
+        let table = Arc::new(PreConsensusSoftLocks::with_ttl(Duration::from_secs(60)));
+        let tx = digest(1);
+
+        let guard = table
+            .try_acquire_guard(tx, &[obj_ref(1, 1), obj_ref(2, 1)])
+            .unwrap();
+        assert_eq!(table.lock_count(), 2);
+
+        drop(guard);
+        assert_eq!(table.lock_count(), 0);
+        assert!(!table.check_in_flight(&tx));
+    }
+
+    #[test]
+    fn a_kept_guard_leaves_its_locks_held() {
+        let table = Arc::new(PreConsensusSoftLocks::with_ttl(Duration::from_secs(60)));
+        let tx = digest(1);
+
+        table
+            .try_acquire_guard(tx, &[obj_ref(1, 1), obj_ref(2, 1)])
+            .unwrap()
+            .keep();
+        assert_eq!(table.lock_count(), 2);
+        assert!(table.check_in_flight(&tx));
+
+        table.release(&tx);
+        assert_eq!(table.lock_count(), 0);
+    }
+
+    #[test]
+    fn a_refused_guard_leaves_the_holders_locks() {
+        let table = Arc::new(PreConsensusSoftLocks::with_ttl(Duration::from_secs(60)));
+        let obj = obj_ref(1, 1);
+        let holder = table.try_acquire_guard(digest(1), &[obj]).unwrap();
+
+        let same_digest = table.try_acquire_guard(digest(1), &[obj]);
+        assert!(matches!(
+            same_digest,
+            Err(IotaError::RecentlyResubmitted { .. })
+        ));
+        let other_digest = table.try_acquire_guard(digest(2), &[obj]);
+        assert!(matches!(
+            other_digest,
+            Err(IotaError::ObjectLockConflict { .. })
+        ));
+        assert!(table.check_in_flight(&digest(1)));
+        assert_eq!(table.lock_count(), 1);
+
+        drop(holder);
+        assert_eq!(table.lock_count(), 0);
+    }
+
+    #[test]
+    fn a_guard_without_objects_releases_nothing() {
+        let table = Arc::new(PreConsensusSoftLocks::with_ttl(Duration::from_secs(60)));
+        let tx = digest(1);
+        table.try_acquire(tx, &[obj_ref(1, 1)]).unwrap();
+
+        drop(table.try_acquire_guard(tx, &[]).unwrap());
+
+        assert!(table.check_in_flight(&tx));
+        assert_eq!(table.lock_count(), 1);
     }
 }

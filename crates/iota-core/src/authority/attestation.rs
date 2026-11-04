@@ -60,11 +60,19 @@ impl AuthorityState {
     /// `authenticate_then_execute_transaction_to_effects` so that Move
     /// authentication and transaction execution run together and produce full
     /// `TransactionEffects` including the accurate `computation_cost`.
+    ///
+    /// For a transaction without a Move authenticator, `lock_owned_objects` is
+    /// called with the owned objects among its inputs once they pass
+    /// validation and before the dry run; its error is returned without
+    /// running the dry run. It is not called for a transaction with a Move
+    /// authenticator, which proves the signer controls those objects only
+    /// when the dry run passes.
     pub(crate) fn attest_transaction(
         &self,
         transaction: &VerifiedTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         deny_config: &dyn DenyRuleConfig,
+        lock_owned_objects: impl FnOnce(&[ObjectReference]) -> IotaResult,
     ) -> IotaResult<(AttestationData, Vec<ObjectReference>)> {
         let protocol_config = epoch_store.protocol_config();
         let tx = transaction.data().transaction();
@@ -135,6 +143,11 @@ impl AuthorityState {
         // separately.
         let (inner_temp_store, effects, authentication_failed, account_object_refs) =
             if move_authenticators.is_empty() {
+                // The signatures are verified and validation checked that the
+                // signers own these objects, so the locks cannot hold anyone
+                // else's object, and a second transaction on the same objects
+                // is refused before it gets a dry run of its own.
+                lock_owned_objects(&owned_objects)?;
                 // No Move authentication, execute directly.
                 let (inner_temp_store, _, effects, _, _) =
                     epoch_store.executor().execute_transaction_to_effects(
