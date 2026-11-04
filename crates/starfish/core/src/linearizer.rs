@@ -114,12 +114,9 @@ impl Linearizer {
         );
 
         drop(dag_state_guard);
-        // A block's acknowledgments can reach quorum before its header is traversed,
-        // for example through the optimistic strong votes below. The quorum check
-        // fires only when the quorum is first reached, so such a block is committed
-        // here, when its header is first traversed. This runs before the
-        // acknowledgments of this commit are counted, so a block that reaches quorum
-        // in this commit is committed only by that check.
+        // A block may reach quorum before it is traversed, e.g. via optimistic strong
+        // votes; the quorum check fires only once, so commit it on first traversal,
+        // before this commit's acknowledgments are counted.
         let mut traversed_with_quorum = Vec::new();
         if self
             .context
