@@ -1420,8 +1420,8 @@ impl Core {
                 .commit_observer
                 .handle_committed_leaders(sequenced_leaders, source)?;
 
-            // Headers with the same payload share one ref, so it can be missing in
-            // commits on both sides of a schedule change; merge its acknowledgers.
+            // The same transaction ref can be missing on both sides of a leader
+            // schedule change.
             for (transaction_ref, authors) in missing_transactions_refs {
                 all_missing_committed_txns
                     .entry(transaction_ref)
