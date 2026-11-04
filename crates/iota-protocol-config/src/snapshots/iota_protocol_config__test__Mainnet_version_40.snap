@@ -32,7 +32,6 @@ feature_flags:
   select_committee_supporting_next_epoch_version: true
   consensus_median_timestamp_with_checkpoint_enforcement: true
   consensus_commit_transactions_only_for_traversed_headers: true
-  consensus_commit_transactions_once_traversed: true
   congestion_limit_overshoot_in_gas_price_feedback_mechanism: true
   separate_gas_price_feedback_mechanism_for_randomness: true
   metadata_in_module_bytes: true

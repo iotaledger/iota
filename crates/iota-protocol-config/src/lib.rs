@@ -3883,8 +3883,10 @@ impl ProtocolConfig {
                     // Commit a block's transactions once its header is
                     // traversed, also when their acknowledgment quorum came
                     // first.
-                    cfg.feature_flags
-                        .consensus_commit_transactions_once_traversed = true;
+                    if chain != Chain::Mainnet {
+                        cfg.feature_flags
+                            .consensus_commit_transactions_once_traversed = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
