@@ -74,13 +74,13 @@ impl Subscription {
     /// the client received, the stream resumes from the transaction
     /// immediately after it. The identified transaction itself is not
     /// emitted.
-    async fn transactions<'c, 'r>(
+    async fn transactions<'ctx>(
         &self,
-        ctx: &'r Context<'c>,
+        ctx: &Context<'ctx>,
         start_after: Option<Digest>,
         filter: Option<SubscriptionTransactionFilter>,
     ) -> async_graphql::Result<
-        impl Stream<Item = async_graphql::Result<SubscriptionItem<TransactionBlock>>> + use<'c, 'r>,
+        impl Stream<Item = async_graphql::Result<SubscriptionItem<TransactionBlock>>> + use<'ctx>,
     > {
         let stream = ctx.data_unchecked::<GraphQLStream>();
         let permit = stream.acquire_permit().map_err(|e| e.extend())?;
@@ -111,13 +111,13 @@ impl Subscription {
     /// On reconnect, clients should pass the digest of the last fully
     /// received transaction as `start_after`. The stream resumes from the
     /// next transaction, so no partial transaction is ever observed.
-    async fn events<'c, 'r>(
+    async fn events<'ctx>(
         &self,
-        ctx: &'r Context<'c>,
+        ctx: &Context<'ctx>,
         start_after: Option<Digest>,
         filter: Option<SubscriptionEventFilter>,
     ) -> async_graphql::Result<
-        impl Stream<Item = async_graphql::Result<SubscriptionItem<Event>>> + use<'c, 'r>,
+        impl Stream<Item = async_graphql::Result<SubscriptionItem<Event>>> + use<'ctx>,
     > {
         let stream = ctx.data_unchecked::<GraphQLStream>();
         let permit = stream.acquire_permit().map_err(|e| e.extend())?;

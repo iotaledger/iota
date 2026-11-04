@@ -91,6 +91,9 @@ use crate::{
 const DEFAULT_MAX_CHECKPOINT_LAG: Duration = Duration::from_secs(300);
 /// The maximum complexity allowed for native [`async_graphql`] checks.
 const MAX_COMPLEXITY: usize = 6000;
+/// Subscriptions replay from their own pool, sized as the main pool divided
+/// by this, to limit the extra connections opened on the database.
+const SUBSCRIPTION_POOL_DIVISOR: u32 = 2;
 
 pub(crate) struct Server {
     router: Router,
@@ -489,9 +492,8 @@ impl ServerBuilder {
 
         // subscriptions replay from their own pool for better performance.
         let mut subscription_pool_config = ConnectionPoolConfig::default();
-        // half the main pool size, to limit the extra connections opened on the database.
         // The live broker holds one connection for LISTEN, so keep at least one more for replays.
-        let pool_size = (config.connection.db_pool_size / 2).max(2);
+        let pool_size = (config.connection.db_pool_size / SUBSCRIPTION_POOL_DIVISOR).max(2);
         subscription_pool_config.set_pool_size(pool_size);
         subscription_pool_config.set_statement_timeout(Duration::from_millis(
             config.service.limits.request_timeout_ms.into(),
