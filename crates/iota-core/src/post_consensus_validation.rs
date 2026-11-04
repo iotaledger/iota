@@ -47,8 +47,8 @@
 //!    lock from the commit that kept it), which is exempt. Cheap; performed before expensive
 //!    checks.
 //! 7. `handle_transaction_validation_checks()` — drop with error. An attested transaction runs the
-//!    input checks execution runs, gas included, instead of the admission checks. Only reached when
-//!    all locks are free.
+//!    input checks execution runs, gas included, and the checks on receiving objects; the publish
+//!    verifier stays at execution. Only reached when all locks are free.
 //! 8. All passed — acquire locks in the local tracking map, keep transaction.
 //!
 //! Non-`UserTransactionV1` transactions pass through unchanged.
@@ -656,7 +656,8 @@ pub async fn validate_and_resolve_conflicts(
             // is read for the deny check of its package, both as of the
             // horizon. The coin deny list is read as of the horizon too. An
             // attested transaction runs the input checks execution runs, gas
-            // included, instead of the admission checks.
+            // included, and the checks on receiving objects; the publish
+            // verifier stays at execution.
             Some(reader) => authority_state
                 .handle_transaction_validation_checks_at_commit(
                     reader,
