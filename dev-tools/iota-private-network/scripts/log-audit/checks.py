@@ -51,7 +51,7 @@ class CheckResult:
 # legitimately produces no winner/loser line. Surfaced client-side in the
 # stress log's error and node-side in the fullnode's terminal-failure reason.
 _PRE_CONSENSUS_REJECTION_MARKERS = (
-    "rejected as invalid by more than 1/3 of validator stake during submission",
+    "by more than 1/3 of validator stake during submission",
     "is not available for consumption, current version",
 )
 

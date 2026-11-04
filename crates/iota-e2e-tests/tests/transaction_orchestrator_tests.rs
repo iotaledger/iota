@@ -287,7 +287,10 @@ async fn test_tx_across_epoch_boundaries() {
                 info!(?tx_digest, "tx result: ok");
                 result_tx.send(response.effects).await.unwrap();
             }
-            Err(QuorumDriverError::TimeoutBeforeFinality) => {
+            Err(
+                QuorumDriverError::TimeoutBeforeFinality
+                | QuorumDriverError::TimeoutBeforeFinalityWithErrors { .. },
+            ) => {
                 info!(?tx_digest, "tx result: timeout and will retry")
             }
             Err(other) => panic!("unexpected error: {other:?}"),
@@ -1074,6 +1077,7 @@ async fn test_skip_effect_cert_timeout_without_quorum() -> Result<(), anyhow::Er
 
     match result {
         Err(QuorumDriverError::TimeoutBeforeFinality)
+        | Err(QuorumDriverError::TimeoutBeforeFinalityWithErrors { .. })
         | Err(QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. }) => {}
         Err(QuorumDriverError::QuorumDriverInternal(e)) => panic!(
             "skip-cert quorum loss should map to TimeoutBeforeFinality, got \

@@ -6,6 +6,7 @@
 use std::{
     collections::{BTreeMap, hash_map::DefaultHasher},
     hash::Hasher,
+    str::FromStr,
 };
 
 use fastcrypto::traits::{AggregateAuthenticator, KeyPair};
@@ -1285,6 +1286,491 @@ fn validity_check_rejects_randomness_state_in_both_transaction_and_move_authenti
             },
         }
     );
+}
+
+/// `tx`, with its sender authenticated by a `MoveAuthenticator` that passes
+/// `type_args` to its authenticate function.
+fn with_authenticator_type_args(
+    tx: Transaction,
+    type_args: Vec<TypeTag>,
+) -> SenderSignedTransaction {
+    let account = SharedObjectReference::new(tx.sender().into(), Version::from(1), false);
+    with_move_authenticator(tx, MoveAuthenticatorV1::new(vec![], type_args, account))
+}
+
+/// Reads every kind in `kinds` as an immutable object with the kind's id, which
+/// is all splitting the inputs into groups looks at.
+fn read_for_testing(kinds: Vec<InputObjectKind>) -> InputObjects {
+    kinds
+        .into_iter()
+        .map(|kind| {
+            ObjectReadResult::new(
+                kind,
+                Object::immutable_with_id_for_testing(kind.object_id()).into(),
+            )
+        })
+        .collect::<Vec<_>>()
+        .into()
+}
+
+/// An authenticator lists the packages its type arguments name, nested ones
+/// included and each once, only when asked; a primitive type argument names
+/// no package.
+#[test]
+fn move_authenticator_input_objects_include_type_arg_packages_when_asked() {
+    let outer = ObjectId::random();
+    let inner = ObjectId::random();
+    let account = SharedObjectReference::new(ObjectId::random(), Version::from(1), false);
+    let authenticator = MoveAuthenticatorV1::new(
+        vec![],
+        vec![
+            TypeTag::from_str(&format!("vector<{outer}::m::S<{inner}::n::T>>")).unwrap(),
+            TypeTag::from_str(&format!("{outer}::m::U")).unwrap(),
+            TypeTag::U64,
+        ],
+        account,
+    );
+
+    let without_packages = authenticator.input_objects(false);
+    assert!(
+        without_packages
+            .iter()
+            .all(|kind| !matches!(kind, InputObjectKind::MovePackage(_)))
+    );
+
+    let mut expected = without_packages;
+    expected.extend(
+        BTreeSet::from([outer, inner])
+            .into_iter()
+            .map(InputObjectKind::MovePackage),
+    );
+    assert_eq!(authenticator.input_objects(true), expected);
+}
+
+/// The packages a `MoveAuthenticator`'s type arguments name, nested ones
+/// included, are read as inputs only when asked.
+#[test]
+fn collect_all_input_object_kind_for_reading_adds_authenticator_type_arg_packages() {
+    let outer = ObjectId::random();
+    let inner = ObjectId::random();
+    let tx = with_authenticator_type_args(
+        make_transaction_data(Address::random()),
+        vec![
+            TypeTag::from_str(&format!("vector<{outer}::m::S<{inner}::n::T>>")).unwrap(),
+            TypeTag::U64,
+        ],
+    );
+
+    let without_packages = tx
+        .collect_all_input_object_kind_for_reading(false)
+        .unwrap()
+        .into_iter()
+        .collect::<HashSet<_>>();
+    assert!(
+        without_packages
+            .iter()
+            .all(|kind| !matches!(kind, InputObjectKind::MovePackage(_)))
+    );
+
+    let with_packages = tx.collect_all_input_object_kind_for_reading(true).unwrap();
+    let mut expected = without_packages;
+    expected.extend([
+        InputObjectKind::MovePackage(outer),
+        InputObjectKind::MovePackage(inner),
+    ]);
+    assert_eq!(with_packages.len(), expected.len());
+    assert_eq!(with_packages.into_iter().collect::<HashSet<_>>(), expected);
+}
+
+/// The type argument packages are split into the inputs of the authenticator
+/// that names them, not into the transaction's own inputs.
+#[test]
+fn split_input_objects_into_groups_for_reading_puts_type_arg_packages_in_the_authenticator_group() {
+    let package = ObjectId::random();
+    let tx = with_authenticator_type_args(
+        make_transaction_data(Address::random()),
+        vec![TypeTag::from_str(&format!("{package}::m::S")).unwrap()],
+    );
+    let input_objects =
+        read_for_testing(tx.collect_all_input_object_kind_for_reading(true).unwrap());
+
+    let (tx_input_objects, per_authenticator_inputs) = tx
+        .split_input_objects_into_groups_for_reading(input_objects)
+        .unwrap();
+
+    let is_the_package = |kind: &InputObjectKind| *kind == InputObjectKind::MovePackage(package);
+    assert!(!tx_input_objects.object_kinds().any(is_the_package));
+    let [(authenticator_input_objects, _)] = per_authenticator_inputs.as_slice() else {
+        panic!("one authenticator must give one group");
+    };
+    assert_eq!(
+        authenticator_input_objects
+            .object_kinds()
+            .filter(|kind| is_the_package(kind))
+            .count(),
+        1
+    );
+}
+
+/// Without the flag the type argument packages are not read, and the
+/// authenticator's group holds no package.
+#[test]
+fn split_input_objects_into_groups_for_reading_leaves_out_unread_type_arg_packages() {
+    let package = ObjectId::random();
+    let tx = with_authenticator_type_args(
+        make_transaction_data(Address::random()),
+        vec![TypeTag::from_str(&format!("{package}::m::S")).unwrap()],
+    );
+    let input_objects =
+        read_for_testing(tx.collect_all_input_object_kind_for_reading(false).unwrap());
+
+    let (_, per_authenticator_inputs) = tx
+        .split_input_objects_into_groups_for_reading(input_objects)
+        .unwrap();
+
+    let [(authenticator_input_objects, _)] = per_authenticator_inputs.as_slice() else {
+        panic!("one authenticator must give one group");
+    };
+    assert!(
+        authenticator_input_objects
+            .object_kinds()
+            .all(|kind| !matches!(kind, InputObjectKind::MovePackage(_)))
+    );
+}
+
+/// A transaction that calls `package`, and whose sender's authenticator names
+/// a type of `package` in a type argument.
+fn move_call_and_type_arg_naming(package: ObjectId) -> SenderSignedTransaction {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.programmable_move_call(
+        package,
+        Identifier::from_static("m"),
+        Identifier::from_static("f"),
+        vec![],
+        vec![],
+    );
+    with_authenticator_type_args(
+        Transaction::new_programmable(
+            Address::random(),
+            vec![random_object_ref()],
+            builder.finish(),
+            TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            1,
+        ),
+        vec![TypeTag::from_str(&format!("{package}::m::S")).unwrap()],
+    )
+}
+
+/// A package the transaction names itself is in the transaction's group only,
+/// with or without the type argument packages read, so authentication runs on
+/// the same inputs as without the flag.
+#[test]
+fn split_input_objects_into_groups_for_reading_leaves_a_package_the_transaction_names_to_it() {
+    let package = ObjectId::random();
+    let tx = move_call_and_type_arg_naming(package);
+
+    for include_type_arg_packages in [true, false] {
+        let input_objects = read_for_testing(
+            tx.collect_all_input_object_kind_for_reading(include_type_arg_packages)
+                .unwrap(),
+        );
+        let (tx_input_objects, per_authenticator_inputs) = tx
+            .split_input_objects_into_groups_for_reading(input_objects)
+            .unwrap();
+
+        assert!(
+            tx_input_objects
+                .object_kinds()
+                .any(|kind| *kind == InputObjectKind::MovePackage(package))
+        );
+        let [(authenticator_input_objects, _)] = per_authenticator_inputs.as_slice() else {
+            panic!("one authenticator must give one group");
+        };
+        assert!(
+            authenticator_input_objects
+                .object_kinds()
+                .all(|kind| !matches!(kind, InputObjectKind::MovePackage(_)))
+        );
+    }
+}
+
+/// A package named both by a `MoveCall` and by an authenticator's type
+/// argument is listed once among the transaction's inputs.
+#[test]
+fn input_objects_lists_a_package_named_by_a_move_call_and_a_type_arg_once() {
+    let package = ObjectId::random();
+    let tx = move_call_and_type_arg_naming(package);
+
+    assert_eq!(
+        tx.input_objects(true)
+            .unwrap()
+            .into_iter()
+            .filter(|kind| *kind == InputObjectKind::MovePackage(package))
+            .count(),
+        1
+    );
+}
+
+/// Asserts that `tx`'s inputs, with the packages named by authenticator type
+/// arguments, list `id`, and only as an object.
+fn assert_listed_only_as_an_object(tx: &SenderSignedTransaction, id: ObjectId) {
+    let kinds = tx.input_objects(true).unwrap();
+    assert!(kinds.iter().any(|kind| kind.object_id() == id));
+    assert!(!kinds.contains(&InputObjectKind::MovePackage(id)));
+}
+
+/// A type argument that names an object input's id does not fail listing the
+/// inputs: the object stays, and the id is not listed as a package. This holds
+/// for the account, for an object the programmable transaction passes, and for
+/// a gas coin, which the validity check does not compare against the type
+/// arguments.
+#[test]
+fn input_objects_skips_a_type_arg_package_that_names_an_object() {
+    let sender = Address::random();
+    let type_arg = |id: ObjectId| TypeTag::from_str(&format!("{id}::m::S")).unwrap();
+
+    let account = ObjectId::from(sender);
+    let tx = with_authenticator_type_args(make_transaction_data(sender), vec![type_arg(account)]);
+    assert_listed_only_as_an_object(&tx, account);
+
+    let object = ObjectId::random();
+    for input in object_call_args(object) {
+        let tx = with_authenticator_type_args(
+            transaction_passing(sender, input),
+            vec![type_arg(object)],
+        );
+        assert_listed_only_as_an_object(&tx, object);
+    }
+
+    let data = make_transaction_data(sender);
+    let gas = data.gas()[0].object_id;
+    let tx = with_authenticator_type_args(data, vec![type_arg(gas)]);
+    assert_listed_only_as_an_object(&tx, gas);
+}
+
+/// When one authenticator's type argument names an id that the other
+/// authenticator passes as an object, listing the inputs keeps the object,
+/// whichever authenticator comes first.
+#[test]
+fn input_objects_keeps_an_object_another_authenticators_type_arg_names() {
+    let object = ObjectId::random();
+    let type_arg = TypeTag::from_str(&format!("{object}::m::S")).unwrap();
+
+    for input in object_call_args(object) {
+        let type_arg_first = sponsored_with_authenticators(
+            (vec![], vec![type_arg.clone()]),
+            (vec![input.clone()], vec![]),
+        );
+        let object_first =
+            sponsored_with_authenticators((vec![input], vec![]), (vec![], vec![type_arg.clone()]));
+        for tx in [type_arg_first, object_first] {
+            assert_listed_only_as_an_object(&tx, object);
+        }
+    }
+}
+
+/// When the sender's and the sponsor's authenticators name the same package,
+/// it is read once, and each authenticator's group holds it.
+#[test]
+fn two_authenticators_naming_the_same_package_each_get_it() {
+    let package = ObjectId::random();
+    let type_arg = TypeTag::from_str(&format!("{package}::m::S")).unwrap();
+    let (sponsored, _, _) =
+        make_sponsored_move_authenticator_tx(Address::random(), Address::random());
+    let data = sponsored.data().transaction().clone();
+    let authenticator_for = |address: Address| {
+        UserSignature::MoveAuthenticator(MoveAuthenticator::from(MoveAuthenticatorV1::new(
+            vec![],
+            vec![type_arg.clone()],
+            SharedObjectReference::new(address.into(), Version::from(1), false),
+        )))
+    };
+    let tx = SenderSignedTransaction::new(
+        data.clone(),
+        vec![
+            authenticator_for(data.sender()),
+            authenticator_for(data.gas_owner()),
+        ],
+    );
+
+    let kinds = tx.collect_all_input_object_kind_for_reading(true).unwrap();
+    assert_eq!(
+        kinds
+            .iter()
+            .filter(|kind| **kind == InputObjectKind::MovePackage(package))
+            .count(),
+        1
+    );
+
+    let (_, per_authenticator_inputs) = tx
+        .split_input_objects_into_groups_for_reading(read_for_testing(kinds))
+        .unwrap();
+    assert_eq!(per_authenticator_inputs.len(), 2);
+    for (authenticator_input_objects, _) in &per_authenticator_inputs {
+        assert!(
+            authenticator_input_objects
+                .object_kinds()
+                .any(|kind| *kind == InputObjectKind::MovePackage(package))
+        );
+    }
+}
+
+/// `tx.validity_check` at the max protocol version, first with the packages
+/// named by authenticator type arguments listed as inputs, then without.
+fn validity_check_with_and_without_type_arg_packages(
+    tx: &SenderSignedTransaction,
+) -> (IotaResult<usize>, IotaResult<usize>) {
+    let flag_on = ProtocolConfig::get_for_max_version_UNSAFE();
+    assert!(flag_on.move_authenticator_type_arg_packages_as_inputs());
+    let mut flag_off = flag_on.clone();
+    flag_off.set_move_authenticator_type_arg_packages_as_inputs_for_testing(false);
+    let check =
+        |config: &ProtocolConfig| tx.validity_check(&TxValidityCheckContext { config, epoch: 0 });
+    (check(&flag_on), check(&flag_off))
+}
+
+/// A transaction whose programmable part passes `input` to a Move call.
+fn transaction_passing(sender: Address, input: CallArg) -> Transaction {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    let arg = builder.obj(input).unwrap();
+    builder.programmable_move_call(
+        ObjectId::random(),
+        Identifier::from_static("m"),
+        Identifier::from_static("f"),
+        vec![],
+        vec![arg],
+    );
+    Transaction::new_programmable(
+        sender,
+        vec![random_object_ref()],
+        builder.finish(),
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        1,
+    )
+}
+
+/// A sponsored transaction where the sender's and the sponsor's
+/// authenticators pass the given call arguments and type arguments.
+fn sponsored_with_authenticators(
+    sender: (Vec<CallArg>, Vec<TypeTag>),
+    sponsor: (Vec<CallArg>, Vec<TypeTag>),
+) -> SenderSignedTransaction {
+    let (sponsored, _, _) =
+        make_sponsored_move_authenticator_tx(Address::random(), Address::random());
+    let data = sponsored.data().transaction().clone();
+    let authenticator = |address: Address, (call_args, type_args)| {
+        UserSignature::MoveAuthenticator(MoveAuthenticator::from(MoveAuthenticatorV1::new(
+            call_args,
+            type_args,
+            SharedObjectReference::new(address.into(), Version::from(1), false),
+        )))
+    };
+    SenderSignedTransaction::new(
+        data.clone(),
+        vec![
+            authenticator(data.sender(), sender),
+            authenticator(data.gas_owner(), sponsor),
+        ],
+    )
+}
+
+/// The ways to name `id` as an object rather than as a package.
+fn object_call_args(id: ObjectId) -> [CallArg; 2] {
+    [
+        CallArg::ImmutableOrOwned(ObjectReference::new(
+            id,
+            Version::from(1),
+            ObjectDigest::new([0; 32]),
+        )),
+        CallArg::Shared(SharedObjectReference::new(id, Version::from(1), false)),
+    ]
+}
+
+fn inconsistent_input(object_id: ObjectId) -> IotaError {
+    IotaError::UserInput {
+        error: UserInputError::InconsistentInput { object_id },
+    }
+}
+
+/// An id the programmable transaction names as an object cannot also be a
+/// package named by an authenticator's type argument. With the flag, the
+/// transaction bytes alone refuse this, so validation at a commit decides it
+/// before any object is read. Without the flag, the package is not an input,
+/// and nothing is compared.
+#[test]
+fn validity_check_rejects_a_type_arg_package_the_transaction_names_as_an_object() {
+    let sender = Address::random();
+    let package = ObjectId::random();
+    let type_arg = TypeTag::from_str(&format!("{package}::m::S")).unwrap();
+
+    for input in object_call_args(package) {
+        let tx = with_authenticator_type_args(
+            transaction_passing(sender, input),
+            vec![type_arg.clone()],
+        );
+        let (flag_on, flag_off) = validity_check_with_and_without_type_arg_packages(&tx);
+        assert_eq!(flag_on.unwrap_err(), inconsistent_input(package));
+        flag_off.unwrap();
+    }
+}
+
+/// The same holds when an authenticator, not the programmable transaction,
+/// names the id as an object: the same authenticator in one of its call
+/// arguments, or the other authenticator of a sponsored transaction.
+#[test]
+fn validity_check_rejects_a_type_arg_package_an_authenticator_names_as_an_object() {
+    let package = ObjectId::random();
+    let type_arg = TypeTag::from_str(&format!("{package}::m::S")).unwrap();
+
+    for input in object_call_args(package) {
+        let same_authenticator = sponsored_with_authenticators(
+            (vec![input.clone()], vec![type_arg.clone()]),
+            (vec![], vec![]),
+        );
+        let other_authenticator =
+            sponsored_with_authenticators((vec![input], vec![]), (vec![], vec![type_arg.clone()]));
+        for tx in [same_authenticator, other_authenticator] {
+            let (flag_on, flag_off) = validity_check_with_and_without_type_arg_packages(&tx);
+            assert_eq!(flag_on.unwrap_err(), inconsistent_input(package));
+            flag_off.unwrap();
+        }
+    }
+}
+
+/// Naming a package in a type argument stays allowed when the same package is
+/// also called by the programmable transaction, or also named by the other
+/// authenticator's type argument: every place names it as a package.
+#[test]
+fn validity_check_accepts_a_type_arg_package_named_elsewhere_as_a_package() {
+    let package = ObjectId::random();
+    let type_arg = TypeTag::from_str(&format!("{package}::m::S")).unwrap();
+
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.programmable_move_call(
+        package,
+        Identifier::from_static("m"),
+        Identifier::from_static("f"),
+        vec![],
+        vec![],
+    );
+    let called_by_the_transaction = with_authenticator_type_args(
+        Transaction::new_programmable(
+            Address::random(),
+            vec![random_object_ref()],
+            builder.finish(),
+            TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            1,
+        ),
+        vec![type_arg.clone()],
+    );
+    let named_by_both_authenticators =
+        sponsored_with_authenticators((vec![], vec![type_arg.clone()]), (vec![], vec![type_arg]));
+
+    for tx in [called_by_the_transaction, named_by_both_authenticators] {
+        let (flag_on, flag_off) = validity_check_with_and_without_type_arg_packages(&tx);
+        flag_on.unwrap();
+        flag_off.unwrap();
+    }
 }
 
 #[test]

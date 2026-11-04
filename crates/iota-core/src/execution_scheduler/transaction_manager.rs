@@ -437,8 +437,13 @@ impl TransactionManager {
                 .map(|(tx, execution_env)| {
                     // Check availability of all transaction associated input objects(transaction +
                     // authenticators).
-                    let input_object_kinds =
-                        tx.input_objects().expect("input_objects() cannot fail");
+                    let input_object_kinds = tx
+                        .input_objects(
+                            epoch_store
+                                .protocol_config()
+                                .move_authenticator_type_arg_packages_as_inputs(),
+                        )
+                        .expect("input_objects() cannot fail");
                     let mut input_object_keys = epoch_store.get_input_object_keys(
                         &tx.key(),
                         &input_object_kinds,

@@ -57,6 +57,7 @@ message StatusDetail {
     ExecutedStatus executed = 2;
     RejectedStatus rejected = 3;
     ExpiredStatus expired = 4;
+    TimedOutStatus timed_out = 5;
   }
 }
 
@@ -78,10 +79,14 @@ message RejectedStatus {
   bytes error = 1;
 }
 
-// Transaction status has expired from the validator's cache.
+// The epoch ended before the transaction was executed or dropped.
 message ExpiredStatus {
   uint64 epoch = 1;
 }
+
+// The validator reached the end of its wait without a final status for the
+// transaction. Ask again.
+message TimedOutStatus {}
 
 message HealthCheckRequest {}
 

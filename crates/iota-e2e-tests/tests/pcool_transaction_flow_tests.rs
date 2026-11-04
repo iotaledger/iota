@@ -28,13 +28,20 @@
 //! (`TransactionDriver`), which is what
 //! `WalletContext::execute_transaction_may_fail` uses.
 
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
 
+use iota_json_rpc_api::{TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE};
 use iota_macros::sim_test;
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, StructTag, TypeTag, Version};
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::{base_types::dbg_addr, coin::CoinMetadata, transaction::CallArg};
+use iota_types::{
+    base_types::dbg_addr,
+    coin::CoinMetadata,
+    transaction::{CallArg, TransactionEnvelope},
+};
+use jsonrpsee::{core::ClientError, types::ErrorObject};
 use test_cluster::{TestCluster, TestClusterBuilder};
+use tokio::time::Instant;
 
 /// Builds a P-COOL test cluster. When `use_execution_scheduler` is set, every
 /// node selects the new `ExecutionScheduler` (via the
@@ -286,4 +293,110 @@ async fn run_immutable_object_read_twice(test_cluster: &TestCluster) {
             "read {attempt} of an immutable object must finalize under P-COOL: {response:?}"
         );
     }
+}
+
+/// A transfer of a coin that nobody has.
+async fn missing_input_transfer(test_cluster: &TestCluster) -> TransactionEnvelope {
+    let sender = test_cluster.get_address_0();
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let missing =
+        ObjectReference::new(ObjectId::random(), Version::from(1), ObjectDigest::random());
+    test_cluster.wallet.sign_transaction(
+        &TestTransactionBuilder::new(sender, missing, rgp)
+            .transfer_iota(Some(1), dbg_addr(2))
+            .build(),
+    )
+}
+
+/// The JSON-RPC error object behind a failed wallet submission.
+fn rpc_error_object(error: &anyhow::Error) -> &ErrorObject<'static> {
+    match error.downcast_ref::<iota_sdk::error::Error>() {
+        Some(iota_sdk::error::Error::Rpc(ClientError::Call(object))) => object,
+        _ => panic!("expected a JSON-RPC call error, got {error:?}"),
+    }
+}
+
+/// A transaction whose input object no validator has is rejected at
+/// submission once a quorum of validators answered, and the error names the
+/// object. The fullnode retries such a rejection only below that quorum,
+/// since one validator may not have executed the object's creation yet. The
+/// scheduler plays no part, so the scenario runs once.
+#[sim_test]
+async fn test_pcool_missing_input_object_is_rejected_at_submission() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(600_000)
+        .build()
+        .await;
+    assert_pcool_active(&test_cluster);
+    let tx = missing_input_transfer(&test_cluster).await;
+
+    let start = Instant::now();
+    let error = test_cluster
+        .wallet
+        .execute_transaction_may_fail(tx)
+        .await
+        .expect_err("a transfer of an object nobody has must be rejected");
+    let elapsed = start.elapsed();
+
+    let object = rpc_error_object(&error);
+    assert_eq!(
+        object.code(),
+        TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
+        "{error:?}"
+    );
+    assert!(
+        object
+            .data()
+            .is_some_and(|data| data.get().contains("rejected_by_validators")),
+        "{error:?}"
+    );
+    assert!(
+        object
+            .message()
+            .contains("Could not find the referenced object"),
+        "the error must name the missing object, got {error:?}"
+    );
+    // Retried submissions fail only at the fullnode's 30 s finality timeout.
+    assert!(
+        elapsed < Duration::from_secs(10),
+        "the rejection must not wait for the finality timeout, took {elapsed:?}"
+    );
+}
+
+/// With the input missing on fewer than a quorum of validators and the rest
+/// unreachable, the fullnode resubmits until its finality timeout, and the
+/// timeout error still names the object.
+#[sim_test]
+async fn test_pcool_missing_input_object_below_a_quorum_is_named_in_the_timeout() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(600_000)
+        .build()
+        .await;
+    assert_pcool_active(&test_cluster);
+    // Two of four validators answer, which is below a quorum.
+    for name in test_cluster.get_validator_pubkeys().iter().take(2) {
+        test_cluster.stop_node(name);
+    }
+    let tx = missing_input_transfer(&test_cluster).await;
+
+    let error = test_cluster
+        .wallet
+        .execute_transaction_may_fail(tx)
+        .await
+        .expect_err("a transfer of an object nobody has must not finalize");
+
+    let object = rpc_error_object(&error);
+    assert_eq!(object.code(), TRANSIENT_ERROR_CODE, "{error:?}");
+    assert!(
+        object
+            .data()
+            .is_some_and(|data| data.get().contains("timeout_before_finality")),
+        "{error:?}"
+    );
+    assert!(
+        object
+            .message()
+            .contains("Could not find the referenced object"),
+        "the timeout must name the missing object, got {error:?}"
+    );
 }
