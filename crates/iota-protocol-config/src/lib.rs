@@ -562,6 +562,11 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     consensus_commit_transactions_only_for_traversed_headers: bool,
 
+    // If true, a block whose transactions reach their acknowledgment quorum
+    // before its header is traversed is committed once its header is traversed.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_commit_transactions_once_traversed: bool,
+
     // To enable/disable congestion limit overshoot in the gas price feedback mechanism.
     #[serde(skip_serializing_if = "is_false")]
     congestion_limit_overshoot_in_gas_price_feedback_mechanism: bool,
@@ -2056,6 +2061,11 @@ impl ProtocolConfig {
     pub fn consensus_commit_transactions_only_for_traversed_headers(&self) -> bool {
         self.feature_flags
             .consensus_commit_transactions_only_for_traversed_headers
+    }
+
+    pub fn consensus_commit_transactions_once_traversed(&self) -> bool {
+        self.feature_flags
+            .consensus_commit_transactions_once_traversed
     }
 
     /// Check whether congestion limit overshoot is enabled in the gas price
@@ -3869,6 +3879,12 @@ impl ProtocolConfig {
 
                     // Update the gas model version.
                     cfg.gas_model_version = Some(3);
+
+                    // Commit a block's transactions once its header is
+                    // traversed, also when their acknowledgment quorum came
+                    // first.
+                    cfg.feature_flags
+                        .consensus_commit_transactions_once_traversed = true;
                 }
                 // Use this template when making changes:
                 //
@@ -4157,6 +4173,11 @@ impl ProtocolConfig {
     ) {
         self.feature_flags
             .consensus_commit_transactions_only_for_traversed_headers = val;
+    }
+
+    pub fn set_consensus_commit_transactions_once_traversed_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_commit_transactions_once_traversed = val;
     }
 
     pub fn set_congestion_limit_overshoot_in_gas_price_feedback_mechanism_for_testing(

@@ -114,14 +114,29 @@ impl Linearizer {
         );
 
         drop(dag_state_guard);
+        // Blocks whose acknowledgments reached quorum before they were traversed
+        // are committed when they are traversed.
+        let mut traversed_with_quorum = Vec::new();
         if self
             .context
             .protocol_config
             .consensus_commit_transactions_only_for_traversed_headers()
         {
+            let commit_once_traversed = self
+                .context
+                .protocol_config
+                .consensus_commit_transactions_once_traversed();
             for block_header in &to_commit {
-                self.traversed_headers_tracker
-                    .insert(block_header.reference());
+                let block_ref = block_header.reference();
+                if self.traversed_headers_tracker.insert(block_ref)
+                    && commit_once_traversed
+                    && self
+                        .transactions_ack_tracker
+                        .get(&block_ref)
+                        .is_some_and(|acks| acks.reached_threshold(&self.context.committee))
+                {
+                    traversed_with_quorum.push(block_ref);
+                }
             }
         }
 
@@ -140,6 +155,7 @@ impl Linearizer {
                 )
             })
             .collect::<Vec<BlockRef>>();
+        committed_transactions.extend(traversed_with_quorum);
 
         // Optimistic: record the leader's r+1 strong-voters as acks for the
         // leader's ref and each of its acknowledgments. Crossing 2f+1 commits
@@ -541,6 +557,8 @@ fn median_timestamps_by_stake_inner(
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
     use crate::{
         CommitIndex, TestBlockHeader,
@@ -1550,6 +1568,115 @@ mod tests {
         assert!(
             !contains_orphan,
             "Optimistic path must not commit a ref whose header is not traversed"
+        );
+    }
+
+    /// A leader that acknowledges a block without referencing it gives the
+    /// block a quorum on the optimistic path before the block is traversed.
+    /// The later commit that traverses the block commits it, once.
+    #[rstest]
+    #[tokio::test]
+    async fn block_with_quorum_is_committed_once_traversed(
+        #[values(false, true)] commit_once_traversed: bool,
+    ) {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let (mut ctx, _) = Context::new_for_test(num_authorities);
+        ctx.protocol_config
+            .set_consensus_commit_transactions_once_traversed_for_testing(commit_once_traversed);
+        let context = Arc::new(ctx);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+        let all_authorities: Vec<AuthorityIndex> = (0..num_authorities as u8)
+            .map(AuthorityIndex::new_for_test)
+            .collect();
+        let leader_author = AuthorityIndex::new_for_test(1);
+        let orphan_author = AuthorityIndex::new_for_test(2);
+
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder
+            .layers(1..=4)
+            .build()
+            .persist_layers(dag_state.clone());
+        let round_4 = dag_builder.block_headers(4..=4);
+        let orphan_ref = round_4
+            .iter()
+            .find(|b| b.author() == orphan_author)
+            .unwrap()
+            .reference();
+        // The round-5 leader acknowledges every round-4 block but does not
+        // reference the orphan.
+        let mut ancestors = vec![
+            round_4
+                .iter()
+                .find(|b| b.author() == leader_author)
+                .unwrap()
+                .reference(),
+        ];
+        ancestors.extend(
+            round_4
+                .iter()
+                .filter(|b| b.author() != leader_author && b.author() != orphan_author)
+                .map(|b| b.reference()),
+        );
+        let leader = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(5, leader_author.value() as u8)
+                .set_ancestors(ancestors)
+                .set_acknowledgments(round_4.iter().map(|b| b.reference()).collect())
+                .build(),
+        );
+        dag_state
+            .write()
+            .accept_block_header(leader.clone(), DataSource::Test);
+        // The others build round 5 on every round-4 block, and round 6 on top.
+        dag_builder
+            .layers(5..=5)
+            .authorities(vec![leader_author])
+            .skip_block()
+            .build()
+            .persist_layers(dag_state.clone());
+        dag_builder.layers(6..=6).build().persist_layers(dag_state);
+        let second_leader = dag_builder
+            .block_headers(6..=6)
+            .into_iter()
+            .find(|b| b.author() == AuthorityIndex::new_for_test(0))
+            .unwrap();
+
+        let first = linearizer.get_pending_sub_dags(vec![(
+            leader,
+            Some(CommitMetastate::Optimistic),
+            all_authorities,
+        )]);
+        let second = linearizer.get_pending_sub_dags(vec![(
+            second_leader,
+            Some(CommitMetastate::Standard),
+            vec![],
+        )]);
+
+        let orphan_commits = |sub_dag: &PendingSubDag| {
+            sub_dag
+                .committed_transaction_refs
+                .iter()
+                .filter(|r| r.round() == orphan_ref.round && r.author() == orphan_ref.author)
+                .count()
+        };
+        assert_eq!(orphan_commits(&first[0]), 0);
+        assert!(
+            second[0]
+                .headers
+                .iter()
+                .any(|h| h.reference() == orphan_ref)
+        );
+        assert_eq!(
+            orphan_commits(&second[0]),
+            usize::from(commit_once_traversed)
         );
     }
 
