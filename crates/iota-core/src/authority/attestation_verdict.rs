@@ -4,8 +4,10 @@
 //! Judges the attestation of a transaction whose Move authentication failed at
 //! execution, by re-running authentication at the object versions the attestor
 //! recorded. The verdict is recorded as `AttestationRecord::verdict` and
-//! certified in the checkpoint summary unless `Valid`; the transaction effects
-//! are unaffected.
+//! certified in the checkpoint summary unless `Valid`. When the gas owner's own
+//! authentication fails, the judge also decides who pays: it finds who is at
+//! fault, as an [`AuthenticationFailureBlame`], and the gas owner pays only when
+//! the account is, because authentication passes at the attested state.
 
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -27,6 +29,7 @@ use iota_types::{
     auth_context::AuthContextData,
     committee::EpochId,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
+    execution::{is_any_invariant_violation, is_cancellation, unwrap_move_authentication_error},
     gas::{IotaGasStatus, IotaGasStatusAPI},
     metrics::LimitsMetrics,
     move_authenticator::MoveAuthenticatorExt,
@@ -126,13 +129,35 @@ pub(crate) fn executed_versions(
         .collect()
 }
 
+/// Who is at fault when the Move authentication of an attested transaction
+/// fails at execution, as the judge finds it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AuthenticationFailureBlame {
+    /// The attestor is at fault. Authentication fails at the versions it
+    /// recorded too, or the judge blames it without a re-run, as
+    /// [`AttestationVerdictContext::decide_authentication_failure_blame()`]
+    /// describes. `rerun_computation_units` is what the judge's re-run consumed,
+    /// zero when nothing had to be re-run.
+    Attestor { rerun_computation_units: u64 },
+
+    /// The account is at fault. Authentication passes at the recorded versions,
+    /// so the account authorized the transaction at the attested state.
+    Account,
+
+    /// Nobody is at fault. The failure is a cancellation or an invariant
+    /// violation, or the judge's re-run failed with an internal error.
+    Nobody,
+}
+
 impl AttestationVerdictContext<'_> {
-    /// `Some` when the failure refutes the attestation: it stands at the
-    /// versions the attestor recorded, so the attestor vouched for a
-    /// transaction it should have rejected. Carries the units the re-run at
-    /// the recorded versions consumed, zero when nothing had to be re-run. A
-    /// failure the dry run could not have foreseen never refutes; otherwise
-    /// the recorded versions decide.
+    /// Decides who is at fault for `kind`, the error of a failed Move
+    /// authentication, wrapped in an [`ExecutionErrorKind::MoveAuthentication`]
+    /// status or not. Returns [`AuthenticationFailureBlame::Nobody`] for a
+    /// cancellation or an invariant violation, and
+    /// [`AuthenticationFailureBlame::Attestor`] for a deleted authenticator
+    /// input, without a re-run; otherwise, the recorded versions decide, through
+    /// a re-run of authentication at them when the executed state drifted from
+    /// them.
     ///
     /// # Panics
     ///
@@ -140,11 +165,33 @@ impl AttestationVerdictContext<'_> {
     /// versions superseded this epoch, which the epoch's historic bucket keeps,
     /// so a missing or unreadable one is a fault of this node and must not
     /// become a verdict the other validators do not share.
-    pub(crate) fn refuted(&self, kind: &ExecutionErrorKind) -> Option<u64> {
-        let kind = authentication_error_kind(kind);
-        if is_cancellation(kind) || is_invariant_violation(kind) {
-            return None;
+    pub(crate) fn decide_authentication_failure_blame(
+        &self,
+        kind: &ExecutionErrorKind,
+    ) -> AuthenticationFailureBlame {
+        let kind = unwrap_move_authentication_error(kind);
+
+        // A cancellation comes from the consensus commit and an invariant
+        // violation is an internal error, so neither is anyone's fault.
+        if is_cancellation(kind) || is_any_invariant_violation(kind) {
+            return AuthenticationFailureBlame::Nobody;
         }
+
+        // A deleted authenticator input blames the attestor without a re-run.
+        // At the recorded version, the input still exists, so a re-run there
+        // could pass and charge the gas owner, also when the attestor recorded
+        // the versions from before the deletion: the judge cannot distinguish
+        // a deletion before the attestation from one after it.
+        if self
+            .authenticators
+            .iter()
+            .any(|(_, input_objects)| input_objects.contains_deleted_objects())
+        {
+            return AuthenticationFailureBlame::Attestor {
+                rerun_computation_units: 0,
+            };
+        }
+
         // Nothing to re-run: the failure already reproduces at the recorded
         // state, or a recorded version refutes on its own.
         if !should_reauthenticate(
@@ -155,8 +202,13 @@ impl AttestationVerdictContext<'_> {
                     .superseded_in_current_epoch(object_id, version)
             },
         ) {
-            return Some(0);
+            return AuthenticationFailureBlame::Attestor {
+                rerun_computation_units: 0,
+            };
         }
+
+        // The objects authentication read changed after the attestation, so only
+        // a re-run at the recorded versions shows who is at fault.
         self.reauthenticate_at_attested_versions()
     }
 }
@@ -191,11 +243,15 @@ fn should_reauthenticate(
 }
 
 impl AttestationVerdictContext<'_> {
-    /// Re-runs Move authentication at the recorded versions. `Some` when the
-    /// attestation is refuted, carrying the units the re-run consumed, or zero
-    /// when the recorded state refutes it before any run; `None` when the
-    /// re-run passes or cannot judge it.
-    fn reauthenticate_at_attested_versions(&self) -> Option<u64> {
+    /// Re-runs Move authentication at the recorded versions. Returns
+    /// [`AuthenticationFailureBlame::Attestor`] when the re-run fails too, with
+    /// the units it consumed, or with zero when the claimed units cannot fund a
+    /// re-run or an authenticator cannot be resolved at the recorded state;
+    /// [`AuthenticationFailureBlame::Account`] when the re-run passes;
+    /// [`AuthenticationFailureBlame::Nobody`] when the authenticators' inputs
+    /// cannot be combined, or the re-run ends in a cancellation or an invariant
+    /// violation: here, all three can only be internal errors.
+    fn reauthenticate_at_attested_versions(&self) -> AuthenticationFailureBlame {
         let attested_versions: BTreeMap<ObjectId, &ObjectReference> = self
             .attestation
             .object_versions()
@@ -217,7 +273,9 @@ impl AttestationVerdictContext<'_> {
             self.reference_gas_price,
             self.protocol_config,
         ) else {
-            return Some(0);
+            return AuthenticationFailureBlame::Attestor {
+                rerun_computation_units: 0,
+            };
         };
 
         // Resolve every authenticator at the recorded versions first, so the
@@ -231,7 +289,9 @@ impl AttestationVerdictContext<'_> {
             let Ok((account_id, pinned_version, pinned_digest)) =
                 authenticator.object_to_authenticate_components()
             else {
-                return Some(0);
+                return AuthenticationFailureBlame::Attestor {
+                    rerun_computation_units: 0,
+                };
             };
 
             // The function ref is resolved from the recorded state, anchored
@@ -243,7 +303,9 @@ impl AttestationVerdictContext<'_> {
                 .find(|object| object.id() == account_id)
                 .and_then(|object| object.as_object())
             else {
-                return Some(0);
+                return AuthenticationFailureBlame::Attestor {
+                    rerun_computation_units: 0,
+                };
             };
             let Ok(account_version) = validate_account_object(
                 account_id,
@@ -252,12 +314,16 @@ impl AttestationVerdictContext<'_> {
                 &authenticator.address(),
                 account_object,
             ) else {
-                return Some(0);
+                return AuthenticationFailureBlame::Attestor {
+                    rerun_computation_units: 0,
+                };
             };
             let Ok(field_object_id) =
                 derive_authenticator_function_ref_v1_dynamic_field_id(account_id)
             else {
-                return Some(0);
+                return AuthenticationFailureBlame::Attestor {
+                    rerun_computation_units: 0,
+                };
             };
             let field_object = match self.store.read_child_object(
                 &account_id,
@@ -267,7 +333,11 @@ impl AttestationVerdictContext<'_> {
                 Ok(Some(field_object)) => field_object,
                 // The structural failure reproduces at the recorded state:
                 // no field, or one that is not the account's child.
-                Ok(None) | Err(IotaError::InvalidChildObjectAccess { .. }) => return Some(0),
+                Ok(None) | Err(IotaError::InvalidChildObjectAccess { .. }) => {
+                    return AuthenticationFailureBlame::Attestor {
+                        rerun_computation_units: 0,
+                    };
+                }
                 Err(error) => fatal!(
                     "cannot read the authenticator field of {account_id}@{account_version}: {error}"
                 ),
@@ -275,7 +345,9 @@ impl AttestationVerdictContext<'_> {
             let Ok(function_ref) =
                 authenticator_function_ref_v1_from_dynamic_field_object(account_id, &field_object)
             else {
-                return Some(0);
+                return AuthenticationFailureBlame::Attestor {
+                    rerun_computation_units: 0,
+                };
             };
 
             resolved.push((
@@ -289,12 +361,16 @@ impl AttestationVerdictContext<'_> {
             .iter()
             .map(|(_, _, input_objects)| input_objects)
             .collect();
+        // Combining the authenticators' inputs fails only when two of them
+        // declare the same object with conflicting kinds. The reload keeps the
+        // declared kinds, and post-consensus validation already accepted them,
+        // so a failure here is an internal error.
         let Ok(aggregated_input_objects) =
             iota_transaction_checks::aggregate_authenticator_input_objects(
                 &per_authenticator_input_objects,
             )
         else {
-            return None;
+            return AuthenticationFailureBlame::Nobody;
         };
 
         // Rebuild the auth context with the function refs resolved at the
@@ -339,11 +415,19 @@ impl AttestationVerdictContext<'_> {
         );
 
         match result {
-            Ok(()) => None,
+            Ok(()) => AuthenticationFailureBlame::Account,
             Err(error) => {
-                let kind = authentication_error_kind(error.kind());
-                (!is_cancellation(kind) && !is_invariant_violation(kind))
-                    .then(|| consumed_units(gas_status))
+                // The re-run carries no cancelled input and runs the same
+                // verified bytecode as execution, so a cancellation or an
+                // invariant violation here is an internal error.
+                let kind = unwrap_move_authentication_error(error.kind());
+                if is_cancellation(kind) || is_any_invariant_violation(kind) {
+                    AuthenticationFailureBlame::Nobody
+                } else {
+                    AuthenticationFailureBlame::Attestor {
+                        rerun_computation_units: consumed_units(gas_status),
+                    }
+                }
             }
         }
     }
@@ -392,18 +476,10 @@ impl AttestationVerdictContext<'_> {
 
 /// The computation units a metered run consumed, bucketized like a charged
 /// run; the whole budget when it ran out of gas.
-fn consumed_units(mut gas_status: IotaGasStatus) -> u64 {
+pub(crate) fn consumed_units(mut gas_status: IotaGasStatus) -> u64 {
     // Out of gas pins the computation cost at the budget.
     let _ = gas_status.bucketize_computation();
     attestation::computation_units(&gas_status.summary(), gas_status.gas_price())
-}
-
-/// The authenticator's own error, unwrapped from the status it is reported as.
-fn authentication_error_kind(kind: &ExecutionErrorKind) -> &ExecutionErrorKind {
-    match kind {
-        ExecutionErrorKind::MoveAuthentication { error } => error.as_ref(),
-        kind => kind,
-    }
 }
 
 /// What execution established for the verdict on an attested transaction.
@@ -412,6 +488,10 @@ pub(crate) struct ExecutionOutcome {
     /// units the re-run at the recorded versions consumed, zero when nothing
     /// had to be re-run.
     pub refuted: Option<u64>,
+    /// The computation units execution's own run consumed, as
+    /// [`consumed_units()`] counts them, whether or not the effects charge them;
+    /// zero without Move authentication.
+    pub consumed_units: u64,
     /// The body ran, so its computation cost is measurable against the claim.
     pub body_ran: bool,
 }
@@ -432,27 +512,6 @@ fn is_pre_execution_failure(kind: &ExecutionErrorKind) -> bool {
             | ExecutionErrorKind::AddressDeniedForCoin { .. }
             | ExecutionErrorKind::CoinTypeGlobalPause { .. }
     ) || is_cancellation(kind)
-}
-
-/// Decided by consensus or configuration after the dry run, so no attestor
-/// could have foreseen it.
-fn is_cancellation(kind: &ExecutionErrorKind) -> bool {
-    matches!(
-        kind,
-        ExecutionErrorKind::CertificateDenied
-            | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion { .. }
-            | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 { .. }
-            | ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion { .. }
-            | ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable
-    )
-}
-
-/// A bug in this node, not a fact about the transaction.
-fn is_invariant_violation(kind: &ExecutionErrorKind) -> bool {
-    matches!(
-        kind,
-        ExecutionErrorKind::InvariantViolation | ExecutionErrorKind::VmInvariantViolation
-    )
 }
 
 #[cfg(test)]
@@ -517,9 +576,9 @@ mod tests {
             ExecutionErrorKind::InputObjectDeleted,
         ] {
             let error = wrapped(kind);
-            let kind = authentication_error_kind(error.kind());
+            let kind = unwrap_move_authentication_error(error.kind());
             assert!(!is_cancellation(kind), "{error:?}");
-            assert!(!is_invariant_violation(kind), "{error:?}");
+            assert!(!is_any_invariant_violation(kind), "{error:?}");
         }
     }
 
@@ -543,7 +602,7 @@ mod tests {
         ] {
             let error = wrapped(kind);
             assert!(
-                is_cancellation(authentication_error_kind(error.kind())),
+                is_cancellation(unwrap_move_authentication_error(error.kind())),
                 "{error:?}"
             );
         }
@@ -553,7 +612,7 @@ mod tests {
         ] {
             let error = wrapped(kind);
             assert!(
-                is_invariant_violation(authentication_error_kind(error.kind())),
+                is_any_invariant_violation(unwrap_move_authentication_error(error.kind())),
                 "{error:?}"
             );
         }

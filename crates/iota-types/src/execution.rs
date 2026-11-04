@@ -104,6 +104,46 @@ pub type AuthenticateThenExecuteOutput<R> = (
     Option<ExecutionErrorKind>,
 );
 
+/// Returns the error wrapped in an [`ExecutionErrorKind::MoveAuthentication`]
+/// status, the way the engine reports a failed authentication when the
+/// protocol feature flag `report_move_authentication_error` is on, so the
+/// authenticator's own failure can be matched. Any other kind is returned as
+/// it is.
+pub fn unwrap_move_authentication_error(kind: &ExecutionErrorKind) -> &ExecutionErrorKind {
+    match kind {
+        ExecutionErrorKind::MoveAuthentication { error } => error.as_ref(),
+        kind => kind,
+    }
+}
+
+/// Whether `kind` says the execution was canceled rather than failed: canceled
+/// at the consensus commit because of shared object congestion, execution
+/// worker congestion or unavailable randomness, or denied by
+/// [`is_certificate_denied()`]. A kind wrapped in an
+/// [`ExecutionErrorKind::MoveAuthentication`] status must be unwrapped first
+/// with [`unwrap_move_authentication_error()`].
+pub fn is_cancellation(kind: &ExecutionErrorKind) -> bool {
+    matches!(
+        kind,
+        ExecutionErrorKind::CertificateDenied
+            | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion { .. }
+            | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 { .. }
+            | ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion { .. }
+            | ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable
+    )
+}
+
+/// Whether `kind` is an invariant violation of the execution layer or of the
+/// Move VM: an internal error, not a failure the transaction caused. A kind
+/// wrapped in an [`ExecutionErrorKind::MoveAuthentication`] status must be
+/// unwrapped first with [`unwrap_move_authentication_error()`].
+pub fn is_any_invariant_violation(kind: &ExecutionErrorKind) -> bool {
+    matches!(
+        kind,
+        ExecutionErrorKind::InvariantViolation | ExecutionErrorKind::VmInvariantViolation
+    )
+}
+
 impl ExecutionResultsV1 {
     pub fn drop_writes(&mut self) {
         self.written_objects.clear();

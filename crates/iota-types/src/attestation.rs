@@ -113,9 +113,10 @@ pub enum AttestationVerdict {
     /// dynamic field the dry run read moved before execution, so this is not
     /// by itself evidence against the attestor.
     Inaccurate,
-    /// Authentication failed at the versions the attestor recorded. `units`
-    /// is the computation the failed runs consumed: the one execution charged
-    /// plus the judge's re-run at the recorded versions, when one was needed.
+    /// Authentication failed, and the judge holds the attestor accountable for
+    /// it. `units` is the computation the failed runs consumed: execution's own
+    /// run, whether or not the effects charge it, plus the judge's re-run at the
+    /// recorded versions, when one was needed.
     Refuted { units: u64 },
 }
 

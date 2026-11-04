@@ -39,7 +39,8 @@ mod checked {
         error::{ExecutionError, ExecutionErrorKind},
         execution::{
             AuthenticateThenExecuteOutput, ExecutionResults, ExecutionResultsV1, ExecutionTiming,
-            ResultWithTimings, SharedInput, is_certificate_denied,
+            ResultWithTimings, SharedInput, is_any_invariant_violation, is_cancellation,
+            is_certificate_denied, unwrap_move_authentication_error,
         },
         execution_config_utils::to_binary_config,
         gas::{IotaGasStatus, IotaGasStatusAPI},
@@ -294,8 +295,10 @@ mod checked {
     ///   - If it fails, then it charges gas for the failed execution of the authentication and
     ///     produces transaction effects with the appropriate error status. With deterministic
     ///     validation on, a gas owner that is a Move account and did not authorize the transaction
-    ///     is not charged; see `execute_without_gas_charge_to_effects`. A gas owner that did
-    ///     authorize it is charged, and every owned input moves to its next version.
+    ///     is not charged; see `execute_without_gas_charge_to_effects`. When `gas_owner_pays` is
+    ///     given, it decides whether such a gas owner pays anyway, unless the failure is an
+    ///     invariant violation. A gas owner that did authorize it is charged, and every owned input
+    ///     moves to its next version.
     ///   - Else, if the authentication is successful, it continues with the normal transaction
     ///     execution.
     /// It combines the input objects from both the authentication and
@@ -321,6 +324,7 @@ mod checked {
         // Authentication
         authenticators: MoveAuthenticatorsForExecution,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
+        gas_owner_pays: Option<&dyn Fn(&ExecutionErrorKind) -> bool>,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_signer: Address,
@@ -597,31 +601,46 @@ mod checked {
 
         // Under deterministic validation, the gas owner's authenticator runs for
         // the first time here, so a transaction it did not authorize can reach
-        // execution. Nobody pays for it.
+        // execution. Nobody pays for it, unless `gas_owner_pays` answers `true`.
         let authentication_execution_result = match authentication_execution_result {
             Err(error) if !gas_owner_authorized && protocol_config.enable_pcool_flow() => {
-                let (inner_temp_store, gas_status, effects, timings, execution_result) =
-                    execute_without_gas_charge_to_effects::<Mode>(
-                        temporary_store,
-                        gas_charger,
-                        shared_object_refs,
-                        transaction_dependencies,
-                        contains_deleted_input,
-                        cancelled_objects,
-                        transaction_digest,
-                        epoch_id,
-                        protocol_config,
-                        certificate_deny_set,
-                        error,
+                let kind = unwrap_move_authentication_error(error.kind());
+
+                // A cancellation was decided at the consensus commit and an
+                // invariant violation is an internal error: neither says anything
+                // about the gas owner, so `gas_owner_pays` is not called and
+                // nobody pays.
+                let charge_gas_owner = !is_cancellation(kind)
+                    && !is_any_invariant_violation(kind)
+                    && gas_owner_pays.is_some_and(|pays| pays(error.kind()));
+                if charge_gas_owner {
+                    // Charged like any failed transaction its gas owner authorized.
+                    Err(error)
+                } else {
+                    let (inner_temp_store, gas_status, effects, timings, execution_result) =
+                        execute_without_gas_charge_to_effects::<Mode>(
+                            temporary_store,
+                            gas_charger,
+                            shared_object_refs,
+                            transaction_dependencies,
+                            contains_deleted_input,
+                            cancelled_objects,
+                            transaction_digest,
+                            epoch_id,
+                            protocol_config,
+                            certificate_deny_set,
+                            error,
+                        );
+
+                    return (
+                        inner_temp_store,
+                        gas_status,
+                        effects,
+                        timings,
+                        execution_result,
+                        authentication_error,
                     );
-                return (
-                    inner_temp_store,
-                    gas_status,
-                    effects,
-                    timings,
-                    execution_result,
-                    authentication_error,
-                );
+                }
             }
             result => result,
         };

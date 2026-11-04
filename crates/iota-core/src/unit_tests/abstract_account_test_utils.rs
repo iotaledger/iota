@@ -114,10 +114,15 @@ impl AbstractAccountTestEnv {
 
     /// The account object at its current version.
     pub fn account_ref(&self) -> ObjectReference {
+        self.object(&self.account.object_id).object_ref()
+    }
+
+    /// The object with `id` as the authority holds it now; panics when it is not
+    /// live.
+    pub fn object(&self, id: &ObjectId) -> Object {
         self.authority
-            .get_object(&self.account.object_id)
-            .unwrap()
-            .object_ref()
+            .get_object(id)
+            .unwrap_or_else(|| panic!("{id} must be live"))
     }
 
     pub(crate) fn rgp(&self) -> u64 {
@@ -393,6 +398,31 @@ impl AbstractAccountTestEnv {
         );
 
         std::mem::replace(&mut self.owner_key, new_key)
+    }
+
+    /// A transaction from the account that deletes it, signed with the current
+    /// key: `delete_account` accepts only the account as sender.
+    pub fn delete_account_transaction(&mut self) -> TransactionEnvelope {
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let account = builder
+                .obj(CallArg::Shared(SharedObjectReference {
+                    mutable: true,
+                    ..self.account
+                }))
+                .unwrap();
+            builder.programmable_move_call(
+                self.package_id,
+                Identifier::from_static(AA_MODULE),
+                Identifier::from_static("delete_account"),
+                vec![],
+                vec![account],
+            );
+            builder.finish()
+        };
+        let current_key = self.owner_key.clone();
+
+        self.sign_with_move_authenticator(pt, &current_key)
     }
 
     /// Rotates the account's authenticator to `authenticate_function`, keeping
