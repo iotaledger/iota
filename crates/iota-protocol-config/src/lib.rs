@@ -2064,8 +2064,14 @@ impl ProtocolConfig {
     }
 
     pub fn consensus_commit_transactions_once_traversed(&self) -> bool {
-        self.feature_flags
-            .consensus_commit_transactions_once_traversed
+        let res = self
+            .feature_flags
+            .consensus_commit_transactions_once_traversed;
+        assert!(
+            !res || self.consensus_commit_transactions_only_for_traversed_headers(),
+            "consensus_commit_transactions_once_traversed requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
+        );
+        res
     }
 
     /// Check whether congestion limit overshoot is enabled in the gas price
