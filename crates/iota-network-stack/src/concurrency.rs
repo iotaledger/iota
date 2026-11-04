@@ -6,7 +6,10 @@
 //! Unlike [`tower::limit::GlobalConcurrencyLimitLayer`] applied around a whole
 //! server, [`ServiceConcurrencyLimit`] bounds the in-flight requests of a
 //! single gRPC service, so services sharing one listener cannot crowd each
-//! other out of admission slots.
+//! other out of admission slots. A request holds its slot until its response
+//! body has been sent or dropped, or until the response send timeout passes,
+//! so a server-streaming response is counted for as long as it streams and a
+//! client that stops reading cannot keep a slot for good.
 //!
 //! Tower's per-service [`tower::limit::ConcurrencyLimitLayer`] cannot be used
 //! here: its `ConcurrencyLimit` wrapper does not implement tonic's
@@ -42,6 +45,11 @@ type BoxError = Box<dyn std::error::Error + Send + Sync>;
 /// Bounds the number of concurrent in-flight requests to the wrapped gRPC
 /// service, independently of any other service registered on the same server.
 ///
+/// A request is in flight from admission until its response body has been
+/// sent or dropped. A response body still unsent `response_send_timeout` after
+/// its headers gives up its contents and its slot, and the client then sees
+/// the stream fail with `DEADLINE_EXCEEDED` if it reads it.
+///
 /// With `load_shed` enabled, requests over the limit are rejected immediately
 /// with gRPC `RESOURCE_EXHAUSTED`; otherwise they wait for a slot to free up.
 /// Clones share the same limit.
@@ -50,10 +58,18 @@ pub struct ServiceConcurrencyLimit<S> {
     inner: S,
     semaphore: Arc<Semaphore>,
     load_shed: bool,
+    response_send_timeout: Duration,
 }
 
 impl<S> ServiceConcurrencyLimit<S> {
-    pub fn new(inner: S, limit: NonZeroUsize, load_shed: bool) -> Self {
+    /// `response_send_timeout` must be longer than any response of the
+    /// service legitimately takes to send, streaming responses included.
+    pub fn new(
+        inner: S,
+        limit: NonZeroUsize,
+        load_shed: bool,
+        response_send_timeout: Duration,
+    ) -> Self {
         Self {
             inner,
             // Clamp: `Semaphore::new` panics above `MAX_PERMITS`, and
@@ -61,6 +77,7 @@ impl<S> ServiceConcurrencyLimit<S> {
             // core count.
             semaphore: Arc::new(Semaphore::new(limit.get().min(Semaphore::MAX_PERMITS))),
             load_shed,
+            response_send_timeout,
         }
     }
 }
@@ -98,11 +115,10 @@ where
         let mut inner = std::mem::replace(&mut self.inner, clone);
         let semaphore = self.semaphore.clone();
         let load_shed = self.load_shed;
+        let response_send_timeout = self.response_send_timeout;
 
         Box::pin(async move {
-            // The permit is held until the response future resolves, mirroring
-            // `tower::limit::ConcurrencyLimit`.
-            let _permit = if load_shed {
+            let permit = if load_shed {
                 match semaphore.try_acquire_owned() {
                     Ok(permit) => permit,
                     Err(_) => {
@@ -118,7 +134,21 @@ where
                     .await
                     .expect("the semaphore is never closed")
             };
-            inner.call(request).await
+            let response = inner.call(request).await?;
+            // The response future resolves with the headers, while a
+            // server-streaming response goes on producing its body, so the
+            // permit moves into the body. The deadline is needed because a
+            // client that grants no flow-control window leaves the body parked
+            // without ever being polled, which nothing else would end.
+            Ok(response.map(|body| {
+                Body::new(ReclaimableBody::with_deadline(
+                    body,
+                    Some(permit),
+                    None::<()>,
+                    response_send_timeout,
+                    || tracing::debug!("response not sent in time, releasing its admission slot"),
+                ))
+            }))
         })
     }
 }
@@ -203,6 +233,11 @@ pin_project! {
             if let Some(timer) = &this.timer {
                 timer.abort();
             }
+            // The timer task shares `held` until the runtime gets round to
+            // cancelling it, so the contents are taken here for
+            // `until_deadline` to be released with the body, not some time
+            // after.
+            let _released = this.held.lock().unwrap_or_else(PoisonError::into_inner).take();
         }
     }
 }
@@ -376,6 +411,9 @@ mod tests {
         Request::new(Body::default())
     }
 
+    /// Long enough that no test reaches it unless it is the subject.
+    const SEND_TIMEOUT: Duration = Duration::from_secs(60);
+
     #[tokio::test]
     async fn load_shedding_rejects_requests_over_the_limit() {
         let release = Arc::new(tokio::sync::Notify::new());
@@ -385,6 +423,7 @@ mod tests {
             },
             NonZeroUsize::MIN,
             true,
+            SEND_TIMEOUT,
         );
 
         let in_flight = tokio::spawn(service.clone().oneshot(request()));
@@ -410,6 +449,7 @@ mod tests {
             },
             NonZeroUsize::MIN,
             false,
+            SEND_TIMEOUT,
         );
 
         let first = tokio::spawn(service.clone().oneshot(request()));
@@ -431,8 +471,9 @@ mod tests {
         let blocking = BlockingService {
             release: release.clone(),
         };
-        let saturated = ServiceConcurrencyLimit::new(blocking.clone(), NonZeroUsize::MIN, true);
-        let other = ServiceConcurrencyLimit::new(blocking, NonZeroUsize::MIN, true);
+        let saturated =
+            ServiceConcurrencyLimit::new(blocking.clone(), NonZeroUsize::MIN, true, SEND_TIMEOUT);
+        let other = ServiceConcurrencyLimit::new(blocking, NonZeroUsize::MIN, true, SEND_TIMEOUT);
 
         let in_flight = tokio::spawn(saturated.clone().oneshot(request()));
         tokio::task::yield_now().await;
@@ -460,6 +501,137 @@ mod tests {
                 .get("grpc-status")
                 .is_none()
         );
+    }
+
+    /// Inner service that answers at once with the body `make_body` builds,
+    /// like a server-streaming RPC that returns its stream before producing
+    /// it.
+    #[derive(Clone)]
+    struct ImmediateService {
+        make_body: fn() -> Body,
+    }
+
+    impl Service<Request<Body>> for ImmediateService {
+        type Response = Response<Body>;
+        type Error = Infallible;
+        type Future = std::future::Ready<Result<Response<Body>, Infallible>>;
+
+        fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn call(&mut self, _request: Request<Body>) -> Self::Future {
+            std::future::ready(Ok(Response::new((self.make_body)())))
+        }
+    }
+
+    fn streaming(
+        load_shed: bool,
+        send_timeout: Duration,
+    ) -> ServiceConcurrencyLimit<ImmediateService> {
+        ServiceConcurrencyLimit::new(
+            ImmediateService {
+                make_body: || Body::new(PendingBody),
+            },
+            NonZeroUsize::MIN,
+            load_shed,
+            send_timeout,
+        )
+    }
+
+    fn is_shed(response: &Response<Body>) -> bool {
+        response
+            .headers()
+            .get("grpc-status")
+            .is_some_and(|status| *status == (tonic::Code::ResourceExhausted as i32).to_string())
+    }
+
+    #[tokio::test]
+    async fn a_streaming_response_holds_its_slot_until_the_body_is_dropped() {
+        let service = streaming(true, SEND_TIMEOUT);
+
+        let streaming = service.clone().oneshot(request()).await.unwrap();
+        assert!(!is_shed(&streaming));
+
+        let shed = service.clone().oneshot(request()).await.unwrap();
+        assert!(
+            is_shed(&shed),
+            "the slot must stay taken while the first response body is alive"
+        );
+
+        drop(streaming);
+        let admitted = service.oneshot(request()).await.unwrap();
+        assert!(!is_shed(&admitted));
+    }
+
+    #[tokio::test]
+    async fn without_load_shedding_requests_wait_for_a_streaming_response_to_end() {
+        let service = streaming(false, SEND_TIMEOUT);
+
+        let streaming = service.clone().oneshot(request()).await.unwrap();
+
+        let mut second = tokio::spawn(service.oneshot(request()));
+        let waiting = tokio::time::timeout(Duration::from_millis(50), &mut second).await;
+        assert!(
+            waiting.is_err(),
+            "the second request must wait while the first response body is alive"
+        );
+
+        drop(streaming);
+        let admitted = tokio::time::timeout(Duration::from_secs(5), second)
+            .await
+            .expect("dropping the first response body must free its slot")
+            .unwrap()
+            .unwrap();
+        assert!(!is_shed(&admitted));
+    }
+
+    /// A body that is never read, as when the client grants no flow-control
+    /// window, must give back its slot once the send timeout passes, and fail
+    /// if it is read afterwards.
+    #[tokio::test]
+    async fn a_response_not_sent_in_time_gives_back_its_slot() {
+        const SHORT_SEND_TIMEOUT: Duration = Duration::from_millis(50);
+        let service = streaming(true, SHORT_SEND_TIMEOUT);
+
+        let mut unread = service.clone().oneshot(request()).await.unwrap();
+        assert!(is_shed(&service.clone().oneshot(request()).await.unwrap()));
+
+        tokio::time::sleep(SHORT_SEND_TIMEOUT * 4).await;
+        let admitted = service.oneshot(request()).await.unwrap();
+        assert!(
+            !is_shed(&admitted),
+            "the slot must be free once the send timeout has passed"
+        );
+
+        let read_late = std::future::poll_fn(|cx| Pin::new(unread.body_mut()).poll_frame(cx))
+            .await
+            .expect("a reclaimed body must report an error, not a clean end")
+            .expect_err("a reclaimed body must not yield data");
+        assert_eq!(read_late.code(), tonic::Code::DeadlineExceeded);
+    }
+
+    /// The send timeout must not change a response that is read in time.
+    #[tokio::test]
+    async fn a_response_read_in_time_is_delivered_whole_and_frees_its_slot() {
+        const LEN: usize = 200 * 1024;
+        let service = ServiceConcurrencyLimit::new(
+            ImmediateService {
+                make_body: || Body::new(http_body_util::Full::new(Bytes::from(vec![7u8; LEN]))),
+            },
+            NonZeroUsize::MIN,
+            true,
+            SEND_TIMEOUT,
+        );
+
+        let response = service.clone().oneshot(request()).await.unwrap();
+        let received = http_body_util::BodyExt::collect(response.into_body())
+            .await
+            .unwrap()
+            .to_bytes();
+        assert_eq!(received, Bytes::from(vec![7u8; LEN]));
+
+        assert!(!is_shed(&service.oneshot(request()).await.unwrap()));
     }
 
     /// Guard recording whether it has been dropped.
@@ -625,6 +797,25 @@ mod tests {
         drop(body);
         tokio::time::sleep(DEADLINE * 3).await;
         assert!(!reported.load(Ordering::SeqCst));
+    }
+
+    /// The guards are released by the drop itself, without waiting for the
+    /// runtime to cancel the deadline's timer.
+    #[tokio::test]
+    async fn dropping_a_reclaimable_body_releases_both_guards_at_once() {
+        let (deadline_released, until_deadline) = flag();
+        let (end_released, until_end) = flag();
+        let body = ReclaimableBody::with_deadline(
+            PendingBody,
+            Some(until_deadline),
+            Some(until_end),
+            DEADLINE,
+            || {},
+        );
+
+        drop(body);
+        assert!(deadline_released.load(Ordering::SeqCst));
+        assert!(end_released.load(Ordering::SeqCst));
     }
 
     #[tokio::test]
