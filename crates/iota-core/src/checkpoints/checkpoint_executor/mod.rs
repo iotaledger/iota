@@ -68,7 +68,9 @@ pub(crate) mod utils;
 #[cfg(test)]
 pub(crate) mod tests;
 
-use data_ingestion_handler::{load_checkpoint_data, store_checkpoint_locally};
+use data_ingestion_handler::{
+    load_checkpoint_data, load_epoch_boundary_data, store_checkpoint_locally,
+};
 use metrics::CheckpointExecutorMetrics;
 use utils::*;
 
@@ -959,10 +961,26 @@ impl CheckpointExecutor {
         tx_data: &CheckpointTransactionData,
     ) -> Option<CheckpointData> {
         let is_checkpoint_data_enabled = self.checkpoint_data_enabled();
-        // Boundaries always need full `CheckpointData` to persist `epoch_info`,
-        // even when no other consumer is configured.
         let is_last_checkpoint_of_epoch = ckpt_data.checkpoint.is_last_checkpoint_of_epoch();
         if !is_checkpoint_data_enabled && !is_last_checkpoint_of_epoch {
+            return None;
+        }
+
+        if !is_checkpoint_data_enabled {
+            // With no checkpoint data consumer, the `epoch_info` row is the only
+            // user of this data, and it reads just the epoch-change transaction,
+            // so the other transactions are not loaded.
+            let boundary_data = load_epoch_boundary_data(
+                ckpt_data,
+                tx_data,
+                self.state.get_object_store(),
+                self.state.get_historic_objects(),
+                &*self.transaction_cache_reader,
+            )
+            .expect("failed to load epoch boundary data");
+            self.checkpoint_store
+                .index_epoch_boundary(&boundary_data)
+                .expect("failed to persist epoch info at boundary");
             return None;
         }
 
@@ -975,23 +993,10 @@ impl CheckpointExecutor {
         )
         .expect("failed to load checkpoint data");
 
-        // Persist the boundary's `epoch_info` row eagerly. Two properties make
-        // that safe. Boundaries run in epoch order: the boundary waits for every
-        // earlier checkpoint (`notify_read_executed_checkpoint(seq - 1)` in
-        // `execute_checkpoint`) and the stream stops at epoch end, so two
-        // boundaries are never in flight. And `index_epoch_boundary` is
-        // idempotent — a row upsert plus a contiguous +1 watermark guard — so a
-        // crash before the executed watermark advances just re-applies it on the
-        // next run.
         if is_last_checkpoint_of_epoch {
             self.checkpoint_store
                 .index_epoch_boundary(&checkpoint_data)
                 .expect("failed to persist epoch info at boundary");
-        }
-
-        if !is_checkpoint_data_enabled {
-            // Data was built solely to seed `epoch_info`; skip the other consumers.
-            return None;
         }
 
         // The RPC indexes accumulate non-idempotent state, so each update must
