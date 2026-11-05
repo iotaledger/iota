@@ -1199,8 +1199,9 @@ fn transaction_fetch_response(
 /// the payloads read reach `byte_budget`; the last one may pass it. Takes at
 /// least one ref.
 ///
-/// Payloads above the evicted transaction round of their author are taken from
-/// the DAG state, which holds all this node has. A run of evicted refs is
+/// Payloads the DAG state holds are taken from it; above the evicted
+/// transaction round of their author it holds all this node has. A run of
+/// evicted refs, at or below that round and not held by the DAG state, is
 /// looked up in the store, in groups of as many refs as the budget left holds
 /// at the maximum entry size: they are whatever the requester asked for, so a
 /// scan over the range they span would read entries no one wants.
@@ -1216,8 +1217,12 @@ fn read_transactions_up_to_budget(
     let mut total_bytes = 0;
     let evicted: Vec<TransactionRef> = {
         let dag_state = dag_state.read();
+        // At or below the evicted round the DAG state can still hold a payload
+        // added after its round was evicted, which is not in the store until
+        // the next flush.
         let is_evicted = |transaction_ref: &TransactionRef| {
             transaction_ref.round <= dag_state.evicted_transaction_round(transaction_ref.author)
+                && !dag_state.contains_cached_transactions((*transaction_ref).into())
         };
         while let Some(&transaction_ref) = refs.front() {
             if is_evicted(&transaction_ref) || (!payloads.is_empty() && total_bytes >= byte_budget)
@@ -6732,6 +6737,38 @@ mod tests {
 
         assert_eq!(entry_refs(&entries), transaction_refs[..2]);
         assert_eq!(refs, &transaction_refs[2..]);
+    }
+
+    /// Payloads added at or below the evicted transaction round of their
+    /// author are read from the DAG state before the next flush writes them.
+    #[tokio::test]
+    async fn requested_transactions_added_after_their_round_was_evicted_are_read() {
+        let blocks = two_rounds_of_payloads();
+        let context = context_with_budget(usize::MAX);
+        let store = Arc::new(MemStore::new());
+        let dag_state = dag_state_reading_from_the_store(&context, store.clone());
+        for block in &blocks {
+            dag_state
+                .write()
+                .add_transactions(block.verified_transactions.clone(), DataSource::Test);
+        }
+        let transaction_refs: Vec<TransactionRef> = blocks
+            .iter()
+            .map(|block| block.verified_block_header.transaction_ref())
+            .collect();
+        let mut refs: VecDeque<TransactionRef> = transaction_refs.iter().copied().collect();
+
+        let entries = read_transactions_up_to_budget(
+            &context,
+            store.as_ref(),
+            &dag_state,
+            &mut refs,
+            usize::MAX,
+        )
+        .unwrap();
+
+        assert_eq!(entry_refs(&entries), transaction_refs);
+        assert!(refs.is_empty());
     }
 
     /// The headers commit sync asks for are read when the transport asks for a
