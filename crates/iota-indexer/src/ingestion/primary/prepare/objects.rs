@@ -16,12 +16,12 @@ use crate::{
 
 /// The builder of all object data to commit to the database.
 #[derive(Debug, Clone, Copy)]
-pub(super) struct ObjectsTransformer<'chk> {
+pub(crate) struct ObjectsTransformer<'chk> {
     checkpoint: ValidatedCheckpoint<'chk>,
 }
 
 impl<'chk> ObjectsTransformer<'chk> {
-    pub(super) fn new(checkpoint: ValidatedCheckpoint<'chk>) -> Self {
+    pub(crate) fn new(checkpoint: ValidatedCheckpoint<'chk>) -> Self {
         Self { checkpoint }
     }
 
@@ -73,7 +73,7 @@ impl<'chk> ObjectsTransformer<'chk> {
     ///
     /// 3. **Unwrapped / unwrapped-then-deleted objects**: were previously wrapped so no prior data
     ///    is available → `WRAPPED_OR_DELETED` with a lamport version approximation.
-    fn build_history_objects(self) -> Vec<StoredBackwardHistoryObject> {
+    pub(crate) fn build_history_objects(self) -> Vec<StoredBackwardHistoryObject> {
         let checkpoint_seq = self.checkpoint.sequence_number() as i64;
         let mut history_objects = Vec::new();
 
