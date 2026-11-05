@@ -828,7 +828,12 @@ mod checked {
     ) -> UserInputResult {
         match object_kind {
             InputObjectKind::MovePackage(package_id) => {
-                return Err(UserInputError::PackageIsInMoveAuthenticatorInput { package_id });
+                fp_ensure!(
+                    object.data.as_opt_package().is_some(),
+                    UserInputError::MoveObjectAsPackage {
+                        object_id: package_id
+                    }
+                );
             }
             InputObjectKind::ImmOrOwnedMoveObject(object_ref) => {
                 fp_ensure!(
@@ -1042,5 +1047,52 @@ mod checked {
         };
 
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use iota_sdk_types::{MovePackage, TransactionDigest};
+
+        use super::*;
+
+        fn package(id: ObjectId) -> Object {
+            Object::new_from_package(
+                MovePackage::new(
+                    id,
+                    Version::OBJECT_START,
+                    BTreeMap::new(),
+                    vec![],
+                    BTreeMap::new(),
+                ),
+                TransactionDigest::genesis_marker(),
+            )
+        }
+
+        /// `object`, read for the kind `MovePackage(id)`.
+        fn read_as_package(id: ObjectId, object: Object) -> InputObjects {
+            InputObjects::new(vec![ObjectReadResult::new(
+                InputObjectKind::MovePackage(id),
+                object.into(),
+            )])
+        }
+
+        #[test]
+        fn authenticator_check_accepts_its_type_arg_package() {
+            let id = ObjectId::random();
+            check_move_authenticator_objects(&read_as_package(id, package(id))).unwrap();
+        }
+
+        #[test]
+        fn authenticator_check_rejects_an_object_named_as_a_type_arg_package() {
+            let id = ObjectId::random();
+            assert_eq!(
+                check_move_authenticator_objects(&read_as_package(
+                    id,
+                    Object::immutable_with_id_for_testing(id)
+                ))
+                .unwrap_err(),
+                UserInputError::MoveObjectAsPackage { object_id: id }
+            );
+        }
     }
 }

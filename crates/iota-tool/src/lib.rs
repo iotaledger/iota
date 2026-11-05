@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fmt::Write,
     fs,
     num::NonZeroUsize,
@@ -34,7 +34,10 @@ use iota_core::{
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
     execution_cache::build_execution_cache_from_env,
-    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
+    rpc_indexes::{
+        live_scan::RpcIndexesRestorer,
+        schema::{IndexGroup, RPC_INDEXES_DIR},
+    },
     storage::RocksDbStore,
 };
 use iota_data_ingestion_core::history::reader::{
@@ -51,7 +54,7 @@ use iota_snapshot::{
     VerifiedEpochInfo,
     progress::{ProgressTicker, ProgressUnit, make_multi_progress, println_or_log},
     reader::{StateAccumulatorSender, StateSnapshotReaderV1},
-    restore::RestoreWithGrpcIndexes,
+    restore::RestoreWithIndexes,
     setup_db_state,
 };
 use iota_storage::object_store::{
@@ -80,10 +83,11 @@ use tokio::{
     sync::{mpsc, oneshot},
     time::Instant,
 };
-use typed_store::rocks::bulk_ingestion_options;
 
 pub mod commands;
 pub mod db_tool;
+
+use crate::db_tool::{historic_db_path, perpetual_options};
 pub mod fire_drill;
 pub mod genesis_ceremony;
 pub mod genesis_inspector;
@@ -559,11 +563,17 @@ fn insert_genesis_checkpoint(
     checkpoint_store: &CheckpointStore,
     genesis: &Genesis,
 ) -> Result<(), anyhow::Error> {
+    // Looked up by sequence number, like
+    // `CheckpointStore::insert_genesis_checkpoint` does: a lookup by digest
+    // finds nothing once the genesis epoch has expired.
     if checkpoint_store
-        .get_checkpoint_by_digest(genesis.checkpoint().digest())?
-        .is_none()
+        .get_checkpoint_by_sequence_number(0)?
+        .is_none_or(|stored| stored.digest() != genesis.checkpoint().digest())
     {
-        checkpoint_store.insert_checkpoint_contents(genesis.checkpoint_contents().clone())?;
+        checkpoint_store.insert_checkpoint_contents(
+            &genesis.checkpoint(),
+            genesis.checkpoint_contents().clone(),
+        )?;
         checkpoint_store.insert_verified_checkpoint(&genesis.checkpoint())?;
         checkpoint_store.update_highest_synced_checkpoint(&genesis.checkpoint())?;
     }
@@ -617,13 +627,25 @@ pub(crate) async fn backfill_checkpoint_summaries(
     // Open the stopped node's existing stores in place. The committee store
     // already holds the genesis committee (from restore/sync), so it is opened
     // without re-supplying one.
-    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(
-        &node_db_path.join("store"),
-        None,
-    ));
+    db_tool::ensure_migrated(&node_db_path.join("store"))?;
+    let (perpetual_db, historic_objects, historic_ledger, epoch_markers) =
+        AuthorityPerpetualTables::open_with_historic_objects(
+            &node_db_path.join("store"),
+            perpetual_options(node_db_path),
+        )?;
     let committee_store = Arc::new(CommitteeStore::open(node_db_path.join("epochs"), None)?);
-    let checkpoint_store = CheckpointStore::new(&node_db_path.join("checkpoints"));
-    let store = AuthorityStore::open_no_genesis(perpetual_db, false, &Registry::default())?;
+    let checkpoint_store = CheckpointStore::new_with_historic_db_path(
+        &node_db_path.join("checkpoints"),
+        &historic_db_path(node_db_path),
+    );
+    let store = AuthorityStore::open_no_genesis(
+        Arc::new(perpetual_db),
+        Arc::new(historic_objects),
+        Arc::new(historic_ledger),
+        Arc::new(epoch_markers),
+        false,
+        &Registry::default(),
+    )?;
     let cache_traits = build_execution_cache_from_env(&Registry::default(), &store);
     let state_sync_store =
         &RocksDbStore::new(cache_traits, committee_store, checkpoint_store.clone());
@@ -815,7 +837,7 @@ pub async fn download_formal_snapshot(
     snapshot_store_config: ObjectStoreConfig,
     num_parallel_downloads: NonZeroUsize,
     verify: SnapshotVerifyMode,
-    skip_grpc_indexes: bool,
+    skip_rpc_indexes: bool,
     disable_progress_bar: bool,
 ) -> Result<(), anyhow::Error> {
     let m = make_multi_progress(disable_progress_bar);
@@ -839,7 +861,14 @@ pub async fn download_formal_snapshot(
         )?;
         fs::remove_dir_all(path.clone())?;
     }
-    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&path.join("store"), None));
+    let (perpetual_db, historic_objects, historic_ledger, epoch_markers) =
+        AuthorityPerpetualTables::open_with_historic_objects(
+            &path.join("store"),
+            perpetual_options(&path),
+        )?;
+    let perpetual_db = Arc::new(perpetual_db);
+    let historic_objects = Arc::new(historic_objects);
+    let historic_ledger = Arc::new(historic_ledger);
     println_or_log(&m, format!("Loading genesis from {}", genesis.display()))?;
     let genesis = Genesis::load(genesis).unwrap();
     let genesis_committee = genesis.committee()?;
@@ -897,7 +926,10 @@ pub async fn download_formal_snapshot(
         &genesis_committee,
         None,
     ));
-    let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
+    let checkpoint_store = CheckpointStore::new_with_historic_db_path(
+        &path.join("checkpoints"),
+        &historic_db_path(&path),
+    );
 
     // Seed the end-of-epoch summaries and committees straight from the
     // chain-verified EPOCH_INFO — the restore needs no checkpoint archive. A
@@ -918,20 +950,17 @@ pub async fn download_formal_snapshot(
         epoch,
     )?;
 
-    // Unless `--skip-grpc-indexes` is passed, the gRPC index store is built
-    // from the same object stream that restores the perpetual tables, so a
-    // fullnode started with gRPC enabled opens it in place instead of
-    // re-indexing the whole restored state.
-    //
-    // Like every other store of this restore, it lives under `staging/`,
-    // which replaces `live/` wholesale at the end — so a pre-existing gRPC
-    // index store (whatever its watermarks claim) can never survive into the
-    // restored node and compete with the one built here.
-    let grpc_indexes = (!skip_grpc_indexes).then(|| {
-        Arc::new(GrpcIndexesStore::new_without_init(
-            path.join(GRPC_INDEXES_DIR),
-        ))
-    });
+    // Both groups, because a restore cannot know which of them the node will
+    // enable later.
+    let rpc_indexes = (!skip_rpc_indexes)
+        .then(|| {
+            RpcIndexesRestorer::open(
+                path.join(RPC_INDEXES_DIR),
+                BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+            )
+        })
+        .transpose()?
+        .map(Arc::new);
 
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     let perpetual_db_clone = perpetual_db.clone();
@@ -940,30 +969,19 @@ pub async fn download_formal_snapshot(
     // not pass in a channel to the reader
     let (sender, mut receiver) = mpsc::channel(num_parallel_downloads.get());
     let (accumulation_done_sender, accumulation_done_receiver) = oneshot::channel();
-    let grpc_indexes_clone = grpc_indexes.clone();
+    let rpc_indexes_clone = rpc_indexes.clone();
 
     let snapshot_handle = tokio::spawn(async move {
         let accumulator = Some(StateAccumulatorSender {
             partials: sender,
             completion: accumulation_done_sender,
         });
-        if let Some(grpc_indexes) = &grpc_indexes_clone {
-            let grpc_restorer =
-                grpc_indexes.live_object_restorer(bulk_ingestion_options().batch_size_limit);
-            let restore_target = RestoreWithGrpcIndexes::new(&perpetual_db_clone, &grpc_restorer);
-            reader
-                .read_to_db(&restore_target, abort_registration, accumulator)
-                .await
-                .context("Failed to read snapshot")?;
-            grpc_restorer
-                .finish()
-                .context("Failed to flush the gRPC coin index")?;
-        } else {
-            reader
-                .read(&perpetual_db_clone, abort_registration, accumulator)
-                .await
-                .context("Failed to read snapshot")?;
-        }
+        let restore_target =
+            RestoreWithIndexes::new(&perpetual_db_clone, rpc_indexes_clone.as_deref());
+        reader
+            .read_to_db(&restore_target, abort_registration, accumulator)
+            .await
+            .context("Failed to read snapshot")?;
 
         Ok::<(), anyhow::Error>(())
     });
@@ -1068,16 +1086,31 @@ pub async fn download_formal_snapshot(
         .restore_epoch_info(&*checkpoint_store)
         .await?;
 
-    let authority_store =
-        AuthorityStore::open_no_genesis(perpetual_db.clone(), false, &Registry::default())?;
+    let authority_store = AuthorityStore::open_no_genesis(
+        perpetual_db.clone(),
+        historic_objects,
+        historic_ledger,
+        Arc::new(epoch_markers),
+        false,
+        &Registry::default(),
+    )?;
     checkpoint_store.ensure_current_epoch_info(&authority_store)?;
 
-    // Finalize the gRPC live-state index store so the node opens it in place
-    // instead of re-indexing. Drop all RocksDB handles before the rename below.
-    if let Some(grpc_indexes) = grpc_indexes {
-        grpc_indexes.finalize_restore(last_checkpoint.sequence_number)?;
-        Arc::into_inner(grpc_indexes)
-            .expect("the snapshot task is awaited, so its store handle is gone");
+    // Finalized so the node opens it in place instead of re-indexing; this
+    // also closes its RocksDB handles before the rename below.
+    if let Some(rpc_indexes) = rpc_indexes {
+        let rpc_indexes_path = path.join(RPC_INDEXES_DIR);
+        Arc::into_inner(rpc_indexes)
+            .expect("the snapshot task is awaited, so its restorer handle is gone")
+            .finalize(last_checkpoint.sequence_number)
+            .await?;
+        RpcIndexesRestorer::verify_restored(
+            &rpc_indexes_path,
+            Some(&historic_db_path(&path)),
+            last_checkpoint.sequence_number,
+            num_live_objects,
+        )
+        .await?;
     }
 
     let new_path = path.parent().unwrap().join("live");

@@ -29,6 +29,14 @@ fn decompress_snappy_bounded<R: Read>(src: R, max_allowed: u64) -> std::io::Resu
     Ok(bytes)
 }
 
+fn reject_empty_message(buf: &DecodeBuf<'_>) -> Result<(), Status> {
+    if buf.has_remaining() {
+        Ok(())
+    } else {
+        Err(Status::invalid_argument("empty BCS message"))
+    }
+}
+
 #[derive(Debug)]
 pub struct BcsEncoder<T>(PhantomData<T>);
 
@@ -49,9 +57,7 @@ impl<U: serde::de::DeserializeOwned> Decoder for BcsDecoder<U> {
     type Error = Status;
 
     fn decode(&mut self, buf: &mut DecodeBuf<'_>) -> Result<Option<Self::Item>, Self::Error> {
-        if !buf.has_remaining() {
-            return Ok(None);
-        }
+        reject_empty_message(buf)?;
 
         let chunk = buf.chunk();
 
@@ -113,9 +119,7 @@ impl<U: serde::de::DeserializeOwned> Decoder for BcsSnappyDecoder<U> {
     type Error = Status;
 
     fn decode(&mut self, buf: &mut DecodeBuf<'_>) -> Result<Option<Self::Item>, Self::Error> {
-        if !buf.has_remaining() {
-            return Ok(None);
-        }
+        reject_empty_message(buf)?;
         let bytes = decompress_snappy(buf.reader()).map_err(|e| Status::internal(e.to_string()))?;
         let item =
             bcs::from_bytes(bytes.as_slice()).map_err(|e| Status::internal(e.to_string()))?;
@@ -318,6 +322,45 @@ mod tests {
                 tonic::codec::Streaming::new_request(codec.decoder(), body, None, None);
             let decoded = stream.next().await.unwrap().unwrap();
             assert_eq!(decoded, value);
+        }
+
+        /// Sends a zero-length gRPC message followed by a valid one and keeps
+        /// the body open. The decoder must reject the empty message instead
+        /// of stalling the stream.
+        async fn assert_rejects_empty_message<C>(mut codec: C, valid_payload: Vec<u8>)
+        where
+            C: tonic::codec::Codec,
+            C::Decode: std::fmt::Debug,
+        {
+            let mut framed = BytesMut::new();
+            for payload in [&[][..], &valid_payload[..]] {
+                framed.put_u8(0);
+                framed.put_u32(payload.len() as u32);
+                framed.put_slice(payload);
+            }
+            let frames =
+                futures::stream::iter([Ok::<_, tonic::Status>(Frame::data(framed.freeze()))])
+                    .chain(futures::stream::pending());
+            let body = http_body_util::StreamBody::new(frames);
+            let mut stream =
+                tonic::codec::Streaming::new_request(codec.decoder(), body, None, None);
+
+            let result = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
+                .await
+                .expect("decoder stalled on an empty message");
+            let status = result.unwrap().unwrap_err();
+            assert_eq!(status.code(), tonic::Code::InvalidArgument);
+        }
+
+        #[tokio::test]
+        async fn empty_message_is_rejected() {
+            let raw = bcs::to_bytes(&1u64).unwrap();
+            assert_rejects_empty_message(BcsCodec::<u64, u64>::default(), raw.clone()).await;
+            assert_rejects_empty_message(
+                BcsSnappyCodec::<u64, u64>::default(),
+                snappy_compress(&raw),
+            )
+            .await;
         }
     }
 }

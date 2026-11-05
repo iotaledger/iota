@@ -301,7 +301,7 @@ jsonrpsee = { version = "0.24", features = ["server", "macros", "client-core", "
 lru = "0.12"
 mockall = "0.11.4"
 moka = { version = "0.12.12", default-features = false, features = ["sync"] }
-msim = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.53.3", package = "msim" }
+msim = { git = "https://github.com/iotaledger/iota-sim.git", rev = "c1614cba95bde47819471ae90ed9207182548a40", package = "msim" }
 multiaddr = "0.18.2"
 nonempty = "0.9.0"
 num_cpus = "1.15.0"
@@ -335,6 +335,7 @@ reqwest = { version = "0.13", default-features = false, features = ["http2", "js
 roaring = "0.11.2"
 rs_merkle = "1.5.0"
 rstest = "0.16.0"
+rustix = { version = "1", features = ["fs"] }
 rustls = { version = "0.23.46", default-features = false, features = ["std", "tls12", "ring"] }
 schemars = { version = "0.8.21", features = ["either"] }
 scopeguard = "1.1"

@@ -18,7 +18,7 @@ use iota_json_rpc_types::{
     IotaMoveNormalizedModule, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
     IotaPastObjectResponse, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage,
-    ProtocolConfigResponse, TransactionBlocksPage,
+    OwnedObjectCursor, ProtocolConfigResponse, TransactionBlocksPage,
 };
 use iota_sdk_types::{Address, ObjectId, Transaction, TransactionDigest, TransactionKind, Version};
 use iota_types::{
@@ -73,7 +73,7 @@ impl ReadApi {
         &self,
         address: Address,
         query: impl Into<Option<IotaObjectResponseQuery>>,
-        cursor: impl Into<Option<ObjectId>>,
+        cursor: impl Into<Option<OwnedObjectCursor>>,
         limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<ObjectsPage> {
         Ok(self
@@ -733,7 +733,7 @@ impl ReadApi {
     pub async fn iota_names_find_all_registration_nfts(
         &self,
         address: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> IotaRpcResult<ObjectsPage> {

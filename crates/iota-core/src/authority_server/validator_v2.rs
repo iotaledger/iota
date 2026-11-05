@@ -4,6 +4,7 @@
 use std::sync::Arc;
 
 use futures::{StreamExt, future::Either, stream};
+use iota_common::debug_fatal;
 use iota_network::api::{
     GetTxStatusRequest, HealthCheckRequest, HealthCheckResponse, NotifyCapabilitiesRequest,
     NotifyCapabilitiesResponse, SubmitTxRequest, TxStatus, ValidatorV2,
@@ -435,8 +436,9 @@ impl ValidatorService {
     }
 
     /// Waits for one or more previously submitted transactions to reach
-    /// finality and streams a terminal status per digest (Executed, Rejected,
-    /// or Expired).
+    /// finality and streams one status per digest: Executed, Rejected,
+    /// Expired when the epoch ended first, or TimedOut when the wait ended
+    /// first.
     async fn get_tx_status_impl(
         &self,
         request: DomainGetTxStatusRequest,
@@ -548,16 +550,9 @@ impl ValidatorService {
             },
             Ok(Ok(Either::Left(effects_digests))) => {
                 let Some(effects_digest) = effects_digests.into_iter().next() else {
-                    tracing::warn!(
-                        ?tx_digest,
-                        "empty effects from notify_read, returning Expired"
-                    );
-                    return (
-                        TxStatusUpdate::Expired {
-                            epoch: epoch_store.epoch(),
-                        },
-                        Weight::zero(),
-                    );
+                    // The notifier returns one digest per requested digest.
+                    debug_fatal!("empty effects from notify_read for {tx_digest:?}");
+                    return (TxStatusUpdate::TimedOut, Weight::zero());
                 };
                 if let Err(error) = state.check_effects_against_previously_signed(
                     epoch_store,
@@ -597,9 +592,7 @@ impl ValidatorService {
             Ok(Ok(Either::Right(dropped_error))) => TxStatusUpdate::Rejected {
                 error: dropped_error,
             },
-            Err(_timeout) => TxStatusUpdate::Expired {
-                epoch: epoch_store.epoch(),
-            },
+            Err(_timeout) => TxStatusUpdate::TimedOut,
         };
         (update, Weight::zero())
     }

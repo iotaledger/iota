@@ -55,6 +55,12 @@ impl CommitSolidifier {
         self.last_solid_committed_index = index;
     }
 
+    /// Removes the buffered commits at or below `index`.
+    pub(crate) fn remove_pending_subdags_up_to(&mut self, index: CommitIndex) {
+        self.pending_subdags
+            .retain(|&commit_index, _| commit_index > index);
+    }
+
     /// Gets all missing transactions from pending subdags.
     ///
     /// # Returns
@@ -1060,5 +1066,68 @@ mod tests {
         // Should now have no missing transactions
         let missing = commit_solidifier.get_missing_transaction_data();
         assert!(missing.is_empty());
+    }
+
+    /// Removed commits are no longer requested; the ones above the index are
+    /// output once their transactions arrive.
+    #[tokio::test]
+    async fn test_remove_pending_subdags_up_to() {
+        let setup = Arc::new(TestSetup::new(4));
+        let (mut commit_solidifier, selective_dag_state) =
+            setup.create_selective_commit_solidifier(vec![1, 2, 3, 4], vec![(1, 0), (2, 0)]);
+
+        let dropped_ref = GenericTransactionRef::TransactionRef(
+            setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
+        );
+        let kept_ref = GenericTransactionRef::TransactionRef(
+            setup.dag_builder.block_headers(2..=2)[0].transaction_ref(),
+        );
+
+        let subdag1 = SubDagBuilder::new(setup.clone(), 1)
+            .leader(2, 0)
+            .with_blocks(vec![
+                BlockSpec::all_from_round(0),
+                BlockSpec::all_from_round(1),
+            ])
+            .with_committed_refs(vec![dropped_ref])
+            .build();
+        let subdag2 = SubDagBuilder::new(setup.clone(), 2)
+            .leader(3, 0)
+            .with_blocks(vec![BlockSpec::skip_first_from_round(2)])
+            .with_committed_refs(vec![])
+            .build();
+        let subdag3 = SubDagBuilder::new(setup.clone(), 3)
+            .leader(4, 0)
+            .with_blocks(vec![BlockSpec::skip_first_from_round(3)])
+            .with_committed_refs(vec![kept_ref])
+            .build();
+
+        let (committed, _missing) =
+            commit_solidifier.try_get_solid_sub_dags(&[subdag1, subdag2, subdag3.clone()]);
+        assert!(committed.is_empty());
+        assert_eq!(commit_solidifier.pending_subdags.len(), 3);
+
+        commit_solidifier.set_last_solid_committed_index(2);
+        commit_solidifier.remove_pending_subdags_up_to(2);
+        assert_eq!(
+            commit_solidifier
+                .pending_subdags
+                .keys()
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![3]
+        );
+        assert_eq!(
+            commit_solidifier.get_missing_transaction_data(),
+            BTreeSet::from([kept_ref])
+        );
+
+        setup.add_missing_transactions(&selective_dag_state, &[(2, 0)]);
+        let (committed, missing) = commit_solidifier.try_get_solid_sub_dags(&[]);
+        assert!(missing.is_empty());
+        assert_eq!(committed.len(), 1);
+        assert_eq!(committed[0].commit_ref, subdag3.commit_ref);
+        assert_eq!(commit_solidifier.last_solid_committed_index, 3);
+        assert!(commit_solidifier.pending_subdags.is_empty());
     }
 }

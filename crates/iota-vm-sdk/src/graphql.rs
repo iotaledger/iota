@@ -31,16 +31,15 @@ pub struct GraphQLStore {
 }
 
 impl GraphQLStore {
-    /// Wrap an existing client. The store starts with the built-in framework
-    /// packages already loaded so Move calls resolve.
+    /// Wrap an existing client. The store starts empty and fetches every
+    /// object a run needs, framework packages included, from the node.
     pub fn new(client: GraphQLClient) -> Self {
         Self {
             cache: CachingStore::new(GraphQLFetcher { client }),
         }
     }
 
-    /// Connect to a GraphQL endpoint (by URL) and create a store containing
-    /// only the built-in framework packages.
+    /// Connect to a GraphQL endpoint (by URL) and create an empty store.
     ///
     /// # Errors
     ///
@@ -51,8 +50,7 @@ impl GraphQLStore {
         Ok(Self::new(client))
     }
 
-    /// A snapshot clone of the objects cached so far (framework packages plus
-    /// anything fetched on demand).
+    /// A snapshot clone of the objects fetched or inserted so far.
     pub fn store(&self) -> InMemoryStore {
         self.cache.store()
     }

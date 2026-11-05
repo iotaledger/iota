@@ -2,8 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::Path;
+use std::{
+    collections::{BTreeSet, HashMap},
+    path::Path,
+    sync::Mutex,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
+use iota_metrics::spawn_monitored_task;
 use iota_sdk_types::{TransactionEffects, TransactionEvents, Version};
 use iota_types::{global_state_hash::GlobalStateHash, storage::MarkerValue};
 use serde::{Deserialize, Serialize};
@@ -12,18 +18,28 @@ use typed_store::{
     DBMapUtils, DbIterator,
     metrics::SamplingInterval,
     rocks::{
-        DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, default_db_options,
-        read_size_from_env,
+        DBMap, DBMapTableConfigMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
+        read_size_from_env, synced_write_options,
     },
+    rocksdb::LiveFile,
     traits::Map,
 };
 
 use super::*;
-use crate::authority::{
-    authority_store_types::{
-        StoreObject, StoreObjectValueV2, StoreObjectWrapper, get_store_object, try_construct_object,
+use crate::{
+    authority::{
+        authority_store_types::{
+            StoreObject, StoreObjectValueV2, StoreObjectWrapper, get_store_object,
+            try_construct_object,
+        },
+        epoch_markers::EpochMarkers,
+        epoch_start_configuration::EpochStartConfiguration,
+        historic_ledger::HistoricLedger,
+        historic_objects::HistoricObjects,
+        ledger_backlog_migration::LedgerBacklogMigrationProgress,
+        object_backlog_sweep::ObjectBacklogSweepProgress,
     },
-    epoch_start_configuration::EpochStartConfiguration,
+    epoch_buckets::historic_root,
 };
 
 const ENV_VAR_OBJECTS_BLOCK_CACHE_SIZE: &str = "OBJECTS_BLOCK_CACHE_MB";
@@ -31,11 +47,23 @@ pub(crate) const ENV_VAR_LOCKS_BLOCK_CACHE_SIZE: &str = "LOCKS_BLOCK_CACHE_MB";
 const ENV_VAR_TRANSACTIONS_BLOCK_CACHE_SIZE: &str = "TRANSACTIONS_BLOCK_CACHE_MB";
 const ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE: &str = "EFFECTS_BLOCK_CACHE_MB";
 
+/// The column family an older release keeps its objects pruner's progress
+/// watermark in. Read in place until the first start retires it, see
+/// [`AuthorityPerpetualTables::retire_objects_pruner_watermark`].
+// TODO(https://github.com/iotaledger/iota/issues/12712): remove with the sweep.
+const OBJECTS_PRUNER_WATERMARK_CF: &str = "pruned_checkpoint";
+
 /// Options to apply to every column family of the `perpetual` DB.
 #[derive(Default)]
 pub struct AuthorityPerpetualTablesOptions {
     /// Whether to enable write stalling on all column families.
     pub enable_write_stall: bool,
+    /// The directory the historic object and ledger buckets keep their files
+    /// in. Anything opening a node's database must pass the same path the
+    /// node does; unset, it is
+    /// [`HISTORIC_DB_DIR`](crate::epoch_buckets::HISTORIC_DB_DIR) in the
+    /// perpetual database directory.
+    pub historic_db_path: Option<PathBuf>,
 }
 
 impl AuthorityPerpetualTablesOptions {
@@ -65,6 +93,9 @@ pub struct AuthorityPerpetualTables {
     /// executed transactions whose effects have not yet been written out,
     /// and which must be retried. But, they cannot be retried unless their
     /// input objects are still accessible!
+    ///
+    /// Superseded versions are moved into the [`HistoricObjects`] buckets
+    /// and expire with them; see [`HistoricObjects::prune`].
     pub(crate) objects: DBMap<ObjectKey, StoreObjectWrapper>,
 
     /// Object references of currently active objects that can be mutated.
@@ -74,6 +105,9 @@ pub struct AuthorityPerpetualTables {
     /// transaction that's known to be executable. This means that it may
     /// have been executed locally, or it may have been synced through
     /// state-sync but hasn't been executed yet.
+    ///
+    /// Superseded by [`HistoricLedger`]; the rows still here are read only by
+    /// the one-time migration into the buckets.
     pub(crate) transactions: DBMap<TransactionDigest, TrustedTransaction>,
 
     /// A map between the transaction digest of a certificate to the effects of
@@ -88,6 +122,8 @@ pub struct AuthorityPerpetualTables {
     ///
     /// It's also possible for the effects to be reverted if the transaction
     /// didn't make it into the epoch.
+    ///
+    /// Superseded by [`HistoricLedger`], like `transactions`.
     pub(crate) effects: DBMap<TransactionEffectsDigest, TransactionEffects>,
 
     /// Transactions that have been executed locally on this node. We need this
@@ -95,13 +131,24 @@ pub struct AuthorityPerpetualTables {
     /// execution status of the transaction on this node. When we wait for
     /// transactions to be executed, we wait for them to appear in this
     /// table. When we revert transactions, we remove them from both tables.
+    ///
+    /// Superseded by [`HistoricLedger`], like `transactions`.
     pub(crate) executed_effects: DBMap<TransactionDigest, TransactionEffectsDigest>,
 
-    // Events keyed by the digest of the transaction that produced them.
+    /// Events produced by each transaction, keyed by the transaction's
+    /// digest.
+    ///
+    /// Superseded by [`HistoricLedger`], like `transactions`.
     pub(crate) events_2: DBMap<TransactionDigest, TransactionEvents>,
 
     /// Epoch and checkpoint of transactions finalized by checkpoint
-    /// executor. Currently, mainly used to implement JSON RPC `ReadApi`.
+    /// executor.
+    ///
+    /// Superseded by [`HistoricLedger`]; the one-time migration into the
+    /// buckets reads the rows still here to learn which epoch each
+    /// transaction belongs to. The value type must stay as it is, or `bcs`
+    /// fails to decode those rows.
+    ///
     /// Note, there is a table with the same name in
     /// `AuthorityEpochTables`/`AuthorityPerEpochStore`.
     pub(crate) executed_transactions_to_checkpoint:
@@ -116,10 +163,6 @@ pub struct AuthorityPerpetualTables {
     /// Parameters of the system fixed at the epoch start
     pub(crate) epoch_start_configuration: DBMap<(), EpochStartConfiguration>,
 
-    /// A singleton table that stores latest pruned checkpoint. Used to keep
-    /// objects pruner progress
-    pub(crate) pruned_checkpoint: DBMap<(), CheckpointSequenceNumber>,
-
     /// The total IOTA supply and the epoch at which it was stored.
     /// We check and update it at the end of each epoch if expensive checks are
     /// enabled.
@@ -131,14 +174,41 @@ pub struct AuthorityPerpetualTables {
     /// storage_fund_balance - sum(storage_rebate).
     pub(crate) expected_storage_fund_imbalance: DBMap<(), i64>,
 
-    /// Table that stores the set of received objects and deleted objects and
-    /// the version at which they were received. This is used to prevent
-    /// possible race conditions around receiving objects (since they are
-    /// not locked by the transaction manager) and for tracking shared
-    /// objects that have been deleted. This table is meant to be pruned
-    /// per-epoch, and all previous epochs other than the current epoch may
-    /// be pruned safely.
+    /// Superseded by [`EpochMarkers`]; the rows still here are read only by
+    /// the one-time migration into the buckets.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this table.
     pub(crate) object_per_epoch_marker_table: DBMap<(EpochId, ObjectKey), MarkerValue>,
+
+    /// How far the one-time sweep of superseded object versions has got
+    /// through `objects`, and whether it is done. Empty until the sweep first
+    /// writes a slice.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this table.
+    pub(crate) object_backlog_sweep_progress: DBMap<(), ObjectBacklogSweepProgress>,
+
+    /// The last checkpoint the objects pruner pruned, copied out of an older
+    /// release's `pruned_checkpoint`; absent if the pruner never ran, and
+    /// until the first start retires that column family. Every version
+    /// superseded at or below it is already deleted, so the object history
+    /// is complete only above it.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this table.
+    pub(crate) object_backlog_sweep_bound: DBMap<(), CheckpointSequenceNumber>,
+
+    /// The epoch whose bucket the one-time sweep moved the superseded
+    /// versions into, written when the sweep finishes. Absent where no sweep
+    /// ran, such as on a database created from genesis or a formal snapshot.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this table.
+    pub(crate) object_backlog_sweep_epoch: DBMap<(), EpochId>,
+
+    /// Which of the flat ledger tables the one-time migration into the
+    /// per-epoch buckets is draining, and how far through it. Empty until the
+    /// migration first writes a slice.
+    // TODO(https://github.com/iotaledger/iota/issues/12763): remove this table.
+    pub(crate) ledger_backlog_migration_progress: DBMap<(), LedgerBacklogMigrationProgress>,
+
+    /// The oldest epoch the one-time ledger migration keeps, as computed by
+    /// the run that started it. Empty until that run writes anything.
+    // TODO(https://github.com/iotaledger/iota/issues/12763): remove this table.
+    pub(crate) ledger_backlog_migration_floor: DBMap<(), EpochId>,
 }
 
 /// The total IOTA supply used during conservation checks.
@@ -150,6 +220,20 @@ pub(crate) struct TotalIotaSupplyCheck {
     pub(crate) last_check_epoch: EpochId,
 }
 
+impl AuthorityPerpetualTablesReadOnly {
+    /// Whether the first start's ledger migration has finished, after which
+    /// the history is in the buckets rather than in the flat tables.
+    // TODO(https://github.com/iotaledger/iota/issues/12763): remove with the migration.
+    pub fn ledger_backlog_migrated(&self) -> Result<bool, TypedStoreError> {
+        self.ledger_backlog_migration_progress
+            .try_catch_up_with_primary()?;
+        Ok(matches!(
+            self.ledger_backlog_migration_progress.get(&())?,
+            Some(LedgerBacklogMigrationProgress::Done | LedgerBacklogMigrationProgress::Cleared)
+        ))
+    }
+}
+
 impl AuthorityPerpetualTables {
     pub fn path(parent_path: &Path) -> PathBuf {
         parent_path.join("perpetual")
@@ -159,10 +243,80 @@ impl AuthorityPerpetualTables {
         parent_path: &Path,
         db_options_override: Option<AuthorityPerpetualTablesOptions>,
     ) -> Self {
+        Self::open_with_db_options(parent_path, db_options_override).0
+    }
+
+    /// Opens the perpetual tables together with the historic object, ledger
+    /// and epoch marker buckets, which are column families of the same
+    /// database.
+    pub fn open_with_historic_objects(
+        parent_path: &Path,
+        db_options_override: Option<AuthorityPerpetualTablesOptions>,
+    ) -> Result<(Self, HistoricObjects, HistoricLedger, EpochMarkers), TypedStoreError> {
+        let (tables, db_options, ledger_db_options, historic_root) =
+            Self::open_with_db_options(parent_path, db_options_override);
+        let mut historic_objects = HistoricObjects::open(
+            tables.objects.db.clone(),
+            &db_options,
+            tables.objects.clone(),
+            &historic_root,
+        )?;
+        historic_objects.objects_pruned_through = tables.objects_pruner_watermark()?;
+        if let Some(epoch) = tables.object_backlog_sweep_epoch.get(&())? {
+            historic_objects.record_backlog_sweep_epoch(epoch);
+        }
+        if matches!(
+            tables.object_backlog_sweep_progress.get(&())?,
+            Some(ObjectBacklogSweepProgress::Done)
+        ) {
+            historic_objects.mark_backlog_swept();
+        }
+        let historic_ledger = HistoricLedger::open(
+            tables.objects.db.clone(),
+            &ledger_db_options,
+            &historic_root,
+        )?;
+        let epoch_markers = EpochMarkers::open(tables.objects.db.clone(), &db_options)?;
+        Ok((tables, historic_objects, historic_ledger, epoch_markers))
+    }
+
+    /// The perpetual tables, the base options their column families were
+    /// opened with, the base options of the historic ledger buckets, and the
+    /// root of the historic buckets.
+    fn open_with_db_options(
+        parent_path: &Path,
+        db_options_override: Option<AuthorityPerpetualTablesOptions>,
+    ) -> (Self, DBOptions, DBOptions, PathBuf) {
         let db_options_override = db_options_override.unwrap_or_default();
         let db_options =
             db_options_override.apply_to(default_db_options().optimize_db_for_write_throughput(4));
-        let table_options = DBMapTableConfigMap::new(BTreeMap::from([
+        let path = Self::path(parent_path);
+        let historic_root = historic_root(&path, db_options_override.historic_db_path.as_deref());
+        let ledger_db_options = historic_ledger_db_options(&db_options);
+        let table_options =
+            Self::table_options(&path, &db_options, &ledger_db_options, &historic_root);
+        let tables = Self::open_tables_read_write(
+            path,
+            MetricConf::new("perpetual")
+                .with_sampling(SamplingInterval::new(Duration::from_secs(60), 0)),
+            Some(db_options.options.clone()),
+            Some(table_options),
+        );
+        (tables, db_options, ledger_db_options, historic_root)
+    }
+
+    /// The options of the column families of the perpetual database at
+    /// `path` that do not take `db_options` unchanged, including the historic
+    /// buckets. The historic ledger buckets take `ledger_db_options`, from
+    /// [`historic_ledger_db_options`]. Every open of the database must pass
+    /// these.
+    fn table_options(
+        path: &Path,
+        db_options: &DBOptions,
+        ledger_db_options: &DBOptions,
+        historic_root: &Path,
+    ) -> DBMapTableConfigMap {
+        let mut table_options = BTreeMap::from([
             (
                 "objects".to_string(),
                 objects_table_config(db_options.clone()),
@@ -179,39 +333,61 @@ impl AuthorityPerpetualTables {
                 "effects".to_string(),
                 effects_table_config(db_options.clone()),
             ),
-        ]));
-        Self::open_tables_read_write(
-            Self::path(parent_path),
-            MetricConf::new("perpetual")
-                .with_sampling(SamplingInterval::new(Duration::from_secs(60), 0)),
-            Some(db_options.options),
-            Some(table_options),
-        )
+        ]);
+        table_options.extend(HistoricObjects::extra_column_family_options(
+            path,
+            db_options,
+            historic_root,
+        ));
+        table_options.extend(HistoricLedger::extra_column_family_options(
+            path,
+            ledger_db_options,
+            historic_root,
+        ));
+        table_options.extend(EpochMarkers::extra_column_family_options(path, db_options));
+        DBMapTableConfigMap::new(table_options)
     }
 
-    pub fn open_readonly(parent_path: &Path) -> AuthorityPerpetualTablesReadOnly {
-        Self::get_read_only_handle(
-            Self::path(parent_path),
+    /// Opens the tables read-only. `historic_db_path` is the root of the
+    /// historic buckets, as for [`AuthorityPerpetualTablesOptions`].
+    pub fn open_readonly(
+        parent_path: &Path,
+        historic_db_path: Option<&Path>,
+    ) -> AuthorityPerpetualTablesReadOnly {
+        let path = Self::path(parent_path);
+        let db_options = default_db_options().optimize_db_for_write_throughput(4);
+        let table_options = Self::table_options(
+            &path,
+            &db_options,
+            &historic_ledger_db_options(&db_options),
+            &historic_root(&path, historic_db_path),
+        );
+        Self::get_read_only_handle_with_table_options(
+            path,
             None,
             None,
             MetricConf::new("perpetual_readonly"),
+            table_options,
         )
     }
 
-    // This is used by indexer to find the correct version of dynamic field child
-    // object. We do not store the version of the child object, but because of
-    // lamport timestamp, we know the child must have version number less then
-    // or eq to the parent.
+    /// The newest row for `object_id` at or below `version`, still wrapped.
+    ///
+    /// A `Deleted` or `Wrapped` row means the object was deleted or wrapped
+    /// at or below the bound, which callers must not treat like `None` (no
+    /// row in range). Use [`Self::object`] to resolve a row.
     pub fn find_object_lt_or_eq_version(
         &self,
         object_id: ObjectId,
         version: Version,
-    ) -> IotaResult<Option<Object>> {
+    ) -> Result<Option<(ObjectKey, StoreObjectWrapper)>, IotaError> {
         let mut iter = self.objects.safe_range_iter_reversed(
             ObjectKey::min_for_id(&object_id)..=ObjectKey(object_id, version),
         );
         match iter.next() {
-            Some(Ok((key, o))) => self.object(&key, o),
+            // Migrate legacy V1 rows before returning; callers inspect the
+            // wrapper via `inner()`, which panics on an un-migrated V1.
+            Some(Ok((key, o))) => Ok(Some((key, o.migrate()))),
             Some(Err(e)) => Err(e.into()),
             None => Ok(None),
         }
@@ -328,48 +504,6 @@ impl AuthorityPerpetualTables {
         Ok(())
     }
 
-    pub fn get_highest_pruned_checkpoint(
-        &self,
-    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
-        self.pruned_checkpoint.get(&())
-    }
-
-    pub fn set_highest_pruned_checkpoint(
-        &self,
-        wb: &mut DBBatch,
-        checkpoint_number: CheckpointSequenceNumber,
-    ) -> IotaResult {
-        wb.insert_batch(&self.pruned_checkpoint, [((), checkpoint_number)])?;
-        Ok(())
-    }
-
-    pub fn get_transaction(
-        &self,
-        digest: &TransactionDigest,
-    ) -> IotaResult<Option<TrustedTransaction>> {
-        let Some(transaction) = self.transactions.get(digest)? else {
-            return Ok(None);
-        };
-        Ok(Some(transaction))
-    }
-
-    pub fn get_effects(
-        &self,
-        digest: &TransactionDigest,
-    ) -> IotaResult<Option<TransactionEffects>> {
-        let Some(effect_digest) = self.executed_effects.get(digest)? else {
-            return Ok(None);
-        };
-        Ok(self.effects.get(&effect_digest)?)
-    }
-
-    pub fn get_checkpoint_sequence_number(
-        &self,
-        digest: &TransactionDigest,
-    ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
-        Ok(self.executed_transactions_to_checkpoint.get(digest)?)
-    }
-
     pub fn get_newer_object_keys(
         &self,
         object: &(ObjectId, Version),
@@ -383,16 +517,6 @@ impl AuthorityPerpetualTables {
             objects.push(key);
         }
         Ok(objects)
-    }
-
-    pub fn set_highest_pruned_checkpoint_without_wb(
-        &self,
-        checkpoint_number: CheckpointSequenceNumber,
-    ) -> IotaResult {
-        let mut wb = self.pruned_checkpoint.batch();
-        self.set_highest_pruned_checkpoint(&mut wb, checkpoint_number)?;
-        wb.write()?;
-        Ok(())
     }
 
     pub fn database_is_empty(&self) -> IotaResult<bool> {
@@ -441,6 +565,122 @@ impl AuthorityPerpetualTables {
         }
     }
 
+    /// Compacts the whole key range of the live `objects` table, blocking
+    /// until RocksDB has rewritten it.
+    pub fn compact(&self) -> Result<(), TypedStoreError> {
+        self.objects.compact_range(
+            &ObjectKey(ObjectId::ZERO, Version::MIN_VALID_INCL),
+            &ObjectKey(ObjectId::MAX, Version::MAX_VALID_EXCL),
+        )
+    }
+
+    /// The column families whose aged SST files
+    /// [`Self::spawn_periodic_compaction`] rewrites: the ones rows are
+    /// deleted from.
+    fn periodically_compacted_tables(&self) -> BTreeSet<&str> {
+        [
+            self.objects.cf_name(),
+            self.transactions.cf_name(),
+            self.effects.cf_name(),
+            self.executed_effects.cf_name(),
+            self.events_2.cf_name(),
+            self.executed_transactions_to_checkpoint.cf_name(),
+        ]
+        .into_iter()
+        .collect()
+    }
+
+    /// Compacts and returns the largest SST file of
+    /// [`Self::periodically_compacted_tables`] untouched for `delay_days`, or
+    /// `None` when no file qualifies. `last_processed` must be carried from one
+    /// call to the next so that a file is not picked again within the delay.
+    ///
+    /// Blocks until the compaction finishes, so an async caller must use
+    /// `spawn_blocking`.
+    fn compact_next_sst_file(
+        &self,
+        delay_days: usize,
+        last_processed: &Mutex<HashMap<String, SystemTime>>,
+    ) -> Result<Option<LiveFile>, anyhow::Error> {
+        let compacted_tables = self.periodically_compacted_tables();
+        let db_path = self.objects.db.path_for_pruning();
+        let mut state = last_processed
+            .lock()
+            .expect("failed to obtain a lock for last processed SST files");
+        let mut sst_file_for_compaction: Option<LiveFile> = None;
+        let time_threshold =
+            SystemTime::now() - Duration::from_secs(delay_days as u64 * 24 * 60 * 60);
+        for sst_file in self.objects.db.live_files()? {
+            // Checked first: the historic buckets keep their files outside
+            // `db_path`.
+            if !compacted_tables.contains(sst_file.column_family_name.as_str()) {
+                continue;
+            }
+            let file_path = db_path.join(sst_file.name.clone().trim_matches('/'));
+            let last_modified = std::fs::metadata(file_path)?.modified()?;
+            if sst_file.level < 1
+                || sst_file.start_key.is_none()
+                || sst_file.end_key.is_none()
+                || last_modified > time_threshold
+                || state.get(&sst_file.name).unwrap_or(&UNIX_EPOCH) > &time_threshold
+            {
+                continue;
+            }
+            if let Some(candidate) = &sst_file_for_compaction {
+                if candidate.size > sst_file.size {
+                    continue;
+                }
+            }
+            sst_file_for_compaction = Some(sst_file);
+        }
+        let Some(sst_file) = sst_file_for_compaction else {
+            return Ok(None);
+        };
+        info!(
+            "Manual compaction of sst file {:?}. Size: {:?}, level: {:?}",
+            sst_file.name, sst_file.size, sst_file.level
+        );
+        self.objects.compact_range_raw(
+            &sst_file.column_family_name,
+            sst_file.start_key.clone().unwrap(),
+            sst_file.end_key.clone().unwrap(),
+        )?;
+        state.insert(sst_file.name.clone(), SystemTime::now());
+        Ok(Some(sst_file))
+    }
+
+    /// Spawns a task that keeps compacting SST files older than `delay_days`,
+    /// one at a time, until these tables are dropped. RocksDB does not compact
+    /// files that are no longer written to, so their deleted rows are not
+    /// reclaimed otherwise.
+    pub fn spawn_periodic_compaction(self: &Arc<Self>, delay_days: usize) {
+        // Held weakly so the task cannot keep a dropped node's database open.
+        let perpetual_tables = Arc::downgrade(self);
+        spawn_monitored_task!(async move {
+            let last_processed = Arc::new(Mutex::new(HashMap::new()));
+            loop {
+                let Some(tables) = perpetual_tables.upgrade() else {
+                    break;
+                };
+                let state = last_processed.clone();
+                let result = tokio::task::spawn_blocking(move || {
+                    tables.compact_next_sst_file(delay_days, &state)
+                })
+                .await;
+                let mut sleep_interval_secs = 1;
+                match result {
+                    Err(err) => error!("Failed to compact sst file: {:?}", err),
+                    Ok(Err(err)) => error!("Failed to compact sst file: {:?}", err),
+                    Ok(Ok(None)) => {
+                        sleep_interval_secs = 3600;
+                    }
+                    _ => {}
+                }
+                tokio::time::sleep(Duration::from_secs(sleep_interval_secs)).await;
+            }
+        });
+    }
+
     pub fn get_root_state_hash(
         &self,
         epoch: EpochId,
@@ -456,6 +696,105 @@ impl AuthorityPerpetualTables {
     ) -> IotaResult {
         self.root_state_hash_by_epoch
             .insert(&epoch, &(last_checkpoint_of_epoch, hash))?;
+        Ok(())
+    }
+
+    /// The objects pruner's progress watermark: the copy in
+    /// `object_backlog_sweep_bound`, or, before the first start has retired
+    /// it, the older release's own.
+    fn objects_pruner_watermark(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        if let Some(watermark) = self.object_backlog_sweep_bound.get(&())? {
+            return Ok(Some(watermark));
+        }
+        let db = &self.objects.db;
+        if db.cf_handle(OBJECTS_PRUNER_WATERMARK_CF).is_none() {
+            return Ok(None);
+        }
+        DBMap::<(), CheckpointSequenceNumber>::reopen(
+            db,
+            Some(OBJECTS_PRUNER_WATERMARK_CF),
+            &ReadWriteOptions::default(),
+            true,
+        )?
+        .get(&())
+    }
+
+    /// Copies the objects pruner's progress watermark out of the older
+    /// release's column family into `object_backlog_sweep_bound`, then drops
+    /// that column family. Does nothing on a database without it.
+    ///
+    /// One-way: the older release reads that column family, so call this only
+    /// once nothing can refuse the first start any more.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove with the sweep.
+    pub fn retire_objects_pruner_watermark(&self) -> Result<(), TypedStoreError> {
+        let db = &self.objects.db;
+        if db.cf_handle(OBJECTS_PRUNER_WATERMARK_CF).is_none() {
+            return Ok(());
+        }
+        let pruned: DBMap<(), CheckpointSequenceNumber> = DBMap::reopen(
+            db,
+            Some(OBJECTS_PRUNER_WATERMARK_CF),
+            &ReadWriteOptions::default(),
+            true,
+        )?;
+        if let Some(watermark) = pruned.get(&())? {
+            // Synced: the drop below is durable at once, so a lost copy would
+            // lose the watermark for good.
+            let mut batch = self.object_backlog_sweep_bound.batch();
+            batch.insert_batch(&self.object_backlog_sweep_bound, [((), watermark)])?;
+            batch.write_opt(&synced_write_options())?;
+            info!(watermark, "carried the objects pruner's watermark over");
+        }
+        drop(pruned);
+        db.drop_cf(OBJECTS_PRUNER_WATERMARK_CF)
+    }
+
+    /// Marks the one-time object-backlog sweep as done, so that a later node
+    /// start skips it.
+    ///
+    /// Call this only on a database that holds no superseded object
+    /// versions, such as one just restored from a formal snapshot.
+    pub fn mark_object_backlog_swept(&self) -> IotaResult {
+        self.object_backlog_sweep_progress
+            .insert(&(), &ObjectBacklogSweepProgress::Done)?;
+        Ok(())
+    }
+
+    /// Marks the one-time object-backlog sweep as done after it moved the
+    /// superseded versions into `epoch`'s bucket, so that a later node start
+    /// skips it.
+    pub fn mark_object_backlog_swept_into(&self, epoch: EpochId) -> IotaResult {
+        let mut batch = self.object_backlog_sweep_progress.batch();
+        batch.insert_batch(&self.object_backlog_sweep_epoch, [((), epoch)])?;
+        batch.insert_batch(
+            &self.object_backlog_sweep_progress,
+            [((), ObjectBacklogSweepProgress::Done)],
+        )?;
+        batch.write()?;
+        Ok(())
+    }
+
+    /// Marks the one-time object-backlog sweep as skipped, so that a later
+    /// node start does not run it, on a database that may still hold
+    /// superseded versions in the live `objects` table. Reads keep checking
+    /// the historic buckets behind such a version.
+    pub fn mark_object_backlog_sweep_skipped(&self) -> IotaResult {
+        self.object_backlog_sweep_progress
+            .insert(&(), &ObjectBacklogSweepProgress::Skipped)?;
+        Ok(())
+    }
+
+    /// Marks the one-time migration of the flat ledger tables into the
+    /// per-epoch buckets as done, so that a later node start skips it.
+    ///
+    /// Call this only on a database with no rows in the flat ledger tables,
+    /// such as one just restored from a formal snapshot.
+    // TODO(https://github.com/iotaledger/iota/issues/12763): remove with the migration.
+    pub fn mark_ledger_backlog_migrated(&self) -> IotaResult {
+        self.ledger_backlog_migration_progress
+            .insert(&(), &LedgerBacklogMigrationProgress::Cleared)?;
         Ok(())
     }
 
@@ -587,6 +926,8 @@ impl From<SnapshotLiveObject> for LiveObject {
     }
 }
 
+/// Yields the latest live version of every object in range, surfacing a read
+/// error instead of ending the scan.
 pub struct LiveSetIter<'a> {
     iter: DbIterator<'a, (ObjectKey, StoreObjectWrapper)>,
     tables: &'a AuthorityPerpetualTables,
@@ -617,32 +958,42 @@ impl LiveSetIter<'_> {
 }
 
 impl Iterator for LiveSetIter<'_> {
-    type Item = LiveObject;
+    type Item = Result<LiveObject, TypedStoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if let Some(Ok((next_key, next_value))) = self.iter.next() {
-                let prev = self.prev.take();
-                self.prev = Some((next_key, next_value));
+            match self.iter.next() {
+                Some(Ok((next_key, next_value))) => {
+                    let prev = self.prev.take();
+                    self.prev = Some((next_key, next_value));
 
-                if let Some((prev_key, prev_value)) = prev {
-                    if prev_key.0 != next_key.0 {
-                        let live_object =
-                            self.store_object_wrapper_to_live_object(prev_key, prev_value);
-                        if live_object.is_some() {
-                            return live_object;
+                    if let Some((prev_key, prev_value)) = prev {
+                        if prev_key.0 != next_key.0 {
+                            if let Some(live_object) =
+                                self.store_object_wrapper_to_live_object(prev_key, prev_value)
+                            {
+                                return Some(Ok(live_object));
+                            }
                         }
                     }
                 }
-                continue;
-            }
-            if let Some((key, value)) = self.prev.take() {
-                let live_object = self.store_object_wrapper_to_live_object(key, value);
-                if live_object.is_some() {
-                    return live_object;
+                Some(Err(err)) => {
+                    // The buffered row may not be the object's latest version, so drop
+                    // it rather than emit it as the tail of a scan that failed.
+                    self.prev = None;
+                    return Some(Err(err));
+                }
+                None => {
+                    if let Some((key, value)) = self.prev.take() {
+                        if let Some(live_object) =
+                            self.store_object_wrapper_to_live_object(key, value)
+                        {
+                            return Some(Ok(live_object));
+                        }
+                    }
+                    return None;
                 }
             }
-            return None;
         }
     }
 }
@@ -681,6 +1032,18 @@ fn effects_table_config(db_options: DBOptions) -> DBOptions {
         )
 }
 
+/// `db_options` with one block cache that every historic ledger bucket opened
+/// from them shares, as large as the transactions and effects caches together,
+/// since the buckets hold what those tables held. Build them once per open of
+/// the database: each call makes a new cache.
+fn historic_ledger_db_options(db_options: &DBOptions) -> DBOptions {
+    db_options.clone().set_block_options(
+        read_size_from_env(ENV_VAR_TRANSACTIONS_BLOCK_CACHE_SIZE).unwrap_or(512)
+            + read_size_from_env(ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE).unwrap_or(1024),
+        16 << 10,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -706,8 +1069,9 @@ mod tests {
         let live_set = |tables: &AuthorityPerpetualTables| -> Vec<(ObjectId, Version)> {
             tables
                 .iter_live_object_set()
-                .map(|live| (live.object_id(), live.version()))
-                .collect()
+                .map(|live| live.map(|live| (live.object_id(), live.version())))
+                .collect::<Result<_, _>>()
+                .unwrap()
         };
         let before = live_set(&perpetual_db);
         assert_eq!(before.len(), 2);
@@ -735,8 +1099,9 @@ mod tests {
 
         let through_view: Vec<_> = perpetual_db
             .iter_live_object_set_at(&db_snapshot)
-            .map(|live| (live.object_id(), live.version()))
-            .collect();
+            .map(|live| live.map(|live| (live.object_id(), live.version())))
+            .collect::<Result<_, _>>()
+            .unwrap();
         assert_eq!(
             through_view, before,
             "the snapshot must not show writes made after it was taken"
@@ -792,7 +1157,10 @@ mod tests {
         .unwrap();
         wb.write().unwrap();
 
-        let yielded: Vec<_> = perpetual_db.iter_live_object_set().collect();
+        let yielded: Vec<_> = perpetual_db
+            .iter_live_object_set()
+            .collect::<Result<_, _>>()
+            .unwrap();
         assert_eq!(yielded.len(), 1, "wrapped/deleted rows must be filtered");
         assert_eq!(yielded[0].object.id(), live_id);
     }
@@ -830,12 +1198,45 @@ mod tests {
         .unwrap();
         wb.write().unwrap();
 
-        let yielded: Vec<_> = perpetual_db.iter_live_object_set().collect();
+        let yielded: Vec<_> = perpetual_db
+            .iter_live_object_set()
+            .collect::<Result<_, _>>()
+            .unwrap();
         assert_eq!(yielded.len(), 1);
         assert_eq!(
             yielded[0].previous_transaction_checkpoint,
             Some(distinct_checkpoint),
             "LiveSetIter must surface the on-row checkpoint, not a default"
+        );
+    }
+
+    /// A read error part way through the scan must be yielded, not treated as
+    /// the end of the live object set.
+    #[tokio::test]
+    async fn live_set_iter_surfaces_read_errors() {
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+
+        let object = Object::immutable_with_id_for_testing(ObjectId::random());
+        let object_key = ObjectKey::from(object.object_ref());
+        let rows = vec![
+            Ok((object_key, get_store_object(object, Some(1)))),
+            Err(TypedStoreError::RocksDB(
+                "injected read failure".to_string(),
+            )),
+        ];
+
+        let yielded: Vec<_> = LiveSetIter {
+            iter: Box::new(rows.into_iter()),
+            tables: &perpetual_db,
+            prev: None,
+        }
+        .collect();
+
+        assert_eq!(yielded.len(), 1);
+        assert!(
+            yielded[0].is_err(),
+            "a failed read must not be reported as a complete scan"
         );
     }
 
@@ -878,5 +1279,201 @@ mod tests {
             .unwrap()
             .expect("value must reconstruct");
         assert_eq!(reconstructed.object_ref(), object_ref);
+    }
+
+    /// An older release's database with the objects pruner's watermark.
+    fn open_with_pruner_watermark(
+        dir: &Path,
+        watermark: Option<CheckpointSequenceNumber>,
+    ) -> AuthorityPerpetualTables {
+        let db = AuthorityPerpetualTables::open(dir, None);
+        db.objects
+            .db
+            .create_cf(
+                OBJECTS_PRUNER_WATERMARK_CF,
+                &typed_store::rocksdb::Options::default(),
+            )
+            .unwrap();
+        if let Some(watermark) = watermark {
+            DBMap::<(), CheckpointSequenceNumber>::reopen(
+                &db.objects.db,
+                Some(OBJECTS_PRUNER_WATERMARK_CF),
+                &ReadWriteOptions::default(),
+                true,
+            )
+            .unwrap()
+            .insert(&(), &watermark)
+            .unwrap();
+        }
+        db
+    }
+
+    /// Opening the database reads the older release's watermark in place and
+    /// leaves its column family alone, so that a start refused afterwards
+    /// leaves a database that release still reads; retiring it copies the
+    /// watermark over and drops the column family.
+    #[tokio::test]
+    async fn the_objects_pruner_watermark_is_read_in_place_until_retired() {
+        let tmp_dir = iota_common::tempdir();
+        let db = open_with_pruner_watermark(tmp_dir.path(), Some(4_242));
+        drop(db);
+        let db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+
+        assert!(
+            db.objects
+                .db
+                .cf_handle(OBJECTS_PRUNER_WATERMARK_CF)
+                .is_some()
+        );
+        assert_eq!(db.objects_pruner_watermark().unwrap(), Some(4_242));
+        assert_eq!(db.object_backlog_sweep_bound.get(&()).unwrap(), None);
+
+        db.retire_objects_pruner_watermark().unwrap();
+
+        assert!(
+            db.objects
+                .db
+                .cf_handle(OBJECTS_PRUNER_WATERMARK_CF)
+                .is_none()
+        );
+        assert_eq!(db.object_backlog_sweep_bound.get(&()).unwrap(), Some(4_242));
+        assert_eq!(db.objects_pruner_watermark().unwrap(), Some(4_242));
+        db.retire_objects_pruner_watermark()
+            .expect("retiring again does nothing");
+    }
+
+    /// Without a watermark, retiring writes no bound and still drops the
+    /// older release's column family.
+    #[tokio::test]
+    async fn no_watermark_is_carried_over_when_the_pruner_never_ran() {
+        let tmp_dir = iota_common::tempdir();
+        let db = open_with_pruner_watermark(tmp_dir.path(), None);
+
+        db.retire_objects_pruner_watermark().unwrap();
+
+        assert_eq!(db.object_backlog_sweep_bound.get(&()).unwrap(), None);
+        assert!(
+            db.objects
+                .db
+                .cf_handle(OBJECTS_PRUNER_WATERMARK_CF)
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn mark_object_backlog_swept_records_done() {
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+
+        assert_eq!(
+            perpetual_db.object_backlog_sweep_progress.get(&()).unwrap(),
+            None
+        );
+
+        perpetual_db.mark_object_backlog_swept().unwrap();
+
+        assert_eq!(
+            perpetual_db.object_backlog_sweep_progress.get(&()).unwrap(),
+            Some(ObjectBacklogSweepProgress::Done)
+        );
+    }
+
+    /// Only a sweep that ran, not one recorded as skipped, tells the reopened
+    /// historic store that the live table holds no superseded version.
+    #[tokio::test]
+    async fn only_a_finished_sweep_marks_the_backlog_swept_at_open() {
+        for (skip, swept) in [(true, false), (false, true)] {
+            let tmp_dir = iota_common::tempdir();
+            {
+                let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+                if skip {
+                    perpetual_db.mark_object_backlog_sweep_skipped().unwrap();
+                } else {
+                    perpetual_db.mark_object_backlog_swept().unwrap();
+                }
+                let weak_db = perpetual_db.objects.db.close_handle();
+                drop(perpetual_db);
+                assert!(typed_store::database::wait_for_database_close(weak_db).await);
+            }
+            let (_perpetual_db, historic_objects, ..) =
+                AuthorityPerpetualTables::open_with_historic_objects(tmp_dir.path(), None).unwrap();
+            assert_eq!(historic_objects.backlog_swept(), swept, "skipped: {skip}");
+        }
+    }
+
+    /// [`AuthorityPerpetualTables::compact`] reclaims the space of deleted
+    /// object versions.
+    #[cfg(not(target_env = "msvc"))]
+    #[tokio::test]
+    async fn compact_reclaims_the_space_of_deleted_object_versions() {
+        fn sst_size(path: &Path) -> u64 {
+            let mut size = 0;
+            for entry in std::fs::read_dir(path).unwrap() {
+                let path = entry.unwrap().path();
+                if path.extension().is_some_and(|ext| ext == "sst") {
+                    size += std::fs::metadata(path).unwrap().len();
+                }
+            }
+            size
+        }
+
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+        let total_unique_object_ids = 10_000;
+        let num_versions_per_object = 10;
+        let mut id = ObjectId::ZERO;
+        let mut to_delete = vec![];
+        for _ in 0..total_unique_object_ids {
+            for i in (0..num_versions_per_object).rev() {
+                if i < num_versions_per_object - 2 {
+                    to_delete.push(ObjectKey(id, Version::from(i)));
+                }
+                let object = get_store_object(Object::immutable_with_id_for_testing(id), None);
+                perpetual_db
+                    .objects
+                    .insert(&ObjectKey(id, Version::from(i)), &object)
+                    .unwrap();
+            }
+            id = id.next_lexicographical();
+        }
+
+        let db_path = tmp_dir.path().join("perpetual");
+        perpetual_db.compact().unwrap();
+        let before_compaction_size = sst_size(&db_path);
+
+        let mut batch = perpetual_db.objects.batch();
+        batch
+            .delete_batch(&perpetual_db.objects, to_delete.into_iter())
+            .unwrap();
+        batch.write().unwrap();
+
+        perpetual_db.compact().unwrap();
+        let after_compaction_size = sst_size(&db_path);
+
+        more_asserts::assert_lt!(after_compaction_size, before_compaction_size);
+    }
+
+    /// The periodic compaction skips the historic bucket files, which live
+    /// outside the perpetual database directory, instead of failing on them.
+    #[tokio::test]
+    async fn periodic_compaction_passes_over_the_historic_bucket_files() {
+        let tmp_dir = iota_common::tempdir();
+        let (perpetual_db, historic_objects, _historic_ledger, _epoch_markers) =
+            AuthorityPerpetualTables::open_with_historic_objects(tmp_dir.path(), None).unwrap();
+        let object = Object::immutable_with_id_for_testing(ObjectId::random());
+        let bucket = historic_objects.ensure(1).unwrap();
+        let mut batch = perpetual_db.objects.batch();
+        batch
+            .insert_batch_tagged(
+                &bucket.objects,
+                [(ObjectKey(object.id(), object.version()), object)],
+            )
+            .unwrap();
+        batch.write().unwrap();
+        perpetual_db.objects.flush_all().unwrap();
+
+        perpetual_db
+            .compact_next_sst_file(0, &Mutex::new(HashMap::new()))
+            .unwrap();
     }
 }

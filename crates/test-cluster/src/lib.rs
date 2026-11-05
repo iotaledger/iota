@@ -1130,6 +1130,7 @@ pub struct TestClusterBuilder {
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
+    fullnode_num_epochs_to_retain_for_indexes: Option<u64>,
     fullnode_policy_config: Option<PolicyConfig>,
     fullnode_enable_grpc_api: bool,
     fullnode_state_snapshot_config: Option<StateSnapshotConfig>,
@@ -1162,6 +1163,7 @@ impl TestClusterBuilder {
             execution_cache_config: None,
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
+            fullnode_num_epochs_to_retain_for_indexes: None,
             fullnode_policy_config: None,
             fullnode_enable_grpc_api: true,
             fullnode_state_snapshot_config: None,
@@ -1173,6 +1175,11 @@ impl TestClusterBuilder {
             ),
             disable_address_verification_cooldown: false,
         }
+    }
+
+    pub fn with_fullnode_num_epochs_to_retain_for_indexes(mut self, epochs: Option<u64>) -> Self {
+        self.fullnode_num_epochs_to_retain_for_indexes = epochs;
+        self
     }
 
     pub fn with_fullnode_run_with_range(mut self, run_with_range: Option<RunWithRange>) -> Self {
@@ -1461,6 +1468,9 @@ impl TestClusterBuilder {
                     .unwrap_or(self.validator_supported_protocol_versions_config.clone()),
             )
             .with_fullnode_run_with_range(self.fullnode_run_with_range)
+            .with_fullnode_num_epochs_to_retain_for_indexes(
+                self.fullnode_num_epochs_to_retain_for_indexes,
+            )
             .with_fullnode_policy_config(self.fullnode_policy_config.clone());
 
         if let Some(chain) = self.chain_override {

@@ -1,0 +1,9 @@
+[package]
+name = "move_authenticator_generic"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+move_authenticator_generic = "0x0"

@@ -1,0 +1,758 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//! Superseded object versions, bucketed by the epoch that superseded them.
+//!
+//! The buckets are column families of the perpetual database (see
+//! `epoch_buckets`), so moving a version out of the live `objects`
+//! table and into a bucket is one atomic [`typed_store::rocks::DBBatch`].
+
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::{
+        Arc, OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
+};
+
+use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffects, Version};
+use iota_types::{
+    committee::EpochId,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    error::{IotaError, IotaResult},
+    messages_checkpoint::CheckpointSequenceNumber,
+    object::Object,
+    storage::{ObjectKey, ObjectStore},
+};
+use tracing::{error, info, warn};
+use typed_store::{
+    TypedStoreError,
+    database::Database,
+    rocks::{DBMap, DBOptions, ReadWriteOptions, TaggedDBMap, list_tables, synced_write_options},
+    traits::Map,
+};
+
+use crate::{
+    authority::authority_store_types::{StoreObject, StoreObjectWrapper},
+    epoch_buckets::{
+        BucketPaths, BucketReopen, EpochBuckets, PrunedBuckets, absent_if_dropped, bucket_cf_epoch,
+        bucket_cf_name, bucket_cf_options, bucket_metrics_label, dump_page, dump_retention_floor,
+        dump_rows, extra_column_family_options,
+    },
+};
+
+/// Column-family prefix of the historic object buckets; a bucket's family
+/// is `{prefix}{epoch}`.
+const HISTORIC_OBJECTS_CF_PREFIX: &str = "hist_obj_e";
+
+/// The directory of each epoch, under the historic root, that this
+/// store's buckets keep their files in.
+const BUCKET_DIR: &str = "objects";
+
+/// Tag of the relocated-versions table inside a bucket's column family.
+/// Do not reuse a tag for a different table: mark it retired in a comment
+/// instead, so an older bucket's rows can never be read as the wrong type.
+const DB_PREFIX_HISTORIC_OBJECTS: u8 = 0;
+
+/// Tag of the tombstones table inside a bucket's column family.
+const DB_PREFIX_HISTORIC_TOMBSTONES: u8 = 1;
+
+/// Tag of the expiring marker inside a bucket's column family.
+const DB_PREFIX_HISTORIC_EXPIRING: u8 = 2;
+
+/// Tombstones deleted from the live `objects` table per write batch when
+/// a bucket expires.
+const TOMBSTONE_DELETE_BATCH_SIZE: usize = 10_000;
+
+/// Column family holding the earliest-retained-epoch marker
+/// [`EpochBuckets`] persists on a prune; empty until the first prune.
+///
+/// The name must not begin with [`HISTORIC_OBJECTS_CF_PREFIX`], since that is
+/// how a bucket's column family is told from every other one in this
+/// database.
+const EARLIEST_RETAINED_CF: &str = "hist_obj_retention";
+
+/// One epoch's relocated object versions.
+pub struct HistoricObjectsBucket {
+    /// Object versions superseded during this epoch, keyed exactly as the
+    /// live `objects` table keys them.
+    pub(crate) objects: TaggedDBMap<ObjectKey, Object>,
+
+    /// The objects deleted or wrapped during this epoch. Their tombstones
+    /// stay in the live `objects` table until this bucket expires: a
+    /// tombstone has to outlive every version beneath it, and a tombstone
+    /// written in this epoch can only sit above versions relocated in this
+    /// epoch or an earlier one. Hence expiry goes oldest epoch first.
+    ///
+    /// A reader that also consults the live `objects` table must read it
+    /// **before** asking the buckets. An expiry marks the bucket expiring
+    /// before it deletes a single tombstone, and reads skip a bucket marked
+    /// expiring. Reading live first therefore means either the live read
+    /// finds the tombstone, or the deletion it missed came after the mark,
+    /// and the bucket read skips the bucket.
+    pub(crate) tombstones: TaggedDBMap<ObjectKey, ()>,
+
+    /// Present once this bucket is scheduled for expiry, after which reads
+    /// skip it. Write it through [`Self::mark_expiring`].
+    pub(crate) expiring: TaggedDBMap<(), ()>,
+
+    /// Mirrors the `expiring` row, so a query need not look it up.
+    expiring_marked: AtomicBool,
+}
+
+impl BucketReopen for HistoricObjectsBucket {
+    fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError> {
+        let expiring: TaggedDBMap<(), ()> = TaggedDBMap::reopen(
+            db,
+            cf_name,
+            DB_PREFIX_HISTORIC_EXPIRING,
+            &ReadWriteOptions::default(),
+            true,
+        )?
+        .with_metrics_label(bucket_metrics_label(cf_name));
+        let expiring_marked = AtomicBool::new(expiring.get(&())?.is_some());
+        Ok(Self {
+            objects: TaggedDBMap::reopen(
+                db,
+                cf_name,
+                DB_PREFIX_HISTORIC_OBJECTS,
+                &ReadWriteOptions::default(),
+                true,
+            )?
+            .with_metrics_label(bucket_metrics_label(cf_name)),
+            tombstones: TaggedDBMap::reopen(
+                db,
+                cf_name,
+                DB_PREFIX_HISTORIC_TOMBSTONES,
+                &ReadWriteOptions::default(),
+                true,
+            )?
+            .with_metrics_label(bucket_metrics_label(cf_name)),
+            expiring,
+            expiring_marked,
+        })
+    }
+}
+
+impl HistoricObjectsBucket {
+    /// Whether this bucket has been marked expiring, in which case its rows
+    /// must no longer be served: its tombstones may already be deleted
+    /// from the live `objects` table.
+    fn is_expiring(&self) -> bool {
+        // Pairs with the Release in `mark_expiring`: a reader that saw a tombstone
+        // deleted also sees the mark set before the deletion.
+        self.expiring_marked.load(Ordering::Acquire)
+    }
+
+    /// Durably marks this bucket expiring, then stops serving its rows.
+    ///
+    /// Synced, because a column-family drop is durable at once while a
+    /// default write may be lost, which after a crash would make a bucket
+    /// whose tombstones are gone readable again.
+    fn mark_expiring(&self) -> Result<(), TypedStoreError> {
+        let mut batch = self.expiring.batch();
+        batch.insert_batch_tagged(&self.expiring, [((), ())])?;
+        batch.write_opt(&synced_write_options())?;
+        self.expiring_marked.store(true, Ordering::Release);
+        Ok(())
+    }
+}
+
+/// Superseded object versions, bucketed by the epoch that superseded them.
+pub struct HistoricObjects {
+    buckets: EpochBuckets<HistoricObjectsBucket>,
+    /// The live objects table of the same database, which holds the
+    /// tombstones of every bucket that has not expired.
+    objects: DBMap<ObjectKey, StoreObjectWrapper>,
+    /// The checkpoint through which the objects pruner of earlier releases
+    /// deleted superseded versions, `None` on a database it never ran on.
+    pub(crate) objects_pruned_through: Option<CheckpointSequenceNumber>,
+    /// Set once the one-time backlog sweep is done; see
+    /// [`Self::backlog_swept`].
+    backlog_swept: AtomicBool,
+    /// See [`Self::backlog_sweep_epoch`].
+    backlog_sweep_epoch: OnceLock<EpochId>,
+    /// Set by [`Self::stop`].
+    stopping: AtomicBool,
+
+    /// Counts the bucket walks of [`Self::find_lt_or_eq_version`].
+    #[cfg(test)]
+    bucket_walks: std::sync::atomic::AtomicU64,
+}
+
+impl HistoricObjects {
+    /// The `(name, options)` pairs of the column families this store needs,
+    /// for the perpetual store to open alongside its own tables. See
+    /// `epoch_buckets::extra_column_family_options`.
+    pub fn extra_column_family_options(
+        perpetual_path: &Path,
+        db_options: &DBOptions,
+        historic_root: &Path,
+    ) -> Vec<(String, DBOptions)> {
+        extra_column_family_options(
+            perpetual_path,
+            db_options,
+            HISTORIC_OBJECTS_CF_PREFIX,
+            EARLIEST_RETAINED_CF,
+            Some(&BucketPaths::new(historic_root, BUCKET_DIR)),
+        )
+    }
+
+    /// Opens the historic-object buckets among the column families of `db`,
+    /// the perpetual database. `db_options` and `historic_root` must be the
+    /// ones `db` was opened with, and `objects` its live objects table.
+    ///
+    /// Before any query can reach them, finishes the expiry of the buckets an
+    /// interrupted prune left behind, oldest first, and fails if it cannot.
+    pub fn open(
+        db: Arc<Database>,
+        db_options: &DBOptions,
+        objects: DBMap<ObjectKey, StoreObjectWrapper>,
+        historic_root: &Path,
+    ) -> Result<Self, TypedStoreError> {
+        let existing_cfs = list_tables(db.path_for_pruning().to_path_buf())
+            .map_err(|e| TypedStoreError::RocksDB(format!("failed to list buckets: {e}")))?;
+
+        let mut buckets = BTreeMap::new();
+        for cf_name in &existing_cfs {
+            if let Some(epoch) = bucket_cf_epoch(HISTORIC_OBJECTS_CF_PREFIX, cf_name) {
+                buckets.insert(
+                    epoch,
+                    Arc::new(HistoricObjectsBucket::reopen(&db, cf_name)?),
+                );
+            }
+        }
+
+        let cf_options = bucket_cf_options(db_options).options;
+        if db.cf_handle(EARLIEST_RETAINED_CF).is_none() {
+            db.create_cf(EARLIEST_RETAINED_CF, &cf_options)?;
+        }
+        let earliest_retained_table: DBMap<(), EpochId> = DBMap::reopen(
+            &db,
+            Some(EARLIEST_RETAINED_CF),
+            &ReadWriteOptions::default(),
+            true,
+        )?;
+        let earliest_retained = earliest_retained_table.get(&())?.unwrap_or(0);
+
+        // A prune persists the floor before it marks anything, so a bucket
+        // below the floor is an unfinished expiry even without its marker.
+        // `EpochBuckets::open` would just drop it, leaving its tombstones
+        // in the live `objects` table for good.
+        //
+        // Oldest first: a bounded read that stops at one of this bucket's
+        // deleted tombstones falls through to the older buckets, so those must be
+        // gone first.
+        let interrupted: Vec<(EpochId, Arc<HistoricObjectsBucket>)> = buckets
+            .iter()
+            .filter(|(&epoch, bucket)| epoch < earliest_retained || bucket.is_expiring())
+            .map(|(&epoch, bucket)| (epoch, bucket.clone()))
+            .collect();
+        for (epoch, bucket) in interrupted {
+            let cf_name = bucket_cf_name(HISTORIC_OBJECTS_CF_PREFIX, epoch);
+            if let Err(e) = Self::expire_bucket(&objects, epoch, &bucket, &AtomicBool::new(false)) {
+                // Named so that an operator whose node will not start can
+                // reach the column family with external tooling.
+                error!(
+                    epoch,
+                    cf_name, "cannot finish the interrupted expiry of a historic bucket: {e}"
+                );
+                return Err(e);
+            }
+            buckets.remove(&epoch);
+            info!(
+                epoch,
+                "dropping the bucket of an interrupted expiry at open"
+            );
+            if let Err(e) = db.drop_cf(&cf_name) {
+                warn!(
+                    epoch,
+                    "failed to drop an expiring bucket column family: {e}"
+                );
+            }
+        }
+
+        let buckets = EpochBuckets::open(
+            db,
+            "historic objects",
+            HISTORIC_OBJECTS_CF_PREFIX,
+            cf_options,
+            Some(BucketPaths::new(historic_root, BUCKET_DIR)),
+            earliest_retained_table,
+            buckets,
+        )?;
+        Ok(Self {
+            buckets,
+            objects,
+            objects_pruned_through: None,
+            backlog_swept: AtomicBool::new(false),
+            backlog_sweep_epoch: OnceLock::new(),
+            stopping: AtomicBool::new(false),
+            #[cfg(test)]
+            bucket_walks: std::sync::atomic::AtomicU64::new(0),
+        })
+    }
+
+    /// Whether the live `objects` table holds no superseded version, so that a
+    /// live version that is not a tombstone is newer than every version
+    /// relocated for its object. Until the one-time backlog sweep is done, a
+    /// version it has yet to relocate can sit in the live table below a newer
+    /// relocated one.
+    pub(crate) fn backlog_swept(&self) -> bool {
+        self.backlog_swept.load(Ordering::Acquire)
+    }
+
+    /// Records that the live `objects` table holds no superseded version. Call
+    /// this only once that is persisted; see [`Self::backlog_swept`].
+    pub(crate) fn mark_backlog_swept(&self) {
+        self.backlog_swept.store(true, Ordering::Release);
+    }
+
+    /// Stops an expiry in progress at its next batch of tombstones, for a
+    /// shutdown. The bucket stays marked expiring, and the next open finishes
+    /// the expiry; every later expiry of this store stops the same way.
+    pub fn stop(&self) {
+        self.stopping.store(true, Ordering::Release);
+    }
+
+    /// The epoch whose bucket the one-time backlog sweep moved the versions
+    /// superseded before the upgrade into, `None` if no sweep ran. Besides
+    /// that epoch's own versions, the bucket holds every version superseded
+    /// since [`Self::objects_pruned_through`].
+    pub(crate) fn backlog_sweep_epoch(&self) -> Option<EpochId> {
+        self.backlog_sweep_epoch.get().copied()
+    }
+
+    /// Records the epoch the sweep moved the backlog into; see
+    /// [`Self::backlog_sweep_epoch`]. Call this only once that is persisted.
+    pub(crate) fn record_backlog_sweep_epoch(&self, epoch: EpochId) {
+        let _ = self.backlog_sweep_epoch.set(epoch);
+    }
+
+    /// How many bucket walks [`Self::find_lt_or_eq_version`] has done.
+    #[cfg(test)]
+    pub(crate) fn bucket_walks(&self) -> u64 {
+        self.bucket_walks.load(Ordering::Relaxed)
+    }
+
+    /// The oldest epoch this store holds a bucket for, `None` when it holds
+    /// none; versions superseded before it are not readable. A node restored
+    /// from a formal snapshot starts with no bucket, whatever the retention.
+    pub fn earliest_bucket_epoch(&self) -> Option<EpochId> {
+        self.buckets.earliest_epoch()
+    }
+
+    /// [`Self::earliest_bucket_epoch`], but never below the retention floor:
+    /// an expiry moves the floor before it marks the expiring bucket and reads
+    /// stop serving it, so this follows what reads can still answer, while
+    /// the bucket itself stays until its tombstones are deleted.
+    pub fn earliest_readable_epoch(&self) -> Option<EpochId> {
+        self.earliest_bucket_epoch()
+            .map(|epoch| epoch.max(self.buckets.earliest_retained()))
+    }
+
+    /// The newest epoch this store holds a bucket for, `None` when it holds
+    /// none at all.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn newest_bucket_epoch(&self) -> Option<EpochId> {
+        self.buckets.newest_epoch()
+    }
+
+    /// The bucket holding `epoch`'s relocated versions, created if absent.
+    pub fn ensure(&self, epoch: EpochId) -> IotaResult<Arc<HistoricObjectsBucket>> {
+        self.buckets
+            .ensure(epoch)
+            .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
+    /// The object relocated under `key`, `None` if it was never relocated (or
+    /// its bucket has since been dropped).
+    pub fn get(&self, key: &ObjectKey) -> IotaResult<Option<Object>> {
+        for bucket in self.readable_buckets(true) {
+            if let Some(object) = absent_if_dropped(bucket.objects.get(key))
+                .map_err(|e| IotaError::Storage(e.to_string()))?
+            {
+                return Ok(Some(object));
+            }
+        }
+        Ok(None)
+    }
+
+    /// The object `epoch`'s bucket holds under `key`, `None` when it holds
+    /// none or there is no bucket for `epoch`. Reads only that bucket, so the
+    /// answer does not depend on how many epochs the node retains.
+    pub fn get_in_epoch(&self, epoch: EpochId, key: &ObjectKey) -> IotaResult<Option<Object>> {
+        let Some(bucket) = self.buckets.get(epoch) else {
+            return Ok(None);
+        };
+        match bucket.objects.get(key) {
+            // The bucket was dropped during the read.
+            Err(TypedStoreError::UnregisteredColumn(_)) => Ok(None),
+            read => read.map_err(|e| IotaError::Storage(e.to_string())),
+        }
+    }
+
+    /// Fills each `None` in `objects` — the live table's answers for `keys`, in
+    /// the same order — with the version the buckets hold under that key.
+    ///
+    /// Only for reads that serve a response. Execution reads current versions,
+    /// which never leave the live table, so a miss there is a bug and must stay
+    /// one. Validation at a commit reads earlier versions of its own epoch
+    /// through [`Self::get_in_epoch`] instead.
+    ///
+    /// Reads each bucket once for all the keys still missing, starting with
+    /// `likely_epoch`'s, then newest first. Pass the epoch that superseded
+    /// the versions where it is known, such as a transaction's own epoch for
+    /// its inputs.
+    pub fn fill_missing(
+        &self,
+        keys: &[ObjectKey],
+        objects: &mut [Option<Object>],
+        likely_epoch: Option<EpochId>,
+    ) -> IotaResult<()> {
+        let mut pending: Vec<usize> = (0..keys.len())
+            .filter(|&index| objects[index].is_none())
+            .collect();
+        if pending.is_empty() {
+            return Ok(());
+        }
+        let mut buckets: Vec<(EpochId, Arc<HistoricObjectsBucket>)> = self
+            .buckets
+            .iter_with_epoch(true)
+            .into_iter()
+            .filter(|(_, bucket)| !bucket.is_expiring())
+            .collect();
+        if let Some(position) =
+            likely_epoch.and_then(|likely| buckets.iter().position(|(epoch, _)| *epoch == likely))
+        {
+            let likely = buckets.remove(position);
+            buckets.insert(0, likely);
+        }
+        for (_, bucket) in buckets {
+            if pending.is_empty() {
+                break;
+            }
+            let found = absent_if_dropped(
+                bucket
+                    .objects
+                    .multi_get(pending.iter().map(|&index| &keys[index])),
+            )
+            .map_err(|e| IotaError::Storage(e.to_string()))?;
+            // Empty for a dropped bucket, which leaves every key pending.
+            if found.is_empty() {
+                continue;
+            }
+            let mut still_pending = Vec::with_capacity(pending.len());
+            for (index, object) in pending.into_iter().zip(found) {
+                match object {
+                    Some(object) => objects[index] = Some(object),
+                    None => still_pending.push(index),
+                }
+            }
+            pending = still_pending;
+        }
+        Ok(())
+    }
+
+    /// The newest relocated version of `id` at or below `version`, `None` if
+    /// there is none (or its bucket has since been dropped).
+    ///
+    /// A caller must read the live `objects` table first (see
+    /// `HistoricObjectsBucket::tombstones`) and take the newer of the two
+    /// answers: this ignores tombstones, so only a live tombstone newer than
+    /// what it returns means the object is gone.
+    pub fn find_lt_or_eq_version(
+        &self,
+        id: ObjectId,
+        version: Version,
+    ) -> IotaResult<Option<Object>> {
+        #[cfg(test)]
+        self.bucket_walks.fetch_add(1, Ordering::Relaxed);
+        // Versions are relocated in increasing order, so the newest bucket
+        // with a match holds the newest version.
+        for bucket in self.readable_buckets(true) {
+            let newest = absent_if_dropped(
+                bucket
+                    .objects
+                    .safe_range_iter_reversed(ObjectKey::min_for_id(&id)..=ObjectKey(id, version))
+                    .next()
+                    .transpose(),
+            )
+            .map_err(|e| IotaError::Storage(e.to_string()))?;
+            if let Some((_, object)) = newest {
+                return Ok(Some(object));
+            }
+        }
+        Ok(None)
+    }
+
+    /// The buckets a query may read, by ascending epoch or descending if
+    /// `reverse`, leaving out any marked expiring.
+    ///
+    /// A caller that also reads the live `objects` table must read it
+    /// **before** calling this; see `HistoricObjectsBucket::tombstones`.
+    fn readable_buckets(&self, reverse: bool) -> Vec<Arc<HistoricObjectsBucket>> {
+        self.buckets
+            .iter(reverse)
+            .into_iter()
+            .filter(|bucket| !bucket.is_expiring())
+            .collect()
+    }
+
+    /// Keeps the buckets of `current_epoch` and the `epochs_to_retain` epochs
+    /// below it, drops older ones, and deletes the tombstones each
+    /// dropped epoch recorded. Returns the earliest epoch still retained and
+    /// how many buckets were dropped, `None` when there is no bucket at all.
+    ///
+    /// Blocks for as long as the deletions and drops take, so an async caller
+    /// must use `spawn_blocking`. Queries keep being answered meanwhile, from
+    /// the buckets not marked expiring.
+    pub fn prune(
+        &self,
+        current_epoch: EpochId,
+        epochs_to_retain: u64,
+    ) -> IotaResult<Option<PrunedBuckets>> {
+        self.buckets
+            .prune(current_epoch, epochs_to_retain, |epoch, bucket| {
+                Self::expire_bucket(&self.objects, epoch, bucket, &self.stopping).map_err(|e| {
+                    TypedStoreError::RocksDB(format!("expiring the bucket of epoch {epoch}: {e}"))
+                })
+            })
+            .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
+    /// Compacts the buckets of the epochs below `current_epoch` that are not
+    /// compacted yet (see
+    /// `EpochBuckets::compact_closed`, which asks
+    /// `stop` before each bucket). Blocks while
+    /// the compactions run, so async callers must use `spawn_blocking`.
+    pub fn compact_closed_buckets(
+        &self,
+        current_epoch: EpochId,
+        stop: &dyn Fn() -> bool,
+    ) -> IotaResult<usize> {
+        self.buckets
+            .compact_closed(current_epoch, stop)
+            .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
+    /// Marks `bucket` expiring, then deletes the tombstones it recorded from
+    /// the live `objects` table.
+    ///
+    /// Safe to run again on the same bucket: the marker is rewritten as it
+    /// was and a tombstone already deleted is deleted again.
+    fn expire_bucket(
+        objects: &DBMap<ObjectKey, StoreObjectWrapper>,
+        epoch: EpochId,
+        bucket: &Arc<HistoricObjectsBucket>,
+        stopping: &AtomicBool,
+    ) -> Result<(), TypedStoreError> {
+        bucket.mark_expiring()?;
+
+        // Synced: a column-family drop is durable at once, so a lost deletion
+        // would leave tombstones with nothing left to delete them.
+        let delete = |tombstones: Vec<ObjectKey>| -> Result<(), TypedStoreError> {
+            let mut batch = objects.batch();
+            batch.delete_batch(objects, tombstones)?;
+            batch.write_opt(&synced_write_options())
+        };
+
+        // A version left below a tombstone in the live table would become the
+        // newest again once the tombstone is deleted, bringing the object
+        // back. That only happens where the backlog sweep did not relocate it,
+        // so such a tombstone is kept. Tombstones below it don't count: an
+        // object wrapped and deleted in one epoch leaves two in this bucket.
+        //
+        // The bucket lists its tombstones by object, so each object's live
+        // rows are scanned once, for its lowest live version: an object
+        // wrapped and unwrapped many times in the epoch has as many tombstones
+        // in the live table, and scanning below each of them would be
+        // quadratic in their number.
+        let lowest_live_version =
+            |object_id: &ObjectId| -> Result<Option<Version>, TypedStoreError> {
+                for row in objects.safe_range_iter(
+                    ObjectKey::min_for_id(object_id)..=ObjectKey::max_for_id(object_id),
+                ) {
+                    let (key, row) = row?;
+                    if matches!(row.migrate().into_inner(), StoreObject::Value(_)) {
+                        return Ok(Some(key.1));
+                    }
+                }
+                Ok(None)
+            };
+
+        let mut deleted = 0;
+        let mut kept = 0;
+        let mut batch = Vec::with_capacity(TOMBSTONE_DELETE_BATCH_SIZE);
+        let mut lowest_live: Option<(ObjectId, Option<Version>)> = None;
+        for row in bucket.tombstones.safe_iter() {
+            let (key, ()) = row?;
+            let lowest = match lowest_live {
+                Some((object_id, lowest)) if object_id == key.0 => lowest,
+                _ => {
+                    let lowest = lowest_live_version(&key.0)?;
+                    lowest_live = Some((key.0, lowest));
+                    lowest
+                }
+            };
+            if lowest.is_some_and(|lowest| lowest < key.1) {
+                kept += 1;
+                continue;
+            }
+            batch.push(key);
+            if batch.len() == TOMBSTONE_DELETE_BATCH_SIZE {
+                deleted += batch.len();
+                delete(std::mem::replace(
+                    &mut batch,
+                    Vec::with_capacity(TOMBSTONE_DELETE_BATCH_SIZE),
+                ))?;
+                // The bucket stays marked expiring, so the next open
+                // finishes the expiry from here.
+                if stopping.load(Ordering::Acquire) {
+                    return Err(TypedStoreError::RocksDB(format!(
+                        "the expiry of epoch {epoch}'s bucket was stopped by a shutdown"
+                    )));
+                }
+            }
+        }
+        deleted += batch.len();
+        delete(batch)?;
+
+        if kept > 0 {
+            error!(
+                epoch,
+                kept,
+                "kept tombstones that still have a live version below them: those \
+                 objects were superseded before this build and the backlog sweep did not \
+                 relocate them. They stay deleted, which is why the tombstones stay too"
+            );
+        }
+        info!(
+            epoch,
+            tombstones = deleted,
+            kept,
+            "expired a historic bucket"
+        );
+        Ok(())
+    }
+
+    /// Writes a row of the wrong type into `epoch`'s tombstones table, so
+    /// that expiring that bucket fails.
+    #[cfg(test)]
+    pub(super) fn corrupt_recorded_tombstones_for_testing(
+        db: &Arc<Database>,
+        epoch: EpochId,
+    ) -> Result<(), TypedStoreError> {
+        let unreadable: TaggedDBMap<ObjectKey, u64> = TaggedDBMap::reopen(
+            db,
+            &bucket_cf_name(HISTORIC_OBJECTS_CF_PREFIX, epoch),
+            DB_PREFIX_HISTORIC_TOMBSTONES,
+            &ReadWriteOptions::default(),
+            true,
+        )?;
+        let mut batch = unreadable.batch();
+        batch.insert_batch_tagged(&unreadable, [(ObjectKey(ObjectId::ZERO, 1.into()), epoch)])?;
+        batch.write()
+    }
+
+    /// One page of the rows of `cf_name` if it is one of this store's column
+    /// families, `None` otherwise. For the `iota-tool` table dump, which
+    /// cannot reach these through `AuthorityPerpetualTables`.
+    ///
+    /// Tombstone and expiring-marker rows are prefixed by table name.
+    /// `db` may be a read-only or secondary handle.
+    pub fn dump_column_family(
+        db: &Arc<Database>,
+        cf_name: &str,
+        page_size: u16,
+        page_number: usize,
+    ) -> Result<Option<BTreeMap<String, String>>, TypedStoreError> {
+        if bucket_cf_epoch(HISTORIC_OBJECTS_CF_PREFIX, cf_name).is_some() {
+            let bucket = HistoricObjectsBucket::reopen(db, cf_name)?;
+            bucket.objects.try_catch_up_with_primary()?;
+            bucket.tombstones.try_catch_up_with_primary()?;
+            bucket.expiring.try_catch_up_with_primary()?;
+            let rows = dump_rows("", bucket.objects.safe_iter())
+                .chain(dump_rows("tombstone:", bucket.tombstones.safe_iter()))
+                .chain(dump_rows("expiring:", bucket.expiring.safe_iter()));
+            return dump_page(rows, page_size, page_number).map(Some);
+        }
+        if cf_name == EARLIEST_RETAINED_CF {
+            return dump_retention_floor(db, cf_name, page_size, page_number).map(Some);
+        }
+        Ok(None)
+    }
+}
+
+/// Like [`iota_types::storage::get_transaction_input_objects`], but also
+/// reads the relocated versions.
+pub fn get_transaction_input_objects(
+    object_store: &dyn ObjectStore,
+    historic_objects: &HistoricObjects,
+    effects: &TransactionEffects,
+) -> IotaResult<Vec<Object>> {
+    let keys = effects
+        .modified_at_versions()
+        .into_iter()
+        .map(|modified| ObjectKey(*modified.object_id(), modified.version()))
+        .collect::<Vec<_>>();
+    // The transaction superseded its inputs, in the epoch it executed in.
+    multi_get_objects_with_historic_fallback(
+        object_store,
+        historic_objects,
+        &keys,
+        effects.transaction_digest(),
+        Some(effects.epoch()),
+    )
+}
+
+/// Like [`iota_types::storage::get_transaction_output_objects`], but also
+/// reads the relocated versions.
+pub fn get_transaction_output_objects(
+    object_store: &dyn ObjectStore,
+    historic_objects: &HistoricObjects,
+    effects: &TransactionEffects,
+) -> IotaResult<Vec<Object>> {
+    let keys = effects
+        .all_changed_objects()
+        .into_iter()
+        .map(|(changed, _kind)| ObjectKey::from(*changed.reference()))
+        .collect::<Vec<_>>();
+    multi_get_objects_with_historic_fallback(
+        object_store,
+        historic_objects,
+        &keys,
+        effects.transaction_digest(),
+        None,
+    )
+}
+
+/// The objects at exactly `keys`, erroring on any the live table and the
+/// buckets both lack. `likely_epoch` is as for
+/// [`HistoricObjects::fill_missing`].
+fn multi_get_objects_with_historic_fallback(
+    object_store: &dyn ObjectStore,
+    historic_objects: &HistoricObjects,
+    keys: &[ObjectKey],
+    transaction_digest: &TransactionDigest,
+    likely_epoch: Option<EpochId>,
+) -> IotaResult<Vec<Object>> {
+    let mut objects = object_store.multi_get_objects_by_key(keys);
+    historic_objects.fill_missing(keys, &mut objects, likely_epoch)?;
+    objects
+        .into_iter()
+        .zip(keys)
+        .map(|(object, key)| {
+            object.ok_or_else(|| {
+                IotaError::Storage(format!(
+                    "missing object key {key:?} from tx {transaction_digest}"
+                ))
+            })
+        })
+        .collect()
+}
+
+#[cfg(test)]
+#[path = "../unit_tests/historic_objects_tests.rs"]
+mod tests;

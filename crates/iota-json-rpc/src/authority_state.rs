@@ -9,10 +9,11 @@ use async_trait::async_trait;
 use iota_core::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     execution_cache::ObjectCacheRead,
-    jsonrpc_index::TotalBalance,
+    rpc_indexes::TotalBalance,
 };
 use iota_json_rpc_types::{
-    Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, Page, TransactionFilter,
+    Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, OwnedObjectCursor, Page,
+    TransactionFilter,
 };
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag,
@@ -22,7 +23,6 @@ use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
 use iota_types::{
-    base_types::ObjectInfo,
     committee::{Committee, EpochId},
     digests::ChainIdentifier,
     dynamic_field::DynamicFieldInfo,
@@ -33,13 +33,14 @@ use iota_types::{
     iota_system_state::IotaSystemState,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     object::{Object, ObjectRead, PastObjectRead},
-    storage::{BackingPackageStore, ObjectStore},
+    storage::{BackingPackageStore, ObjectStore, OwnedObjectCursor as IndexCursor},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
     transaction::TransactionEnvelope,
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 #[cfg(test)]
 use mockall::automock;
+use move_core_types::annotated_value::MoveStructLayout;
 use thiserror::Error;
 use tokio::task::JoinError;
 use typed_store::TypedStoreError;
@@ -48,8 +49,8 @@ use crate::ObjectProvider;
 
 pub type StateReadResult<T = ()> = Result<T, StateReadError>;
 
-/// Maximum number of owned objects one page of `get_owner_objects_page` reads,
-/// whether they match the filter or not.
+/// Maximum number of owner index rows one page of `get_owner_objects_page`
+/// reads, whether their objects match the filter or not.
 const MAX_OWNED_OBJECTS_READ_PER_PAGE: usize = 10_000;
 
 /// Trait for AuthorityState methods commonly used by at least two api.
@@ -79,7 +80,15 @@ pub trait StateRead: Send + Sync {
         owner: ObjectId,
         cursor: Option<ObjectId>,
         limit: usize,
-    ) -> StateReadResult<Vec<(ObjectId, DynamicFieldInfo)>>;
+    ) -> StateReadResult<Vec<(ObjectId, Option<DynamicFieldInfo>)>>;
+
+    /// The objects of `owner`'s first `limit` dynamic fields, each read once;
+    /// `None` for a field whose object is gone.
+    fn get_dynamic_field_objects(
+        &self,
+        owner: ObjectId,
+        limit: usize,
+    ) -> StateReadResult<Vec<(ObjectId, Option<Object>)>>;
 
     fn get_cache_reader(&self) -> &Arc<dyn ObjectCacheRead>;
 
@@ -114,10 +123,10 @@ pub trait StateRead: Send + Sync {
     fn get_owner_objects_page(
         &self,
         owner: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<IndexCursor>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
-    ) -> StateReadResult<Page<ObjectInfo, ObjectId>>;
+    ) -> StateReadResult<Page<Object, OwnedObjectCursor>>;
 
     async fn get_transactions(
         &self,
@@ -128,17 +137,17 @@ pub trait StateRead: Send + Sync {
         reverse: bool,
     ) -> StateReadResult<Vec<TransactionDigest>>;
 
-    fn get_dynamic_field_object_id(
+    fn get_dynamic_field_object(
         &self,
         owner: ObjectId,
         name_type: TypeTag,
         name_bcs_bytes: &[u8],
-    ) -> StateReadResult<Option<ObjectId>>;
+    ) -> StateReadResult<Option<Object>>;
 
     // governance_api
-    /// Reads every object `owner` holds, so call it on a blocking thread.
+    /// Reads `owner`'s objects of the stake type, so call it on a blocking thread.
     fn get_staked_iota(&self, owner: Address) -> StateReadResult<Vec<StakedIota>>;
-    /// Reads every object `owner` holds, so call it on a blocking thread.
+    /// Reads `owner`'s objects of the stake type, so call it on a blocking thread.
     fn get_timelocked_staked_iota(
         &self,
         owner: Address,
@@ -152,15 +161,33 @@ pub trait StateRead: Send + Sync {
     fn get_owned_coins(
         &self,
         owner: Address,
-        cursor: (String, ObjectId),
+        cursor: Option<IndexCursor>,
+        coin_type: Option<TypeTag>,
         limit: usize,
-        one_coin_type_only: bool,
-    ) -> StateReadResult<Vec<IotaCoin>>;
+    ) -> StateReadResult<Vec<(IotaCoin, OwnedObjectCursor)>>;
+
+    /// The cursors of `owner`'s next `limit` rows of `Coin<coin_type>` after
+    /// `cursor`, largest balance first, each carrying the balance its row was
+    /// written with. Reads no object.
+    fn owned_coin_rows(
+        &self,
+        owner: Address,
+        cursor: Option<IndexCursor>,
+        coin_type: TypeTag,
+        limit: usize,
+    ) -> StateReadResult<Vec<IndexCursor>>;
+
+    /// The layout of `object`'s Move struct, `None` for a package.
+    fn get_object_layout(&self, object: &Object) -> StateReadResult<Option<MoveStructLayout>>;
     async fn get_executed_transaction_and_effects(
         &self,
         digest: TransactionDigest,
         kv_store: Arc<TransactionKeyValueStore>,
     ) -> StateReadResult<(TransactionEnvelope, TransactionEffects)>;
+    /// The id of the `CoinMetadata<T>`, `TreasuryCap<T>` or `CoinManager<T>`
+    /// object `object_type` names, from the RPC index; `None` when the index
+    /// does not know it.
+    fn find_coin_object_id(&self, object_type: &StructTag) -> StateReadResult<Option<ObjectId>>;
     async fn get_balance(
         &self,
         owner: Address,
@@ -256,8 +283,16 @@ impl StateRead for AuthorityState {
         owner: ObjectId,
         cursor: Option<ObjectId>,
         limit: usize,
-    ) -> StateReadResult<Vec<(ObjectId, DynamicFieldInfo)>> {
+    ) -> StateReadResult<Vec<(ObjectId, Option<DynamicFieldInfo>)>> {
         Ok(self.get_dynamic_fields(owner, cursor, limit)?)
+    }
+
+    fn get_dynamic_field_objects(
+        &self,
+        owner: ObjectId,
+        limit: usize,
+    ) -> StateReadResult<Vec<(ObjectId, Option<Object>)>> {
+        Ok(self.get_dynamic_field_objects(owner, limit)?)
     }
 
     fn get_cache_reader(&self) -> &Arc<dyn ObjectCacheRead> {
@@ -298,21 +333,27 @@ impl StateRead for AuthorityState {
     fn get_owner_objects_page(
         &self,
         owner: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<IndexCursor>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
-    ) -> StateReadResult<Page<ObjectInfo, ObjectId>> {
+    ) -> StateReadResult<Page<Object, OwnedObjectCursor>> {
         if limit == 0 {
             // only when RPC_QUERY_MAX_RESULT_LIMIT is set to 0
             return Ok(Page::empty());
         }
-        let objects = self.get_owner_objects_iterator(owner, cursor, None)?;
-        Ok(owner_objects_page(
-            objects,
+        let (objects, next_cursor) = self.get_owner_objects(
+            owner,
+            cursor.as_ref(),
             limit,
-            filter.as_ref(),
+            filter,
             MAX_OWNED_OBJECTS_READ_PER_PAGE,
-        ))
+        )?;
+        Ok(Page {
+            data: objects.into_iter().map(|(object, _)| object).collect(),
+            has_next_page: next_cursor.is_some(),
+            next_cursor: next_cursor.map(OwnedObjectCursor::from_position),
+            oldest_available_checkpoint: None,
+        })
     }
 
     async fn get_transactions(
@@ -328,14 +369,14 @@ impl StateRead for AuthorityState {
             .await?)
     }
 
-    fn get_dynamic_field_object_id(
+    fn get_dynamic_field_object(
         // indexer
         &self,
         owner: ObjectId,
         name_type: TypeTag,
         name_bcs_bytes: &[u8],
-    ) -> StateReadResult<Option<ObjectId>> {
-        Ok(self.get_dynamic_field_object_id(owner, name_type, name_bcs_bytes)?)
+    ) -> StateReadResult<Option<Object>> {
+        Ok(self.get_dynamic_field_object(owner, name_type, name_bcs_bytes)?)
     }
 
     fn get_staked_iota(&self, owner: Address) -> StateReadResult<Vec<StakedIota>> {
@@ -364,22 +405,42 @@ impl StateRead for AuthorityState {
     fn find_publish_txn_digest(&self, package_id: ObjectId) -> StateReadResult<TransactionDigest> {
         Ok(self.find_publish_txn_digest(package_id)?)
     }
+    fn owned_coin_rows(
+        &self,
+        owner: Address,
+        cursor: Option<IndexCursor>,
+        coin_type: TypeTag,
+        limit: usize,
+    ) -> StateReadResult<Vec<IndexCursor>> {
+        Ok(self.owned_coin_rows(owner, cursor.as_ref(), coin_type, limit)?)
+    }
+
+    fn get_object_layout(&self, object: &Object) -> StateReadResult<Option<MoveStructLayout>> {
+        Ok(self.get_object_layout(object)?)
+    }
+
     fn get_owned_coins(
         &self,
         owner: Address,
-        cursor: (String, ObjectId),
+        cursor: Option<IndexCursor>,
+        coin_type: Option<TypeTag>,
         limit: usize,
-        one_coin_type_only: bool,
-    ) -> StateReadResult<Vec<IotaCoin>> {
+    ) -> StateReadResult<Vec<(IotaCoin, OwnedObjectCursor)>> {
         Ok(self
-            .get_owned_coins_iterator_with_cursor(owner, cursor, limit, one_coin_type_only)?
-            .map(|(coin_type, coin_object_id, coin)| IotaCoin {
-                coin_type,
-                coin_object_id,
-                version: coin.version,
-                digest: coin.digest,
-                balance: coin.balance,
-                previous_transaction: coin.previous_transaction,
+            .get_owned_coins_page(owner, cursor.as_ref(), coin_type, limit)?
+            .into_iter()
+            .map(|(coin_type, coin_object_id, coin, cursor)| {
+                (
+                    IotaCoin {
+                        coin_type: coin_type.to_string(),
+                        coin_object_id,
+                        version: coin.version,
+                        digest: coin.digest,
+                        balance: coin.balance,
+                        previous_transaction: coin.previous_transaction,
+                    },
+                    OwnedObjectCursor::from_position(cursor),
+                )
             })
             .collect())
     }
@@ -394,12 +455,19 @@ impl StateRead for AuthorityState {
             .await?)
     }
 
+    fn find_coin_object_id(&self, object_type: &StructTag) -> StateReadResult<Option<ObjectId>> {
+        let Some(indexes) = &self.rpc_indexes_store else {
+            return Ok(None);
+        };
+        Ok(indexes.find_coin_object_id(object_type)?)
+    }
+
     async fn get_balance(
         &self,
         owner: Address,
         coin_type: TypeTag,
     ) -> StateReadResult<TotalBalance> {
-        let indexes = self.indexes.clone();
+        let indexes = self.rpc_indexes_store.clone();
         Ok(tokio::task::spawn_blocking(move || {
             indexes
                 .as_ref()
@@ -414,7 +482,7 @@ impl StateRead for AuthorityState {
         &self,
         owner: Address,
     ) -> StateReadResult<Arc<HashMap<TypeTag, TotalBalance>>> {
-        let indexes = self.indexes.clone();
+        let indexes = self.rpc_indexes_store.clone();
         Ok(tokio::task::spawn_blocking(move || {
             indexes
                 .as_ref()
@@ -595,42 +663,6 @@ impl From<UserInputError> for StateReadError {
     }
 }
 
-/// Takes the objects of `objects` that match `filter` until the page holds
-/// `limit` of them or `max_read` objects have been read.
-///
-/// If objects are left, `has_next_page` is set and `next_cursor` is the last
-/// object read, which need not be in the page. So a page can hold fewer than
-/// `limit` objects, even none, and the last page can be empty.
-fn owner_objects_page(
-    objects: impl Iterator<Item = ObjectInfo>,
-    limit: usize,
-    filter: Option<&IotaObjectDataFilter>,
-    max_read: usize,
-) -> Page<ObjectInfo, ObjectId> {
-    let mut data = Vec::new();
-    let mut last_read = None;
-    for (read, object) in objects.enumerate() {
-        if data.len() == limit || read == max_read {
-            return Page {
-                data,
-                next_cursor: last_read,
-                has_next_page: true,
-                oldest_available_checkpoint: None,
-            };
-        }
-        last_read = Some(object.object_id);
-        if filter.is_none_or(|filter| filter.matches(&object)) {
-            data.push(object);
-        }
-    }
-    Page {
-        data,
-        next_cursor: None,
-        has_next_page: false,
-        oldest_available_checkpoint: None,
-    }
-}
-
 impl From<JoinError> for StateReadError {
     fn from(e: JoinError) -> Self {
         StateReadError::Internal(e.into())
@@ -647,93 +679,5 @@ impl From<TypedStoreError> for StateReadError {
     fn from(e: TypedStoreError) -> Self {
         let error: IotaError = e.into();
         StateReadError::Internal(error.into())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use iota_sdk_types::{ObjectDigest, Owner};
-    use iota_types::base_types::ObjectType;
-
-    use super::*;
-
-    fn object(version: u64) -> ObjectInfo {
-        ObjectInfo {
-            object_id: ObjectId::random(),
-            version: Version::from_u64(version),
-            digest: ObjectDigest::random(),
-            object_type: ObjectType::Package,
-            owner: Owner::Address(Address::ZERO),
-            previous_transaction: TransactionDigest::random(),
-        }
-    }
-
-    fn ids(objects: &[ObjectInfo]) -> Vec<ObjectId> {
-        objects.iter().map(|object| object.object_id).collect()
-    }
-
-    #[test]
-    fn owner_objects_page_fills_the_page_from_matching_objects() {
-        // Odd versions match the filter.
-        let objects: Vec<_> = (0..10).map(object).collect();
-        let odd: Vec<_> = objects.iter().skip(1).step_by(2).cloned().collect();
-        let filter = IotaObjectDataFilter::MatchAny(
-            (0..10)
-                .filter(|version| version % 2 == 1)
-                .map(IotaObjectDataFilter::Version)
-                .collect(),
-        );
-
-        let page = owner_objects_page(objects.clone().into_iter(), 2, Some(&filter), 100);
-        assert_eq!(ids(&page.data), ids(&odd[..2]));
-        assert_eq!(page.next_cursor, Some(odd[1].object_id));
-        assert!(page.has_next_page);
-
-        let page = owner_objects_page(objects.clone().into_iter(), 5, Some(&filter), 100);
-        assert_eq!(ids(&page.data), ids(&odd));
-        assert_eq!(page.next_cursor, None);
-        assert!(!page.has_next_page);
-
-        let page = owner_objects_page(objects.clone().into_iter(), 10, None, 100);
-        assert_eq!(ids(&page.data), ids(&objects));
-        assert!(!page.has_next_page);
-
-        // A full page does not read further to find out whether more objects
-        // match, so the last page can be empty.
-        let first = IotaObjectDataFilter::ObjectId(objects[0].object_id);
-        let page = owner_objects_page(objects.clone().into_iter(), 1, Some(&first), 100);
-        assert_eq!(ids(&page.data), ids(&objects[..1]));
-        assert_eq!(page.next_cursor, Some(objects[0].object_id));
-        assert!(page.has_next_page);
-        let page = owner_objects_page(objects.into_iter().skip(1), 1, Some(&first), 100);
-        assert!(page.data.is_empty());
-        assert_eq!(page.next_cursor, None);
-        assert!(!page.has_next_page);
-    }
-
-    #[test]
-    fn owner_objects_page_stops_after_reading_the_limit() {
-        let objects: Vec<_> = (0..10).map(object).collect();
-        let never = IotaObjectDataFilter::ObjectIds(vec![]);
-
-        // Nothing matches: the page is empty, but continues after the last
-        // object read.
-        let page = owner_objects_page(objects.clone().into_iter(), 5, Some(&never), 4);
-        assert!(page.data.is_empty());
-        assert_eq!(page.next_cursor, Some(objects[3].object_id));
-        assert!(page.has_next_page);
-
-        // Only the first of the objects read matches.
-        let first = IotaObjectDataFilter::ObjectId(objects[0].object_id);
-        let page = owner_objects_page(objects.clone().into_iter(), 5, Some(&first), 4);
-        assert_eq!(ids(&page.data), ids(&objects[..1]));
-        assert_eq!(page.next_cursor, Some(objects[3].object_id));
-        assert!(page.has_next_page);
-
-        // Reading exactly the remaining objects ends the listing.
-        let page = owner_objects_page(objects.into_iter(), 5, Some(&never), 10);
-        assert!(page.data.is_empty());
-        assert_eq!(page.next_cursor, None);
-        assert!(!page.has_next_page);
     }
 }

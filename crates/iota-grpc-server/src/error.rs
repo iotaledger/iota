@@ -352,6 +352,12 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                     "timed-out before finality could be reached",
                 )
             }
+            TimeoutBeforeFinalityWithErrors { last_error } => RpcError::new(
+                Code::Unavailable,
+                format!(
+                    "timed-out before finality could be reached. Last recorded retriable error: {last_error}"
+                ),
+            ),
             NonRecoverableTransactionError { errors } => {
                 let new_errors: Vec<String> = errors
                     .iter()

@@ -316,8 +316,6 @@ fn sim_node_id(test_cluster: &TestCluster, name: &AuthorityName) -> iota_simulat
 async fn run_crashes_at_fail_point_under_traffic(fail_point: &'static str, kills: usize) {
     telemetry_subscribers::init_for_testing();
     let test_cluster = build_cluster(600_000).await;
-    let victim = test_cluster.get_validator_pubkeys()[0];
-    let victim_sim_id = sim_node_id(&test_cluster, &victim);
 
     let stop = Arc::new(AtomicBool::new(false));
     let traffic = spawn_transfer_traffic_with_double_spends(
@@ -325,7 +323,21 @@ async fn run_crashes_at_fail_point_under_traffic(fail_point: &'static str, kills
         test_cluster.get_addresses(),
         stop.clone(),
     );
+    kill_a_validator_at_fail_point(&test_cluster, fail_point, kills).await;
+    stop_traffic(traffic, &stop).await;
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
+}
 
+/// Kills the first validator `kills` times at `fail_point`, at the first hit
+/// after a pause, and lets it restart on its own each time. Returns ten
+/// seconds after the last kill.
+async fn kill_a_validator_at_fail_point(
+    test_cluster: &TestCluster,
+    fail_point: &'static str,
+    kills: usize,
+) {
+    let victim = test_cluster.get_validator_pubkeys()[0];
+    let victim_sim_id = sim_node_id(test_cluster, &victim);
     let killed = Arc::new(AtomicUsize::new(0));
     let next_kill = Arc::new(Mutex::new(Instant::now() + Duration::from_secs(5)));
     {
@@ -361,8 +373,6 @@ async fn run_crashes_at_fail_point_under_traffic(fail_point: &'static str, kills
         )
     });
     sleep(Duration::from_secs(10)).await;
-    stop_traffic(traffic, &stop).await;
-    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
     clear_fail_point(fail_point);
 }
 
@@ -1110,8 +1120,9 @@ async fn test_validator_catches_up_across_randomness_rounds_without_fork() {
     assert_validators_reach_the_same_checkpoints(&test_cluster).await;
 }
 
-/// Validators prune every consumed object version as soon as its checkpoint is
-/// executed, which is the test-cluster default. Under double-spend traffic
+/// Validators move every consumed object version out of the live state when
+/// its checkpoint commits, and with the test cluster's default retention keep
+/// no earlier epoch's versions. Under double-spend traffic
 /// across several epoch changes, and with one validator stopped across an
 /// epoch change, every validator must reach the same checkpoints.
 #[sim_test]
@@ -1129,7 +1140,7 @@ async fn test_aggressive_pruning_across_epoch_changes_does_not_fork() {
                 .authority_store_pruning_config
                 .num_epochs_to_retain,
             0,
-            "validators must prune consumed object versions right away"
+            "validators must keep no earlier epoch's object versions"
         );
     }
     let stop = Arc::new(AtomicBool::new(false));
@@ -1382,6 +1393,128 @@ fn spawn_shared_object_deletions_around_epoch_close(
         });
         join_all(loops).await.into_iter().sum()
     })
+}
+
+/// Until `stop` is set, each of `senders` creates a shared counter, then
+/// submits a transaction that deletes it and, without waiting for the
+/// deletion, one that increments it, so the increment is often sequenced
+/// within the horizon distance after the deletion. Returns how many
+/// deletions succeeded.
+fn spawn_shared_object_deletions_and_uses(
+    test_cluster: Arc<TestCluster>,
+    senders: Vec<Address>,
+    package_id: ObjectId,
+    stop: Arc<AtomicBool>,
+) -> JoinHandle<usize> {
+    tokio::spawn(async move {
+        let loops = senders.into_iter().map(|sender| {
+            let test_cluster = test_cluster.clone();
+            let stop = stop.clone();
+            async move {
+                let gas_price = test_cluster.get_reference_gas_price().await;
+                let wallet = &test_cluster.wallet;
+                let mut deleted = 0;
+                while !stop.load(Ordering::SeqCst) {
+                    let Ok(Some(gas)) = wallet.get_one_gas_object_owned_by_address(sender).await
+                    else {
+                        sleep(Duration::from_millis(200)).await;
+                        continue;
+                    };
+                    let Some(counter) =
+                        create_counter(&test_cluster, sender, gas, gas_price, package_id).await
+                    else {
+                        continue;
+                    };
+                    let coins = wallet
+                        .get_gas_objects_owned_by_address(sender, None)
+                        .await
+                        .unwrap_or_default();
+                    if coins.len() < 2 {
+                        continue;
+                    }
+                    let delete = wallet.sign_transaction(
+                        &TestTransactionBuilder::new(sender, coins[0], gas_price)
+                            .call_counter_delete(package_id, counter.object_id, counter.version)
+                            .build(),
+                    );
+                    let increment = wallet.sign_transaction(
+                        &TestTransactionBuilder::new(sender, coins[1], gas_price)
+                            .call_counter_increment(package_id, counter.object_id, counter.version)
+                            .build(),
+                    );
+                    let (deletion, _) = tokio::join!(
+                        timeout(
+                            Duration::from_secs(30),
+                            wallet.execute_transaction_may_fail(delete),
+                        ),
+                        async {
+                            sleep(Duration::from_millis(50)).await;
+                            timeout(
+                                Duration::from_secs(30),
+                                wallet.execute_transaction_may_fail(increment),
+                            )
+                            .await
+                        },
+                    );
+                    if matches!(deletion, Ok(Ok(ref response)) if response.status_ok() == Some(true))
+                    {
+                        deleted += 1;
+                    }
+                }
+                deleted
+            }
+        });
+        join_all(loops).await.into_iter().sum()
+    })
+}
+
+/// A validator killed after a checkpoint's outputs are committed, before the
+/// checkpoint's commits are flushed, replays those commits on restart with an
+/// empty cache. Validating a transaction that names a shared object deleted
+/// above the horizon reads the type of the object's last version, which the
+/// commit has already moved out of the live table into the epoch's historic
+/// objects bucket. The validator must find it there instead of stopping, and
+/// every validator must reach the same checkpoints.
+#[sim_test]
+async fn test_crash_after_checkpoint_outputs_commit_replays_against_moved_versions() {
+    run_crashes_after_checkpoint_outputs_commit(false).await;
+}
+
+/// As [`test_crash_after_checkpoint_outputs_commit_replays_against_moved_versions`],
+/// after an epoch change: with the test cluster's retention of 0 the earlier
+/// epoch's bucket expires, and the replay reads the running epoch's bucket.
+#[sim_test]
+async fn test_crash_after_checkpoint_outputs_commit_after_an_epoch_change() {
+    run_crashes_after_checkpoint_outputs_commit(true).await;
+}
+
+/// Runs shared object deletions and uses while the first validator is killed
+/// three times after a checkpoint's outputs are committed, optionally after an
+/// epoch change, and checks that every validator reaches the same
+/// checkpoints.
+async fn run_crashes_after_checkpoint_outputs_commit(after_an_epoch_change: bool) {
+    telemetry_subscribers::init_for_testing();
+    let test_cluster = build_cluster(600_000).await;
+    let package_id = publish_basics_package(&test_cluster.wallet).await.object_id;
+    if after_an_epoch_change {
+        test_cluster.force_new_epoch().await;
+    }
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let traffic = spawn_shared_object_deletions_and_uses(
+        test_cluster.clone(),
+        test_cluster.get_addresses(),
+        package_id,
+        stop.clone(),
+    );
+    kill_a_validator_at_fail_point(&test_cluster, "crash-after-checkpoint-outputs-commit", 3).await;
+    stop.store(true, Ordering::SeqCst);
+    let deleted = timeout(Duration::from_secs(120), traffic)
+        .await
+        .expect("the traffic must stop")
+        .unwrap();
+    assert!(deleted > 0, "the traffic must delete shared objects");
+    assert_validators_reach_the_same_checkpoints(&test_cluster).await;
 }
 
 /// The number of user transactions the validator's consensus handler has seen

@@ -2,14 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use iota_config::{
     certificate_deny_config::CertificateDenyConfigBuilder,
     transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder},
 };
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference, Transaction,
+    Address, ExecutionError, ExecutionStatus, Identifier, MoveAuthenticatorV1, ObjectId,
+    ObjectReference, Owner, SenderSignedTransaction, SharedObjectReference, Transaction, TypeTag,
+    UserSignature,
 };
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT},
@@ -21,12 +24,13 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     messages_grpc::HandleTransactionResponse,
+    object::OBJECT_START_VERSION,
     transaction::{
         CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
-        VerifiedCertificate, VerifiedTransaction,
+        TransactionEnvelope, VerifiedCertificate, VerifiedTransaction,
     },
     utils::{
-        make_move_authenticator_tx, to_sender_signed_transaction,
+        make_move_authenticator_tx, make_transaction_data, to_sender_signed_transaction,
         to_sender_signed_transaction_with_multi_signers,
     },
 };
@@ -79,20 +83,18 @@ async fn reload_state_with_new_deny_config(
 
 type Account = (Address, AccountPrivateKey, Vec<ObjectReference>);
 
-fn get_accounts_and_coins(
-    network_config: &NetworkConfig,
-    state: &Arc<AuthorityState>,
-) -> Vec<Account> {
+fn get_accounts_and_coins(network_config: &NetworkConfig) -> Vec<Account> {
     let accounts: Vec<_> = network_config
         .account_keys
         .iter()
         .map(|account| {
             let address: Address = account.public_key().derive_address();
-            let objects: Vec<_> = state
-                .get_owner_objects(address, None, GAS_OBJECT_COUNT, None)
-                .unwrap()
-                .into_iter()
-                .map(|o| o.into())
+            let objects: Vec<_> = network_config
+                .genesis
+                .objects()
+                .iter()
+                .filter(|o| o.owner == Owner::Address(address))
+                .map(|o| o.object_ref())
                 .collect();
             assert_eq!(objects.len(), GAS_OBJECT_COUNT);
             (address, account.clone(), objects)
@@ -175,7 +177,7 @@ async fn test_user_transaction_disabled() {
             .build(),
     )
     .await;
-    let accounts = get_accounts_and_coins(&network_config, &state);
+    let accounts = get_accounts_and_coins(&network_config);
     assert_denied(&transfer_with_account(&accounts[0], &accounts[0], &state).await);
 }
 
@@ -184,7 +186,7 @@ async fn test_object_denied() {
     // We need to create the authority state once to get one of the gas coin object
     // IDs.
     let (network_config, state) = setup_test(TransactionDenyConfigBuilder::new().build()).await;
-    let accounts = get_accounts_and_coins(&network_config, &state);
+    let accounts = get_accounts_and_coins(&network_config);
     // Re-create the state such that we could specify a gas coin object to be
     // denied.
     let obj_ref = accounts[0].2[0];
@@ -204,7 +206,7 @@ async fn test_signer_denied() {
     // We need to create the authority state once to get one of the account
     // addresses.
     let (network_config, state) = setup_test(TransactionDenyConfigBuilder::new().build()).await;
-    let accounts = get_accounts_and_coins(&network_config, &state);
+    let accounts = get_accounts_and_coins(&network_config);
 
     // Re-create the state such that we could specify an address to be denied.
     let state = reload_state_with_new_deny_config(
@@ -230,7 +232,7 @@ async fn test_shared_object_transaction_disabled() {
             .build(),
     )
     .await;
-    let accounts = get_accounts_and_coins(&network_config, &state);
+    let accounts = get_accounts_and_coins(&network_config);
     let gas_price = state.reference_gas_price_for_testing().unwrap();
     let account = &accounts[0];
     let tx = TestTransactionBuilder::new(account.0, account.2[0], gas_price)
@@ -250,7 +252,7 @@ async fn test_package_publish_disabled() {
             .build(),
     )
     .await;
-    let accounts = get_accounts_and_coins(&network_config, &state);
+    let accounts = get_accounts_and_coins(&network_config);
     let rgp = state.reference_gas_price_for_testing().unwrap();
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("src/unit_tests/data/object_basics");
@@ -267,7 +269,7 @@ async fn test_package_publish_disabled() {
 #[tokio::test]
 async fn test_package_denied() {
     let (network_config, state) = setup_test(TransactionDenyConfigBuilder::new().build()).await;
-    let accounts = get_accounts_and_coins(&network_config, &state);
+    let accounts = get_accounts_and_coins(&network_config);
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     // Publish 3 packages, where b depends on c, and a depends on b.
     // Also upgrade c to c', and upgrade b to b' (which will start using c' instead
@@ -429,9 +431,7 @@ async fn test_package_denied() {
 #[tokio::test]
 async fn test_certificate_deny() {
     let (network_config, state) = setup_test(TransactionDenyConfig::default()).await;
-    let (sender, key, gas_objects) = get_accounts_and_coins(&network_config, &state)
-        .pop()
-        .unwrap();
+    let (sender, key, gas_objects) = get_accounts_and_coins(&network_config).pop().unwrap();
     let tx = make_transfer_iota_transaction(
         gas_objects[0],
         sender,
@@ -480,7 +480,7 @@ async fn test_move_authenticator_disabled() {
             .build(),
     )
     .await;
-    let account = get_accounts_and_coins(&network_config, &state)[0].0;
+    let account = get_accounts_and_coins(&network_config)[0].0;
     let tx = make_move_authenticator_tx(account);
 
     let result = state
@@ -496,7 +496,7 @@ async fn test_move_authenticator_disabled() {
 #[tokio::test]
 async fn test_move_account_denied() {
     let (network_config, state) = setup_test(TransactionDenyConfigBuilder::new().build()).await;
-    let account = get_accounts_and_coins(&network_config, &state)[0].0;
+    let account = get_accounts_and_coins(&network_config)[0].0;
 
     let state = reload_state_with_new_deny_config(
         &network_config,
@@ -522,7 +522,7 @@ async fn test_move_account_denied() {
 #[tokio::test]
 async fn test_move_authenticator_input_denied() {
     let (network_config, state) = setup_test(TransactionDenyConfigBuilder::new().build()).await;
-    let account = get_accounts_and_coins(&network_config, &state)[0].0;
+    let account = get_accounts_and_coins(&network_config)[0].0;
 
     let state = reload_state_with_new_deny_config(
         &network_config,
@@ -543,4 +543,76 @@ async fn test_move_authenticator_input_denied() {
         .await;
 
     assert_denied(&result);
+}
+
+/// A transaction sent by `account`, whose `MoveAuthenticator` names `package`
+/// only in a type argument.
+fn make_move_authenticator_tx_with_type_arg(
+    account: Address,
+    package: ObjectId,
+) -> VerifiedTransaction {
+    let authenticator = MoveAuthenticatorV1::new(
+        vec![],
+        vec![TypeTag::from_str(&format!("{package}::m::S")).unwrap()],
+        SharedObjectReference::new(account.into(), OBJECT_START_VERSION, false),
+    );
+    VerifiedTransaction::new_from_verified(TransactionEnvelope::new(SenderSignedTransaction::new(
+        make_transaction_data(account),
+        vec![UserSignature::MoveAuthenticator(authenticator.into())],
+    )))
+}
+
+/// Handles a transaction whose `MoveAuthenticator` names a package only in a
+/// type argument, on a state whose object deny list holds that package.
+async fn handle_transaction_with_denied_type_arg_package() -> IotaResult<HandleTransactionResponse>
+{
+    let (network_config, state) = setup_test(TransactionDenyConfigBuilder::new().build()).await;
+    let account = get_accounts_and_coins(&network_config)[0].0;
+    let package = ObjectId::random();
+    let state = reload_state_with_new_deny_config(
+        &network_config,
+        state,
+        TransactionDenyConfigBuilder::new()
+            .add_denied_object(package)
+            .build(),
+    )
+    .await;
+
+    state
+        .handle_transaction(
+            &state.epoch_store_for_testing(),
+            make_move_authenticator_tx_with_type_arg(account, package),
+        )
+        .await
+}
+
+/// The packages a `MoveAuthenticator`'s type arguments name are inputs of the
+/// authenticator, so the object deny list rejects them.
+#[tokio::test]
+async fn test_move_authenticator_type_arg_package_denied() {
+    assert_denied(&handle_transaction_with_denied_type_arg_package().await);
+}
+
+/// With `move_authenticator_type_arg_packages_as_inputs` off, the type
+/// argument packages are not inputs, so the deny list does not see them. The
+/// transaction is rejected later, for its account.
+#[tokio::test]
+async fn test_move_authenticator_type_arg_package_not_denied_with_the_flag_off() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_move_authenticator_type_arg_packages_as_inputs_for_testing(false);
+        config
+    });
+    let error = handle_transaction_with_denied_type_arg_package()
+        .await
+        .map(|_| ())
+        .unwrap_err();
+    assert!(
+        !matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::TransactionDenied { .. }
+            }
+        ),
+        "{error:?}"
+    );
 }

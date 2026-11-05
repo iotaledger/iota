@@ -405,8 +405,9 @@ pub async fn validate_and_resolve_conflicts(
         //
         // With deterministic validation, effects alone do not show at which
         // commit the transaction was kept, so only a saved keep at this commit
-        // skips validation; its consumed inputs may be pruned by now. Without
-        // one, the commit-indexed reader decides, as on every other validator.
+        // skips validation; its consumed inputs may have left the live state by
+        // now. Without one, the commit-indexed reader decides, as on every
+        // other validator.
         if (!deterministic_validation || saved_decision == Some(PostConsensusDecision::Kept))
             && authority_state
                 .get_transaction_cache_reader()
@@ -976,9 +977,10 @@ fn extract_owned_input_objects(
     // Use SenderSignedTransaction::input_objects() rather than
     // Transaction::input_objects() to also include objects coming from
     // MoveAuthenticator signatures. Those can only be immutable or shared,
-    // so they widen the probe set but never the locked set.
+    // so they widen the probe set but never the locked set. Packages are left
+    // out below anyway.
     let owned_objects = transaction_data
-        .input_objects()?
+        .input_objects(false)?
         .into_iter()
         .filter_map(|input| match input {
             InputObjectKind::ImmOrOwnedMoveObject(obj_ref) => Some(obj_ref),

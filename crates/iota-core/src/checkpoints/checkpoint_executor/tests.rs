@@ -25,6 +25,7 @@ use super::*;
 use crate::{
     authority::{
         AuthorityState,
+        authority_per_epoch_store::scorer::MAX_SCORE,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
         test_authority_builder::TestAuthorityBuilder,
     },
@@ -80,6 +81,7 @@ pub async fn test_fallback_load_skips_contents_cache_when_disabled() {
     let tmp_dir = iota_common::tempdir();
     let checkpoint_store = CheckpointStore::new_with_contents_cache(
         tmp_dir.path(),
+        None,
         FullCheckpointContentsCache::new(0, FullCheckpointContentsCacheMetrics::new_for_tests()),
     );
     let (_state, executor, _hasher, committee) =
@@ -107,6 +109,7 @@ pub async fn test_fallback_load_skips_contents_cache_below_window() {
     let tmp_dir = iota_common::tempdir();
     let checkpoint_store = CheckpointStore::new_with_contents_cache(
         tmp_dir.path(),
+        None,
         // A 1-byte budget any real entry exceeds, so the cache is at budget
         // as soon as the frontier entry below lands.
         FullCheckpointContentsCache::new(1, FullCheckpointContentsCacheMetrics::new_for_tests()),
@@ -117,7 +120,7 @@ pub async fn test_fallback_load_skips_contents_cache_below_window() {
     // Simulate the state-sync frontier far ahead of the executor.
     let frontier_seq = 10_000;
     let frontier_contents = FullCheckpointContents::random_for_testing();
-    let frontier_checkpoint = test_checkpoint_with_contents(frontier_seq, &frontier_contents);
+    let frontier_checkpoint = test_checkpoint_with_contents(0, frontier_seq, &frontier_contents);
     checkpoint_store.cache_full_checkpoint_contents(
         frontier_checkpoint.sequence_number(),
         frontier_checkpoint.contents_digest,
@@ -347,9 +350,9 @@ pub async fn test_switched_validator_waits_for_the_transactions_of_a_locally_bui
         init_executor_test(checkpoint_store.clone(), true).await;
     let epoch_store = state.epoch_store_for_testing().clone();
     assert!(epoch_store.pcool_bookkeeping_enabled());
-    let perpetual_tables = state.database_for_testing().perpetual_tables.clone();
+    let historic_ledger = state.database_for_testing().get_historic_ledger().clone();
     checkpoint_store
-        .hold_synced_watermark_in_memory(perpetual_tables.clone())
+        .hold_synced_watermark_in_memory(historic_ledger.clone())
         .unwrap();
     let (checkpoints, contents, _, _) = committee.make_random_checkpoints(2, None);
     for (checkpoint, contents) in checkpoints.iter().zip(&contents) {
@@ -373,7 +376,7 @@ pub async fn test_switched_validator_waits_for_the_transactions_of_a_locally_bui
     drop(checkpoint_store);
     let checkpoint_store = CheckpointStore::new(checkpoint_store_dir.path());
     checkpoint_store
-        .hold_synced_watermark_in_memory(perpetual_tables)
+        .hold_synced_watermark_in_memory(historic_ledger)
         .unwrap();
     epoch_store.resume_executing_synced_checkpoints();
     let executor = CheckpointExecutor::new_for_tests(
@@ -833,10 +836,16 @@ async fn init_executor_test(
     } else {
         &non_committee_key
     };
-    let state = TestAuthorityBuilder::new()
-        .with_genesis_and_keypair(&network_config.genesis, keypair)
-        .build()
-        .await;
+    let builder =
+        TestAuthorityBuilder::new().with_genesis_and_keypair(&network_config.genesis, keypair);
+    // Only full nodes maintain the RPC indexes, and a committee validator
+    // executes the checkpoints it built without staging index updates.
+    let builder = if in_committee {
+        builder.disable_indexer()
+    } else {
+        builder
+    };
+    let state = builder.build().await;
 
     let accumulator = GlobalStateHasher::new_for_tests(state.get_global_state_hash_store().clone());
     let accumulator = Arc::new(accumulator);
@@ -882,13 +891,14 @@ async fn sync_end_of_epoch_checkpoint(
 ) -> (VerifiedCheckpoint, CommitteeFixture) {
     let new_committee = next_committee(committee);
     let checkpoint = make_end_of_epoch_checkpoint(previous_checkpoint, committee, &new_committee);
+    let epoch_store = authority_state.epoch_store_for_testing().clone();
     authority_state
         .create_and_execute_advance_epoch_tx(
-            &authority_state.epoch_store_for_testing().clone(),
+            &epoch_store,
             &GasCostSummary::new(0, 0, 0, 0, 0),
             checkpoint.sequence_number(),
-            0,      // epoch_start_timestamp_ms
-            vec![], // scores
+            0, // epoch_start_timestamp_ms
+            vec![MAX_SCORE; epoch_store.committee().num_members()],
         )
         .await
         .expect("Failed to create and execute advance epoch tx");
@@ -935,7 +945,7 @@ fn sync_checkpoint(
         .insert_verified_checkpoint(checkpoint)
         .unwrap();
     checkpoint_store
-        .insert_checkpoint_contents(contents.clone().into_checkpoint_contents())
+        .insert_checkpoint_contents(checkpoint, contents.clone().into_checkpoint_contents())
         .unwrap();
     checkpoint_store
         .update_highest_synced_checkpoint(checkpoint)
@@ -970,7 +980,7 @@ pub async fn test_the_saved_synced_watermark_passes_only_stored_contents() {
     let (state, _executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;
     checkpoint_store
-        .hold_synced_watermark_in_memory(state.database_for_testing().perpetual_tables.clone())
+        .hold_synced_watermark_in_memory(state.database_for_testing().get_historic_ledger().clone())
         .unwrap();
     let (checkpoints, contents, _, _) = committee.make_random_checkpoints(4, None);
     // 2 is downloaded, so its transactions and effects are stored. 1 and 3
@@ -1020,9 +1030,9 @@ pub async fn test_a_restarted_store_starts_from_the_saved_synced_watermark() {
     let (state, executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;
     drop(executor);
-    let perpetual_tables = state.database_for_testing().perpetual_tables.clone();
+    let historic_ledger = state.database_for_testing().get_historic_ledger().clone();
     checkpoint_store
-        .hold_synced_watermark_in_memory(perpetual_tables.clone())
+        .hold_synced_watermark_in_memory(historic_ledger.clone())
         .unwrap();
     let (checkpoints, contents, _, _) = committee.make_random_checkpoints(4, None);
     state
@@ -1042,7 +1052,7 @@ pub async fn test_a_restarted_store_starts_from_the_saved_synced_watermark() {
     drop(checkpoint_store);
     let checkpoint_store = CheckpointStore::new(checkpoint_store_dir.path());
     checkpoint_store
-        .hold_synced_watermark_in_memory(perpetual_tables)
+        .hold_synced_watermark_in_memory(historic_ledger)
         .unwrap();
     assert_eq!(synced_checkpoint(&checkpoint_store), Some(0));
     assert_eq!(saved_synced_checkpoint(&checkpoint_store), Some(0));
@@ -1069,7 +1079,7 @@ pub async fn test_holding_the_synced_watermark_in_memory_from_an_epoch_change() 
     let checkpoint_store = CheckpointStore::new_for_tests();
     let (state, _executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;
-    let perpetual_tables = state.database_for_testing().perpetual_tables.clone();
+    let historic_ledger = state.database_for_testing().get_historic_ledger().clone();
     let (checkpoints, contents, _, _) = committee.make_random_checkpoints(5, None);
     for (checkpoint, contents) in checkpoints.iter().zip(&contents).take(4) {
         sync_checkpoint(&checkpoint_store, checkpoint, contents);
@@ -1079,7 +1089,7 @@ pub async fn test_holding_the_synced_watermark_in_memory_from_an_epoch_change() 
     }
 
     checkpoint_store
-        .hold_synced_watermark_in_memory(perpetual_tables.clone())
+        .hold_synced_watermark_in_memory(historic_ledger.clone())
         .unwrap();
     assert_eq!(synced_checkpoint(&checkpoint_store), Some(3));
     assert_eq!(saved_synced_checkpoint(&checkpoint_store), Some(3));
@@ -1090,7 +1100,7 @@ pub async fn test_holding_the_synced_watermark_in_memory_from_an_epoch_change() 
     assert_eq!(saved_synced_checkpoint(&checkpoint_store), Some(3));
 
     checkpoint_store
-        .hold_synced_watermark_in_memory(perpetual_tables)
+        .hold_synced_watermark_in_memory(historic_ledger)
         .unwrap();
     assert_eq!(synced_checkpoint(&checkpoint_store), Some(4));
 
@@ -1109,7 +1119,7 @@ pub async fn test_synced_watermark_readers_do_not_wait_for_a_write() {
     let (state, _executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;
     checkpoint_store
-        .hold_synced_watermark_in_memory(state.database_for_testing().perpetual_tables.clone())
+        .hold_synced_watermark_in_memory(state.database_for_testing().get_historic_ledger().clone())
         .unwrap();
     let (checkpoints, contents, _, _) = committee.make_random_checkpoints(2, None);
     for (checkpoint, contents) in checkpoints.iter().zip(&contents) {
@@ -1151,7 +1161,10 @@ async fn the_synced_watermark_does_not_pass_a_checkpoint_the_write_skips() {
     }
     for i in [0, 2] {
         checkpoint_store
-            .insert_checkpoint_contents(contents[i].clone().into_checkpoint_contents())
+            .insert_checkpoint_contents(
+                &checkpoints[i],
+                contents[i].clone().into_checkpoint_contents(),
+            )
             .unwrap();
     }
     assert!(
@@ -1192,7 +1205,10 @@ async fn the_synced_watermark_does_not_pass_a_checkpoint_the_write_skips() {
 
     // The contents arrive, and the checkpoints are marked synced in order.
     checkpoint_store
-        .insert_checkpoint_contents(contents[1].clone().into_checkpoint_contents())
+        .insert_checkpoint_contents(
+            &checkpoints[1],
+            contents[1].clone().into_checkpoint_contents(),
+        )
         .unwrap();
     assert!(
         checkpoint_store
