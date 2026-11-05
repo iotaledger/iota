@@ -34,7 +34,6 @@ use iota_keys::{
     },
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
-use iota_ledger::Ledger;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_crypto::{
     Signer as _, ToFromBase64, ToFromBech32, ToFromBytes as _, ed25519::Ed25519PrivateKey,
@@ -69,7 +68,7 @@ use crate::{
     key_identity::{
         KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
     },
-    signing::{ExternalKeySource, SignData, sign_secure},
+    signing::{ExternalKeySource, SignData, connect_ledger, ledger_path, sign_secure},
 };
 
 #[derive(Subcommand)]
@@ -717,16 +716,19 @@ impl KeyToolCommand {
                 derivation_path,
             } => {
                 info!("Importing Ledger to keystore");
-                let mut ledger = Ledger::new_with_default()?;
-                ledger.ensure_app_is_open()?;
-                let response = ledger.get_public_key(&derivation_path)?;
+                let mut ledger = connect_ledger()?;
+                ledger.open_app().await?;
+                let public_key = ledger
+                    .get_public_key(&ledger_path(&derivation_path)?)
+                    .await?;
                 keystore.import_from_external(
                     ExternalKeySource::Ledger.as_str(),
-                    response.public_key,
+                    PublicKey::try_from_bytes(SignatureScheme::Ed25519, public_key.bytes())
+                        .map_err(|e| anyhow!(e))?,
                     Some(derivation_path),
                     alias,
                 )?;
-                let ikp = keystore.get_key(&response.address)?;
+                let ikp = keystore.get_key(&public_key.derive_address())?;
                 let mut key = Key::from(ikp);
 
                 key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
@@ -837,7 +839,7 @@ impl KeyToolCommand {
                 let digest = hasher.finalize().digest;
 
                 let signature =
-                    sign_secure(keystore, &address, &intent_msg.value, intent_msg.intent)?;
+                    sign_secure(keystore, &address, &intent_msg.value, intent_msg.intent).await?;
 
                 CommandOutput::Sign(SignData {
                     iota_address: address,
