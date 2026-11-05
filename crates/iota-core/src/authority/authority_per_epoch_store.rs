@@ -2173,6 +2173,18 @@ impl AuthorityPerEpochStore {
         }
     }
 
+    /// This validator's committee index if it is cut off as of the highest
+    /// horizon its validation has read so far; `None` otherwise, or when this
+    /// node does not cut off attestors.
+    pub fn own_index_if_cut_off(&self) -> Option<u8> {
+        let max_refuted_units_squared = self.cutoff_max_refuted_units_squared()?;
+        let state = self.handler_object_state.as_ref()?;
+        let index = u8::try_from(self.committee().authority_index(&self.name)?).ok()?;
+        state
+            .is_cut_off_as_of_highest_horizon(index, max_refuted_units_squared)
+            .then_some(index)
+    }
+
     /// `attestation_max_refuted_units_squared`, when set and this node keeps
     /// the P-COOL bookkeeping.
     fn cutoff_max_refuted_units_squared(&self) -> Option<u64> {

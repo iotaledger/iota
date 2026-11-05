@@ -322,6 +322,15 @@ impl ValidatorService {
             return (TxStatusUpdate::Rejected { error }, weight);
         }
 
+        // Every validator drops a cut-off validator's attested transactions
+        // for the rest of the epoch, so it rejects them here and the client
+        // submits through another validator.
+        if let Some(attestor) = epoch_store.own_index_if_cut_off() {
+            let error = IotaError::AttestorCutOff { attestor };
+            let weight = normalize(&error);
+            return (TxStatusUpdate::Rejected { error }, weight);
+        }
+
         // Deny-rule source for admission. With governance enabled, admission
         // checks the active governance rules on top of the local config, so
         // transactions the network will deterministically drop post-consensus

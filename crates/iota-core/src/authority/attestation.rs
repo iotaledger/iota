@@ -365,8 +365,21 @@ pub(super) fn attestation_record(
 
 /// Whether `units_squared` takes the attestor's whole score, which also
 /// stops its attestations for the rest of the epoch.
-pub(crate) fn takes_whole_score(units_squared: u64, max_refuted_units_squared: u64) -> bool {
+fn takes_whole_score(units_squared: u64, max_refuted_units_squared: u64) -> bool {
     units_squared >= max_refuted_units_squared.max(1)
+}
+
+/// The attestors whose `totals` take their whole score.
+pub(crate) fn attestors_taking_whole_score(
+    totals: &AttestationTotals,
+    max_refuted_units_squared: u64,
+) -> BTreeSet<u8> {
+    totals
+        .refuted_units_squared
+        .iter()
+        .filter(|&(_, &units_squared)| takes_whole_score(units_squared, max_refuted_units_squared))
+        .map(|(&attestor, _)| attestor)
+        .collect()
 }
 
 /// The committee members whose `totals` take their whole score.
@@ -375,11 +388,9 @@ fn cut_off_attestors(
     max_refuted_units_squared: u64,
     committee: &Committee,
 ) -> BTreeSet<AuthorityName> {
-    totals
-        .refuted_units_squared
-        .iter()
-        .filter(|&(_, &units_squared)| takes_whole_score(units_squared, max_refuted_units_squared))
-        .filter_map(|(&attestor, _)| committee.authority_by_index(u32::from(attestor)).copied())
+    attestors_taking_whole_score(totals, max_refuted_units_squared)
+        .into_iter()
+        .filter_map(|attestor| committee.authority_by_index(u32::from(attestor)).copied())
         .collect()
 }
 

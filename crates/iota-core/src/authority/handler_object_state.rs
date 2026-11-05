@@ -105,7 +105,9 @@ use tracing::warn;
 use typed_store::{Map, rocks::DBBatch};
 
 use crate::{
-    authority::{attestation::takes_whole_score, authority_per_epoch_store::AuthorityEpochTables},
+    authority::{
+        attestation::attestors_taking_whole_score, authority_per_epoch_store::AuthorityEpochTables,
+    },
     epoch::epoch_metrics::EpochMetrics,
 };
 
@@ -348,15 +350,8 @@ impl AttestationTotalsByCommit {
         horizon: CommitIndex,
         max_refuted_units_squared: u64,
     ) -> BTreeSet<u8> {
-        let cut_off = |sum: &AttestationTotals| -> BTreeSet<u8> {
-            sum.refuted_units_squared
-                .iter()
-                .filter(|&(_, &units_squared)| {
-                    takes_whole_score(units_squared, max_refuted_units_squared)
-                })
-                .map(|(&attestor, _)| attestor)
-                .collect()
-        };
+        let cut_off =
+            |sum: &AttestationTotals| attestors_taking_whole_score(sum, max_refuted_units_squared);
         // Horizons only rise within a process; recompute rather than unwind.
         if horizon < self.summed_through {
             let sum = self
@@ -906,6 +901,21 @@ impl HandlerObjectState {
         self.attestation_totals
             .lock()
             .cut_off_as_of(horizon, max_refuted_units_squared)
+    }
+
+    /// Whether `attestor` is cut off as of the highest horizon validation has
+    /// read so far: for refusing submissions, never for validation, which
+    /// reads [`Self::attestors_cut_off_as_of`] at its own horizon.
+    pub fn is_cut_off_as_of_highest_horizon(
+        &self,
+        attestor: u8,
+        max_refuted_units_squared: u64,
+    ) -> bool {
+        attestors_taking_whole_score(
+            &self.attestation_totals.lock().sum,
+            max_refuted_units_squared,
+        )
+        .contains(&attestor)
     }
 
     /// Stages a commit's rows into `batch`, the batch of the quarantine flush
