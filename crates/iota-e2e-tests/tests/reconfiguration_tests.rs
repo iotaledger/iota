@@ -27,7 +27,7 @@ use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId},
     crypto::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignature, IotaAuthoritySignature,
-        get_key_pair, get_key_pair_from_rng,
+        get_key_pair_from_rng,
     },
     effects::TransactionEffectsAPI,
     error::IotaError,
@@ -45,7 +45,11 @@ use iota_types::{
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{TransactionAPI, VerifiedTransaction},
 };
-use rand::{rand_core::UnwrapErr, rngs::SysRng};
+use rand::{
+    SeedableRng,
+    rand_core::UnwrapErr,
+    rngs::{StdRng, SysRng},
+};
 use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 use tokio::time::sleep;
 
@@ -831,7 +835,6 @@ async fn run_reconfig_with_committee_change_basic() {
 async fn test_reconfig_with_same_validator() {
     use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
     use iota_types::crypto::AuthorityPublicKeyBytes;
-    use rand::{SeedableRng, rngs::StdRng};
 
     // ValidatorGenesisConfig doesn't impl Clone
     // generate the same config with the same rng seed
@@ -1319,7 +1322,8 @@ async fn test_authority_capabilities_invalid_signature_rejection() {
     let test_cluster = TestClusterBuilder::new().build().await;
 
     // Create a random authority key pair that's not a validator
-    let (_, random_authority_key_pair): (_, AuthorityKeyPair) = get_key_pair();
+    let (_, random_authority_key_pair): (_, AuthorityKeyPair) =
+        get_key_pair_from_rng(&mut StdRng::from_seed([0; 32]));
     let random_authority_name: AuthorityName = (&random_authority_key_pair.verifying_key()).into();
 
     // Get the current epoch store

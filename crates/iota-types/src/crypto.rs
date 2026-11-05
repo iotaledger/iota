@@ -529,7 +529,7 @@ impl IotaAuthoritySignature for AuthoritySignature {
 }
 
 /// Random key-pair generation for the `get_key_pair` helpers, implemented for
-/// the fastcrypto authority keypair and the SDK ed25519/secp keys.
+/// the SDK BLS12-381, ed25519 and secp keys.
 pub trait RandomKeyPair: Sized {
     fn generate_with_address(seed: [u8; 32]) -> (Address, Self);
 }
