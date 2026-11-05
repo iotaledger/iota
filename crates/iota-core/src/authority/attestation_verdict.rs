@@ -189,8 +189,9 @@ impl AttestationVerdictContext<'_> {
         // A deleted authenticator input blames the attestor without a re-run.
         // At the recorded version, the input still exists, so a re-run there
         // could pass and charge the gas owner, also when the attestor recorded
-        // the versions from before the deletion: the judge cannot distinguish
-        // a deletion before the attestation from one after it.
+        // the versions from before the deletion.
+        // TODO: temporary rule, until the judge can distinguish a deletion
+        // before the attestation from one after it.
         if self
             .authenticators
             .iter()

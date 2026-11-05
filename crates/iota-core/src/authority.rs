@@ -2600,24 +2600,16 @@ impl AuthorityState {
 
             // Whether the gas owner pays when its own authentication fails: the
             // judge answers for an attested transaction, the certified record
-            // when executing from a checkpoint, and none otherwise. The judge's
-            // answer is kept for the record.
+            // when executing from a checkpoint, and nobody pays otherwise. The
+            // judge's answer is kept for the record.
             let blame = Cell::new(None);
-            // Declared before the match so the closures outlive it: the engine
-            // borrows them.
-            let from_judge;
-            let from_record;
-            let gas_owner_pays: Option<&dyn Fn(&ExecutionErrorKind) -> bool> =
+            let gas_owner_pays = |kind: &ExecutionErrorKind| {
                 match (attestation, &attestation_verdict_context) {
                     (AttestationSource::Attestation(_), Some(context)) => {
-                        from_judge = |kind: &ExecutionErrorKind| {
-                            let answer = context.decide_authentication_failure_blame(kind);
-                            blame.set(Some(answer));
+                        let answer = context.decide_authentication_failure_blame(kind);
+                        blame.set(Some(answer));
 
-                            answer == attestation_verdict::AuthenticationFailureBlame::Account
-                        };
-
-                        Some(&from_judge)
+                        answer == attestation_verdict::AuthenticationFailureBlame::Account
                     }
                     (AttestationSource::Certified(record), _)
                         if protocol_config.enable_validator_attestation() =>
@@ -2626,21 +2618,18 @@ impl AuthorityState {
                         // no record means the attestation was valid. The gas
                         // owner pays unless the judge blamed the attestor or
                         // could not decide.
-                        from_record = |_: &ExecutionErrorKind| {
-                            !matches!(
-                                record,
-                                Some(AttestationRecord {
-                                    verdict: AttestationVerdict::Refuted { .. }
-                                        | AttestationVerdict::Undecided,
-                                    ..
-                                })
-                            )
-                        };
-
-                        Some(&from_record)
+                        !matches!(
+                            record,
+                            Some(AttestationRecord {
+                                verdict: AttestationVerdict::Refuted { .. }
+                                    | AttestationVerdict::Undecided,
+                                ..
+                            })
+                        )
                     }
-                    _ => None,
-                };
+                    _ => false,
+                }
+            };
 
             let (
                 inner_temp_store,
@@ -2665,7 +2654,7 @@ impl AuthorityState {
                     gas_status,
                     authenticators,
                     authenticator_and_tx_checked_input_objects,
-                    gas_owner_pays,
+                    Some(&gas_owner_pays),
                     kind,
                     signer,
                     tx_digest,

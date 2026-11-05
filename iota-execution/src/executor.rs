@@ -108,8 +108,10 @@ pub trait Executor {
         // Decides whether a gas owner that is a Move account pays when its own
         // authentication fails: on `true`, it is charged as if it had authorized
         // the transaction. Not called for a cancellation or an invariant
-        // violation. It gets the error's kind as reported, possibly wrapped in a
-        // `MoveAuthentication` status. `None` is the same as answering `false`.
+        // violation, and ignored while the protocol feature flag
+        // `enable_validator_attestation` is off. It gets the authentication
+        // error's kind, with a wrapping `MoveAuthentication` status removed.
+        // `None` is the same as answering `false`.
         gas_owner_pays: Option<&dyn Fn(&ExecutionErrorKind) -> bool>,
         // Transaction
         transaction_kind: TransactionKind,
