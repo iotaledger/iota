@@ -96,7 +96,7 @@ fn input_object_version_validity_check(version: Version) -> UserInputResult {
 
 /// Rejects an identifier that move-core rejects. The SDK `Identifier` also
 /// accepts `<SELF>`, which no module or type can be named.
-pub fn move_core_identifier_validity_check(identifier: &Identifier) -> UserInputResult {
+fn move_core_identifier_validity_check(identifier: &Identifier) -> UserInputResult {
     fp_ensure!(
         move_core_types::identifier::Identifier::is_valid(identifier.as_str()),
         UserInputError::InvalidIdentifier {
