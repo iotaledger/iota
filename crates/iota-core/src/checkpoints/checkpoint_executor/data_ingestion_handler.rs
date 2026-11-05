@@ -31,7 +31,7 @@ pub(crate) fn load_checkpoint_data(
         .flat_map(|fx| fx.events_digest().map(|_| fx.transaction_digest()).copied())
         .collect::<Vec<_>>();
 
-    let events = transaction_cache_reader
+    let mut events = transaction_cache_reader
         .try_multi_get_events(&event_tx_digests)?
         .into_iter()
         .zip(event_tx_digests)
@@ -50,8 +50,7 @@ pub(crate) fn load_checkpoint_data(
     {
         let events = fx.events_digest().map(|_event_digest| {
             events
-                .get(fx.transaction_digest())
-                .cloned()
+                .remove(fx.transaction_digest())
                 .expect("event was already checked to be present")
         });
 
@@ -75,6 +74,71 @@ pub(crate) fn load_checkpoint_data(
         transactions: full_transactions,
     };
     Ok(checkpoint_data)
+}
+
+/// Build a [`CheckpointData`] for the last checkpoint of an epoch that holds
+/// only its last transaction, the epoch-change transaction, with that
+/// transaction's events and objects.
+///
+/// The summary and contents still list every transaction of the checkpoint,
+/// so the result is only fit for `index_epoch_boundary`, which reads nothing
+/// else. Use [`load_checkpoint_data`] for anything that needs the other
+/// transactions.
+pub(crate) fn load_epoch_boundary_data(
+    checkpoint_exec_data: &CheckpointExecutionData,
+    checkpoint_tx_data: &CheckpointTransactionData,
+    object_store: &dyn ObjectStore,
+    historic_objects: &HistoricObjects,
+    transaction_cache_reader: &dyn TransactionCacheRead,
+) -> IotaResult<CheckpointData> {
+    // The epoch-change transaction is always ordered last in the checkpoint.
+    let transactions = match checkpoint_tx_data
+        .transactions
+        .last()
+        .zip(checkpoint_tx_data.effects.last())
+    {
+        Some((tx, fx)) => {
+            let events = match fx.events_digest() {
+                Some(_) => {
+                    let tx_digest = *fx.transaction_digest();
+                    Some(
+                        transaction_cache_reader
+                            .try_multi_get_events(&[tx_digest])?
+                            .pop()
+                            .flatten()
+                            .ok_or(IotaError::TransactionEventsNotFound { digest: tx_digest })?,
+                    )
+                }
+                None => None,
+            };
+
+            let input_objects = historic_objects::get_transaction_input_objects(
+                object_store,
+                historic_objects,
+                fx,
+            )?;
+            let output_objects = historic_objects::get_transaction_output_objects(
+                object_store,
+                historic_objects,
+                fx,
+            )?;
+
+            vec![CheckpointTransaction {
+                transaction: (*tx).clone().into_unsigned().into(),
+                effects: fx.clone(),
+                events,
+                input_objects,
+                output_objects,
+            }]
+        }
+        None => vec![],
+    };
+
+    Ok(CheckpointData {
+        checkpoint_summary: checkpoint_exec_data.checkpoint.clone().into(),
+        checkpoint_contents: checkpoint_exec_data.checkpoint_contents.clone(),
+        transactions,
+    })
 }
 
 pub(crate) fn store_checkpoint_locally(
