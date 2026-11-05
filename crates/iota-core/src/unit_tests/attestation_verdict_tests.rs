@@ -10,11 +10,11 @@
 //! attestation is refuted when authentication failed at exactly the recorded
 //! state, a recorded version is ahead of the executed one or was not superseded
 //! this epoch, an authenticator input is deleted, or the re-run rejects. A
-//! refuted attestation charges nobody. The gas owner pays only when the account
-//! is at fault, because authentication passes at the attested state. Most tests
-//! rotate the account after the transaction is built - its key or its
-//! authenticator function - so the same transaction authenticates differently
-//! at two versions of the same account.
+//! refuted or undecided attestation charges nobody. The gas owner pays only
+//! when the account is at fault, because authentication passes at the attested
+//! state. Most tests rotate the account after the transaction is built - its
+//! key or its authenticator function - so the same transaction authenticates
+//! differently at two versions of the same account.
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{ExecutionError, ExecutionStatus, GasCostSummary, TransactionEffects};
@@ -319,6 +319,41 @@ async fn certified_refuted_record_charges_nobody_without_a_judge() {
     let record = AttestationRecord {
         attestor: 0,
         verdict: AttestationVerdict::Refuted { units: 0 },
+    };
+    let gas_coin_before = gas_coin(&env, &tx);
+    let effects = env
+        .submit_with_source(
+            tx,
+            Some(attestation),
+            Some(AttestationSource::Certified(Some(record))),
+        )
+        .await;
+
+    assert_move_authentication_error(&effects);
+    let gas_coin_after = env.object(&gas_coin_before.id());
+    assert_not_charged(&effects, &gas_coin_before, &gas_coin_after);
+    assert_eq!(
+        env.attestation_record(effects.transaction_digest()),
+        Some(record),
+        "the certified record is stored as is"
+    );
+}
+
+/// A node executing from a checkpoint applies a certified undecided record as
+/// the validators did when their judge could not decide: nobody is charged,
+/// although the re-run would have passed here.
+#[tokio::test]
+async fn certified_undecided_record_charges_nobody_without_a_judge() {
+    let _guard = attestation_config(None);
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let tx = env.account_transaction();
+    let attestation = env.attest(&tx);
+    env.rotate_owner_key().await;
+
+    let record = AttestationRecord {
+        attestor: 0,
+        verdict: AttestationVerdict::Undecided,
     };
     let gas_coin_before = gas_coin(&env, &tx);
     let effects = env

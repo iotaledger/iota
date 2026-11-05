@@ -118,6 +118,12 @@ pub enum AttestationVerdict {
     /// run, whether or not the effects charge it, plus the judge's re-run at the
     /// recorded versions, when one was needed.
     Refuted { units: u64 },
+    /// Authentication failed, and the judge could not decide whether the
+    /// attestor or the account is accountable: its re-run at the recorded
+    /// versions failed with an internal error. Nobody pays and the attestor is
+    /// not penalized; certified, so that a node executing from a checkpoint
+    /// charges nobody as well.
+    Undecided,
 }
 
 impl AttestationVerdict {
@@ -338,6 +344,32 @@ mod tests {
     }
 
     #[test]
+    fn entries_certify_every_record_other_than_valid() {
+        let record = |attestor, verdict| Some(AttestationRecord { attestor, verdict });
+        let entry = |position, attestor, verdict| AttestationEntry {
+            position,
+            record: AttestationRecord { attestor, verdict },
+        };
+
+        let entries = AttestationEntry::from_records(&[
+            record(1, AttestationVerdict::Valid),
+            record(2, AttestationVerdict::Inaccurate),
+            None,
+            record(0, AttestationVerdict::Refuted { units: 3 }),
+            record(1, AttestationVerdict::Undecided),
+        ]);
+
+        assert_eq!(
+            entries,
+            vec![
+                entry(1, 2, AttestationVerdict::Inaccurate),
+                entry(3, 0, AttestationVerdict::Refuted { units: 3 }),
+                entry(4, 1, AttestationVerdict::Undecided),
+            ]
+        );
+    }
+
+    #[test]
     fn totals_sum_the_squared_units_of_refuted_records() {
         let record = |attestor, verdict| Some(AttestationRecord { attestor, verdict });
         let refuted = |units| AttestationVerdict::Refuted { units };
@@ -345,6 +377,7 @@ mod tests {
             record(2, refuted(3)),
             record(1, AttestationVerdict::Valid),
             record(1, AttestationVerdict::Inaccurate),
+            record(0, AttestationVerdict::Undecided),
             None,
             record(2, refuted(25)),
         ]);

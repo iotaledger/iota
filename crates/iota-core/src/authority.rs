@@ -2394,9 +2394,9 @@ impl AuthorityState {
                     tx_digest,
                     &mut None,
                 );
-            // Without Move authentication there is nothing to refute.
+            // Without Move authentication there is nothing to judge.
             let outcome = attestation_verdict::ExecutionOutcome {
-                refuted: None,
+                blame: None,
                 consumed_units: 0,
                 body_ran: attestation_verdict::body_ran(false, execution_error_opt.as_ref().err()),
             };
@@ -2623,16 +2623,15 @@ impl AuthorityState {
                         if protocol_config.enable_validator_attestation() =>
                     {
                         // Only the records other than `Valid` are certified, so
-                        // no record means the attestation was valid.
-                        // TODO: when the judge's re-run hits an internal error,
-                        // validators charge nobody, but the record stays `Valid` and
-                        // is not certified, so this rule charges the gas owner and
-                        // the effects differ. Certify that outcome as its own verdict.
+                        // no record means the attestation was valid. The gas
+                        // owner pays unless the judge blamed the attestor or
+                        // could not decide.
                         from_record = |_: &ExecutionErrorKind| {
                             !matches!(
                                 record,
                                 Some(AttestationRecord {
-                                    verdict: AttestationVerdict::Refuted { .. },
+                                    verdict: AttestationVerdict::Refuted { .. }
+                                        | AttestationVerdict::Undecided,
                                     ..
                                 })
                             )
@@ -2689,16 +2688,7 @@ impl AuthorityState {
                 }
             });
             let outcome = attestation_verdict::ExecutionOutcome {
-                refuted: match blame {
-                    Some(attestation_verdict::AuthenticationFailureBlame::Attestor {
-                        rerun_computation_units,
-                    }) => Some(rerun_computation_units),
-                    Some(
-                        attestation_verdict::AuthenticationFailureBlame::Account
-                        | attestation_verdict::AuthenticationFailureBlame::Nobody,
-                    )
-                    | None => None,
-                },
+                blame,
                 consumed_units: attestation_verdict::consumed_units(gas_status),
                 body_ran: attestation_verdict::body_ran(
                     authentication_error.is_some(),

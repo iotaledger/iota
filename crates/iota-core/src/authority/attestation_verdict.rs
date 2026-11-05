@@ -7,7 +7,10 @@
 //! certified in the checkpoint summary unless `Valid`. When the gas owner's own
 //! authentication fails, the judge also decides who pays: it finds who is at
 //! fault, as an [`AuthenticationFailureBlame`], and the gas owner pays only when
-//! the account is, because authentication passes at the attested state.
+//! the account is, because authentication passes at the attested state. When
+//! the judge cannot decide, the record is
+//! [`attestation::AttestationVerdict::Undecided`], certified so that a node
+//! executing from a checkpoint charges nobody as well.
 
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -145,8 +148,14 @@ pub(crate) enum AuthenticationFailureBlame {
     Account,
 
     /// Nobody is at fault. The failure is a cancellation or an invariant
-    /// violation, or the judge's re-run failed with an internal error.
+    /// violation during execution.
     Nobody,
+
+    /// The judge could not decide who is at fault: its own re-run failed with
+    /// an internal error. Recorded as
+    /// [`attestation::AttestationVerdict::Undecided`], which is certified, so a
+    /// node executing from a checkpoint charges nobody as well.
+    Undecided,
 }
 
 impl AttestationVerdictContext<'_> {
@@ -248,7 +257,7 @@ impl AttestationVerdictContext<'_> {
     /// the units it consumed, or with zero when the claimed units cannot fund a
     /// re-run or an authenticator cannot be resolved at the recorded state;
     /// [`AuthenticationFailureBlame::Account`] when the re-run passes;
-    /// [`AuthenticationFailureBlame::Nobody`] when the authenticators' inputs
+    /// [`AuthenticationFailureBlame::Undecided`] when the authenticators' inputs
     /// cannot be combined, or the re-run ends in a cancellation or an invariant
     /// violation: here, all three can only be internal errors.
     fn reauthenticate_at_attested_versions(&self) -> AuthenticationFailureBlame {
@@ -370,7 +379,7 @@ impl AttestationVerdictContext<'_> {
                 &per_authenticator_input_objects,
             )
         else {
-            return AuthenticationFailureBlame::Nobody;
+            return AuthenticationFailureBlame::Undecided;
         };
 
         // Rebuild the auth context with the function refs resolved at the
@@ -422,7 +431,7 @@ impl AttestationVerdictContext<'_> {
                 // invariant violation here is an internal error.
                 let kind = unwrap_move_authentication_error(error.kind());
                 if is_cancellation(kind) || is_any_invariant_violation(kind) {
-                    AuthenticationFailureBlame::Nobody
+                    AuthenticationFailureBlame::Undecided
                 } else {
                     AuthenticationFailureBlame::Attestor {
                         rerun_computation_units: consumed_units(gas_status),
@@ -484,10 +493,9 @@ pub(crate) fn consumed_units(mut gas_status: IotaGasStatus) -> u64 {
 
 /// What execution established for the verdict on an attested transaction.
 pub(crate) struct ExecutionOutcome {
-    /// Authentication failed and the failure refutes the attestation: the
-    /// units the re-run at the recorded versions consumed, zero when nothing
-    /// had to be re-run.
-    pub refuted: Option<u64>,
+    /// Who the judge found at fault when the Move authentication of an
+    /// attested transaction failed; `None` when it passed or nobody judged.
+    pub blame: Option<AuthenticationFailureBlame>,
     /// The computation units execution's own run consumed, as
     /// [`consumed_units()`] counts them, whether or not the effects charge them;
     /// zero without Move authentication.

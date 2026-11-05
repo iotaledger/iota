@@ -36,7 +36,7 @@ use iota_types::{
 use crate::{
     authority::{
         AuthorityState, ValidationOutputs,
-        attestation_verdict::ExecutionOutcome,
+        attestation_verdict::{AuthenticationFailureBlame, ExecutionOutcome},
         authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
     },
     execution_scheduler::transaction_manager::AttestationSource,
@@ -314,19 +314,28 @@ pub(super) fn attestation_record(
             let executed_units = outcome
                 .body_ran
                 .then(|| attestation::computation_units(effects.gas_cost_summary(), gas_price));
-            // A refuted authentication wasted both runs: execution's own,
-            // whether or not the effects charge it, and the judge's re-run.
-            let refuted_units = outcome.refuted.map(|rerun_computation_units| {
-                outcome
-                    .consumed_units
-                    .saturating_add(rerun_computation_units)
-            });
-            let verdict = AttestationVerdict::new(
-                refuted_units,
-                attestation.computation_units(),
-                executed_units,
-                protocol_config.attestor_accuracy_tolerance_percentage_as_option(),
-            );
+            let claimed_units = attestation.computation_units();
+            let tolerance = protocol_config.attestor_accuracy_tolerance_percentage_as_option();
+            let verdict = match outcome.blame {
+                Some(AuthenticationFailureBlame::Attestor {
+                    rerun_computation_units,
+                }) => {
+                    // A refuted authentication wasted both runs: execution's
+                    // own, whether or not the effects charge it, and the
+                    // judge's re-run.
+                    let units = outcome
+                        .consumed_units
+                        .saturating_add(rerun_computation_units);
+
+                    AttestationVerdict::new(Some(units), claimed_units, executed_units, tolerance)
+                }
+                // Certified, so a node executing from the checkpoint charges
+                // nobody, as the validators did.
+                Some(AuthenticationFailureBlame::Undecided) => AttestationVerdict::Undecided,
+                Some(AuthenticationFailureBlame::Account | AuthenticationFailureBlame::Nobody)
+                | None => AttestationVerdict::new(None, claimed_units, executed_units, tolerance),
+            };
+
             Some(AttestationRecord::new(attestation, verdict))
         }
     }
@@ -427,7 +436,9 @@ mod tests {
         let effects = TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
         assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
         let outcome = ExecutionOutcome {
-            refuted: Some(7),
+            blame: Some(AuthenticationFailureBlame::Attestor {
+                rerun_computation_units: 7,
+            }),
             consumed_units: 30,
             body_ran: false,
         };
@@ -445,6 +456,42 @@ mod tests {
             Some(AttestationRecord {
                 attestor: 0,
                 verdict: AttestationVerdict::Refuted { units: 37 },
+            })
+        );
+    }
+
+    /// When the judge could not decide, the record is undecided whatever the
+    /// units, so it is certified and a node executing from the checkpoint
+    /// charges nobody as well.
+    #[test]
+    fn undecided_blame_is_recorded_undecided() {
+        let attestation = attestation::Attestation::new_authority(
+            AttestationData::V1 {
+                computation_units: 1_000,
+                object_versions: vec![],
+            },
+            0,
+        );
+        let effects = TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
+        let outcome = ExecutionOutcome {
+            blame: Some(AuthenticationFailureBlame::Undecided),
+            consumed_units: 30,
+            body_ran: false,
+        };
+
+        let record = attestation_record(
+            &AttestationSource::Attestation(attestation),
+            &outcome,
+            &effects,
+            1,
+            &ProtocolConfig::get_for_max_version_UNSAFE(),
+        );
+
+        assert_eq!(
+            record,
+            Some(AttestationRecord {
+                attestor: 0,
+                verdict: AttestationVerdict::Undecided,
             })
         );
     }
