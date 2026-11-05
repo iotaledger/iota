@@ -100,15 +100,18 @@ impl EffectsCertifier {
         A: AuthorityAPI + Send + Sync + 'static,
     {
         // Skip the first attempt to get full effects if it is already provided.
-        // `submit_transaction` is contracted to surface `Rejected`/`Expired`
-        // as `Err`; reaching them here is an upstream invariant break.
+        // `submit_transaction` is contracted to surface `Rejected`, `Expired`
+        // and `TimedOut` as `Err`; reaching them here is an upstream
+        // invariant break.
         let full_effects = match submit_txn_result {
             TxStatusUpdate::Submitted => None,
             TxStatusUpdate::Executed {
                 effects_digest,
                 details,
             } => details.map(|d| (effects_digest, d)),
-            update @ (TxStatusUpdate::Rejected { .. } | TxStatusUpdate::Expired { .. }) => {
+            update @ (TxStatusUpdate::Rejected { .. }
+            | TxStatusUpdate::Expired { .. }
+            | TxStatusUpdate::TimedOut) => {
                 debug_fatal!("submit_transaction returned non-actionable status: {update:?}");
                 return Err(TransactionDriverError::ClientInternal {
                     error: "internal driver error".to_string(),
@@ -308,10 +311,12 @@ impl EffectsCertifier {
                     }
                 }
             }
-            // `submit_transaction` is contracted to surface
-            // `Rejected`/`Expired` as `Err`; reaching them here is an
+            // `submit_transaction` is contracted to surface `Rejected`,
+            // `Expired` and `TimedOut` as `Err`; reaching them here is an
             // upstream invariant break.
-            update @ (TxStatusUpdate::Rejected { .. } | TxStatusUpdate::Expired { .. }) => {
+            update @ (TxStatusUpdate::Rejected { .. }
+            | TxStatusUpdate::Expired { .. }
+            | TxStatusUpdate::TimedOut) => {
                 debug_fatal!("submit_transaction returned non-actionable status: {update:?}");
                 return Err(TransactionDriverError::ClientInternal {
                     error: "internal driver error".to_string(),
@@ -407,6 +412,9 @@ impl EffectsCertifier {
                 }
                 Some((_, TxStatusUpdate::Expired { epoch })) => {
                     Err(TransactionRequestError::StatusExpired(epoch))
+                }
+                Some((_, TxStatusUpdate::TimedOut)) => {
+                    Err(TransactionRequestError::TimedOutGettingFullEffectsAtValidator)
                 }
                 Some((_, TxStatusUpdate::Submitted)) => {
                     Err(TransactionRequestError::ValidatorInternal(
@@ -798,6 +806,13 @@ impl EffectsCertifier {
                     // Expired status is submission retriable.
                     retriable_errors_aggregator.insert(name, error);
                     self.metrics.expiration_acks.inc();
+                }
+                Ok(Some((_, TxStatusUpdate::TimedOut))) => {
+                    // The validator has no final status yet, ask again.
+                    retriable_errors_aggregator.insert(
+                        name,
+                        TransactionRequestError::TimedOutGettingFullEffectsAtValidator,
+                    );
                 }
                 Ok(Some((_, TxStatusUpdate::Submitted))) => {
                     // Still pending — treat as retriable.
@@ -1281,6 +1296,50 @@ mod tests {
         );
     }
 
+    /// Validators whose wait ended without a final status do not count
+    /// toward the rejection threshold.
+    #[tokio::test]
+    async fn corroborate_does_not_count_timed_out_answers_as_rejections() {
+        let agg = make_aggregator(4);
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+        let digest = TransactionDigest::random();
+
+        let names: Vec<_> = agg.committee.names().copied().collect();
+        let initial = names[0];
+        // One non-retriable rejection is below f+1. The two timed out
+        // answers must not lift it over the threshold.
+        set_validator_status(
+            &agg,
+            &names[1],
+            digest,
+            TxStatusUpdate::Rejected {
+                error: rejection_iota_error(),
+            },
+        );
+        for name in &names[2..] {
+            set_validator_status(&agg, name, digest, TxStatusUpdate::TimedOut);
+        }
+
+        let err = certifier
+            .corroborate_single_validator_error(
+                &agg,
+                &monitor,
+                Some(digest),
+                initial,
+                TransactionRequestError::TimedOutGettingFullEffectsAtValidator,
+                &options(),
+            )
+            .await;
+        assert!(
+            matches!(err, TransactionDriverError::SubmittedButFetchFailed { .. }),
+            "expected SubmittedButFetchFailed, got {err:?}"
+        );
+        assert_eq!(metrics.skip_cert_corroborated_rejections.get(), 0);
+        assert_eq!(metrics.skip_cert_corroboration_unreachable.get(), 1);
+    }
+
     #[tokio::test]
     async fn get_effects_without_certification_corroborates_rejection() {
         let agg = make_aggregator(4);
@@ -1369,6 +1428,41 @@ mod tests {
             "expected SubmittedButFetchFailed, got {err:?}"
         );
         assert_eq!(metrics.skip_cert_corroboration_unreachable.get(), 1);
+    }
+
+    /// A validator whose wait ended without a final status is asked again
+    /// later. Its answer is no rejection, so the fetch stays retriable.
+    #[tokio::test]
+    async fn get_effects_without_certification_retries_after_the_validator_timed_out() {
+        let agg = make_aggregator(4);
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+        let digest = TransactionDigest::random();
+
+        let names: Vec<_> = agg.committee.names().copied().collect();
+        let initial = names[0];
+        for name in &names {
+            set_validator_status(&agg, name, digest, TxStatusUpdate::TimedOut);
+        }
+
+        let err = certifier
+            .get_effects_without_certification(
+                &agg,
+                &monitor,
+                Some(digest),
+                initial,
+                TxStatusUpdate::Submitted,
+                &options(),
+            )
+            .await
+            .expect_err("fetch should fail");
+        assert!(
+            matches!(err, TransactionDriverError::SubmittedButFetchFailed { .. }),
+            "expected SubmittedButFetchFailed, got {err:?}"
+        );
+        assert!(err.is_submission_retriable(), "{err}");
+        assert_eq!(metrics.skip_cert_corroborated_rejections.get(), 0);
     }
 
     /// A retriable rejection from the submitting validator is returned without

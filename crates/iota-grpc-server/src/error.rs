@@ -310,7 +310,7 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                 };
                 RpcError::new(Code::InvalidArgument, message)
             }
-            InvalidTransaction(err) | RejectedByValidators(err) => {
+            InvalidTransaction(err) => {
                 let message = {
                     let err = match err {
                         IotaError::UserInput { error } => error.to_string(),
@@ -325,6 +325,17 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                 RpcError {
                     code: Code::InvalidArgument,
                     message: Some(message),
+                    details: Some(Box::new(details)),
+                }
+            }
+            RejectedByValidators { errors } => {
+                let mut error_info = ErrorInfo::default();
+                error_info.reason = reason;
+                error_info.domain = "iota.grpc".to_string();
+                let details = ErrorDetails::new().with_error_info(error_info);
+                RpcError {
+                    code: Code::InvalidArgument,
+                    message: Some(input_errors_message(&errors)),
                     details: Some(Box::new(details)),
                 }
             }
@@ -387,12 +398,7 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                     );
                 }
 
-                let error_list = new_errors.join(", ");
-                let error_msg = format!(
-                    "Transaction execution failed due to issues with transaction inputs, \
-                     please review the errors and try again: {error_list}."
-                );
-                RpcError::new(Code::InvalidArgument, error_msg)
+                RpcError::new(Code::InvalidArgument, input_errors_message(&new_errors))
             }
             TxAlreadyFinalizedWithDifferentUserSignatures => RpcError::new(
                 Code::Aborted,
@@ -418,9 +424,56 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
     }
 }
 
+/// Same text for a rejection by validators in both transaction flows.
+fn input_errors_message(errors: &[String]) -> String {
+    format!(
+        "Transaction execution failed due to issues with transaction inputs, please review the \
+         errors and try again: {}.",
+        errors.join(", ")
+    )
+}
+
 #[cfg(test)]
 mod tests {
+    use iota_types::{
+        error::{IotaError, UserInputError},
+        quorum_driver_types::QuorumDriverError,
+    };
+
     use super::*;
+
+    /// A rejection by the polled validators renders like the aggregator's
+    /// `NonRecoverableTransactionError` for the same reasons, with the
+    /// `ErrorInfo` reason telling the two flows apart.
+    #[test]
+    fn rejected_by_validators_renders_like_non_recoverable() {
+        let gas_too_low = UserInputError::GasBalanceTooLow {
+            gas_balance: 10,
+            needed_gas_amount: 100,
+        };
+
+        let expected_message = "Transaction execution failed due to issues with transaction \
+                                inputs, please review the errors and try again: Balance of gas \
+                                object 10 is lower than the needed amount: 100.";
+
+        let rejected = RpcError::from(QuorumDriverError::RejectedByValidators {
+            errors: vec![gas_too_low.to_string()],
+        });
+        assert_eq!(rejected.code, Code::InvalidArgument);
+        assert_eq!(rejected.message.as_deref(), Some(expected_message));
+        let reason = rejected
+            .details
+            .as_ref()
+            .and_then(|details| details.error_info.as_ref())
+            .map(|info| info.reason.as_str());
+        assert_eq!(reason, Some("REJECTED_BY_VALIDATORS"));
+
+        let non_recoverable = RpcError::from(QuorumDriverError::NonRecoverableTransactionError {
+            errors: vec![(IotaError::UserInput { error: gas_too_low }, 3334, vec![])],
+        });
+        assert_eq!(non_recoverable.code, Code::InvalidArgument);
+        assert_eq!(non_recoverable.message.as_deref(), Some(expected_message));
+    }
 
     /// Missing indexes are a client-visible contract: `FailedPrecondition`,
     /// both directly and through an anyhow chain.

@@ -20,11 +20,11 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     BalanceChange, Checkpoint, CheckpointId, CheckpointPage, DisplayFieldsResponse, EventFilter,
-    IotaEvent, IotaGetPastObjectRequest, IotaMoveStruct, IotaMoveValue, IotaMoveVariant,
-    IotaObjectData, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError,
-    IotaPastObjectResponse, IotaTransactionBlock, IotaTransactionBlockEffects,
-    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    ObjectChange, ProtocolConfigResponse, iota_primitives::SequenceNumberU64,
+    IotaEvent, IotaGetPastObjectRequest, IotaMoveValue, IotaObjectData, IotaObjectDataOptions,
+    IotaObjectResponse, IotaObjectResponseError, IotaPastObjectResponse, IotaTransactionBlock,
+    IotaTransactionBlockEffects, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, MAX_DISPLAY_OUTPUT_SIZE, ObjectChange,
+    ProtocolConfigResponse, iota_primitives::SequenceNumberU64, render_display_template,
 };
 use iota_metrics::{add_server_timing, spawn_monitored_task};
 use iota_open_rpc::Module;
@@ -60,7 +60,6 @@ use crate::{
     logger::FutureWithTracing as _,
 };
 
-const MAX_DISPLAY_NESTED_LEVEL: usize = 10;
 /// Size of buffer of concurrent tasks
 const FUTURES_BUFFERED_SIZE: usize = 10;
 
@@ -1271,22 +1270,24 @@ pub fn get_rendered_fields(
 ) -> Result<DisplayFieldsResponse, ObjectDisplayError> {
     let iota_move_value: IotaMoveValue = MoveValue::Struct(move_struct.clone()).into();
     if let IotaMoveValue::Struct(move_struct) = iota_move_value {
-        let fields =
-            fields
-                .contents
-                .iter()
-                .map(|entry| match parse_template(&entry.value, &move_struct) {
-                    Ok(value) => Ok((entry.key.clone(), value)),
-                    Err(e) => Err(e),
-                });
+        let mut output_budget = MAX_DISPLAY_OUTPUT_SIZE;
+        let fields = fields.contents.iter().map(|entry| {
+            match render_display_template(&entry.value, &move_struct, &mut output_budget) {
+                Ok(value) => Ok((entry.key.clone(), value)),
+                Err(e) => Err(e),
+            }
+        });
         let (oks, errs): (Vec<_>, Vec<_>) = fields.partition(Result::is_ok);
         let success = oks.into_iter().filter_map(Result::ok).collect();
-        let errors: Vec<_> = errs.into_iter().filter_map(Result::err).collect();
-        let error_string = errors
-            .iter()
+        let mut errors: Vec<_> = errs
+            .into_iter()
+            .filter_map(Result::err)
             .map(|e| e.to_string())
-            .collect::<Vec<String>>()
-            .join("; ");
+            .collect();
+        // Once the output limit is reached, every remaining field fails with
+        // the same error.
+        errors.dedup();
+        let error_string = errors.join("; ");
         let error = if !error_string.is_empty() {
             Some(IotaObjectResponseError::Display {
                 error: anyhow!("{error_string}").to_string(),
@@ -1301,105 +1302,6 @@ pub fn get_rendered_fields(
         });
     }
     Err(ObjectDisplayError::NotMoveStruct)?
-}
-
-fn parse_template(template: &str, move_struct: &IotaMoveStruct) -> Result<String, Error> {
-    let mut output = template.to_string();
-    let mut var_name = String::new();
-    let mut in_braces = false;
-    let mut escaped = false;
-
-    for ch in template.chars() {
-        match ch {
-            '\\' => {
-                escaped = true;
-                continue;
-            }
-            '{' if !escaped => {
-                in_braces = true;
-                var_name.clear();
-            }
-            '}' if !escaped => {
-                in_braces = false;
-                let value = get_value_from_move_struct(move_struct, &var_name)?;
-                output = output.replace(&format!("{{{var_name}}}"), &value.to_string());
-            }
-            _ if !escaped && in_braces => {
-                var_name.push(ch);
-            }
-            _ => {}
-        }
-        escaped = false;
-    }
-
-    Ok(output.replace('\\', ""))
-}
-
-fn get_value_from_move_struct(
-    move_struct: &IotaMoveStruct,
-    var_name: &str,
-) -> Result<String, Error> {
-    let parts: Vec<&str> = var_name.split('.').collect();
-    if parts.is_empty() {
-        Err(anyhow!("Display template value cannot be empty"))?;
-    }
-    if parts.len() > MAX_DISPLAY_NESTED_LEVEL {
-        Err(anyhow!(
-            "Display template value nested depth cannot exist {MAX_DISPLAY_NESTED_LEVEL}"
-        ))?;
-    }
-    let mut current_value = &IotaMoveValue::Struct(move_struct.clone());
-    // iterate over the parts and try to access the corresponding field
-    for part in parts {
-        match current_value {
-            IotaMoveValue::Struct(move_struct) => {
-                if let IotaMoveStruct::WithTypes {
-                    struct_tag: _,
-                    fields,
-                }
-                | IotaMoveStruct::WithFields(fields) = move_struct
-                {
-                    if let Some(value) = fields.get(part) {
-                        current_value = value;
-                    } else {
-                        Err(anyhow!("Field value {var_name} cannot be found in struct"))?;
-                    }
-                } else {
-                    Err(Error::Unexpected(format!(
-                        "Unexpected move struct type for field {var_name}"
-                    )))?;
-                }
-            }
-            IotaMoveValue::Variant(IotaMoveVariant {
-                fields, variant, ..
-            }) => {
-                if let Some(value) = fields.get(part) {
-                    current_value = value;
-                } else {
-                    Err(anyhow!(
-                        "Field value {var_name} cannot be found in variant {variant}",
-                    ))?
-                }
-            }
-            _ => {
-                Err(Error::Unexpected(format!(
-                    "Unexpected move value type for field {var_name}"
-                )))?;
-            }
-        }
-    }
-
-    match current_value {
-        IotaMoveValue::Option(move_option) => match move_option.as_ref() {
-            Some(move_value) => Ok(move_value.to_string()),
-            None => Ok("".to_string()),
-        },
-        IotaMoveValue::Vector(_) => Err(anyhow!(
-            "Vector is not supported as a Display value {var_name}"
-        ))?,
-
-        _ => Ok(current_value.to_string()),
-    }
 }
 
 async fn convert_to_response<S: PackageStore>(

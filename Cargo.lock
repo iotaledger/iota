@@ -6671,14 +6671,17 @@ version = "1.36.0-alpha"
 dependencies = [
  "axum 0.8.8",
  "bytes",
- "fastcrypto",
+ "futures",
+ "h2",
  "http 1.5.0",
  "http-body 1.0.1",
  "http-body-util",
  "hyper",
  "hyper-util",
  "iota-metrics",
+ "iota-sdk-crypto",
  "iota-tls",
+ "parking_lot 0.12.3",
  "pin-project-lite",
  "prometheus-filtered",
  "reqwest 0.13.5",
@@ -7108,7 +7111,6 @@ dependencies = [
  "bin-version",
  "clap",
  "colored",
- "fastcrypto",
  "iota-common",
  "iota-config",
  "iota-faucet",
@@ -7213,7 +7215,6 @@ name = "iota-metrics-push-client"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "fastcrypto",
  "iota-metrics",
  "iota-tls",
  "iota-types",
@@ -7359,7 +7360,6 @@ dependencies = [
  "bcs 0.2.1",
  "bytes",
  "dashmap",
- "ed25519-consensus",
  "fastcrypto",
  "fastcrypto-tbls",
  "futures",
@@ -7372,6 +7372,7 @@ dependencies = [
  "iota-multiaddr",
  "iota-network-stack",
  "iota-protocol-config",
+ "iota-sdk-crypto",
  "iota-sdk-types",
  "iota-simulator",
  "iota-storage",
@@ -7403,7 +7404,6 @@ dependencies = [
  "bcs 0.2.1",
  "bytes",
  "eyre",
- "fastcrypto",
  "futures",
  "http 1.5.0",
  "http-body 1.0.1",
@@ -7414,12 +7414,12 @@ dependencies = [
  "iota-http",
  "iota-metrics",
  "iota-multiaddr",
+ "iota-sdk-crypto",
  "iota-tls",
  "multiaddr",
  "once_cell",
  "pin-project-lite",
  "prometheus-filtered",
- "rand 0.8.6",
  "serde",
  "snap",
  "tokio",
@@ -7462,6 +7462,7 @@ dependencies = [
  "iota-network-stack",
  "iota-node-transaction-builder",
  "iota-protocol-config",
+ "iota-sdk-crypto",
  "iota-sdk-types",
  "iota-simulator",
  "iota-snapshot",
@@ -7658,12 +7659,12 @@ dependencies = [
  "bytes",
  "clap",
  "const-str",
- "fastcrypto",
  "git-version",
  "hex",
  "hyper",
  "iota-metrics",
  "iota-sdk",
+ "iota-sdk-crypto",
  "iota-sdk-move-types",
  "iota-sdk-types",
  "iota-tls",
@@ -7676,7 +7677,6 @@ dependencies = [
  "prost 0.14.3",
  "prost-build",
  "protobuf",
- "rand 0.8.6",
  "reqwest 0.13.5",
  "rustls",
  "serde",
@@ -8342,9 +8342,9 @@ dependencies = [
  "axum 0.8.8",
  "axum-server",
  "ed25519 2.2.3",
- "fastcrypto",
+ "iota-sdk-crypto",
+ "iota-sdk-types",
  "pkcs8 0.10.2",
- "rand 0.8.6",
  "rcgen",
  "reqwest 0.13.5",
  "rustls",
@@ -10351,7 +10351,7 @@ dependencies = [
 [[package]]
 name = "msim"
 version = "0.1.0"
-source = "git+https://github.com/iotaledger/iota-sim.git?branch=tokio-1.53.3#c1614cba95bde47819471ae90ed9207182548a40"
+source = "git+https://github.com/iotaledger/iota-sim.git?rev=c1614cba95bde47819471ae90ed9207182548a40#c1614cba95bde47819471ae90ed9207182548a40"
 dependencies = [
  "ahash 0.8.11",
  "async-task",
@@ -10379,7 +10379,7 @@ dependencies = [
 [[package]]
 name = "msim-macros"
 version = "0.1.0"
-source = "git+https://github.com/iotaledger/iota-sim.git?branch=tokio-1.53.3#c1614cba95bde47819471ae90ed9207182548a40"
+source = "git+https://github.com/iotaledger/iota-sim.git?rev=c1614cba95bde47819471ae90ed9207182548a40#c1614cba95bde47819471ae90ed9207182548a40"
 dependencies = [
  "darling 0.14.4",
  "proc-macro2",
@@ -14121,6 +14121,7 @@ dependencies = [
  "fastcrypto",
  "insta",
  "iota-network-stack",
+ "iota-sdk-crypto",
  "iota-sdk-types",
  "rand 0.8.6",
  "rs_merkle",
