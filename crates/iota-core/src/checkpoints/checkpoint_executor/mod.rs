@@ -749,7 +749,7 @@ impl CheckpointExecutor {
     /// synced checkpoints for the rest of the epoch instead, switching first
     /// when the certified last checkpoint of the epoch becomes known.
     ///
-    /// For a committee validator keeping the deterministic validation
+    /// Called only on a committee validator keeping the P-COOL flow's
     /// bookkeeping, which writes a transaction's handler rows only when the
     /// consensus handler has assigned its commit. Until the switch only the
     /// handler schedules these transactions, so they execute with their rows.

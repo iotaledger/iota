@@ -288,14 +288,14 @@ mod checked {
     /// the authentication execution and then reuses these for the normal
     /// transaction execution.
     /// When consensus cancelled the transaction, no authenticator runs and
-    /// the effects carry the cancellation; with deterministic validation on, a
-    /// gas owner that is a Move account is then not charged. Otherwise, running
+    /// the effects carry the cancellation; with the P-COOL flow on, a gas
+    /// owner that is a Move account is then not charged. Otherwise, running
     /// the Move authentication can have two outcomes:
     ///   - If it fails, then it charges gas for the failed execution of the authentication and
-    ///     produces transaction effects with the appropriate error status. With deterministic
-    ///     validation on, a gas owner that is a Move account and did not authorize the transaction
-    ///     is not charged; see `execute_without_gas_charge_to_effects`. A gas owner that did
-    ///     authorize it is charged, and every owned input moves to its next version.
+    ///     produces transaction effects with the appropriate error status. With the P-COOL flow on,
+    ///     a gas owner that is a Move account and did not authorize the transaction is not charged;
+    ///     see `execute_without_gas_charge_to_effects`. A gas owner that did authorize it is
+    ///     charged, and every owned input moves to its next version.
     ///   - Else, if the authentication is successful, it continues with the normal transaction
     ///     execution.
     /// It combines the input objects from both the authentication and
@@ -396,7 +396,7 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
-        let deterministic_validation = protocol_config.enable_pcool_flow();
+        let enable_pcool = protocol_config.enable_pcool_flow();
         let run_authenticator =
             |temporary_store: &mut TemporaryStore<'_>,
              gas_charger: &mut GasCharger,
@@ -438,8 +438,8 @@ mod checked {
         // consensus. A Move account did only if its authenticator ran and
         // succeeded.
         //
-        // Under deterministic validation the gas owner's authenticator runs
-        // first, and also after another account failed to resolve, so whether
+        // Under the P-COOL flow the gas owner's authenticator runs first, and
+        // also after another account failed to resolve, so whether
         // the gas owner authorized does not depend on the order of the
         // signatures. When it fails, its failure is the one reported.
         //
@@ -471,7 +471,7 @@ mod checked {
                             (Err(error), true)
                         } else {
                             match gas_owner_authenticator
-                                .filter(|_| deterministic_validation)
+                                .filter(|_| enable_pcool)
                                 .map(|gas_owner_authenticator| *gas_owner_authenticator)
                             {
                                 Some(MoveAuthenticatorForExecution {
@@ -539,7 +539,7 @@ mod checked {
                             )
                             .collect::<Vec<_>>();
 
-                        if deterministic_validation {
+                        if enable_pcool {
                             if let Some(position) =
                                 authenticators.iter().position(|(authenticator, ..)| {
                                     authenticator.address() == gas_owner
@@ -594,8 +594,8 @@ mod checked {
             }
         };
 
-        // Under deterministic validation, the gas owner's authenticator runs for
-        // the first time here, so a transaction it did not authorize can reach
+        // Under the P-COOL flow, the gas owner's authenticator runs for the
+        // first time here, so a transaction it did not authorize can reach
         // execution. Nobody pays for it.
         let authentication_execution_result = match authentication_execution_result {
             Err(error) if !gas_owner_authorized && protocol_config.enable_pcool_flow() => {

@@ -38,15 +38,11 @@ pub const CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS: usize = 1000;
 /// Returns `Ok(())` if no input or receiving object's coin type is on a deny
 /// list for the given `address`.
 ///
-/// With `cur_epoch = None`, the check reads the latest deny-list value, so
-/// denials take effect immediately; the result depends on how far the
-/// validator's execution has progressed, making it suitable only for
-/// validator-local decisions, such as pre-consensus admission. With
-/// `Some(epoch)`, the read is gated to the value settled before that epoch
-/// (entries written in epoch `E` activate in `E + 1`), making the result
-/// deterministic across validators, as post-consensus validation without
-/// deterministic validation needs. With deterministic validation,
-/// post-consensus validation uses [`coin_deny_list_v1_denial`] instead.
+/// The check reads the latest deny-list value, so denials take effect
+/// immediately; the result depends on how far the validator's execution has
+/// progressed, making it suitable only for validator-local decisions, such as
+/// pre-consensus admission. Post-consensus validation uses
+/// [`coin_deny_list_v1_denial`] instead.
 #[instrument(level = "trace", skip_all)]
 pub fn check_coin_deny_list_v1(
     address: Address,
@@ -54,7 +50,6 @@ pub fn check_coin_deny_list_v1(
     tx_receiving_objects: &ReceivingObjects,
     per_authenticator_input_objects: &Vec<&CheckedInputObjects>,
     object_store: &dyn ObjectStore,
-    cur_epoch: Option<EpochId>,
 ) -> UserInputResult {
     let coin_types = input_object_coin_types_for_denylist_check(
         tx_input_objects,
@@ -62,7 +57,7 @@ pub fn check_coin_deny_list_v1(
         per_authenticator_input_objects,
     );
 
-    match coin_type_denial(address, coin_types, object_store, cur_epoch) {
+    match coin_type_denial(address, coin_types, object_store) {
         Some(CoinTypeDenial::GlobalPause(coin_type)) => {
             Err(UserInputError::CoinTypeGlobalPause { coin_type })
         }
@@ -75,9 +70,9 @@ pub fn check_coin_deny_list_v1(
 
 /// Fails if `sender` is denied for one of `coin_types`, or one of them is
 /// paused for every address. `coin_types` are the coin types of the coins the
-/// Move code received. This is the check that [`check_coin_deny_list_v1`]
-/// makes before submission, with the deny list read as it stood at the start
-/// of `cur_epoch`, so every validator reaches the same result.
+/// Move code received. This is the check that [`check_coin_deny_list_v1`] makes
+/// before submission, here with the deny list read as it stood at the start of
+/// `cur_epoch`, so every validator reaches the same result.
 ///
 /// # Panics
 ///
@@ -108,11 +103,10 @@ pub fn check_coin_deny_list_v1_for_sender_during_execution(
     }
 }
 
-/// The error [`check_coin_deny_list_v1`] gives with `cur_epoch = None` when
-/// `address` may not use one of `coin_types`, or `None` if it may use them
-/// all. Types are checked in sorted order, and for each type a global pause
-/// before a denial of `address`, so the same deny list always gives the same
-/// error.
+/// The error [`check_coin_deny_list_v1`] gives when `address` may not use one
+/// of `coin_types`, or `None` if it may use them all. Types are checked in
+/// sorted order, and for each type a global pause before a denial of `address`,
+/// so the same deny list always gives the same error.
 ///
 /// Meant for post-consensus validation, where `object_store` answers as of a
 /// commit: a missing deny-list entry reads as not denied, and any other error
@@ -156,27 +150,24 @@ enum CoinTypeDenial {
 
 /// Returns the first of `coin_types` (in sorted order) that `address` may
 /// not use, with the reason, or `None` if it may use them all. For each type,
-/// a global pause is checked before a denial of `address`. `cur_epoch` is
-/// `None` to read the latest deny list, or `Some(epoch)` to read it as it
-/// stood at the start of `epoch`. Every error of `object_store` reads as not
-/// denied, as for [`get_per_type_coin_deny_list_v1`];
-/// [`try_coin_type_denial`] returns them.
+/// a global pause is checked before a denial of `address`, in the latest deny
+/// list. Every error of `object_store` reads as not denied, as for
+/// [`get_per_type_coin_deny_list_v1`]; [`try_coin_type_denial`] returns them.
 fn coin_type_denial(
     address: Address,
     coin_types: BTreeSet<String>,
     object_store: &dyn ObjectStore,
-    cur_epoch: Option<EpochId>,
 ) -> Option<CoinTypeDenial> {
     for coin_type in coin_types {
         let Some(deny_list) = get_per_type_coin_deny_list_v1(&coin_type, object_store) else {
             continue;
         };
 
-        if check_global_pause(&deny_list, object_store, cur_epoch) {
+        if check_global_pause(&deny_list, object_store, None) {
             return Some(CoinTypeDenial::GlobalPause(coin_type));
         }
 
-        if check_address_denied_by_config(&deny_list, address, object_store, cur_epoch) {
+        if check_address_denied_by_config(&deny_list, address, object_store, None) {
             return Some(CoinTypeDenial::AddressDenied(coin_type));
         }
     }
