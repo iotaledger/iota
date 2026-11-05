@@ -429,7 +429,7 @@ impl DiscoveryEventLoop {
                     && !state.connected_peers.contains_key(&peer_id) // We're not already connected
                     && !self.pending_dials.contains_key(&peer_id) // There is no pending dial to this node
             })
-            .map(|(&peer_id, info)| (peer_id, info.clone()))
+            .map(|(&peer_id, info)| (peer_id, info))
             .collect();
 
         // No need to connect to any more peers if we're already connected to a bunch
@@ -1208,7 +1208,55 @@ async fn update_known_peers(
         for (verified_peer, _) in verified_peers {
             insert_or_update_peer(&mut state_guard, verified_peer, &metrics);
         }
+
+        evict_oldest_known_peers(
+            &mut state_guard,
+            config.max_known_peers(),
+            &allowlisted_peers,
+            &metrics,
+        );
     }
+}
+
+/// Removes the known peers with the oldest timestamps until at most
+/// `max_known_peers` remain. Connected and allowlisted peers are never removed,
+/// so the table can stay above the limit if those alone exceed it.
+fn evict_oldest_known_peers(
+    state: &mut State,
+    max_known_peers: usize,
+    allowlisted_peers: &HashMap<PeerId, Option<Multiaddr>>,
+    metrics: &Metrics,
+) {
+    let excess = state.known_peers.len().saturating_sub(max_known_peers);
+    if excess == 0 {
+        return;
+    }
+
+    let mut candidates: Vec<(u64, PeerId)> = state
+        .known_peers
+        .iter()
+        .filter(|(peer_id, _)| {
+            !state.connected_peers.contains_key(peer_id) && !allowlisted_peers.contains_key(peer_id)
+        })
+        .map(|(peer_id, info)| (info.timestamp_ms, *peer_id))
+        .collect();
+
+    let number_to_evict = excess.min(candidates.len());
+    if number_to_evict == 0 {
+        return;
+    }
+
+    candidates.select_nth_unstable(number_to_evict - 1);
+    for (_, peer_id) in &candidates[..number_to_evict] {
+        if let Some(removed) = state.known_peers.remove(peer_id) {
+            if !removed.addresses.is_empty() {
+                metrics.dec_num_peers_with_external_address();
+            }
+        }
+    }
+    debug!(
+        "Evicted {number_to_evict} oldest known peers to stay within the limit of {max_known_peers}"
+    );
 }
 
 /// Inserts or updates a peer in the known peers list.

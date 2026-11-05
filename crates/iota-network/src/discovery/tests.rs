@@ -2161,3 +2161,86 @@ async fn test_construct_our_info_address_filtering() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_known_peers_limit_evicts_oldest_peers() -> Result<()> {
+    let (discovery, _server, network, key) =
+        set_up_network(default_p2p_config_with_private_addresses_allowed(), None);
+    let now = now_unix();
+    let our_info = NodeInfo {
+        peer_id: network.peer_id(),
+        addresses: vec![local_multiaddr_from_network(&network)],
+        timestamp_ms: now,
+        access_type: AccessType::Public,
+    }
+    .sign(&key);
+    let (_event_loop, _handle, state) = start_network(discovery, network.clone(), key);
+    state.write().unwrap().our_info = Some(our_info);
+
+    let signed_peer_info = |timestamp_ms: u64, port: u16| {
+        let key = NetworkKeyPair::random();
+        NodeInfo {
+            peer_id: anemo::PeerId(key.public_key().into_bytes()),
+            addresses: vec![format!("/dns/localhost/udp/{port}").parse().unwrap()],
+            timestamp_ms,
+            access_type: AccessType::Public,
+        }
+        .sign(&key)
+    };
+
+    // Four existing peers, oldest first. The oldest one is connected.
+    let existing_peers: Vec<_> = (0..4u16)
+        .map(|i| signed_peer_info(now - 4_000 + u64::from(i) * 1_000, 1000 + i))
+        .collect();
+    {
+        let mut state_guard = state.write().unwrap();
+        for peer in &existing_peers {
+            state_guard.known_peers.insert(
+                peer.peer_id,
+                VerifiedSignedNodeInfo::new_from_verified(peer.clone()),
+            );
+        }
+        state_guard
+            .connected_peers
+            .insert(existing_peers[0].peer_id, ());
+    }
+
+    // Two new allowlisted peers, which are added without address verification.
+    let new_peers: Vec<_> = (0..2u16).map(|i| signed_peer_info(now, 2000 + i)).collect();
+    let allowlisted_peers: HashMap<_, _> =
+        new_peers.iter().map(|peer| (peer.peer_id, None)).collect();
+
+    let config = DiscoveryConfig {
+        allow_private_addresses: Some(true),
+        max_known_peers: Some(4),
+        ..Default::default()
+    };
+    update_known_peers(
+        &network,
+        state.clone(),
+        Metrics::disabled(),
+        new_peers.clone(),
+        Arc::new(allowlisted_peers),
+        &config,
+    )
+    .await;
+
+    assert_known_peers_count(&state, 4, "Should keep 4 known peers but got {}");
+    for (peer, should_be_known) in [
+        (&existing_peers[0], true),
+        (&existing_peers[1], false),
+        (&existing_peers[2], false),
+        (&existing_peers[3], true),
+        (&new_peers[0], true),
+        (&new_peers[1], true),
+    ] {
+        assert_peer_in_known_peers(
+            &state,
+            &peer.peer_id,
+            should_be_known,
+            "Unexpected known peers state for peer {}",
+        );
+    }
+
+    Ok(())
+}
