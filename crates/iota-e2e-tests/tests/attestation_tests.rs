@@ -805,8 +805,8 @@ fn abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
 /// whose Move authentication fails in its dry run, the other replaces the
 /// object versions it records. Every validator must judge such an attestation
 /// alike, whatever earlier epochs of object versions it keeps: the same
-/// verdicts, the same certified records and totals, and the same penalty at
-/// the epoch end.
+/// verdicts and with them the same effects, the same certified records and
+/// totals, and the same penalty at the epoch end.
 ///
 /// Fail points exist only under the simulator or the `fail_points` cfg, and
 /// simulator node ids only under the simulator, where every node runs on the
@@ -822,8 +822,8 @@ mod faulty_attestor {
     use iota_node::IotaNodeHandle;
     use iota_protocol_config::{OverrideGuard, ProtocolConfig};
     use iota_sdk_types::{
-        EndOfEpochTransactionKind, ExecutionError, ExecutionStatus, SignatureScheme,
-        TransactionEffects, TransactionKind,
+        EndOfEpochTransactionKind, ExecutionError, ExecutionStatus, GasCostSummary,
+        SignatureScheme, TransactionEffects, TransactionKind,
     };
     use iota_simulator::task::NodeId;
     use iota_types::{
@@ -832,6 +832,7 @@ mod faulty_attestor {
         crypto::PublicKey,
         iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
         messages_checkpoint::CheckpointSequenceNumber,
+        object::Object,
         storage::ObjectKey,
     };
     use tokio::time::{sleep, timeout};
@@ -854,11 +855,18 @@ mod faulty_attestor {
     /// an epoch.
     const EPOCH_DURATION_MS: u64 = 3_600_000;
 
+    /// The balance of each gas coin the faucet sends the account.
+    const GAS_COIN_BALANCE: u64 = 20_000_000_000;
+    /// The amount the body of an account transaction moves from its gas coin
+    /// to the account.
+    const BODY_TRANSFER_AMOUNT: u64 = 1;
+
     /// The protocol config's `attestation_max_fault_units`: one refuted
     /// attestation that wasted this many units takes the attestor's whole
-    /// score, and a smaller one the square of its fraction. The test's refuted
-    /// re-run wastes one `gas_rounding_step` of 1,000 units, so its cut is a
-    /// small part of the score.
+    /// score, and a smaller one the square of its fraction. A refuted
+    /// attestation of the test wastes one `gas_rounding_step` of 1,000 units
+    /// in execution's run, and the one the judge re-runs another in the
+    /// re-run, so the cut is a small part of the score.
     const MAX_FAULT_UNITS: u64 = 50_000;
 
     /// The score every validator gets while the protocol feature flag
@@ -886,19 +894,22 @@ mod faulty_attestor {
         })
     }
 
-    /// The verdict every node must reach on a scenario's attestation.
+    /// The verdict every node must reach on a scenario's attestation, with who
+    /// pays for the transaction and what the record carries.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     enum ExpectedVerdict {
         /// The attestation is valid: the body ran, or the judge's re-run at the
-        /// recorded versions passed.
+        /// recorded versions passed. The gas owner pays, and no record is
+        /// certified.
         Valid,
         /// The attestation is refuted without a re-run: the failure reproduces
         /// at the recorded versions, or a recorded version refutes the
-        /// attestation on its own.
+        /// attestation on its own. Nobody pays, and the record carries the
+        /// units of execution's own run.
         Refuted,
         /// The attestation is refuted by the judge's re-run, which fails at the
-        /// recorded versions too, so the record carries the units the re-run
-        /// wasted.
+        /// recorded versions too. Nobody pays, and the record carries the units
+        /// of execution's own run and of the re-run.
         RefutedByRerun,
     }
 
@@ -925,12 +936,14 @@ mod faulty_attestor {
     /// at versions superseded this epoch, so that validator refutes like the
     /// others.
     ///
-    /// Every node must execute each transaction with the same effects. Every
-    /// validator must build the checkpoints as certified and record the
-    /// verdict the checkpoint certifies, or [`Valid`] where it certifies none.
-    /// The fullnode must copy the certified records. The change epoch
-    /// transaction must cut the attestor's score by the certified totals and
-    /// leave the other scores whole.
+    /// Every node must execute each transaction with the same effects, which
+    /// charge the gas owner for a valid attestation and nobody for a refuted
+    /// one. Every validator must build the checkpoints as certified and record
+    /// the verdict the checkpoint certifies, or [`Valid`] where it certifies
+    /// none. The fullnode must copy the certified records. The refutation by
+    /// the re-run must carry more units than the refutations without one. The
+    /// change epoch transaction must cut the attestor's score by the certified
+    /// totals and leave the other scores whole.
     ///
     /// [`Valid`]: AttestationVerdict::Valid
     /// [`Refuted`]: AttestationVerdict::Refuted
@@ -1082,6 +1095,12 @@ mod faulty_attestor {
                 scenario.name
             );
             assert_status(scenario, &effects[0]);
+            let gas_coin = env
+                .test_cluster
+                .get_object_from_fullnode_store(effects[0].gas_object().reference().object_id())
+                .await
+                .expect("the fullnode holds the gas coin");
+            assert_payment(scenario, &effects[0], &gas_coin);
         }
 
         // A different verdict or total on a validator would change the
@@ -1107,6 +1126,33 @@ mod faulty_attestor {
         );
         for scenario in &scenarios {
             env.assert_records(scenario, certified.get(&scenario.digest).copied());
+        }
+        // Execution's own run counts whether or not the judge re-runs, so the
+        // refutation by the re-run carries more units than the others.
+        let refuted_units = |expected_verdict| {
+            scenarios
+                .iter()
+                .filter(|scenario| scenario.expected_verdict == expected_verdict)
+                .map(|scenario| {
+                    let AttestationVerdict::Refuted { units } = certified[&scenario.digest].verdict
+                    else {
+                        panic!("{}: the record is refuted", scenario.name)
+                    };
+
+                    units
+                })
+                .collect::<Vec<_>>()
+        };
+        let most_without_rerun = refuted_units(ExpectedVerdict::Refuted)
+            .into_iter()
+            .max()
+            .expect("scenarios are refuted without a re-run");
+        for units in refuted_units(ExpectedVerdict::RefutedByRerun) {
+            assert!(
+                units > most_without_rerun,
+                "the refutation by the re-run must add the re-run's units to execution's: \
+                 {units} vs {most_without_rerun}"
+            );
         }
 
         let attestor_index = env.authority_index(&attestor);
@@ -1404,27 +1450,28 @@ mod faulty_attestor {
             Ok(builder.finish())
         }
 
-        /// Sends the account a new gas coin from the faucet and returns the
-        /// coin's reference.
+        /// Sends the account a new gas coin of [`GAS_COIN_BALANCE`] from the
+        /// faucet and returns the coin's reference.
         async fn fund_account(&self) -> anyhow::Result<ObjectReference> {
             let account = self.account_address()?;
             let rgp = self.test_cluster.get_reference_gas_price().await;
 
             Ok(self
                 .test_cluster
-                .fund_address_and_return_gas(rgp, Some(20_000_000_000), account)
+                .fund_address_and_return_gas(rgp, Some(GAS_COIN_BALANCE), account)
                 .await)
         }
 
-        /// Crafts a transaction of the account that only moves the account's
-        /// own gas, paid with a new coin from [`Self::fund_account()`]. The
-        /// transaction's body leaves the account object alone, so only the key
-        /// rotations move the account's version.
+        /// Crafts a transaction of the account whose body only moves
+        /// [`BODY_TRANSFER_AMOUNT`] from its gas coin, a new coin from
+        /// [`Self::fund_account()`], to the account. The body leaves the
+        /// account object alone, so only the key rotations move the account's
+        /// version.
         async fn craft_account_transaction(&self) -> anyhow::Result<Transaction> {
             let account = self.account_address()?;
             let gas = self.fund_account().await?;
             let mut builder = ProgrammableTransactionBuilder::new();
-            builder.transfer_iota(account, Some(1));
+            builder.transfer_iota(account, Some(BODY_TRANSFER_AMOUNT));
 
             self.craft_tx_from_pt(builder.finish(), gas, account).await
         }
@@ -1538,10 +1585,7 @@ mod faulty_attestor {
             let certified_verdict = certified.map(|record| record.verdict);
             let matches_scenario = match scenario.expected_verdict {
                 ExpectedVerdict::Valid => certified_verdict.is_none(),
-                ExpectedVerdict::Refuted => {
-                    matches!(certified_verdict, Some(AttestationVerdict::Refuted { .. }))
-                }
-                ExpectedVerdict::RefutedByRerun => matches!(
+                ExpectedVerdict::Refuted | ExpectedVerdict::RefutedByRerun => matches!(
                     certified_verdict,
                     Some(AttestationVerdict::Refuted { units }) if units > 0
                 ),
@@ -1608,6 +1652,61 @@ mod faulty_attestor {
                 "{}: expected a Move authentication failure, got {status:?}",
                 scenario.name
             );
+        }
+    }
+
+    /// Asserts who the effects charge for the scenario's transaction, as its
+    /// [`ExpectedVerdict`] says. `gas_coin` is the transaction's gas coin as
+    /// the fullnode holds it after the execution, which must be at the
+    /// reference the effects name. When the gas owner pays, its balance is
+    /// [`GAS_COIN_BALANCE`] less the charge and what the body moved. When
+    /// nobody pays, its balance is untouched.
+    fn assert_payment(scenario: &Scenario, effects: &TransactionEffects, gas_coin: &Object) {
+        assert_eq!(
+            &gas_coin.object_ref(),
+            effects.gas_object().reference(),
+            "{}: the fullnode holds the gas coin as the effects name it",
+            scenario.name
+        );
+        let summary = effects.gas_cost_summary();
+        let balance = gas_coin
+            .as_coin_maybe()
+            .expect("the gas object is a coin")
+            .value();
+        match scenario.expected_verdict {
+            ExpectedVerdict::Valid => {
+                assert!(
+                    summary.gas_used() > 0,
+                    "{}: the gas owner must be charged, got {summary:?}",
+                    scenario.name
+                );
+                let charge = u64::try_from(summary.net_gas_usage())
+                    .expect("the charge exceeds the storage rebate");
+                let moved_by_the_body = if scenario.authenticates {
+                    BODY_TRANSFER_AMOUNT
+                } else {
+                    0
+                };
+                assert_eq!(
+                    balance,
+                    GAS_COIN_BALANCE - charge - moved_by_the_body,
+                    "{}: the gas coin must pay the charge",
+                    scenario.name
+                );
+            }
+            ExpectedVerdict::Refuted | ExpectedVerdict::RefutedByRerun => {
+                assert_eq!(
+                    summary,
+                    &GasCostSummary::default(),
+                    "{}: nobody pays for a refuted attestation",
+                    scenario.name
+                );
+                assert_eq!(
+                    balance, GAS_COIN_BALANCE,
+                    "{}: the gas coin's balance stays untouched",
+                    scenario.name
+                );
+            }
         }
     }
 
