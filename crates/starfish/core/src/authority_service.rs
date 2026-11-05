@@ -41,10 +41,10 @@ use crate::{
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
     network::{
-        BlockBundleStream, FetchedCommitsAndTransactions, NetworkService, SerializedBlock,
-        SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
-        SerializedTransactionsV2, StreamPosition, TransactionChunkStream,
-        tonic_network::MAX_FETCH_RESPONSE_BYTES,
+        AdmissionGuard, BlockBundleStream, FetchedCommitsAndTransactions, NetworkService,
+        SerializedBlock, SerializedBlockBundle, SerializedBlockBundleParts,
+        SerializedHeaderAndTransactions, SerializedTransactionsV2, StreamPosition,
+        TransactionChunkStream, tonic_network::MAX_FETCH_RESPONSE_BYTES,
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -1031,22 +1031,32 @@ impl TransactionCursor {
 
 /// Serves `cursor` as a stream, building each chunk on the blocking pool when
 /// the transport asks for it.
-fn transaction_chunk_stream(cursor: TransactionCursor) -> TransactionChunkStream {
-    stream::unfold(Some(cursor), |state| async move {
-        let mut cursor = state?;
-        let (cursor, chunk) = match spawn_blocking(move || {
-            let chunk = cursor.next_chunk();
-            (cursor, chunk)
-        })
-        .await
-        {
-            Ok(built) => built,
-            Err(e) => return Some((Err(e), None)),
-        };
-        match chunk {
-            Ok(Some(chunk)) => Some((Ok(chunk), Some(cursor))),
-            Ok(None) => None,
-            Err(e) => Some((Err(e), None)),
+fn transaction_chunk_stream(
+    cursor: TransactionCursor,
+    admission: Option<Arc<AdmissionGuard>>,
+) -> TransactionChunkStream {
+    stream::unfold(Some(cursor), move |state| {
+        let admission = admission.clone();
+        async move {
+            let mut cursor = state?;
+            let (cursor, chunk) = match spawn_blocking(move || {
+                // A blocking read cannot be stopped, so it outlives a response
+                // the peer cancels. Holding the slot until it ends keeps the
+                // peer's running reads within its admission limit.
+                let _admission = admission;
+                let chunk = cursor.next_chunk();
+                (cursor, chunk)
+            })
+            .await
+            {
+                Ok(built) => built,
+                Err(e) => return Some((Err(e), None)),
+            };
+            match chunk {
+                Ok(Some(chunk)) => Some((Ok(chunk), Some(cursor))),
+                Ok(None) => None,
+                Err(e) => Some((Err(e), None)),
+            }
         }
     })
     .boxed()
@@ -1825,6 +1835,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
+        admission: Option<Arc<AdmissionGuard>>,
     ) -> ConsensusResult<FetchedCommitsAndTransactions> {
         fail_point_async!("consensus-rpc-response");
 
@@ -1856,13 +1867,16 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 first_commit_refs,
             )?;
         }
-        let transactions = transaction_chunk_stream(TransactionCursor::new(
-            self.context.clone(),
-            self.store.clone(),
-            self.dag_state.clone(),
-            MAX_FETCH_RESPONSE_BYTES,
-            commits_transaction_refs,
-        ));
+        let transactions = transaction_chunk_stream(
+            TransactionCursor::new(
+                self.context.clone(),
+                self.store.clone(),
+                self.dag_state.clone(),
+                MAX_FETCH_RESPONSE_BYTES,
+                commits_transaction_refs,
+            ),
+            admission,
+        );
 
         let serialized_commits: Vec<Bytes> = commits
             .into_iter()
@@ -2249,8 +2263,8 @@ mod tests {
     use rstest::rstest;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::{
-        sync::{broadcast, mpsc},
-        time::sleep,
+        sync::{Semaphore, broadcast, mpsc},
+        time::{sleep, timeout},
     };
 
     use crate::{
@@ -2287,10 +2301,10 @@ mod tests {
         leader_schedule::LeaderSchedule,
         misbehavior_store::MisbehaviorStore,
         network::{
-            BlockBundle, BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient,
-            NetworkService, SerializedBlock, SerializedBlockBundle, SerializedBlockBundleParts,
-            SerializedHeaderAndTransactions, SerializedTransactionsV2, StreamPosition,
-            tonic_network::MAX_FETCH_RESPONSE_BYTES,
+            AdmissionGuard, BlockBundle, BlockBundleStream, FetchedCommitsAndTransactions,
+            NetworkClient, NetworkService, SerializedBlock, SerializedBlockBundle,
+            SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV2,
+            StreamPosition, tonic_network::MAX_FETCH_RESPONSE_BYTES,
         },
         shard_reconstructor::TransactionMessage,
         storage::{Store, WriteBatch, mem_store::MemStore},
@@ -6334,13 +6348,16 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = dag_state_reading_from_the_store(&context, store.clone());
         let commits_transaction_refs = refs_by_round(&blocks);
-        let mut transactions = transaction_chunk_stream(TransactionCursor::new(
-            context,
-            store.clone(),
-            dag_state,
-            MAX_FETCH_RESPONSE_BYTES,
-            commits_transaction_refs.clone(),
-        ));
+        let mut transactions = transaction_chunk_stream(
+            TransactionCursor::new(
+                context,
+                store.clone(),
+                dag_state,
+                MAX_FETCH_RESPONSE_BYTES,
+                commits_transaction_refs.clone(),
+            ),
+            None,
+        );
 
         // Written after the response was built: an eager reader would have
         // found none of them.
@@ -6349,6 +6366,53 @@ mod tests {
         let chunk = transactions.next().await.unwrap().unwrap();
         assert_eq!(entry_refs(&chunk), commits_transaction_refs.concat());
         assert!(transactions.next().await.is_none());
+    }
+
+    /// A read still running when the response is dropped keeps the admission
+    /// slot until it ends, so a peer that cancels its fetches cannot run more
+    /// reads than it has slots.
+    #[tokio::test]
+    async fn a_running_read_keeps_the_admission_slot_after_the_response_is_dropped() {
+        let blocks = two_rounds_of_payloads();
+        let context = context_with_budget(usize::MAX);
+        let store = Arc::new(MemStore::new());
+        write_payloads(&store, &blocks);
+        let dag_state = dag_state_reading_from_the_store(&context, store.clone());
+        let slots = Arc::new(Semaphore::new(1));
+        let admission = AdmissionGuard::holding(slots.clone().try_acquire_owned().unwrap());
+        let mut transactions = transaction_chunk_stream(
+            TransactionCursor::new(
+                context,
+                store,
+                dag_state.clone(),
+                MAX_FETCH_RESPONSE_BYTES,
+                refs_by_round(&blocks),
+            ),
+            Some(Arc::new(admission)),
+        );
+
+        // The read waits for the DAG state lock, held on another thread, so the
+        // first chunk never arrives and the peer gives up on the response.
+        let (locked_tx, locked_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+        let lock_holder = std::thread::spawn(move || {
+            let _lock = dag_state.write();
+            locked_tx.send(()).unwrap();
+            let _ = release_rx.recv();
+        });
+        locked_rx.recv().unwrap();
+        assert!(
+            timeout(Duration::from_millis(100), transactions.next())
+                .await
+                .is_err()
+        );
+        drop(transactions);
+        assert_eq!(slots.available_permits(), 0);
+
+        release_tx.send(()).unwrap();
+        lock_holder.join().unwrap();
+        let released = timeout(Duration::from_secs(10), slots.acquire()).await;
+        assert!(released.is_ok(), "the slot is released once the read ends");
     }
 
     /// A first commit is looked up only when it is past the last solid

@@ -19,8 +19,8 @@ use crate::{
     encoder::ShardEncoder,
     error::ConsensusResult,
     network::{
-        BlockBundleStream, FetchedCommitsAndTransactions, NetworkService, SerializedBlockBundle,
-        StreamPosition,
+        AdmissionGuard, BlockBundleStream, FetchedCommitsAndTransactions, NetworkService,
+        SerializedBlockBundle, StreamPosition,
     },
     transaction_ref::TransactionRef,
 };
@@ -172,6 +172,7 @@ impl NetworkService for Mutex<TestService> {
         &self,
         _peer: AuthorityIndex,
         _commit_range: CommitRange,
+        _admission: Option<Arc<AdmissionGuard>>,
     ) -> ConsensusResult<FetchedCommitsAndTransactions> {
         let service = self.lock();
         Ok(FetchedCommitsAndTransactions {

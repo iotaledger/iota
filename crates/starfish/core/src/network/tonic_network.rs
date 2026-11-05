@@ -36,7 +36,7 @@ use tracing::{debug, error, info, trace, warn};
 use super::{
     BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient, NetworkService,
     SerializedBlockBundle, TransactionChunkStream,
-    admission::AdmissionLayer,
+    admission::{AdmissionGuard, AdmissionLayer},
     bounded_codec::{
         EntryLimit, NO_ENTRY_LIMIT, TOO_MANY_ENTRIES_IN_REQUEST, TOO_MANY_ENTRIES_IN_RESPONSE,
     },
@@ -1197,6 +1197,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
+        let admission = request.extensions().get::<Arc<AdmissionGuard>>().cloned();
         let request = request.into_inner();
         let FetchedCommitsAndTransactions {
             commits: serialized_commits,
@@ -1204,7 +1205,11 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             transactions,
         } = self
             .service
-            .handle_fetch_commits_and_transactions(peer_index, (request.start..=request.end).into())
+            .handle_fetch_commits_and_transactions(
+                peer_index,
+                (request.start..=request.end).into(),
+                admission,
+            )
             .await
             .map_err(|e| match e {
                 ConsensusError::TransactionsNotAvailable { .. } => {
