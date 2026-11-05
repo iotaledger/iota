@@ -1035,28 +1035,24 @@ fn transaction_chunk_stream(
     cursor: TransactionCursor,
     admission: Option<Arc<AdmissionGuard>>,
 ) -> TransactionChunkStream {
-    stream::unfold(Some(cursor), move |state| {
-        let admission = admission.clone();
-        async move {
-            let mut cursor = state?;
-            let (cursor, chunk) = match spawn_blocking(move || {
-                // A blocking read cannot be stopped, so it outlives a response
-                // the peer cancels. Holding the slot until it ends keeps the
-                // peer's running reads within its admission limit.
-                let _admission = admission;
-                let chunk = cursor.next_chunk();
-                (cursor, chunk)
-            })
-            .await
-            {
-                Ok(built) => built,
-                Err(e) => return Some((Err(e), None)),
-            };
-            match chunk {
-                Ok(Some(chunk)) => Some((Ok(chunk), Some(cursor))),
-                Ok(None) => None,
-                Err(e) => Some((Err(e), None)),
-            }
+    stream::unfold(Some((cursor, admission)), |state| async move {
+        let (mut cursor, admission) = state?;
+        // The admission slot moves into the read: a blocking read cannot be
+        // stopped, so it outlives a response the peer cancels, and holding the
+        // slot until it ends keeps the peer's running reads within its limit.
+        let (cursor, admission, chunk) = match spawn_blocking(move || {
+            let chunk = cursor.next_chunk();
+            (cursor, admission, chunk)
+        })
+        .await
+        {
+            Ok(built) => built,
+            Err(e) => return Some((Err(e), None)),
+        };
+        match chunk {
+            Ok(Some(chunk)) => Some((Ok(chunk), Some((cursor, admission)))),
+            Ok(None) => None,
+            Err(e) => Some((Err(e), None)),
         }
     })
     .boxed()
@@ -2257,7 +2253,7 @@ mod tests {
 
     use async_trait::async_trait;
     use bytes::Bytes;
-    use futures::StreamExt;
+    use futures::{FutureExt, StreamExt};
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
     use rstest::rstest;
@@ -6391,26 +6387,14 @@ mod tests {
             Some(Arc::new(admission)),
         );
 
-        // The read waits for the DAG state lock, held on another thread, so the
-        // first chunk never arrives and the peer gives up on the response.
-        let (locked_tx, locked_rx) = std::sync::mpsc::channel();
-        let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
-        let lock_holder = std::thread::spawn(move || {
-            let _lock = dag_state.write();
-            locked_tx.send(()).unwrap();
-            let _ = release_rx.recv();
-        });
-        locked_rx.recv().unwrap();
-        assert!(
-            timeout(Duration::from_millis(100), transactions.next())
-                .await
-                .is_err()
-        );
+        // The read waits for the DAG state lock, so the first poll only starts
+        // it, and then the peer gives up on the response.
+        let lock = dag_state.write();
+        assert!(transactions.next().now_or_never().is_none());
         drop(transactions);
         assert_eq!(slots.available_permits(), 0);
 
-        release_tx.send(()).unwrap();
-        lock_holder.join().unwrap();
+        drop(lock);
         let released = timeout(Duration::from_secs(10), slots.acquire()).await;
         assert!(released.is_ok(), "the slot is released once the read ends");
     }
