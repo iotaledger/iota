@@ -84,9 +84,12 @@ pub enum QuorumDriverError {
     /// Over 1/3 of validator stake rejected the transaction during
     /// submission. The verdicts may depend on validator-local state, and an
     /// earlier submission attempt may already be in consensus, so the
-    /// transaction may still execute.
-    #[error("Invalid transaction: {0}.")]
-    RejectedByValidators(IotaError),
+    /// transaction may still execute. `errors` holds the validators' reasons,
+    /// grouped by message and sorted by stake.
+    #[error(
+        "Transaction rejected by more than 1/3 of validator stake during submission: {errors:?}."
+    )]
+    RejectedByValidators { errors: Vec<String> },
 }
 
 impl QuorumDriverError {
@@ -99,7 +102,7 @@ impl QuorumDriverError {
             QuorumDriverError::QuorumDriverInternal(_) => "internal",
             QuorumDriverError::InvalidUserSignature(_) => "invalid_user_signature",
             QuorumDriverError::InvalidTransaction(_) => "invalid_transaction",
-            QuorumDriverError::RejectedByValidators(_) => "rejected_by_validators",
+            QuorumDriverError::RejectedByValidators { .. } => "rejected_by_validators",
             QuorumDriverError::ObjectsDoubleUsed { .. } => "objects_double_used",
             QuorumDriverError::TimeoutBeforeFinality
             | QuorumDriverError::TimeoutBeforeFinalityWithErrors { .. } => {
@@ -124,10 +127,10 @@ impl QuorumDriverError {
             QuorumDriverError::InvalidUserSignature(err) => {
                 format!("Invalid user signature: {err}")
             }
-            QuorumDriverError::InvalidTransaction(err)
-            | QuorumDriverError::RejectedByValidators(err) => {
+            QuorumDriverError::InvalidTransaction(err) => {
                 format!("Invalid transaction: {err}")
             }
+            QuorumDriverError::RejectedByValidators { errors } => input_errors_message(errors),
             QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures => {
                 "The transaction is already finalized but with different user signatures"
                     .to_string()
@@ -202,21 +205,21 @@ impl QuorumDriverError {
                     return format!("{NON_RECOVERABLE_ERROR_MSG}: {error_list}.");
                 }
 
-                let mut error_list = vec![];
-                for err in new_errors.iter() {
-                    error_list.push(format!("- {err}"));
-                }
-
-                format!(
-                    "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n{}",
-                    error_list.join("\n")
-                )
+                input_errors_message(&new_errors)
             }
             QuorumDriverError::QuorumDriverInternal { .. } => {
                 "Internal error occurred while executing transaction.".to_string()
             }
         }
     }
+}
+
+/// Same text for a rejection by validators in both transaction flows.
+fn input_errors_message(errors: &[String]) -> String {
+    format!(
+        "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n{}",
+        errors.iter().map(|err| format!("- {err}")).join("\n")
+    )
 }
 
 pub type GroupedErrors = Vec<(IotaError, StakeUnit, Vec<ConciseAuthorityPublicKeyBytes>)>;
