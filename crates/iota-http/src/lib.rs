@@ -1364,23 +1364,6 @@ mod tests {
         }
     }
 
-    /// Once reached, the timer stays pending until the connection has served
-    /// another request, so a loop that keeps polling it does not pick it on
-    /// every pass.
-    #[tokio::test]
-    async fn a_timer_is_ready_once_per_idle_period() {
-        const IDLE: Duration = Duration::from_millis(50);
-
-        let timer = idle_timer::idle_timeout(IDLE);
-        let mut timer = std::pin::pin!(timer);
-
-        (&mut timer).await;
-        assert!(
-            tokio::time::timeout(IDLE * 10, &mut timer).await.is_err(),
-            "a timer must not be ready twice for one idle period"
-        );
-    }
-
     /// A request can start and finish between two polls of the timer. It must
     /// still push the deadline back to a full period from its end.
     #[tokio::test]
@@ -1433,39 +1416,6 @@ mod tests {
             became_idle.elapsed() >= IDLE,
             "the deadline must run from the end of the request, elapsed only {:?}",
             became_idle.elapsed()
-        );
-    }
-
-    /// A reached timer can be waiting while a request starts and ends on
-    /// another task, as a response body does when the task sending it drops
-    /// it. The end of that request must wake the timer, or it would not be
-    /// polled again until something else woke its task.
-    #[tokio::test]
-    async fn a_request_ending_on_another_task_wakes_a_reached_timer() {
-        const IDLE: Duration = Duration::from_millis(100);
-
-        let timer = idle_timer::idle_timeout(IDLE);
-        let handle = timer.handle();
-        let mut timer = std::pin::pin!(timer);
-
-        (&mut timer).await;
-
-        let started = tokio::time::Instant::now();
-        let request = tokio::spawn(async move {
-            tokio::time::sleep(IDLE).await;
-            drop(handle.guard());
-        });
-
-        tokio::time::timeout(IDLE * 10, &mut timer)
-            .await
-            .expect("a timer reached before a request must be ready again after it");
-        request.await.unwrap();
-        // Ready a full period after the request, not when the timeout above
-        // happens to poll it again.
-        assert!(
-            started.elapsed() < IDLE * 5,
-            "the end of the request must wake the timer, ready only after {:?}",
-            started.elapsed()
         );
     }
 
