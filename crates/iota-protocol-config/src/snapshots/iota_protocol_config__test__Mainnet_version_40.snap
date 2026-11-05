@@ -131,6 +131,8 @@ max_event_emit_size_total: 65536000
 max_move_vector_len: 262144
 max_move_identifier_len: 128
 max_move_value_depth: 128
+max_move_call_argument_nodes: 2097152
+max_move_call_argument_nodes_total: 16777216
 max_move_enum_variants: 127
 max_back_edges_per_function: 10000
 max_back_edges_per_module: 10000

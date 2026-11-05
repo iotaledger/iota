@@ -1614,6 +1614,7 @@ mod checked {
             let bcs_true_value = bcs::to_bytes(&true).unwrap();
             serialized_args.push(bcs_true_value)
         }
+        let mut call_argument_nodes = context.new_call_argument_node_budget();
         for ((idx, arg), param_ty) in args.iter().copied().enumerate().zip(parameters) {
             let (value, non_ref_param_ty): (Value, &Type) = match param_ty {
                 Type::MutableReference(inner) => {
@@ -1658,8 +1659,15 @@ mod checked {
                 value.write_bcs_bytes(&mut v, None)?;
                 v
             };
+            context.count_argument_nodes(
+                &mut call_argument_nodes,
+                idx,
+                non_ref_param_ty,
+                &bytes,
+            )?;
             serialized_args.push(bytes);
         }
+        context.record_call_argument_nodes(call_argument_nodes);
         Ok((tx_ctx_kind, has_auth_context, by_mut_ref, serialized_args))
     }
 

@@ -274,6 +274,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             metered, from the protocol config.
 //             Make the packages named by a `MoveAuthenticator`'s type
 //             arguments inputs of that authenticator.
+//             Limit the struct, enum and vector values in Move-call
+//             arguments, per call and per transaction.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1144,6 +1146,14 @@ pub struct ProtocolConfig {
 
     /// Maximum depth of a Move value within the VM.
     max_move_value_depth: Option<u64>,
+
+    /// Maximum number of struct, enum and vector values in the arguments of
+    /// one Move call.
+    max_move_call_argument_nodes: Option<u64>,
+
+    /// Maximum number of struct, enum and vector values in the arguments of
+    /// all Move calls of one programmable transaction.
+    max_move_call_argument_nodes_total: Option<u64>,
 
     /// Maximum number of variants in an enum. Enforced by the bytecode verifier
     /// at signing.
@@ -2942,6 +2952,8 @@ impl ProtocolConfig {
             // Limits the length of a Move identifier
             max_move_identifier_len: Some(128),
             max_move_value_depth: Some(128),
+            max_move_call_argument_nodes: None,
+            max_move_call_argument_nodes_total: None,
             max_move_enum_variants: None,
 
             gas_rounding_step: Some(1_000),
@@ -3829,6 +3841,11 @@ impl ProtocolConfig {
                     // arguments inputs of that authenticator.
                     cfg.feature_flags
                         .move_authenticator_type_arg_packages_as_inputs = true;
+
+                    // Limit the struct, enum and vector values in Move-call
+                    // arguments.
+                    cfg.max_move_call_argument_nodes = Some(2_097_152);
+                    cfg.max_move_call_argument_nodes_total = Some(16_777_216);
                 }
                 // Use this template when making changes:
                 //
