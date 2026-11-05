@@ -918,10 +918,11 @@ impl HandlerObjectState {
         .contains(&attestor)
     }
 
-    /// Stages a commit's rows into `batch`, the batch of the quarantine flush
-    /// of the commit's output, which also writes `last_consensus_stats`.
-    /// After the batch is written, and not before, pass the same commit index
-    /// and rows to [`Self::evict_flushed_commit_rows`].
+    /// Stages commit `index`'s rows, and its attestation totals if it has
+    /// any, into `batch`, the batch of the quarantine flush of the commit's
+    /// output, which also writes `last_consensus_stats`. After the batch is
+    /// written, and not before, pass the same commit index and rows to
+    /// [`Self::evict_flushed_commit_rows`].
     ///
     /// Rows are keyed per version, so flushes of different commits may be
     /// written in any order without one overwriting another.
@@ -929,23 +930,13 @@ impl HandlerObjectState {
         &self,
         tables: &AuthorityEpochTables,
         batch: &mut DBBatch,
+        index: CommitIndex,
         handler_rows: &[(ObjectKey, HandlerProcessedObject)],
     ) -> IotaResult {
         batch.insert_batch(
             &tables.handler_processed_objects,
             handler_rows.iter().map(|(key, row)| (key, row)),
         )?;
-        Ok(())
-    }
-
-    /// Stages commit `index`'s attestation totals, if it has any, into the
-    /// batch of the commit's quarantine flush.
-    pub fn write_commit_attestation_totals_to_batch(
-        &self,
-        tables: &AuthorityEpochTables,
-        batch: &mut DBBatch,
-        index: CommitIndex,
-    ) -> IotaResult {
         if let Some(totals) = self.attestation_totals.lock().by_commit.get(&index) {
             batch.insert_batch(&tables.attestation_totals_by_commit, [(index, totals)])?;
         }

@@ -2446,7 +2446,7 @@ impl<'a> Validator<'a> {
                     (rows, "flush")
                 }
             };
-            self.storage(state.write_commit_rows_to_batch(&tables, &mut batch, &rows))?;
+            self.storage(state.write_commit_rows_to_batch(&tables, &mut batch, commit, &rows))?;
             let quarantined = self
                 .quarantine
                 .get(&commit)

@@ -1364,14 +1364,19 @@ impl AuthorityPerEpochStore {
                 .unwrap_or_default()
                 .sub_dag_index
         });
-        let handler_object_state = resume_point.map(|resume_point| {
-            let attestation_totals = tables
-                .attestation_totals_by_commit
-                .safe_iter()
-                .collect::<Result<BTreeMap<_, _>, _>>()
-                .expect("AuthorityEpochTables should contain valid attestation totals");
-            HandlerObjectState::new(resume_point, attestation_totals, metrics.clone())
-        });
+        let handler_object_state = resume_point
+            .map(|resume_point| -> IotaResult<_> {
+                let attestation_totals = tables
+                    .attestation_totals_by_commit
+                    .safe_iter()
+                    .collect::<Result<BTreeMap<_, _>, _>>()?;
+                Ok(HandlerObjectState::new(
+                    resume_point,
+                    attestation_totals,
+                    metrics.clone(),
+                ))
+            })
+            .transpose()?;
         let pcool_bookkeeping_enabled =
             committee.authority_exists(&name) && protocol_config.enable_pcool_flow();
 
@@ -2233,8 +2238,7 @@ impl AuthorityPerEpochStore {
                 rows
             }
         };
-        handler_object_state.write_commit_rows_to_batch(&tables, batch, &rows)?;
-        handler_object_state.write_commit_attestation_totals_to_batch(&tables, batch, index)?;
+        handler_object_state.write_commit_rows_to_batch(&tables, batch, index, &rows)?;
         Ok(Some(FlushedCommitRows { index, rows }))
     }
 
@@ -2242,8 +2246,7 @@ impl AuthorityPerEpochStore {
     /// pending checkpoints hold.
     ///
     /// Every root of a flushing commit is in a checkpoint that has been built
-    /// and executed, so it has a digest and effects. A root missing either is
-    /// an error, so the flush batch is never written without its rows.
+    /// and executed, so a root without a digest is an error.
     fn commit_root_digests(
         &self,
         tables: &AuthorityEpochTables,
@@ -2268,7 +2271,9 @@ impl AuthorityPerEpochStore {
         Ok(digests)
     }
 
-    /// The rows of commit `index`, derived from the effects of its `roots`.
+    /// The rows of commit `index`, derived from the effects of its `roots`. A
+    /// root without effects is an error, so the flush batch is never written
+    /// without its rows.
     fn handler_rows_from_effects(
         &self,
         index: CommitIndex,
@@ -2426,7 +2431,7 @@ impl AuthorityPerEpochStore {
         let _quarantine = self.consensus_quarantine.write();
         let mut batch = tables.handler_processed_objects.batch();
         self.handler_object_state_for_testing()
-            .write_commit_rows_to_batch(&tables, &mut batch, &handler_rows)?;
+            .write_commit_rows_to_batch(&tables, &mut batch, commit_index, &handler_rows)?;
         let resume_point = tables
             .get_last_consensus_index()?
             .map_or(0, |index| index.sub_dag_index);

@@ -40,8 +40,9 @@
 //!      still holds the locks it took there.
 //! 4. `validity_check()` — drop with error.
 //! 5. Attestation checks (attested transactions only): the attestor is the block author, the
-//!    attested units are within bounds, and the gas price and budget are within bounds — drop with
-//!    error. The attestation is the copy's own, so a later copy of the digest is validated.
+//!    attested units are within bounds, the attestor is not cut off as of the horizon, and the gas
+//!    price and budget are within bounds — drop with error. The attestation is the copy's own, so a
+//!    later copy of the digest is validated.
 //! 6. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop with error, except a
 //!    lock held by the same transaction (with deterministic validation off, a deferred tx's own
 //!    lock from the commit that kept it), which is exempt. Cheap; performed before expensive
