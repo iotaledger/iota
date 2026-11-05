@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Property-based check of P-COOL deterministic validation against the
+//! Property-based check of P-COOL post-consensus validation against the
 //! oracle in `post_consensus_determinism_oracle.rs`.
 //!
 //! Terms used here:

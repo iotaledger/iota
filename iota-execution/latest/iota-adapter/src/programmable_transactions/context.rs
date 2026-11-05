@@ -1308,7 +1308,7 @@ mod checked {
         gas_charger.charge_coin_transfers(protocol_config, num_non_gas_coin_owners)?;
         result?;
 
-        // Under P-COOL deterministic validation, post-consensus validation checks
+        // Under the P-COOL flow, post-consensus validation checks
         // the sender against its inputs and receiving objects, with the deny list
         // as of the commit's horizon. Here the sender is checked again, once the
         // commands have run, against the coins the Move code received, with the

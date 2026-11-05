@@ -537,7 +537,7 @@ fn wait_for_epoch_db_to_close() {
     }
 }
 
-/// Empties every table a run of P-COOL deterministic validation writes: the
+/// Empties every table a run of P-COOL post-consensus validation writes: the
 /// handler object state, the saved validation decisions, the owned-object locks, the
 /// processed consensus messages, the resume point and the commit the node
 /// switched to synced checkpoints after. A [`reopen`] after it
@@ -2624,7 +2624,7 @@ async fn start_executing_synced_checkpoints_saves_the_last_handled_commit() {
     assert!(reopened.is_executing_synced_checkpoints());
 }
 
-// === P-COOL deterministic validation: the handler object state ===
+// === P-COOL post-consensus validation: the handler object state ===
 //
 // A row is one entry of the handler object state. It records that a
 // transaction in some commit produced version `V` of object `id`: the commit,

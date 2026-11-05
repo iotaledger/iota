@@ -5030,7 +5030,7 @@ impl AuthorityPerEpochStore {
             // checkpoint, so they are all ignored here. Validating them
             // without the wait would save decisions that no checkpoint retires
             // and that a replay after a restart could contradict.
-            if enable_pcool && !accepts_tx {
+            if !accepts_tx {
                 sequenced_transactions.retain(|tx| {
                     let user_transaction = match &tx.0.transaction {
                         SequencedConsensusTransactionKind::External(ext) => {

@@ -296,7 +296,7 @@ pub async fn test_switched_validator_executes_synced_data_of_locally_built_check
     executor_handle.abort();
 }
 
-/// With deterministic validation, a committee validator does not finish a
+/// With the P-COOL flow, a committee validator does not finish a
 /// checkpoint it built before a restart while the transactions in it have not
 /// executed again. Their outputs were only in memory, so the consensus handler
 /// has to replay their commit and execute them first.

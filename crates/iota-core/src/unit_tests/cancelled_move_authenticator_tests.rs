@@ -117,7 +117,7 @@ async fn execute_cancelled_move_account_transaction() -> (TransactionEffects, Op
         VersionAssignment::new(ObjectId::RANDOMNESS_STATE, Version::RANDOMNESS_UNAVAILABLE),
         VersionAssignment::new(account_id, Version::CANCELED_READ),
     ]);
-    // With deterministic validation, a committee validator executes only
+    // With the P-COOL flow, a committee validator executes only
     // transactions of commits its consensus handler assigned.
     epoch_store.assign_commit_to_transactions(1, vec![executable.key()]);
     authority

@@ -8845,6 +8845,18 @@ impl ImmutableInputSetup {
             .unwrap();
     }
 
+    /// Saves a keep for each of `txs` at commit 1, in that order, as the first
+    /// run of the commit did before a restart.
+    fn save_keeps(&self, txs: &[&VerifiedTransaction]) {
+        let decisions: Vec<_> = txs
+            .iter()
+            .map(|tx| (*tx.digest(), SavedPostConsensusDecision::kept()))
+            .collect();
+        self.epoch_store
+            .persist_post_consensus_decisions(1, &decisions)
+            .unwrap();
+    }
+
     async fn resolve(
         &self,
         transactions: &mut Vec<VerifiedSequencedConsensusTransaction>,
@@ -8913,6 +8925,11 @@ async fn test_already_executed_tx_does_not_lock_immutable_input() {
     s.execute_in_an_earlier_commit(&executed);
 
     let later_reader = s.read_immutable(s.gas2_ref);
+    // The already-executed branch takes only a transaction with a keep saved
+    // at this commit. Every candidate of a replayed commit needs a saved
+    // decision, so the reader gets one too; not executed, it is validated
+    // again.
+    s.save_keeps(&[&executed, &later_reader]);
     let mut transactions = vec![
         make_user_tx_v1_verified(executed.clone()),
         make_user_tx_v1_verified(later_reader),
@@ -9046,7 +9063,7 @@ async fn post_consensus_validation_meters_packages_with_protocol_limits() {
 }
 
 // ---------------------------------------------------------------------------
-// P-COOL deterministic validation waits for the horizon to be fully executed
+// P-COOL post-consensus validation waits for the horizon to be fully executed
 //
 // The horizon distance K is 4 here: commit C reads state as of commit C - 4
 // and waits until the highest fully executed commit has reached it.
@@ -9523,7 +9540,7 @@ async fn already_executed_transaction_locks_the_gas_coin_it_names() {
 }
 
 // ---------------------------------------------------------------------------
-// P-COOL deterministic validation: nodes at different execution progress
+// P-COOL post-consensus validation: nodes at different execution progress
 // ---------------------------------------------------------------------------
 
 /// How the consumer in [`consumed_version_drops_the_same_whatever_the_consumer_execution`]
@@ -9836,7 +9853,7 @@ async fn crash_between_checkpoint_bookkeeping_and_outputs_keeps_every_read() {
 }
 
 // ---------------------------------------------------------------------------
-// P-COOL deterministic validation: execution progress and replays
+// P-COOL post-consensus validation: execution progress and replays
 // ---------------------------------------------------------------------------
 
 /// A regulated coin type, a shared zero coin of it, an address its deny list

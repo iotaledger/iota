@@ -171,12 +171,14 @@ impl SavedPostConsensusDecision {
 /// may come from its own signatures. The digest's decision is that of the last copy validated, and
 /// only a kept copy stays in `transactions`.
 ///
-/// The decision for every candidate is saved before returning,
-/// including keeps that the caller then defers, and a commit replayed after a restart repeats the
-/// saved decisions; step 3 of the module docs says which transactions are validated again. Panics
-/// if the saved decisions are incomplete, the candidates differ from the saved ones, or a saved
-/// keep is now dropped. Once the switch to executing synced checkpoints after commit `L` is saved,
-/// also panics for a commit above `L`, or for a commit at or below `L` without saved decisions.
+/// Called only with the P-COOL flow on; the caller checks the flag.
+///
+/// The decision for every candidate is saved before returning, including keeps that the caller
+/// then defers, and a commit replayed after a restart repeats the saved decisions; step 3 of the
+/// module docs says which transactions are validated again. Panics if the saved decisions are
+/// incomplete, the candidates differ from the saved ones, or a saved keep is now dropped. Once the
+/// switch to executing synced checkpoints after commit `L` is saved, also panics for a commit
+/// above `L`, or for a commit at or below `L` without saved decisions.
 ///
 /// Non-`UserTransactionV1` transactions pass through unchanged.
 ///
@@ -453,9 +455,9 @@ pub async fn validate_and_resolve_conflicts(
         //
         // Locks are keyed by full ObjectReference (id + version + digest), not just
         // ObjectID. Two transactions referencing the same object at different
-        // versions will NOT conflict here — version freshness is validated
-        // later in Check #5 (deny checks load objects from DB and verify
-        // that the transaction's input refs match the current state).
+        // versions will NOT conflict here — version freshness is checked in
+        // Check #5, where the commit-indexed reader rejects an input whose
+        // version is not live at the commit.
         //
         // Probing the raw set is safe though immutable inputs are never
         // locked: acquisition never inserts one, and the lock tables are
