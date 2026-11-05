@@ -21,7 +21,7 @@ pub async fn serve_connection<IO, S, B, C>(
     builder: hyper_util::server::conn::auto::Builder<hyper_util::rt::TokioExecutor>,
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
     max_connection_age: Option<Duration>,
-    idle_timer: IdleTimer,
+    idle_timer: Option<IdleTimer>,
     on_connection_close: C,
 ) where
     B: http_body::Body + Send + 'static,
@@ -62,15 +62,16 @@ async fn serve_until_closed(
     conn: impl GracefulConnection<Error = BoxError>,
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
     max_connection_age: Option<Duration>,
-    idle_timer: IdleTimer,
+    idle_timer: Option<IdleTimer>,
 ) {
     let mut sig = pin!(Fuse::new(graceful_shutdown_token.cancelled_owned()));
 
     let mut conn = pin!(conn);
 
     let sleep = sleep_or_pending(max_connection_age);
-    tokio::pin!(idle_timer);
+    let idle = idle_or_pending(idle_timer);
     tokio::pin!(sleep);
+    tokio::pin!(idle);
 
     loop {
         tokio::select! {
@@ -83,15 +84,10 @@ async fn serve_until_closed(
                 }
                 break;
             },
-            _ = &mut idle_timer => {
-                // A request can arrive between the timer being reached and
-                // this running, so being ready is not on its own proof that
-                // the connection is still idle.
-                if !idle_timer.is_idle() {
-                    continue;
-                }
+            _ = &mut idle => {
                 debug!("closing a connection that has been idle past its deadline");
                 conn.as_mut().graceful_shutdown();
+                idle.set(idle_or_pending(None));
             }
             _ = &mut sleep  => {
                 conn.as_mut().graceful_shutdown();
@@ -104,6 +100,14 @@ async fn serve_until_closed(
 pub(crate) async fn sleep_or_pending(wait_for: Option<Duration>) {
     match wait_for {
         Some(wait) => tokio::time::sleep(wait).await,
+        None => std::future::pending().await,
+    };
+}
+
+/// Waits for `idle_timer`, or forever when there is none.
+async fn idle_or_pending(idle_timer: Option<IdleTimer>) {
+    match idle_timer {
+        Some(idle_timer) => idle_timer.await,
         None => std::future::pending().await,
     };
 }

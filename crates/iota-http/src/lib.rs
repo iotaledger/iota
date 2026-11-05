@@ -18,6 +18,7 @@ use tracing::trace;
 use self::{
     body::BoxBody,
     connection_info::{ActiveConnections, PeerConnectionCounts},
+    idle_timer::{IdleHandle, IdleTimer},
 };
 
 pub mod body;
@@ -358,13 +359,15 @@ where
         }
 
         let connection_shutdown_token = self.graceful_shutdown_token.child_token();
-        let idle_timer = idle_timer::idle_timeout(self.config.max_connection_idle);
-        let idle_handle = idle_timer.handle();
+        let idle_timer = self
+            .config
+            .max_connection_idle
+            .map(idle_timer::idle_timeout);
+        let idle_handle = idle_timer.as_ref().map(IdleTimer::handle);
         let connection_info = ConnectionInfo::new(
             remote_addr,
             io.peer_certs(),
             connection_shutdown_token.clone(),
-            idle_handle.clone(),
         );
         let connection_id = connection_info.id();
         let connect_info = connection_info::ConnectInfo {
@@ -389,11 +392,14 @@ where
                 .map_future(move |future| {
                     // Held by the response body rather than dropped here, so a
                     // streaming response counts as work until its last frame.
-                    let guard = idle_handle.guard();
+                    let guard = idle_handle.as_ref().map(IdleHandle::guard);
                     async move {
                         let response = future.await;
                         response.map(|response| {
-                            response.map(|inner| body::boxed(body::GuardedBody::new(inner, guard)))
+                            response.map(|inner| match guard {
+                                Some(guard) => body::boxed(body::GuardedBody::new(inner, guard)),
+                                None => body::boxed(inner),
+                            })
                         })
                     }
                 }),
@@ -1226,7 +1232,6 @@ mod tests {
                 "127.0.0.1:1".parse::<std::net::SocketAddr>().unwrap(),
                 None,
                 tokio_util::sync::CancellationToken::new(),
-                idle_timer::idle_timeout(None).handle(),
             )
         };
 
@@ -1275,12 +1280,11 @@ mod tests {
     async fn a_request_in_flight_keeps_a_connection_from_going_idle() {
         const IDLE: Duration = Duration::from_millis(100);
 
-        let timer = idle_timer::idle_timeout(Some(IDLE));
+        let timer = idle_timer::idle_timeout(IDLE);
         let handle = timer.handle();
         let mut timer = std::pin::pin!(timer);
 
         let guard = handle.guard();
-        assert!(!handle.is_idle());
 
         // Well past the deadline, but the request has not finished.
         assert!(
@@ -1290,45 +1294,9 @@ mod tests {
 
         // Once it does, the deadline runs from that point.
         drop(guard);
-        assert!(handle.is_idle());
         assert!(
             tokio::time::timeout(IDLE * 10, &mut timer).await.is_ok(),
             "a connection must go idle once its last request finishes"
-        );
-    }
-
-    /// A timer with no deadline is never reached, however long the connection
-    /// sits there.
-    #[tokio::test]
-    async fn a_connection_with_no_idle_deadline_is_never_closed_for_idleness() {
-        let timer = idle_timer::idle_timeout(None);
-        let mut timer = std::pin::pin!(timer);
-
-        assert!(
-            tokio::time::timeout(Duration::from_millis(200), &mut timer)
-                .await
-                .is_err(),
-            "a connection with no deadline must not be closed for being idle"
-        );
-    }
-
-    /// A connection with no idle deadline is not tracked: the guard a request
-    /// takes counts nothing, and the connection reports no idle time.
-    #[test]
-    fn a_connection_with_no_idle_deadline_is_not_tracked() {
-        let timer = idle_timer::idle_timeout(None);
-        let handle = timer.handle();
-
-        assert_eq!(
-            handle.idle_for(),
-            None,
-            "an untracked connection must report no idle time"
-        );
-
-        let _guard = handle.guard();
-        assert!(
-            timer.is_idle(),
-            "a request on an untracked connection must not be counted"
         );
     }
 
@@ -1340,7 +1308,7 @@ mod tests {
     async fn the_deadline_runs_from_the_last_request() {
         const IDLE: Duration = Duration::from_millis(100);
 
-        let timer = idle_timer::idle_timeout(Some(IDLE));
+        let timer = idle_timer::idle_timeout(IDLE);
         let handle = timer.handle();
         let mut timer = std::pin::pin!(timer);
 
@@ -1368,7 +1336,7 @@ mod tests {
     async fn a_connection_goes_idle_again_after_each_request() {
         const IDLE: Duration = Duration::from_millis(50);
 
-        let timer = idle_timer::idle_timeout(Some(IDLE));
+        let timer = idle_timer::idle_timeout(IDLE);
         let handle = timer.handle();
         let mut timer = std::pin::pin!(timer);
 
@@ -1403,7 +1371,7 @@ mod tests {
     async fn a_timer_is_ready_once_per_idle_period() {
         const IDLE: Duration = Duration::from_millis(50);
 
-        let timer = idle_timer::idle_timeout(Some(IDLE));
+        let timer = idle_timer::idle_timeout(IDLE);
         let mut timer = std::pin::pin!(timer);
 
         (&mut timer).await;
@@ -1419,7 +1387,7 @@ mod tests {
     async fn a_request_shorter_than_a_poll_pushes_the_deadline_back() {
         const IDLE: Duration = Duration::from_millis(100);
 
-        let timer = idle_timer::idle_timeout(Some(IDLE));
+        let timer = idle_timer::idle_timeout(IDLE);
         let handle = timer.handle();
         let mut timer = std::pin::pin!(timer);
 
@@ -1449,7 +1417,7 @@ mod tests {
     async fn a_request_shorter_than_a_poll_makes_a_reached_timer_ready_again() {
         const IDLE: Duration = Duration::from_millis(100);
 
-        let timer = idle_timer::idle_timeout(Some(IDLE));
+        let timer = idle_timer::idle_timeout(IDLE);
         let handle = timer.handle();
         let mut timer = std::pin::pin!(timer);
 
@@ -1476,7 +1444,7 @@ mod tests {
     async fn a_request_ending_on_another_task_wakes_a_reached_timer() {
         const IDLE: Duration = Duration::from_millis(100);
 
-        let timer = idle_timer::idle_timeout(Some(IDLE));
+        let timer = idle_timer::idle_timeout(IDLE);
         let handle = timer.handle();
         let mut timer = std::pin::pin!(timer);
 
@@ -1525,7 +1493,7 @@ mod tests {
     async fn a_streaming_response_holds_its_connection() {
         const IDLE: Duration = Duration::from_millis(100);
 
-        let timer = idle_timer::idle_timeout(Some(IDLE));
+        let timer = idle_timer::idle_timeout(IDLE);
         let idle = timer.handle();
         let mut timer = std::pin::pin!(timer);
 
