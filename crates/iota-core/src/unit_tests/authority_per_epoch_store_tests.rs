@@ -3205,8 +3205,7 @@ mod handler_object_state_storage {
     /// it, and a reopened epoch store reads the same from the flushed totals.
     #[tokio::test]
     async fn attestors_cut_off_count_only_commits_through_the_horizon() {
-        // At 10 max fault units, 100 squared units take the whole score.
-        const MAX_FAULT_UNITS: u64 = 10;
+        const MAX_REFUTED_UNITS_SQUARED: u64 = 100;
         let authority = TestAuthorityBuilder::new().build().await;
         let store = authority.epoch_store_for_testing().clone();
         let totals = |entries: &[(u8, u64)]| AttestationTotals {
@@ -3228,7 +3227,7 @@ mod handler_object_state_storage {
         let cut_off = |store: &AuthorityPerEpochStore, horizon| {
             store
                 .handler_object_state_for_testing()
-                .attestors_cut_off_as_of(horizon, MAX_FAULT_UNITS)
+                .attestors_cut_off_as_of(horizon, MAX_REFUTED_UNITS_SQUARED)
         };
         assert_eq!(cut_off(&store, 1), BTreeSet::new());
         assert_eq!(cut_off(&store, 4), BTreeSet::from([0]));

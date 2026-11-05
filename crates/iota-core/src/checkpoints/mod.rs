@@ -2514,10 +2514,10 @@ impl CheckpointBuilder {
                     // Give everyone in the committee the max score
                     vec![MAX_SCORE; self.epoch_store.committee().num_members()]
                 };
-                if let Some(max_fault_units) = self
+                if let Some(max_refuted_units_squared) = self
                     .epoch_store
                     .protocol_config()
-                    .attestation_max_fault_units_as_option()
+                    .attestation_max_refuted_units_squared_as_option()
                 {
                     let committee_members: Vec<_> = self
                         .epoch_store
@@ -2529,7 +2529,7 @@ impl CheckpointBuilder {
                     apply_fault_penalties(
                         &mut scores,
                         &attestation_totals,
-                        max_fault_units,
+                        max_refuted_units_squared,
                         self.epoch_store.committee(),
                         &committee_members,
                     );

@@ -329,22 +329,16 @@ pub(super) fn attestation_record(
     }
 }
 
-/// The squared units at which the cut takes an attestor's whole score:
-/// `max_fault_units²`, at least 1.
-fn full_cut_units_squared(max_fault_units: u64) -> u128 {
-    u128::from(max_fault_units).saturating_pow(2).max(1)
-}
-
 /// Whether `units_squared` takes the attestor's whole score, which also
 /// stops its attestations for the rest of the epoch.
-pub(crate) fn takes_whole_score(units_squared: u64, max_fault_units: u64) -> bool {
-    u128::from(units_squared) >= full_cut_units_squared(max_fault_units)
+pub(crate) fn takes_whole_score(units_squared: u64, max_refuted_units_squared: u64) -> bool {
+    units_squared >= max_refuted_units_squared.max(1)
 }
 
 /// Cuts each attestor's score by the squared units its refuted attestations
-/// wasted, relative to `max_fault_units`: a fault of that size takes the
-/// whole score, a smaller one the square of its fraction, and zero takes the
-/// whole score on any fault; the cuts add up and the score floors at zero.
+/// wasted, relative to `max_refuted_units_squared`: a sum that large takes the
+/// whole score, a smaller one its fraction, and zero takes the whole score on
+/// any fault; the score floors at zero.
 /// The totals are keyed by consensus committee index; `scores` and
 /// `committee_members` follow Move's `committee_members` order, where the cut
 /// must land.
@@ -356,11 +350,11 @@ pub(crate) fn takes_whole_score(units_squared: u64, max_fault_units: u64) -> boo
 pub(crate) fn apply_fault_penalties(
     scores: &mut [u64],
     totals: &AttestationTotals,
-    max_fault_units: u64,
+    max_refuted_units_squared: u64,
     committee: &Committee,
     committee_members: &[AuthorityName],
 ) {
-    let full_cut = full_cut_units_squared(max_fault_units);
+    let full_cut = u128::from(max_refuted_units_squared.max(1));
     for (&attestor, &units_squared) in &totals.refuted_units_squared {
         let name = committee
             .authority_by_index(u32::from(attestor))
@@ -419,13 +413,15 @@ fn attestable_object_versions(
 mod tests {
     use super::*;
 
-    /// A fault of `max_fault_units` takes the whole score, a smaller one the
-    /// square of its fraction, and faults beyond that saturate. The totals are
-    /// keyed by the consensus index, in authority-name order; the cut lands at
-    /// the attestor's position in Move's order.
+    /// A fault whose squared units reach `max_refuted_units_squared` takes the
+    /// whole score, a smaller one the square of its fraction, and faults beyond
+    /// that saturate. The totals are keyed by the consensus index, in
+    /// authority-name order; the cut lands at the attestor's position in Move's
+    /// order.
     #[test]
     fn fault_penalties_scale_with_the_square_of_the_wasted_units() {
-        const MAX_FAULT_UNITS: u64 = 10;
+        // One fault of 10 units takes the whole score.
+        const MAX_REFUTED_UNITS_SQUARED: u64 = 100;
         let (committee, _) = Committee::new_simple_test_committee();
         // Move's order differs from the committee's: reversed here.
         let mut committee_members: Vec<AuthorityName> = committee.names().copied().collect();
@@ -434,11 +430,11 @@ mod tests {
         let refuted = |units| AttestationVerdict::Refuted { units };
         let totals = AttestationTotals::default().with_records(&[
             // A full fault: the whole score.
-            record(0, refuted(MAX_FAULT_UNITS)),
+            record(0, refuted(10)),
             // Half a fault: a quarter of the score.
-            record(2, refuted(MAX_FAULT_UNITS / 2)),
+            record(2, refuted(5)),
             // Far beyond a full fault: still the whole score, nothing more.
-            record(3, refuted(10 * MAX_FAULT_UNITS)),
+            record(3, refuted(100)),
             record(1, AttestationVerdict::Valid),
             None,
         ]);
@@ -447,7 +443,7 @@ mod tests {
         apply_fault_penalties(
             &mut scores,
             &totals,
-            MAX_FAULT_UNITS,
+            MAX_REFUTED_UNITS_SQUARED,
             &committee,
             &committee_members,
         );
@@ -460,14 +456,17 @@ mod tests {
     fn cutoff_matches_the_whole_score_cut() {
         let (committee, _) = Committee::new_simple_test_committee();
         let committee_members: Vec<AuthorityName> = committee.names().copied().collect();
-        for (max_fault_units, units_squared, whole) in [
-            (10, 99, false),
-            (10, 100, true),
+        for (max_refuted_units_squared, units_squared, whole) in [
+            (100, 99, false),
+            (100, 100, true),
             // Zero takes the whole score on any fault.
             (0, 0, false),
             (0, 1, true),
         ] {
-            assert_eq!(takes_whole_score(units_squared, max_fault_units), whole);
+            assert_eq!(
+                takes_whole_score(units_squared, max_refuted_units_squared),
+                whole
+            );
             let totals = AttestationTotals {
                 refuted_units_squared: [(0, units_squared)].into(),
             };
@@ -475,7 +474,7 @@ mod tests {
             apply_fault_penalties(
                 &mut scores,
                 &totals,
-                max_fault_units,
+                max_refuted_units_squared,
                 &committee,
                 &committee_members,
             );

@@ -2149,7 +2149,7 @@ impl AuthorityPerEpochStore {
         &self,
         roots: &[TransactionDigest],
     ) -> IotaResult<AttestationTotals> {
-        if self.attestation_cutoff_max_fault_units().is_none() {
+        if self.cutoff_max_refuted_units_squared().is_none() {
             return Ok(AttestationTotals::default());
         }
         let records = self
@@ -2158,28 +2158,28 @@ impl AuthorityPerEpochStore {
         Ok(AttestationTotals::default().with_records(&records))
     }
 
-    /// The attestors whose refuted attestations in the commits through
-    /// `horizon` reached `attestation_max_fault_units`; empty when this node
-    /// does not cut off attestors.
+    /// The attestors whose squared refuted units in the commits through
+    /// `horizon` reached `attestation_max_refuted_units_squared`; empty when
+    /// this node does not cut off attestors.
     pub fn attestors_cut_off_as_of(&self, horizon: CommitIndex) -> BTreeSet<u8> {
         match (
             &self.handler_object_state,
-            self.attestation_cutoff_max_fault_units(),
+            self.cutoff_max_refuted_units_squared(),
         ) {
-            (Some(state), Some(max_fault_units)) => {
-                state.attestors_cut_off_as_of(horizon, max_fault_units)
+            (Some(state), Some(max_refuted_units_squared)) => {
+                state.attestors_cut_off_as_of(horizon, max_refuted_units_squared)
             }
             _ => BTreeSet::new(),
         }
     }
 
-    /// `attestation_max_fault_units`, when set and this node keeps the P-COOL
-    /// bookkeeping.
-    fn attestation_cutoff_max_fault_units(&self) -> Option<u64> {
+    /// `attestation_max_refuted_units_squared`, when set and this node keeps
+    /// the P-COOL bookkeeping.
+    fn cutoff_max_refuted_units_squared(&self) -> Option<u64> {
         self.pcool_bookkeeping_enabled
             .then(|| {
                 self.protocol_config()
-                    .attestation_max_fault_units_as_option()
+                    .attestation_max_refuted_units_squared_as_option()
             })
             .flatten()
     }

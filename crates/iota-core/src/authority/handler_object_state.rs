@@ -343,11 +343,17 @@ impl AttestationTotalsByCommit {
 
     /// The attestors whose totals through `horizon` take their whole score;
     /// warns once per attestor when its sum first gets there.
-    fn cut_off_as_of(&mut self, horizon: CommitIndex, max_fault_units: u64) -> BTreeSet<u8> {
+    fn cut_off_as_of(
+        &mut self,
+        horizon: CommitIndex,
+        max_refuted_units_squared: u64,
+    ) -> BTreeSet<u8> {
         let cut_off = |sum: &AttestationTotals| -> BTreeSet<u8> {
             sum.refuted_units_squared
                 .iter()
-                .filter(|&(_, &units_squared)| takes_whole_score(units_squared, max_fault_units))
+                .filter(|&(_, &units_squared)| {
+                    takes_whole_score(units_squared, max_refuted_units_squared)
+                })
                 .map(|(&attestor, _)| attestor)
                 .collect()
         };
@@ -377,8 +383,8 @@ impl AttestationTotalsByCommit {
             warn!(
                 attestor,
                 horizon,
-                "attestor cut off for the rest of the epoch: its refuted attestations reached \
-                 attestation_max_fault_units"
+                "attestor cut off for the rest of the epoch: the squared units of its refuted \
+                 attestations reached attestation_max_refuted_units_squared"
             );
         }
         after
@@ -895,11 +901,11 @@ impl HandlerObjectState {
     pub fn attestors_cut_off_as_of(
         &self,
         horizon: CommitIndex,
-        max_fault_units: u64,
+        max_refuted_units_squared: u64,
     ) -> BTreeSet<u8> {
         self.attestation_totals
             .lock()
-            .cut_off_as_of(horizon, max_fault_units)
+            .cut_off_as_of(horizon, max_refuted_units_squared)
     }
 
     /// Stages a commit's rows into `batch`, the batch of the quarantine flush

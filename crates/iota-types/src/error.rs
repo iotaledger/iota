@@ -777,8 +777,9 @@ pub enum IotaError {
     AttestationUnitsAboveBudget { actual: u64, maximum: u64 },
 
     #[error(
-        "Attestor {attestor:?} is cut off for the rest of the epoch: its refuted \
-         attestations reached the maximum fault (`attestation_max_fault_units`)"
+        "Attestor {attestor:?} is cut off for the rest of the epoch: the squared \
+         units of its refuted attestations reached \
+         `attestation_max_refuted_units_squared`"
     )]
     AttestorCutOff { attestor: AuthorityIndex },
 }
