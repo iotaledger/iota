@@ -91,11 +91,14 @@ impl ValidatorService {
         &self.state
     }
 
+    /// The client IP that traffic control charges a request to, or `None`
+    /// when the node could not resolve one. Errors when the request is one
+    /// that [`ClientIpStatus::should_refuse_request`] refuses.
     pub(crate) fn get_client_ip_addr<T>(
         metrics: &ValidatorServiceMetrics,
         request: &tonic::Request<T>,
         source: &ClientIdSource,
-    ) -> Option<IpAddr> {
+    ) -> Result<Option<IpAddr>, tonic::Status> {
         // Observability gauge: track the hop depth even when we're not using
         // x-forwarded-for as the source, to detect misconfigured proxies.
         if let Some(num_hops) = forwarded_hop_depth(request.metadata().as_ref()) {
@@ -104,51 +107,23 @@ impl ValidatorService {
 
         let status = get_client_ip(request.metadata().as_ref(), request.remote_addr(), source);
         match &status {
-            ClientIpStatus::Ok(ip) => Some(*ip),
-            ClientIpStatus::SocketAddrMissing => {
-                // We will hit this case if the IO type used does not
-                // implement Connected or when using a unix domain socket.
-                // TODO(#11095): reject requests without a peer address.
-                // issue: https://github.com/iotaledger/iota/issues/11756
-                if cfg!(msim) {
-                    // Ignore the error from simtests.
-                } else if cfg!(test) {
-                    panic!("Failed to get remote address from request");
-                } else {
-                    metrics.connection_ip_not_found.inc();
-                    error!("{status}");
-                }
-                None
-            }
+            ClientIpStatus::Ok(ip) => return Ok(Some(*ip)),
+            ClientIpStatus::SocketAddrMissing => metrics.connection_ip_not_found.inc(),
             ClientIpStatus::XForwardedForHeaderMissing => {
-                metrics.forwarded_header_not_included.inc();
-                error!("{status}");
-                None
+                metrics.forwarded_header_not_included.inc()
             }
-            ClientIpStatus::XForwardedForInvalidUtf8 => {
-                // TODO: once we have confirmed that no legitimate traffic
-                // is hitting this case, we should reject such requests that
-                // hit this case.
-                // issue: https://github.com/iotaledger/iota/issues/11756
-                metrics.forwarded_header_invalid.inc();
-                error!("{status}");
-                None
-            }
-            ClientIpStatus::XForwardedForZeroHops { .. } => {
-                error!("{status}");
-                None
-            }
+            ClientIpStatus::XForwardedForInvalidUtf8 => metrics.forwarded_header_invalid.inc(),
+            ClientIpStatus::XForwardedForZeroHops { .. } => {}
             ClientIpStatus::XForwardedForConfigMismatch { .. } => {
-                metrics.client_id_source_config_mismatch.inc();
-                error!("{status}");
-                None
+                metrics.client_id_source_config_mismatch.inc()
             }
-            ClientIpStatus::XForwardedForUnparsable => {
-                metrics.forwarded_header_parse_error.inc();
-                error!("{status}");
-                None
-            }
+            ClientIpStatus::XForwardedForUnparsable => metrics.forwarded_header_parse_error.inc(),
         }
+        error!("{status}");
+        if status.should_refuse_request() {
+            return Err(tonic::Status::invalid_argument(status.to_string()));
+        }
+        Ok(None)
     }
 
     fn check_traffic(&self, client: Option<IpAddr>) -> Result<(), tonic::Status> {
@@ -164,10 +139,14 @@ impl ValidatorService {
         }
     }
 
-    fn extract_client_ip<ProtoReq>(&self, request: &tonic::Request<ProtoReq>) -> Option<IpAddr> {
-        self.client_id_source
-            .as_ref()
-            .and_then(|source| Self::get_client_ip_addr(&self.metrics, request, source))
+    fn extract_client_ip<ProtoReq>(
+        &self,
+        request: &tonic::Request<ProtoReq>,
+    ) -> Result<Option<IpAddr>, tonic::Status> {
+        match &self.client_id_source {
+            Some(source) => Self::get_client_ip_addr(&self.metrics, request, source),
+            None => Ok(None),
+        }
     }
 
     fn tally_traffic<T>(
@@ -198,7 +177,7 @@ impl ValidatorService {
         ProtoReq: TryInto<DomainReq>,
         ProtoReq::Error: std::fmt::Display,
     {
-        let ip = self.extract_client_ip(&request);
+        let ip = self.extract_client_ip(&request)?;
         self.check_traffic(ip)?;
         // TODO(#11095): move deserialization off the critical path (spawn_blocking).
         let domain_req = request.into_inner().try_into().map_err(|e| {
@@ -355,7 +334,7 @@ macro_rules! handle_with_decoration {
             return $self.$func_name($request).await.map(|(result, _)| result);
         }
 
-        let client = $self.extract_client_ip(&$request);
+        let client = $self.extract_client_ip(&$request)?;
 
         // check if either IP is blocked, in which case return early
         $self.check_traffic(client.clone())?;
@@ -400,7 +379,8 @@ mod client_ip_forwarding_tests {
             &metrics,
             &forwarded(b"\x80, 10.0.0.1"),
             &ClientIdSource::XForwardedFor(1),
-        );
+        )
+        .expect("the selected entry is an address");
 
         assert_eq!(client, Some(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))));
         assert_eq!(metrics.x_forwarded_for_num_hops.get(), 1.0);
@@ -415,10 +395,27 @@ mod client_ip_forwarding_tests {
             &metrics,
             &tonic::Request::new(()),
             &ClientIdSource::XForwardedFor(1),
-        );
+        )
+        .expect("a request without the header is served");
 
         assert_eq!(client, None);
         assert_eq!(metrics.forwarded_header_not_included.get(), 1);
+    }
+
+    /// A proxy never writes an entry that is not valid UTF-8, so the node
+    /// refuses such a request, and counts it under that cause.
+    #[test]
+    fn an_unreadable_selected_entry_is_refused_and_counted() {
+        let metrics = ValidatorServiceMetrics::new_for_tests();
+        let status = ValidatorService::get_client_ip_addr(
+            &metrics,
+            &forwarded(b"10.0.0.1, \x80"),
+            &ClientIdSource::XForwardedFor(1),
+        )
+        .expect_err("the node refuses an unreadable selected entry");
+
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+        assert_eq!(metrics.forwarded_header_invalid.get(), 1);
     }
 
     /// Verifies that `insert_metadata` on the client side sets the
