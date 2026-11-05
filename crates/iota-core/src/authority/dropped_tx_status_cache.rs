@@ -76,13 +76,17 @@ impl DroppedTxStatusCache {
         }
         // Notify outside the lock — entries are already visible to readers,
         // so the register-then-check pattern in notify_read_dropped is safe.
-        self.notify_without_recording(dropped);
+        self.notify(dropped);
     }
 
     /// Notify the current waiters of transactions dropped from one commit
     /// only, without recording the drops: the same digests can still be kept
     /// when sequenced again, so a later request must wait for that outcome.
     pub(crate) fn notify_without_recording(&self, dropped: &[(TransactionDigest, IotaError)]) {
+        self.notify(dropped);
+    }
+
+    fn notify(&self, dropped: &[(TransactionDigest, IotaError)]) {
         for (digest, error) in dropped {
             self.notify_read.notify(digest, error);
             self.any_drop_notify_read.notify(digest, error);

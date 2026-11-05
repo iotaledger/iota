@@ -3244,8 +3244,9 @@ mod tests {
     ///   only the handler's LRU is lost).
     ///
     /// The drop must also be transient for the submitter: a waiter present at commit A gets the
-    /// rejection, and a retry of T through validator A's consensus adapter is submitted to
-    /// consensus rather than answered from that rejection.
+    /// rejection, T's soft locks on validator A are released at commit A, and a retry of T through
+    /// validator A's consensus adapter is submitted to consensus rather than answered from that
+    /// rejection.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_load_shedding_dropped_transaction_retry_is_processed_after_restart() {
         use crate::{

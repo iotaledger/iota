@@ -4807,7 +4807,9 @@ impl AuthorityPerEpochStore {
         // Transactions dropped by post-consensus load shedding in this commit.
         // Waiters are notified after the loop so the submitter's
         // `await_consensus_or_checkpoint` wait is woken and its
-        // consensus-submission semaphore slot is released.
+        // consensus-submission semaphore slot is released. The drops are not
+        // recorded so a retry goes through consensus again; a status request
+        // that arrives after this commit waits for the retry or its timeout.
         let mut load_shedding_dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
         for tx in verified_transactions {
             if tx.0.is_end_of_publish() {
@@ -4845,8 +4847,18 @@ impl AuthorityPerEpochStore {
             }
         }
         if !load_shedding_dropped.is_empty() {
-            self.dropped_tx_status_cache
-                .notify_without_recording(&load_shedding_dropped);
+            if self
+                .protocol_config
+                .consensus_dedup_only_recorded_messages()
+            {
+                self.dropped_tx_status_cache
+                    .notify_without_recording(&load_shedding_dropped);
+            } else {
+                // Recorded so a retry is not submitted: the handler's cache
+                // would skip it without notifying its submitter.
+                self.dropped_tx_status_cache
+                    .insert_and_notify(&load_shedding_dropped);
+            }
         }
 
         let mut output =
@@ -4983,7 +4995,8 @@ impl AuthorityPerEpochStore {
             .is_some();
 
         // Transactions dropped by load shedding never reach conflict
-        // resolution, so their soft locks are released from here.
+        // resolution, so they are added here and released with the others
+        // after the consensus output is quarantined.
         let mut soft_lock_release_tx_digests: Vec<TransactionDigest> = load_shedding_dropped
             .iter()
             .map(|(digest, _)| *digest)
