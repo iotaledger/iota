@@ -107,7 +107,7 @@ pub(crate) async fn sleep_or_pending(wait_for: Option<Duration>) {
 /// Waits for `idle_timer`, or forever when there is none.
 async fn idle_or_pending(idle_timer: Option<IdleTimer>) {
     match idle_timer {
-        Some(idle_timer) => idle_timer.await,
+        Some(idle_timer) => idle_timer.wait().await,
         None => std::future::pending().await,
     };
 }

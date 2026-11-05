@@ -1282,20 +1282,20 @@ mod tests {
 
         let timer = idle_timer::idle_timeout(IDLE);
         let handle = timer.handle();
-        let mut timer = std::pin::pin!(timer);
+        let mut wait = std::pin::pin!(timer.wait());
 
         let guard = handle.guard();
 
         // Well past the deadline, but the request has not finished.
         assert!(
-            tokio::time::timeout(IDLE * 10, &mut timer).await.is_err(),
+            tokio::time::timeout(IDLE * 10, &mut wait).await.is_err(),
             "a connection serving a request must not be considered idle"
         );
 
         // Once it does, the deadline runs from that point.
         drop(guard);
         assert!(
-            tokio::time::timeout(IDLE * 10, &mut timer).await.is_ok(),
+            tokio::time::timeout(IDLE * 10, &mut wait).await.is_ok(),
             "a connection must go idle once its last request finishes"
         );
     }
@@ -1310,7 +1310,7 @@ mod tests {
 
         let timer = idle_timer::idle_timeout(IDLE);
         let handle = timer.handle();
-        let mut timer = std::pin::pin!(timer);
+        let mut wait = std::pin::pin!(timer.wait());
 
         let guard = handle.guard();
         // Held for several deadlines, so a timer that merely ticks would have
@@ -1319,7 +1319,7 @@ mod tests {
         let became_idle = tokio::time::Instant::now();
         drop(guard);
 
-        tokio::time::timeout(IDLE * 10, &mut timer)
+        tokio::time::timeout(IDLE * 10, &mut wait)
             .await
             .expect("the connection must go idle after its last request");
         assert!(
@@ -1338,22 +1338,22 @@ mod tests {
 
         let timer = idle_timer::idle_timeout(IDLE);
         let handle = timer.handle();
-        let mut timer = std::pin::pin!(timer);
 
-        tokio::time::timeout(IDLE * 10, &mut timer)
+        tokio::time::timeout(IDLE * 10, timer.wait())
             .await
             .expect("a connection that is never used must go idle");
 
         for request in 0..3 {
             let guard = handle.guard();
+            let mut wait = std::pin::pin!(timer.wait());
             assert!(
-                tokio::time::timeout(IDLE * 3, &mut timer).await.is_err(),
+                tokio::time::timeout(IDLE * 3, &mut wait).await.is_err(),
                 "request {request}: a connection serving a request must not be considered idle"
             );
             let became_idle = tokio::time::Instant::now();
             drop(guard);
 
-            tokio::time::timeout(IDLE * 10, &mut timer)
+            tokio::time::timeout(IDLE * 10, &mut wait)
                 .await
                 .unwrap_or_else(|_| panic!("request {request}: the connection must go idle again"));
             assert!(
@@ -1372,18 +1372,18 @@ mod tests {
 
         let timer = idle_timer::idle_timeout(IDLE);
         let handle = timer.handle();
-        let mut timer = std::pin::pin!(timer);
+        let mut wait = std::pin::pin!(timer.wait());
 
         // Polled once, so it is waiting on the deadline counted from creation.
         assert!(
-            tokio::time::timeout(IDLE / 2, &mut timer).await.is_err(),
+            tokio::time::timeout(IDLE / 2, &mut wait).await.is_err(),
             "the deadline must not be reached early"
         );
 
         let became_idle = tokio::time::Instant::now();
         drop(handle.guard());
 
-        tokio::time::timeout(IDLE * 10, &mut timer)
+        tokio::time::timeout(IDLE * 10, &mut wait)
             .await
             .expect("the connection must go idle after the request");
         assert!(
@@ -1402,14 +1402,13 @@ mod tests {
 
         let timer = idle_timer::idle_timeout(IDLE);
         let handle = timer.handle();
-        let mut timer = std::pin::pin!(timer);
 
-        (&mut timer).await;
+        timer.wait().await;
 
         let became_idle = tokio::time::Instant::now();
         drop(handle.guard());
 
-        tokio::time::timeout(IDLE * 10, &mut timer)
+        tokio::time::timeout(IDLE * 10, timer.wait())
             .await
             .expect("a connection used after its timer was reached must go idle again");
         assert!(
@@ -1445,7 +1444,7 @@ mod tests {
 
         let timer = idle_timer::idle_timeout(IDLE);
         let idle = timer.handle();
-        let mut timer = std::pin::pin!(timer);
+        let mut wait = std::pin::pin!(timer.wait());
 
         // What the server does per request: take a guard and hand it to the
         // response body.
@@ -1453,14 +1452,14 @@ mod tests {
         let streaming = body::GuardedBody::new(NeverEnds, guard);
 
         assert!(
-            tokio::time::timeout(IDLE * 10, &mut timer).await.is_err(),
+            tokio::time::timeout(IDLE * 10, &mut wait).await.is_err(),
             "a connection still sending its response must not be considered idle"
         );
 
         // The response ends when its body is dropped.
         drop(streaming);
         assert!(
-            tokio::time::timeout(IDLE * 10, &mut timer).await.is_ok(),
+            tokio::time::timeout(IDLE * 10, &mut wait).await.is_ok(),
             "the connection must go idle once the body ends"
         );
     }
