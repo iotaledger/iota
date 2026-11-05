@@ -316,7 +316,6 @@ impl IotaTxValidatorMetrics {
 mod tests {
     use std::sync::Arc;
 
-    use fastcrypto::traits::KeyPair as _;
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::{Identifier, ObjectId, UserSignature};
@@ -584,7 +583,7 @@ mod tests {
         let network_config = network_config_builder.build();
         let keypair = network_config.validator_configs()[0]
             .authority_key_pair()
-            .copy();
+            .clone();
         let mut builder = TestAuthorityBuilder::new().with_network_config(&network_config, 0);
         if let Some(version) = protocol_version {
             builder = builder
