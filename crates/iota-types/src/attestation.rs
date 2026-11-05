@@ -119,10 +119,11 @@ pub enum AttestationVerdict {
     /// recorded versions, when one was needed.
     Refuted { units: u64 },
     /// Authentication failed, and the judge could not decide whether the
-    /// attestor or the account is accountable: its re-run at the recorded
-    /// versions failed with an internal error. Nobody pays and the attestor is
-    /// not penalized; certified, so that a node executing from a checkpoint
-    /// charges nobody as well.
+    /// attestor or the account is accountable: an authenticator input was
+    /// deleted, which it cannot place before or after the attestation, or its
+    /// re-run at the recorded versions failed with an internal error. Nobody
+    /// pays and the attestor is not penalized; certified, so that a node
+    /// executing from a checkpoint charges nobody as well.
     Undecided,
 }
 

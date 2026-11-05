@@ -9,12 +9,12 @@
 //! verdict is recorded separately as [`AttestationRecord::verdict`]. An
 //! attestation is refuted when authentication failed at exactly the recorded
 //! state, a recorded version is ahead of the executed one or was not superseded
-//! this epoch, an authenticator input is deleted, or the re-run rejects. A
-//! refuted or undecided attestation charges nobody. The gas owner pays only
-//! when the account is at fault, because authentication passes at the attested
-//! state. Most tests rotate the account after the transaction is built - its
-//! key or its authenticator function - so the same transaction authenticates
-//! differently at two versions of the same account.
+//! this epoch, or the re-run rejects; a deleted authenticator input leaves the
+//! judge undecided. A refuted or undecided attestation charges nobody. The gas
+//! owner pays only when the account is at fault, because authentication passes
+//! at the attested state. Most tests rotate the account after the transaction
+//! is built - its key or its authenticator function - so the same transaction
+//! authenticates differently at two versions of the same account.
 
 use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
 use iota_sdk_types::{ExecutionError, ExecutionStatus, GasCostSummary, Owner, TransactionEffects};
@@ -270,14 +270,14 @@ async fn honest_attestation_of_a_rotated_authenticator_is_recorded_valid_and_cha
     assert_charged(&effects);
 }
 
-/// An authenticator input deleted before execution refutes the attestation
-/// without a re-run: nobody is charged, the effects report the deleted input,
-/// and the validator goes on. The deletion is ordered in the same commit, just
-/// before the attested transaction: a deletion at or below the horizon of the
-/// commit is seen by post-consensus validation, which drops the transaction
-/// before execution.
+/// An authenticator input deleted before execution leaves the judge undecided,
+/// without a re-run: nobody is charged, the attestor is not penalized, the
+/// effects report the deleted input, and the validator goes on. The deletion is
+/// ordered in the same commit, just before the attested transaction: a deletion
+/// at or below the horizon of the commit is seen by post-consensus validation,
+/// which drops the transaction before execution.
 #[tokio::test]
-async fn deleted_authenticator_input_is_recorded_refuted_and_not_charged() {
+async fn deleted_authenticator_input_is_recorded_undecided_and_not_charged() {
     let _guard = attestation_config(None);
 
     let mut env = AbstractAccountTestEnv::new().await;
@@ -311,8 +311,7 @@ async fn deleted_authenticator_input_is_recorded_refuted_and_not_charged() {
     );
     let gas_coin_after = env.object(&gas_coin_before.id());
     assert_not_charged(&effects, &gas_coin_before, &gas_coin_after);
-    // Only for its assertions: the record is refuted.
-    refuted_units(&env, &effects);
+    assert_record(&env, &effects, AttestationVerdict::Undecided);
 }
 
 /// A sponsor that signed with its key authorized the transaction, so the

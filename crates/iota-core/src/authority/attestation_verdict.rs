@@ -151,8 +151,9 @@ pub(crate) enum AuthenticationFailureBlame {
     /// violation during execution.
     Nobody,
 
-    /// The judge could not decide who is at fault: its own re-run failed with
-    /// an internal error. Recorded as
+    /// The judge could not decide who is at fault: an authenticator input was
+    /// deleted, which it cannot place before or after the attestation, or its
+    /// own re-run failed with an internal error. Recorded as
     /// [`attestation::AttestationVerdict::Undecided`], which is certified, so a
     /// node executing from a checkpoint charges nobody as well.
     Undecided,
@@ -163,7 +164,7 @@ impl AttestationVerdictContext<'_> {
     /// authentication, wrapped in an [`ExecutionErrorKind::MoveAuthentication`]
     /// status or not. Returns [`AuthenticationFailureBlame::Nobody`] for a
     /// cancellation or an invariant violation, and
-    /// [`AuthenticationFailureBlame::Attestor`] for a deleted authenticator
+    /// [`AuthenticationFailureBlame::Undecided`] for a deleted authenticator
     /// input, without a re-run; otherwise, the recorded versions decide, through
     /// a re-run of authentication at them when the executed state drifted from
     /// them.
@@ -186,10 +187,12 @@ impl AttestationVerdictContext<'_> {
             return AuthenticationFailureBlame::Nobody;
         }
 
-        // A deleted authenticator input blames the attestor without a re-run.
-        // At the recorded version, the input still exists, so a re-run there
-        // could pass and charge the gas owner, also when the attestor recorded
-        // the versions from before the deletion.
+        // A deleted authenticator input leaves the judge undecided, without a
+        // re-run. At the recorded version, the input still exists, so a re-run
+        // there could pass and charge the gas owner, also when the attestor
+        // recorded the versions from before the deletion; refuting instead
+        // would let any sender penalize an honest attestor by deleting the
+        // input after the attestation.
         // TODO: temporary rule, until the judge can distinguish a deletion
         // before the attestation from one after it.
         if self
@@ -197,9 +200,7 @@ impl AttestationVerdictContext<'_> {
             .iter()
             .any(|(_, input_objects)| input_objects.contains_deleted_objects())
         {
-            return AuthenticationFailureBlame::Attestor {
-                rerun_computation_units: 0,
-            };
+            return AuthenticationFailureBlame::Undecided;
         }
 
         // Nothing to re-run: the failure already reproduces at the recorded
