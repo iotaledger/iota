@@ -3579,11 +3579,10 @@ impl<'a> DBReader<'a> {
     }
 
     /// Returns the number of checkpoints the transaction with `tx_sequence_number`
-    /// is behind the latest checkpoint in the database.
+    /// is behind the latest transaction in the database.
     ///
-    /// A transaction past the latest checkpoint counts as zero. Returns `None`
-    /// if the transaction or the latest checkpoint cannot be found, so the
-    /// transaction has been pruned.
+    /// Returns `None` when the transaction is not in the database, either pruned
+    /// or not indexed yet.
     pub async fn checkpoints_behind_latest(
         &self,
         tx_sequence_number: i64,
@@ -3591,30 +3590,21 @@ impl<'a> DBReader<'a> {
         let pool = self.main_reader.get_pool();
 
         run_query_async!(&pool, move |conn| {
-            let latest = checkpoints::table
-                .select((
-                    checkpoints::sequence_number,
-                    checkpoints::max_tx_sequence_number,
-                ))
-                .order(checkpoints::sequence_number.desc())
-                .first::<(i64, Option<i64>)>(conn)
-                .optional()?;
-            let Some((latest_checkpoint, latest_tx)) = latest else {
-                return Ok(None);
-            };
-            // The indexer writes a checkpoint's row only after its transactions, so a
-            // cursor past the latest checkpoint belongs to one still being written.
-            // Its `transactions` row may not exist yet, and it cannot be too old, so
-            // skip the lookup and report no distance.
-            if latest_tx.is_some_and(|latest_tx| tx_sequence_number > latest_tx) {
-                return Ok(Some(0));
-            }
             let tx_checkpoint = transactions::table
                 .filter(transactions::tx_sequence_number.eq(tx_sequence_number))
                 .select(transactions::checkpoint_sequence_number)
                 .first::<i64>(conn)
                 .optional()?;
-            Ok::<_, diesel::result::Error>(tx_checkpoint.map(|tx| latest_checkpoint - tx))
+            let latest_checkpoint = transactions::table
+                .select(transactions::checkpoint_sequence_number)
+                .order(transactions::tx_sequence_number.desc())
+                .first::<i64>(conn)
+                .optional()?;
+            Ok::<_, diesel::result::Error>(
+                tx_checkpoint
+                    .zip(latest_checkpoint)
+                    .map(|(tx, latest)| latest - tx),
+            )
         })
     }
 
