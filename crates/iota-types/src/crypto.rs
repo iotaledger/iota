@@ -16,7 +16,7 @@ use derive_more::{AsRef, From};
 pub use enum_dispatch::enum_dispatch;
 use eyre::eyre;
 pub use fastcrypto::traits::{
-    AggregateAuthenticator, Authenticator, EncodeDecodeBase64, KeyPair as KeypairTraits, Signer,
+    AggregateAuthenticator, Authenticator, EncodeDecodeBase64, KeyPair as KeypairTraits,
     SigningKey, ToFromBytes, VerifyingKey,
 };
 use fastcrypto::{
