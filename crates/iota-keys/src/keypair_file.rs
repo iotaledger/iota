@@ -22,7 +22,7 @@ pub fn write_keypair_to_file<P: AsRef<std::path::Path>>(
     path: P,
 ) -> anyhow::Result<()> {
     let contents = keypair.to_bech32().map_err(|e| anyhow!(e))?;
-    std::fs::write(path, contents)?;
+    crate::secret_file::write_secret_file(path.as_ref(), contents.as_bytes())?;
     Ok(())
 }
 
@@ -32,7 +32,7 @@ pub fn write_authority_keypair_to_file<P: AsRef<std::path::Path>>(
     path: P,
 ) -> anyhow::Result<()> {
     let contents = keypair.encode_base64();
-    std::fs::write(path, contents)?;
+    crate::secret_file::write_secret_file(path.as_ref(), contents.as_bytes())?;
     Ok(())
 }
 

@@ -723,7 +723,7 @@ impl FileBasedKeystore {
         let store = serde_json::to_string_pretty(&file).with_context(|| {
             format!("Cannot serialize keystore to file: {}", self.path.display())
         })?;
-        fs::write(&self.path, store)
+        crate::secret_file::write_secret_file(&self.path, store.as_bytes())
             .map_err(|e| anyhow!("Couldn't save keystore to {}: {e}", self.path.display()))?;
         Ok(())
     }
