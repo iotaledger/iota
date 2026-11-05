@@ -2480,7 +2480,7 @@ fn check_user_signature_protocol_compatibility(
     Ok(())
 }
 
-/// Rejects a signed transaction that a user may not submit, or that carries an
+/// Rejects a signed transaction that carries a system transaction kind, or an
 /// identifier move-core rejects: in Move call module and function names, and in
 /// the type arguments of Move calls, `MakeMoveVector` commands and Move
 /// authenticators.
