@@ -2901,7 +2901,7 @@ async fn setup_handler_object_state_outside_committee(
     // The builder's genesis committee holds its own generated validator keys,
     // so a node signing with a fresh key is outside it.
     let (_, keypair): (_, iota_types::crypto::AuthorityKeyPair) = get_key_pair();
-    build_handler_object_state_setup(genesis_objects, None, Some(&keypair)).await
+    build_handler_object_state_setup(genesis_objects, None, Some(&keypair), None).await
 }
 
 /// Like [`setup_handler_object_state`], under the protocol config override the caller
@@ -2910,18 +2910,31 @@ async fn setup_handler_object_state_with_config_guard(
     genesis_objects: Vec<Object>,
     config_guard: Option<OverrideGuard>,
 ) -> HandlerObjectStateSetup {
-    build_handler_object_state_setup(genesis_objects, config_guard, None).await
+    build_handler_object_state_setup(genesis_objects, config_guard, None, None).await
+}
+
+/// Like [`setup_handler_object_state`] with the flags on, but for a validator
+/// whose local config is `deny_config`.
+async fn setup_handler_object_state_with_deny_config(
+    genesis_objects: Vec<Object>,
+    deny_config: iota_config::transaction_deny_config::TransactionDenyConfig,
+) -> HandlerObjectStateSetup {
+    build_handler_object_state_setup(genesis_objects, None, None, Some(deny_config)).await
 }
 
 async fn build_handler_object_state_setup(
     genesis_objects: Vec<Object>,
     _config_guard: Option<OverrideGuard>,
     keypair: Option<&iota_types::crypto::AuthorityKeyPair>,
+    deny_config: Option<iota_config::transaction_deny_config::TransactionDenyConfig>,
 ) -> HandlerObjectStateSetup {
-    let builder = match keypair {
+    let mut builder = match keypair {
         Some(keypair) => TestAuthorityBuilder::new().with_keypair(keypair),
         None => TestAuthorityBuilder::new(),
     };
+    if let Some(deny_config) = deny_config {
+        builder = builder.with_transaction_deny_config(deny_config);
+    }
     let authority = builder.build().await;
     for object in genesis_objects {
         authority.insert_genesis_object(object);
@@ -11218,7 +11231,7 @@ async fn setup_validators_with_a_shared_regulated_coin(
     let mut validators = Vec::new();
     let mut coins = Vec::new();
     for _ in 0..2 {
-        let s = build_handler_object_state_setup(genesis.clone(), None, None).await;
+        let s = build_handler_object_state_setup(genesis.clone(), None, None, None).await;
         let (_, publish_effects) = build_and_try_publish_test_package(
             &s.authority,
             &publisher,
@@ -13256,4 +13269,135 @@ fn validation_readers_are_a_third_of_the_cores_between_one_and_sixteen() {
     ] {
         assert_eq!(validation_readers_for(cores), readers, "{cores} cores");
     }
+}
+
+/// Transactions that `submit_tx` rejects for what they contain are also
+/// dropped at a commit, with the same error, when another validator
+/// sequences them.
+#[tokio::test]
+async fn invalid_transactions_are_dropped_at_the_commit_with_the_exact_error() {
+    telemetry_subscribers::init_for_testing();
+    let s = setup_handler_object_state(vec![], true).await;
+
+    let cases: Vec<_> = crate::rejection_cases::rejection_cases(&s.authority)
+        .into_iter()
+        .filter(|case| case.at_commit.is_some())
+        .collect();
+    let transactions: Vec<_> = cases
+        .iter()
+        .map(|case| VerifiedTransaction::new_unchecked(case.tx.clone()))
+        .collect();
+
+    let result = s.validate_at(1, &transactions).await;
+
+    assert!(
+        result.kept.is_empty(),
+        "no invalid transaction may be kept: {:?}",
+        result.kept
+    );
+    let dropped: std::collections::HashMap<_, _> = result.dropped.into_iter().collect();
+    for case in &cases {
+        eprintln!("case: {}", case.name);
+        let error = dropped
+            .get(case.tx.digest())
+            .unwrap_or_else(|| panic!("the transaction must be dropped: {}", case.name));
+        case.at_commit.as_ref().unwrap()(error);
+    }
+}
+
+/// A transaction paid for by a sponsor, signed by both, is kept.
+#[tokio::test]
+async fn sponsored_transaction_is_kept_at_the_commit() {
+    telemetry_subscribers::init_for_testing();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_handler_object_state(
+        vec![
+            Object::with_id_owner_for_testing(object_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sponsor),
+        ],
+        true,
+    )
+    .await;
+
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder
+            .transfer_object(Address::random(), s.latest_ref(&object_id))
+            .unwrap();
+        builder.finish()
+    };
+    let tx = Transaction::new_with_gas_data(
+        iota_sdk_types::TransactionKind::new_programmable(pt),
+        sender,
+        iota_sdk_types::GasPayment {
+            objects: vec![s.latest_ref(&gas_id)],
+            owner: sponsor,
+            price: s.rgp,
+            budget: iota_types::transaction::TEST_ONLY_GAS_UNIT_FOR_TRANSFER * s.rgp,
+        },
+    );
+    let tx = iota_types::utils::to_sender_signed_transaction_with_multi_signers(
+        tx,
+        vec![&sender_key, &sponsor_key],
+    );
+    let digest = *tx.digest();
+
+    let result = s
+        .validate_at(1, &[VerifiedTransaction::new_unchecked(tx)])
+        .await;
+
+    assert_eq!(result.kept, vec![digest]);
+    assert!(result.dropped.is_empty(), "{:?}", result.dropped);
+}
+
+/// A transaction the validator's local deny config rejects at admission is
+/// kept at the commit, where only the deny rules from governance apply: a
+/// local config differs between validators and would fork their decisions.
+#[tokio::test]
+async fn local_deny_config_is_not_applied_at_the_commit() {
+    telemetry_subscribers::init_for_testing();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_handler_object_state_with_deny_config(
+        vec![
+            Object::with_id_owner_for_testing(object_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        iota_config::transaction_deny_config::TransactionDenyConfigBuilder::new()
+            .disable_user_transaction()
+            .add_denied_address(sender)
+            .add_denied_object(object_id)
+            .build(),
+    )
+    .await;
+    let tx = s.build_transfer(&object_id, &gas_id, sender, &sender_key, Address::random());
+    let digest = *tx.digest();
+
+    let denied = s
+        .authority
+        .handle_transaction_validation_checks(
+            &tx,
+            &s.epoch_store,
+            &s.authority.config.transaction_deny_config,
+        )
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            denied,
+            IotaError::UserInput {
+                error: UserInputError::TransactionDenied { .. }
+            }
+        ),
+        "admission must deny the transaction, got {denied:?}"
+    );
+
+    let result = s.validate_at(1, &[tx]).await;
+
+    assert_eq!(result.kept, vec![digest]);
+    assert!(result.dropped.is_empty(), "{:?}", result.dropped);
 }
