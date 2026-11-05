@@ -11,7 +11,7 @@ use bytes::Bytes;
 use http_body_util::BodyExt;
 use pin_project_lite::pin_project;
 
-use crate::{BoxError, idle::IdleGuard};
+use crate::{BoxError, idle_timer::IdleGuard};
 
 pub type BoxBody = http_body_util::combinators::UnsyncBoxBody<Bytes, BoxError>;
 

@@ -64,9 +64,9 @@ use tokio::time::{Instant, Sleep};
 ///     }
 /// }
 /// ```
-pub fn idle_sleep(idle_timeout: Option<Duration>) -> IdleSleep {
-    IdleSleep {
-        timer: idle_timeout.map(|timeout| Timer {
+pub fn idle_timeout(timeout: Option<Duration>) -> IdleTimer {
+    IdleTimer {
+        timer: timeout.map(|timeout| Timer {
             sleep: tokio::time::sleep(timeout),
             timeout,
             shared: Arc::new(Shared::new()),
@@ -76,7 +76,7 @@ pub fn idle_sleep(idle_timeout: Option<Duration>) -> IdleSleep {
 
 pin_project! {
     /// A timer that runs only while its task is idle. See [`idle_sleep`].
-    pub struct IdleSleep {
+    pub struct IdleTimer {
         // Sleep timer, created only when finite idle timeout is requested.
         #[pin]
         timer: Option<Timer>,
@@ -97,7 +97,7 @@ pin_project! {
     }
 }
 
-impl IdleSleep {
+impl IdleTimer {
     /// A handle for marking the task busy, which can be cloned and sent to
     /// wherever its work is done.
     pub fn handle(&self) -> IdleHandle {
@@ -108,10 +108,10 @@ impl IdleSleep {
 
     /// Whether the task has anything to do right now. Always `false` for a
     /// timer with no timeout, which tracks nothing.
-    pub fn is_busy(&self) -> bool {
+    pub fn is_idle(&self) -> bool {
         self.timer
             .as_ref()
-            .is_some_and(|timer| timer.shared.is_busy())
+            .is_none_or(|timer| timer.shared.is_idle())
     }
 }
 
@@ -136,8 +136,8 @@ impl IdleHandle {
     }
 
     #[cfg(test)]
-    pub fn is_busy(&self) -> bool {
-        self.shared.as_ref().is_some_and(|shared| shared.is_busy())
+    pub fn is_idle(&self) -> bool {
+        self.shared.as_ref().is_none_or(|shared| shared.is_idle())
     }
 
     /// Approximately how long the task has been idle, or `None` if it is busy
@@ -148,7 +148,7 @@ impl IdleHandle {
     pub fn idle_for(&self) -> Option<Duration> {
         self.shared
             .as_ref()
-            .filter(|shared| !shared.is_busy())
+            .filter(|shared| shared.is_idle())
             .map(|shared| shared.idle_for())
     }
 }
@@ -211,7 +211,7 @@ struct Shared {
     has_been_busy: AtomicBool,
     /// When the timer was created, which `idle_since_ns` counts from.
     created_at: Instant,
-    /// When the task last became idle, in milliseconds relative to
+    /// When the task last became idle, in nanoseconds relative to
     /// `created_at`.
     idle_since_ns: AtomicU64,
     state: Mutex<State>,
@@ -228,10 +228,10 @@ impl Shared {
         }
     }
 
-    fn is_busy(&self) -> bool {
+    fn is_idle(&self) -> bool {
         // Acquire, so a caller that finds the task idle and then reads
         // `idle_since` reads the one stored by the guard that made it idle.
-        self.busy.load(Ordering::Acquire) > 0
+        self.busy.load(Ordering::Acquire) == 0
     }
 
     fn idle_since(&self) -> Instant {
@@ -251,7 +251,7 @@ struct State {
     reached: bool,
 }
 
-impl Future for IdleSleep {
+impl Future for IdleTimer {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -269,7 +269,7 @@ impl Future for IdleSleep {
         // what stops a wake going missing: either the guard has yet to reach
         // the lock and will find the waker there, or it has already been
         // through, so this reads zero guards and `reached` cleared.
-        if shared.is_busy() || state.reached {
+        if !shared.is_idle() || state.reached {
             state.waker = Some(cx.waker().clone());
             return Poll::Pending;
         }
