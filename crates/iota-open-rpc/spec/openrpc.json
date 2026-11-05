@@ -1971,6 +1971,12 @@
                 "max_modules_in_publish": {
                   "u32": "64"
                 },
+                "max_move_call_argument_nodes": {
+                  "u64": "2097152"
+                },
+                "max_move_call_argument_nodes_total": {
+                  "u64": "16777216"
+                },
                 "max_move_enum_variants": {
                   "u64": "127"
                 },

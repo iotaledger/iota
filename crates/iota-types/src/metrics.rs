@@ -18,10 +18,17 @@ pub struct LimitsMetrics {
     pub excessive_transferred_move_object_ids: IntCounterVec,
     pub excessive_object_runtime_cached_objects: IntCounterVec,
     pub excessive_object_runtime_store_entries: IntCounterVec,
+    pub excessive_move_call_argument_nodes: IntCounterVec,
+    pub move_call_argument_nodes: Histogram,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 impl LimitsMetrics {
+    const MOVE_CALL_ARGUMENT_NODES_BUCKETS: &'static [f64] = &[
+        1.0, 4.0, 16.0, 64.0, 256.0, 1024.0, 4096.0, 16384.0, 65536.0, 262144.0, 1048576.0,
+        2097152.0,
+    ];
+
     pub fn new(registry: &prometheus_filtered::Registry) -> LimitsMetrics {
         Self {
             excessive_estimated_effects_size: register_int_counter_vec_with_registry!(
@@ -73,6 +80,20 @@ impl LimitsMetrics {
                 registry,
             )
                 .unwrap(),
+            excessive_move_call_argument_nodes: register_int_counter_vec_with_registry!(
+                "excessive_move_call_argument_nodes",
+                "Number of Move calls whose arguments exceed the per-call or per-transaction value limit",
+                &["limit_type"],
+                registry,
+            )
+                .unwrap(),
+            move_call_argument_nodes: register_histogram_with_registry!(
+                "move_call_argument_nodes",
+                "Struct, enum and vector values in the arguments of one Move call",
+                Self::MOVE_CALL_ARGUMENT_NODES_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
         }
     }
 }
@@ -190,6 +211,8 @@ mod wasm_stubs {
         pub excessive_transferred_move_object_ids: StubCounterVec,
         pub excessive_object_runtime_cached_objects: StubCounterVec,
         pub excessive_object_runtime_store_entries: StubCounterVec,
+        pub excessive_move_call_argument_nodes: StubCounterVec,
+        pub move_call_argument_nodes: StubHistogram,
     }
 
     impl LimitsMetrics {
@@ -202,6 +225,8 @@ mod wasm_stubs {
                 excessive_transferred_move_object_ids: StubCounterVec,
                 excessive_object_runtime_cached_objects: StubCounterVec,
                 excessive_object_runtime_store_entries: StubCounterVec,
+                excessive_move_call_argument_nodes: StubCounterVec,
+                move_call_argument_nodes: StubHistogram,
             }
         }
     }
