@@ -1205,42 +1205,15 @@ mod tests {
         assert_eq!(handle.number_of_connections(), 0);
     }
 
-    /// A limit whose slots nothing releases leaves the server unable to
-    /// accept.
+    /// A zero deadline or interval, an HTTP/2 size outside what the protocol
+    /// allows, or a limit whose slots nothing releases would leave the server
+    /// unable to serve, so it refuses to start and names the setting.
     #[tokio::test]
     async fn unrecoverable_limits_are_rejected() {
         let served = |config| {
             Builder::new()
                 .config(config)
                 .tls_config(test_tls_configs().0)
-                .serve(("localhost", 0), Router::new())
-        };
-
-        assert!(
-            served(
-                Config::default()
-                    .handshake_timeout(None)
-                    .max_pending_connections(NonZeroUsize::new(8))
-            )
-            .is_err(),
-            "a limit without a handshake deadline must be rejected"
-        );
-        assert!(
-            served(
-                Config::default()
-                    .handshake_timeout(None)
-                    .max_pending_connections(None)
-            )
-            .is_ok(),
-            "removing both bounds stays allowed"
-        );
-    }
-
-    #[tokio::test]
-    async fn settings_that_cannot_work_are_rejected() {
-        let served = |config| {
-            Builder::new()
-                .config(config)
                 .serve(("localhost", 0), Router::new())
         };
         let zero = Some(Duration::ZERO);
@@ -1288,6 +1261,12 @@ mod tests {
                 "max_frame_size",
                 Config::default().max_frame_size(size(1 << 24)),
             ),
+            (
+                "max_pending_connections",
+                Config::default()
+                    .handshake_timeout(None)
+                    .max_pending_connections(NonZeroUsize::new(8)),
+            ),
         ] {
             let error = served(config).err().map(|error| error.to_string());
             assert!(
@@ -1302,10 +1281,14 @@ mod tests {
                 .initial_connection_window_size(size((1 << 31) - 1)),
             Config::default().max_frame_size(size(1 << 14)),
             Config::default().max_frame_size(size((1 << 24) - 1)),
+            Config::default()
+                .handshake_timeout(None)
+                .max_pending_connections(None),
         ] {
             assert!(
                 served(config.clone()).is_ok(),
-                "the largest and smallest allowed values must be accepted: {config:?}"
+                "the largest and smallest allowed values, and removing both \
+                 handshake bounds, must be accepted: {config:?}"
             );
         }
     }
