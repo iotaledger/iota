@@ -33,7 +33,6 @@ prometheus-filtered.workspace = true
 [dev-dependencies]
 # external dependencies
 axum.workspace = true
-fastcrypto.workspace = true
 futures.workspace = true
 h2 = "0.4.19"
 reqwest.workspace = true
@@ -41,6 +40,7 @@ rustls.workspace = true
 
 # internal dependencies
 iota-metrics = { workspace = true, features = ["test-utils"] }
+iota-sdk-crypto = { workspace = true, features = ["ed25519"] }
 
 [lints]
 workspace = true

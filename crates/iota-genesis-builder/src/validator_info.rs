@@ -8,7 +8,7 @@ use iota_multiaddr::Multiaddr;
 use iota_sdk_types::Address;
 use iota_types::crypto::{
     AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
-    verify_proof_of_possession,
+    network_pubkey_from_bytes, verify_proof_of_possession,
 };
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -150,6 +150,13 @@ impl GenesisValidatorInfo {
             bail!("proof of possession is incorrect: {e}");
         }
 
+        if let Err(e) = network_pubkey_from_bytes(self.info.network_key.bytes()) {
+            bail!("network pubkey is invalid: {e}");
+        }
+        if let Err(e) = network_pubkey_from_bytes(self.info.protocol_key.bytes()) {
+            bail!("protocol pubkey is invalid: {e}");
+        }
+
         if self.info.protocol_key() == self.info.network_key() {
             bail!("protocol pubkey must be different from the network pubkey");
         }
@@ -175,8 +182,8 @@ impl From<GenesisValidatorInfo> for GenesisValidatorMetadata {
             commission_rate: info.commission_rate,
             authority_public_key: info.authority_key.as_bytes().to_vec(),
             proof_of_possession: proof_of_possession.as_ref().to_vec(),
-            network_public_key: info.network_key.as_bytes().to_vec(),
-            protocol_public_key: info.protocol_key.as_bytes().to_vec(),
+            network_public_key: info.network_key.bytes().to_vec(),
+            protocol_public_key: info.protocol_key.bytes().to_vec(),
             network_address: info.network_address,
             p2p_address: info.p2p_address,
             primary_address: info.primary_address,

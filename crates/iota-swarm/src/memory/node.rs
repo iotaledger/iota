@@ -7,10 +7,7 @@ use std::sync::{Mutex, MutexGuard};
 use anyhow::{Result, anyhow};
 use iota_config::NodeConfig;
 use iota_node::IotaNodeHandle;
-use iota_types::{
-    base_types::{AuthorityName, ConciseableName},
-    crypto::KeypairTraits,
-};
+use iota_types::base_types::{AuthorityName, ConciseableName};
 use tap::TapFallible;
 use tracing::{error, info};
 
@@ -114,7 +111,7 @@ impl Node {
                 .clone()
                 .rewrite_http_to_https();
             let tls_config = iota_tls::create_rustls_client_config(
-                self.config().network_key_pair().public().to_owned(),
+                self.config().network_key_pair().public_key(),
                 iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
                 None,
             );
