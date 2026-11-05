@@ -14,7 +14,7 @@ use iota_config::{
 };
 use iota_genesis_builder::{Builder, GENESIS_BUILDER_PARAMETERS_FILE};
 use iota_keys::keypair_file::{
-    read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
+    read_authority_keypair_from_file, read_keypair_from_file, read_network_private_key_from_file,
 };
 use iota_multiaddr::Multiaddr;
 use iota_protocol_config::MAX_PROTOCOL_VERSION;
@@ -185,9 +185,9 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
                 read_authority_keypair_from_file(authority_key_file)?;
             let account_keypair: SimpleKeypair = read_keypair_from_file(account_key_file)?;
             let protocol_keypair: NetworkPrivateKey =
-                read_network_keypair_from_file(protocol_key_file)?;
+                read_network_private_key_from_file(protocol_key_file)?;
             let network_keypair: NetworkPrivateKey =
-                read_network_keypair_from_file(network_key_file)?;
+                read_network_private_key_from_file(network_key_file)?;
             let pop = generate_proof_of_possession(
                 &authority_keypair,
                 account_keypair.public_key().derive_address(),

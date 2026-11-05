@@ -2178,7 +2178,7 @@ async fn test_known_peers_limit_evicts_oldest_peers() -> Result<()> {
     state.write().unwrap().our_info = Some(our_info);
 
     let signed_peer_info = |timestamp_ms: u64, port: u16| {
-        let key = NetworkKeyPair::random();
+        let key = NetworkPrivateKey::random();
         NodeInfo {
             peer_id: anemo::PeerId(key.public_key().into_bytes()),
             addresses: vec![format!("/dns/localhost/udp/{port}").parse().unwrap()],

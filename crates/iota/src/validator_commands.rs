@@ -25,7 +25,7 @@ use iota_json_rpc_types::{
 use iota_keys::{
     key_derive::generate_new_key,
     keypair_file::{
-        read_authority_keypair_from_file, read_network_keypair_from_file,
+        read_authority_keypair_from_file, read_network_private_key_from_file,
         write_authority_keypair_to_file, write_keypair_to_file,
     },
     keystore::{AccountKeystore, StoredKey},
@@ -236,9 +236,9 @@ impl IotaValidatorCommand {
                 let authority_keypair: AuthorityKeyPair =
                     read_authority_keypair_from_file(authority_key_file_name)?;
                 let protocol_keypair: NetworkPrivateKey =
-                    read_network_keypair_from_file(protocol_key_file_name)?;
+                    read_network_private_key_from_file(protocol_key_file_name)?;
                 let network_keypair: NetworkPrivateKey =
-                    read_network_keypair_from_file(network_key_file_name)?;
+                    read_network_private_key_from_file(network_key_file_name)?;
 
                 let account_address = Address::from(&account_key.public());
 
@@ -1015,7 +1015,7 @@ async fn update_metadata(
         MetadataUpdate::NetworkPubKey { file } => {
             can_validator_mutate_all_data(context).await?;
             let network_pub_key: NetworkPublicKey =
-                read_network_keypair_from_file(file)?.public_key();
+                read_network_private_key_from_file(file)?.public_key();
             let args = vec![CallArg::pure(&network_pub_key.bytes().to_vec())];
             call_0x5(
                 context,
@@ -1028,7 +1028,7 @@ async fn update_metadata(
         MetadataUpdate::ProtocolPubKey { file } => {
             can_validator_mutate_all_data(context).await?;
             let protocol_pub_key: NetworkPublicKey =
-                read_network_keypair_from_file(file)?.public_key();
+                read_network_private_key_from_file(file)?.public_key();
             let args = vec![CallArg::pure(&protocol_pub_key.bytes().to_vec())];
             call_0x5(
                 context,

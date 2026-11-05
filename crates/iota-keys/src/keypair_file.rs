@@ -53,7 +53,7 @@ pub fn read_keypair_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Res
 
 /// Read from file as Bech32 encoded `flag || privkey` and return a
 /// NetworkPrivateKey.
-pub fn read_network_keypair_from_file<P: AsRef<std::path::Path>>(
+pub fn read_network_private_key_from_file<P: AsRef<std::path::Path>>(
     path: P,
 ) -> anyhow::Result<NetworkPrivateKey> {
     let kp = read_keypair_from_file(path)?;

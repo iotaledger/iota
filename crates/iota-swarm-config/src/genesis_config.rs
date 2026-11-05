@@ -36,7 +36,7 @@ use tracing::info;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SsfnGenesisConfig {
     pub p2p_address: Multiaddr,
-    #[serde(default, with = "base64_formatted_network_keypair::option")]
+    #[serde(default, with = "base64_formatted_network_private_key::option")]
     pub network_key_pair: Option<NetworkPrivateKey>,
 }
 
@@ -46,15 +46,15 @@ pub struct ValidatorGenesisConfig {
     #[serde(default = "default_bls12381_key_pair")]
     pub authority_key_pair: AuthorityKeyPair,
     #[serde(
-        default = "default_ed25519_key_pair",
-        with = "base64_formatted_network_keypair"
+        default = "default_network_private_key",
+        with = "base64_formatted_network_private_key"
     )]
     pub protocol_key_pair: NetworkPrivateKey,
     #[serde(default = "default_iota_key_pair", with = "base64_formatted_keypair")]
     pub account_key_pair: SimpleKeypair,
     #[serde(
-        default = "default_ed25519_key_pair",
-        with = "base64_formatted_network_keypair"
+        default = "default_network_private_key",
+        with = "base64_formatted_network_private_key"
     )]
     pub network_key_pair: NetworkPrivateKey,
     pub network_address: Multiaddr,
@@ -358,7 +358,7 @@ fn default_bls12381_key_pair() -> AuthorityKeyPair {
     get_key_pair_from_rng(&mut UnwrapErr(SysRng)).1
 }
 
-fn default_ed25519_key_pair() -> NetworkPrivateKey {
+fn default_network_private_key() -> NetworkPrivateKey {
     get_key_pair_from_rng(&mut UnwrapErr(SysRng)).1
 }
 
@@ -388,7 +388,7 @@ mod base64_formatted_keypair {
 
 // Serde adapter storing the network keypair as base64 of the raw private key
 // bytes, the on-disk format of these config fields.
-mod base64_formatted_network_keypair {
+mod base64_formatted_network_private_key {
     use iota_sdk_crypto::ToFromBase64 as _;
     use iota_types::crypto::NetworkPrivateKey;
     use serde::{Deserialize, Deserializer, Serializer};
