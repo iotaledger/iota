@@ -3020,6 +3020,7 @@ dependencies = [
  "hyper-util",
  "iota-metrics",
  "iota-tls",
+ "parking_lot 0.12.5",
  "pin-project-lite",
  "prometheus-filtered",
  "socket2 0.5.10",
@@ -3361,7 +3362,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "1.0.0-rc.2"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=242947b91b533705d094cdb292659d4774f9a837#242947b91b533705d094cdb292659d4774f9a837"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=15f25249bc968c9b59f550e8c427d52b670c1636#15f25249bc968c9b59f550e8c427d52b670c1636"
 dependencies = [
  "base64ct",
  "bech32 0.12.0",
@@ -3377,7 +3378,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "1.0.0-rc.2"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=242947b91b533705d094cdb292659d4774f9a837#242947b91b533705d094cdb292659d4774f9a837"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=15f25249bc968c9b59f550e8c427d52b670c1636#15f25249bc968c9b59f550e8c427d52b670c1636"
 dependencies = [
  "async-stream",
  "base64 0.23.1",
@@ -3397,7 +3398,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "1.0.0-rc.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=242947b91b533705d094cdb292659d4774f9a837#242947b91b533705d094cdb292659d4774f9a837"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=15f25249bc968c9b59f550e8c427d52b670c1636#15f25249bc968c9b59f550e8c427d52b670c1636"
 dependencies = [
  "bcs 0.2.1",
  "iota-sdk-types",
@@ -3413,7 +3414,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-move-types"
 version = "1.0.0-rc.2"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=242947b91b533705d094cdb292659d4774f9a837#242947b91b533705d094cdb292659d4774f9a837"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=15f25249bc968c9b59f550e8c427d52b670c1636#15f25249bc968c9b59f550e8c427d52b670c1636"
 dependencies = [
  "bcs 0.2.1",
  "filetime",
@@ -3428,7 +3429,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "1.0.0-rc.2"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=242947b91b533705d094cdb292659d4774f9a837#242947b91b533705d094cdb292659d4774f9a837"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=15f25249bc968c9b59f550e8c427d52b670c1636#15f25249bc968c9b59f550e8c427d52b670c1636"
 dependencies = [
  "bcs 0.2.1",
  "derive_more 2.1.1",
@@ -3446,7 +3447,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "1.0.0-rc.2"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=242947b91b533705d094cdb292659d4774f9a837#242947b91b533705d094cdb292659d4774f9a837"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=15f25249bc968c9b59f550e8c427d52b670c1636#15f25249bc968c9b59f550e8c427d52b670c1636"
 dependencies = [
  "base64ct",
  "bcs 0.2.1",
@@ -4570,7 +4571,7 @@ dependencies = [
 [[package]]
 name = "msim-macros"
 version = "0.1.0"
-source = "git+https://github.com/iotaledger/iota-sim.git?branch=tokio-1.53.3#c1614cba95bde47819471ae90ed9207182548a40"
+source = "git+https://github.com/iotaledger/iota-sim.git?rev=c1614cba95bde47819471ae90ed9207182548a40#c1614cba95bde47819471ae90ed9207182548a40"
 dependencies = [
  "darling 0.14.4",
  "proc-macro2",
