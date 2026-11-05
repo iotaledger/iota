@@ -296,9 +296,9 @@ mod checked {
     ///     produces transaction effects with the appropriate error status. With deterministic
     ///     validation on, a gas owner that is a Move account and did not authorize the transaction
     ///     is not charged; see `execute_without_gas_charge_to_effects`. When `gas_owner_pays` is
-    ///     given, it decides whether such a gas owner pays anyway, unless the failure is an
-    ///     invariant violation. A gas owner that did authorize it is charged, and every owned input
-    ///     moves to its next version.
+    ///     given, it decides whether such a gas owner pays anyway, unless the failure is a
+    ///     cancellation or an invariant violation. A gas owner that did authorize it is charged,
+    ///     and every owned input moves to its next version.
     ///   - Else, if the authentication is successful, it continues with the normal transaction
     ///     execution.
     /// It combines the input objects from both the authentication and

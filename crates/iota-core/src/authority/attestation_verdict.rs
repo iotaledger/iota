@@ -426,9 +426,8 @@ impl AttestationVerdictContext<'_> {
         match result {
             Ok(()) => AuthenticationFailureBlame::Account,
             Err(error) => {
-                // The re-run carries no cancelled input and runs the same
-                // verified bytecode as execution, so a cancellation or an
-                // invariant violation here is an internal error.
+                // The re-run carries no cancelled input, so a cancellation
+                // here is an internal error, like an invariant violation.
                 let kind = unwrap_move_authentication_error(error.kind());
                 if is_cancellation(kind) || is_any_invariant_violation(kind) {
                     AuthenticationFailureBlame::Undecided
