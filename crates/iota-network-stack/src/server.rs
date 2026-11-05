@@ -795,6 +795,65 @@ mod test {
         }
         server.server_handle.shutdown().await;
     }
+
+    /// A request path that is valid UTF-8 but not visible ASCII cannot be read
+    /// back from the path header, so the metrics get "invalid" instead of the
+    /// server panicking.
+    #[tokio::test]
+    async fn non_ascii_path_is_answered_and_reported_as_invalid() {
+        #[derive(Clone, Default)]
+        struct ResponsePaths(Arc<Mutex<Vec<String>>>);
+
+        impl MetricsCallbackProvider for ResponsePaths {
+            fn on_request(&self, _path: String) {}
+
+            fn on_response(
+                &self,
+                path: String,
+                _latency: Duration,
+                _status: u16,
+                _grpc_status_code: Code,
+            ) {
+                self.0.lock().unwrap().push(path);
+            }
+        }
+
+        let paths = ResponsePaths::default();
+        let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
+        let server = Config::new()
+            .server_builder_with_metrics(paths.clone())
+            .bind(&address, None)
+            .await
+            .unwrap();
+
+        let stream = tokio::net::TcpStream::connect(server.local_addr().to_socket_addr().unwrap())
+            .await
+            .unwrap();
+        let (mut sender, connection) = hyper::client::conn::http2::handshake(
+            hyper_util::rt::TokioExecutor::new(),
+            hyper_util::rt::TokioIo::new(stream),
+        )
+        .await
+        .unwrap();
+        tokio::spawn(connection);
+
+        let response = sender
+            .send_request(
+                http::Request::post("/é")
+                    .header("content-type", "application/grpc")
+                    .body(TestBody::Empty)
+                    .unwrap(),
+            )
+            .await
+            .expect("the server must answer a request with a non-ASCII path");
+        assert_eq!(
+            response.headers()["grpc-status"],
+            (Code::Unimplemented as i32).to_string()
+        );
+        assert_eq!(*paths.0.lock().unwrap(), ["invalid"]);
+
+        server.server_handle.shutdown().await;
+    }
 }
 
 #[derive(Clone)]
