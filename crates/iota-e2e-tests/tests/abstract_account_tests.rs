@@ -2616,7 +2616,16 @@ async fn test_abstract_account_post_consensus_failure_without_report_flag()
 /// authentication failure and carries no command index.
 #[sim_test]
 async fn test_pre_consensus_authentication_failure() -> Result<(), anyhow::Error> {
-    let _pcool_guard = override_pcool_flow(false);
+    test_authentication_failure_is_rejected(false).await
+}
+
+#[sim_test]
+async fn test_authentication_failure_pcool_flow() -> Result<(), anyhow::Error> {
+    test_authentication_failure_is_rejected(true).await
+}
+
+async fn test_authentication_failure_is_rejected(pcool: bool) -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(pcool);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -2643,7 +2652,7 @@ async fn test_pre_consensus_authentication_failure() -> Result<(), anyhow::Error
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&[0u8; 32])?];
     let tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
 
-    let err = test_env.handle_tx(tx).await.unwrap_err();
+    let err = test_env.admission_error(pcool, tx).await;
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
         panic!("Expected MoveAuthenticatorExecutionFailure, got: {err:?}");
     };
@@ -2669,7 +2678,16 @@ async fn test_pre_consensus_authentication_failure() -> Result<(), anyhow::Error
 /// package ran before the transaction was turned away.
 #[sim_test]
 async fn test_authenticator_package_denied() -> Result<(), anyhow::Error> {
-    let _pcool_guard = override_pcool_flow(false);
+    test_authenticator_package_is_denied(false).await
+}
+
+#[sim_test]
+async fn test_authenticator_package_denied_pcool_flow() -> Result<(), anyhow::Error> {
+    test_authenticator_package_is_denied(true).await
+}
+
+async fn test_authenticator_package_is_denied(pcool: bool) -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(pcool);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -2715,10 +2733,7 @@ async fn test_authenticator_package_denied() -> Result<(), anyhow::Error> {
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     let tx = TransactionEnvelope::from_user_sig_data(tx_data.clone(), signatures);
 
-    let err = test_env
-        .handle_tx_in_process(&validator, tx)
-        .await
-        .unwrap_err();
+    let err = test_env.admission_error_on(&validator, pcool, tx).await;
     let IotaError::UserInput {
         error: UserInputError::TransactionDenied { error },
     } = &err
@@ -2735,10 +2750,7 @@ async fn test_authenticator_package_denied() -> Result<(), anyhow::Error> {
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&[0u8; 32])?];
     let tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
 
-    let err = test_env
-        .handle_tx_in_process(&validator, tx)
-        .await
-        .unwrap_err();
+    let err = test_env.admission_error_on(&validator, pcool, tx).await;
     assert!(
         matches!(
             &err,
@@ -3674,7 +3686,16 @@ async fn test_sponsor_only_move_auth_rejected_with_disabled_move_auth_for_sponso
 #[sim_test]
 async fn test_wrong_signer_move_auth_rejected_with_enabled_move_auth_for_sponsor()
 -> Result<(), anyhow::Error> {
-    let _pcool_guard = override_pcool_flow(false);
+    test_wrong_signer_move_auth_is_rejected(false).await
+}
+
+#[sim_test]
+async fn test_wrong_signer_move_auth_rejected_pcool_flow() -> Result<(), anyhow::Error> {
+    test_wrong_signer_move_auth_is_rejected(true).await
+}
+
+async fn test_wrong_signer_move_auth_is_rejected(pcool: bool) -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(pcool);
     telemetry_subscribers::init_for_testing();
 
     // Build the test environment and create the sender AA.
@@ -3714,7 +3735,7 @@ async fn test_wrong_signer_move_auth_rejected_with_enabled_move_auth_for_sponsor
         TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig, unrelated_aa_sig]);
 
     // The TX must be rejected: the sponsor's signature is absent.
-    let err = test_env.handle_tx(tx).await.unwrap_err();
+    let err = test_env.admission_error(pcool, tx).await;
 
     assert!(
         matches!(&err, IotaError::SignerSignatureAbsent { .. }),
@@ -3730,7 +3751,17 @@ async fn test_wrong_signer_move_auth_rejected_with_enabled_move_auth_for_sponsor
 #[sim_test]
 async fn test_aa_sender_and_aa_sponsor_rejected_when_sponsor_aa_fails_with_enabled_move_auth_for_sponsor()
 -> Result<(), anyhow::Error> {
-    let _pcool_guard = override_pcool_flow(false);
+    test_sponsor_aa_failure_is_rejected(false).await
+}
+
+#[sim_test]
+async fn test_aa_sender_and_aa_sponsor_rejected_when_sponsor_aa_fails_pcool_flow()
+-> Result<(), anyhow::Error> {
+    test_sponsor_aa_failure_is_rejected(true).await
+}
+
+async fn test_sponsor_aa_failure_is_rejected(pcool: bool) -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(pcool);
     telemetry_subscribers::init_for_testing();
 
     // Build the test environment and create the sender AA.
@@ -3768,7 +3799,7 @@ async fn test_aa_sender_and_aa_sponsor_rejected_when_sponsor_aa_fails_with_enabl
     let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
     // The TX must be rejected: the sponsor's signature is incorrect.
-    let err = test_env.handle_tx(tx).await.unwrap_err();
+    let err = test_env.admission_error(pcool, tx).await;
 
     assert!(
         matches!(&err, IotaError::MoveAuthenticatorExecutionFailure { .. }),
@@ -3886,7 +3917,18 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
 #[sim_test]
 async fn test_sponsored_tx_sender_aa_rejected_pre_consensus_without_sponsor_only_flag()
 -> Result<(), anyhow::Error> {
-    let _pcool_guard = override_pcool_flow(false);
+    test_sponsored_tx_sender_aa_is_rejected_without_sponsor_only_flag(false).await
+}
+
+#[sim_test]
+async fn test_sponsored_tx_sender_aa_rejected_pcool_flow() -> Result<(), anyhow::Error> {
+    test_sponsored_tx_sender_aa_is_rejected_without_sponsor_only_flag(true).await
+}
+
+async fn test_sponsored_tx_sender_aa_is_rejected_without_sponsor_only_flag(
+    pcool: bool,
+) -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(pcool);
     telemetry_subscribers::init_for_testing();
 
     // Disable the flag so ALL MAs run pre-consensus.
@@ -3924,9 +3966,9 @@ async fn test_sponsored_tx_sender_aa_rejected_pre_consensus_without_sponsor_only
         test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
     let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
-    // Pre-consensus: both MAs are executed → sender's MA fails → rejected
+    // Both MAs are executed at admission → sender's MA fails → rejected
     // immediately.
-    let err = test_env.handle_tx(tx).await.unwrap_err();
+    let err = test_env.admission_error(pcool, tx).await;
 
     assert!(
         matches!(&err, IotaError::MoveAuthenticatorExecutionFailure { .. }),
@@ -4847,6 +4889,37 @@ impl TestEnvironment {
                 state.handle_transaction(&epoch_store, tx).await
             })
             .await
+    }
+
+    /// The error the first validator rejects `tx` with at admission: through
+    /// `handle_transaction` with the certificate flow, through `submit_tx`
+    /// with the P-COOL flow.
+    async fn admission_error(&self, pcool: bool, tx: TransactionEnvelope) -> IotaError {
+        let validator = self.test_cluster.get_validator_pubkeys()[0];
+        if pcool {
+            self.test_cluster
+                .submit_tx_expecting_rejection(&validator, tx)
+                .await
+        } else {
+            self.handle_tx(tx).await.unwrap_err()
+        }
+    }
+
+    /// Like [`Self::admission_error`] for the given validator, which may have
+    /// been restarted.
+    async fn admission_error_on(
+        &self,
+        validator: &AuthorityName,
+        pcool: bool,
+        tx: TransactionEnvelope,
+    ) -> IotaError {
+        if pcool {
+            self.test_cluster
+                .submit_tx_expecting_rejection(validator, tx)
+                .await
+        } else {
+            self.handle_tx_in_process(validator, tx).await.unwrap_err()
+        }
     }
 
     async fn handle_tx(
