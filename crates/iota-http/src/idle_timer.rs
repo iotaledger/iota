@@ -3,24 +3,17 @@
 
 //! A timer that measures how long a task has had nothing to do.
 
-use std::{
-    future::Future,
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use parking_lot::Mutex;
-use pin_project_lite::pin_project;
-use tokio::time::{Instant, Sleep};
+use tokio::time::Instant;
 
-/// Creates a timer that becomes ready once its task has been idle for
-/// `timeout`.
+/// Creates a timer whose [`IdleTimer::wait`] completes once its task has been
+/// idle for `timeout`.
 ///
-/// The task is idle whenever it holds no [`IdleGuard`]. It starts idle, so one
-/// that never takes a guard becomes ready after a single timeout. Taking a
-/// guard stops the timer, and dropping the last one starts it again from that
+/// The task is idle whenever it holds no [`IdleGuard`]. It starts idle, so for
+/// one that never takes a guard `wait` completes after a single timeout. Taking
+/// a guard stops the timer, and dropping the last one starts it again from that
 /// moment — so this measures the time since the task last had something to do,
 /// not the time since it was created.
 ///
@@ -28,12 +21,8 @@ use tokio::time::{Instant, Sleep};
 /// taken through an [`IdleHandle`], which can be cloned and sent wherever the
 /// work happens.
 ///
-/// The timer must be pinned once and polled by reference. Building it inside a
-/// `select!` branch would construct a new one on every pass of the loop, and a
-/// loop that goes round more often than the timeout would never reach it.
-///
-/// The timer stays ready for as long as the task stays idle, so a loop must
-/// stop polling it once it has acted on it.
+/// [`IdleTimer::wait`] completes at once while the task has already been idle
+/// for `timeout`, so a loop must stop waiting once it has acted on it.
 ///
 /// ```ignore
 /// let timer = idle_timeout(Duration::from_secs(300));
@@ -42,41 +31,33 @@ use tokio::time::{Instant, Sleep};
 /// // Wherever the work is: the task counts as busy until the guard is dropped.
 /// let guard = handle.guard();
 ///
-/// let mut timer = std::pin::pin!(timer);
+/// let mut wait = std::pin::pin!(timer.wait());
 /// loop {
 ///     tokio::select! {
-///         _ = &mut timer => {
-///             // … wind the task down, and stop polling the timer
+///         _ = &mut wait => {
+///             // … wind the task down, and stop polling `wait`
 ///         }
 ///         // … whatever else the task is waiting for
 ///     }
 /// }
 /// ```
 pub fn idle_timeout(timeout: Duration) -> IdleTimer {
-    let now = Instant::now();
     IdleTimer {
-        sleep: tokio::time::sleep_until(now + timeout),
         timeout,
         state: Arc::new(Mutex::new(State {
-            busy: 0,
-            idle_since: now,
+            counter: 0,
+            idle_since: Instant::now(),
         })),
     }
 }
 
-pin_project! {
-    /// A timer that runs only while its task is idle. See [`idle_timeout`].
-    pub struct IdleTimer {
-        // Sleep timer, never set later than the moment the task will have been
-        // idle for timeout; when it fires the deadline is worked out again.
-        #[pin]
-        sleep: Sleep,
-        // Idle timeout: period after which the sleep timer becomes ready.
-        timeout: Duration,
-        // Whether the task is busy and when it last became idle, shared with
-        // the handles and guards that mark it busy.
-        state: Arc<Mutex<State>>,
-    }
+/// A timer that runs only while its task is idle. See [`idle_timeout`].
+pub struct IdleTimer {
+    // Idle timeout: period after which `wait` completes.
+    timeout: Duration,
+    // Whether the task is busy and when it last became idle, shared with
+    // the handles and guards that mark it busy.
+    state: Arc<Mutex<State>>,
 }
 
 impl IdleTimer {
@@ -87,35 +68,29 @@ impl IdleTimer {
             state: self.state.clone(),
         }
     }
-}
 
-impl Future for IdleTimer {
-    type Output = ();
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut timer = self.project();
-
+    /// Completes once the task has been idle for `timeout`, at once if it
+    /// already has.
+    pub async fn wait(&self) {
         // Guards do not wake the timer. Taking or dropping one can only move
-        // the moment the task will have been idle for `timeout` later, so the
-        // sleep is left at the earlier deadline and the deadline is worked out
-        // again when it fires. The sleep is polled again after a reset, which
-        // is what registers the waker for the new deadline.
-        while timer.sleep.as_mut().poll(cx).is_ready() {
+        // the moment the task will have been idle for `timeout` later, so this
+        // sleeps until the earliest such moment and works it out again when it
+        // wakes.
+        loop {
             let now = Instant::now();
             let deadline = {
-                let state = timer.state.lock();
-                if state.busy == 0 {
-                    state.idle_since + *timer.timeout
+                let state = self.state.lock();
+                if state.counter == 0 {
+                    state.idle_since + self.timeout
                 } else {
-                    now + *timer.timeout
+                    now + self.timeout
                 }
             };
             if deadline <= now {
-                return Poll::Ready(());
+                return;
             }
-            timer.sleep.as_mut().reset(deadline);
+            tokio::time::sleep_until(deadline).await;
         }
-        Poll::Pending
     }
 }
 
@@ -129,7 +104,7 @@ pub struct IdleHandle {
 impl IdleHandle {
     /// Counts the task as busy until the returned guard is dropped.
     pub fn guard(&self) -> IdleGuard {
-        self.state.lock().busy += 1;
+        self.state.lock().counter += 1;
         IdleGuard {
             state: self.state.clone(),
         }
@@ -146,8 +121,8 @@ pub struct IdleGuard {
 impl Drop for IdleGuard {
     fn drop(&mut self) {
         let mut state = self.state.lock();
-        state.busy -= 1;
-        if state.busy == 0 {
+        state.counter -= 1;
+        if state.counter == 0 {
             // Read under the lock, so a later idle period never stores an
             // earlier moment than the one before it.
             state.idle_since = Instant::now();
@@ -158,8 +133,8 @@ impl Drop for IdleGuard {
 #[derive(Debug)]
 struct State {
     /// Live [`IdleGuard`]s; the task is idle when this is zero.
-    busy: usize,
-    /// When `busy` last fell to zero, or when the timer was created if it
-    /// never has. Read only while `busy` is zero.
+    counter: usize,
+    /// When `counter` last fell to zero, or when the timer was created if it
+    /// never has. Read only while `counter` is zero.
     idle_since: Instant,
 }
