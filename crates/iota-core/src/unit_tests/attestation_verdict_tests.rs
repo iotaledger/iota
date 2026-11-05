@@ -16,12 +16,13 @@
 //! key or its authenticator function - so the same transaction authenticates
 //! differently at two versions of the same account.
 
-use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ExecutionError, ExecutionStatus, GasCostSummary, TransactionEffects};
+use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
+use iota_sdk_types::{ExecutionError, ExecutionStatus, GasCostSummary, Owner, TransactionEffects};
 use iota_types::{
     attestation::{AttestationRecord, AttestationVerdict},
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
+    execution::is_cancellation,
     object::Object,
     transaction::{TransactionAPI, TransactionEnvelope},
 };
@@ -39,6 +40,14 @@ use crate::{
 };
 
 fn attestation_config(tolerance_percentage: Option<u64>) -> impl Drop {
+    attestation_config_with(tolerance_percentage, |_| {})
+}
+
+/// Like [`attestation_config()`], with `adjust` applied on top.
+fn attestation_config_with(
+    tolerance_percentage: Option<u64>,
+    adjust: impl Fn(&mut ProtocolConfig) + Send + Sync + 'static,
+) -> impl Drop {
     ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
@@ -49,6 +58,8 @@ fn attestation_config(tolerance_percentage: Option<u64>) -> impl Drop {
         if let Some(tolerance) = tolerance_percentage {
             config.set_attestor_accuracy_tolerance_percentage_for_testing(tolerance);
         }
+        adjust(&mut config);
+
         config
     })
 }
@@ -302,6 +313,82 @@ async fn deleted_authenticator_input_is_recorded_refuted_and_not_charged() {
     assert_not_charged(&effects, &gas_coin_before, &gas_coin_after);
     // Only for its assertions: the record is refuted.
     refuted_units(&env, &effects);
+}
+
+/// A sponsor that signed with its key authorized the transaction, so the
+/// engine charges it for the sender's failed authentication like any failed
+/// transaction, without asking the judge. The judge is asked afterwards, for
+/// the record alone: the authentication fails at the recorded versions, so the
+/// attestation is refuted although the effects charge the failure.
+#[tokio::test]
+async fn sponsored_failed_authentication_charges_the_sponsor_and_is_recorded_refuted() {
+    let _guard = attestation_config(None);
+
+    let mut env = AbstractAccountTestEnv::new().await;
+
+    // Signed with a key the account has never held, so authentication fails
+    // at the one version the attestor recorded, the account's current one.
+    let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
+    let tx = env.sponsored_account_transaction_signed_with(&unrelated_key);
+    let attestation = env.attest_with_versions(vec![env.account_ref()]);
+    let effects = env.submit(tx, Some(attestation)).await;
+
+    assert_move_authentication_error(&effects);
+    assert_charged(&effects);
+    assert_eq!(
+        effects.gas_object().owner(),
+        &Owner::Address(env.funder()),
+        "the sponsor's coin pays"
+    );
+    // Only for its assertions: the record is refuted.
+    refuted_units(&env, &effects);
+}
+
+/// A transaction cancelled at the consensus commit never runs its
+/// authenticators, and the cancellation is reported in their place. The engine
+/// asks nobody about a cancellation, so nobody pays, and the judge, asked
+/// afterwards for the record, blames nobody: the attestation stays valid.
+#[tokio::test]
+async fn cancelled_attested_transaction_charges_nobody_and_is_recorded_valid() {
+    let _guard = attestation_config_with(None, |config| {
+        // One transaction per shared object and commit; the next one on the
+        // same object is cancelled rather than deferred.
+        config.set_per_object_congestion_control_mode_for_testing(
+            PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
+    });
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let first = env.account_transaction();
+    let tx = env.account_transaction();
+    let attestation = env.attest(&tx);
+    let gas_coin_before = gas_coin(&env, &tx);
+
+    // Both touch the account, so the second one is cancelled.
+    let [first_effects, effects]: [TransactionEffects; 2] = env
+        .submit_in_one_commit(vec![(first, None, None), (tx, Some(attestation), None)])
+        .await
+        .try_into()
+        .expect("the effects of both transactions");
+    assert!(
+        first_effects.status().is_success(),
+        "the first transaction must run, got {:?}",
+        first_effects.status()
+    );
+
+    let ExecutionStatus::Failure { error, .. } = effects.status() else {
+        panic!("expected a cancellation, got {:?}", effects.status());
+    };
+    assert!(
+        is_cancellation(error),
+        "expected a cancellation, got {error:?}"
+    );
+    let gas_coin_after = env.object(&gas_coin_before.id());
+    assert_not_charged(&effects, &gas_coin_before, &gas_coin_after);
+    assert_record(&env, &effects, AttestationVerdict::Valid);
 }
 
 /// A node executing from a checkpoint applies the certified record and never

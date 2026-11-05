@@ -26,7 +26,7 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionAPI, TransactionEnvelope},
-    utils::to_sender_signed_transaction,
+    utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_optional_sponsor},
 };
 
 use crate::authority::{
@@ -51,6 +51,9 @@ const AA_KEYED_MODULE: &str = "abstract_account_keyed";
 const AA_AUTHENTICATE_ED25519: &str = "authenticate_ed25519";
 pub const AA_AUTHENTICATE_ED25519_VIA_SIGNING_DIGEST: &str =
     "authenticate_ed25519_via_signing_digest";
+/// The funder's coin that the setup leaves untouched, so a sponsored
+/// transaction can pay with it.
+const SPONSOR_GAS_INDEX: usize = 7;
 
 pub struct AbstractAccountTestEnv {
     pub authority: Arc<AuthorityState>,
@@ -115,6 +118,12 @@ impl AbstractAccountTestEnv {
     /// The account object at its current version.
     pub fn account_ref(&self) -> ObjectReference {
         self.object(&self.account.object_id).object_ref()
+    }
+
+    /// The key account that published the package and funded the account. It
+    /// is the sponsor of a sponsored account transaction.
+    pub fn funder(&self) -> Address {
+        self.funder
     }
 
     /// The object with `id` as the authority holds it now; panics when it is not
@@ -315,28 +324,60 @@ impl AbstractAccountTestEnv {
         &mut self,
         signing_key: &Ed25519PrivateKey,
     ) -> TransactionEnvelope {
+        let pt = self.add_field_transaction();
+
+        self.sign_with_move_authenticator(pt, signing_key)
+    }
+
+    /// Like [`Self::account_transaction_signed_with()`], but sponsored by the
+    /// funder, which signs with its key and pays with a coin of its own: the
+    /// gas owner authorized the transaction whatever the account's
+    /// authenticator says.
+    pub fn sponsored_account_transaction_signed_with(
+        &mut self,
+        signing_key: &Ed25519PrivateKey,
+    ) -> TransactionEnvelope {
+        let pt = self.add_field_transaction();
+        let tx_data = Transaction::new_programmable_allow_sponsor(
+            self.account_address,
+            vec![self.gas_ref(SPONSOR_GAS_INDEX)],
+            pt,
+            self.budget(),
+            self.rgp(),
+            self.funder,
+        );
+        let authenticator = self.move_authenticator(&tx_data, signing_key);
+
+        to_sender_signed_transaction_with_optional_sponsor(
+            tx_data,
+            authenticator,
+            Some(&self.funder_key),
+        )
+    }
+
+    /// The body of an account transaction: it writes a fresh dynamic field, so
+    /// it always succeeds.
+    fn add_field_transaction(&mut self) -> ProgrammableTransaction {
         let field_key = self.next_field_key;
         self.next_field_key += 1;
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            let account = builder
-                .obj(CallArg::Shared(SharedObjectReference {
-                    mutable: true,
-                    ..self.account
-                }))
-                .unwrap();
-            let name = builder.pure(field_key).unwrap();
-            let value = builder.pure(field_key).unwrap();
-            builder.programmable_move_call(
-                self.package_id,
-                Identifier::from_static(AA_MODULE),
-                Identifier::from_static("add_field"),
-                vec![TypeTag::U8, TypeTag::U8],
-                vec![account, name, value],
-            );
-            builder.finish()
-        };
-        self.sign_with_move_authenticator(pt, signing_key)
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let account = builder
+            .obj(CallArg::Shared(SharedObjectReference {
+                mutable: true,
+                ..self.account
+            }))
+            .unwrap();
+        let name = builder.pure(field_key).unwrap();
+        let value = builder.pure(field_key).unwrap();
+        builder.programmable_move_call(
+            self.package_id,
+            Identifier::from_static(AA_MODULE),
+            Identifier::from_static("add_field"),
+            vec![TypeTag::U8, TypeTag::U8],
+            vec![account, name, value],
+        );
+
+        builder.finish()
     }
 
     fn sign_with_move_authenticator(
@@ -352,16 +393,26 @@ impl AbstractAccountTestEnv {
             self.budget(),
             self.rgp(),
         );
+        let authenticator = self.move_authenticator(&tx_data, signing_key);
 
-        // The authenticator verifies a hex-encoded raw ed25519 signature over
-        // the transaction digest.
+        TransactionEnvelope::from_user_sig_data(tx_data, vec![authenticator])
+    }
+
+    /// The account's signature on `tx_data`: the authenticator verifies a
+    /// hex-encoded raw ed25519 signature over the transaction digest.
+    fn move_authenticator(
+        &self,
+        tx_data: &Transaction,
+        signing_key: &Ed25519PrivateKey,
+    ) -> UserSignature {
         let signature: Ed25519Signature = signing_key.sign(tx_data.digest().bytes());
         let signature_arg = CallArg::Pure(bcs::to_bytes(&Hex::encode(signature.bytes())).unwrap());
 
-        let authenticator = UserSignature::MoveAuthenticator(MoveAuthenticator::V1(
-            MoveAuthenticatorV1::new(vec![signature_arg], vec![], self.account),
-        ));
-        TransactionEnvelope::from_user_sig_data(tx_data, vec![authenticator])
+        UserSignature::MoveAuthenticator(MoveAuthenticator::V1(MoveAuthenticatorV1::new(
+            vec![signature_arg],
+            vec![],
+            self.account,
+        )))
     }
 
     /// Rotates the account's public key, which supersedes the account's version
