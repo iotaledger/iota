@@ -171,10 +171,10 @@ impl Drop for IdleGuard {
         // cannot read an `idle_since` from the previous idle period, find the
         // deadline already past, and close a connection that has just this
         // moment finished a long request.
-        let idle_since = Instant::now() - shared.created_at;
+        let idle_since = Instant::now().saturating_duration_since(shared.created_at);
         shared
-            .idle_since_ms
-            .store(idle_since.as_millis() as u64, Ordering::Relaxed);
+            .idle_since_ns
+            .fetch_max(idle_since.as_nanos() as u64, Ordering::Relaxed);
 
         // Release, so a poll that reads the count this leaves also reads the
         // `idle_since` stored above.
@@ -209,11 +209,11 @@ struct Shared {
     busy: AtomicUsize,
     /// Whether a guard has ever been taken.
     has_been_busy: AtomicBool,
-    /// When the timer was created, which `idle_since_ms` counts from.
+    /// When the timer was created, which `idle_since_ns` counts from.
     created_at: Instant,
     /// When the task last became idle, in milliseconds relative to
     /// `created_at`.
-    idle_since_ms: AtomicU64,
+    idle_since_ns: AtomicU64,
     state: Mutex<State>,
 }
 
@@ -223,7 +223,7 @@ impl Shared {
             busy: AtomicUsize::new(0),
             has_been_busy: AtomicBool::new(false),
             created_at: Instant::now(),
-            idle_since_ms: AtomicU64::new(0),
+            idle_since_ns: AtomicU64::new(0),
             state: Mutex::default(),
         }
     }
@@ -235,7 +235,7 @@ impl Shared {
     }
 
     fn idle_since(&self) -> Instant {
-        self.created_at + Duration::from_millis(self.idle_since_ms.load(Ordering::Relaxed))
+        self.created_at + Duration::from_nanos(self.idle_since_ns.load(Ordering::Relaxed))
     }
 
     fn idle_for(&self) -> Duration {
