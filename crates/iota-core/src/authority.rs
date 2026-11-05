@@ -2538,8 +2538,8 @@ impl AuthorityState {
                 "Move authenticators amount must match the number of checked authenticator inputs"
             );
             // Under deterministic validation, a gas owner that cannot be resolved
-            // did not authorize the transaction, so nobody pays; its own failure is
-            // then the one reported.
+            // did not authorize the transaction, so `gas_owner_pays` decides who
+            // pays; its own failure is then the one reported.
             let deterministic_validation = protocol_config.enable_pcool_flow();
             let mut first_resolution_error = None;
             let mut gas_owner_resolution_error = None;
@@ -2614,10 +2614,11 @@ impl AuthorityState {
                     (AttestationSource::Certified(record), _)
                         if protocol_config.enable_validator_attestation() =>
                     {
-                        // Only the records other than `Valid` are certified, so
-                        // no record means the attestation was valid. The gas
-                        // owner pays unless the judge blamed the attestor or
-                        // could not decide.
+                        // Only the records other than `Valid` are certified, and
+                        // consensus requires an attestation on every user
+                        // transaction while the flag is on, so no record means
+                        // the attestation was valid. The gas owner pays unless
+                        // the judge blamed the attestor or could not decide.
                         !matches!(
                             record,
                             Some(AttestationRecord {

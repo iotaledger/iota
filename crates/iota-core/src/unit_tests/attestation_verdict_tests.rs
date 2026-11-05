@@ -10,16 +10,19 @@
 //! attestation is refuted when authentication failed at exactly the recorded
 //! state, a recorded version is ahead of the executed one or was not superseded
 //! this epoch, or the re-run rejects; a deleted authenticator input leaves the
-//! judge undecided. A refuted or undecided attestation charges nobody. The gas
-//! owner pays only when the account is at fault, because authentication passes
-//! at the attested state. Most tests rotate the account after the transaction
-//! is built - its key or its authenticator function - so the same transaction
-//! authenticates differently at two versions of the same account.
+//! judge undecided. When the gas owner's own authentication fails, a refuted
+//! or undecided attestation charges nobody, and the gas owner pays only when
+//! the account is at fault, because authentication passes at the attested
+//! state; a gas owner that authorized the transaction, as a sponsor signing
+//! with its key, pays as for any failure. Most tests rotate the account after
+//! the transaction is built - its key or its authenticator function - so the
+//! same transaction authenticates differently at two versions of the same
+//! account.
 
 use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
 use iota_sdk_types::{ExecutionError, ExecutionStatus, GasCostSummary, Owner, TransactionEffects};
 use iota_types::{
-    attestation::{AttestationRecord, AttestationVerdict},
+    attestation::{Attestation, AttestationRecord, AttestationVerdict},
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
     execution::is_cancellation,
@@ -61,6 +64,29 @@ fn attestation_config_with(
         adjust(&mut config);
 
         config
+    })
+}
+
+/// [`attestation_config()`] with validator attestation off: the reachable
+/// state for an unattested user transaction, since consensus requires an
+/// attestation on every one while the flag is on.
+fn unattested_config() -> impl Drop {
+    attestation_config_with(None, |config| {
+        config.set_enable_validator_attestation_for_testing(false);
+    })
+}
+
+/// [`attestation_config()`] with one transaction per shared object and commit
+/// and no deferral, so a second transaction on the account in one commit is
+/// cancelled rather than deferred.
+fn cancelling_config() -> impl Drop {
+    attestation_config_with(None, |config| {
+        config.set_per_object_congestion_control_mode_for_testing(
+            PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
     })
 }
 
@@ -107,7 +133,7 @@ fn gas_coin(env: &AbstractAccountTestEnv, tx: &TransactionEnvelope) -> Object {
 /// Asserts that the transaction's record is refuted and returns its units:
 /// execution's own authentication run, whether or not the effects charge it,
 /// plus the judge's re-run, both a whole number of rounding steps.
-fn refuted_units(env: &AbstractAccountTestEnv, effects: &TransactionEffects) -> u64 {
+fn assert_refuted(env: &AbstractAccountTestEnv, effects: &TransactionEffects) -> u64 {
     let record = env
         .attestation_record(effects.transaction_digest())
         .expect("an attested transaction has a record");
@@ -197,7 +223,7 @@ async fn attestation_that_fails_at_the_executed_versions_is_recorded_refuted_and
     assert_move_authentication_error(&effects);
     let gas_coin_after = env.object(&gas_coin_before.id());
     assert_not_charged(&effects, &gas_coin_before, &gas_coin_after);
-    let units = refuted_units(&env, &effects);
+    let units = assert_refuted(&env, &effects);
     assert!(
         units <= env.budget() / env.rgp(),
         "the units of one failed run cannot exceed the budget, got {units}"
@@ -220,7 +246,7 @@ async fn attestation_that_fails_at_its_own_versions_is_recorded_refuted_and_not_
     let tx = env.account_transaction_signed_with(&unrelated_key);
     let attestation = env.attest_with_versions(vec![env.account_ref()]);
     let effects = env.submit(tx, Some(attestation)).await;
-    let one_run_units = refuted_units(&env, &effects);
+    let one_run_units = assert_refuted(&env, &effects);
 
     // The version the attestor will claim, superseded by the rotation below so
     // the drift is real and the recorded version is still re-runnable.
@@ -238,7 +264,7 @@ async fn attestation_that_fails_at_its_own_versions_is_recorded_refuted_and_not_
     let gas_coin_after = env.object(&gas_coin_before.id());
     assert_not_charged(&effects, &gas_coin_before, &gas_coin_after);
     assert_eq!(
-        refuted_units(&env, &effects),
+        assert_refuted(&env, &effects),
         2 * one_run_units,
         "the record must count the execution run and the re-run, each the cost of one failed run"
     );
@@ -339,27 +365,16 @@ async fn sponsored_failed_authentication_charges_the_sponsor_and_is_recorded_ref
         &Owner::Address(env.funder()),
         "the sponsor's coin pays"
     );
-    // Only for its assertions: the record is refuted.
-    refuted_units(&env, &effects);
+    assert_refuted(&env, &effects);
 }
 
-/// A transaction cancelled at the consensus commit never runs its
-/// authenticators, and the cancellation is reported in their place. The engine
-/// asks nobody about a cancellation, so nobody pays, and the judge, asked
-/// afterwards for the record, blames nobody: the attestation stays valid.
-#[tokio::test]
-async fn cancelled_attested_transaction_charges_nobody_and_is_recorded_valid() {
-    let _guard = attestation_config_with(None, |config| {
-        // One transaction per shared object and commit; the next one on the
-        // same object is cancelled rather than deferred.
-        config.set_per_object_congestion_control_mode_for_testing(
-            PerObjectCongestionControlMode::TotalTxCount,
-        );
-        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
-        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
-        config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
-    });
-
+/// Under [`cancelling_config()`], submits two account transactions in one
+/// commit, so the second one, attested and executed with `source` when given,
+/// is cancelled. Returns the environment, the cancelled transaction's effects
+/// and its gas coin as it was before.
+async fn submit_cancelled_attested_transaction(
+    source: Option<AttestationSource>,
+) -> (AbstractAccountTestEnv, TransactionEffects, Object) {
     let mut env = AbstractAccountTestEnv::new().await;
     let first = env.account_transaction();
     let tx = env.account_transaction();
@@ -368,7 +383,7 @@ async fn cancelled_attested_transaction_charges_nobody_and_is_recorded_valid() {
 
     // Both touch the account, so the second one is cancelled.
     let [first_effects, effects]: [TransactionEffects; 2] = env
-        .submit_in_one_commit(vec![(first, None, None), (tx, Some(attestation), None)])
+        .submit_in_one_commit(vec![(first, None, None), (tx, Some(attestation), source)])
         .await
         .try_into()
         .expect("the effects of both transactions");
@@ -377,7 +392,6 @@ async fn cancelled_attested_transaction_charges_nobody_and_is_recorded_valid() {
         "the first transaction must run, got {:?}",
         first_effects.status()
     );
-
     let ExecutionStatus::Failure { error, .. } = effects.status() else {
         panic!("expected a cancellation, got {:?}", effects.status());
     };
@@ -385,9 +399,38 @@ async fn cancelled_attested_transaction_charges_nobody_and_is_recorded_valid() {
         is_cancellation(error),
         "expected a cancellation, got {error:?}"
     );
+
+    (env, effects, gas_coin_before)
+}
+
+/// A transaction cancelled at the consensus commit never runs its
+/// authenticators, and the cancellation is reported in their place. The engine
+/// asks nobody about a cancellation, so nobody pays, and the judge, asked
+/// afterwards for the record, blames nobody: the attestation stays valid.
+#[tokio::test]
+async fn cancelled_attested_transaction_charges_nobody_and_is_recorded_valid() {
+    let _guard = cancelling_config();
+
+    let (env, effects, gas_coin_before) = submit_cancelled_attested_transaction(None).await;
+
     let gas_coin_after = env.object(&gas_coin_before.id());
     assert_not_charged(&effects, &gas_coin_before, &gas_coin_after);
     assert_record(&env, &effects, AttestationVerdict::Valid);
+}
+
+/// A node executing from a checkpoint has no record for a valid attestation,
+/// and its answer for no record is that the gas owner pays; the engine never
+/// asks about a cancellation, so nobody pays there either.
+#[tokio::test]
+async fn cancelled_attested_transaction_charges_nobody_without_a_judge() {
+    let _guard = cancelling_config();
+
+    let (env, effects, gas_coin_before) =
+        submit_cancelled_attested_transaction(Some(AttestationSource::Certified(None))).await;
+
+    let gas_coin_after = env.object(&gas_coin_before.id());
+    assert_not_charged(&effects, &gas_coin_before, &gas_coin_after);
+    assert_eq!(env.attestation_record(effects.transaction_digest()), None);
 }
 
 /// A node executing from a checkpoint applies the certified record and never
@@ -486,6 +529,73 @@ async fn certified_valid_attestation_charges_the_gas_owner_without_a_judge() {
     assert_eq!(env.attestation_record(effects.transaction_digest()), None);
 }
 
+/// Executes `tx` judged on `validator`, then on `node` with the record the
+/// validator stored, as a checkpoint certifies it, and asserts the same
+/// effects digest.
+async fn assert_certified_record_reproduces_the_judged_effects(
+    validator: &AbstractAccountTestEnv,
+    node: &AbstractAccountTestEnv,
+    tx: TransactionEnvelope,
+    attestation: Attestation,
+) {
+    let judged = validator
+        .submit(tx.clone(), Some(attestation.clone()))
+        .await;
+    assert_move_authentication_error(&judged);
+    // Only the records other than `Valid` are certified.
+    let record = validator
+        .attestation_record(judged.transaction_digest())
+        .filter(|record| !record.verdict.is_valid());
+    let certified = node
+        .submit_with_source(
+            tx,
+            Some(attestation),
+            Some(AttestationSource::Certified(record)),
+        )
+        .await;
+
+    assert_eq!(
+        judged.digest(),
+        certified.digest(),
+        "a node executing from the checkpoint must write the validator's effects, record {record:?}"
+    );
+}
+
+/// A node executing from a checkpoint must write the effects the validators
+/// wrote. Two environments with the same state execute the same attested
+/// transaction, the first judging it and the second applying the record the
+/// first one stored: once with the account at fault, where the gas owner
+/// pays, and once with the attestor at fault, where nobody pays.
+#[tokio::test]
+async fn certified_record_reproduces_the_judged_effects() {
+    let _guard = attestation_config(None);
+
+    let (mut validator, node) = AbstractAccountTestEnv::new_pair().await;
+
+    // The account at fault: attested before a key rotation, which both
+    // environments apply alike.
+    let tx = validator.account_transaction();
+    let attestation = validator.attest(&tx);
+    let (_, new_key): (_, AccountPrivateKey) = get_key_pair();
+    let rotation = validator.rotate_owner_key_transaction(&new_key);
+    for env in [&validator, &node] {
+        let effects = env.submit(rotation.clone(), None).await;
+        assert!(
+            effects.status().is_success(),
+            "rotating the owner key must succeed, got {:?}",
+            effects.status()
+        );
+    }
+    assert_certified_record_reproduces_the_judged_effects(&validator, &node, tx, attestation).await;
+
+    // The attestor at fault: signed with a key the account has never held and
+    // attested at the current version.
+    let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
+    let tx = validator.account_transaction_signed_with(&unrelated_key);
+    let attestation = validator.attest_with_versions(vec![validator.account_ref()]);
+    assert_certified_record_reproduces_the_judged_effects(&validator, &node, tx, attestation).await;
+}
+
 /// The transaction authenticates and runs, but the attestation claims the
 /// largest computation estimate consensus accepts for a trivial transaction, so
 /// it is recorded inaccurate rather than valid.
@@ -527,9 +637,10 @@ async fn overclaim_is_not_assessed_when_the_body_never_ran() {
     assert_charged(&effects);
 }
 
+/// Without validator attestation nothing is attested, so nothing is recorded.
 #[tokio::test]
 async fn unattested_submission_leaves_no_record() {
-    let _guard = attestation_config(None);
+    let _guard = unattested_config();
 
     let mut env = AbstractAccountTestEnv::new().await;
     let tx = env.account_transaction();
@@ -544,11 +655,11 @@ async fn unattested_submission_leaves_no_record() {
     assert_eq!(env.attestation_record(effects.transaction_digest()), None);
 }
 
-/// Without an attestation there is no judge to ask, so a gas owner whose
-/// authenticator fails is not charged.
+/// Without validator attestation there is no judge to ask, so a gas owner
+/// whose authenticator fails is not charged, as before the flag.
 #[tokio::test]
 async fn unattested_failed_authentication_charges_nobody() {
-    let _guard = attestation_config(None);
+    let _guard = unattested_config();
 
     let mut env = AbstractAccountTestEnv::new().await;
     let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();

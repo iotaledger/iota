@@ -12,7 +12,10 @@
 //! [`attestation::AttestationVerdict::Undecided`], certified so that a node
 //! executing from a checkpoint charges nobody as well.
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use iota_common::fatal;
 use iota_execution::Executor;
@@ -38,7 +41,8 @@ use iota_types::{
     move_authenticator::MoveAuthenticatorExt,
     storage::BackingStore,
     transaction::{
-        CheckedInputObjects, InputObjects, ObjectReadResult, ObjectReadResultKind, TransactionAPI,
+        CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
+        TransactionAPI,
     },
 };
 
@@ -187,27 +191,38 @@ impl AttestationVerdictContext<'_> {
             return AuthenticationFailureBlame::Nobody;
         }
 
-        // A deleted authenticator input leaves the judge undecided, without a
-        // re-run. At the recorded version, the input still exists, so a re-run
-        // there could pass and charge the gas owner, also when the attestor
-        // recorded the versions from before the deletion; refuting instead
-        // would let any sender penalize an honest attestor by deleting the
-        // input after the attestation.
+        // A failure on a deleted authenticator input leaves the judge
+        // undecided, without a re-run. At the recorded version, the input still
+        // exists, so a re-run there could pass and charge the gas owner, also
+        // when the attestor recorded the versions from before the deletion;
+        // refuting instead would let any sender penalize an honest attestor by
+        // deleting the input after the attestation. Only the judged failure
+        // counts: a deleted input of an authenticator that never ran says
+        // nothing about the one that failed.
         // TODO: temporary rule, until the judge can distinguish a deletion
         // before the attestation from one after it.
-        if self
-            .authenticators
-            .iter()
-            .any(|(_, input_objects)| input_objects.contains_deleted_objects())
-        {
+        if matches!(kind, ExecutionErrorKind::InputObjectDeleted) {
             return AuthenticationFailureBlame::Undecided;
         }
 
         // Nothing to re-run: the failure already reproduces at the recorded
         // state, or a recorded version refutes on its own.
+        let pinned_by_transaction: BTreeSet<ObjectId> = self
+            .authenticators
+            .iter()
+            .flat_map(|(_, input_objects)| input_objects.iter())
+            .filter(|input| {
+                matches!(
+                    input.input_object_kind,
+                    InputObjectKind::ImmOrOwnedMoveObject(_)
+                )
+            })
+            .map(|input| input.id())
+            .collect();
         if !should_reauthenticate(
             self.attestation.object_versions(),
             &self.executed_versions,
+            &pinned_by_transaction,
             |object_id, version| {
                 self.attested_versions
                     .superseded_in_current_epoch(object_id, version)
@@ -227,10 +242,12 @@ impl AttestationVerdictContext<'_> {
 /// Whether authentication should be re-run at the recorded versions. `false`
 /// either when nothing the authentication read drifted, so the failure
 /// reproduces at the recorded state, or when a recorded version is refuted
-/// without a re-run.
+/// without a re-run. `pinned_by_transaction` holds the authenticator inputs
+/// whose versions the transaction fixes itself.
 fn should_reauthenticate(
     attested_versions: &[ObjectReference],
     executed_versions: &BTreeMap<ObjectId, Version>,
+    pinned_by_transaction: &BTreeSet<ObjectId>,
     superseded_in_current_epoch: impl Fn(&ObjectId, Version) -> bool,
 ) -> bool {
     let mut drifted = false;
@@ -245,7 +262,14 @@ fn should_reauthenticate(
         // A recorded version ahead of the executed one cannot come from an
         // honest dry run. A recorded version superseded before this epoch was
         // never live this epoch, so an honest dry run could not have seen it.
-        if attested > executed || !superseded_in_current_epoch(object_ref.object_id(), attested) {
+        // An honest dry run records no input the transaction pins, so a
+        // differing version for one is a lie as well; judged on its own, it
+        // would send the re-run against an object the transaction never named
+        // at that version.
+        if attested > executed
+            || pinned_by_transaction.contains(object_ref.object_id())
+            || !superseded_in_current_epoch(object_ref.object_id(), attested)
+        {
             return false;
         }
         drifted = true;
@@ -257,7 +281,8 @@ impl AttestationVerdictContext<'_> {
     /// Re-runs Move authentication at the recorded versions. Returns
     /// [`AuthenticationFailureBlame::Attestor`] when the re-run fails too, with
     /// the units it consumed, or with zero when the claimed units cannot fund a
-    /// re-run or an authenticator cannot be resolved at the recorded state;
+    /// re-run, an authenticator cannot be resolved at the recorded state, or
+    /// the account is immutable where execution rejects one;
     /// [`AuthenticationFailureBlame::Account`] when the re-run passes;
     /// [`AuthenticationFailureBlame::Undecided`] when the authenticators' inputs
     /// cannot be combined, or the re-run ends in a cancellation or an invariant
@@ -329,6 +354,15 @@ impl AttestationVerdictContext<'_> {
                     rerun_computation_units: 0,
                 };
             };
+            // Execution rejects an immutable account at every state, so no
+            // honest dry run authenticated against one.
+            if self.protocol_config.reject_immutable_account_objects()
+                && account_object.is_immutable()
+            {
+                return AuthenticationFailureBlame::Attestor {
+                    rerun_computation_units: 0,
+                };
+            }
             let Ok(field_object_id) =
                 derive_authenticator_function_ref_v1_dynamic_field_id(account_id)
             else {
@@ -675,9 +709,29 @@ mod tests {
         executed: &BTreeMap<ObjectId, Version>,
         superseded: BTreeSet<(ObjectId, Version)>,
     ) -> bool {
-        should_reauthenticate(attested, executed, |object_id, version| {
-            superseded.contains(&(*object_id, version))
-        })
+        should_reauthenticate(
+            attested,
+            executed,
+            &BTreeSet::new(),
+            |object_id, version| superseded.contains(&(*object_id, version)),
+        )
+    }
+
+    /// An honest dry run records no input the transaction pins, so a recorded
+    /// version for one is a lie, however plausible the version.
+    #[test]
+    fn differing_version_of_a_pinned_input_skips_reauthentication() {
+        let input = ref_at(3);
+        let superseded: BTreeSet<(ObjectId, Version)> = [(input.object_id, input.version())].into();
+        let executed = BTreeMap::from([(input.object_id, Version::from(5u64))]);
+        let pinned = BTreeSet::from([input.object_id]);
+
+        assert!(!should_reauthenticate(
+            &[input],
+            &executed,
+            &pinned,
+            |object_id, version| superseded.contains(&(*object_id, version))
+        ));
     }
 
     /// Authentication failed against exactly the recorded state, so re-running
