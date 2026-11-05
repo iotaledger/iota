@@ -9242,7 +9242,9 @@ async fn deny_rule_proposal_through_consensus_updates_active_set() {
         certificate_author: me,
         consensus_index: Default::default(),
         transaction: crate::consensus_handler::SequencedConsensusTransactionKind::External(
-            ConsensusTransaction::new_transaction_deny_rule_proposal(proposal),
+            Box::new(ConsensusTransaction::new_transaction_deny_rule_proposal(
+                proposal,
+            )),
         ),
     };
     epoch_store
@@ -9275,7 +9277,9 @@ async fn deny_rule_proposal_through_consensus_updates_active_set() {
         certificate_author: me, // author != forged.authority
         consensus_index: Default::default(),
         transaction: crate::consensus_handler::SequencedConsensusTransactionKind::External(
-            ConsensusTransaction::new_transaction_deny_rule_proposal(forged),
+            Box::new(ConsensusTransaction::new_transaction_deny_rule_proposal(
+                forged,
+            )),
         ),
     };
     epoch_store
@@ -9319,7 +9323,9 @@ async fn deny_rule_proposal_ignored_when_flag_disabled() {
         certificate_author: me,
         consensus_index: Default::default(),
         transaction: crate::consensus_handler::SequencedConsensusTransactionKind::External(
-            ConsensusTransaction::new_transaction_deny_rule_proposal(proposal),
+            Box::new(ConsensusTransaction::new_transaction_deny_rule_proposal(
+                proposal,
+            )),
         ),
     };
     epoch_store

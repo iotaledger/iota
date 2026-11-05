@@ -1815,13 +1815,13 @@ async fn deny_rule_update_is_scheduled_right_after_the_prologue() {
         certificate_author_index: 0,
         certificate_author: me,
         consensus_index: Default::default(),
-        transaction: SequencedConsensusTransactionKind::External(
+        transaction: SequencedConsensusTransactionKind::External(Box::new(
             ConsensusTransaction::new_transaction_deny_rule_proposal(deny_proposal(
                 me,
                 1,
                 rules_denying_address(Address::new([1u8; 32])),
             )),
-        ),
+        )),
     };
 
     let (scheduled, _assigned_versions) = store
@@ -2537,10 +2537,12 @@ async fn verify_consensus_transaction_mirrors_feature_gates(
             certificate_author_index: 0,
             certificate_author: me,
             consensus_index: Default::default(),
-            transaction: SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                tracking_id: [0; 8],
-                kind,
-            }),
+            transaction: SequencedConsensusTransactionKind::External(Box::new(
+                ConsensusTransaction {
+                    tracking_id: [0; 8],
+                    kind,
+                },
+            )),
         };
         let verified = epoch_store
             .verify_consensus_transaction(sequenced, &authority.metrics.skipped_consensus_txns);
