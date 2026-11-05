@@ -4805,9 +4805,11 @@ impl AuthorityPerEpochStore {
         let drop_seed = consensus_commit_info.round;
 
         // Transactions dropped by post-consensus load shedding in this commit.
-        // Fed to `dropped_tx_status_cache.insert_and_notify` after the loop so
-        // the submitter's `await_consensus_or_checkpoint` wait is woken and its
-        // consensus-submission semaphore slot is released.
+        // Waiters are notified after the loop so the submitter's
+        // `await_consensus_or_checkpoint` wait is woken and its
+        // consensus-submission semaphore slot is released. The drops are not
+        // recorded so a retry goes through consensus again; a status request
+        // that arrives after this commit waits for the retry or its timeout.
         let mut load_shedding_dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
         for tx in verified_transactions {
             if tx.0.is_end_of_publish() {
@@ -4845,8 +4847,18 @@ impl AuthorityPerEpochStore {
             }
         }
         if !load_shedding_dropped.is_empty() {
-            self.dropped_tx_status_cache
-                .insert_and_notify(&load_shedding_dropped);
+            if self
+                .protocol_config
+                .consensus_dedup_only_recorded_messages()
+            {
+                self.dropped_tx_status_cache
+                    .notify_without_recording(&load_shedding_dropped);
+            } else {
+                // Recorded so a retry is not submitted: the handler's cache
+                // would skip it without notifying its submitter.
+                self.dropped_tx_status_cache
+                    .insert_and_notify(&load_shedding_dropped);
+            }
         }
 
         let mut output =
@@ -4982,7 +4994,13 @@ impl AuthorityPerEpochStore {
             .max_concurrent_execution_workers()
             .is_some();
 
-        let mut soft_lock_release_tx_digests = Vec::new();
+        // Transactions dropped by load shedding never reach conflict
+        // resolution, so they are added here and released with the others
+        // after the consensus output is quarantined.
+        let mut soft_lock_release_tx_digests: Vec<TransactionDigest> = load_shedding_dropped
+            .iter()
+            .map(|(digest, _)| *digest)
+            .collect();
         if enable_pcool {
             // Invariant: P-COOL flow categorization funnels all user transactions
             // (regular + randomness) into `sequenced_transactions`, leaving
