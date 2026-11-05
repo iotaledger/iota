@@ -830,27 +830,26 @@ impl WritebackCache {
                 ObjectEntry::Deleted | ObjectEntry::Wrapped => Ok(None),
             },
             CacheResult::NegativeHit => Ok(None),
-            CacheResult::Miss => {
-                let obj = self.store.get_latest_object_or_tombstone(*id);
-                match obj {
-                    Ok(Some((key, obj))) => {
-                        self.cache_latest_object_by_id(
-                            id,
-                            LatestObjectCacheEntry::Object(key.1, obj.clone().into()),
-                            ticket,
-                        );
-                        match obj {
-                            ObjectOrTombstone::Object(object) => Ok(Some(object)),
-                            ObjectOrTombstone::Tombstone(_) => Ok(None),
-                        }
+            // The store's error is returned as is: post-consensus validation
+            // stops the commit on a storage error and drops the transaction
+            // on any other.
+            CacheResult::Miss => match self.store.get_latest_object_or_tombstone(*id)? {
+                Some((key, obj)) => {
+                    self.cache_latest_object_by_id(
+                        id,
+                        LatestObjectCacheEntry::Object(key.1, obj.clone().into()),
+                        ticket,
+                    );
+                    match obj {
+                        ObjectOrTombstone::Object(object) => Ok(Some(object)),
+                        ObjectOrTombstone::Tombstone(_) => Ok(None),
                     }
-                    Ok(None) => {
-                        self.cache_object_not_found(id, ticket);
-                        Ok(None)
-                    }
-                    Err(e) => Err(format!("failed to get latest object or tomebstone: {e}").into()),
                 }
-            }
+                None => {
+                    self.cache_object_not_found(id, ticket);
+                    Ok(None)
+                }
+            },
         }
     }
 
