@@ -398,7 +398,8 @@ mod tests {
             store: store.clone(),
             deletes_marker,
         };
-        let delete = delete_recursively(&epoch_dir, &stopping_store, NonZeroUsize::new(1).unwrap());
+        let delete =
+            delete_recursively(&epoch_dir, &stopping_store, NonZeroUsize::new(20).unwrap());
         assert!(
             tokio::time::timeout(Duration::from_secs(1), delete)
                 .await
