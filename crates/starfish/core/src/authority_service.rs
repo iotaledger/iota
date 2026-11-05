@@ -798,11 +798,11 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
     }
 }
 
-/// Reads the payloads for `refs`, taking those above the evicted transaction
-/// round of their author from the DAG state and leaving the rest to
-/// `read_evicted`, which the caller picks so its store access matches the refs
-/// it asks for. A result missing some of `refs` is normal: `read_evicted` may
-/// stop short, and a payload can be absent.
+/// Reads the payloads for `refs`, taking those the DAG state holds from it and
+/// leaving the rest at or below the evicted transaction round of their author
+/// to `read_evicted`, which the caller picks so its store access matches the
+/// refs it asks for. A result missing some of `refs` is normal: `read_evicted`
+/// may stop short, and a payload can be absent.
 fn read_transaction_payloads(
     dag_state: &RwLock<DagState>,
     refs: &[TransactionRef],
@@ -813,19 +813,21 @@ fn read_transaction_payloads(
     let mut evicted = BTreeSet::new();
     let mut payloads = BTreeMap::new();
     {
-        // Payloads above the evicted round are clones of buffers the DAG state
-        // already holds, read under the same lock as the evicted rounds. One
-        // the DAG state does not hold is not in the store either, so the store
-        // is not read.
+        // Payloads the DAG state holds are clones of its buffers, read under
+        // the same lock as the evicted rounds. At or below the evicted round
+        // it can still hold one added after its round was evicted, which is
+        // not in the store until the next flush. Above it, a payload the DAG
+        // state does not hold is not in the store either.
         let dag_state = dag_state.read();
         for transaction_ref in refs {
-            if transaction_ref.round <= dag_state.evicted_transaction_round(transaction_ref.author)
-            {
-                evicted.insert(*transaction_ref);
-            } else if let Some(payload) =
+            if let Some(payload) =
                 dag_state.get_cached_serialized_transactions((*transaction_ref).into())
             {
                 payloads.insert(*transaction_ref, payload);
+            } else if transaction_ref.round
+                <= dag_state.evicted_transaction_round(transaction_ref.author)
+            {
+                evicted.insert(*transaction_ref);
             }
         }
     }
@@ -6345,5 +6347,46 @@ mod tests {
         .unwrap();
 
         assert!(payloads.contains_key(&transaction_ref));
+    }
+
+    /// A payload added at or below the evicted transaction round of its author
+    /// is served from the DAG state before the next flush writes it.
+    #[tokio::test]
+    async fn a_payload_added_after_its_round_was_evicted_is_served_from_the_dag_state() {
+        let (mut context, _) = Context::new_for_test(4);
+        context.protocol_config.set_gc_depth_for_testing(5);
+        context.parameters.dag_state_cached_rounds = 5;
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=20).build();
+        dag_builder.persist_all_blocks(dag_state.clone());
+        let subdags_and_commits = dag_builder.get_sub_dag_and_commits(1..=20);
+        {
+            let mut dag_state = dag_state.write();
+            for (_, commit) in &subdags_and_commits {
+                dag_state.add_commit(commit.clone());
+            }
+            let (last_subdag, _) = subdags_and_commits.last().unwrap();
+            dag_state.update_last_solid_subdag_base(last_subdag.base.clone());
+            dag_state.flush();
+        }
+        let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 0).build());
+        let late = CommitmentVerifiedTransactions::new_for_test(
+            &header,
+            vec![Transaction::new(vec![0; 64])],
+        );
+        let late_ref = late.transaction_ref();
+        assert!(late_ref.round <= dag_state.read().evicted_transaction_round(late_ref.author));
+        dag_state.write().add_transactions(late, DataSource::Test);
+        assert!(!store.contains_transactions(&[late_ref.into()]).unwrap()[0]);
+
+        let payloads = read_transaction_payloads(&dag_state, &[late_ref], |evicted| {
+            store.scan_serialized_transactions(&evicted, usize::MAX)
+        })
+        .unwrap();
+
+        assert!(payloads.contains_key(&late_ref));
     }
 }
