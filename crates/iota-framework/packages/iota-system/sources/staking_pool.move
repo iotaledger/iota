@@ -195,9 +195,10 @@ public(package) fun withdraw_from_principal(
         staked_iota.stake_activation_epoch,
         current_epoch,
     );
+    assert!(exchange_rate_at_staking_epoch.is_some(), EStakeNotProcessed);
     let principal_withdraw = unwrap_staked_iota(staked_iota);
     let pool_token_withdraw_amount = get_token_amount(
-        &exchange_rate_at_staking_epoch,
+        &exchange_rate_at_staking_epoch.destroy_some(),
         principal_withdraw.value(),
     );
 
@@ -483,31 +484,32 @@ fun is_stake_pending(
     stake_activation_epoch: u64,
     current_epoch: u64,
 ): bool {
-    if (stake_activation_epoch > current_epoch) return true;
-    // Stake added to a preactive pool is processed on request, not at the epoch change.
-    if (is_preactive_at_epoch(pool, stake_activation_epoch)) return false;
-    let upper = pool.deactivation_epoch.get_with_default(current_epoch).min(current_epoch);
-    latest_exchange_rate_epoch(pool, stake_activation_epoch, upper).is_none()
+    let exchange_rate = pool_token_exchange_rate_at_stake_activation(
+        pool,
+        stake_activation_epoch,
+        current_epoch,
+    );
+    exchange_rate.is_none()
 }
 
 /// The exchange rate at which the stake activated at `stake_activation_epoch` was
-/// added to the pool. Normally that is the rate recorded at that epoch. If that
-/// epoch change ran in safe mode, the stake was added by the next normal epoch
-/// change, so it is the first rate recorded after it. Aborts if the stake has not
-/// been added to the pool yet.
+/// added to the pool, or none if the stake has not been added yet. Normally that is
+/// the rate recorded at that epoch. If that epoch change ran in safe mode, the stake
+/// was added by the next normal epoch change, so it is the first rate recorded after it.
 fun pool_token_exchange_rate_at_stake_activation(
     pool: &StakingPoolV1,
     stake_activation_epoch: u64,
     current_epoch: u64,
-): PoolTokenExchangeRate {
+): Option<PoolTokenExchangeRate> {
+    if (stake_activation_epoch > current_epoch) return option::none();
     // Stake added to a preactive pool is processed on request at the initial rate.
     if (is_preactive_at_epoch(pool, stake_activation_epoch)) {
-        return initial_exchange_rate()
+        return option::some(initial_exchange_rate())
     };
     let upper = pool.deactivation_epoch.get_with_default(current_epoch).min(current_epoch);
     let epoch = earliest_exchange_rate_epoch(pool, stake_activation_epoch, upper);
-    assert!(epoch.is_some(), EStakeNotProcessed);
-    pool.exchange_rates[epoch.destroy_some()]
+    if (epoch.is_none()) return option::none();
+    option::some(pool.exchange_rates[epoch.destroy_some()])
 }
 
 fun get_iota_amount(exchange_rate: &PoolTokenExchangeRate, token_amount: u64): u64 {
@@ -558,17 +560,16 @@ public fun calculate_rewards(
     current_epoch: u64,
 ): u64 {
     let staked_amount = staked_iota_amount(staked_iota);
-    if (is_stake_pending(pool, staked_iota.stake_activation_epoch, current_epoch)) {
-        return staked_amount
-    };
-    let pool_token_withdraw_amount = {
-        let exchange_rate_at_staking_epoch = pool_token_exchange_rate_at_stake_activation(
-            pool,
-            staked_iota.stake_activation_epoch,
-            current_epoch,
-        );
-        get_token_amount(&exchange_rate_at_staking_epoch, staked_amount)
-    };
+    let exchange_rate_at_staking_epoch = pool_token_exchange_rate_at_stake_activation(
+        pool,
+        staked_iota.stake_activation_epoch,
+        current_epoch,
+    );
+    if (exchange_rate_at_staking_epoch.is_none()) return staked_amount;
+    let pool_token_withdraw_amount = get_token_amount(
+        &exchange_rate_at_staking_epoch.destroy_some(),
+        staked_amount,
+    );
 
     let new_epoch_exchange_rate = pool_token_exchange_rate_at_epoch(pool, current_epoch);
     let total_iota_withdraw_amount = get_iota_amount(
