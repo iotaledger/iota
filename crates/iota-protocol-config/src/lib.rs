@@ -276,6 +276,10 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             arguments inputs of that authenticator.
 //             Limit the struct, enum and vector values in Move-call
 //             arguments, per call and per transaction.
+//             Reject `<SELF>` as an identifier in transactions, at signing,
+//             after consensus and in block verification. Block verification
+//             also rejects a block that carries a system transaction kind in
+//             a user transaction or certificate.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -741,6 +745,13 @@ struct FeatureFlags {
     // Disallow self identifier
     #[serde(skip_serializing_if = "is_false")]
     disallow_self_identifier: bool,
+
+    // Reject a transaction whose type arguments, Move call module or function
+    // name, or Move authenticator type arguments carry an identifier that
+    // move-core rejects (`<SELF>`), at signing, after consensus and in block
+    // verification.
+    #[serde(skip_serializing_if = "is_false")]
+    disallow_self_identifier_in_transactions: bool,
 
     // If true, the version field of a published module header must be the encoding
     // the serializer produces for the version it decodes to. Below binary format
@@ -2329,6 +2340,10 @@ impl ProtocolConfig {
         self.feature_flags.allow_dkg_completion_after_timeout
     }
 
+    pub fn disallow_self_identifier_in_transactions(&self) -> bool {
+        self.feature_flags.disallow_self_identifier_in_transactions
+    }
+
     pub fn consensus_dedup_only_recorded_messages(&self) -> bool {
         self.feature_flags.consensus_dedup_only_recorded_messages
     }
@@ -3846,6 +3861,10 @@ impl ProtocolConfig {
                     // arguments.
                     cfg.max_move_call_argument_nodes = Some(2_097_152);
                     cfg.max_move_call_argument_nodes_total = Some(16_777_216);
+
+                    // Reject `<SELF>` as an identifier in transactions, at
+                    // signing, after consensus and in block verification.
+                    cfg.feature_flags.disallow_self_identifier_in_transactions = true;
                 }
                 // Use this template when making changes:
                 //
@@ -4227,6 +4246,10 @@ impl ProtocolConfig {
     pub fn set_move_authenticator_type_arg_packages_as_inputs_for_testing(&mut self, val: bool) {
         self.feature_flags
             .move_authenticator_type_arg_packages_as_inputs = val;
+    }
+
+    pub fn set_disallow_self_identifier_in_transactions_for_testing(&mut self, val: bool) {
+        self.feature_flags.disallow_self_identifier_in_transactions = val;
     }
 
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {

@@ -59,6 +59,7 @@ feature_flags:
   reject_immutable_account_creation: true
   validate_input_object_versions: true
   disallow_self_identifier: true
+  disallow_self_identifier_in_transactions: true
   check_canonical_module_version_header: true
   disallow_randomness_in_move_authenticator: true
   check_cyclic_dependencies: true

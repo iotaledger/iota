@@ -94,6 +94,78 @@ fn input_object_version_validity_check(version: Version) -> UserInputResult {
     Ok(())
 }
 
+/// Rejects an identifier that move-core rejects. The SDK `Identifier` also
+/// accepts `<SELF>`, which no module or type can be named.
+fn move_core_identifier_validity_check(identifier: &Identifier) -> UserInputResult {
+    fp_ensure!(
+        move_core_types::identifier::Identifier::is_valid(identifier.as_str()),
+        UserInputError::InvalidIdentifier {
+            error: identifier.to_string()
+        }
+    );
+    Ok(())
+}
+
+/// Rejects an identifier that move-core rejects in the module or name of any
+/// struct type in `type_tags`, nested type parameters included.
+fn type_tags_identifiers_validity_check<'a>(
+    type_tags: impl IntoIterator<Item = &'a TypeTag>,
+) -> UserInputResult {
+    let mut stack: Vec<&TypeTag> = type_tags.into_iter().collect();
+    while let Some(type_tag) = stack.pop() {
+        match type_tag {
+            TypeTag::Vector(inner) => stack.push(inner.as_ref()),
+            TypeTag::Struct(s) => {
+                move_core_identifier_validity_check(s.module())?;
+                move_core_identifier_validity_check(s.name())?;
+                stack.extend(s.type_params());
+            }
+            TypeTag::Bool
+            | TypeTag::U8
+            | TypeTag::U16
+            | TypeTag::U32
+            | TypeTag::U64
+            | TypeTag::U128
+            | TypeTag::U256
+            | TypeTag::Address
+            | TypeTag::Signer => {}
+        }
+    }
+    Ok(())
+}
+
+/// Rejects an identifier that move-core rejects in a command: the module and
+/// function names and the type arguments of a Move call, or the element type
+/// of a `MakeMoveVector`.
+fn command_identifiers_validity_check(command: &Command) -> UserInputResult {
+    match command {
+        Command::MoveCall(call) => {
+            move_core_identifier_validity_check(&call.module)?;
+            move_core_identifier_validity_check(&call.function)?;
+            type_tags_identifiers_validity_check(&call.type_arguments)
+        }
+        Command::MakeMoveVector(MakeMoveVector {
+            type_tag: Some(type_tag),
+            ..
+        }) => type_tags_identifiers_validity_check([type_tag]),
+        Command::MakeMoveVector(MakeMoveVector { type_tag: None, .. })
+        | Command::TransferObjects(_)
+        | Command::SplitCoins(_)
+        | Command::MergeCoins(_)
+        | Command::Publish(_)
+        | Command::Upgrade(_) => Ok(()),
+        _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
+    }
+}
+
+/// Rejects an identifier that move-core rejects in the type arguments of a
+/// Move authenticator.
+pub(crate) fn move_authenticator_identifiers_validity_check(
+    authenticator: &impl MoveAuthenticatorExt,
+) -> UserInputResult {
+    type_tags_identifiers_validity_check(authenticator.type_args())
+}
+
 pub fn type_tag_validity_check(
     tag: &TypeTag,
     config: &ProtocolConfig,
@@ -550,6 +622,9 @@ impl CommandExt for Command {
             }
             _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         };
+        if config.disallow_self_identifier_in_transactions() {
+            command_identifiers_validity_check(self)?;
+        }
 
         Ok(())
     }
@@ -2403,6 +2478,36 @@ fn check_user_signature_protocol_compatibility(
     }
 
     Ok(())
+}
+
+/// Rejects a signed transaction that carries a system transaction kind, or an
+/// identifier move-core rejects: in Move call module and function names, and in
+/// the type arguments of Move calls, `MakeMoveVector` commands and Move
+/// authenticators.
+///
+/// Independent of the protocol config, so the caller gates it; the consensus
+/// block verifier uses it to reject exactly the blocks a decoder that follows
+/// the move-core rules would fail to decode.
+pub fn transaction_identifiers_validity_check(
+    signed_tx: &SenderSignedTransaction,
+) -> UserInputResult {
+    // A system transaction needs no signature and can carry identifiers in
+    // genesis objects and events, so it is rejected instead of walked.
+    fp_ensure!(
+        !signed_tx.transaction().is_system_tx(),
+        UserInputError::Unsupported(
+            "SenderSignedTransaction must not contain system transaction".to_string()
+        )
+    );
+    if let TransactionKind::Programmable(pt) = signed_tx.transaction().kind() {
+        pt.commands
+            .iter()
+            .try_for_each(command_identifiers_validity_check)?;
+    }
+    signed_tx
+        .move_authenticators()
+        .into_iter()
+        .try_for_each(move_authenticator_identifiers_validity_check)
 }
 
 fn move_authenticators_validity_check(
