@@ -1,0 +1,137 @@
+---
+description: 'How to simulate and execute transactions built with @iota/iota-sdk through IotaGrpcClient, one at a time or in batches.'
+tags:
+  - how-to
+  - ts-sdk
+  - typescript
+  - grpc
+  - transaction
+teams:
+  - iotaledger/tooling
+---
+
+# Simulate and Execute Transactions
+
+`@iota/grpc` does not build or sign transactions. You build them with the [`Transaction`](../../typescript/transaction-building/basics.mdx) class of `@iota/iota-sdk`, sign them with a [keypair](../../typescript/cryptography/keypairs.mdx), and then hand the bytes and signatures to the gRPC client.
+
+## Build and sign a transaction
+
+`tx.build()` has to know every input up front. Without a JSON-RPC client to look them up, you set the gas price, budget and payment yourself, using `getReferenceGasPrice` and `listOwnedObjects`:
+
+```ts
+import { toBase58, toHex } from '@iota/bcs';
+import { IotaGrpcClient } from '@iota/grpc';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { Transaction } from '@iota/iota-sdk/transactions';
+
+const client = new IotaGrpcClient({ network: 'testnet' });
+const keypair = Ed25519Keypair.fromSecretKey(secretKey);
+const sender = keypair.toIotaAddress();
+
+const { body: referenceGasPrice } = await client.getReferenceGasPrice();
+const { body: coins } = await client.listOwnedObjects(sender, {
+    objectType: '0x2::coin::Coin<0x2::iota::IOTA>',
+    pageSize: 1,
+});
+const gas = coins.items[0].reference!;
+
+const tx = new Transaction();
+const [coin] = tx.splitCoins(tx.gas, [1_000]);
+tx.transferObjects([coin], recipient);
+tx.setSender(sender);
+tx.setGasPrice(referenceGasPrice);
+tx.setGasBudget(50_000_000n);
+tx.setGasPayment([
+    {
+        objectId: `0x${toHex(gas.objectId!.objectId)}`,
+        version: String(gas.version),
+        digest: toBase58(gas.digest!.digest),
+    },
+]);
+
+const bytes = await tx.build();
+const { signature } = await keypair.signTransaction(bytes);
+```
+
+If you also have an `IotaClient`, `tx.build({ client: iotaClient })` resolves the gas and other inputs for you.
+
+## Execute a transaction
+
+Pass the bytes and signatures as a `SignedTransaction`. The bytes can be a `Uint8Array` or a base64 string, and each signature is the base64 string that `signTransaction` returns:
+
+```ts
+import { decodeTransactionEffects, TransactionField } from '@iota/grpc';
+
+const { body } = await client.executeTransaction(
+    { transaction: bytes, signatures: [signature] },
+    {
+        readMask: [TransactionField.EFFECTS, TransactionField.CHECKPOINT],
+        checkpointInclusionTimeoutMs: 10_000n,
+    },
+);
+
+const { status } = decodeTransactionEffects(body.effects!).V1;
+console.log(status.$kind, body.checkpoint);
+```
+
+If the node rejects the transaction, for example because a signature is invalid, the call throws a `ServerError`. A transaction that runs and then fails, say by running out of gas or aborting in Move, does not throw. It comes back with a `Failed` status in its effects, so always check `status`.
+
+### Wait for the checkpoint
+
+By default the call returns as soon as the transaction is executed. With `checkpointInclusionTimeoutMs`, the node also waits up to that long for the transaction to land in a checkpoint. Add `TransactionField.CHECKPOINT` (and `TransactionField.TIMESTAMP` if you want it) to the read mask to get them back.
+
+### Choose what comes back
+
+By default you get the digest, effects, events, and input and output objects. Use `readMask` with `TransactionField` constants to trim that down, or to add `BALANCE_CHANGES` and `OBJECT_CHANGES`.
+
+## Execute several transactions
+
+`executeTransactions` takes a list and returns one [`ItemResult`](../responses.mdx#batch-results) per transaction:
+
+```ts
+const { body } = await client.executeTransactions([first, second], {
+    readMask: TransactionField.EFFECTS,
+});
+
+for (const result of body) {
+    if (result.ok) {
+        console.log(decodeTransactionEffects(result.value.effects!).V1.status.$kind);
+    } else {
+        console.error(result.error.message);
+    }
+}
+```
+
+The node submits the transactions concurrently, so none of them can rely on another's effects. Send dependent transactions in separate calls, and give each transaction in a batch its own gas coin.
+
+## Simulate a transaction
+
+`simulateTransaction` runs a transaction against current state without committing anything, and needs no signature. If you leave the gas payment empty, the node pays with a mock coin, so the sender does not even need to own any IOTA:
+
+```ts
+import { decodeTransactionEffects } from '@iota/grpc';
+import { Transaction } from '@iota/iota-sdk/transactions';
+
+const tx = new Transaction();
+tx.setSender(sender);
+tx.setGasPrice(referenceGasPrice);
+tx.setGasBudget(50_000_000n);
+tx.setGasPayment([]);
+const [coin] = tx.splitCoins(tx.gas, [1]);
+tx.transferObjects([coin], sender);
+
+const { body } = await client.simulateTransaction({ transaction: await tx.build() });
+
+const effects = decodeTransactionEffects(body.executedTransaction!.effects!);
+console.log(effects.V1.status.$kind, effects.V1.gasUsed, body.suggestedGasPrice);
+```
+
+`body.executionResult` holds each command's result when the transaction succeeds, or the execution error when it fails.
+
+Pass `skipChecks: true` to relax the Move VM's checks. This helps when you are debugging a transaction the checks would otherwise reject:
+
+```ts
+await client.simulateTransaction({ transaction: bytes, skipChecks: true });
+```
+
+`simulateTransactions` takes a list and returns one result per transaction. Each one runs separately against current state, so none of them sees another's effects.

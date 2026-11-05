@@ -35,8 +35,7 @@ fn parse_u32(input: &str) -> IResult<&str, u32> {
 ///
 /// # Format
 /// - The literal string `"Round0:{"`
-/// - Followed by a non-empty sequence of digits representing the number of
-///   authorities
+/// - Followed by a non-empty sequence of digits representing the number of authorities
 /// - Followed by a closing brace `}`
 /// - Optionally followed by a comma `,`
 ///
@@ -68,8 +67,7 @@ fn parse_authority_index(input: &str) -> IResult<&str, AuthorityIndex> {
 /// Parses an alphanumeric slot identifier in the format `A1`, `B3`, etc.
 ///
 /// # Format
-/// - A single uppercase ASCII letter representing the authority (e.g., `'A'`
-///   maps to index 0)
+/// - A single uppercase ASCII letter representing the authority (e.g., `'A'` maps to index 0)
 /// - Followed by one or more digits representing the round number
 fn parse_slot(input: &str) -> IResult<&str, Slot> {
     map(
@@ -107,8 +105,8 @@ fn parse_ancestor_selections(input: &str) -> IResult<&str, Vec<AncestorSelection
 /// Parses a pair of ancestor connections or a single one.
 ///
 /// # Supported Formats
-/// - a comma(',') separated pair of ancestor selections delimited by '()'
-///   brackets, e.g.: `([A1,B2],[C3,-D4])`
+/// - a comma(',') separated pair of ancestor selections delimited by '()' brackets, e.g.:
+///   `([A1,B2],[C3,-D4])`
 /// - a single list of ancestor connections, e.g.: ```text [*,-B1]```
 ///
 /// # Returns
@@ -147,10 +145,8 @@ fn parse_pair_of_ancestor_selections(
 ///
 /// # Returns
 /// A tuple `(AuthorityIndex, Vec<AncestorSelection>)` where:
-/// - `AuthorityIndex` is derived from the author character (`'A'` maps to index
-///   0)
-/// - `Vec<AncestorSelection>` contains parsed ancestor selections inside the
-///   brackets
+/// - `AuthorityIndex` is derived from the author character (`'A'` maps to index 0)
+/// - `Vec<AncestorSelection>` contains parsed ancestor selections inside the brackets
 fn parse_author_and_connections(
     input: &str,
 ) -> IResult<
@@ -178,16 +174,15 @@ fn parse_author_and_connections(
 /// Parses an ancestor connection specification from input.
 ///
 /// # Supported Formats
-/// - `"*"` indicating a fully connected ancestor graph
-///   (`AncestorConnectionSpec::FullyConnected`)
-/// - Or a sequence (zero or more) of author-and-connections entries, e.g.:
-///   ```text A->[*, -B1],B->[C2], ... ```
+/// - `"*"` indicating a fully connected ancestor graph (`AncestorConnectionSpec::FullyConnected`)
+/// - Or a sequence (zero or more) of author-and-connections entries, e.g.: ```text A->[*,
+///   -B1],B->[C2], ... ```
 ///
 /// # Returns
 /// An `AncestorConnectionSpec` enum value:
 /// - `FullyConnected` if the input is a single `"*"` character
-/// - `AuthoritySpecific` with a vector of `(AuthorityIndex,
-///   Vec<AncestorSelection>)` parsed by `parse_author_and_connections`
+/// - `AuthoritySpecific` with a vector of `(AuthorityIndex, Vec<AncestorSelection>)` parsed by
+///   `parse_author_and_connections`
 fn parse_connections(input: &str) -> IResult<&str, AncestorConnectionSpec> {
     alt((
         map(char('*'), |_| AncestorConnectionSpec::FullyConnected),
@@ -208,8 +203,7 @@ fn parse_connections(input: &str) -> IResult<&str, AncestorConnectionSpec> {
 ///
 /// # Format
 /// - The literal prefix `"Round"`
-/// - Followed by one or more digits representing the round number (e.g.
-///   `"Round0"`, `"Round42"`)
+/// - Followed by one or more digits representing the round number (e.g. `"Round0"`, `"Round42"`)
 /// - Followed by a colon `:`
 /// - Followed by a block of connections enclosed in braces `{ ... }`
 /// - Optionally followed by a comma `,`

@@ -431,8 +431,9 @@ mod tests {
 
     use iota_macros::sim_test;
     use rand::{
-        Rng, SeedableRng,
-        rngs::{OsRng, StdRng},
+        RngExt, SeedableRng,
+        rand_core::UnwrapErr,
+        rngs::{StdRng, SysRng},
     };
     use tokio::{
         sync::{
@@ -929,7 +930,7 @@ mod tests {
     ) -> JoinHandle<()> {
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs_f64(1.0 / steady_rate));
-            let mut rng = StdRng::from_rng(&mut OsRng).unwrap();
+            let mut rng = StdRng::from_rng(&mut UnwrapErr(SysRng));
             let mut total_requests: u32 = 0;
             let mut total_dropped_requests: u32 = 0;
 
@@ -941,7 +942,7 @@ mod tests {
                             .overload_info
                             .local_load_shedding_percentage
                             .load(Ordering::Relaxed);
-                        !(shedding_percentage > 0 && rng.gen_range(0..100) < shedding_percentage)
+                        !(shedding_percentage > 0 && rng.random_range(0..100) < shedding_percentage)
                     } else {
                         true
                     }

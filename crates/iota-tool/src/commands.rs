@@ -263,12 +263,12 @@ pub enum ToolCommand {
         #[arg(long)]
         disable_progress_bar: bool,
 
-        /// Skip building the gRPC index store during the restore. By default
+        /// Skip building the RPC index store during the restore. By default
         /// it is built from the same object stream that restores the state,
-        /// so a fullnode started with gRPC enabled opens it in place instead
-        /// of re-indexing the whole restored state on first start.
+        /// so a fullnode opens it in place instead of re-indexing the whole
+        /// restored state on first start.
         #[arg(long)]
-        skip_grpc_indexes: bool,
+        skip_rpc_indexes: bool,
     },
 
     /// Backfill the full checkpoint summary history from the checkpoint
@@ -605,7 +605,7 @@ impl ToolCommand {
                 latest,
                 verbose,
                 disable_progress_bar,
-                skip_grpc_indexes,
+                skip_rpc_indexes,
             } => {
                 if !verbose {
                     tracing_handle
@@ -722,7 +722,7 @@ impl ToolCommand {
                     snapshot_store_config,
                     num_parallel_downloads,
                     verify,
-                    skip_grpc_indexes,
+                    skip_rpc_indexes,
                     disable_progress_bar,
                 )
                 .await?;
@@ -780,8 +780,8 @@ impl ToolCommand {
                 crate::fire_drill::run_fire_drill(fire_drill).await?;
             }
             ToolCommand::GrpcHealthCheck { address } => {
-                let client = iota_grpc_client::Client::new(address)?;
-                client.health(None).await?;
+                let client = iota_grpc_client::GrpcClient::new(address)?;
+                client.health().await?;
                 println!("OK");
             }
         };

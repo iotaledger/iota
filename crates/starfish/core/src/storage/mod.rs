@@ -9,7 +9,7 @@ pub(crate) mod rocksdb_store;
 #[cfg(test)]
 mod store_tests;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use bytes::Bytes;
 use starfish_config::AuthorityIndex;
@@ -17,7 +17,8 @@ use starfish_config::AuthorityIndex;
 use crate::{
     CommitIndex,
     block_header::{
-        BlockRef, CommitmentVerifiedTransactions, Round, VerifiedBlock, VerifiedBlockHeader,
+        BlockRef, CommitmentVerifiedTransactions, Round, TransactionsCommitment, VerifiedBlock,
+        VerifiedBlockHeader,
     },
     commit::{CommitDigest, CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
@@ -183,6 +184,69 @@ pub(crate) trait Store: Send + Sync {
     /// Returns true if fast commit sync was ongoing when the node last shut
     /// down. Errors if the flag cannot be read from storage.
     fn read_fast_sync_ongoing(&self) -> ConsensusResult<bool>;
+
+    /// Reads payloads for `refs` in ref order, stopping before they pass
+    /// `byte_budget`, so the result can cover only part of `refs`. One payload
+    /// is always read, so an oversized one cannot stall the caller.
+    fn scan_serialized_transactions(
+        &self,
+        refs: &BTreeSet<TransactionRef>,
+        byte_budget: usize,
+    ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>>;
+}
+
+/// Key a stored transaction payload is filed under.
+pub(crate) type TransactionKey = (Round, AuthorityIndex, TransactionsCommitment);
+
+/// Bounds of the key range holding every ref, `None` when `refs` is empty.
+/// Refs and keys share their ordering, so that range is contiguous.
+pub(crate) fn transaction_scan_bounds(
+    refs: &BTreeSet<TransactionRef>,
+) -> Option<(TransactionKey, TransactionKey)> {
+    let (first, last) = (refs.first()?, refs.last()?);
+    Some((
+        (first.round, first.author, first.transactions_commitment),
+        (last.round, last.author, last.transactions_commitment),
+    ))
+}
+
+/// Keeps the payloads `refs` asks for from `entries`, a key-ordered scan of
+/// the range, stopping before they pass `byte_budget`; one is always kept.
+/// Both sides are ordered alike, so they are walked together.
+pub(crate) fn collect_transactions_within_budget(
+    refs: &BTreeSet<TransactionRef>,
+    byte_budget: usize,
+    mut entries: impl Iterator<Item = ConsensusResult<(TransactionKey, Bytes)>>,
+) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
+    let mut entry = entries.next().transpose()?;
+    let mut transactions = BTreeMap::new();
+    let mut total_bytes = 0usize;
+    for transaction_ref in refs {
+        let key = (
+            transaction_ref.round,
+            transaction_ref.author,
+            transaction_ref.transactions_commitment,
+        );
+        while entry.as_ref().is_some_and(|(stored, _)| *stored < key) {
+            entry = entries.next().transpose()?;
+        }
+        let Some((stored, serialized)) = entry.take() else {
+            break;
+        };
+        if stored != key {
+            entry = Some((stored, serialized));
+            continue;
+        }
+        // The `Bytes` descriptor is held alongside the payload.
+        let charge = serialized.len() + size_of::<Bytes>();
+        if !transactions.is_empty() && total_bytes + charge > byte_budget {
+            break;
+        }
+        total_bytes += charge;
+        transactions.insert(*transaction_ref, serialized);
+        entry = entries.next().transpose()?;
+    }
+    Ok(transactions)
 }
 
 /// Represents data to be written to the store together atomically.

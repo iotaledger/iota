@@ -5,6 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_move_types::iota_system::iota_system_state_inner::SystemEpochInfoEventV2;
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointSummary, EndOfEpochData, EndOfEpochTransactionKind,
     Event, Identifier, MoveStruct, ObjectId, ObjectReference, Owner, SenderSignedTransaction,
@@ -17,7 +18,6 @@ use crate::{
     base_types::{ExecutionDigests, dbg_addr, random_object_ref},
     committee::Committee,
     effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExtForTesting},
-    event::SystemEpochInfoEventV2,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSummaryExt,
@@ -575,7 +575,15 @@ impl TestCheckpointDataBuilder {
             let system_epoch_info_event = SystemEpochInfoEventV2 {
                 epoch: self.checkpoint_builder.epoch,
                 protocol_version: protocol_config.version.as_u64(),
-                ..Default::default()
+                total_stake: 0,
+                storage_charge: 0,
+                storage_rebate: 0,
+                storage_fund_balance: 0,
+                total_gas_fees: 0,
+                total_stake_rewards_distributed: 0,
+                burnt_tokens_amount: 0,
+                minted_tokens_amount: 0,
+                tips_amount: 0,
             };
             Some(vec![Event {
                 package_id: ObjectId::SYSTEM,

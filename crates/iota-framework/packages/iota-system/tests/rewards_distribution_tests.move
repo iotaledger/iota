@@ -17,6 +17,7 @@ use iota_system::governance_test_utils::{
     advance_epoch_with_reward_amounts_and_slashing_rates,
     advance_epoch_with_amounts,
     advance_epoch_with_subsidy_and_scores,
+    advance_epoch_with_subsidy_scores_and_max_committee_members_count,
     assert_validator_total_stake_amounts,
     assert_validator_non_self_stake_amounts,
     assert_validator_self_stake_amounts,
@@ -1686,6 +1687,77 @@ fun test_rewards_with_scores_and_adjustment() {
             (200 + 100) * NANOS_PER_IOTA, // 200 * 1/2 = 100
             (300 + 150) * NANOS_PER_IOTA, // 200 * 3/4 = 150
             (400 + 200) * NANOS_PER_IOTA, // 200 * 1 = 200
+        ],
+        scenario,
+    );
+
+    scenario_val.end();
+}
+
+#[test]
+fun test_rewards_with_scores_and_capped_committee() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let ctx = scenario.ctx();
+
+    let (_, validators) = create_validators_with_stakes_and_commission_rates(
+        vector[100, 200, 300, 400, 500],
+        vector[0, 0, 0, 0, 0],
+        ctx,
+    );
+    create_iota_system_state_for_testing(validators, 1500, 0, ctx);
+    scenario_val.end();
+    let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    // Need to advance epoch so validator's staking starts counting.
+    // Advance epoch and select only 4 committee members out of 5 active validators.
+    advance_epoch_with_max_committee_members_count(4, scenario);
+
+    // The committee holds the 4 largest stakes, largest first, so its order is the
+    // reverse of `active_validators`. Scores are read by committee member index, so
+    // each score below must reach the validator at that index, not the validator
+    // with that number.
+    let mut system_state = scenario.take_shared<IotaSystemState>();
+    assert_eq(
+        system_state.committee_validator_addresses(),
+        vector[VALIDATOR_ADDR_5, VALIDATOR_ADDR_4, VALIDATOR_ADDR_3, VALIDATOR_ADDR_2],
+    );
+    test_scenario::return_shared(system_state);
+    let max_score = 65_536u64;
+    let scores = vector[
+        max_score / 4, // Validator 5
+        max_score / 2, // Validator 4
+        (max_score * 3) / 4, // Validator 3
+        max_score, // Validator 2
+    ];
+
+    // Advance epoch with 800 IOTA of subsidy and the above scores, and adjust rewards by score.
+    advance_epoch_with_subsidy_scores_and_max_committee_members_count(
+        800,
+        scores,
+        true,
+        4,
+        scenario,
+    );
+
+    // The 4 committee members have equal voting power, so each pool gets +200 IOTA
+    // adjusted by the score at its committee position. Validator 1 is not in the
+    // committee and gets nothing.
+    assert_validator_total_stake_amounts(
+        vector[
+            VALIDATOR_ADDR_1,
+            VALIDATOR_ADDR_2,
+            VALIDATOR_ADDR_3,
+            VALIDATOR_ADDR_4,
+            VALIDATOR_ADDR_5,
+        ],
+        vector[
+            100 * NANOS_PER_IOTA,
+            (200 + 200) * NANOS_PER_IOTA, // 200 * 1 = 200
+            (300 + 150) * NANOS_PER_IOTA, // 200 * 3/4 = 150
+            (400 + 100) * NANOS_PER_IOTA, // 200 * 1/2 = 100
+            (500 + 50) * NANOS_PER_IOTA, // 200 * 1/4 = 50
         ],
         scenario,
     );

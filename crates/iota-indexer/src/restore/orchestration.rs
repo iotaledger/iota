@@ -59,7 +59,8 @@ pub async fn start(
         mpsc::channel::<(GlobalStateHash, u64)>(num_parallel_downloads.get());
     let (accumulation_done_tx, accumulation_done_rx) = oneshot::channel();
 
-    let verified_epoch_info = verify_epoch_info(epoch_info, genesis, snapshot_chain_id).await?;
+    let verified_epoch_info =
+        verify_epoch_info(epoch_info, epoch, genesis, snapshot_chain_id).await?;
     let ((), num_objects) = tokio::try_join!(
         reader
             .read_to_db(

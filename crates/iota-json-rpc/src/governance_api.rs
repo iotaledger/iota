@@ -2,13 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{cmp::max, collections::BTreeMap, fmt::Debug, sync::Arc};
+use std::{cmp::max, collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
 use cached::{SizedCache, proc_macro::cached};
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{
-    GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics, error_object_from_rpc,
+    GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics, QUERY_MAX_RESULT_LIMIT,
+    error_object_from_rpc,
 };
 use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, IotaCommittee,
@@ -16,29 +17,32 @@ use iota_json_rpc_types::{
     IotaSystemStateSummaryV1 as IotaSystemStateSummaryV1Schema, Stake, StakeStatus,
     TimelockedStake, ValidatorApy, ValidatorApys,
 };
-use iota_metrics::spawn_monitored_task;
+use iota_metrics::{spawn_monitored_blocking, spawn_monitored_task};
 use iota_open_rpc::Module;
+use iota_sdk_move_types::{
+    iota_framework::{dynamic_field::Field, object::ID},
+    iota_system::validator_wrapper::Validator,
+};
 use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
-    MoveTypeTagTrait,
     committee::EpochId,
-    dynamic_field::{DynamicFieldInfo, get_dynamic_field_from_store},
     error::{IotaError, UserInputError},
     governance::StakedIota,
-    id::ID,
     iota_serde::BigInt,
     iota_system_state::{
-        IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate, get_validator_from_table,
+        IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate,
         iota_system_state_summary::{IotaSystemStateSummaryV1, IotaSystemStateSummaryV2},
+        validator_summary_from_wrapper,
     },
     object::{Object, ObjectRead},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
 };
 use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};
-use serde::{Serialize, de::DeserializeOwned};
+use serde::de::DeserializeOwned;
 use statrs::statistics::{Data, Median};
-use tracing::{info, instrument};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tracing::{info, instrument, warn};
 
 use crate::{
     IotaRpcModule, ObjectProvider,
@@ -49,21 +53,43 @@ use crate::{
 
 type ValidatorTable = (Address, ObjectId, ObjectId, u64, bool);
 
+/// Maximum number of stake reads that run at once. Each one reads every object
+/// the address owns on a thread of the shared blocking pool.
+const MAX_CONCURRENT_STAKE_READS: usize = 8;
+
 #[derive(Clone)]
 pub struct GovernanceReadApi {
     state: Arc<dyn StateRead>,
     pub metrics: Arc<JsonRpcMetrics>,
+    stake_read_permits: Arc<Semaphore>,
 }
 
 impl GovernanceReadApi {
     pub fn new(state: Arc<AuthorityState>, metrics: Arc<JsonRpcMetrics>) -> Self {
-        Self { state, metrics }
+        Self {
+            state,
+            metrics,
+            stake_read_permits: Arc::new(Semaphore::new(MAX_CONCURRENT_STAKE_READS)),
+        }
+    }
+
+    /// Waits until fewer than [`MAX_CONCURRENT_STAKE_READS`] stake reads run.
+    async fn acquire_stake_read_permit(&self) -> Result<OwnedSemaphorePermit, Error> {
+        self.stake_read_permits
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|e| Error::Internal(e.into()))
     }
 
     async fn get_staked_iota(&self, owner: Address) -> Result<Vec<StakedIota>, Error> {
         let state = self.state.clone();
-        let result =
-            spawn_monitored_task!(async move { state.get_staked_iota(owner).await }).await??;
+        let permit = self.acquire_stake_read_permit().await?;
+        let result = spawn_monitored_blocking!(move || {
+            let _permit = permit;
+            state.get_staked_iota(owner)
+        })
+        .await??;
 
         self.metrics
             .get_stake_iota_result_size
@@ -79,9 +105,12 @@ impl GovernanceReadApi {
         owner: Address,
     ) -> Result<Vec<TimelockedStakedIota>, Error> {
         let state = self.state.clone();
-        let result =
-            spawn_monitored_task!(async move { state.get_timelocked_staked_iota(owner).await })
-                .await??;
+        let permit = self.acquire_stake_read_permit().await?;
+        let result = spawn_monitored_blocking!(move || {
+            let _permit = permit;
+            state.get_timelocked_staked_iota(owner)
+        })
+        .await??;
 
         self.metrics
             .get_stake_iota_result_size
@@ -96,6 +125,11 @@ impl GovernanceReadApi {
         &self,
         staked_iota_ids: Vec<ObjectId>,
     ) -> Result<Vec<DelegatedStake>, Error> {
+        if staked_iota_ids.len() > *QUERY_MAX_RESULT_LIMIT {
+            Err(IotaRpcInputError::SizeLimitExceeded(
+                QUERY_MAX_RESULT_LIMIT.to_string(),
+            ))?
+        }
         let state = self.state.clone();
         let stakes_read = spawn_monitored_task!(async move {
             staked_iota_ids
@@ -140,6 +174,11 @@ impl GovernanceReadApi {
         &self,
         timelocked_staked_iota_ids: Vec<ObjectId>,
     ) -> Result<Vec<DelegatedTimelockedStake>, Error> {
+        if timelocked_staked_iota_ids.len() > *QUERY_MAX_RESULT_LIMIT {
+            Err(IotaRpcInputError::SizeLimitExceeded(
+                QUERY_MAX_RESULT_LIMIT.to_string(),
+            ))?
+        }
         let state = self.state.clone();
         let stakes_read = spawn_monitored_task!(async move {
             timelocked_staked_iota_ids
@@ -418,7 +457,7 @@ impl GovernanceReadApiServer for GovernanceReadApi {
                 .state
                 .get_system_state()?
                 .into_iota_system_state_summary()
-                .into())
+                .try_into()?)
         }
         .trace()
         .await
@@ -618,22 +657,19 @@ fn validator_exchange_rates(
     // Get exchange rates for each validator
     for (address, pool_id, exchange_rates_id, exchange_rates_size, active) in tables {
         let mut rates = state
-            .get_dynamic_fields(exchange_rates_id, None, exchange_rates_size as usize)?
+            .get_dynamic_field_objects(exchange_rates_id, exchange_rates_size as usize)?
             .into_iter()
-            .map(|(_object_id, df)| {
-                let epoch: EpochId = bcs::from_bytes(&df.bcs_name).map_err(|e| {
-                    IotaError::ObjectDeserialization {
-                        error: e.to_string(),
-                    }
-                })?;
-
-                let exchange_rate: PoolTokenExchangeRate = get_dynamic_field_from_store(
-                    &state.get_object_store().as_ref(),
-                    exchange_rates_id,
-                    &epoch,
-                )?;
-
-                Ok::<_, IotaError>((epoch, exchange_rate))
+            .filter_map(|(object_id, object)| {
+                if object.is_none() {
+                    // The table's size says how many rates exist, so a row
+                    // that no longer resolves skews the APY inputs.
+                    warn!(?object_id, "an exchange-rate table entry did not resolve");
+                }
+                object
+            })
+            .map(|object| {
+                let field: Field<EpochId, PoolTokenExchangeRate> = decode_field(&object)?;
+                Ok::<_, IotaError>((field.name, field.value))
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -685,11 +721,10 @@ fn inactive_validators_exchange_rates(
         state.get_system_state()?.into_iota_system_state_summary(),
     )?;
 
-    let tables = validator_summary_from_system_state(
+    let tables = validator_summary_from_system_state::<ID>(
         state,
         system_state_summary.inactive_pools_id,
         system_state_summary.inactive_pools_size,
-        |df| bcs::from_bytes::<ID>(&df.bcs_name).map_err(Into::into),
         Some(system_state_summary.protocol_version),
     )?;
 
@@ -739,11 +774,10 @@ fn candidate_validators_exchange_rate(
 
     // From validator_candidates_id table get validator info using as key its
     // Address
-    let tables = validator_summary_from_system_state(
+    let tables = validator_summary_from_system_state::<Address>(
         state,
         system_state_summary.validator_candidates_id,
         system_state_summary.validator_candidates_size,
-        |df| bcs::from_bytes::<Address>(&df.bcs_name).map_err(Into::into),
         Some(system_state_summary.protocol_version),
     )?;
 
@@ -761,23 +795,21 @@ fn candidate_validators_exchange_rate(
 /// To retrieve validator status information, this function utilizes the
 /// corresponding `table_id` (an `ObjectId` value) and a `limit` to specify the
 /// number of records to fetch. Both the `table_id` and `limit` can be obtained
-/// from `IotaSystemStateSummary` in the caller. Additionally, keys are
-/// extracted from the table `DynamicFieldInfo` values according to the `key`
-/// closure. This helps in identifying the specific validator within the table.
+/// from `IotaSystemStateSummary` in the caller. `K` is the type of the table's
+/// keys.
 ///
 /// # Example
 ///
 /// ```text
 /// // Get inactive validators
 /// let system_state_summary = state.get_system_state()?.into_iota_system_state_summary();
-/// let _ = validator_summary_from_system_state(
+/// let _ = validator_summary_from_system_state::<ID>(
 ///     state,
 ///     // ID of the object that maps from a staking pool ID to the inactive validator that has that pool as its staking pool.
 ///     system_state_summary.inactive_pools_id,
 ///     // Number of inactive staking pools.
 ///     system_state_summary.inactive_pools_size,
-///     // Extract the `ID` of the `Inactive` validator from the `DynamicFieldInfo` in the `system_state_summary.inactive_pools_id` table
-///     |df| bcs::from_bytes::<ID>(&df.bcs_name).map_err(Into::into),
+///     Some(system_state_summary.protocol_version),
 /// ).unwrap();
 /// ```
 ///
@@ -786,35 +818,41 @@ fn candidate_validators_exchange_rate(
 /// ```text
 /// // Get candidate validators
 /// let system_state_summary = state.get_system_state()?.into_iota_system_state_summary();
-/// let _ = validator_summary_from_system_state(
+/// let _ = validator_summary_from_system_state::<Address>(
 ///     state,
 ///     // ID of the object that stores preactive validators, mapping their addresses to their Validator structs
 ///     system_state_summary.validator_candidates_id,
 ///     // Number of preactive validators
 ///     system_state_summary.validator_candidates_size,
-///     // Extract the `Address` of the `Candidate` validator from the `DynamicFieldInfo` in the `system_state_summary.validator_candidates_id` table
-///     |df| bcs::from_bytes::<Address>(&df.bcs_name).map_err(Into::into),
+///     Some(system_state_summary.protocol_version),
 /// ).unwrap();
 /// ```
-fn validator_summary_from_system_state<K, F>(
+fn validator_summary_from_system_state<K: DeserializeOwned>(
     state: &Arc<dyn StateRead>,
     table_id: ObjectId,
     limit: u64,
-    key: F,
     protocol_version: Option<u64>,
-) -> RpcInterimResult<Vec<ValidatorTable>>
-where
-    F: Fn(DynamicFieldInfo) -> RpcInterimResult<K>,
-    K: MoveTypeTagTrait + Serialize + DeserializeOwned + Debug,
-{
+) -> RpcInterimResult<Vec<ValidatorTable>> {
     let object_store = state.get_object_store();
 
     state
-        .get_dynamic_fields(table_id, None, limit as usize)?
+        .get_dynamic_field_objects(table_id, limit as usize)?
         .into_iter()
-        .map(|(_object_id, df)| {
-            let validator_summary =
-                get_validator_from_table(object_store, table_id, &key(df)?, protocol_version)?;
+        .filter_map(|(object_id, object)| {
+            if object.is_none() {
+                // The table's size says how many validators exist, so a row
+                // that no longer resolves silently shortens the result.
+                warn!(?object_id, "a validator table entry did not resolve");
+            }
+            object
+        })
+        .map(|object| {
+            let field: Field<K, Validator> = decode_field(&object)?;
+            let validator_summary = validator_summary_from_wrapper(
+                object_store.as_ref(),
+                field.value,
+                protocol_version,
+            )?;
 
             Ok((
                 validator_summary.iota_address,
@@ -825,6 +863,19 @@ where
             ))
         })
         .collect()
+}
+
+/// Decodes a table entry's `Field` object.
+fn decode_field<K: DeserializeOwned, V: DeserializeOwned>(
+    object: &Object,
+) -> Result<Field<K, V>, IotaError> {
+    let move_object = object.data.as_opt_struct().ok_or_else(|| {
+        IotaError::DynamicFieldRead(format!(
+            "Dynamic field {:?} is not a Move object",
+            object.id()
+        ))
+    })?;
+    bcs::from_bytes(move_object.contents()).map_err(|e| IotaError::DynamicFieldRead(e.to_string()))
 }
 
 #[derive(Clone, Debug)]
@@ -892,9 +943,98 @@ impl IotaRpcModule for GovernanceReadApi {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     use iota_types::iota_system_state::PoolTokenExchangeRate;
+    use jsonrpsee::types::error::INVALID_PARAMS_CODE;
 
     use super::*;
+    use crate::authority_state::MockStateRead;
+
+    /// An API whose state answers every object read with `NotExists` and
+    /// counts the reads in `reads`.
+    fn api_counting_object_reads(reads: Arc<AtomicUsize>) -> GovernanceReadApi {
+        let mut state = MockStateRead::new();
+        state.expect_get_object_read().returning(move |id| {
+            reads.fetch_add(1, Ordering::Relaxed);
+            Ok(ObjectRead::NotExists(*id))
+        });
+        GovernanceReadApi {
+            state: Arc::new(state),
+            metrics: Arc::new(JsonRpcMetrics::new_for_tests()),
+            stake_read_permits: Arc::new(Semaphore::new(MAX_CONCURRENT_STAKE_READS)),
+        }
+    }
+
+    fn random_ids(count: usize) -> Vec<ObjectId> {
+        std::iter::repeat_with(ObjectId::random)
+            .take(count)
+            .collect()
+    }
+
+    fn size_limit_exceeded_msg() -> String {
+        IotaRpcInputError::SizeLimitExceeded(QUERY_MAX_RESULT_LIMIT.to_string()).to_string()
+    }
+
+    fn object_not_found_msg(id: ObjectId) -> String {
+        IotaRpcInputError::UserInput(UserInputError::ObjectNotFound {
+            object_id: id,
+            version: None,
+        })
+        .to_string()
+    }
+
+    #[tokio::test]
+    async fn stakes_by_ids_rejects_more_ids_than_the_limit_before_reading() {
+        let reads = Arc::new(AtomicUsize::new(0));
+        let api = api_counting_object_reads(reads.clone());
+
+        let err = GovernanceReadApiServer::get_stakes_by_ids(
+            &api,
+            random_ids(*QUERY_MAX_RESULT_LIMIT + 1),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code(), INVALID_PARAMS_CODE);
+        assert_eq!(err.message(), size_limit_exceeded_msg());
+        assert_eq!(reads.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn timelocked_stakes_by_ids_rejects_more_ids_than_the_limit_before_reading() {
+        let reads = Arc::new(AtomicUsize::new(0));
+        let api = api_counting_object_reads(reads.clone());
+
+        let err = GovernanceReadApiServer::get_timelocked_stakes_by_ids(
+            &api,
+            random_ids(*QUERY_MAX_RESULT_LIMIT + 1),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code(), INVALID_PARAMS_CODE);
+        assert_eq!(err.message(), size_limit_exceeded_msg());
+        assert_eq!(reads.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn stakes_and_timelocked_stakes_by_ids_read_every_id_at_the_limit() {
+        let reads = Arc::new(AtomicUsize::new(0));
+        let api = api_counting_object_reads(reads.clone());
+
+        let ids = random_ids(*QUERY_MAX_RESULT_LIMIT);
+        let err = GovernanceReadApiServer::get_stakes_by_ids(&api, ids.clone())
+            .await
+            .unwrap_err();
+        assert_eq!(err.message(), object_not_found_msg(ids[0]));
+        assert_eq!(reads.load(Ordering::Relaxed), *QUERY_MAX_RESULT_LIMIT);
+
+        let ids = random_ids(*QUERY_MAX_RESULT_LIMIT);
+        let err = GovernanceReadApiServer::get_timelocked_stakes_by_ids(&api, ids.clone())
+            .await
+            .unwrap_err();
+        assert_eq!(err.message(), object_not_found_msg(ids[0]));
+        assert_eq!(reads.load(Ordering::Relaxed), 2 * *QUERY_MAX_RESULT_LIMIT);
+    }
 
     #[test]
     fn calculate_apys_with_outliers() {

@@ -5,7 +5,7 @@
 // an absent one is tolerated, and the update transaction still succeeds and
 // emits its event.
 
-//# init --simulator --deny-rule-governance true
+//# init --simulator
 
 //# advance-epoch --create-deny-rules-object
 

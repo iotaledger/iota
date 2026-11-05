@@ -368,15 +368,13 @@ impl StateSnapshotReaderV1 {
     ///
     /// This method encapsulates the logic for several operations:
     ///
-    /// 1. Downloading the snapshot's `*.ref` files into the local staging
-    ///    directory.
+    /// 1. Downloading the snapshot's `*.ref` files into the local staging directory.
     /// 2. Computing the partition checksums of the respective `*.ref` files.
-    /// 3. Computing the partition elliptic-curve multiset hash (ECMH) in the
-    ///    background, and sending the result through the given `accumulator` to
-    ///    the caller. This allows to compute and verify the root hash of the
-    ///    live objects encoded in the snapshot. See [`GlobalStateHash`].
-    /// 4. Reading, inserting, and verifying all encoded live objects to the
-    ///    given `database`.
+    /// 3. Computing the partition elliptic-curve multiset hash (ECMH) in the background, and
+    ///    sending the result through the given `accumulator` to the caller. This allows to compute
+    ///    and verify the root hash of the live objects encoded in the snapshot. See
+    ///    [`GlobalStateHash`].
+    /// 4. Reading, inserting, and verifying all encoded live objects to the given `database`.
     pub async fn read_to_db(
         &mut self,
         database: &impl Restore,

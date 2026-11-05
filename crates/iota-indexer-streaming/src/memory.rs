@@ -97,10 +97,10 @@ pub struct Config {
     /// transactions.
     ///
     /// **Performance Trade-offs:**
-    /// - **Higher values**: Reduce database query frequency but increase
-    ///   latency and memory usage per batch
-    /// - **Lower values**: Increase responsiveness but may cause more frequent
-    ///   database queries for small checkpoints
+    /// - **Higher values**: Reduce database query frequency but increase latency and memory usage
+    ///   per batch
+    /// - **Lower values**: Increase responsiveness but may cause more frequent database queries
+    ///   for small checkpoints
     ///
     /// The value of 10 provides a good balance between throughput and latency
     /// for typical checkpoint sizes.
@@ -114,10 +114,10 @@ pub struct Config {
     /// multiple batches of this size to maintain consistent performance.
     ///
     /// **Performance Trade-offs:**
-    /// - **Too small**: May fall behind the indexer commit rate, causing the
-    ///   streaming service to lag behind real-time data ingestion
-    /// - **Too large**: May overwhelm subscribers with large batches, causing
-    ///   them to lag or drop messages due to slow processing
+    /// - **Too small**: May fall behind the indexer commit rate, causing the streaming service to
+    ///   lag behind real-time data ingestion
+    /// - **Too large**: May overwhelm subscribers with large batches, causing them to lag or drop
+    ///   messages due to slow processing
     ///
     /// The value of 50 provides good balance between indexer synchronization
     /// and subscriber responsiveness for typical workloads.
@@ -136,10 +136,8 @@ impl Default for Config {
 
 /// Where to start a recovery stream relative to a known transaction digest.
 ///
-/// - [`Inclusive`](Self::Inclusive): yield the identified transaction, then
-///   everything after it.
-/// - [`Exclusive`](Self::Exclusive): skip the identified transaction; start
-///   from the next one.
+/// - [`Inclusive`](Self::Inclusive): yield the identified transaction, then everything after it.
+/// - [`Exclusive`](Self::Exclusive): skip the identified transaction; start from the next one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
 pub enum RecoveryPoint {
     /// Include the transaction identified by the digest.
@@ -170,8 +168,7 @@ impl RecoveryPoint {
 /// stream recovery after a disconnection.
 ///
 /// The streamer consists of:
-/// - A PostgreSQL connection listening for notifications after every committed
-///   checkpoint.
+/// - A PostgreSQL connection listening for notifications after every committed checkpoint.
 /// - Internal broadcasters that fan-out data to multiple subscribers using a
 ///   [`tokio::sync::broadcast`] channels.
 ///
@@ -212,8 +209,7 @@ impl InMemory {
     /// - establishes a connection to PostgreSQL.
     /// - sets up the notification listener.
     /// - spawns the background task that processes checkpoint notifications.
-    /// - handles automatically reconnecting to PostgreSQL if the connection is
-    ///   lost.
+    /// - handles automatically reconnecting to PostgreSQL if the connection is lost.
     pub async fn new(
         config: Config,
         indexer_reader: IndexerReader,
@@ -243,7 +239,7 @@ impl InMemory {
                                 "failed to get connection from postgres connection pool with error: {e:?}"
                             );
                             Self::publish_error(
-                                IndexerStreamingError::Postgres(e.to_string()),
+                                IndexerStreamingError::Postgres,
                                 &event_tx,
                                 &transaction_tx,
                             );
@@ -299,12 +295,10 @@ impl InMemory {
     ///
     /// The recovery point variant controls whether events of the starting
     /// transaction are included:
-    /// - [`RecoveryPoint::Inclusive`]: events of the starting transaction are
-    ///   yielded.
-    /// - [`RecoveryPoint::Exclusive`]: events of the starting transaction are
-    ///   skipped; streaming begins from the next transaction onward. Useful for
-    ///   reconnection, where the client already received that transaction's
-    ///   events in the previous session.
+    /// - [`RecoveryPoint::Inclusive`]: events of the starting transaction are yielded.
+    /// - [`RecoveryPoint::Exclusive`]: events of the starting transaction are skipped; streaming
+    ///   begins from the next transaction onward. Useful for reconnection, where the client already
+    ///   received that transaction's events in the previous session.
     ///
     /// # Note
     /// Since under the hood a [`tokio::sync::broadcast`] channel is used for
@@ -440,10 +434,9 @@ impl InMemory {
     /// The recovery point variant controls whether the starting transaction
     /// itself is included:
     /// - [`RecoveryPoint::Inclusive`]: the starting transaction is yielded.
-    /// - [`RecoveryPoint::Exclusive`]: streaming begins from the transaction
-    ///   immediately after the one identified by the digest. Useful for
-    ///   reconnection, where the client already received that transaction in
-    ///   the previous session.
+    /// - [`RecoveryPoint::Exclusive`]: streaming begins from the transaction immediately after the
+    ///   one identified by the digest. Useful for reconnection, where the client already received
+    ///   that transaction in the previous session.
     ///
     /// # Note
     /// Since under the hood a [`tokio::sync::broadcast`] channel is used for
@@ -564,14 +557,11 @@ impl InMemory {
 
     /// Listens for database notifications and processes them.
     ///
-    /// - resolves from received notifications the transaction sequence number
-    ///   bounds.
-    /// - splits the transaction sequence number bounds into batches if
-    ///   exceeded.
-    /// - fetches the transactions within the batch bounds and sends them to
-    ///   subscribers alongside extracted events.
-    /// - leverages exponential backoff retries for transient errors when
-    ///   processing notifications.
+    /// - resolves from received notifications the transaction sequence number bounds.
+    /// - splits the transaction sequence number bounds into batches if exceeded.
+    /// - fetches the transactions within the batch bounds and sends them to subscribers alongside
+    ///   extracted events.
+    /// - leverages exponential backoff retries for transient errors when processing notifications.
     async fn process_checkpoint_notifications(
         metrics: &InMemoryStreamMetrics,
         config: &Config,
@@ -786,9 +776,10 @@ impl InMemory {
                     Err(_) => None,
                 }
             }
-            Err(e) => Some(Err(IndexerStreamingError::Postgres(format!(
-                "database connection error: {e}"
-            )))),
+            Err(e) => {
+                error!("failed to receive postgres notification: {e:?}");
+                Some(Err(IndexerStreamingError::Postgres))
+            }
         })
     }
 
@@ -1034,20 +1025,30 @@ impl HistoricalFetch {
                             state
                                 .reader
                                 .db()
-                                .resolve_cursor_tx_digest_to_seq_num(state.start_from_digest)
+                                .resolve_cursor_tx_digest_to_seq_num_maybe(state.start_from_digest)
                                 .await
                                 .map_err(backoff::Error::transient)
                         })
                         .await
                         {
-                            Ok(cursor) => {
+                            Ok(Some(cursor)) => {
                                 state.cursor_resolved = true;
                                 state.update_cursor(cursor);
-                            },
+                            }
+                            Ok(None) => {
+                                state.should_close_stream = true;
+                                let e = IndexerStreamingError::NotFound(format!(
+                                    "transaction {} may not exist or has been pruned",
+                                    state.start_from_digest
+                                ));
+                                error!("{e}");
+                                return Some((Err(e), state));
+                            }
                             Err(e) => {
                                 state.should_close_stream = true;
                                 let e = IndexerStreamingError::NotFound(format!(
-                                    "unable to resolve transaction, may not exist or has been pruned: {e}"
+                                    "unable to resolve transaction {}: {e}",
+                                    state.start_from_digest
                                 ));
                                 error!("{e}");
                                 return Some((Err(e), state));
@@ -1075,19 +1076,13 @@ impl HistoricalFetch {
                             // have data in transactions table.
                             Ok(None) => {
                                 state.should_close_stream = true;
-                                let e = IndexerStreamingError::Postgres(
-                                    "unable to fetch latest tx sequence number".into(),
-                                );
-                                error!("{e}");
-                                return Some((Err(e), state));
+                                error!("unable to fetch latest tx sequence number");
+                                return Some((Err(IndexerStreamingError::Postgres), state));
                             }
                             Err(e) => {
                                 state.should_close_stream = true;
-                                let e = IndexerStreamingError::Postgres(format!(
-                                    "unable to fetch latest tx sequence number: {e}"
-                                ));
-                                error!("{e}");
-                                return Some((Err(e), state));
+                                error!("unable to fetch latest tx sequence number: {e:?}");
+                                return Some((Err(IndexerStreamingError::Postgres), state));
                             }
                         };
 
@@ -1107,7 +1102,8 @@ impl HistoricalFetch {
 
                     // fetch transaction batch from database and update the cursor.
                     let start = state.cursor_value();
-                    let end = (start + state.batch_size.saturating_sub(1)).min(state.latest_tx_in_db);
+                    let end =
+                        (start + state.batch_size.saturating_sub(1)).min(state.latest_tx_in_db);
 
                     let db_query_timer = state.query_tx_from_indexer_db_latency.start_timer();
                     match Self::with_retry(|| async {
@@ -1133,14 +1129,13 @@ impl HistoricalFetch {
                         }
                         Err(e) => {
                             state.should_close_stream = true;
-                            let e = IndexerStreamingError::Postgres(e.to_string());
                             error!(
                                 batch_start = start,
                                 batch_end = end,
                                 error = ?e,
                                 "batch processing failed after retries, publishing error to clients"
                             );
-                            return Some((Err(e), state));
+                            return Some((Err(IndexerStreamingError::Postgres), state));
                         }
                     }
                 }

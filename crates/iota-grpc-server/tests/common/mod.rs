@@ -6,25 +6,40 @@
 #![allow(dead_code)]
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
+    net::SocketAddr,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
-use iota_config::{local_ip_utils, node::GrpcApiConfig};
+use bytes::Bytes;
+use http_body_util::Full;
+use iota_config::{
+    local_ip_utils,
+    node::{GrpcApiConfig, TlsConfig},
+};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_grpc_types::v1::{
+    bcs::BcsData,
     move_package_service::move_package_service_client::MovePackageServiceClient,
+    signatures::UserSignatures,
     state_service::state_service_client::StateServiceClient,
+    transaction::Transaction as ProtoTransaction,
+    transaction_execution_service::{ExecuteTransactionItem, ExecuteTransactionsRequest},
     types::{Address as ProtoAddress, ObjectId as ProtoObjectId},
 };
 use iota_node_storage::GrpcStateReader;
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSummary,
-    MoveStruct, ObjectId, Owner, StructTag, TransactionDigest, TransactionEffects,
-    TransactionEvents, Version,
+    Event, Identifier, MoveStruct, ObjectId, Owner, StructTag, Transaction, TransactionDigest,
+    TransactionEffects, TransactionEvents, Version,
 };
+use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::AuthorityStrongQuorumSignInfo,
+    base_types::random_object_ref,
+    crypto::{AccountPrivateKey, AuthorityStrongQuorumSignInfo, get_key_pair},
+    effects::{TestEffectsBuilder, TransactionEffectsAPI as _, TransactionEffectsExt as _},
+    error::IotaError,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GasCoin,
     messages_checkpoint::{
@@ -32,10 +47,15 @@ use iota_types::{
         VerifiedCheckpoint,
     },
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
+    quorum_driver_types::{
+        ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, QuorumDriverError,
+    },
     storage::error::Result as StorageResult,
+    traffic_control::ClientIdSource,
     transaction::VerifiedTransaction,
+    transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
 };
-use tonic::transport::Channel;
+use tonic::transport::{Certificate, Channel, ClientTlsConfig};
 
 // ---------------------------------------------------------------------------
 // Stream invariant helpers
@@ -108,6 +128,235 @@ pub fn mock_summary(
 }
 
 // ---------------------------------------------------------------------------
+// Checkpoint transaction builders
+// ---------------------------------------------------------------------------
+
+/// Input/output object sets matching `effects` (all plain gas coins owned by
+/// `sender`). Checkpoint transactions must carry complete object sets — a
+/// wildcard read mask derives change fields from them and errors on gaps.
+pub fn objects_for_effects(
+    sender: Address,
+    effects: &TransactionEffects,
+) -> (Vec<Object>, Vec<Object>) {
+    let owner = Owner::Address(sender);
+    let input_objects = effects
+        .modified_at_versions()
+        .into_iter()
+        .map(|modified| {
+            Object::with_id_owner_version_for_testing(
+                *modified.object_id(),
+                modified.version(),
+                owner,
+            )
+        })
+        .collect();
+    let output_objects = effects
+        .all_changed_objects()
+        .into_iter()
+        .map(|(changed, _)| {
+            Object::with_id_owner_version_for_testing(
+                changed.reference().object_id,
+                changed.reference().version,
+                owner,
+            )
+        })
+        .collect();
+    (input_objects, output_objects)
+}
+
+/// Build checkpoint transactions, each optionally carrying `events_per_tx`
+/// events.
+pub fn build_checkpoint_transactions_with_events(
+    count: usize,
+    events_per_tx: usize,
+) -> Vec<CheckpointTransaction> {
+    let mut transactions = Vec::with_capacity(count);
+    for _ in 0..count {
+        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+        let gas = random_object_ref();
+        let transaction = TestTransactionBuilder::new(sender, gas, 1000)
+            .transfer(random_object_ref(), sender)
+            .build_and_sign(&key);
+        let effects = TestEffectsBuilder::new(transaction.data()).build();
+        let events = if events_per_tx > 0 {
+            let mut data = Vec::with_capacity(events_per_tx);
+            for _ in 0..events_per_tx {
+                data.push(Event {
+                    package_id: ObjectId::ZERO,
+                    module: Identifier::from_static("test_module"),
+                    sender,
+                    struct_tag: StructTag::new(
+                        Address::ZERO,
+                        Identifier::from_static("test_module"),
+                        Identifier::from_static("TestEvent"),
+                        vec![],
+                    ),
+                    contents: vec![0u8; 64], // 64 bytes of dummy content
+                });
+            }
+            Some(TransactionEvents(data))
+        } else {
+            None
+        };
+        let (input_objects, output_objects) = objects_for_effects(sender, &effects);
+        transactions.push(CheckpointTransaction {
+            transaction,
+            effects,
+            events,
+            input_objects,
+            output_objects,
+        });
+    }
+    transactions
+}
+
+/// Create a transaction and its effects so `get_transactions` can return it.
+pub fn create_test_transaction() -> (
+    TransactionDigest,
+    Arc<VerifiedTransaction>,
+    TransactionEffects,
+) {
+    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+    let gas = random_object_ref();
+    let tx = TestTransactionBuilder::new(sender, gas, 1000)
+        .transfer(random_object_ref(), sender)
+        .build_and_sign(&key);
+    let effects = TestEffectsBuilder::new(tx.data()).build();
+    let digest = *tx.digest();
+    (
+        digest,
+        Arc::new(VerifiedTransaction::new_unchecked(tx)),
+        effects,
+    )
+}
+
+/// A `TransactionExecutor` for tests whose requests fail validation before
+/// reaching the executor.
+pub struct UnreachableExecutor;
+
+#[async_trait::async_trait]
+impl TransactionExecutor for UnreachableExecutor {
+    async fn execute_transaction(
+        &self,
+        _request: ExecuteTransactionRequestV1,
+        _skip_certification: bool,
+        _client_addr: Option<std::net::SocketAddr>,
+    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
+        unreachable!("test requests must fail validation before execution")
+    }
+
+    fn simulate_transaction(
+        &self,
+        _transaction: Transaction,
+        _checks: VmChecks,
+    ) -> Result<SimulateTransactionResult, IotaError> {
+        unreachable!("test requests must fail validation before simulation")
+    }
+
+    async fn wait_for_checkpoint_inclusion(
+        &self,
+        _digests: &[TransactionDigest],
+        _timeout: Duration,
+    ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError> {
+        unreachable!("test requests must fail validation before execution")
+    }
+}
+
+/// A `TransactionExecutor` whose executions never finish. `started` is
+/// notified when an execution starts.
+#[derive(Default)]
+pub struct PendingExecutor {
+    pub started: tokio::sync::Notify,
+}
+
+#[async_trait::async_trait]
+impl TransactionExecutor for PendingExecutor {
+    async fn execute_transaction(
+        &self,
+        _request: ExecuteTransactionRequestV1,
+        _skip_certification: bool,
+        _client_addr: Option<std::net::SocketAddr>,
+    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
+        self.started.notify_one();
+        std::future::pending().await
+    }
+
+    fn simulate_transaction(
+        &self,
+        _transaction: Transaction,
+        _checks: VmChecks,
+    ) -> Result<SimulateTransactionResult, IotaError> {
+        unreachable!("test requests only execute transactions")
+    }
+
+    async fn wait_for_checkpoint_inclusion(
+        &self,
+        _digests: &[TransactionDigest],
+        _timeout: Duration,
+    ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError> {
+        unreachable!("test executions never finish")
+    }
+}
+
+pub const EXECUTE_TRANSACTIONS_PATH: &str =
+    "/iota.grpc.v1.transaction_execution_service.TransactionExecutionService/ExecuteTransactions";
+
+/// An `ExecuteTransactions` request with one transaction that passes the
+/// checks of the handler and reaches the executor.
+pub fn execute_transactions_request() -> ExecuteTransactionsRequest {
+    let (_digest, transaction, _effects) = create_test_transaction();
+    let transaction_bcs =
+        bcs::to_bytes(&transaction.data().signed_transaction().transaction).unwrap();
+    ExecuteTransactionsRequest::default().with_transactions(vec![
+        ExecuteTransactionItem::default()
+            .with_transaction(
+                ProtoTransaction::default().with_bcs(BcsData::default().with_data(transaction_bcs)),
+            )
+            .with_signatures(UserSignatures::default()),
+    ])
+}
+
+/// Sends [`execute_transactions_request`] with a `grpc-timeout` of `timeout`
+/// and returns the gRPC status code in the response headers (`Ok` if there is
+/// none). The client does not end the call itself, so the response comes from
+/// the server. Panics if no response comes within 10 s.
+pub async fn call_execute_transactions_with_grpc_timeout(
+    address: SocketAddr,
+    timeout: Duration,
+) -> tonic::Code {
+    let io = hyper_util::rt::TokioIo::new(tokio::net::TcpStream::connect(address).await.unwrap());
+    let (mut sender, connection) =
+        hyper::client::conn::http2::handshake(hyper_util::rt::TokioExecutor::new(), io)
+            .await
+            .unwrap();
+    tokio::spawn(connection);
+    let call = sender.send_request(
+        http::Request::post(format!("http://{address}{EXECUTE_TRANSACTIONS_PATH}"))
+            .header(http::header::CONTENT_TYPE, "application/grpc")
+            .header(http::header::TE, "trailers")
+            .header("grpc-timeout", format!("{}m", timeout.as_millis()))
+            .body(Full::new(grpc_message(&execute_transactions_request())))
+            .unwrap(),
+    );
+    let response = tokio::time::timeout(Duration::from_secs(10), call)
+        .await
+        .expect("the server must end the call when its deadline passes")
+        .unwrap();
+    tonic::Status::from_header_map(response.headers())
+        .map_or(tonic::Code::Ok, |status| status.code())
+}
+
+/// Encodes `message` as one uncompressed gRPC message.
+fn grpc_message(message: &impl prost::Message) -> Bytes {
+    let encoded = message.encode_to_vec();
+    let mut framed = Vec::with_capacity(5 + encoded.len());
+    framed.push(0);
+    framed.extend_from_slice(&(encoded.len() as u32).to_be_bytes());
+    framed.extend_from_slice(&encoded);
+    framed.into()
+}
+
+// ---------------------------------------------------------------------------
 // MockGrpcStateReader
 // ---------------------------------------------------------------------------
 
@@ -117,13 +366,12 @@ pub fn mock_summary(
 ///
 /// # Checkpoint modes
 ///
-/// - **Fixed mode** (set `summary` + `contents` + `checkpoint_transactions`):
-///   every sequence number returns the same summary/contents/transactions. Used
-///   by the boundary-size chunking tests.
+/// - **Fixed mode** (set `summary` + `contents` + `checkpoint_transactions`): every sequence number
+///   returns the same summary/contents/transactions. Used by the boundary-size chunking tests.
 ///
-/// - **Set mode** (set `checkpoints`): only sequence numbers present in the set
-///   are "available". A mock summary is generated on the fly for each. Used by
-///   the checkpoint-streaming integration tests.
+/// - **Set mode** (set `checkpoints`): only sequence numbers present in the set are "available". A
+///   mock summary is generated on the fly for each. Used by the checkpoint-streaming integration
+///   tests.
 #[derive(Default)]
 pub struct MockGrpcStateReader {
     // -- Fixed checkpoint mode --
@@ -415,6 +663,13 @@ impl GrpcStateReader for MockGrpcStateReader {
         Some(self)
     }
 
+    fn get_transaction_checkpoint(
+        &self,
+        _digest: &TransactionDigest,
+    ) -> StorageResult<Option<CheckpointSequenceNumber>> {
+        Ok(None)
+    }
+
     fn get_struct_layout(
         &self,
         _type_tag: &StructTag,
@@ -425,13 +680,6 @@ impl GrpcStateReader for MockGrpcStateReader {
 
 // -- GrpcIndexes impl --
 impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
-    fn get_transaction_info(
-        &self,
-        _digest: &TransactionDigest,
-    ) -> StorageResult<Option<iota_types::storage::TransactionInfo>> {
-        Ok(None)
-    }
-
     fn account_owned_objects_info_iter(
         &self,
         owner: Address,
@@ -480,7 +728,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
                         version: info.version,
                         object_type: info.object_type.clone(),
                     },
-                    cursor.clone(),
+                    *cursor,
                 ))
             });
 
@@ -545,10 +793,12 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 ///
 /// Returns the server handle and the `GrpcReader` (callers may need it to
 /// create different client types).
-async fn start_test_server_with(
+pub async fn start_test_server_with(
     state_reader: Arc<MockGrpcStateReader>,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
     traffic_controller: Option<Arc<iota_traffic_controller::TrafficController>>,
+    client_id_source: Option<ClientIdSource>,
+    metrics: Option<iota_grpc_server::GrpcServerMetrics>,
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
     let grpc_reader = Arc::new(GrpcReader::new(state_reader, Some("test".to_string())));
@@ -567,9 +817,9 @@ async fn start_test_server_with(
         config,
         cancellation_token,
         iota_types::digests::ChainIdentifier::default(),
-        None,
+        metrics,
         traffic_controller,
-        None,
+        client_id_source,
     )
     .await
     .expect("Failed to start gRPC server");
@@ -585,19 +835,41 @@ pub async fn start_test_server(
     state_reader: Arc<MockGrpcStateReader>,
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
-    start_test_server_with(state_reader, None, None, config_customizer).await
+    start_test_server_with(
+        state_reader,
+        None,
+        None,
+        None,
+        Some(test_metrics()),
+        config_customizer,
+    )
+    .await
+}
+
+/// The metrics a test server has, as the node gives them to the server.
+fn test_metrics() -> iota_grpc_server::GrpcServerMetrics {
+    iota_grpc_server::GrpcServerMetrics::new(&prometheus_filtered::Registry::new())
 }
 
 /// Like [`start_test_server`], but with the given traffic controller wired
-/// into the server's `TrafficControlLayer` and an optional transaction
-/// executor (required for the `TransactionExecutionService` to be
-/// registered).
+/// into the server's `TrafficControlLayer`, resolving client IPs from
+/// `client_id_source`, and an optional transaction executor (required for the
+/// `TransactionExecutionService` to be registered).
 pub async fn start_test_server_with_traffic_controller(
     state_reader: Arc<MockGrpcStateReader>,
     traffic_controller: Arc<iota_traffic_controller::TrafficController>,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
+    client_id_source: ClientIdSource,
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
-    start_test_server_with(state_reader, executor, Some(traffic_controller), |_| {}).await
+    start_test_server_with(
+        state_reader,
+        executor,
+        Some(traffic_controller),
+        Some(client_id_source),
+        Some(test_metrics()),
+        |_| {},
+    )
+    .await
 }
 
 // ---------------------------------------------------------------------------
@@ -634,4 +906,54 @@ pub async fn connect_move_package_service_client(
         .await
         .unwrap();
     MovePackageServiceClient::new(channel)
+}
+
+// ---------------------------------------------------------------------------
+// TLS helpers
+// ---------------------------------------------------------------------------
+
+/// A self-signed certificate for `localhost`, in files that a server's TLS
+/// config points to.
+pub struct TestCertificate {
+    pub tls_config: TlsConfig,
+    certificate_pem: String,
+    _dir: tempfile::TempDir,
+}
+
+impl TestCertificate {
+    pub fn new() -> Self {
+        let rcgen::CertifiedKey { cert, key_pair } =
+            rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let cert_path = dir.path().join("cert.pem");
+        let key_path = dir.path().join("key.pem");
+        std::fs::write(&cert_path, cert.pem()).unwrap();
+        std::fs::write(&key_path, key_pair.serialize_pem()).unwrap();
+        let tls_config = serde_json::from_value(serde_json::json!({
+            "cert": cert_path,
+            "key": key_path,
+        }))
+        .unwrap();
+        Self {
+            tls_config,
+            certificate_pem: cert.pem(),
+            _dir: dir,
+        }
+    }
+
+    /// Connects to the TLS server at `address`, trusting only this
+    /// certificate.
+    pub async fn connect(&self, address: std::net::SocketAddr) -> Channel {
+        Channel::from_shared(format!("https://{address}"))
+            .unwrap()
+            .tls_config(
+                ClientTlsConfig::new()
+                    .ca_certificate(Certificate::from_pem(&self.certificate_pem))
+                    .domain_name("localhost"),
+            )
+            .unwrap()
+            .connect()
+            .await
+            .expect("failed to connect to the TLS gRPC server")
+    }
 }

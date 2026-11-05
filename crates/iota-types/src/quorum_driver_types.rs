@@ -51,6 +51,13 @@ pub enum QuorumDriverError {
     },
     #[error("Transaction timed out before reaching finality")]
     TimeoutBeforeFinality,
+    /// The fullnode resubmitted the transaction until its finality timeout.
+    /// The last attempt's error says what kept it from finalizing. Handled
+    /// by clients as `TimeoutBeforeFinality`.
+    #[error(
+        "Transaction timed out before reaching finality. Last recorded retriable error: {last_error}"
+    )]
+    TimeoutBeforeFinalityWithErrors { last_error: String },
     #[error(
         "Transaction failed to reach finality with transient error after {total_attempts} attempts."
     )]
@@ -94,7 +101,10 @@ impl QuorumDriverError {
             QuorumDriverError::InvalidTransaction(_) => "invalid_transaction",
             QuorumDriverError::RejectedByValidators(_) => "rejected_by_validators",
             QuorumDriverError::ObjectsDoubleUsed { .. } => "objects_double_used",
-            QuorumDriverError::TimeoutBeforeFinality => "timeout_before_finality",
+            QuorumDriverError::TimeoutBeforeFinality
+            | QuorumDriverError::TimeoutBeforeFinalityWithErrors { .. } => {
+                "timeout_before_finality"
+            }
             QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. } => {
                 "failed_with_transient_error_after_maximum_attempts"
             }
@@ -123,6 +133,7 @@ impl QuorumDriverError {
                     .to_string()
             }
             QuorumDriverError::TimeoutBeforeFinality
+            | QuorumDriverError::TimeoutBeforeFinalityWithErrors { .. }
             | QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. }
             | QuorumDriverError::SystemOverload { .. }
             | QuorumDriverError::SystemOverloadRetryAfter { .. } => self.to_string(),
@@ -183,10 +194,13 @@ impl QuorumDriverError {
                     })
                     .collect();
 
-                assert!(
-                    !new_errors.is_empty(),
-                    "NonRecoverableTransactionError should have at least one non-retryable error"
-                );
+                // The aggregator builds this variant only from errors with
+                // non-retryable stake, but rendering an error must never
+                // panic: fall back to the unfiltered list.
+                if new_errors.is_empty() {
+                    let error_list = errors.iter().map(|(err, _, _)| err.to_string()).join(", ");
+                    return format!("{NON_RECOVERABLE_ERROR_MSG}: {error_list}.");
+                }
 
                 let mut error_list = vec![];
                 for err in new_errors.iter() {
@@ -301,5 +315,26 @@ impl FinalizedEffects {
             | EffectsFinalityInfo::QuorumExecuted(epoch)
             | EffectsFinalityInfo::UncertifiedSingleValidator(epoch) => *epoch,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Rendering must not panic when filtering leaves no non-retryable
+    /// error.
+    #[test]
+    fn non_recoverable_error_rendering_survives_empty_filter() {
+        let error = QuorumDriverError::NonRecoverableTransactionError {
+            errors: vec![(
+                IotaError::ValidatorOverloadedRetryAfter {
+                    retry_after_secs: 1,
+                },
+                0,
+                vec![],
+            )],
+        };
+        assert!(error.to_error_message().contains(NON_RECOVERABLE_ERROR_MSG));
     }
 }

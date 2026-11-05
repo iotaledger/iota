@@ -11,19 +11,27 @@ permissions:
 on:
   workflow_dispatch:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
     paths:
       - "docs/**"
       - "!docs/examples/**"
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
-
 jobs:
   wiki-preview:
     runs-on: ubuntu-latest
-    if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+    # On PRs, only run when the description contains '[preview-docs]'. An `edited`
+    # event only runs when that edit is the one that added the tag, so later edits
+    # of the title or description don't deploy again.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (contains(github.event.pull_request.body, '[preview-docs]') &&
+      (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')) &&
+      (github.event.action != 'edited' || (github.event.changes.body && !contains(github.event.changes.body.from, '[preview-docs]'))))
+    # Set on the job rather than the workflow, so that skipped runs (e.g. a title edit)
+    # don't cancel a preview that is still deploying.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 

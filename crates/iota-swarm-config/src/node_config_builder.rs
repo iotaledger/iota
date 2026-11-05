@@ -20,7 +20,7 @@ use iota_config::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
         CheckpointExecutorConfig, ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis,
         GrpcApiConfig, KeyPairWithPath, RunWithRange, StateSnapshotConfig,
-        default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
+        default_enable_jsonrpc_api, default_end_of_epoch_broadcast_channel_capacity,
         default_full_checkpoint_contents_cache_size_mb,
     },
     p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
@@ -35,7 +35,7 @@ use iota_types::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair, network_to_simple_keypair,
     },
     supported_protocol_versions::SupportedProtocolVersions,
-    traffic_control::{PolicyConfig, RemoteFirewallConfig},
+    traffic_control::PolicyConfig,
 };
 
 use crate::{
@@ -56,7 +56,6 @@ pub struct ValidatorConfigBuilder {
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     policy_config: Option<PolicyConfig>,
-    firewall_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
     discovery_config: Option<DiscoveryConfig>,
@@ -121,11 +120,6 @@ impl ValidatorConfigBuilder {
         self
     }
 
-    pub fn with_firewall_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
-        self.firewall_config = config;
-        self
-    }
-
     pub fn with_max_submit_position(mut self, max_submit_position: usize) -> Self {
         self.max_submit_position = Some(max_submit_position);
         self
@@ -186,9 +180,9 @@ impl ValidatorConfigBuilder {
             ..Default::default()
         };
 
-        let mut pruning_config = AuthorityStorePruningConfig::default();
+        let mut pruning_config = local_network_pruning_config();
         if self.force_unpruned_checkpoints {
-            pruning_config.set_num_epochs_to_retain_for_checkpoints(None);
+            pruning_config.set_num_epochs_to_retain_for_checkpoints(Some(u64::MAX));
         }
         let pruning_config = pruning_config;
         let checkpoint_executor_config = CheckpointExecutorConfig {
@@ -221,7 +215,8 @@ impl ValidatorConfigBuilder {
             metrics_address: validator.metrics_address,
             admin_interface_address: validator.admin_interface_address,
             consensus_config: Some(consensus_config),
-            enable_index_processing: default_enable_index_processing(),
+            enable_jsonrpc_api: default_enable_jsonrpc_api(),
+            enable_index_processing: None,
             genesis: Genesis::new_empty(),
             migration_tx_data_path,
             grpc_load_shed: None,
@@ -243,7 +238,6 @@ impl ValidatorConfigBuilder {
             state_debug_dump_config: Default::default(),
             checkpoint_archive_config: None,
             state_snapshot_write_config: StateSnapshotConfig::default(),
-            indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: None,
             authority_overload_config: self.authority_overload_config.unwrap_or_default(),
@@ -251,9 +245,7 @@ impl ValidatorConfigBuilder {
             full_checkpoint_contents_cache_size_mb: default_full_checkpoint_contents_cache_size_mb(
             ),
             run_with_range: None,
-            jsonrpc_server_type: None,
             policy_config: self.policy_config,
-            firewall_config: self.firewall_config,
             enable_validator_tx_finalizer: true,
             enable_soft_locking: true,
             verifier_signing_config: VerifierSigningConfig::default(),
@@ -276,7 +268,7 @@ impl ValidatorConfigBuilder {
         config
     }
 
-    pub fn build_new_validator<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build_new_validator<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
@@ -305,19 +297,28 @@ pub struct FullnodeConfigBuilder {
     network_key_pair: Option<KeyPairWithPath>,
     run_with_range: Option<RunWithRange>,
     policy_config: Option<PolicyConfig>,
-    fw_config: Option<RemoteFirewallConfig>,
     data_ingestion_dir: Option<PathBuf>,
     disable_pruning: bool,
+    num_epochs_to_retain_for_indexes: Option<u64>,
     iota_names_config: Option<IotaNamesConfig>,
+    /// Unset takes the node config's default.
+    enable_jsonrpc_api: Option<bool>,
     enable_grpc_api: bool,
     grpc_api_config: Option<GrpcApiConfig>,
     discovery_config: Option<DiscoveryConfig>,
     chain_override: Option<Chain>,
+    state_snapshot_write_config: Option<StateSnapshotConfig>,
 }
 
 impl FullnodeConfigBuilder {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Publishes formal state snapshots to the store the config names.
+    pub fn with_state_snapshot_config(mut self, config: StateSnapshotConfig) -> Self {
+        self.state_snapshot_write_config = Some(config);
+        self
     }
 
     pub fn with_chain_override(mut self, chain: Chain) -> Self {
@@ -413,6 +414,11 @@ impl FullnodeConfigBuilder {
         self
     }
 
+    pub fn with_num_epochs_to_retain_for_indexes(mut self, epochs: Option<u64>) -> Self {
+        self.num_epochs_to_retain_for_indexes = epochs;
+        self
+    }
+
     pub fn with_run_with_range(mut self, run_with_range: Option<RunWithRange>) -> Self {
         if let Some(run_with_range) = run_with_range {
             self.run_with_range = Some(run_with_range);
@@ -425,11 +431,6 @@ impl FullnodeConfigBuilder {
         self
     }
 
-    pub fn with_fw_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
-        self.fw_config = config;
-        self
-    }
-
     pub fn with_data_ingestion_dir(mut self, path: Option<PathBuf>) -> Self {
         self.data_ingestion_dir = path;
         self
@@ -437,6 +438,13 @@ impl FullnodeConfigBuilder {
 
     pub fn with_iota_names_config(mut self, config: Option<IotaNamesConfig>) -> Self {
         self.iota_names_config = config;
+        self
+    }
+
+    /// A `FullNodeHandle` cannot be built with `false`, as it needs a JSON-RPC
+    /// client.
+    pub fn with_enable_jsonrpc_api(mut self, enable_jsonrpc_api: bool) -> Self {
+        self.enable_jsonrpc_api = Some(enable_jsonrpc_api);
         self
     }
 
@@ -460,7 +468,7 @@ impl FullnodeConfigBuilder {
     /// # Panics
     ///
     /// Panics if [`Self::try_build_from_parts`] returns an error.
-    pub fn build_from_parts<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build_from_parts<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         validator_configs: &[NodeConfig],
@@ -474,7 +482,7 @@ impl FullnodeConfigBuilder {
     /// the fullnode freshly generated key pairs and addresses.
     ///
     /// Fails and panics as [`Self::try_build_from_genesis_config`] does.
-    pub fn try_build_from_parts<R: rand::RngCore + rand::CryptoRng>(
+    pub fn try_build_from_parts<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         validator_configs: &[NodeConfig],
@@ -598,9 +606,12 @@ impl FullnodeConfigBuilder {
             ..Default::default()
         };
 
-        let mut pruning_config = AuthorityStorePruningConfig::default();
+        let mut pruning_config = local_network_pruning_config();
+        if let Some(epochs) = self.num_epochs_to_retain_for_indexes {
+            pruning_config.num_epochs_to_retain_for_indexes = Some(epochs);
+        }
         if self.disable_pruning {
-            pruning_config.set_num_epochs_to_retain_for_checkpoints(None);
+            pruning_config.set_num_epochs_to_retain_for_checkpoints(Some(u64::MAX));
             pruning_config.set_num_epochs_to_retain(u64::MAX);
         };
 
@@ -627,7 +638,10 @@ impl FullnodeConfigBuilder {
                 .unwrap_or(genesis_config.admin_interface_address),
             json_rpc_address,
             consensus_config: None,
-            enable_index_processing: default_enable_index_processing(),
+            enable_jsonrpc_api: self
+                .enable_jsonrpc_api
+                .unwrap_or_else(default_enable_jsonrpc_api),
+            enable_index_processing: None,
             genesis,
             migration_tx_data_path,
             grpc_load_shed: None,
@@ -648,15 +662,12 @@ impl FullnodeConfigBuilder {
             certificate_deny_config: Default::default(),
             state_debug_dump_config: Default::default(),
             checkpoint_archive_config: None,
-            state_snapshot_write_config: StateSnapshotConfig::default(),
-            indexer_max_subscriptions: Default::default(),
+            state_snapshot_write_config: self.state_snapshot_write_config.unwrap_or_default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
             authority_overload_config: Default::default(),
             run_with_range: self.run_with_range,
-            jsonrpc_server_type: None,
             policy_config: self.policy_config,
-            firewall_config: self.fw_config,
             execution_cache_config: ExecutionCacheConfig::default(),
             full_checkpoint_contents_cache_size_mb: default_full_checkpoint_contents_cache_size_mb(
             ),
@@ -680,7 +691,7 @@ impl FullnodeConfigBuilder {
     /// # Panics
     ///
     /// Panics if [`Self::try_build`] returns an error.
-    pub fn build<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
@@ -692,7 +703,7 @@ impl FullnodeConfigBuilder {
     /// Build the fullnode config against the given network config.
     ///
     /// Fails and panics as [`Self::try_build_from_genesis_config`] does.
-    pub fn try_build<R: rand::RngCore + rand::CryptoRng>(
+    pub fn try_build<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
@@ -738,9 +749,21 @@ fn get_key_path(key_pair: &AuthorityKeyPair) -> String {
     key_path
 }
 
+/// The pruning config of the nodes of a local network (localnet, test
+/// clusters): the transaction, checkpoint and index history is kept in full,
+/// since such networks run short epochs that the operators' default retention
+/// would expire within minutes. Simulator tests keep their short retention.
+fn local_network_pruning_config() -> AuthorityStorePruningConfig {
+    let mut pruning_config = AuthorityStorePruningConfig::default();
+    if !cfg!(msim) {
+        pruning_config.set_num_epochs_to_retain_for_checkpoints(Some(u64::MAX));
+    }
+    pruning_config
+}
+
 #[cfg(test)]
 mod tests {
-    use rand::rngs::OsRng;
+    use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
     use super::{FullnodeConfigBuilder, Genesis, ValidatorGenesisConfigBuilder};
 
@@ -751,7 +774,7 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         let mut genesis_config = ValidatorGenesisConfigBuilder::new()
             .with_ip("127.0.0.1".to_owned())
-            .build(&mut OsRng);
+            .build(&mut UnwrapErr(SysRng));
         genesis_config.metrics_address = ([127, 0, 0, 1], 9184).into();
         genesis_config.admin_interface_address = ([127, 0, 0, 1], 9185).into();
         genesis_config.p2p_address = "/ip4/127.0.0.1/udp/9186/http".parse().unwrap();
@@ -793,7 +816,7 @@ mod tests {
     fn an_address_set_on_the_builder_wins_over_the_genesis_config() {
         let mut genesis_config = ValidatorGenesisConfigBuilder::new()
             .with_ip("127.0.0.1".to_owned())
-            .build(&mut OsRng);
+            .build(&mut UnwrapErr(SysRng));
         genesis_config.metrics_address = ([127, 0, 0, 1], 9184).into();
         genesis_config.admin_interface_address = ([127, 0, 0, 1], 9185).into();
 
@@ -804,5 +827,24 @@ mod tests {
 
         assert_eq!(config.admin_interface_address.to_string(), "127.0.0.1:1337");
         assert_eq!(config.metrics_address.to_string(), "127.0.0.1:9184");
+    }
+    /// `default()` and `new()` build the same JSON-RPC setting, the node
+    /// config's default, and `with_enable_jsonrpc_api` overrides it.
+    #[test]
+    fn every_builder_constructor_serves_json_rpc_unless_told_otherwise() {
+        let build = |builder: FullnodeConfigBuilder| {
+            let genesis_config = ValidatorGenesisConfigBuilder::new()
+                .with_ip("127.0.0.1".to_owned())
+                .build(&mut UnwrapErr(SysRng));
+            builder
+                .try_build_from_genesis_config(genesis_config, &[], Genesis::new_empty())
+                .unwrap()
+                .enable_jsonrpc_api
+        };
+        assert!(build(FullnodeConfigBuilder::default()));
+        assert!(build(FullnodeConfigBuilder::new()));
+        assert!(!build(
+            FullnodeConfigBuilder::new().with_enable_jsonrpc_api(false)
+        ));
     }
 }

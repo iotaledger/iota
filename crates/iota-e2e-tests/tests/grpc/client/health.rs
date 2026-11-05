@@ -7,12 +7,12 @@ use iota_macros::sim_test;
 use super::super::utils::setup_grpc_test;
 
 #[sim_test]
-async fn get_health() {
+async fn health() {
     let (_test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     // Default threshold: should succeed and return checkpoint info.
     let response = client
-        .health(None)
+        .health()
         .await
         .expect("Health check should succeed with default threshold");
     assert!(
@@ -26,7 +26,8 @@ async fn get_health() {
 
     // Large threshold: should always pass.
     let response = client
-        .health(Some(u64::MAX))
+        .health()
+        .threshold_ms(u64::MAX)
         .await
         .expect("Health check should succeed with a large threshold");
     assert!(
@@ -37,7 +38,8 @@ async fn get_health() {
     // Zero threshold: the checkpoint must be from right now, which is
     // virtually impossible — expect UNAVAILABLE.
     let err = client
-        .health(Some(0))
+        .health()
+        .threshold_ms(0)
         .await
         .expect_err("Health check should fail with zero threshold");
     match err {

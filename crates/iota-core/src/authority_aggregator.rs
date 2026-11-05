@@ -836,10 +836,10 @@ where
             // So, this process is designed as a compromise between these two extremes.
             // - We start one request, and schedule another request to begin after
             //   serial_authority_request_interval.
-            // - Whenever a request finishes, if it succeeded, we return. if it failed, we
-            //   start a new request.
-            // - If serial_authority_request_interval elapses, we begin a new request even
-            //   if the previous one is not finished, and schedule another future request.
+            // - Whenever a request finishes, if it succeeded, we return. if it failed, we start a
+            //   new request.
+            // - If serial_authority_request_interval elapses, we begin a new request even if the
+            //   previous one is not finished, and schedule another future request.
 
             let name = authorities_shuffled.next().ok_or_else(|| {
                 error!(

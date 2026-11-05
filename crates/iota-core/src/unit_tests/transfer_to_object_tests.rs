@@ -911,13 +911,12 @@ async fn test_tto_unwrap_add_as_dynamic_field() {
 // This test does this by
 // 1. Creating a parent object and child object
 // 2. Creating a fake parent object
-// 3. Create and sign a transaction `tx1` that tries to receive the child object
-//    using the fake parent.
-// 4. Create and sign a transaction `tx2` that receives the child object using
-//    the valid parent object.
+// 3. Create and sign a transaction `tx1` that tries to receive the child object using the fake
+//    parent.
+// 4. Create and sign a transaction `tx2` that receives the child object using the valid parent
+//    object.
 // 5. Execute `tx2` and verify that it can be executed successfully.
-// 6. Execute `tx1` and verify that it can be executed, but will result in a
-//    Move abort.
+// 6. Execute `tx1` and verify that it can be executed, but will result in a Move abort.
 // The order of steps 5 and 6 are swapped if `flipper` is `true`.
 // The object is deleted instead of received if `should_delete` is `true`.
 async fn verify_tto_not_locked(

@@ -43,7 +43,7 @@ use itertools::Itertools;
 use parking_lot::RwLock;
 #[cfg(not(test))]
 use rand::prelude::SliceRandom as _;
-use rand::{SeedableRng as _, rngs::StdRng, thread_rng};
+use rand::{SeedableRng as _, rng, rngs::StdRng};
 use starfish_config::AuthorityIndex;
 use tokio::{
     sync::oneshot,
@@ -95,16 +95,15 @@ impl CommitSyncType {
         }
     }
 
-    /// Maximum number of commits a peer may return in a single fetch response.
-    /// This is the bound `verify_commits` enforces and the same bound the
-    /// streaming fetch loop applies before buffering. Fast sync extends past
-    /// the requested range end to reach a  certifiable commit, so it accepts up
-    /// to twice the batch size; regular sync stays within one batch.
-    pub(crate) fn max_commits_per_response(&self, context: &Context) -> usize {
-        let batch_size = self.commit_sync_batch_size(context) as usize;
+    /// Maximum number of commits a peer may return for `commit_range`. This is
+    /// the bound `verify_commits` enforces and the same bound the streaming
+    /// fetch loop applies before buffering. Fast sync extends past the
+    /// requested range end to reach a certifiable commit, so it accepts up to
+    /// twice the requested range; regular sync stays within it.
+    pub(crate) fn max_commits_per_response(&self, commit_range: &CommitRange) -> usize {
         match self {
-            CommitSyncType::Fast => 2 * batch_size,
-            CommitSyncType::Regular => batch_size,
+            CommitSyncType::Fast => 2 * commit_range.size(),
+            CommitSyncType::Regular => commit_range.size(),
         }
     }
 
@@ -245,6 +244,31 @@ impl<C: NetworkClient> Inner<C> {
             max_commits,
         )
     }
+
+    /// Moves the peers that have voted for `commit_index` or later, other than
+    /// those in `excluded`, ahead of the rest, keeping the order within each
+    /// group. Does nothing unless
+    /// `enable_commit_sync_peer_selection_by_commit_votes` is set.
+    pub(crate) fn order_voters_first(
+        &self,
+        authorities: &mut [AuthorityIndex],
+        commit_index: CommitIndex,
+        excluded: &BTreeSet<AuthorityIndex>,
+    ) {
+        if !self
+            .context
+            .parameters
+            .enable_commit_sync_peer_selection_by_commit_votes
+        {
+            return;
+        }
+        authorities.sort_by_cached_key(|authority| {
+            excluded.contains(authority)
+                || !self
+                    .commit_vote_monitor
+                    .has_voted_for_commit(*authority, commit_index)
+        });
+    }
 }
 
 /// Rejects a deserialized commit whose variant does not match the local
@@ -322,13 +346,21 @@ pub(crate) fn verify_commits(
     serialized_vote_blocks_headers: Vec<Bytes>,
     max_commits: usize,
 ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
+    // Every rejection is recorded once against the serving peer, except a vote
+    // header that fails verification, which also charges its author when its
+    // signature is valid.
+    let reject = |e: ConsensusError| {
+        misbehavior_store.record_fetch_fault(peer, &e);
+        e
+    };
+
     // Validate response size - peer should not return more than max_commits
     if serialized_commits.len() > max_commits {
-        return Err(ConsensusError::TooManyCommitsFromPeer {
+        return Err(reject(ConsensusError::TooManyCommitsFromPeer {
             peer,
             count: serialized_commits.len() as CommitIndex,
             limit: max_commits as CommitIndex,
-        });
+        }));
     }
 
     // One vote header per authority certifies a commit, but servers that do
@@ -340,29 +372,29 @@ pub(crate) fn verify_commits(
         .size()
         .saturating_mul(MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY);
     if serialized_vote_blocks_headers.len() > max_vote_headers {
-        return Err(ConsensusError::TooManyCommitVoteHeaders {
+        return Err(reject(ConsensusError::TooManyCommitVoteHeaders {
             peer,
             count: serialized_vote_blocks_headers.len(),
             limit: max_vote_headers,
-        });
+        }));
     }
 
     // Parse and verify commits.
     let mut commits = Vec::new();
     for serialized in &serialized_commits {
         let commit: Commit =
-            bcs::from_bytes(serialized).map_err(ConsensusError::MalformedCommit)?;
-        check_commit_version_matches_flags(&commit, &context.protocol_config)?;
-        verify_commit_authority_indices(context, peer, &commit)?;
+            bcs::from_bytes(serialized).map_err(|e| reject(ConsensusError::MalformedCommit(e)))?;
+        check_commit_version_matches_flags(&commit, &context.protocol_config).map_err(reject)?;
+        verify_commit_authority_indices(context, peer, &commit).map_err(reject)?;
         let digest = TrustedCommit::compute_digest(serialized);
         if commits.is_empty() {
             // start is inclusive, so first commit must be at the start index.
             if commit.index() != commit_range.start() {
-                return Err(ConsensusError::UnexpectedStartCommit {
+                return Err(reject(ConsensusError::UnexpectedStartCommit {
                     peer,
                     start: commit_range.start(),
                     commit: Box::new(commit),
-                });
+                }));
             }
         } else {
             // Verify next commit increments index and references the previous digest.
@@ -371,17 +403,17 @@ pub(crate) fn verify_commits(
             if commit.index() != last_commit.index() + 1
                 || &commit.previous_digest() != last_commit_digest
             {
-                return Err(ConsensusError::UnexpectedCommitSequence {
+                return Err(reject(ConsensusError::UnexpectedCommitSequence {
                     peer,
                     prev_commit: Box::new(last_commit.clone()),
                     curr_commit: Box::new(commit),
-                });
+                }));
             }
         }
         commits.push((digest, commit));
     }
     let Some((end_commit_digest, end_commit)) = commits.last() else {
-        return Err(ConsensusError::NoCommitReceived { peer });
+        return Err(reject(ConsensusError::NoCommitReceived { peer }));
     };
 
     // Parse and verify blocks. Then accumulate votes on the end commit.
@@ -390,11 +422,7 @@ pub(crate) fn verify_commits(
     let mut verified_voting_headers = Vec::new();
     for serialized_block_header in serialized_vote_blocks_headers {
         let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
-            .map_err(ConsensusError::MalformedHeader)
-            .inspect_err(|e| {
-                // Author is unknown when deserialization fails — blame the peer.
-                misbehavior_store.record_faulty_block(peer, peer, e);
-            })?;
+            .map_err(|e| reject(ConsensusError::MalformedHeader(e)))?;
         // The block signature needs to be verified.
         if let Err(e) = block_verifier.verify(&signed_block_header) {
             misbehavior_store.record_faulty_block(peer, signed_block_header.author(), &e);
@@ -414,11 +442,11 @@ pub(crate) fn verify_commits(
 
     // Check if the end commit has enough votes.
     if !stake_aggregator.reached_threshold(&context.committee) {
-        return Err(ConsensusError::NotEnoughCommitVotes {
+        return Err(reject(ConsensusError::NotEnoughCommitVotes {
             stake: stake_aggregator.stake(),
             peer,
             commit: Box::new(end_commit.clone()),
-        });
+        }));
     }
 
     let trusted_commits = commits
@@ -514,6 +542,26 @@ pub(crate) fn shortfall_factor(requested: usize, delivered: usize) -> f64 {
     (requested as f64 / delivered.max(1) as f64).max(1.0)
 }
 
+/// Base timeout of one commit-sync request; every failed round adds one more
+/// of these, up to `MAX_FETCH_TIMEOUT_MULTIPLIER` times.
+#[cfg(not(test))]
+pub(crate) const FETCH_TIMEOUT: Duration = Duration::from_secs(10);
+#[cfg(test)]
+pub(crate) const FETCH_TIMEOUT: Duration = Duration::from_millis(500);
+/// Cap on the escalation: at the extreme a request waits 120 s.
+pub(crate) const MAX_FETCH_TIMEOUT_MULTIPLIER: u32 = 12;
+/// A whole fetch attempt may take this many request timeouts: the regular
+/// syncer pipelines several requests per attempt, the fast syncer sends one.
+pub(crate) const REGULAR_FETCH_ATTEMPT_MULTIPLIER: u32 = 4;
+pub(crate) const FAST_FETCH_ATTEMPT_MULTIPLIER: u32 = 2;
+/// The longest any commit syncer waits for one fetch attempt, 480 s in the
+/// node.
+pub(crate) fn max_fetch_attempt_timeout() -> Duration {
+    FETCH_TIMEOUT
+        * MAX_FETCH_TIMEOUT_MULTIPLIER
+        * REGULAR_FETCH_ATTEMPT_MULTIPLIER.max(FAST_FETCH_ATTEMPT_MULTIPLIER)
+}
+
 /// Generic fetch loop that retries fetching data from available authorities
 /// until a request succeeds. This is shared between RegularCommitSyncer and
 /// FastCommitSyncer.
@@ -528,8 +576,7 @@ pub(crate) fn shortfall_factor(requested: usize, delivered: usize) -> f64 {
 /// # Parameters
 /// - `inner`: Shared context and dependencies
 /// - `commit_range`: The range of commits to fetch
-/// - `fetch_timeout_multiplier`: Multiplier for timeout calculation (4 for
-///   regular, 2 for fast)
+/// - `fetch_timeout_multiplier`: Multiplier for timeout calculation (4 for regular, 2 for fast)
 /// - `fetch_once_fn`: Implementation-specific fetch function
 ///
 /// # Returns
@@ -547,15 +594,6 @@ where
     F: Fn(Arc<Inner<C>>, AuthorityIndex, CommitRange, Duration) -> Fut,
     Fut: std::future::Future<Output = ConsensusResult<T>> + Send,
 {
-    // Individual request base timeout.
-    #[cfg(not(test))]
-    const TIMEOUT: Duration = Duration::from_secs(10);
-    #[cfg(test)]
-    const TIMEOUT: Duration = Duration::from_millis(500);
-    // Max per-request timeout will be base timeout times a multiplier.
-    // At the extreme, this means there will be 120s timeout to fetch
-    // max_headers_per_commit_sync_fetch headers.
-    const MAX_TIMEOUT_MULTIPLIER: u32 = 12;
     // timeout * max number of targets should be reasonably small, so the
     // system can adjust to slow network or large data sizes quickly.
     const MAX_NUM_TARGETS: usize = 24;
@@ -566,9 +604,9 @@ where
     // has seen for a peer and only decays it on success, so feeding the
     // escalated value would leave a peer looking slow for many rounds after it
     // recovered.
-    let failure_penalty = TIMEOUT * fetch_timeout_multiplier;
+    let failure_penalty = FETCH_TIMEOUT * fetch_timeout_multiplier;
     let data_source = inner.sync_type.data_source();
-    let mut rng = StdRng::from_rng(thread_rng()).expect("thread_rng should be available");
+    let mut rng = StdRng::from_rng(&mut rng());
 
     let _timer = inner
         .context
@@ -625,23 +663,15 @@ where
         // that provably solidified the range, and any header from a
         // behind-listed peer carrying a recent commit vote promotes it
         // immediately.
-        if inner
-            .context
-            .parameters
-            .enable_commit_sync_peer_selection_by_commit_votes
-        {
-            let (caught_up, behind): (Vec<_>, Vec<_>) =
-                target_authorities.into_iter().partition(|authority| {
-                    inner
-                        .commit_vote_monitor
-                        .has_voted_for_commit(*authority, commit_range.end())
-                });
-            target_authorities = caught_up.into_iter().chain(behind).collect();
-        }
+        inner.order_voters_first(
+            &mut target_authorities,
+            commit_range.end(),
+            &BTreeSet::new(),
+        );
         target_authorities.truncate(MAX_NUM_TARGETS);
         // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
-        timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
-        let request_timeout = TIMEOUT * timeout_multiplier;
+        timeout_multiplier = (timeout_multiplier + 1).min(MAX_FETCH_TIMEOUT_MULTIPLIER);
+        let request_timeout = FETCH_TIMEOUT * timeout_multiplier;
 
         let fetch_timeout = request_timeout * fetch_timeout_multiplier;
         // Try fetching from the selected target authority.
@@ -736,7 +766,7 @@ where
             }
         }
         // Avoid busy looping, by waiting for a while before retrying.
-        sleep(TIMEOUT).await;
+        sleep(FETCH_TIMEOUT).await;
     }
 }
 
@@ -932,25 +962,34 @@ pub(crate) fn requeue_partial_range(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use futures::{StreamExt as _, stream};
+
     use super::*;
     use crate::{
         Round,
         block_header::{BlockHeaderDigest, TestBlockHeader},
         block_verifier::NoopBlockVerifier,
         commit::{CommitV1, CommitV2, CommitV3},
-        network::BlockBundleStream,
+        network::{BlockBundleStream, FetchedCommitsAndTransactions},
         transaction_ref::TransactionRef,
     };
 
     /// Fake `NetworkClient` for commit syncer tests, serving preset responses.
     /// With no preset response, `fetch_commits_and_transactions` fails the
-    /// fetch, while the other fetch endpoints panic as unimplemented.
+    /// fetch, `fetch_block_headers` answers from `stored_block_headers`, while
+    /// the other fetch endpoints panic as unimplemented.
     #[derive(Default)]
     pub(crate) struct FakeNetworkClient {
         pub(crate) commits_and_transactions: Option<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>,
         /// When set, the canned response is served as a stream cut by this
         /// error, the way the tonic client reports a mid-stream failure.
         pub(crate) stream_error_message: Option<String>,
+        /// Entries per transaction chunk; all in one chunk when unset.
+        pub(crate) transactions_per_chunk: Option<usize>,
+        /// Transaction chunks the fetches have read, the cut included.
+        pub(crate) chunks_read: Arc<AtomicUsize>,
         /// Waited out before answering, so a test can pin the latency the fetch
         /// loop records.
         pub(crate) response_delay: Duration,
@@ -962,6 +1001,13 @@ pub(crate) mod tests {
         pub(crate) block_headers: Option<Vec<Bytes>>,
         /// Preset `fetch_transactions` response.
         pub(crate) transactions: Option<Vec<Bytes>>,
+        /// Every peer asked for block headers, in the order it was asked.
+        pub(crate) requested_header_peers: parking_lot::Mutex<Vec<AuthorityIndex>>,
+        /// Headers `fetch_block_headers` serves by requested ref when no preset
+        /// response is set; a ref without an entry is left out of the answer.
+        pub(crate) stored_block_headers: BTreeMap<BlockRef, Bytes>,
+        /// Peers whose `fetch_block_headers` fails as a connection error.
+        pub(crate) unreachable_header_peers: Vec<AuthorityIndex>,
     }
 
     #[async_trait::async_trait]
@@ -989,14 +1035,23 @@ pub(crate) mod tests {
 
         async fn fetch_block_headers(
             &self,
-            _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
+            peer: AuthorityIndex,
+            block_refs: Vec<BlockRef>,
             _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
+            self.requested_header_peers.lock().push(peer);
+            if self.unreachable_header_peers.contains(&peer) {
+                return Err(ConsensusError::NetworkClientConnection(format!(
+                    "{peer} is unreachable"
+                )));
+            }
             match &self.block_headers {
                 Some(response) => Ok(response.clone()),
-                None => unimplemented!("Unimplemented"),
+                None => Ok(block_refs
+                    .iter()
+                    .filter_map(|block_ref| self.stored_block_headers.get(block_ref).cloned())
+                    .collect()),
             }
         }
 
@@ -1018,18 +1073,34 @@ pub(crate) mod tests {
             peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)> {
+        ) -> ConsensusResult<FetchedCommitsAndTransactions> {
             self.requested_peers.lock().push(peer);
             sleep(self.response_delay).await;
             match &self.commits_and_transactions {
-                Some((commits, headers, transactions)) => Ok((
-                    commits.clone(),
-                    headers.clone(),
-                    transactions.clone(),
-                    self.stream_error_message
+                Some((commits, headers, transactions)) => {
+                    let per_chunk = self
+                        .transactions_per_chunk
+                        .unwrap_or(transactions.len())
+                        .max(1);
+                    let chunks: Vec<_> = transactions
+                        .chunks(per_chunk)
+                        .map(|chunk| Ok(chunk.to_vec()))
+                        .collect();
+                    let cut = self
+                        .stream_error_message
                         .clone()
-                        .map(ConsensusError::NetworkRequest),
-                )),
+                        .map(|message| Err(ConsensusError::NetworkRequest(message)));
+                    let chunks_read = self.chunks_read.clone();
+                    Ok(FetchedCommitsAndTransactions {
+                        commits: commits.clone(),
+                        certifier_block_headers: headers.clone(),
+                        transactions: stream::iter(chunks.into_iter().chain(cut))
+                            .inspect(move |_| {
+                                chunks_read.fetch_add(1, Ordering::Relaxed);
+                            })
+                            .boxed(),
+                    })
+                }
                 None => Err(ConsensusError::NoCommitReceived { peer }),
             }
         }
@@ -1047,26 +1118,33 @@ pub(crate) mod tests {
     /// Builds a single-commit byte stream from `commit` and runs it through
     /// `verify_commits` with the two protocol flags set as specified. The
     /// version check fires before the index check, so the default commit
-    /// index of 0 is fine here.
-    fn run_verify(commit: Commit, starfish_speed_on: bool) -> ConsensusResult<()> {
+    /// index of 0 is fine here. Also returns the unprovable faults charged to
+    /// the serving peer.
+    fn run_verify(commit: Commit, starfish_speed_on: bool) -> (ConsensusResult<()>, u64) {
         let (mut context, _) = Context::new_for_test(4);
         context
             .protocol_config
             .set_consensus_starfish_speed_for_testing(starfish_speed_on);
         let context = Arc::new(context);
         let misbehavior_store = MisbehaviorStore::new(&context);
+        let peer = AuthorityIndex::new_for_test(1);
         let serialized = commit.serialize().unwrap();
-        verify_commits(
+        let result = verify_commits(
             &context,
             &NoopBlockVerifier,
             &misbehavior_store,
-            AuthorityIndex::new_for_test(1),
+            peer,
             CommitRange::new(1..=1),
             vec![serialized],
             vec![],
             10,
         )
-        .map(|_| ())
+        .map(|_| ());
+        let counts = misbehavior_store.snapshot_totals();
+        (
+            result,
+            counts[peer.value()].as_v2().faulty_blocks_unprovable,
+        )
     }
 
     #[rstest::rstest]
@@ -1080,7 +1158,7 @@ pub(crate) mod tests {
         #[case] starfish_speed_on: bool,
         #[case] expected_variant: &'static str,
     ) {
-        let result = run_verify(commit, starfish_speed_on);
+        let (result, unprovable) = run_verify(commit, starfish_speed_on);
         let Err(ConsensusError::WrongCommitVersionForFlags {
             actual,
             starfish_speed,
@@ -1090,6 +1168,7 @@ pub(crate) mod tests {
         };
         assert_eq!(actual, expected_variant);
         assert_eq!(starfish_speed, starfish_speed_on);
+        assert_eq!(unprovable, 1);
     }
 
     #[tokio::test]
@@ -1134,6 +1213,79 @@ pub(crate) mod tests {
                 peer: error_peer,
             }) if index == invalid_author && max == 4 && error_peer == peer
         ));
+        let counts = misbehavior_store.snapshot_totals();
+        assert_eq!(counts[peer.value()].as_v2().faulty_blocks_unprovable, 1);
+    }
+
+    /// Serializes a commit at `index` whose leader is in the committee.
+    fn serialized_commit(
+        context: &Arc<Context>,
+        index: CommitIndex,
+        previous_digest: CommitDigest,
+    ) -> Bytes {
+        let leader = BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN);
+        Commit::new(
+            context,
+            index,
+            previous_digest,
+            0,
+            leader,
+            vec![leader],
+            vec![],
+            vec![],
+            false,
+        )
+        .serialize()
+        .unwrap()
+    }
+
+    /// A rejected commit list charges the serving peer one unprovable fault,
+    /// except an empty one, which an honest peer sends when it has no
+    /// certified commit in the range.
+    #[rstest::rstest]
+    #[case::malformed_commit("MalformedCommit", 1)]
+    #[case::unexpected_start_commit("UnexpectedStartCommit", 1)]
+    #[case::unexpected_commit_sequence("UnexpectedCommitSequence", 1)]
+    #[case::not_enough_commit_votes("NotEnoughCommitVotes", 1)]
+    #[case::no_commit_received("NoCommitReceived", 0)]
+    #[tokio::test]
+    async fn verify_commits_charges_rejected_commit_lists(
+        #[case] expected_error: &'static str,
+        #[case] expected_unprovable: u64,
+    ) {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let misbehavior_store = MisbehaviorStore::new(&context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let serialized_commits = match expected_error {
+            "MalformedCommit" => vec![Bytes::from_static(b"garbage")],
+            "UnexpectedStartCommit" => vec![serialized_commit(&context, 2, CommitDigest::MIN)],
+            "UnexpectedCommitSequence" => vec![
+                serialized_commit(&context, 1, CommitDigest::MIN),
+                serialized_commit(&context, 2, CommitDigest::MIN),
+            ],
+            "NotEnoughCommitVotes" => vec![serialized_commit(&context, 1, CommitDigest::MIN)],
+            _ => vec![],
+        };
+
+        let result = verify_commits(
+            &context,
+            &NoopBlockVerifier,
+            &misbehavior_store,
+            peer,
+            CommitRange::new(1..=2),
+            serialized_commits,
+            vec![],
+            10,
+        );
+
+        let error = result.expect_err("the commit list must be rejected");
+        assert_eq!(error.name(), expected_error);
+        let counts = misbehavior_store.snapshot_totals();
+        assert_eq!(
+            counts[peer.value()].as_v2().faulty_blocks_unprovable,
+            expected_unprovable
+        );
     }
 
     #[tokio::test]
@@ -1250,6 +1402,37 @@ pub(crate) mod tests {
                 limit: error_limit,
             }) if error_peer == peer && count == limit + 1 && error_limit == limit
         ));
+        let counts = misbehavior_store.snapshot_totals();
+        assert_eq!(counts[peer.value()].as_v2().faulty_blocks_unprovable, 1);
+    }
+
+    #[tokio::test]
+    async fn verify_commits_charges_peer_for_too_many_commits() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let misbehavior_store = MisbehaviorStore::new(&context);
+        let result = verify_commits(
+            &context,
+            &NoopBlockVerifier,
+            &misbehavior_store,
+            peer,
+            CommitRange::new(1..=2),
+            vec![Bytes::new(); 3],
+            vec![],
+            2,
+        );
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyCommitsFromPeer {
+                peer: error_peer,
+                count: 3,
+                limit: 2,
+            }) if error_peer == peer
+        ));
+        let counts = misbehavior_store.snapshot_totals();
+        assert_eq!(counts[peer.value()].as_v2().faulty_blocks_unprovable, 1);
     }
 
     #[test]

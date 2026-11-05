@@ -11,7 +11,6 @@ use iota_indexer_streaming::{
     memory::{Config, InMemory, RecoveryPoint},
     metrics::InMemoryStreamMetrics,
 };
-use iota_json_rpc_types::Filter;
 use iota_sdk_types::TransactionDigest;
 use prometheus_filtered::Registry;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
@@ -23,7 +22,7 @@ use crate::{
         digest::Digest,
         event::Event,
         int::try_into_int,
-        subscription::filter::{SubscriptionEventFilter, SubscriptionTransactionFilter},
+        subscription::filter::{Filter, SubscriptionEventFilter, SubscriptionTransactionFilter},
         transaction_block::{TransactionBlock, TransactionBlockInner},
     },
 };
@@ -46,8 +45,8 @@ pub(crate) struct Lagged {
 ///
 /// It could be one of the following:
 /// - A successful payload from the subscription stream.
-/// - A notice that the subscription has been lagged behind the network with the
-///   number of lost payloads.
+/// - A notice that the subscription has been lagged behind the network with the number of lost
+///   payloads.
 #[derive(Union, Clone)]
 #[graphql(concrete(name = "EventSubscriptionPayload", params(Event)))]
 #[graphql(concrete(name = "TransactionBlockSubscriptionPayload", params(TransactionBlock)))]

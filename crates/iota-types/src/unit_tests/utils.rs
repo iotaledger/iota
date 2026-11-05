@@ -5,13 +5,15 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::{
     Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
-    Address, ObjectId, SenderSignedTransaction, SimpleSignature, Transaction, TransactionKind,
-    UserSignature,
+    Address, Argument, Command, ObjectId, ProgrammableTransaction, SenderSignedTransaction,
+    SharedObjectReference, SimpleSignature, Transaction, TransactionKind, TransferObjects,
+    UserSignature, Version,
     crypto::{Intent, MultisigAggregatedSignature, MultisigCommittee, MultisigMember},
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -23,21 +25,22 @@ use crate::{
         AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair,
         get_key_pair_from_rng,
     },
+    error::UserInputError,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
 };
 
 pub fn make_committee_key<R>(rand: &mut R) -> (Vec<AuthorityKeyPair>, Committee)
 where
-    R: rand::CryptoRng + rand::RngCore,
+    R: rand::CryptoRng,
 {
     make_committee_key_num(4, rand)
 }
 
 pub fn make_committee_key_num<R>(num: usize, rand: &mut R) -> (Vec<AuthorityKeyPair>, Committee)
 where
-    R: rand::CryptoRng + rand::RngCore,
+    R: rand::CryptoRng,
 {
     let mut authorities: BTreeMap<AuthorityPublicKeyBytes, u64> = BTreeMap::new();
     let mut keys = Vec::new();
@@ -163,25 +166,28 @@ pub fn make_upgraded_multisig_tx() -> TransactionEnvelope {
     let pk2 = kp2.public_key();
     let pk3 = kp3.public_key();
 
-    let multisig_pk = MultisigCommittee::new(
+    // `MultisigCommittee::new` rejects committees mixing Ed25519 with other key
+    // schemes, but signatures over them are still accepted when every member
+    // signs.
+    let multisig_pk = MultisigCommittee::new_unchecked(
         vec![
             MultisigMember::new(pk1, 1),
             MultisigMember::new(pk2, 1),
             MultisigMember::new(pk3, 1),
         ],
         2,
-    )
-    .unwrap();
+    );
     let addr = Address::from(&multisig_pk);
     let tx = make_transaction(addr, &SimpleKeypair::from(kp1.clone()));
 
     let msg = tx.transaction().signing_digest();
     let sig1: SimpleSignature = kp1.sign(&msg);
     let sig2: SimpleSignature = kp2.sign(&msg);
+    let sig3: SimpleSignature = kp3.sign(&msg);
 
-    // Any 2 of 3 signatures verifies ok.
     let multi_sig1 =
-        MultisigAggregatedSignature::new(vec![sig1.into(), sig2.into()], multisig_pk).unwrap();
+        MultisigAggregatedSignature::new(vec![sig1.into(), sig2.into(), sig3.into()], multisig_pk)
+            .unwrap();
     TransactionEnvelope::new(SenderSignedTransaction::new(
         tx.transaction().clone(),
         vec![UserSignature::Multisig(multi_sig1)],
@@ -211,14 +217,20 @@ pub fn make_sponsored_regular_sig_tx() -> (TransactionEnvelope, Address, Address
 mod move_authenticator {
     use fastcrypto::hash::HashFunction;
     use iota_sdk_types::{
-        Address, Digest, MoveAuthenticator, MoveAuthenticatorV1, SenderSignedTransaction,
-        SharedObjectReference, UserSignature,
+        Address, Digest, Identifier, MoveAuthenticator, MoveAuthenticatorV1, ObjectId,
+        SenderSignedTransaction, SharedObjectReference, Transaction, TransactionExpiration,
+        UserSignature, Version,
     };
 
     use crate::{
+        base_types::random_object_ref,
+        committee::EpochId,
         crypto::DefaultHash,
         object::OBJECT_START_VERSION,
-        transaction::TransactionEnvelope,
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::{
+            CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
+        },
         utils::{make_sponsored_transaction_data, make_transaction_data},
     };
 
@@ -237,14 +249,58 @@ mod move_authenticator {
     /// TODO: if it is necessary, AA accounts need to be supported properly in
     /// the `AuthorityState` used for testing.
     pub fn make_move_authenticator_sig(address: Address) -> (UserSignature, MoveAuthenticator) {
-        let authenticator =
-            MoveAuthenticator::from(MoveAuthenticatorV1::new_with_shared_account_object(
-                vec![],
-                vec![],
-                SharedObjectReference::new(address.into(), OBJECT_START_VERSION, false),
-            ));
+        let authenticator = MoveAuthenticator::from(MoveAuthenticatorV1::new(
+            vec![],
+            vec![],
+            SharedObjectReference::new(address.into(), OBJECT_START_VERSION, false),
+        ));
         let sig = UserSignature::MoveAuthenticator(authenticator.clone());
         (sig, authenticator)
+    }
+
+    /// Make a transaction that passes a shared object to a Move call and is
+    /// signed with a [`MoveAuthenticator`] that names the same object with a
+    /// different initial shared version, for use in tests. The transaction
+    /// expires in `epoch`.
+    ///
+    /// Returns the transaction and the shared object as the transaction itself
+    /// names it.
+    pub fn make_move_authenticator_tx_with_inconsistent_shared_input(
+        address: Address,
+        epoch: EpochId,
+    ) -> (TransactionEnvelope, SharedObjectReference) {
+        let shared = SharedObjectReference::new(ObjectId::random(), Version::from(1), false);
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let arg = builder.obj(CallArg::Shared(shared)).unwrap();
+        builder.programmable_move_call(
+            ObjectId::random(),
+            Identifier::from_static("module"),
+            Identifier::from_static("function"),
+            vec![],
+            vec![arg],
+        );
+        let mut data = Transaction::new_programmable(
+            address,
+            vec![random_object_ref()],
+            builder.finish(),
+            TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            1,
+        );
+        *data.expiration_mut_for_testing() = TransactionExpiration::Epoch(epoch);
+        let authenticator = MoveAuthenticator::from(MoveAuthenticatorV1::new(
+            vec![CallArg::Shared(SharedObjectReference::new(
+                shared.object_id,
+                Version::from(2),
+                false,
+            ))],
+            vec![],
+            SharedObjectReference::new(address.into(), OBJECT_START_VERSION, false),
+        ));
+        let tx = TransactionEnvelope::new(SenderSignedTransaction::new(
+            data,
+            vec![UserSignature::MoveAuthenticator(authenticator)],
+        ));
+        (tx, shared)
     }
 
     /// Make a sponsored transaction where both sender and sponsor sign with
@@ -303,3 +359,49 @@ mod passkey {
 }
 
 pub use passkey::*;
+
+/// Asserts that `err` is a `SizeLimitExceeded` error whose limit name matches
+/// `limit_name` exactly, or matches the form `{limit_name} of {value}`.
+#[track_caller]
+pub fn assert_size_limit_err(err: &UserInputError, limit_name: &str) {
+    let UserInputError::SizeLimitExceeded { limit, .. } = err else {
+        panic!("expected a size limit, got {err:?}");
+    };
+    assert!(
+        limit == limit_name || limit.starts_with(&format!("{limit_name} of ")),
+        "expected {limit_name}, got {limit}"
+    );
+}
+
+/// A programmable transaction with `count` pure inputs of `size` zero bytes
+/// each, then the randomness state object when `with_randomness` is set. Its
+/// one command uses the first two inputs, so there must be at least two.
+pub fn ptb_with_pure_inputs(
+    count: usize,
+    size: usize,
+    with_randomness: bool,
+) -> ProgrammableTransaction {
+    let mut inputs = vec![CallArg::Pure(vec![0; size]); count];
+    if with_randomness {
+        inputs.push(CallArg::Shared(SharedObjectReference {
+            object_id: ObjectId::RANDOMNESS_STATE,
+            initial_shared_version: Version::from_u64(1),
+            mutable: false,
+        }));
+    }
+    assert!(inputs.len() >= 2, "the command names the first two inputs");
+    let commands = vec![Command::TransferObjects(TransferObjects {
+        objects: vec![Argument::Input(0)],
+        address: Argument::Input(1),
+    })];
+    ProgrammableTransaction { inputs, commands }
+}
+
+/// A programmable transaction above `max_tx_size_bytes` whose every pure input
+/// is under `max_pure_argument_size`, so only the transaction size cap rejects
+/// it.
+pub fn ptb_above_max_tx_size(config: &ProtocolConfig) -> ProgrammableTransaction {
+    let pure_size = config.max_pure_argument_size() as usize - 1;
+    let count = config.max_tx_size_bytes() as usize / pure_size + 1;
+    ptb_with_pure_inputs(count, pure_size, false)
+}

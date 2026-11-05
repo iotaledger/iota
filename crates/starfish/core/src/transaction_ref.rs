@@ -16,6 +16,10 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
 };
 
+/// BCS-serialized size of a [`TransactionRef`]: `round` (u32, 4) + `author`
+/// (`AuthorityIndex`, 1) + `transactions_commitment` (32).
+pub(crate) const SERIALIZED_TRANSACTION_REF_BYTES: usize = 37;
+
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TransactionRef {
     pub round: Round,

@@ -32,8 +32,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let gas_budget = 5_000_000;
 
-    // 3) Build the transaction data, to transfer 1_000 NANOS from the gas coin to
-    //    the recipient address
+    // 3) Build the transaction data, to transfer 1_000 NANOS from the gas coin to the recipient
+    //    address
     let tx_data = client
         .transaction_builder()
         .pay_iota(

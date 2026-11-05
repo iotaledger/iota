@@ -6,10 +6,11 @@ use diesel::prelude::*;
 use iota_json_rpc::coin_api::parse_to_struct_tag;
 use iota_json_rpc_types::{Balance, Coin as IotaCoin};
 use iota_package_resolver::{PackageStore, Resolver};
+use iota_sdk_move_types::iota_framework::dynamic_field::Field;
 use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, Version};
 use iota_types::{
     base_types::ObjectIdParseError,
-    dynamic_field::{DynamicFieldType, Field},
+    dynamic_field::DynamicFieldType,
     object::{Object, ObjectRead, PastObjectRead},
 };
 use move_core_types::annotated_value::MoveTypeLayout;

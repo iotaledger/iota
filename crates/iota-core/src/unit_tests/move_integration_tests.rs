@@ -8,7 +8,7 @@ use std::{collections::HashSet, env, path::PathBuf, str::FromStr};
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk_types::{
     Argument, Command, CommandArgumentError, ExecutionError, ExecutionStatus, Identifier,
-    ObjectOut, StructTag, TypeTag,
+    ObjectOut, Owner, StructTag, TypeTag,
 };
 use iota_types::{
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
@@ -2876,10 +2876,7 @@ pub async fn build_and_try_publish_test_package(
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", test_dir]);
 
-    let compiled_package = BuildConfig::new_for_testing()
-        .with_allow_view_function()
-        .build(&path)
-        .unwrap();
+    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
     let all_module_bytes = compiled_package.get_package_bytes(with_unpublished_deps);
     let dependencies = compiled_package.get_dependency_storage_package_ids();
 

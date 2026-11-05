@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{cell::RefCell, rc::Rc, sync::Arc, time::Instant};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use iota_sdk_types::{Address, Owner};
 use iota_types::{
@@ -14,6 +14,7 @@ use iota_types::{
 use move_core_types::account_address::AccountAddress;
 use move_trace_format::format::MoveTraceBuilder;
 use tracing::instrument;
+use web_time::Instant;
 
 use crate::{
     execution_mode::ExecutionMode,

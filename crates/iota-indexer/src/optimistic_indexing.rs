@@ -8,9 +8,12 @@ use diesel::{
 };
 use downcast::Any;
 use fastcrypto::encoding::Base64;
-use iota_grpc_client::{Client as GrpcClient, read_mask_fields::TransactionField};
+use iota_grpc_client::{GrpcClient, read_mask_fields::TransactionField};
 use iota_grpc_types::v1::transaction::ExecutedTransaction;
-use iota_sdk_types::{ObjectId, Transaction, TransactionDigest, UserSignature, Version};
+use iota_sdk_types::{
+    CheckpointSequenceNumber, CheckpointTimestamp, ObjectId, Transaction, TransactionDigest,
+    UserSignature, Version,
+};
 use iota_types::{
     effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointTransaction,
     transaction::TransactionEnvelope,
@@ -25,7 +28,7 @@ use crate::{
         },
         primary::{
             persist::TransactionObjectChangesToCommit,
-            prepare::{IndexedTransactionComponents, PrimaryWorker},
+            prepare::{EventsTransformer, index_transaction},
         },
     },
     metrics::IndexerMetrics,
@@ -36,7 +39,9 @@ use crate::{
     read::{IndexerReader, InputObjectsStatus},
     store::{IndexerStore, PgIndexerStore, diesel_macro::spawn_blocking_task},
     transactional_blocking_with_retry_with_conditional_abort,
-    types::{IndexedDeletedObject, IndexedObject, IndexerResult, grpc_conversion},
+    types::{
+        IndexedDeletedObject, IndexedObject, IndexedTransaction, IndexerResult, grpc_conversion,
+    },
 };
 
 const WAIT_FOR_DEPS_MAX_ELAPSED_TIME: Duration = Duration::from_secs(3);
@@ -241,11 +246,8 @@ impl OptimisticTransactionExecutor {
 
         let response = self
             .rpc_client
-            .execute_transaction(
-                signed_transaction.into(),
-                None,
-                EXECUTE_TRANSACTION_READ_MASK,
-            )
+            .execute_transaction(signed_transaction.into())
+            .read_mask(EXECUTE_TRANSACTION_READ_MASK)
             .await;
 
         match response {
@@ -345,9 +347,8 @@ impl OptimisticTransactionExecutor {
                     .await
                     .map_err(backoff::Error::transient)?
                 {
-                    return Err(backoff::Error::transient(IndexerError::PostgresRead(
-                        "transaction not yet fully indexed".to_string(),
-                    )));
+                    tracing::debug!("transaction not yet fully indexed");
+                    return Err(backoff::Error::transient(IndexerError::PostgresRead));
                 }
                 Ok(())
             },
@@ -355,9 +356,7 @@ impl OptimisticTransactionExecutor {
         .await
         .map_err(|e| {
             tracing::warn!("timed out waiting for transaction to be fully indexed: {e}");
-            IndexerError::PostgresRead(
-                "timeout waiting for transaction to be fully indexed".to_string(),
-            )
+            IndexerError::PostgresRead
         })
     }
 
@@ -384,7 +383,7 @@ impl OptimisticTransactionExecutor {
             // The unique violation error means that checkpoint indexing was faster than the
             // optimistic indexing. Let's just return and let checkpoint indexing handle
             // the transaction.
-            Err(IndexerError::PostgresUniqueTxGlobalOrderViolation(_)) => {
+            Err(IndexerError::PostgresUniqueTxGlobalOrderViolation) => {
                 db_write_timer.stop_and_discard();
                 self.metrics
                     .optimistic_tx_unique_global_order_violations_count
@@ -394,9 +393,8 @@ impl OptimisticTransactionExecutor {
             Err(e) => {
                 db_write_timer.stop_and_discard();
                 self.metrics.optimistic_tx_failed_db_writes_count.inc();
-                Err(IndexerError::PostgresWrite(format!(
-                    "Failed to persist optimistic tx: {e:?}",
-                )))
+                tracing::error!("failed to persist optimistic tx: {e:?}");
+                Err(IndexerError::PostgresWrite)
             }
         }
     }
@@ -433,7 +431,7 @@ impl OptimisticTransactionExecutor {
                 let optimistic_tx = self.persist_optimistic_tx(conn, tx_data_to_commit)?;
                 Ok(Some(optimistic_tx))
             },
-            |e: &IndexerError| matches!(*e, IndexerError::PostgresUniqueTxGlobalOrderViolation(_)),
+            |e: &IndexerError| matches!(*e, IndexerError::PostgresUniqueTxGlobalOrderViolation),
             Duration::from_secs(3600)
         )
     }
@@ -455,9 +453,13 @@ impl OptimisticTransactionExecutor {
         .get_result::<AssignedSequenceNumber>(conn)
         .map_err(|e| match e {
             diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
-                IndexerError::PostgresUniqueTxGlobalOrderViolation(e.to_string())
+                tracing::debug!("unique violation error: {e:?}");
+                IndexerError::PostgresUniqueTxGlobalOrderViolation
             }
-            _ => IndexerError::PostgresWrite(format!("Failed to assign global order: {e}")),
+            _ => {
+                tracing::error!("failed to assign global order: {e:?}");
+                IndexerError::PostgresWrite
+            }
         })
     }
 
@@ -488,6 +490,10 @@ struct TransactionExtractor<'a> {
 }
 
 impl<'a> TransactionExtractor<'a> {
+    // Placeholder values for the unknown checkpoint data.
+    const UNKNOWN_CHECKPOINT_SEQUENCE_NUMBER: CheckpointSequenceNumber = 0;
+    const UNKNOWN_CHECKPOINT_TIMESTAMP_MS: CheckpointTimestamp = 0;
+
     fn new(
         full_tx_data: &'a CheckpointTransaction,
         optimistic_sequence_number: u64,
@@ -527,26 +533,34 @@ impl<'a> TransactionExtractor<'a> {
         })
     }
 
-    fn get_indexed_transactions_events_and_displays(
-        &self,
-    ) -> IndexerResult<IndexedTransactionComponents> {
+    fn index_transaction(&self) -> IndexerResult<IndexedTransaction> {
         let handle = tokio::runtime::Handle::current();
         handle.block_on(async move {
-            PrimaryWorker::index_transaction_components(
+            index_transaction(
                 self.full_tx_data,
                 self.optimistic_sequence_number,
-                0, // checkpoint sequence number - unknown
-                0, // checkpoint timestamp - unknown
+                Self::UNKNOWN_CHECKPOINT_SEQUENCE_NUMBER,
+                Self::UNKNOWN_CHECKPOINT_TIMESTAMP_MS,
                 self.metrics,
             )
             .await
         })
     }
 
+    fn index_displays(&self) -> BTreeMap<String, StoredDisplay> {
+        let transformer = EventsTransformer::new(
+            self.full_tx_data,
+            self.optimistic_sequence_number,
+            Self::UNKNOWN_CHECKPOINT_SEQUENCE_NUMBER,
+            Self::UNKNOWN_CHECKPOINT_TIMESTAMP_MS,
+        );
+        transformer.transform().displays
+    }
+
     fn to_transaction_data_to_commit(&self) -> IndexerResult<TransactionDataToCommit> {
         let object_changes = self.get_object_changes()?;
-        let (indexed_tx, _, _, _, indexed_displays) =
-            self.get_indexed_transactions_events_and_displays()?;
+        let indexed_tx = self.index_transaction()?;
+        let indexed_displays = self.index_displays();
 
         let optimistic_tx = OptimisticTransaction::from_stored((&indexed_tx).into());
 

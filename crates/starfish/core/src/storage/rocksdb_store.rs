@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, ops::Bound::Included, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    ops::Bound::Included,
+    time::Duration,
+};
 
 use bytes::Bytes;
 use iota_macros::fail_point;
@@ -14,7 +18,9 @@ use typed_store::{
     rocks::{DBMap, DBMapTableConfigMap, MetricConf, default_db_options},
 };
 
-use super::{CommitInfo, Store, WriteBatch};
+use super::{
+    CommitInfo, Store, WriteBatch, collect_transactions_within_budget, transaction_scan_bounds,
+};
 use crate::{
     Transaction,
     block_header::{
@@ -656,6 +662,23 @@ impl Store for RocksDBStore {
         self.fast_commit_sync_flag
             .contains_key(&())
             .map_err(ConsensusError::RocksDBFailure)
+    }
+
+    fn scan_serialized_transactions(
+        &self,
+        refs: &BTreeSet<TransactionRef>,
+        byte_budget: usize,
+    ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
+        let Some((lower, upper)) = transaction_scan_bounds(refs) else {
+            return Ok(BTreeMap::new());
+        };
+        collect_transactions_within_budget(
+            refs,
+            byte_budget,
+            self.transactions_by_tx_refs
+                .safe_range_iter(lower..=upper)
+                .map(|entry| entry.map_err(ConsensusError::RocksDBFailure)),
+        )
     }
 }
 

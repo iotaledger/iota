@@ -20,7 +20,10 @@ use iota_types::{
     auth_context::AuthContext,
     base_types::VersionDigest,
     committee::EpochId,
-    deny_list_v1::check_coin_deny_list_v1_during_execution,
+    deny_list_v1::{
+        check_coin_deny_list_v1_during_execution,
+        check_coin_deny_list_v1_for_sender_during_execution,
+    },
     effects::TransactionEffectsExt,
     error::{ExecutionError, IotaResult},
     execution::{
@@ -28,7 +31,9 @@ use iota_types::{
     },
     execution_config_utils::to_binary_config,
     inner_temporary_store::InnerTemporaryStore,
-    iota_system_state::{AdvanceEpochParams, get_iota_system_state_wrapper},
+    iota_system_state::{
+        AdvanceEpochParams, IotaSystemStateWrapperExt, get_iota_system_state_wrapper,
+    },
     layout_resolver::LayoutResolver,
     object::Object,
     storage::{
@@ -169,7 +174,7 @@ impl<'backing> TemporaryStore<'backing> {
             loaded_runtime_objects: self.loaded_runtime_objects,
             runtime_packages_loaded_from_db: self.runtime_packages_loaded_from_db.into_inner(),
             lamport_version: self.lamport_timestamp,
-            binary_config: to_binary_config(self.protocol_config),
+            binary_config: to_binary_config(self.protocol_config, None),
         }
     }
 
@@ -885,10 +890,9 @@ impl TemporaryStore<'_> {
 
     /// Return the list of all modified objects, for each object, returns
     /// - Object ID,
-    /// - Input: If the object existed prior to this transaction, include their
-    ///   version and storage_rebate,
-    /// - Output: If a new version of the object is written, include the new
-    ///   object.
+    /// - Input: If the object existed prior to this transaction, include their version and
+    ///   storage_rebate,
+    /// - Output: If a new version of the object is written, include the new object.
     fn get_modified_objects(&self) -> Vec<ModifiedObjectInfo<'_>> {
         self.execution_results
             .modified_objects
@@ -919,11 +923,10 @@ impl TemporaryStore<'_> {
     /// Specifically, this checks two key invariants about storage
     /// fees and storage rebate:
     ///
-    /// 1. all IOTA in storage rebate fields of input objects should flow either
-    ///    to the transaction storage rebate, or the transaction non-refundable
-    ///    storage rebate
-    /// 2. all IOTA charged for storage should flow into the storage rebate
-    ///    field of some output object
+    /// 1. all IOTA in storage rebate fields of input objects should flow either to the transaction
+    ///    storage rebate, or the transaction non-refundable storage rebate
+    /// 2. all IOTA charged for storage should flow into the storage rebate field of some output
+    ///    object
     ///
     /// This function is intended to be called *after* we have charged for
     /// gas + applied the storage rebate to the gas object, but *before* we
@@ -995,9 +998,9 @@ impl TemporaryStore<'_> {
     /// This more expensive check will check a third invariant on top of the 2
     /// performed by `check_iota_conserved` above:
     ///
-    /// * all IOTA in input objects (including coins etc in the Move part of an
-    ///   object) should flow either to an output object, or be burned as part
-    ///   of computation fees or non-refundable storage rebate
+    /// * all IOTA in input objects (including coins etc in the Move part of an object) should flow
+    ///   either to an output object, or be burned as part of computation fees or non-refundable
+    ///   storage rebate
     ///
     /// This function is intended to be called *after* we have charged for gas +
     /// applied the storage rebate to the gas object, but *before* we have
@@ -1147,6 +1150,27 @@ impl Storage for TemporaryStore<'_> {
                 .insert(ObjectId::DENY_LIST);
         }
         result
+    }
+
+    fn check_received_coin_deny_list(
+        &self,
+        sender: Address,
+        coin_types: BTreeSet<String>,
+    ) -> Result<(), ExecutionError> {
+        // The outcome depends on the deny list as soon as one coin type is
+        // looked up, so the deny list is recorded as read, as for written
+        // coins in `check_coin_deny_list`.
+        if !coin_types.is_empty() && !self.input_objects.contains_key(&ObjectId::DENY_LIST) {
+            self.loaded_per_epoch_config_objects
+                .write()
+                .insert(ObjectId::DENY_LIST);
+        }
+        check_coin_deny_list_v1_for_sender_during_execution(
+            sender,
+            coin_types,
+            self.cur_epoch,
+            self.store.as_object_store(),
+        )
     }
 
     fn read_auth_context(&self) -> Option<Rc<RefCell<AuthContext>>> {

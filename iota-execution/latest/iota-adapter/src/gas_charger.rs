@@ -116,6 +116,18 @@ pub mod checked {
             self.gas_status.summary()
         }
 
+        /// Sets the first gas coin as the transaction's gas coin without merging
+        /// the other gas coins into it, for a transaction that charges nobody.
+        /// After this call, `gas_coin` returns its id, so the effects name it
+        /// as the gas object.
+        pub(crate) fn set_gas_coin_without_smashing(&mut self) {
+            self.smashed_gas_coin = self
+                .gas_coins
+                .first()
+                .map(|gas_coin| gas_coin.object_id)
+                .filter(|gas_coin_id| *gas_coin_id != ObjectId::ZERO);
+        }
+
         // This function is called when the transaction is about to be executed.
         // It will smash all gas coins into a single one and set the logical gas coin
         // to be the first one in the list.
@@ -271,17 +283,15 @@ pub mod checked {
         }
 
         /// Entry point for gas charging.
-        /// 1. Compute tx storage gas costs and tx storage rebates, update
-        ///    storage_rebate field of
+        /// 1. Compute tx storage gas costs and tx storage rebates, update storage_rebate field of
         /// mutated objects
-        /// 2. Deduct computation gas costs and storage costs, credit storage
-        ///    rebates.
+        /// 2. Deduct computation gas costs and storage costs, credit storage rebates.
         /// The happy path of this function follows (1) + (2) and is fairly
         /// simple. Most of the complexity is in the unhappy paths:
-        /// - if execution aborted before calling this function, we have to dump
-        ///   all writes + re-smash gas, then charge for storage
-        /// - if we run out of gas while charging for storage, we have to dump
-        ///   all writes + re-smash gas, then charge for storage again
+        /// - if execution aborted before calling this function, we have to dump all writes +
+        ///   re-smash gas, then charge for storage
+        /// - if we run out of gas while charging for storage, we have to dump all writes + re-smash
+        ///   gas, then charge for storage again
         pub fn charge_gas<T>(
             &mut self,
             temporary_store: &mut TemporaryStore<'_>,

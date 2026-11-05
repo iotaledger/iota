@@ -8,8 +8,7 @@ use crate::static_programmable_transactions::{env::Env, typing::ast as T};
 
 /// Refines usage of values so that the last `Copy` of a value is a `Move` if it
 /// is not borrowed After, it verifies the following
-/// - No results without `drop` are unused (all unused non-input values have
-///   `drop`)
+/// - No results without `drop` are unused (all unused non-input values have `drop`)
 pub fn refine_and_verify(env: &Env, ast: &mut T::Transaction) -> Result<(), ExecutionError> {
     refine::transaction(ast);
     verify::transaction(env, ast)?;

@@ -6,6 +6,7 @@ module iota::account;
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::dynamic_field;
 use iota::event;
+use iota::protocol_config;
 
 #[error(code = 0)]
 const EAuthenticatorFunctionRefV1AlreadyAttached: vector<u8> =
@@ -13,6 +14,9 @@ const EAuthenticatorFunctionRefV1AlreadyAttached: vector<u8> =
 #[error(code = 1)]
 const EAuthenticatorFunctionRefV1NotAttached: vector<u8> =
     b"'AuthenticatorFunctionRefV1' is not attached to the account.";
+#[error(code = 2)]
+const EImmutableAccountCreationRejected: vector<u8> =
+    b"An immutable account cannot be created.";
 
 #[allow(unused_field)]
 /// Event: emitted when a new immutable account has been created.
@@ -60,15 +64,17 @@ public fun create_account_v1<Account: key>(
     event::emit(event);
 }
 
-/// Create an account as an immutable object with the provided `authenticator`.
-/// The `authenticator` instance will be added to the account as a dynamic field specified by the `AuthenticatorFunctionRefV1Key` name.
-/// This function has custom rules performed by the IOTA Move bytecode verifier that ensures
-/// that `Account` is an object defined in the module where `create_immutable_account_v1` is invoked.
-/// Emits an `ImmutableAccountCreated` event upon success.
+/// Aborts if `reject_immutable_account_creation` is enabled in the
+/// protocol config. Use `create_account_v1` instead.
 public fun create_immutable_account_v1<Account: key>(
     mut account: Account,
     authenticator: AuthenticatorFunctionRefV1<Account>,
 ) {
+    assert!(
+        !protocol_config::is_feature_enabled(b"reject_immutable_account_creation"),
+        EImmutableAccountCreationRejected,
+    );
+
     let event = ImmutableAccountCreated {
         account_id: *object::borrow_id(&account),
         authenticator,

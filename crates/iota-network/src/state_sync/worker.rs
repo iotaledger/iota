@@ -68,12 +68,11 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
                 }
                 None => false,
             };
-            let full_contents = FullCheckpointContents::from_contents_and_execution_data(
+            let contents = FullCheckpointContents::from_contents_and_execution_data(
                 checkpoint.checkpoint_contents.clone(),
                 checkpoint.transactions.iter().map(|t| t.execution_data()),
-            );
-            full_contents.verify_digests(summary.contents_digest)?;
-            let contents = VerifiedCheckpointContents::new_unchecked(full_contents);
+            )?
+            .verify(summary.contents_digest)?;
             Ok(VerifiedArchiveCheckpoint {
                 summary,
                 contents,

@@ -99,7 +99,7 @@ impl IotaTxValidator {
                     });
                 }
 
-                ConsensusTransactionKind::UserTransactionV1(transaction) => {
+                ConsensusTransactionKind::UserTransactionV1(attested_tx) => {
                     if !self.epoch_store.protocol_config().enable_pcool_flow() {
                         return Err(IotaError::UnsupportedFeature {
                             error: "UserTransactionV1 not supported at current protocol version"
@@ -111,7 +111,7 @@ impl IotaTxValidator {
                     //  similar to how certificates are batch-verified above.
                     self.epoch_store
                         .signature_verifier
-                        .verify_tx(transaction.data())
+                        .verify_tx(attested_tx.transaction.data())
                         .tap_err(|e| {
                             warn!("UserTransactionV1 signature verification failed: {}", e)
                         })?;
@@ -142,7 +142,7 @@ impl IotaTxValidator {
                 // bounded by `max_transaction_size_bytes` (256 KiB), enforced
                 // on every received block by starfish's block verifier.
                 ConsensusTransactionKind::TransactionDenyRuleProposal(_) => {
-                    if !self.epoch_store.protocol_config().deny_rule_governance() {
+                    if !self.epoch_store.protocol_config().enable_pcool_flow() {
                         return Err(IotaError::UnsupportedFeature {
                             error: "TransactionDenyRuleProposal not supported at current protocol version"
                                 .into(),
@@ -268,6 +268,7 @@ mod tests {
     use iota_protocol_config::Chain;
     use iota_sdk_types::{ObjectId, UserSignature};
     use iota_types::{
+        attestation::AttestedTransaction,
         error::IotaError,
         messages_consensus::{
             ConsensusTransaction, ConsensusTransactionKind, MisbehaviorObservationsV1,
@@ -283,6 +284,7 @@ mod tests {
         checkpoints::CheckpointServiceNoop,
         consensus_adapter::consensus_tests::{test_certificates, test_gas_objects},
         consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
+        test_utils::consensus_transaction_feature_gate,
     };
 
     #[sim_test]
@@ -364,7 +366,6 @@ mod tests {
     /// window between code deployment and protocol activation.
     #[sim_test]
     async fn validate_transactions_feature_gating() {
-        use iota_protocol_config::ProtocolConfig;
         use iota_types::crypto::{
             AccountPrivateKey, AuthorityPublicKeyBytes, deterministic_random_account_private_key,
         };
@@ -403,55 +404,13 @@ mod tests {
         let protocol_config = validator.epoch_store.protocol_config();
         let authority = AuthorityPublicKeyBytes::default();
 
-        // Returns the feature flag value that gates a variant, or `None` if the
-        // variant is always allowed. The exhaustive match ensures this function
-        // must be updated when new variants are added to ConsensusTransactionKind.
-        #[allow(deprecated)]
-        fn is_feature_gated(
-            kind: &ConsensusTransactionKind,
-            config: &ProtocolConfig,
-        ) -> Option<bool> {
-            match kind {
-                // Always allowed (no feature flag gating).
-                ConsensusTransactionKind::CertifiedTransaction(_)
-                | ConsensusTransactionKind::CheckpointSignature(_)
-                | ConsensusTransactionKind::EndOfPublish(_)
-                | ConsensusTransactionKind::CapabilityNotificationV1(_)
-                | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
-                | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
-                | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => None,
-
-                // Gated behind `enable_pcool_flow`.
-                ConsensusTransactionKind::UserTransactionV1(_) => Some(config.enable_pcool_flow()),
-
-                // Gated behind `calculate_validator_scores`.
-                ConsensusTransactionKind::MisbehaviorReport(_) => {
-                    Some(config.calculate_validator_scores())
-                }
-
-                // Always rejected: zkLogin JWK support was never enabled on
-                // IOTA and the variant is retained only for serialization
-                // compatibility.
-                ConsensusTransactionKind::NewJWKFetchedDeprecated => Some(false),
-
-                // Gated behind `enable_pcool_flow`.
-                ConsensusTransactionKind::OverloadNotificationV1(_, _, _) => {
-                    Some(config.enable_pcool_flow())
-                }
-
-                // Gated behind `deny_rule_governance`.
-                ConsensusTransactionKind::TransactionDenyRuleProposal(_) => {
-                    Some(config.deny_rule_governance())
-                }
-            }
-        }
-
         // Variants that can be validated without signature verification setup
         // (or that carry a valid signature, like UserTransactionV1).
         // CertifiedTransaction, CheckpointSignature, and
         // SignedCapabilityNotificationV1 are excluded because they require valid
         // cryptographic signatures and would fail before reaching the feature
-        // gate check; their gating is verified by the exhaustive match above.
+        // gate check; their gating is recorded in
+        // `consensus_transaction_feature_gate`.
         #[allow(deprecated)]
         let testable_variants: Vec<(&str, ConsensusTransactionKind)> = vec![
             (
@@ -496,7 +455,9 @@ mod tests {
             ),
             (
                 "UserTransactionV1",
-                ConsensusTransactionKind::UserTransactionV1(Box::new(signed_tx)),
+                ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                    signed_tx, None,
+                ))),
             ),
             (
                 "OverloadNotificationV1",
@@ -515,7 +476,7 @@ mod tests {
         ];
 
         for (name, kind) in testable_variants {
-            let gated = is_feature_gated(&kind, protocol_config);
+            let gated = consensus_transaction_feature_gate(&kind, protocol_config);
             let result = validator.validate_transactions(vec![kind]);
 
             match gated {

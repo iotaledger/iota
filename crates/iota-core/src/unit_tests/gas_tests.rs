@@ -82,9 +82,8 @@ async fn test_tx_more_than_maximum_gas_budget() {
 // - OOG - Out Of Gas.
 // - Computation - is a price for computation.
 // - Storage - is a storage price.
-// - Minimal storage - is a storage price charged for updating input objects,
-//   which occurs if a storage charge fails and the rebate rate is less then
-//   100%.
+// - Minimal storage - is a storage price charged for updating input objects, which occurs if a
+//   storage charge fails and the rebate rate is less then 100%.
 //
 // Single gas coin:
 // - Computation OOG, storage OK, minimal storage OK.
@@ -97,10 +96,8 @@ async fn test_tx_more_than_maximum_gas_budget() {
 // - Computation OK, storage OOG, minimal storage OK.
 //
 // Impossible scenarios:
-// - Computation OOG, storage OOG, minimal storage OK - OOG for computation
-//   implies.
-// - Minimal storage OOG - since the rebate rate is set to 100%, minimal storage
-//   is always valid.
+// - Computation OOG, storage OOG, minimal storage OK - OOG for computation implies.
+// - Minimal storage OOG - since the rebate rate is set to 100%, minimal storage is always valid.
 //
 
 // Helpers for OOG scenarios

@@ -146,8 +146,7 @@ impl EpochBoundaryVerifier {
     ///
     /// The stream returns an error in the following occasions:
     ///
-    /// * If the last checkpoint of the next epoch is not recorded in the epoch
-    ///   boundaries.
+    /// * If the last checkpoint of the next epoch is not recorded in the epoch boundaries.
     /// * If the summary cannot be fetched from the remote store
     /// * If signature verification fails
     /// * If the checkpoint is not the last checkpoint of the epoch
@@ -185,8 +184,7 @@ impl EpochBoundaryVerifier {
     ///
     /// Fails in the following occasions:
     ///
-    /// * If the last checkpoint of the next epoch is not recorded in the epoch
-    ///   boundaries.
+    /// * If the last checkpoint of the next epoch is not recorded in the epoch boundaries.
     /// * If the summary cannot be fetched from the remote store
     /// * If signature verification fails
     /// * If the checkpoint is not the last checkpoint of the epoch

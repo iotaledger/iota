@@ -34,6 +34,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -79,6 +80,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -133,6 +135,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -206,6 +209,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -270,6 +274,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -349,6 +354,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -422,6 +428,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -486,6 +493,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -559,6 +567,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -623,6 +632,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -675,6 +685,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -746,6 +757,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -864,6 +876,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -959,6 +972,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1054,6 +1068,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1100,6 +1115,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1171,6 +1187,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1227,6 +1244,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1283,6 +1301,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1373,6 +1392,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1435,6 +1455,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1503,6 +1524,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1542,6 +1564,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1588,6 +1611,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1617,6 +1641,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1654,6 +1679,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1691,6 +1717,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1720,6 +1747,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1749,6 +1777,7 @@ expression: parsed
             tx_digest_set: true,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1778,6 +1807,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1807,6 +1837,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {
@@ -1836,6 +1867,7 @@ expression: parsed
             tx_digest_set: false,
             dry_run_set: false,
             dev_inspect_set: false,
+            local_set: false,
             gas_budget: Some(
                 Spanned {
                     span: Span {

@@ -102,8 +102,11 @@ pub(crate) struct ChangeEpochTransactionV2 {
     /// Vector of active validator indices eligible to take part in committee
     /// selection because they support the new, target protocol version.
     pub eligible_active_validators: Option<Vec<u64>>,
-    /// Scores for the epoch being finalized. Each value corresponds to
-    /// an authority, ordered by the ending epoch's AuthorityIndex.
+    /// Scores for the epoch being finalized, one per committee member, in
+    /// the order of the ending epoch's committee in the Move validator set,
+    /// [`ValidatorSetV2::committee_members`].
+    ///
+    /// [`ValidatorSetV2::committee_members`]: iota_types::iota_system_state::iota_system_state_inner_v2::ValidatorSetV2::committee_members
     pub scores: Option<Vec<u64>>,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
@@ -203,7 +206,8 @@ impl EndOfEpochTransaction {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let tx = EndOfEpochTransactionKind::from(self.native[c.ix].clone(), c.c);
+            let tx = EndOfEpochTransactionKind::try_from(self.native[c.ix].clone(), c.c.into())
+                .extend()?;
             connection.edges.push(Edge::new(c.encode_cursor(), tx));
         }
 
@@ -301,7 +305,8 @@ impl ChangeEpochTransaction {
             );
 
             let runtime_id = native.id();
-            let object = Object::from_native(IotaAddress::from(runtime_id), native, cursor.c, None);
+            let object =
+                Object::from_native(IotaAddress::from(runtime_id), native, cursor.c.into(), None);
             let package = MovePackage::try_from(&object)
                 .map_err(|_| Error::Internal("Failed to create system package".to_string()))
                 .extend()?;
@@ -409,7 +414,8 @@ impl ChangeEpochTransactionV2 {
             );
 
             let runtime_id = native.id();
-            let object = Object::from_native(IotaAddress::from(runtime_id), native, cursor.c, None);
+            let object =
+                Object::from_native(IotaAddress::from(runtime_id), native, cursor.c.into(), None);
             let package = MovePackage::try_from(&object)
                 .map_err(|_| Error::Internal("Failed to create system package".to_string()))
                 .extend()?;
@@ -439,11 +445,14 @@ impl ChangeEpochTransactionV2 {
 }
 
 impl EndOfEpochTransactionKind {
-    fn from(kind: NativeEndOfEpochTransactionKind, checkpoint_viewed_at: u64) -> Self {
+    fn try_from(
+        kind: NativeEndOfEpochTransactionKind,
+        checkpoint_viewed_at: u64,
+    ) -> Result<Self, Error> {
         use EndOfEpochTransactionKind as K;
         use NativeEndOfEpochTransactionKind as N;
 
-        match kind {
+        Ok(match kind {
             N::ChangeEpoch(ce) => K::ChangeEpoch(ChangeEpochTransaction {
                 native: ce,
                 checkpoint_viewed_at,
@@ -463,9 +472,11 @@ impl EndOfEpochTransactionKind {
             N::TransactionDenyRulesCreate => {
                 K::TransactionDenyRulesCreate(TransactionDenyRulesCreateTransaction)
             }
-            _ => unimplemented!(
-                "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
-            ),
-        }
+            _ => {
+                return Err(Error::Internal(
+                    "unknown EndOfEpochTransactionKind variant".to_string(),
+                ));
+            }
+        })
     }
 }

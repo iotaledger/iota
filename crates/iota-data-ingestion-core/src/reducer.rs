@@ -59,21 +59,17 @@ pub trait Reducer<Mapper: Worker>: Send + Sync {
     /// This function repeatedly calls the [`commit`](Reducer::commit) method of
     /// the provided [`Reducer`] until either:
     /// - The commit succeeds, returning `CommitStatus::Success`.
-    /// - A cancellation signal is received via the [`CancellationToken`],
-    ///   returning `CommitStatus::Shutdown`.
-    /// - All retry attempts are exhausted within backoff's maximum elapsed
-    ///   time, causing a panic.
+    /// - A cancellation signal is received via the [`CancellationToken`], returning
+    ///   `CommitStatus::Shutdown`.
+    /// - All retry attempts are exhausted within backoff's maximum elapsed time: the pool is
+    ///   cancelled and `CommitStatus::Shutdown` is returned.
     ///
     /// # Retry Mechanism:
-    /// - Uses [`ExponentialBackoff`](backoff::ExponentialBackoff) to introduce
-    ///   increasing delays between retry attempts.
+    /// - Uses [`ExponentialBackoff`](backoff::ExponentialBackoff) to introduce increasing delays
+    ///   between retry attempts.
     /// - Checks for cancellation both before and after each commit attempt.
-    /// - If a cancellation signal is received during a backoff delay, the
-    ///   function exits immediately with `CommitStatus::Shutdown`.
-    ///
-    /// # Panics:
-    /// - If all retry attempts are exhausted within backoff's the maximum
-    ///   elapsed time, indicating a persistent failure.
+    /// - If a cancellation signal is received during a backoff delay, the function exits
+    ///   immediately with `CommitStatus::Shutdown`.
     async fn commit_with_retry(
         &self,
         batch: &[Mapper::Message],
@@ -97,10 +93,15 @@ pub trait Reducer<Mapper: Worker>: Send + Sync {
                     }
                 }
             }
-            // get next backoff duration or panic if max retries exceeded
-            let duration = backoff
-                .next_backoff()
-                .expect("max retry attempts exceeded: commit operation failed");
+            // Retrying the same batch any further cannot help, and a panic
+            // would abort the whole process in release builds, so stop the pool.
+            let Some(duration) = backoff.next_backoff() else {
+                tracing::error!(
+                    "reducer commit failed and the retries are exhausted, shutting down"
+                );
+                token.cancel();
+                return CommitStatus::Shutdown;
+            };
             // if cancellation occurs during backoff wait, exit early with Shutdown.
             // Otherwise (if timeout expires), continue with the next retry attempt
             if tokio::time::timeout(duration, token.cancelled())
@@ -116,16 +117,14 @@ pub trait Reducer<Mapper: Worker>: Send + Sync {
     ///
     /// This method is called by the framework in two situations:
     ///
-    /// - **`next_item = Some(msg)`**: a new message is about to be added to the
-    ///   batch. Returning `true` triggers a commit of the existing batch first.
-    ///   The `msg` is added to a new batch. Returning `false` appends `msg` to
-    ///   the current batch without committing.
+    /// - **`next_item = Some(msg)`**: a new message is about to be added to the batch. Returning
+    ///   `true` triggers a commit of the existing batch first. The `msg` is added to a new batch.
+    ///   Returning `false` appends `msg` to the current batch without committing.
     ///
-    /// - **`next_item = None`**: the current chunk from the upstream stream has
-    ///   been fully consumed and there are no more messages to add in this
-    ///   iteration (the stream itself may still produce more chunks later).
-    ///   Returning `true` flushes the partial batch. Returning `false` leaves
-    ///   the batch in memory until the next chunk arrives.
+    /// - **`next_item = None`**: the current chunk from the upstream stream has been fully consumed
+    ///   and there are no more messages to add in this iteration (the stream itself may still
+    ///   produce more chunks later). Returning `true` flushes the partial batch. Returning `false`
+    ///   leaves the batch in memory until the next chunk arrives.
     ///
     /// # Default Implementation
     ///
@@ -151,8 +150,8 @@ pub trait Reducer<Mapper: Worker>: Send + Sync {
 ///
 /// 1. Receives messages in chunks up to [`MAX_CHECKPOINTS_IN_PROGRESS`].
 /// 2. Maintains message order using checkpoint sequence numbers.
-/// 3. Batches messages according to reducer's [`Reducer::should_close_batch`]
-///    policy and after that its committed.
+/// 3. Batches messages according to reducer's [`Reducer::should_close_batch`] policy and after that
+///    its committed.
 /// 4. Progress is updated after each commit.
 /// 5. Reports progress back to the executor.
 ///

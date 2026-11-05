@@ -492,6 +492,16 @@ ExecutionError:
         STRUCT:
           - value_size: U64
           - max_scaled_size: U64
+    43:
+      AuthenticatorFunctionNotFound:
+        STRUCT:
+          - object_id:
+              TYPENAME: ObjectId
+    44:
+      AccountNotSharedObject:
+        STRUCT:
+          - object_id:
+              TYPENAME: ObjectId
 ExecutionStatus:
   ENUM:
     0:
@@ -1014,6 +1024,9 @@ TypedStoreError:
       MetricsReporting: UNIT
     5:
       RetryableTransaction: UNIT
+    6:
+      Pruned:
+        NEWTYPE: STR
 UnchangedSharedKind:
   ENUM:
     0:

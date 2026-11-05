@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeMap, HashSet},
     sync::Arc,
     time::Duration,
 };
@@ -14,6 +14,7 @@ use iota_core::{
     authority_aggregator::AggregatorSendCapabilityNotificationError,
     consensus_adapter::position_submit_certificate,
 };
+use iota_json_rpc_types::EventFilter;
 use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::{Chain, ProtocolConfig};
@@ -24,24 +25,29 @@ use iota_sdk_types::{
 use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::{
-    base_types::{AuthorityName, EpochId},
-    crypto::{AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature},
+    base_types::{AuthorityName, ConciseableName, EpochId},
+    crypto::{
+        AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignature, IotaAuthoritySignature,
+        get_key_pair_from_rng,
+    },
     effects::TransactionEffectsAPI,
     error::IotaError,
-    execution_config_utils::to_binary_config,
     iota_system_state::{
-        IotaSystemStateTrait, get_validator_from_table,
+        IotaSystemStateTrait,
+        epoch_start_iota_system_state::EpochStartSystemStateTrait,
+        get_validator_from_table,
         iota_system_state_summary::{IotaSystemStateSummary, get_validator_by_pool_id},
     },
-    messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
+    messages_consensus::{
+        AuthorityCapabilitiesV1, MisbehaviorObservationsV1, MisbehaviorObservationsV2,
+        SignedAuthorityCapabilitiesV1, VersionedMisbehaviorReport,
+    },
     messages_grpc::{HandleCapabilityNotificationRequestV1, HandleCertificateRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{TransactionAPI, VerifiedTransaction},
 };
-use rand::{
-    SeedableRng,
-    rngs::{OsRng, StdRng},
-};
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
+use rand08::{SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 use tokio::time::sleep;
 
@@ -57,13 +63,18 @@ async fn advance_epoch_tx_test() {
     let tasks: Vec<_> = states
         .iter()
         .map(|state| async {
+            let epoch_store = state.epoch_store_for_testing();
+            // The same full scores on every validator: their scoreboards can
+            // be at different consensus commits here, and the test needs
+            // identical transactions.
+            let scores = vec![u16::MAX as u64 + 1; epoch_store.committee().num_members()];
             let (_system_state, _system_epoch_info_event, effects) = state
                 .create_and_execute_advance_epoch_tx(
-                    &state.epoch_store_for_testing(),
+                    &epoch_store,
                     &GasCostSummary::new(0, 0, 0, 0, 0),
-                    0,      // checkpoint
-                    0,      // epoch_start_timestamp_ms
-                    vec![], // scores
+                    0, // checkpoint
+                    0, // epoch_start_timestamp_ms
+                    scores,
                 )
                 .await
                 .unwrap();
@@ -552,7 +563,7 @@ async fn test_validator_resign_effects() {
 
 #[sim_test]
 async fn test_validator_candidate_pool_read() {
-    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
+    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut UnwrapErr(SysRng));
     let address: Address = new_validator.account_key_pair.public_key().derive_address();
     let test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
@@ -668,12 +679,27 @@ async fn test_inactive_validator_pool_read() {
     })
 }
 
+/// A validator joins the committee, catches up and leaves it, without the
+/// P-COOL flow, as on Mainnet and Testnet.
 #[sim_test]
 async fn test_reconfig_with_committee_change_basic() {
+    let _pcool_guard = override_pcool_flow(false);
+    run_reconfig_with_committee_change_basic().await;
+}
+
+/// The committee change of `test_reconfig_with_committee_change_basic` with
+/// the P-COOL flow: the joining validator waits for its own checkpoints once in
+/// the committee, and executes synced checkpoints again after leaving it.
+#[sim_test]
+async fn test_reconfig_with_committee_change_basic_skipping_synced_checkpoint_execution() {
+    run_reconfig_with_committee_change_basic().await;
+}
+
+async fn run_reconfig_with_committee_change_basic() {
     // This test exercise the full flow of a validator joining the network, catch up
     // and then leave.
 
-    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
+    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut UnwrapErr(SysRng));
     let new_authority_name = new_validator.authority_key_pair.public().into();
     let address = new_validator.account_key_pair.public_key().derive_address();
     let mut test_cluster = TestClusterBuilder::new()
@@ -925,7 +951,7 @@ async fn test_reconfig_with_committee_change_stress_determinism() {
 
 async fn do_test_reconfig_with_committee_change_stress() {
     let mut candidates = (0..6)
-        .map(|_| ValidatorGenesisConfigBuilder::new().build(&mut OsRng))
+        .map(|_| ValidatorGenesisConfigBuilder::new().build(&mut UnwrapErr(SysRng)))
         .collect::<Vec<_>>();
     let addresses = candidates
         .iter()
@@ -1118,7 +1144,8 @@ async fn safe_mode_reconfig_test() {
 
     let system_state = test_cluster
         .grpc_client()
-        .epoch(None, EpochField::BCS_SYSTEM_STATE)
+        .epoch()
+        .read_mask(EpochField::BCS_SYSTEM_STATE)
         .await
         .unwrap()
         .into_inner()
@@ -1188,7 +1215,6 @@ async fn test_authority_capabilities_invalid_signature_rejection() {
         .with(|node| node.state().epoch_store_for_testing());
 
     let config = epoch_store.protocol_config();
-    let binary_config = to_binary_config(config);
 
     // Create the capability notification
     let available_system_packages = test_cluster
@@ -1196,7 +1222,7 @@ async fn test_authority_capabilities_invalid_signature_rejection() {
         .iota_node
         .with(|node| {
             let state = node.state();
-            async move { state.get_available_system_packages(&binary_config).await }
+            async move { state.get_available_system_packages(config).await }
         })
         .await;
     let capabilities = AuthorityCapabilitiesV1::new(
@@ -1244,7 +1270,7 @@ async fn test_authority_capabilities_invalid_signature_rejection() {
 async fn test_authority_capabilities_incorrect_epoch_rejection() {
     // Test that SignedAuthorityCapabilities signed with an incorrect epoch
     // is rejected by the committee
-    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
+    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut UnwrapErr(SysRng));
     let new_authority_name = new_validator.authority_key_pair.public().into();
     let address = new_validator.account_key_pair.public_key().derive_address();
     let test_cluster = TestClusterBuilder::new()
@@ -1262,13 +1288,12 @@ async fn test_authority_capabilities_incorrect_epoch_rejection() {
         .with(|node| node.state().epoch_store_for_testing());
 
     let config = epoch_store.protocol_config();
-    let binary_config = to_binary_config(config);
     let available_system_packages = test_cluster
         .fullnode_handle
         .iota_node
         .with(|node| {
             let state = node.state();
-            async move { state.get_available_system_packages(&binary_config).await }
+            async move { state.get_available_system_packages(config).await }
         })
         .await;
     // Create the capability notification
@@ -1438,18 +1463,21 @@ async fn execute_add_validator_transactions(
 
     let address = new_validator.account_key_pair.public_key().derive_address();
     let min_validator_joining_stake = test_cluster.protocol_config().min_validator_joining_stake();
-    let stake_coin = test_cluster
-        .wallet
-        .gas_for_owner_budget(address, min_validator_joining_stake, Default::default())
-        .await
-        .unwrap()
+    // Pick coins by balance, not page order, so the coins a later join needs
+    // to stake are neither staked early nor spent on gas.
+    let coins = test_cluster.wallet.gas_objects(address).await.unwrap();
+    let stake_coin = coins
+        .iter()
+        .filter(|(balance, _)| *balance >= min_validator_joining_stake)
+        .min_by_key(|(balance, _)| *balance)
+        .expect("the validator address must own a coin covering the joining stake")
         .1
         .object_ref();
-    let gas = test_cluster
-        .wallet
-        .gas_for_owner_budget(address, 0, BTreeSet::from([stake_coin.object_id]))
-        .await
-        .unwrap()
+    let gas = coins
+        .iter()
+        .filter(|(_, coin)| coin.object_id != stake_coin.object_id)
+        .max_by_key(|(balance, _)| *balance)
+        .expect("the validator address must own a coin to pay for gas")
         .1
         .object_ref();
 
@@ -1484,4 +1512,392 @@ async fn execute_add_validator_transactions(
             address
         );
     });
+}
+
+/// With `enable_pcool_flow`, a validator that is down while its
+/// epoch ends, and restarts with the end of
+/// that epoch more than `max_checkpoints_ahead_of_execution` checkpoints
+/// ahead, still reaches the network's epoch. Its own consensus can no longer
+/// build the rest of the epoch, so it needs the summary that ends the epoch
+/// to fall back to executing synced checkpoints.
+#[sim_test]
+async fn validator_far_behind_catches_up_across_epoch_end() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_num_validators(4)
+        .with_epoch_duration_ms(15_000)
+        .build()
+        .await;
+    let lagging = test_cluster.get_validator_pubkeys()[0];
+
+    test_cluster.stop_node(&lagging);
+    let target_epoch = test_cluster.wait_for_epoch(Some(2)).await.epoch();
+
+    test_cluster
+        .swarm
+        .node(&lagging)
+        .unwrap()
+        .config()
+        .p2p_config
+        .state_sync
+        .get_or_insert_with(Default::default)
+        .max_checkpoints_ahead_of_execution = std::num::NonZeroU64::new(2);
+    test_cluster.start_node(&lagging).await;
+
+    let handle = test_cluster
+        .swarm
+        .node(&lagging)
+        .unwrap()
+        .get_node_handle()
+        .unwrap();
+    test_cluster
+        .wait_for_epoch_on_node(&handle, Some(target_epoch), Duration::from_secs(120))
+        .await;
+}
+
+/// With `enable_pcool_flow`, a validator killed after it certified its epoch's
+/// last checkpoint and marked it synced, but before it executed it, recovers
+/// on restart and reaches the next epochs. The transactions of its unexecuted
+/// checkpoints exist only in memory, so it has to replay its consensus commits
+/// and rebuild those checkpoints.
+///
+/// The test kills whichever validator marks the first epoch's last checkpoint
+/// synced before any other. Peers report only checkpoints they have marked
+/// synced, so that validator must have built and certified it itself.
+#[cfg(msim)]
+#[sim_test]
+async fn validator_restarted_after_certifying_epoch_end_reaches_next_epoch() {
+    use std::sync::OnceLock;
+
+    use iota_macros::register_fail_point;
+
+    let test_cluster = TestClusterBuilder::new()
+        .with_num_validators(4)
+        .with_epoch_duration_ms(10_000)
+        .build()
+        .await;
+    // Each validator as its simulator node id, its name, and a weak reference
+    // to its state that does not keep its store alive.
+    let validators: Vec<_> = test_cluster
+        .get_validator_pubkeys()
+        .into_iter()
+        .map(|name| {
+            test_cluster
+                .swarm
+                .node(&name)
+                .unwrap()
+                .get_node_handle()
+                .unwrap()
+                .with(|node| {
+                    (
+                        iota_simulator::current_simnode_id(),
+                        name,
+                        Arc::downgrade(&node.state()),
+                    )
+                })
+        })
+        .collect();
+    // The validator killed, and whether it had built the checkpoint.
+    let killed: Arc<OnceLock<(AuthorityName, bool)>> = Default::default();
+    {
+        let killed = killed.clone();
+        register_fail_point("synced-end-of-epoch-checkpoint", move || {
+            if killed.get().is_some() {
+                return;
+            }
+            let sim_id = iota_simulator::current_simnode_id();
+            let Some((_, name, state)) = validators.iter().find(|(id, ..)| *id == sim_id) else {
+                return;
+            };
+            let built = state.upgrade().is_some_and(|state| {
+                let store = state.get_checkpoint_store();
+                store
+                    .get_epoch_last_checkpoint_seq_number(0)
+                    .unwrap()
+                    .is_some_and(|last| {
+                        store
+                            .get_locally_computed_checkpoint(last)
+                            .unwrap()
+                            .is_some()
+                    })
+            });
+            if killed.set((*name, built)).is_ok() {
+                iota_simulator::task::kill_current_node(None);
+            }
+        });
+    }
+    let (crashed, built) = tokio::time::timeout(Duration::from_secs(60), async {
+        loop {
+            if let Some(&killed) = killed.get() {
+                return killed;
+            }
+            sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("a validator should mark the first epoch's last checkpoint synced");
+    assert!(
+        built,
+        "the validator killed should have built the checkpoint"
+    );
+
+    // The simulator restarts a killed node on its own; stop and start it
+    // explicitly to get a handle to the new instance.
+    test_cluster.stop_node(&crashed);
+    test_cluster.start_node(&crashed).await;
+    let handle = test_cluster
+        .swarm
+        .node(&crashed)
+        .unwrap()
+        .get_node_handle()
+        .unwrap();
+    test_cluster
+        .wait_for_epoch_on_node(&handle, Some(2), Duration::from_secs(120))
+        .await;
+}
+
+/// Every validator's `tallying_rule_global_score` in the epoch-end
+/// `ValidatorEpochInfoEventV1` must be the score the scoreboard holds for that
+/// validator. The scoreboard is indexed by consensus authority index
+/// (authority-name order) while Move reads the change-epoch `scores` vector by
+/// `committee_members` position. The two orders agree for a genesis committee
+/// but not after a join, unless the new key sorts last: Move appends the new
+/// validator last, while its consensus index follows its authority key. The
+/// test gives the new validator a key that sorts first, so its consensus index
+/// and its `committee_members` position differ, and asserts that before it
+/// injects the misbehavior reports. After the next epoch change, the published
+/// scores must match the scoreboard validator by validator. If the node builds
+/// the vector in consensus order instead, the new validator's zero score is
+/// published for the genesis validator at `committee_members` position 0.
+#[sim_test]
+async fn test_validator_scores_reach_their_validator_after_join() {
+    let mut rng = UnwrapErr(SysRng);
+    let new_validator = ValidatorGenesisConfigBuilder::new()
+        .with_authority_key_pair(authority_key_pair_sorting_first(&mut rng))
+        .build(&mut rng);
+    let new_authority_name: AuthorityName = new_validator.authority_key_pair.public().into();
+    let new_validator_address = new_validator.account_key_pair.public_key().derive_address();
+
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_validator_candidates([new_validator_address])
+        .enable_fullnode_events()
+        .build()
+        .await;
+    assert!(
+        test_cluster
+            .protocol_config()
+            .pass_calculated_validator_scores_to_advance_epoch(),
+        "the change-epoch transaction must carry the scoreboard's scores"
+    );
+
+    execute_add_validator_transactions(&test_cluster, &new_validator).await;
+    let new_validator_handle = test_cluster.spawn_new_validator(new_validator).await;
+
+    // Joining takes two epochs: activation first, committee membership once
+    // the new validator has announced its capabilities.
+    test_cluster.force_new_epoch().await;
+    test_cluster.wait_for_epoch_all_nodes(1).await;
+    test_cluster.force_new_epoch().await;
+    test_cluster.wait_for_epoch_all_nodes(2).await;
+
+    let (consensus_order, move_order) = new_validator_handle.with(|node| {
+        let epoch_store = node.state().epoch_store_for_testing();
+        assert!(node.state().is_committee_validator(&epoch_store));
+        let consensus_order: Vec<AuthorityName> =
+            epoch_store.committee().names().copied().collect();
+        let move_order: Vec<(AuthorityName, Address)> = epoch_store
+            .epoch_start_state()
+            .committee_validators()
+            .iter()
+            .map(|validator| (validator.authority_name(), validator.iota_address))
+            .collect();
+        (consensus_order, move_order)
+    });
+    let committee_size = consensus_order.len();
+    let newcomer_index = consensus_order
+        .iter()
+        .position(|name| *name == new_authority_name)
+        .unwrap();
+    let newcomer_position = move_order
+        .iter()
+        .position(|(name, _)| *name == new_authority_name)
+        .unwrap();
+    assert_eq!(
+        newcomer_position,
+        committee_size - 1,
+        "a validator that joins after genesis is appended to active_validators"
+    );
+    assert_ne!(
+        newcomer_index, newcomer_position,
+        "the newcomer's key must not sort last, or both orders coincide"
+    );
+
+    // Give the newcomer a zero score on every validator the way real reports
+    // would: each committee member reports one equivocation at the newcomer's
+    // consensus index. Equivocation is the major metric, so the score is 0.
+    let handles = test_cluster.swarm.validator_node_handles();
+    let mut scoreboard: Option<Vec<u64>> = None;
+    for handle in &handles {
+        let scores = handle.with(|node| {
+            let epoch_store = node.state().epoch_store_for_testing();
+            assert_eq!(epoch_store.epoch(), 2);
+            let committee = epoch_store.committee().clone();
+            let scorer_version = epoch_store.protocol_config().scorer_version_as_option();
+            for reporter in committee.names() {
+                let report =
+                    equivocation_report(*reporter, committee_size, newcomer_index, scorer_version);
+                epoch_store.process_misbehavior_report_for_testing(
+                    committee.authority_index(reporter).unwrap(),
+                    &report,
+                );
+            }
+            epoch_store.current_scores_for_testing()
+        });
+        match &scoreboard {
+            None => scoreboard = Some(scores),
+            Some(previous) => assert_eq!(previous, &scores, "validators disagree on scores"),
+        }
+    }
+    assert_eq!(handles.len(), committee_size);
+    let scoreboard = scoreboard.unwrap();
+    for (index, score) in scoreboard.iter().enumerate() {
+        assert_eq!(
+            *score == 0,
+            index == newcomer_index,
+            "scoreboard {scoreboard:?} must be zero only at the newcomer's index {newcomer_index}"
+        );
+    }
+
+    test_cluster.force_new_epoch().await;
+    test_cluster.wait_for_epoch_all_nodes(3).await;
+
+    let published = validator_epoch_scores(&test_cluster, 3).await;
+    assert_eq!(
+        published.len(),
+        committee_size,
+        "one event per committee member"
+    );
+    let mut rows = vec![format!(
+        "{:<13}  {:<15}  {:<13}  {:>10}  {:>9}",
+        "Move position", "consensus index", "validator", "scoreboard", "published"
+    )];
+    let mut wrong = 0;
+    for (position, (name, address)) in move_order.iter().enumerate() {
+        let index = consensus_order.iter().position(|n| n == name).unwrap();
+        let expected = scoreboard[index];
+        let score = published.get(address).copied();
+        if score != Some(expected) {
+            wrong += 1;
+        }
+        rows.push(format!(
+            "{position:<13}  {index:<15}  {:<13}  {expected:>10}  {:>9}",
+            name.concise().to_string(),
+            score.map_or("missing".to_string(), |score| score.to_string()),
+        ));
+    }
+    assert!(
+        wrong == 0,
+        "{wrong} of {committee_size} published scores differ from the scoreboard; \
+         the newcomer {} has consensus index {newcomer_index} and Move position \
+         {newcomer_position}\n{}",
+        new_authority_name.concise(),
+        rows.join("\n"),
+    );
+}
+
+/// Generates an authority key pair whose public key sorts below almost every
+/// other one: the first byte of a compressed BLS12-381 public key is `0x80`
+/// only for about the lowest two percent of the key space.
+fn authority_key_pair_sorting_first<R: rand::CryptoRng>(rng: &mut R) -> AuthorityKeyPair {
+    loop {
+        let (_, key_pair): (_, AuthorityKeyPair) = get_key_pair_from_rng(rng);
+        let name = AuthorityPublicKeyBytes::from(key_pair.public());
+        let bytes: &[u8] = name.as_ref();
+        if bytes[0] == 0x80 && bytes[1] < 0x40 {
+            return key_pair;
+        }
+    }
+}
+
+/// A report from `reporter` that observes one equivocation by the authority at
+/// consensus index `offender` and nothing else, in the wire format of
+/// `scorer_version`.
+fn equivocation_report(
+    reporter: AuthorityName,
+    committee_size: usize,
+    offender: usize,
+    scorer_version: Option<u16>,
+) -> VersionedMisbehaviorReport {
+    let zeros = || vec![0; committee_size];
+    let mut equivocations = zeros();
+    equivocations[offender] = 1;
+    match scorer_version {
+        Some(2) => VersionedMisbehaviorReport::new_v2(
+            reporter,
+            0,
+            MisbehaviorObservationsV2 {
+                faulty_blocks_provable: zeros(),
+                faulty_blocks_unprovable: zeros(),
+                missing_proposals: zeros(),
+                equivocations,
+                invalid_bundle_parts: zeros(),
+            },
+        ),
+        _ => VersionedMisbehaviorReport::new_v1(
+            reporter,
+            0,
+            MisbehaviorObservationsV1 {
+                faulty_blocks_provable: zeros(),
+                faulty_blocks_unprovable: zeros(),
+                missing_proposals: zeros(),
+                equivocations,
+            },
+        ),
+    }
+}
+
+/// The `tallying_rule_global_score` of every `ValidatorEpochInfoEventV1`
+/// emitted for `epoch`, by validator address, as the fullnode serves them.
+async fn validator_epoch_scores(
+    test_cluster: &TestCluster,
+    epoch: EpochId,
+) -> BTreeMap<Address, u64> {
+    let events = test_cluster
+        .iota_client()
+        .event_api()
+        .query_events(
+            EventFilter::MoveEventType(
+                "0x3::validator_set::ValidatorEpochInfoEventV1"
+                    .parse()
+                    .unwrap(),
+            ),
+            None,
+            Some(50),
+            true,
+        )
+        .await
+        .unwrap();
+    events
+        .data
+        .iter()
+        .filter(|event| json_u64(&event.parsed_json["epoch"]) == epoch)
+        .map(|event| {
+            let address = event.parsed_json["validator_address"]
+                .as_str()
+                .unwrap()
+                .parse()
+                .unwrap();
+            (
+                address,
+                json_u64(&event.parsed_json["tallying_rule_global_score"]),
+            )
+        })
+        .collect()
+}
+
+/// A Move `u64` in event JSON, which the RPC renders as a string.
+fn json_u64(value: &serde_json::Value) -> u64 {
+    match value {
+        serde_json::Value::String(number) => number.parse().unwrap(),
+        other => other.as_u64().unwrap(),
+    }
 }

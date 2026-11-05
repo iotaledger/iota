@@ -22,6 +22,7 @@ use move_bytecode_verifier_meter::dummy::DummyMeter;
 use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, vm_status::StatusCode,
 };
+use move_vm_config::verifier::VerifierConfig;
 use proptest::{collection::vec, prelude::*, sample::Index as PropIndex};
 
 proptest! {
@@ -51,7 +52,7 @@ proptest! {
             oob_context.apply()
         };
 
-        let actual_violations = BoundsChecker::verify_module(&module);
+        let actual_violations = BoundsChecker::verify_module(&module, true);
         prop_assert_eq!(expected_violations.is_empty(), actual_violations.is_ok());
     }
 
@@ -65,7 +66,7 @@ proptest! {
             context.apply()
         };
 
-        let actual_violations = BoundsChecker::verify_module(&module);
+        let actual_violations = BoundsChecker::verify_module(&module, true);
         prop_assert_eq!(expected_violations.is_empty(), actual_violations.is_ok());
     }
 
@@ -83,7 +84,7 @@ proptest! {
         };
 
         prop_assert_eq!(
-            BoundsChecker::verify_module(&module).map_err(|e| e.major_status()),
+            BoundsChecker::verify_module(&module, true).map_err(|e| e.major_status()),
             Err(StatusCode::NO_MODULE_HANDLES)
         );
     }
@@ -100,15 +101,16 @@ proptest! {
 
     #[test]
     fn check_verifier_passes(module in CompiledModule::valid_strategy(20)) {
+        let config = &VerifierConfig::default();
         let module = &module;
         let ability_cache = &mut AbilityCache::new(module);
         DuplicationChecker::verify_module(module).expect("DuplicationChecker failure");
         SignatureChecker::verify_module(module, ability_cache, &mut DummyMeter).expect("SignatureChecker failure");
-        InstructionConsistency::verify_module(module).expect("InstructionConsistency failure");
+        InstructionConsistency::verify_module(config, module).expect("InstructionConsistency failure");
         constants::verify_module(module).expect("constants failure");
         ability_field_requirements::verify_module(module, ability_cache, &mut DummyMeter).expect("ability_field_requirements failure");
         RecursiveDataDefChecker::verify_module(module).expect("RecursiveDataDefChecker failure");
-        InstantiationLoopChecker::verify_module(module).expect("InstantiationLoopChecker failure");
+        InstantiationLoopChecker::verify_module(&VerifierConfig::default(), module, &mut DummyMeter).expect("InstantiationLoopChecker failure");
     }
 
     #[test]
@@ -166,7 +168,7 @@ fn garbage_inputs() {
         .stack_size(STACK_SIZE)
         .spawn(|| {
             proptest!(ProptestConfig::with_cases(16), |(module in any_with::<CompiledModule>(16))| {
-                let _ = BoundsChecker::verify_module(&module);
+                let _ = BoundsChecker::verify_module(&module, true);
             });
         })
         .expect("failed to spawn thread");

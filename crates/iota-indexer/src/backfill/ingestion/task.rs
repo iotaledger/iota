@@ -7,14 +7,13 @@ use std::{ops::RangeInclusive, sync::Arc};
 use dashmap::DashMap;
 use iota_data_ingestion_core::{
     DataIngestionMetrics, IndexerExecutor, ReaderOptions, ShimProgressStore, WorkerPool,
-    reader::v2::{CheckpointReaderConfig, RemoteUrl},
+    reader::v2::CheckpointReaderConfig,
 };
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus_filtered::Registry;
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
-use url::Url;
 
 use crate::{
     backfill::{
@@ -24,6 +23,7 @@ use crate::{
     config::IngestionConfig,
     db::ConnectionPool,
     errors::IndexerError,
+    ingestion::common::connection::{MAX_URL_RESOLUTION_TIMEOUT, resolve_remote_url},
 };
 
 // The amount of rows to update in one DB transaction
@@ -78,11 +78,12 @@ impl<T: IngestionBackfill + 'static> IngestionBackfillTask<T> {
         );
         executor.register(worker_pool).await?;
 
-        let remote_store_url = config.sources.remote_store_url.as_ref().map(Url::to_string);
+        let remote_store_url =
+            resolve_remote_url(&config.sources, MAX_URL_RESOLUTION_TIMEOUT).await?;
 
         let executor = executor.run_with_config(CheckpointReaderConfig {
             ingestion_path: config.sources.data_ingestion_path.clone(),
-            remote_store_url: remote_store_url.map(RemoteUrl::Fullnode),
+            remote_store_url,
             reader_options,
         });
 

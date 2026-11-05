@@ -34,7 +34,7 @@ pub struct CodeUnitVerifier<'env, 'a> {
 }
 
 pub fn verify_module<'env>(
-    verifier_config: &VerifierConfig,
+    verifier_config: &'env VerifierConfig,
     module: &'env CompiledModule,
     ability_cache: &mut AbilityCache<'env>,
     meter: &mut (impl Meter + ?Sized),
@@ -68,7 +68,7 @@ pub fn verify_module<'env>(
 }
 
 fn verify_module_impl<'env>(
-    verifier_config: &VerifierConfig,
+    verifier_config: &'env VerifierConfig,
     module: &'env CompiledModule,
     ability_cache: &mut AbilityCache<'env>,
     meter: &mut (impl Meter + ?Sized),
@@ -104,7 +104,7 @@ fn verify_module_impl<'env>(
 }
 
 pub fn verify_function<'env>(
-    verifier_config: &VerifierConfig,
+    verifier_config: &'env VerifierConfig,
     index: FunctionDefinitionIndex,
     function_definition: &'env FunctionDefinition,
     module: &'env CompiledModule,
@@ -163,7 +163,7 @@ pub fn verify_function<'env>(
         meter,
         regex_reference_safety_meter,
     )?;
-    AcquiresVerifier::verify(module, index, function_definition, meter)?;
+    AcquiresVerifier::verify(verifier_config, module, index, function_definition, meter)?;
 
     meter.transfer(Scope::Function, Scope::Module, 1.0)?;
 
@@ -173,13 +173,19 @@ pub fn verify_function<'env>(
 impl<'env> CodeUnitVerifier<'env, '_> {
     fn verify_common(
         &self,
-        verifier_config: &VerifierConfig,
+        verifier_config: &'env VerifierConfig,
         ability_cache: &mut AbilityCache<'env>,
         meter: &mut (impl Meter + ?Sized),
         regex_reference_safety_meter: &mut (impl Meter + ?Sized),
     ) -> PartialVMResult<()> {
         StackUsageVerifier::verify(verifier_config, self.module, &self.function_context, meter)?;
-        type_safety::verify(self.module, &self.function_context, ability_cache, meter)?;
+        type_safety::verify(
+            verifier_config,
+            self.module,
+            &self.function_context,
+            ability_cache,
+            meter,
+        )?;
         locals_safety::verify(self.module, &self.function_context, ability_cache, meter)?;
         let reference_safety_res = reference_safety::verify(
             verifier_config,
@@ -200,6 +206,7 @@ impl<'env> CodeUnitVerifier<'env, '_> {
             .is_some()
         {
             let regex_res = regex_reference_safety::verify(
+                verifier_config,
                 self.module,
                 &self.function_context,
                 regex_reference_safety_meter,

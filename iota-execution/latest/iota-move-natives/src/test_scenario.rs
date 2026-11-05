@@ -11,6 +11,7 @@ use std::{
 
 use better_any::{Tid, TidAble};
 use indexmap::{IndexMap, IndexSet};
+use iota_sdk_move_types::iota_framework::object::UID;
 use iota_sdk_types::{
     Address, MoveStruct, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest, TypeTag,
     Version,
@@ -18,9 +19,9 @@ use iota_sdk_types::{
 use iota_types::{
     dynamic_field::DynamicFieldInfo,
     execution::DynamicallyLoadedObjectMetadata,
-    id::UID,
     in_memory_storage::InMemoryStorage,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
+    move_layout::MoveLayout,
     object::{MoveStructExt, Object},
     storage::{BackingPackageStore, ChildObjectResolver},
 };
@@ -126,11 +127,10 @@ pub fn end_transaction(
 
     // Handle the allocated tickets:
     // * Remove all allocated_tickets in the test inventories.
-    // * For each allocated ticket, if the ticket's object ID is loaded, move it to
-    //   `received`.
-    // * Otherwise re-insert the allocated ticket into the objects inventory, and
-    //   mark it to be removed from the backing storage (deferred due to needing to
-    //   have access to `context` which has outstanding references at this point).
+    // * For each allocated ticket, if the ticket's object ID is loaded, move it to `received`.
+    // * Otherwise re-insert the allocated ticket into the objects inventory, and mark it to be
+    //   removed from the backing storage (deferred due to needing to have access to `context` which
+    //   has outstanding references at this point).
     let allocated_tickets =
         std::mem::take(&mut object_runtime_ref.test_inventories.allocated_tickets);
     let mut received = BTreeMap::new();
@@ -161,6 +161,7 @@ pub fn end_transaction(
         loaded_child_objects: _,
         created_object_ids,
         deleted_object_ids,
+        received_coin_types: _,
     } = match results {
         Ok(res) => res,
         Err(_) => {
@@ -182,10 +183,8 @@ pub fn end_transaction(
     // cleanup inventories
     // we will remove all changed objects
     // - deleted objects need to be removed to mark deletions
-    // - written objects are removed and later replaced to mark new values and new
-    //   owners
-    // - child objects will not be reflected in transfers, but need to be no longer
-    //   retrievable
+    // - written objects are removed and later replaced to mark new values and new owners
+    // - child objects will not be reflected in transfers, but need to be no longer retrievable
     for id in deleted_object_ids
         .iter()
         .chain(writes.keys())

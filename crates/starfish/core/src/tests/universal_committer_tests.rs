@@ -95,13 +95,12 @@ async fn indirect_commit_with_missing_old_own_ancestor(
         Arc::new(MemStore::new()),
     )));
     let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
-    let committer = UniversalCommitterBuilder::new(
+    let mut committer = UniversalCommitterBuilder::new(
         context.clone(),
         Arc::new(leader_schedule),
         dag_state.clone(),
     )
     .build();
-    let base_committer = &committer.committers[0];
     let verifier = SignedBlockVerifier::new(context.clone(), Arc::new(NoopTransactionVerifier));
     let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
     let missing_ancestor =
@@ -179,11 +178,11 @@ async fn indirect_commit_with_missing_old_own_ancestor(
     );
     assert!(block_manager.blocks_to_fetch().is_empty());
     assert!(matches!(
-        base_committer.try_direct_decide(Slot::new(15, 3)),
+        committer.committers[0].try_direct_decide(Slot::new(15, 3)),
         LeaderStatus::Undecided(_)
     ));
     assert!(matches!(
-        base_committer.try_direct_decide(Slot::new(18, 2)),
+        committer.committers[0].try_direct_decide(Slot::new(18, 2)),
         LeaderStatus::Commit(_, _, _)
     ));
 
@@ -198,7 +197,7 @@ async fn indirect_commit_with_missing_old_own_ancestor(
 #[rstest]
 #[tokio::test]
 async fn idempotence(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
 
     // note: waves & rounds are zero-indexed.
     let first_non_genesis_leader_round = 1;
@@ -275,7 +274,7 @@ async fn idempotence(#[values(false, true)] starfish_speed: bool) {
 #[rstest]
 #[tokio::test]
 async fn multiple_direct_commit(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
 
     let mut ancestors = None;
     let mut last_finalized = Slot::new(0, 0);
@@ -315,7 +314,7 @@ async fn multiple_direct_commit(#[values(false, true)] starfish_speed: bool) {
 #[rstest]
 #[tokio::test]
 async fn direct_commit_late_call(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
 
     // note: waves & rounds are zero-indexed.
     let num_waves = 11;
@@ -344,7 +343,7 @@ async fn direct_commit_late_call(#[values(false, true)] starfish_speed: bool) {
 #[rstest]
 #[tokio::test]
 async fn no_genesis_commit(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
 
     // note: waves & rounds are zero-indexed.
     let certifying_round = 3;
@@ -396,7 +395,7 @@ async fn direct_skip_no_leader_votes(#[values(false, true)] starfish_speed: bool
     dag_builder.persist_all_blocks(dag_state.clone());
 
     // Create committer with pipelining and 1 leader per round
-    let committer =
+    let mut committer =
         UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
     // note: without pipelining or multi-leader enabled there should only be one
     // committer.
@@ -516,7 +515,7 @@ async fn indirect_commit(#[values(false, true)] starfish_speed: bool) {
     dag_builder.persist_all_blocks(dag_state.clone());
 
     // Create committer with pipelining and 1 leader per round
-    let committer =
+    let mut committer =
         UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
     // note: with pipelining or multi-leader enabled there should be three
     // committer.
@@ -597,7 +596,7 @@ async fn indirect_skip(#[values(false, true)] starfish_speed: bool) {
     dag_builder.persist_all_blocks(dag_state.clone());
 
     // Create committer with pipelining and 1 leader per round
-    let committer =
+    let mut committer =
         UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
     // note: with pipelining or multi-leader enabled there should be three
     // committers.
@@ -680,7 +679,7 @@ async fn undecided(#[values(false, true)] starfish_speed: bool) {
     dag_builder.persist_all_blocks(dag_state.clone());
 
     // Create committer with pipelining and 1 leader per round
-    let committer =
+    let mut committer =
         UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
     // note: without pipelining or multi-leader enabled there should only be one
     // committer.
@@ -701,7 +700,7 @@ async fn undecided(#[values(false, true)] starfish_speed: bool) {
 #[rstest]
 #[tokio::test]
 async fn test_byzantine_direct_commit(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
     let version = TestBlockHeaderVersion::from_context(&context);
 
     // Add enough blocks to reach first leader of wave 4
@@ -722,8 +721,8 @@ async fn test_byzantine_direct_commit(#[values(false, true)] starfish_speed: boo
 
     // DagState Update:
     // - 'A12' got a good vote from 'C' above
-    // - 'A12' will then get a bad vote from 'C' indirectly through the ancenstors
-    //   of the wave 4 certifying blocks of B C D
+    // - 'A12' will then get a bad vote from 'C' indirectly through the ancenstors of the wave 4
+    //   certifying blocks of B C D
 
     // Add block layer for wave 4 certifying round with no votes for leader A12
     // from a byzantine validator C that sent different blocks to all validators.
@@ -838,10 +837,9 @@ async fn test_byzantine_direct_commit(#[values(false, true)] starfish_speed: boo
         .accept_block_header(certifying_block_d14, DataSource::Test);
 
     // DagState Update:
-    // - We have A13, B13, D13 & C13 as good votes in the voting round for round-12
-    //   leader block
-    // - We have 3 byzantine C13 nonvotes that we received as ancestors from
-    //   certifying round blocks from B, C, & D.
+    // - We have A13, B13, D13 & C13 as good votes in the voting round for round-12 leader block
+    // - We have 3 byzantine C13 nonvotes that we received as ancestors from certifying round blocks
+    //   from B, C, & D.
     // - We have B14, C14 & D14 that include this byzantine nonvote from C13 but
     // all of these blocks also have good votes for leader A12 through A, B, D.
 

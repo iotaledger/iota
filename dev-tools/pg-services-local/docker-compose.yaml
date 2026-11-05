@@ -26,7 +26,9 @@ services:
       - --fullnode-rpc-port=9000
       - --epoch-duration-ms=120000
       - --force-regenesis
-      - --with-grpc=0.0.0.0:50051
+      - --node-config-override=fullnode:enable-grpc-api=true
+      - "--node-config-override=fullnode:grpc-api-config={address: '0.0.0.0:50051'}"
+      - --disable-fullnode-pruning
     expose:
       - 9000
       - 50051

@@ -11,8 +11,8 @@ pub type IndexerStreamingResult<T> = std::result::Result<T, IndexerStreamingErro
 
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum IndexerStreamingError {
-    #[error("postgres error: {0}")]
-    Postgres(String),
+    #[error("postgres error")]
+    Postgres,
     #[error("streaming data processor error: {0}")]
     StreamingDataProcessor(String),
     #[error("indexer error: {0}")]
@@ -25,7 +25,8 @@ pub enum IndexerStreamingError {
 
 impl From<diesel::result::Error> for IndexerStreamingError {
     fn from(error: diesel::result::Error) -> Self {
-        IndexerStreamingError::Postgres(error.to_string())
+        tracing::error!("postgres error: {error:?}");
+        IndexerStreamingError::Postgres
     }
 }
 

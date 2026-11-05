@@ -27,7 +27,7 @@ async fn try_direct_commit() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Build fully connected dag with empty blocks. Adding 8 rounds to the dag
     // so that we have 2 completed waves and one incomplete wave.
@@ -83,7 +83,7 @@ async fn idempotence() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Build fully connected dag with empty blocks. Adding 5 rounds to the dag
     // aka the certifying round of wave 1.
@@ -127,7 +127,7 @@ async fn multiple_direct_commit() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     let mut ancestors = None;
     for n in 1..=10 {
@@ -168,7 +168,7 @@ async fn direct_skip() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Add enough blocks to reach the leader round of wave 1.
     let leader_round_wave_1 = committer.leader_round(1);
@@ -220,7 +220,7 @@ async fn indirect_commit() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Add enough blocks to reach the leader round of wave 1.
     let leader_round_wave_1 = committer.leader_round(1);
@@ -372,7 +372,7 @@ async fn indirect_skip() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Add enough blocks to reach the leader round of wave 2.
     let leader_round_wave_2 = committer.leader_round(2);
@@ -507,7 +507,7 @@ async fn undecided() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Add enough blocks to reach the leader round of wave 1.
     let leader_round_wave_1 = committer.leader_round(1);
@@ -597,7 +597,7 @@ async fn test_byzantine_direct_commit() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Add enough blocks to reach leader round of wave 4
     let leader_round_wave_4 = committer.leader_round(4);
@@ -621,8 +621,8 @@ async fn test_byzantine_direct_commit() {
 
     // DagState Update:
     // - 'A' got a good vote from 'C' above
-    // - 'A' will then get a bad vote from 'C' indirectly through the ancenstors of
-    //   the wave 4 decision blocks of B C D
+    // - 'A' will then get a bad vote from 'C' indirectly through the ancenstors of the wave 4
+    //   decision blocks of B C D
 
     // Add block layer for wave 4 certifying round with no votes for leader A12
     // from a byzantine validator C that sent different blocks to all validators.
@@ -732,11 +732,10 @@ async fn test_byzantine_direct_commit() {
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round of wave 4
-    // - We have 3 byzantine C13 nonvotes that we received as ancestors from
-    //   certifying round blocks from B, C, & D.
-    // - We have  B14, C14 & D14 that include this byzantine nonvote and A14 from
-    //   the certifying round. But all of these blocks also have good votes from A,
-    //   B, C & D.
+    // - We have 3 byzantine C13 nonvotes that we received as ancestors from certifying round blocks
+    //   from B, C, & D.
+    // - We have  B14, C14 & D14 that include this byzantine nonvote and A14 from the certifying
+    //   round. But all of these blocks also have good votes from A, B, C & D.
     // Expect a successful direct commit.
 
     tracing::info!("Try direct commit for leader {leader_wave_4}");

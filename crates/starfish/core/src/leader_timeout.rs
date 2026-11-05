@@ -227,9 +227,9 @@ mod tests {
         core_thread::tests::MockCoreThreadDispatcher,
         dag_state::DagState,
         encoder::create_encoder,
-        error::{ConsensusError, ConsensusResult},
+        error::ConsensusResult,
         leader_timeout::LeaderTimeoutTask,
-        network::{BlockBundleStream, NetworkClient},
+        network::{BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient},
         storage::mem_store::MemStore,
         transaction_ref::TransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,
@@ -292,7 +292,7 @@ mod tests {
             _peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)> {
+        ) -> ConsensusResult<FetchedCommitsAndTransactions> {
             unimplemented!("Unimplemented")
         }
     }

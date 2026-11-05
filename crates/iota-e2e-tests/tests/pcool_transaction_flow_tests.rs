@@ -7,11 +7,10 @@
 //! They cover the two subsystems that cooperate after consensus, end-to-end and
 //! through the production RPC path:
 //!
-//! 1. **P-COOL post-consensus conflict resolution** — owned-object transactions
-//!    flow through consensus and the "first writer in consensus order wins"
-//!    rule is applied after ordering (`post_consensus_validation.rs`).
-//! 2. **The execution scheduler** — survivors are enqueued and driven to
-//!    execution / finality.
+//! 1. **P-COOL post-consensus conflict resolution** — owned-object transactions flow through
+//!    consensus and the "first writer in consensus order wins" rule is applied after ordering
+//!    (`post_consensus_validation.rs`).
+//! 2. **The execution scheduler** — survivors are enqueued and driven to execution / finality.
 //!
 //! Assertions are deliberately **black-box** (finality and execution status
 //! only), so the same scenario is valid against either scheduler
@@ -20,16 +19,7 @@
 //! `assert_scheduler` confirming which one is actually in effect on the
 //! fullnode.
 //!
-//! ## Why `#[cfg(msim)]`
-//!
-//! P-COOL is enabled with a protocol-config override, which is
-//! **thread-local**. The validator/fullnode nodes only observe it when they run
-//! on the test's OS thread — true under the `msim` simulator (it schedules
-//! every node on the calling thread), but not under plain multi-threaded tokio,
-//! where `iota-swarm` spawns each node on its own thread and the flag would
-//! silently be `false`. So they are gated to the simulator, and
-//! `assert_pcool_active` additionally fails loudly if the flag is not in effect
-//! on the fullnode.
+//! The tests run at the latest protocol version, where the P-COOL flow is on.
 //!
 //! Run with: `cargo simtest -p iota-e2e-tests test_pcool`.
 //!
@@ -38,42 +28,33 @@
 //! (`TransactionDriver`), which is what
 //! `WalletContext::execute_transaction_may_fail` uses.
 
-#![cfg(msim)]
+use std::{str::FromStr, time::Duration};
 
-use std::str::FromStr;
-
+use iota_json_rpc_api::{TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE};
 use iota_macros::sim_test;
-use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, StructTag, TypeTag, Version};
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::{base_types::dbg_addr, coin::CoinMetadata, transaction::CallArg};
+use iota_types::{
+    base_types::dbg_addr,
+    coin::CoinMetadata,
+    transaction::{CallArg, TransactionEnvelope},
+};
+use jsonrpsee::{core::ClientError, types::ErrorObject};
 use test_cluster::{TestCluster, TestClusterBuilder};
-
-/// Applies a thread-local protocol-config override that enables the P-COOL
-/// flow. The returned guard is RAII and must be held for the whole test.
-fn enable_pcool_for_testing() -> iota_protocol_config::OverrideGuard {
-    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    })
-}
+use tokio::time::Instant;
 
 /// Builds a P-COOL test cluster. When `use_execution_scheduler` is set, every
 /// node selects the new `ExecutionScheduler` (via the
 /// `ENABLE_EXECUTION_SCHEDULER` env var read in
 /// `ExecutionSchedulerWrapper::new`); otherwise the legacy `TransactionManager`
 /// is used.
-///
-/// Returns the protocol-config override guard, which must be held for the test.
-async fn build_pcool_cluster(
-    use_execution_scheduler: bool,
-) -> (TestCluster, iota_protocol_config::OverrideGuard) {
+async fn build_pcool_cluster(use_execution_scheduler: bool) -> TestCluster {
     // Both env vars are set explicitly so the choice is pinned regardless of
     // DEFAULT_USE_EXECUTION_SCHEDULER (`ENABLE_TRANSACTION_MANAGER` is the
     // opt-out and takes precedence). Otherwise the TransactionManager variant
     // would silently follow the default and select the wrong scheduler if the
     // default is ever flipped to ExecutionScheduler. Read at runtime by every
-    // node under the simulator (single process), so this selects the scheduler
+    // node in this one process, so this selects the scheduler
     // cluster-wide; nextest/simtest isolate each test in its own process, so it
     // does not leak. Must be set before the nodes are constructed.
     // SAFETY (edition 2021): plain env mutation, no other threads race it here.
@@ -84,18 +65,15 @@ async fn build_pcool_cluster(
         std::env::set_var("ENABLE_TRANSACTION_MANAGER", "1");
         std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
     }
-    let guard = enable_pcool_for_testing();
-    let test_cluster = TestClusterBuilder::new()
+    TestClusterBuilder::new()
         // Long epoch so reconfiguration never interferes mid-test.
         .with_epoch_duration_ms(600_000)
         .build()
-        .await;
-    (test_cluster, guard)
+        .await
 }
 
 /// Fails loudly if P-COOL is not actually in effect on the fullnode, so the
-/// tests can never pass for the wrong reason (the override silently not
-/// reaching the nodes — see the module docs).
+/// tests can never pass for the wrong reason.
 fn assert_pcool_active(test_cluster: &TestCluster) {
     let active = test_cluster.fullnode_handle.iota_node.with(|node| {
         node.state()
@@ -106,7 +84,7 @@ fn assert_pcool_active(test_cluster: &TestCluster) {
     assert!(
         active,
         "enable_pcool_flow must be active on the fullnode for this test to exercise the \
-         post-consensus path; if false, the protocol-config override did not reach the nodes"
+         post-consensus path"
     );
 }
 
@@ -126,19 +104,19 @@ fn assert_scheduler(test_cluster: &TestCluster, expect_execution_scheduler: bool
 
 #[sim_test]
 async fn test_pcool_owned_object_transfer_reaches_finality_transaction_manager() {
-    let (test_cluster, _guard) = build_pcool_cluster(false).await;
+    let test_cluster = build_pcool_cluster(false).await;
     assert_scheduler(&test_cluster, false);
     run_owned_object_transfer_reaches_finality(&test_cluster).await;
 }
 
 #[sim_test]
 async fn test_pcool_owned_object_transfer_reaches_finality_execution_scheduler() {
-    let (test_cluster, _guard) = build_pcool_cluster(true).await;
+    let test_cluster = build_pcool_cluster(true).await;
     assert_scheduler(&test_cluster, true);
     run_owned_object_transfer_reaches_finality(&test_cluster).await;
 }
 
-/// I1: A single owned-object transaction submitted under P-COOL travels through
+/// A single owned-object transaction submitted under P-COOL travels through
 /// consensus, survives post-consensus validation (no conflict), is enqueued,
 /// and finalizes successfully. This is the happy-path proof that the
 /// post-consensus -> scheduler -> execution seam works end-to-end.
@@ -172,19 +150,19 @@ async fn run_owned_object_transfer_reaches_finality(test_cluster: &TestCluster) 
 
 #[sim_test]
 async fn test_pcool_double_spend_resolves_to_single_winner_transaction_manager() {
-    let (test_cluster, _guard) = build_pcool_cluster(false).await;
+    let test_cluster = build_pcool_cluster(false).await;
     assert_scheduler(&test_cluster, false);
     run_double_spend_resolves_to_single_winner(&test_cluster).await;
 }
 
 #[sim_test]
 async fn test_pcool_double_spend_resolves_to_single_winner_execution_scheduler() {
-    let (test_cluster, _guard) = build_pcool_cluster(true).await;
+    let test_cluster = build_pcool_cluster(true).await;
     assert_scheduler(&test_cluster, true);
     run_double_spend_resolves_to_single_winner(&test_cluster).await;
 }
 
-/// I2: Two transactions that spend the SAME owned coin (a double-spend /
+/// Two transactions that spend the SAME owned coin (a double-spend /
 /// equivocation) are submitted concurrently. Under P-COOL the conflict is
 /// resolved deterministically by consensus order: exactly one finalizes and the
 /// other is dropped post-consensus. This is the headline P-COOL guarantee, and
@@ -244,21 +222,22 @@ async fn run_double_spend_resolves_to_single_winner(test_cluster: &TestCluster) 
 
 #[sim_test]
 async fn test_pcool_immutable_object_read_twice_transaction_manager() {
-    let (test_cluster, _guard) = build_pcool_cluster(false).await;
+    let test_cluster = build_pcool_cluster(false).await;
     assert_scheduler(&test_cluster, false);
     run_immutable_object_read_twice(&test_cluster).await;
 }
 
 #[sim_test]
 async fn test_pcool_immutable_object_read_twice_execution_scheduler() {
-    let (test_cluster, _guard) = build_pcool_cluster(true).await;
+    let test_cluster = build_pcool_cluster(true).await;
     assert_scheduler(&test_cluster, true);
     run_immutable_object_read_twice(&test_cluster).await;
 }
 
-/// I3: Any number of transactions may read an immutable object within one
-/// epoch. Reads the genesis `CoinMetadata` twice in a row — the reproduction
-/// from issue #12602, where the first read locked it for the whole epoch.
+/// Any number of transactions may read an immutable object within one epoch.
+/// Reads the genesis `CoinMetadata` twice in a row. Immutable inputs are not
+/// locked: they never get a new version, so a lock taken by the first read
+/// would never be released.
 async fn run_immutable_object_read_twice(test_cluster: &TestCluster) {
     assert_pcool_active(test_cluster);
 
@@ -314,4 +293,110 @@ async fn run_immutable_object_read_twice(test_cluster: &TestCluster) {
             "read {attempt} of an immutable object must finalize under P-COOL: {response:?}"
         );
     }
+}
+
+/// A transfer of a coin that nobody has.
+async fn missing_input_transfer(test_cluster: &TestCluster) -> TransactionEnvelope {
+    let sender = test_cluster.get_address_0();
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let missing =
+        ObjectReference::new(ObjectId::random(), Version::from(1), ObjectDigest::random());
+    test_cluster.wallet.sign_transaction(
+        &TestTransactionBuilder::new(sender, missing, rgp)
+            .transfer_iota(Some(1), dbg_addr(2))
+            .build(),
+    )
+}
+
+/// The JSON-RPC error object behind a failed wallet submission.
+fn rpc_error_object(error: &anyhow::Error) -> &ErrorObject<'static> {
+    match error.downcast_ref::<iota_sdk::error::Error>() {
+        Some(iota_sdk::error::Error::Rpc(ClientError::Call(object))) => object,
+        _ => panic!("expected a JSON-RPC call error, got {error:?}"),
+    }
+}
+
+/// A transaction whose input object no validator has is rejected at
+/// submission once a quorum of validators answered, and the error names the
+/// object. The fullnode retries such a rejection only below that quorum,
+/// since one validator may not have executed the object's creation yet. The
+/// scheduler plays no part, so the scenario runs once.
+#[sim_test]
+async fn test_pcool_missing_input_object_is_rejected_at_submission() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(600_000)
+        .build()
+        .await;
+    assert_pcool_active(&test_cluster);
+    let tx = missing_input_transfer(&test_cluster).await;
+
+    let start = Instant::now();
+    let error = test_cluster
+        .wallet
+        .execute_transaction_may_fail(tx)
+        .await
+        .expect_err("a transfer of an object nobody has must be rejected");
+    let elapsed = start.elapsed();
+
+    let object = rpc_error_object(&error);
+    assert_eq!(
+        object.code(),
+        TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
+        "{error:?}"
+    );
+    assert!(
+        object
+            .data()
+            .is_some_and(|data| data.get().contains("rejected_by_validators")),
+        "{error:?}"
+    );
+    assert!(
+        object
+            .message()
+            .contains("Could not find the referenced object"),
+        "the error must name the missing object, got {error:?}"
+    );
+    // Retried submissions fail only at the fullnode's 30 s finality timeout.
+    assert!(
+        elapsed < Duration::from_secs(10),
+        "the rejection must not wait for the finality timeout, took {elapsed:?}"
+    );
+}
+
+/// With the input missing on fewer than a quorum of validators and the rest
+/// unreachable, the fullnode resubmits until its finality timeout, and the
+/// timeout error still names the object.
+#[sim_test]
+async fn test_pcool_missing_input_object_below_a_quorum_is_named_in_the_timeout() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(600_000)
+        .build()
+        .await;
+    assert_pcool_active(&test_cluster);
+    // Two of four validators answer, which is below a quorum.
+    for name in test_cluster.get_validator_pubkeys().iter().take(2) {
+        test_cluster.stop_node(name);
+    }
+    let tx = missing_input_transfer(&test_cluster).await;
+
+    let error = test_cluster
+        .wallet
+        .execute_transaction_may_fail(tx)
+        .await
+        .expect_err("a transfer of an object nobody has must not finalize");
+
+    let object = rpc_error_object(&error);
+    assert_eq!(object.code(), TRANSIENT_ERROR_CODE, "{error:?}");
+    assert!(
+        object
+            .data()
+            .is_some_and(|data| data.get().contains("timeout_before_finality")),
+        "{error:?}"
+    );
+    assert!(
+        object
+            .message()
+            .contains("Could not find the referenced object"),
+        "the timeout must name the missing object, got {error:?}"
+    );
 }

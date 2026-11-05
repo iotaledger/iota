@@ -32,7 +32,8 @@ impl SerializeAs<NativeSystemStateSummary> for IotaSystemStateSummary {
     where
         S: serde::Serializer,
     {
-        let schema = IotaSystemStateSummary::from(source.clone());
+        let schema =
+            IotaSystemStateSummary::try_from(source.clone()).map_err(serde::ser::Error::custom)?;
         schema.serialize(serializer)
     }
 }
@@ -60,19 +61,19 @@ impl From<IotaSystemStateSummary> for NativeSystemStateSummary {
     }
 }
 
-impl From<NativeSystemStateSummary> for IotaSystemStateSummary {
-    fn from(summary: NativeSystemStateSummary) -> Self {
-        match summary {
+impl TryFrom<NativeSystemStateSummary> for IotaSystemStateSummary {
+    type Error = anyhow::Error;
+
+    fn try_from(summary: NativeSystemStateSummary) -> Result<Self, Self::Error> {
+        Ok(match summary {
             NativeSystemStateSummary::V1(summary_v1) => {
                 IotaSystemStateSummary::V1(summary_v1.into())
             }
             NativeSystemStateSummary::V2(summary_v2) => {
                 IotaSystemStateSummary::V2(summary_v2.into())
             }
-            _ => unimplemented!(
-                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
-            ),
-        }
+            _ => anyhow::bail!("unknown IotaSystemStateSummary variant"),
+        })
     }
 }
 

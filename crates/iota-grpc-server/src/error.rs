@@ -54,14 +54,14 @@ impl RpcError {
     }
 
     pub fn into_status_proto(self) -> iota_grpc_types::google::rpc::Status {
-        iota_grpc_types::google::rpc::Status {
-            code: self.code.into(),
-            message: self.message.unwrap_or_default(),
-            details: self
-                .details
-                .map(ErrorDetails::into_status_details)
-                .unwrap_or_default(),
-        }
+        let mut status = iota_grpc_types::google::rpc::Status::default();
+        status.code = self.code.into();
+        status.message = self.message.unwrap_or_default();
+        status.details = self
+            .details
+            .map(ErrorDetails::into_status_details)
+            .unwrap_or_default();
+        status
     }
 }
 
@@ -107,6 +107,12 @@ impl From<iota_types::iota_sdk_types_conversions::SdkTypeConversionError> for Rp
 
 impl From<bcs::Error> for RpcError {
     fn from(value: bcs::Error) -> Self {
+        Self::internal().with_context(value)
+    }
+}
+
+impl From<iota_sdk_types::BcsError> for RpcError {
+    fn from(value: iota_sdk_types::BcsError) -> Self {
         Self::internal().with_context(value)
     }
 }
@@ -284,7 +290,10 @@ impl From<tonic::Status> for RpcError {
 
 impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
     fn from(error: iota_types::quorum_driver_types::QuorumDriverError) -> Self {
-        use iota_types::{error::IotaError, quorum_driver_types::QuorumDriverError::*};
+        use iota_types::{
+            error::IotaError,
+            quorum_driver_types::{NON_RECOVERABLE_ERROR_MSG, QuorumDriverError::*},
+        };
         use itertools::Itertools;
 
         // gRPC mirror of the JSON-RPC `data.reason` discriminant.
@@ -309,11 +318,10 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                     };
                     format!("Invalid transaction: {err}")
                 };
-                let details = ErrorDetails::new().with_error_info(ErrorInfo {
-                    reason,
-                    domain: "iota.grpc".to_string(),
-                    ..Default::default()
-                });
+                let mut error_info = ErrorInfo::default();
+                error_info.reason = reason;
+                error_info.domain = "iota.grpc".to_string();
+                let details = ErrorDetails::new().with_error_info(error_info);
                 RpcError {
                     code: Code::InvalidArgument,
                     message: Some(message),
@@ -344,9 +352,15 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                     "timed-out before finality could be reached",
                 )
             }
+            TimeoutBeforeFinalityWithErrors { last_error } => RpcError::new(
+                Code::Unavailable,
+                format!(
+                    "timed-out before finality could be reached. Last recorded retriable error: {last_error}"
+                ),
+            ),
             NonRecoverableTransactionError { errors } => {
                 let new_errors: Vec<String> = errors
-                    .into_iter()
+                    .iter()
                     .sorted_by(|(_, a, _), (_, b, _)| b.cmp(a))
                     .filter_map(|(err, _, _)| match &err {
                         IotaError::UserInput { error } => Some(error.to_string()),
@@ -360,10 +374,18 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                     })
                     .collect();
 
-                assert!(
-                    !new_errors.is_empty(),
-                    "NonRecoverableTransactionError should have at least one non-retryable error"
-                );
+                // The aggregator builds this variant only from errors with
+                // non-retryable stake, but rendering an error must never
+                // panic: fall back to the unfiltered list. Every error in it
+                // is then retryable, so the code is the one of a transient
+                // failure.
+                if new_errors.is_empty() {
+                    let error_list = errors.iter().map(|(err, _, _)| err.to_string()).join(", ");
+                    return RpcError::new(
+                        Code::Unavailable,
+                        format!("{NON_RECOVERABLE_ERROR_MSG}: {error_list}."),
+                    );
+                }
 
                 let error_list = new_errors.join(", ");
                 let error_msg = format!(
@@ -380,12 +402,12 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
             SystemOverloadRetryAfter {
                 retry_after_secs, ..
             } => {
-                let details = ErrorDetails::new().with_retry_info(RetryInfo {
-                    retry_delay: Some(prost_types::Duration {
-                        seconds: retry_after_secs as i64,
-                        nanos: 0,
-                    }),
+                let mut retry_info = RetryInfo::default();
+                retry_info.retry_delay = Some(prost_types::Duration {
+                    seconds: retry_after_secs as i64,
+                    nanos: 0,
                 });
+                let details = ErrorDetails::new().with_retry_info(retry_info);
                 RpcError {
                     code: Code::Unavailable,
                     message: Some("system is overloaded".to_string()),
@@ -393,5 +415,24 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Missing indexes are a client-visible contract: `FailedPrecondition`,
+    /// both directly and through an anyhow chain.
+    #[test]
+    fn missing_indexes_render_as_failed_precondition() {
+        let expected: i32 = Code::FailedPrecondition.into();
+
+        let direct = RpcError::from(MissingIndexesError);
+        assert_eq!(direct.into_status_proto().code, expected);
+
+        let chained = anyhow::Error::from(MissingIndexesError).context("listing owned objects");
+        let via_chain = RpcError::from(chained);
+        assert_eq!(via_chain.into_status_proto().code, expected);
     }
 }

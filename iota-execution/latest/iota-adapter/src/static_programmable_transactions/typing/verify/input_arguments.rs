@@ -4,9 +4,8 @@
 
 use iota_sdk_types::CommandArgumentError;
 use iota_types::{
-    base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
+    base_types::{RESOLVED_ASCII_STR, RESOLVED_IOTA_ID, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     error::{ExecutionError, ExecutionErrorKind, command_argument_error},
-    id::RESOLVED_IOTA_ID,
     transfer::RESOLVED_RECEIVING_STRUCT,
 };
 
@@ -57,12 +56,11 @@ impl Context {
 }
 
 /// Verifies two properties for input objects:
-/// 1. That the `Pure` inputs can be serialized to the type inferred and that
-///    the type is permissible
+/// 1. That the `Pure` inputs can be serialized to the type inferred and that the type is
+///    permissible
 ///    - Can be relaxed under certain execution modes
-/// 2. That any `Object` arguments are used validly. This means mutable
-///    references are taken only on mutable objects. And that the gas coin is
-///    only taken by value in transfer objects
+/// 2. That any `Object` arguments are used validly. This means mutable references are taken only on
+///    mutable objects. And that the gas coin is only taken by value in transfer objects
 pub fn verify<Mode: ExecutionMode>(_env: &Env, txn: &T::Transaction) -> Result<(), ExecutionError> {
     let T::Transaction { inputs, commands } = txn;
     for (arg, ty) in inputs {

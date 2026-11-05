@@ -234,10 +234,9 @@ jobs:
           # can report the earliest epoch at which the new protocol version can
           # be enabled on that network.
           case "$iota_tag" in
-            *-alpha*) network=alphanet ;;
-            *-beta*)  network=devnet ;;
-            *-rc*)    network=testnet ;;
-            *)        network=mainnet ;;
+            *-alpha*|*-beta*) network=devnet ;;
+            *-rc*)            network=testnet ;;
+            *)                network=mainnet ;;
           esac
           echo "network = $network"
 

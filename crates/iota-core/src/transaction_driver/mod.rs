@@ -26,7 +26,7 @@ use iota_types::{
 };
 pub use metrics::*;
 use parking_lot::Mutex;
-use rand::Rng;
+use rand::RngExt;
 use tokio::{
     task::JoinSet,
     time::{interval, sleep},
@@ -156,9 +156,9 @@ where
         const MAX_DRIVE_TRANSACTION_RETRY_DELAY: Duration = Duration::from_secs(10);
 
         // The amplification factor controls how many validators to submit to
-        // simultaneously. For ping requests and the initial IOTA port, always
-        // use 1. TODO: Implement proper amplification factor based on gas_price
-        // / reference_gas_price.
+        // simultaneously. For the initial IOTA port, always use 1. TODO:
+        // Implement proper amplification factor based on gas_price /
+        // reference_gas_price.
         let amplification_factor: u64 = 1;
 
         let timer = Instant::now();
@@ -338,12 +338,14 @@ where
                 options,
             )
             .await?;
-        // `submit_transaction` is contracted to convert `Rejected`/`Expired`
-        // into `Err` before returning; reaching them here means that
-        // contract was broken upstream. Surface loudly in debug/test, hide
-        // the implementation detail from the client.
+        // `submit_transaction` is contracted to convert `Rejected`, `Expired`
+        // and `TimedOut` into `Err` before returning; reaching them here
+        // means that contract was broken upstream. Surface loudly in
+        // debug/test, hide the implementation detail from the client.
         match &submit_txn_result {
-            TxStatusUpdate::Rejected { .. } | TxStatusUpdate::Expired { .. } => {
+            TxStatusUpdate::Rejected { .. }
+            | TxStatusUpdate::Expired { .. }
+            | TxStatusUpdate::TimedOut => {
                 debug_fatal!(
                     "submit_transaction returned non-actionable status: {submit_txn_result:?}"
                 );
@@ -401,8 +403,7 @@ where
         result
     }
 
-    // Runs a background task to send ping transactions to all validators to perform
-    // latency checks.
+    // Runs a background task that pings every validator for latency checks.
     async fn run_latency_checks(driver: Weak<Self>) {
         const INTERVAL_BETWEEN_RUNS: Duration = Duration::from_secs(15);
         const MAX_JITTER: Duration = Duration::from_secs(10);
@@ -430,13 +431,16 @@ where
 
             while let Some(result) = tasks.join_next().await {
                 if let Err(e) = result {
-                    tracing::debug!("Error while driving ping transaction: {}", e);
+                    tracing::debug!("Error while pinging a validator: {}", e);
                 }
             }
         }
     }
 
-    /// Pings all validators for e2e latency with the provided transaction type.
+    /// Pings every validator with a submit request that carries no
+    /// transaction, so the client monitor gets a submit latency sample from
+    /// each validator even while no client submits transactions. The sample
+    /// is the submit RPC's round trip; see [`TransactionSubmitter::ping`].
     fn ping(
         self: Arc<Self>,
         tasks: &mut JoinSet<()>,
@@ -444,53 +448,44 @@ where
         ping_timeout: Duration,
     ) {
         let auth_agg = self.authority_aggregator.load().clone();
-        let validators = auth_agg.committee.names().cloned().collect::<Vec<_>>();
 
         self.metrics.latency_check_runs.inc();
 
-        for name in validators {
+        for (name, client) in auth_agg.authority_clients.iter() {
+            let name = *name;
+            let client = client.clone();
             let display_name = auth_agg.get_display_name(&name);
-            let delay_ms = rand::thread_rng().gen_range(0..max_jitter.as_millis()) as u64;
-            let self_clone = self.clone();
+            let delay_ms = rand::rng().random_range(0..max_jitter.as_millis()) as u64;
+            let driver = self.clone();
 
-            let task = async move {
-                // Add some random delay to the task to avoid all tasks running at the same time
+            tasks.spawn(async move {
+                // Spread the pings out so they do not all run at the same time.
                 if delay_ms > 0 {
                     tokio::time::sleep(Duration::from_millis(delay_ms)).await;
                 }
-                let start_time = Instant::now();
-
-                // Now send a ping transaction to the chosen validator for the provided tx type
-                match self_clone
-                    .drive_transaction(
-                        None,
-                        SubmitTransactionOptions {
-                            allowed_validators: vec![display_name.clone()],
-                            ..Default::default()
-                        },
-                        Some(ping_timeout),
-                        false,
+                match driver
+                    .submitter
+                    .ping(
+                        client,
+                        &driver.client_monitor,
+                        name,
+                        display_name.clone(),
+                        ping_timeout,
                     )
                     .await
                 {
-                    Ok(_) => {
+                    Ok(latency) => {
                         tracing::debug!(
-                            "Ping transaction to validator {} completed end to end in {} seconds",
+                            "Ping to validator {} answered in {} seconds",
                             display_name,
-                            start_time.elapsed().as_secs_f64()
+                            latency.as_secs_f64()
                         );
                     }
                     Err(err) => {
-                        tracing::debug!(
-                            "Failed to get certified finalized effects, for ping transaction to validator {}: {}",
-                            display_name,
-                            err
-                        );
+                        tracing::debug!("Ping to validator {} failed: {}", display_name, err);
                     }
                 }
-            };
-
-            tasks.spawn(task);
+            });
         }
     }
 

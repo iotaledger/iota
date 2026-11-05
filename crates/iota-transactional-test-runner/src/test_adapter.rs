@@ -91,7 +91,7 @@ use move_transactional_test_runner::{
 };
 use move_vm_runtime::session::SerializedReturnValues;
 use once_cell::sync::Lazy;
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use simulacrum::SimulatorStore;
 use tempfile::{NamedTempFile, tempdir};
 
@@ -213,7 +213,6 @@ impl AdapterInitConfig {
             reference_gas_price,
             default_gas_price,
             move_auth,
-            deny_rule_governance,
             flavor,
             epochs_to_keep,
             data_ingestion_path,
@@ -227,7 +226,18 @@ impl AdapterInitConfig {
             .unwrap_or_default();
 
         let mut protocol_config = if let Some(protocol_version) = protocol_version {
-            ProtocolConfig::get_for_version(protocol_version.into(), Chain::Unknown)
+            let mut config =
+                ProtocolConfig::get_for_version(protocol_version.into(), Chain::Unknown);
+            // The test chain runs the P-COOL flow from protocol version 32, but
+            // sets the settings it requires only from version 39. A test pinned
+            // to an earlier version gets the values version 39 sets.
+            if protocol_version < 39 && config.enable_pcool_flow() {
+                config.set_pcool_deterministic_validation_horizon_distance_for_testing(4);
+                config.set_consensus_dedup_only_recorded_messages_for_testing(true);
+                config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+                config.set_max_meter_ticks_regex_reference_safety_for_testing(2_200_000);
+            }
+            config
         } else {
             ProtocolConfig::get_for_max_version_UNSAFE()
         };
@@ -244,13 +254,9 @@ impl AdapterInitConfig {
             protocol_config.set_enable_move_authentication_for_testing(enable);
             protocol_config.set_enable_move_authentication_for_sponsor_for_testing(enable);
             protocol_config.set_pre_consensus_sponsor_only_move_authentication_for_testing(enable);
-        }
-        if let Some(enable) = deny_rule_governance {
-            protocol_config.set_deny_rule_governance_for_testing(enable);
-            protocol_config.set_deny_rule_governance_on_chain_for_testing(enable);
             if enable {
-                protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-                protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+                // Sponsor-only pre-consensus authentication excludes the P-COOL flow.
+                protocol_config.set_enable_pcool_flow_for_testing(false);
             }
         }
         if custom_validator_account && !simulator {
@@ -1566,31 +1572,17 @@ impl IotaTestAdapter {
         let aa_call_arg = aa_arg.into_call_arg(self)?;
 
         match &aa_call_arg {
-            CallArg::ImmutableOrOwned(obj_ref) => Ok((
-                obj_ref.object_id,
-                UserSignature::MoveAuthenticator(
-                    MoveAuthenticatorV1::new_with_immutable_account_object(
-                        auth_inputs,
-                        vec![],
-                        *obj_ref,
-                    )
-                    .into(),
-                ),
-            )),
             CallArg::Shared(shared) => Ok((
                 shared.object_id,
                 UserSignature::MoveAuthenticator(
-                    MoveAuthenticatorV1::new_with_shared_account_object(
-                        auth_inputs,
-                        vec![],
-                        *shared,
-                    )
-                    .into(),
+                    MoveAuthenticatorV1::new(auth_inputs, vec![], *shared).into(),
                 ),
             )),
-            CallArg::Pure(_) | CallArg::Receiving(_) => Err(anyhow::anyhow!(
-                "abstract: account must be an object representing the abstract account"
-            )),
+            CallArg::ImmutableOrOwned(_) | CallArg::Pure(_) | CallArg::Receiving(_) => {
+                Err(anyhow::anyhow!(
+                    "abstract: account must be a shared object representing the abstract account"
+                ))
+            }
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }
@@ -2095,6 +2087,7 @@ impl IotaTestAdapter {
         &mut self,
         result: SimulateTransactionResult,
     ) -> anyhow::Result<TxnSummary> {
+        let output_objects = result.output_objects;
         let events = result.events.unwrap_or_default().0;
         let effects: IotaTransactionBlockEffects = result.effects.try_into()?;
         if let IotaExecutionStatus::Failure { error } = effects.status() {
@@ -2123,7 +2116,14 @@ impl IotaTestAdapter {
             .collect();
 
         // Use a stable sort before assigning fake ids, so test output remains stable.
-        might_need_fake_id.sort_by_key(|id| self.get_object_sorting_key(id));
+        // The simulation wrote nothing, so the objects it produced are only available
+        // from its own output.
+        might_need_fake_id.sort_by_key(|id| {
+            let object = output_objects.get(id).unwrap_or_else(|| {
+                panic!("object {id} is reported as written but missing from the simulation output")
+            });
+            self.object_sorting_key(object)
+        });
         for id in might_need_fake_id {
             self.enumerate_fake(id);
         }
@@ -2165,10 +2165,17 @@ impl IotaTestAdapter {
         }
     }
 
+    // Reads the object from storage, so it only works for a transaction that was
+    // executed. A simulated one writes nothing, and has to sort the objects it
+    // produced with `object_sorting_key`.
+    fn get_object_sorting_key(&self, id: &ObjectId) -> String {
+        self.object_sorting_key(&self.get_object(id, None).unwrap())
+    }
+
     // stable way of sorting objects by type. Does not however, produce a stable
     // sorting between objects of the same type
-    fn get_object_sorting_key(&self, id: &ObjectId) -> String {
-        match &self.get_object(id, None).unwrap().data {
+    fn object_sorting_key(&self, object: &Object) -> String {
+        match &object.data {
             ObjectData::Struct(obj) => self.stabilize_str(format!("{}", obj.struct_tag())),
             ObjectData::Package(pkg) => pkg
                 .serialized_module_map()
@@ -2743,7 +2750,7 @@ async fn init_val_fullnode_executor(
     let mut mk_account = || {
         let (address, key) = get_key_pair_from_rng(&mut rng);
         let obj = Object::with_id_owner_gas_for_testing(
-            ObjectId::new(rng.gen()),
+            ObjectId::new(rng.random()),
             address,
             GAS_FOR_TESTING,
         );
@@ -2851,22 +2858,6 @@ async fn init_sim_executor(
     // Create the simulator with the specific account configs, which also crates
     // objects
 
-    // The simulator resolves its `ProtocolConfig` from the protocol version alone,
-    // so feature flags toggled on `protocol_config` would not reach it. Scope a
-    // thread-local override around the (synchronous) construction so the genesis
-    // epoch picks the flags up; `Simulacrum::advance_epoch` then carries the
-    // config over to later epochs.
-    let config_override = protocol_config.deny_rule_governance().then(|| {
-        let max_entries = protocol_config.deny_rule_update_max_entries_per_tx();
-        let grace_floor = protocol_config.deny_rule_removal_grace_round_floor();
-        ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
-            config.set_deny_rule_governance_for_testing(true);
-            config.set_deny_rule_governance_on_chain_for_testing(true);
-            config.set_deny_rule_update_max_entries_per_tx_for_testing(max_entries);
-            config.set_deny_rule_removal_grace_round_floor_for_testing(grace_floor);
-            config
-        })
-    });
     let (sim, read_replica) = PersistedStore::new_sim_replica_with_protocol_version_and_accounts(
         rng,
         DEFAULT_CHAIN_START_TIMESTAMP,
@@ -2876,7 +2867,6 @@ async fn init_sim_executor(
         reference_gas_price,
         None,
     );
-    drop(config_override);
 
     sim.set_data_ingestion_path(data_ingestion_path.clone());
 

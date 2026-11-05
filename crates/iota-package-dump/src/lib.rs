@@ -200,16 +200,14 @@ async fn fetch_packages(
 /// name as the directory name. The following files are written for each
 /// directory:
 ///
-/// - `object.bcs` -- the BCS serialized form of the `Object` type containing
-///   the package.
+/// - `object.bcs` -- the BCS serialized form of the `Object` type containing the package.
 ///
-/// - `linkage.json` -- a JSON serialization of the package's linkage table,
-///   mapping dependency original IDs to the version of the dependency being
-///   depended on and the ID of the object on chain that contains that version.
+/// - `linkage.json` -- a JSON serialization of the package's linkage table, mapping dependency
+///   original IDs to the version of the dependency being depended on and the ID of the object on
+///   chain that contains that version.
 ///
-/// - `origins.json` -- a JSON serialization of the type origin table, mapping
-///   type names contained in this package to the version of the package that
-///   first introduced that type.
+/// - `origins.json` -- a JSON serialization of the type origin table, mapping type names contained
+///   in this package to the version of the package that first introduced that type.
 ///
 /// - `*.mv` -- a BCS serialization of each compiled module in the package.
 fn dump_package(output_dir: &Path, pkg: &packages::MovePackage) -> Result<()> {

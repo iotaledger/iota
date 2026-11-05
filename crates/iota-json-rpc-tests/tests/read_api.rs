@@ -158,7 +158,12 @@ async fn get_transaction_block_with_options(options: IotaTransactionBlockRespons
 }
 
 async fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlockResponseOptions) {
-    let cluster = TestClusterBuilder::new().build().await;
+    // Balance and object changes are derived from the input objects' previous
+    // versions, which pruning would delete.
+    let cluster = TestClusterBuilder::new()
+        .disable_fullnode_pruning()
+        .build()
+        .await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
@@ -300,7 +305,11 @@ async fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
 }
 
 async fn try_multi_get_past_objects_with_options(options: IotaObjectDataOptions) {
-    let cluster = TestClusterBuilder::new().build().await;
+    // Reads past object versions, which pruning would delete.
+    let cluster = TestClusterBuilder::new()
+        .disable_fullnode_pruning()
+        .build()
+        .await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
@@ -667,6 +676,62 @@ async fn get_transaction_block_with_input() {
 #[sim_test]
 async fn multi_get_transaction_blocks() {
     multi_get_transaction_blocks_with_options(IotaTransactionBlockResponseOptions::default()).await;
+}
+
+/// An unknown digest must come back as an entry with an error, not as an
+/// empty entry indistinguishable from a found transaction.
+#[sim_test]
+async fn multi_get_transaction_blocks_marks_unknown_digests() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+
+    let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
+    let known = cluster
+        .transfer_object(address, address, object_ids[0], gas, None)
+        .await
+        .unwrap()
+        .digest;
+    let unknown = TransactionDigest::random();
+
+    for options in [
+        IotaTransactionBlockResponseOptions::default(),
+        IotaTransactionBlockResponseOptions::default().with_effects(),
+        IotaTransactionBlockResponseOptions::default().with_input(),
+        IotaTransactionBlockResponseOptions::default().with_events(),
+        IotaTransactionBlockResponseOptions::default().with_balance_changes(),
+        IotaTransactionBlockResponseOptions::default().with_object_changes(),
+        IotaTransactionBlockResponseOptions::full_content(),
+    ] {
+        for (digests, known_at, unknown_at) in
+            [(vec![known, unknown], 0, 1), (vec![unknown, known], 1, 0)]
+        {
+            let blocks = http_client
+                .multi_get_transaction_blocks(digests, Some(options.clone()))
+                .await
+                .unwrap_or_else(|e| panic!("batch must not fail for {options:?}: {e}"));
+            assert_eq!(blocks.len(), 2);
+            assert!(
+                blocks[known_at].errors.is_empty(),
+                "known digest must have no errors, got {:?}",
+                blocks[known_at].errors
+            );
+            let missing = &blocks[unknown_at];
+            assert!(
+                missing.events.is_none()
+                    && missing.balance_changes.is_none()
+                    && missing.object_changes.is_none(),
+                "unknown digest must carry no derived data, got {missing:?}"
+            );
+            assert_eq!(
+                missing.errors.len(),
+                1,
+                "unknown digest must carry exactly the not-found error, got {:?}",
+                missing.errors
+            );
+            assert!(missing.errors[0].contains("Could not find"));
+        }
+    }
 }
 
 #[ignore = "until this will be merged into develop https://github.com/iotaledger/iota/blob/sc-platform/indexer-new-rpc-tests/crates/iota-json-rpc/src/read_api.rs#L1351"]
@@ -1490,44 +1555,41 @@ async fn try_get_past_object_version_not_found() {
         .await
         .unwrap();
 
-    let mutated_objects = transactions
+    let seq_num = Version::from_u64(2);
+    // An object that went from below the version straight to above it never
+    // had that version. Taken from the effects rather than from whether the
+    // node still stores the version: superseded versions stay readable.
+    let skipped_the_version = transactions
         .into_iter()
         .flat_map(|tx| {
             assert_eq!(tx.status_ok(), Some(true));
-            tx.mutated_objects()
-                .filter(|object_ref| object_ref.version > Version::from_u64(2))
-                .map(|object_ref| object_ref.object_id)
+            tx.object_changes
+                .into_iter()
+                .flatten()
+                .filter_map(|change| match change {
+                    ObjectChange::Mutated {
+                        object_id,
+                        version,
+                        previous_version,
+                        ..
+                    } if previous_version < seq_num && version > seq_num => Some(object_id),
+                    _ => None,
+                })
                 .collect::<Vec<ObjectId>>()
         })
         .collect::<Vec<_>>();
+    assert!(!skipped_the_version.is_empty());
 
-    let seq_num = Version::from_u64(2);
-    let mut at_least_one_version_not_found = false;
+    for object_id in skipped_the_version {
+        let rpc_past_obj = http_client
+            .try_get_past_object(object_id, seq_num.into(), None)
+            .await
+            .unwrap();
 
-    for mutated_obj_id in mutated_objects {
-        if !cluster
-            .fullnode_handle
-            .iota_node
-            .with(|node| {
-                node.state()
-                    .get_object_cache_reader()
-                    .try_object_exists_by_key(&mutated_obj_id, seq_num)
-            })
-            .unwrap()
-        {
-            let rpc_past_obj = http_client
-                .try_get_past_object(mutated_obj_id, seq_num.into(), None)
-                .await
-                .unwrap();
-
-            assert!(
-                matches!(rpc_past_obj, IotaPastObjectResponse::VersionNotFound(obj_id, seq_number) if obj_id == mutated_obj_id && Version::from(seq_number) == seq_num)
-            );
-
-            at_least_one_version_not_found = true;
-        }
+        assert!(
+            matches!(rpc_past_obj, IotaPastObjectResponse::VersionNotFound(obj_id, seq_number) if obj_id == object_id && Version::from(seq_number) == seq_num)
+        );
     }
-    assert!(at_least_one_version_not_found)
 }
 
 #[sim_test]
@@ -1613,7 +1675,8 @@ async fn try_get_past_object_deleted() {
 
     assert_eq!(tx_block_response.deleted().len(), 1);
 
-    let seq_num = Version::from_u64(4);
+    // The version the deletion left, which depends on the gas coin picked.
+    let seq_num = tx_block_response.deleted()[0].version;
     let rpc_past_obj = http_client
         .try_get_past_object(created_object_id, seq_num.into(), None)
         .await
@@ -1701,7 +1764,12 @@ async fn try_get_object_before_version_not_exists() {
 
 #[sim_test]
 async fn display_transaction_block_with_empty_balance_changes() {
-    let cluster = TestClusterBuilder::new().build().await;
+    // Balance changes are derived from the input objects' previous versions,
+    // which pruning would delete.
+    let cluster = TestClusterBuilder::new()
+        .disable_fullnode_pruning()
+        .build()
+        .await;
     let http_client = cluster.rpc_client();
 
     let checkpoint_seq_num: u64 = 1;
@@ -1760,6 +1828,7 @@ async fn try_get_past_object_valid_params() {
         "params": [ObjectId::ZERO.to_string(), 7, null],
     });
 
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let response: serde_json::Value = reqwest::Client::new()
         .post(cluster.rpc_url())
         .json(&request)

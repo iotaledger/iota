@@ -19,7 +19,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::{ObjectInfo, ObjectType},
-    error::{ExecutionError, IotaError, IotaResult, UserInputError, UserInputResult},
+    error::{IotaError, IotaResult, UserInputError, UserInputResult},
     gas_coin::GasCoin,
     messages_checkpoint::CheckpointSequenceNumber,
     object::{MoveStructExt, Object, ObjectInner, ObjectRead},
@@ -32,7 +32,7 @@ use serde_json::Value;
 use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
 use crate::{
-    IotaMoveStruct, IotaMoveValue, IotaObjectResponseError, Page,
+    IotaMoveStruct, IotaMoveValue, IotaObjectResponseError, OwnedObjectCursor, Page,
     iota_owner::OwnerSchema,
     iota_primitives::{
         Address as AddressSchema, Base58 as Base58Schema, Base64 as Base64Schema,
@@ -293,9 +293,7 @@ impl IotaObjectData {
                 }
                 ObjectData::Package(p) => IotaRawData::try_from_package(p)
                     .map_err(|e| anyhow!("Error getting raw data from package: {e:#?}"))?,
-                _ => unimplemented!(
-                    "a new ObjectData enum variant was added and needs to be handled"
-                ),
+                _ => bail!("unknown ObjectData variant"),
             };
             Some(data)
         } else {
@@ -313,9 +311,7 @@ impl IotaObjectData {
                     IotaParsedData::try_from_object(m, layout)?
                 }
                 ObjectData::Package(p) => IotaParsedData::try_from_package(p)?,
-                _ => unimplemented!(
-                    "a new ObjectData enum variant was added and needs to be handled"
-                ),
+                _ => bail!("unknown ObjectData variant"),
             };
             Some(data)
         } else {
@@ -629,6 +625,8 @@ impl TryInto<Object> for IotaObjectData {
                     false,
                 )?
             }),
+            // Not size-checked: this package is already on-chain, and the limit
+            // the network held it to is not knowable from here.
             Some(IotaRawData::Package(p)) => ObjectData::Package(MovePackage::new(
                 p.id,
                 self.version,
@@ -636,13 +634,12 @@ impl TryInto<Object> for IotaObjectData {
                     .iter()
                     .map(|(k, v)| (Identifier::new_unchecked(k), v.clone()))
                     .collect(),
-                protocol_config.max_move_package_size(),
                 p.type_origin_table.into_iter().collect(),
                 p.linkage_table
                     .into_iter()
                     .map(|(k, v)| (k, v.into()))
                     .collect(),
-            )?),
+            )),
             _ => Err(anyhow!(
                 "BCS data is required to convert IotaObjectData to Object"
             ))?,
@@ -887,9 +884,7 @@ impl IotaParsedData {
                         IotaParsedData::try_from_object(m, layout)?
                     }
                     ObjectData::Package(p) => IotaParsedData::try_from_package(p)?,
-                    _ => unimplemented!(
-                        "a new ObjectData enum variant was added and needs to be handled"
-                    ),
+                    _ => bail!("unknown ObjectData variant"),
                 };
                 Ok(data)
             }
@@ -1170,25 +1165,23 @@ impl From<MovePackage> for IotaRawMovePackage {
 }
 
 impl IotaRawMovePackage {
-    pub fn to_move_package(
-        &self,
-        max_move_package_size: u64,
-    ) -> Result<MovePackage, ExecutionError> {
-        Ok(MovePackage::new(
+    /// The package this describes, not size-checked: it is already on-chain,
+    /// and the limit the network held it to is not knowable from here.
+    pub fn to_move_package(&self) -> MovePackage {
+        MovePackage::new(
             self.id,
             self.version.into(),
             self.module_map
                 .iter()
                 .map(|(k, v)| (Identifier::new_unchecked(k), v.clone()))
                 .collect(),
-            max_move_package_size,
             self.type_origin_table.clone(),
             self.linkage_table
                 .clone()
                 .into_iter()
                 .map(|(k, v)| (k, v.into()))
                 .collect(),
-        )?)
+        )
     }
 }
 
@@ -1287,7 +1280,7 @@ pub struct IotaMovePackage {
 }
 
 pub type QueryObjectsPage = Page<IotaObjectResponse, CheckpointedObjectID>;
-pub type ObjectsPage = Page<IotaObjectResponse, ObjectId>;
+pub type ObjectsPage = Page<IotaObjectResponse, OwnedObjectCursor>;
 
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Copy, Eq, PartialEq)]
@@ -1389,12 +1382,35 @@ impl IotaObjectDataFilter {
     }
 
     pub fn matches(&self, object: &ObjectInfo) -> bool {
+        self.matches_fields(
+            &object.object_id,
+            object.version,
+            &object.object_type,
+            &object.owner,
+        )
+    }
+
+    /// [`Self::matches`] on the only fields of an object a filter looks at,
+    /// for a caller that knows them without the object.
+    pub fn matches_fields(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        object_type: &ObjectType,
+        owner: &Owner,
+    ) -> bool {
         match self {
-            IotaObjectDataFilter::MatchAll(filters) => !filters.iter().any(|f| !f.matches(object)),
-            IotaObjectDataFilter::MatchAny(filters) => filters.iter().any(|f| f.matches(object)),
-            IotaObjectDataFilter::MatchNone(filters) => !filters.iter().any(|f| f.matches(object)),
+            IotaObjectDataFilter::MatchAll(filters) => !filters
+                .iter()
+                .any(|f| !f.matches_fields(object_id, version, object_type, owner)),
+            IotaObjectDataFilter::MatchAny(filters) => filters
+                .iter()
+                .any(|f| f.matches_fields(object_id, version, object_type, owner)),
+            IotaObjectDataFilter::MatchNone(filters) => !filters
+                .iter()
+                .any(|f| f.matches_fields(object_id, version, object_type, owner)),
             IotaObjectDataFilter::StructType(s) => {
-                let obj_tag: StructTag = match &object.object_type {
+                let obj_tag: StructTag = match object_type {
                     ObjectType::Package => return false,
                     ObjectType::Struct(s) => s.clone().into(),
                 };
@@ -1409,22 +1425,87 @@ impl IotaObjectDataFilter {
                 }
             }
             IotaObjectDataFilter::MoveModule { package, module } => {
-                matches!(&object.object_type, ObjectType::Struct(s) if &ObjectId::from(s.address()) == package
+                matches!(object_type, ObjectType::Struct(s) if &ObjectId::from(s.address()) == package
                         && s.module() == module)
             }
             IotaObjectDataFilter::Package(p) => {
-                matches!(&object.object_type, ObjectType::Struct(s) if &ObjectId::from(s.address()) == p)
+                matches!(object_type, ObjectType::Struct(s) if &ObjectId::from(s.address()) == p)
             }
             IotaObjectDataFilter::AddressOwner(a) => {
-                matches!(object.owner, Owner::Address(addr) if &addr == a)
+                matches!(owner, Owner::Address(addr) if addr == a)
             }
             IotaObjectDataFilter::ObjectOwner(o) => {
-                matches!(object.owner, Owner::Object(addr) if &addr == o)
+                matches!(owner, Owner::Object(addr) if addr == o)
             }
-            IotaObjectDataFilter::ObjectId(id) => &object.object_id == id,
-            IotaObjectDataFilter::ObjectIds(ids) => ids.contains(&object.object_id),
-            IotaObjectDataFilter::Version(v) => object.version == *v,
+            IotaObjectDataFilter::ObjectId(id) => object_id == id,
+            IotaObjectDataFilter::ObjectIds(ids) => ids.contains(object_id),
+            IotaObjectDataFilter::Version(v) => version == *v,
         }
+    }
+
+    /// Checks that the filter is within [`MAX_FILTER_DEPTH`] and
+    /// [`MAX_FILTER_NODES`].
+    pub fn check_size(&self) -> Result<(), FilterSizeError> {
+        let mut nodes = 0;
+        self.check_size_at_depth(0, &mut nodes)
+    }
+
+    fn check_size_at_depth(&self, depth: usize, nodes: &mut usize) -> Result<(), FilterSizeError> {
+        *nodes += 1;
+        if *nodes > MAX_FILTER_NODES {
+            return Err(FilterSizeError::TooManyNodes);
+        }
+        match self {
+            IotaObjectDataFilter::MatchAll(filters)
+            | IotaObjectDataFilter::MatchAny(filters)
+            | IotaObjectDataFilter::MatchNone(filters) => {
+                let depth = check_filter_depth(depth + 1)?;
+                for filter in filters {
+                    filter.check_size_at_depth(depth, nodes)?;
+                }
+            }
+            IotaObjectDataFilter::ObjectIds(ids) => {
+                // Matching compares the object against every ID.
+                *nodes += ids.len();
+                if *nodes > MAX_FILTER_NODES {
+                    return Err(FilterSizeError::TooManyNodes);
+                }
+            }
+            IotaObjectDataFilter::Package(_)
+            | IotaObjectDataFilter::MoveModule { .. }
+            | IotaObjectDataFilter::StructType(_)
+            | IotaObjectDataFilter::AddressOwner(_)
+            | IotaObjectDataFilter::ObjectOwner(_)
+            | IotaObjectDataFilter::ObjectId(_)
+            | IotaObjectDataFilter::Version(_) => {}
+        }
+        Ok(())
+    }
+}
+
+/// Maximum number of nested `MatchAll`, `MatchAny` and `MatchNone` filters in
+/// an object filter.
+pub const MAX_FILTER_DEPTH: usize = 10;
+
+/// Maximum number of filters in an object filter, counting the filters that
+/// combine others, every filter inside them, and every object ID of
+/// `ObjectIds`.
+pub const MAX_FILTER_NODES: usize = 64;
+
+/// A filter that exceeds one of the size limits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum FilterSizeError {
+    #[error("filter nesting exceeds the limit of {MAX_FILTER_DEPTH} levels")]
+    TooDeep,
+    #[error("filter exceeds the limit of {MAX_FILTER_NODES} nodes")]
+    TooManyNodes,
+}
+
+pub(crate) fn check_filter_depth(depth: usize) -> Result<usize, FilterSizeError> {
+    if depth > MAX_FILTER_DEPTH {
+        Err(FilterSizeError::TooDeep)
+    } else {
+        Ok(depth)
     }
 }
 
@@ -1458,5 +1539,56 @@ impl IotaObjectResponseQuery {
             filter: None,
             options: Some(options),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_size_limits_object_filter() {
+        let leaf = || IotaObjectDataFilter::ObjectId(ObjectId::ZERO);
+        let combinators: [fn(IotaObjectDataFilter) -> IotaObjectDataFilter; 3] = [
+            |f| IotaObjectDataFilter::MatchAll(vec![f]),
+            |f| IotaObjectDataFilter::MatchAny(vec![f]),
+            |f| IotaObjectDataFilter::MatchNone(vec![f]),
+        ];
+        for combine in combinators {
+            let nested = |depth| (0..depth).fold(leaf(), |filter, _| combine(filter));
+            assert_eq!(nested(MAX_FILTER_DEPTH).check_size(), Ok(()));
+            assert_eq!(
+                nested(MAX_FILTER_DEPTH + 1).check_size(),
+                Err(FilterSizeError::TooDeep)
+            );
+        }
+
+        let wide = |len: usize| IotaObjectDataFilter::MatchAny((0..len).map(|_| leaf()).collect());
+        assert_eq!(wide(MAX_FILTER_NODES - 1).check_size(), Ok(()));
+        assert_eq!(
+            wide(MAX_FILTER_NODES).check_size(),
+            Err(FilterSizeError::TooManyNodes)
+        );
+        assert_eq!(
+            wide(1_000_000).check_size(),
+            Err(FilterSizeError::TooManyNodes)
+        );
+
+        let ids = |len: usize| IotaObjectDataFilter::ObjectIds(vec![ObjectId::ZERO; len]);
+        assert_eq!(ids(MAX_FILTER_NODES - 1).check_size(), Ok(()));
+        assert_eq!(
+            ids(MAX_FILTER_NODES).check_size(),
+            Err(FilterSizeError::TooManyNodes)
+        );
+        // Nodes are counted across all levels: 1 + (1 + 31) + (1 + 31) = 65.
+        let half = MAX_FILTER_NODES / 2 - 1;
+        assert_eq!(
+            IotaObjectDataFilter::MatchAll(vec![ids(half), ids(half)]).check_size(),
+            Err(FilterSizeError::TooManyNodes)
+        );
+        assert_eq!(
+            IotaObjectDataFilter::MatchAll(vec![ids(half), ids(half - 1)]).check_size(),
+            Ok(())
+        );
     }
 }

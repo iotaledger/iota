@@ -334,6 +334,7 @@ async fn test_api_route() -> anyhow::Result<()> {
     tokio::spawn(async move { serve(app_state).await.expect("Cannot start service.") });
     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let client = Client::new();
 
     // check that serve returns expected sample code
@@ -390,6 +391,7 @@ async fn test_metrics_route() -> anyhow::Result<()> {
     let prometheus_registry = registry_service.default_registry();
     SourceServiceMetrics::new(&prometheus_registry);
 
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let client = Client::new();
     let response = client
         .get(format!("http://{METRICS_HOST_PORT}/metrics"))

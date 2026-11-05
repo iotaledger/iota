@@ -15,18 +15,21 @@ use fastcrypto::{
     hash::HashFunction,
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_sdk_move_types::{
+    iota_framework::clock::Clock,
+    iota_system::iota_system::IotaSystemState as IotaSystemStateWrapper,
+};
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointSummary, ObjectId, TransactionEffects, TransactionEvents,
 };
 use iota_types::{
-    clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
     crypto::DefaultHash,
     deny_list_v1::get_deny_list_root_object,
     error::IotaResult,
     iota_system_state::{
-        IotaSystemState, IotaSystemStateTrait, IotaSystemStateWrapper, IotaValidatorGenesis,
-        get_iota_system_state, get_iota_system_state_wrapper,
+        IotaSystemState, IotaSystemStateTrait, IotaValidatorGenesis, get_iota_system_state,
+        get_iota_system_state_wrapper,
     },
     messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
     object::Object,
@@ -625,10 +628,9 @@ pub struct TokenAllocation {
     /// object.
     pub recipient_address: Address,
     /// Indicates an amount of nanos that is:
-    /// - minted for the `recipient_address` and staked to a validator, only in
-    ///   the case `staked_with_validator` is Some
-    /// - minted for the `recipient_address` and transferred that address,
-    ///   otherwise.
+    /// - minted for the `recipient_address` and staked to a validator, only in the case
+    ///   `staked_with_validator` is Some
+    /// - minted for the `recipient_address` and transferred that address, otherwise.
     pub amount_nanos: u64,
 
     /// Indicates if this allocation should be staked at genesis and with which

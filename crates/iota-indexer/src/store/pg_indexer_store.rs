@@ -948,9 +948,8 @@ impl PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all event indices in a chunk: {e:?}"
-                ))
+                tracing::error!("failed to persist all event indices in a chunk: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} chunked event indices", len);
@@ -1035,9 +1034,8 @@ impl PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all tx indices in a chunk: {e:?}"
-                ))
+                tracing::error!("failed to persist all tx indices in a chunk: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} chunked tx_indices", len);
@@ -1834,9 +1832,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all objects version chunks: {e:?}"
-                ))
+                tracing::error!("failed to persist all objects version chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {object_versions_count} object versions");
@@ -1875,9 +1872,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all transactions chunks: {e:?}"
-                ))
+                tracing::error!("failed to persist all transactions chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} transactions", len);
@@ -1916,7 +1912,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!("Failed to persist all events chunks: {e:?}"))
+                tracing::error!("failed to persist all events chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} events", len);
@@ -1946,9 +1943,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(
-                    format!("Failed to persist all displays chunks: {e:?}",),
-                )
+                tracing::error!("failed to persist all displays chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         Ok(())
     }
@@ -1995,9 +1991,8 @@ impl IndexerStore for PgIndexerStore {
             self.persist_packages_in_chunks(packages)
                 .await
                 .map_err(|e| {
-                    IndexerError::PostgresWrite(format!(
-                        "Failed to persist all packages chunks: {e:?}"
-                    ))
+                    tracing::error!("failed to persist all packages chunks: {e:?}");
+                    IndexerError::PostgresWrite
                 })
         };
         persist_result
@@ -2036,9 +2031,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all event_indices chunks: {e:?}"
-                ))
+                tracing::error!("failed to persist all event_indices chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} event_indices chunks", len);
@@ -2182,9 +2176,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all tx_indices chunks: {e:?}"
-                ))
+                tracing::error!("failed to persist all tx_indices chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} tx_indices chunks", len);
@@ -2226,7 +2219,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!("Failed to persist all object chunks: {e:?}",))
+                tracing::error!("failed to persist all object chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
 
         let elapsed = guard.stop_and_record();
@@ -2261,9 +2255,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all objects backward history chunks: {e:?}"
-                ))
+                tracing::error!("failed to persist all objects backward history chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         info!("Persisted {} objects backward history", len);
         Ok(())
@@ -2313,9 +2306,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all checkpointed object chunks: {e:?}",
-                ))
+                tracing::error!("failed to persist all checkpointed object chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
 
         info!(
@@ -2348,9 +2340,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all txs insertion order chunks: {e:?}",
-                ))
+                tracing::error!("failed to persist all txs insertion order chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {len} txs insertion orders");

@@ -50,10 +50,6 @@ pub struct Config {
     /// Default is no keepalive (None)
     pub tcp_keepalive: Option<Duration>,
 
-    /// Set the value of TCP_NODELAY option for accepted connections. Enabled by
-    /// default.
-    pub tcp_nodelay: Option<bool>,
-
     /// Set whether HTTP2 Ping frames are enabled on accepted connections.
     ///
     /// If None is specified, HTTP2 keepalive is disabled, otherwise the
@@ -114,6 +110,5 @@ impl Config {
             .http2_keepalive_timeout(self.http2_keepalive_timeout)
             .http2_keepalive_interval(self.http2_keepalive_interval)
             .tcp_keepalive(self.tcp_keepalive)
-            .tcp_nodelay(self.tcp_nodelay.unwrap_or_default())
     }
 }

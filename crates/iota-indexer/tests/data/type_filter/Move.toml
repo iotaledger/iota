@@ -1,0 +1,9 @@
+[package]
+name = "type_filter"
+edition = "legacy"
+
+[dependencies]
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+type_filter = "0x0"

@@ -30,7 +30,7 @@ pub const NFT_MINTED_EVENT: &str = "NFTMinted";
 pub async fn setup_grpc_test(
     wait_for_checkpoint: Option<u64>,
     client_max_message_size_bytes: Option<u32>,
-) -> (TestCluster, iota_grpc_client::Client) {
+) -> (TestCluster, iota_grpc_client::GrpcClient) {
     setup_grpc_test_with_builder(
         |builder| builder,
         wait_for_checkpoint,
@@ -49,7 +49,7 @@ pub async fn setup_grpc_test_with_builder<F>(
     builder_fn: F,
     wait_for_checkpoint: Option<u64>,
     client_max_message_size_bytes: Option<u32>,
-) -> (TestCluster, iota_grpc_client::Client)
+) -> (TestCluster, iota_grpc_client::GrpcClient)
 where
     F: FnOnce(TestClusterBuilder) -> TestClusterBuilder,
 {
@@ -63,7 +63,7 @@ where
         test_cluster.wait_for_checkpoint(checkpoint, None).await;
     }
 
-    let mut client = iota_grpc_client::Client::new(test_cluster.grpc_url())
+    let mut client = iota_grpc_client::GrpcClient::new(test_cluster.grpc_url())
         .expect("Failed to connect to gRPC service");
 
     if let Some(max_size) = client_max_message_size_bytes {
@@ -175,10 +175,11 @@ pub async fn execute_transaction_and_get_digest(test_cluster: &TestCluster) -> T
 /// safe upper bound for stream ranges that need to cover those transactions.
 pub async fn wait_for_executed_transactions_checkpointed(
     cluster: &TestCluster,
-    client: &iota_grpc_client::Client,
+    client: &iota_grpc_client::GrpcClient,
 ) -> u64 {
     let baseline_seq = client
-        .checkpoint_latest(None, None, CheckpointResponseField::ALL)
+        .checkpoint_latest()
+        .read_mask(CheckpointResponseField::ALL)
         .await
         .expect("get latest checkpoint")
         .body()
@@ -344,11 +345,10 @@ pub fn grpc_net_gas_usage(
 /// Assert that a transaction transferring `amount` NANOS of IOTA from
 /// `sender` to `recipient` produced exactly the expected derived changes:
 ///
-/// - balance changes: `-(amount + gas)` for the sender, `+amount` for the
-///   recipient (gas taken from the transaction's effects, so the read mask must
-///   include `effects`);
-/// - object changes: one coin `Created` for the recipient, all remaining
-///   entries gas-coin `Mutated` for the sender (source coin and/or gas coin).
+/// - balance changes: `-(amount + gas)` for the sender, `+amount` for the recipient (gas taken from
+///   the transaction's effects, so the read mask must include `effects`);
+/// - object changes: one coin `Created` for the recipient, all remaining entries gas-coin `Mutated`
+///   for the sender (source coin and/or gas coin).
 pub fn assert_transfer_derived_changes(
     executed_transaction: &iota_grpc_types::v1::transaction::ExecutedTransaction,
     sender: Address,
@@ -691,13 +691,13 @@ pub fn comma_separated_field_mask_to_paths(mask_str: &str) -> Vec<&str> {
 ///
 /// Each path in `expected_field_paths` is either:
 /// - A **bare** name (no dot), e.g. `"bcs"` or `"effects"`:
-///   - If the field has a nested [`FieldPresenceChecker`], **all** of its
-///     sub-fields are asserted present recursively (mirrors server wildcard
-///     semantics where a parent path returns every sub-field).
+///   - If the field has a nested [`FieldPresenceChecker`], **all** of its sub-fields are asserted
+///     present recursively (mirrors server wildcard semantics where a parent path returns every
+///     sub-field).
 ///   - If the field has no nested checker (a leaf), only presence is asserted.
-/// - A **dotted** path, e.g. `"reference.object_id"` — the top-level field must
-///   be present, and exactly the listed sub-paths must be present inside it
-///   (all other sub-fields are asserted absent).
+/// - A **dotted** path, e.g. `"reference.object_id"` — the top-level field must be present, and
+///   exactly the listed sub-paths must be present inside it (all other sub-fields are asserted
+///   absent).
 ///
 /// Every top-level field that is *not* listed in `expected_field_paths` (either
 /// bare or as the prefix of a dotted path) is asserted **absent**.
@@ -729,8 +729,7 @@ pub fn comma_separated_field_mask_to_paths(mask_str: &str) -> Vec<&str> {
 /// - `reference.version` is present
 /// - `bcs` is present (leaf — presence only, no nested inspection)
 /// - All other top-level fields are absent
-/// - Inside `reference`: only `object_id` and `version` are present
-///   (`reference.digest` is absent)
+/// - Inside `reference`: only `object_id` and `version` are present (`reference.digest` is absent)
 pub(crate) fn assert_field_presence(
     checker: &dyn FieldPresenceChecker,
     expected_field_paths: &[&str],

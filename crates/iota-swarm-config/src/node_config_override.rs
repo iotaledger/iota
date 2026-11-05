@@ -210,22 +210,20 @@ impl NodeConfigOverride {
 /// Apply `overrides` to `config` in the given order. On error the config
 /// is left unchanged.
 ///
-/// - Later overrides win per field; fields no override mentions keep their
-///   current values. Declaration order decides, not how specific a scope is: a
-///   later `validator:` override beats an earlier `validator-0:` one.
-/// - The merge runs on the serialized config: a field set inside a section the
-///   config leaves at its default starts from the section's own per-field serde
-///   defaults, not from the in-memory value. For example, setting a field
-///   inside an unset `policy-config` yields the no-op policy its field defaults
-///   compose to, not the DoS protection policy [`NodeConfig`] defaults to. Set
-///   the whole section to configure that one.
-/// - A section switched off with an explicit `null` is a scalar, so setting a
-///   field inside it is rejected; set the whole section to switch it back on.
-/// - Unknown fields, type mismatches, and changes that would leave the node
-///   unable to run are rejected. [`NodeConfig::validate`] judges the final
-///   state, so an override may clear a field a later one restores — except
-///   `consensus-config`, whose creation or removal is rejected even if a later
-///   override undoes it.
+/// - Later overrides win per field; fields no override mentions keep their current values.
+///   Declaration order decides, not how specific a scope is: a later `validator:` override beats an
+///   earlier `validator-0:` one.
+/// - The merge runs on the serialized config: a field set inside a section the config leaves at its
+///   default starts from the section's own per-field serde defaults, not from the in-memory value.
+///   For example, setting a field inside an unset `policy-config` yields the no-op policy its field
+///   defaults compose to, not the DoS protection policy [`NodeConfig`] defaults to. Set the whole
+///   section to configure that one.
+/// - A section switched off with an explicit `null` is a scalar, so setting a field inside it is
+///   rejected; set the whole section to switch it back on.
+/// - Unknown fields, type mismatches, and changes that would leave the node unable to run are
+///   rejected. [`NodeConfig::validate`] judges the final state, so an override may clear a field a
+///   later one restores — except `consensus-config`, whose creation or removal is rejected even if
+///   a later override undoes it.
 pub fn apply_node_config_overrides<'a>(
     overrides: impl IntoIterator<Item = &'a NodeConfigOverride>,
     config: &mut NodeConfig,
@@ -537,7 +535,7 @@ mod tests {
     use iota_types::{
         supported_protocol_versions::SupportedProtocolVersions, traffic_control::PolicyConfig,
     };
-    use rand::rngs::OsRng;
+    use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
     use super::*;
     use crate::{
@@ -553,12 +551,17 @@ mod tests {
     }
 
     fn test_config() -> NodeConfig {
-        FullnodeConfigBuilder::new().build_from_parts(&mut OsRng, &[], Genesis::new_empty())
+        FullnodeConfigBuilder::new().build_from_parts(
+            &mut UnwrapErr(SysRng),
+            &[],
+            Genesis::new_empty(),
+        )
     }
 
     fn validator_test_config() -> NodeConfig {
-        ValidatorConfigBuilder::new()
-            .build_without_genesis(ValidatorGenesisConfigBuilder::new().build(&mut OsRng))
+        ValidatorConfigBuilder::new().build_without_genesis(
+            ValidatorGenesisConfigBuilder::new().build(&mut UnwrapErr(SysRng)),
+        )
     }
 
     // The lazily loaded key pair caches are not config state and start out
@@ -573,12 +576,12 @@ mod tests {
 
     #[test]
     fn parse_scopes() {
-        let all: NodeConfigOverride = "enable-index-processing=false".parse().unwrap();
+        let all: NodeConfigOverride = "enable-jsonrpc-api=false".parse().unwrap();
         assert_eq!(all.scope, OverrideScope::All);
-        assert_eq!(all.path, ["enable-index-processing"]);
+        assert_eq!(all.path, ["enable-jsonrpc-api"]);
         assert_eq!(all.value, Value::Bool(false));
 
-        let all: NodeConfigOverride = "all:enable-index-processing=false".parse().unwrap();
+        let all: NodeConfigOverride = "all:enable-jsonrpc-api=false".parse().unwrap();
         assert_eq!(all.scope, OverrideScope::All);
 
         let fullnode: NodeConfigOverride =
@@ -717,9 +720,8 @@ mod tests {
 
     #[test]
     fn parse_trims_whitespace_and_reads_empty_value_as_null() {
-        let config_override: NodeConfigOverride =
-            " enable-index-processing = false ".parse().unwrap();
-        assert_eq!(config_override.path, ["enable-index-processing"]);
+        let config_override: NodeConfigOverride = " enable-jsonrpc-api = false ".parse().unwrap();
+        assert_eq!(config_override.path, ["enable-jsonrpc-api"]);
         assert_eq!(config_override.value, Value::Bool(false));
 
         let config_override: NodeConfigOverride = "metrics=".parse().unwrap();
@@ -733,13 +735,12 @@ mod tests {
             // pins that the round trip preserves it.
             config.supported_protocol_versions = Some(SupportedProtocolVersions::SYSTEM_DEFAULT);
             let before = debug_with_keys_loaded(&config);
-            let enable_index_processing = config.enable_index_processing;
+            let enable_jsonrpc_api = config.enable_jsonrpc_api;
 
-            let config_override: NodeConfigOverride =
-                "enable-index-processing=false".parse().unwrap();
+            let config_override: NodeConfigOverride = "enable-jsonrpc-api=false".parse().unwrap();
             config_override.apply_to(&mut config).unwrap();
             // Undo the single intended change. Nothing else may have moved.
-            config.enable_index_processing = enable_index_processing;
+            config.enable_jsonrpc_api = enable_jsonrpc_api;
 
             assert_eq!(debug_with_keys_loaded(&config), before);
         }
@@ -879,13 +880,13 @@ mod tests {
     #[test]
     fn apply_rejects_nesting_under_a_scalar() {
         let mut config = test_config();
-        let config_override: NodeConfigOverride = "enable-index-processing.foo=1".parse().unwrap();
+        let config_override: NodeConfigOverride = "enable-jsonrpc-api.foo=1".parse().unwrap();
         let err = config_override
             .apply_to(&mut config)
             .unwrap_err()
             .to_string();
         assert!(
-            err.starts_with("`enable-index-processing` in "),
+            err.starts_with("`enable-jsonrpc-api` in "),
             "error blames the wrong segment: {err}"
         );
     }
@@ -1019,17 +1020,17 @@ mod tests {
         // for an unknown field.
         let mut config = test_config();
         config
-            .authority_store_pruning_config
-            .enable_compaction_filter = true;
+            .authority_overload_config
+            .check_system_overload_at_execution = true;
         let config_override: NodeConfigOverride =
-            "authority-store-pruning-config.enable-compaction-filter=false"
+            "authority-overload-config.check-system-overload-at-execution=false"
                 .parse()
                 .unwrap();
         config_override.apply_to(&mut config).unwrap();
         assert!(
             !config
-                .authority_store_pruning_config
-                .enable_compaction_filter
+                .authority_overload_config
+                .check_system_overload_at_execution
         );
 
         let config_override: NodeConfigOverride = "p2p-config.seed-peers=[]".parse().unwrap();
@@ -1046,14 +1047,15 @@ mod tests {
             .periodic_compaction_threshold_days = None;
 
         let config_override: NodeConfigOverride =
-            "authority-store-pruning-config={enable-compaction-filter: true}"
+            "authority-store-pruning-config={num-epochs-to-retain-for-checkpoints: 7}"
                 .parse()
                 .unwrap();
         config_override.apply_to(&mut config).unwrap();
-        assert!(
+        assert_eq!(
             config
                 .authority_store_pruning_config
-                .enable_compaction_filter
+                .num_epochs_to_retain_for_checkpoints,
+            Some(7)
         );
         // Unmentioned fields keep their values instead of resetting to their
         // serde defaults.
@@ -1094,7 +1096,7 @@ mod tests {
         let mut config = test_config();
         let overrides: Vec<NodeConfigOverride> = [
             "authority-store-pruning-config.num-epochs-to-retain=5",
-            "enable-index-processing=false",
+            "enable-jsonrpc-api=false",
             "authority-store-pruning-config.num-epochs-to-retain=7",
         ]
         .iter()
@@ -1105,13 +1107,13 @@ mod tests {
             config.authority_store_pruning_config.num_epochs_to_retain,
             7
         );
-        assert!(!config.enable_index_processing);
+        assert!(!config.enable_jsonrpc_api);
 
         // A batch is atomic: one bad override rejects the whole batch,
         // and the error names the override at fault.
         let mut config = test_config();
         let before = debug_with_keys_loaded(&config);
-        let overrides: Vec<NodeConfigOverride> = ["enable-index-processing=false", "not-a-field=1"]
+        let overrides: Vec<NodeConfigOverride> = ["enable-jsonrpc-api=false", "not-a-field=1"]
             .iter()
             .map(|input| input.parse().unwrap())
             .collect();
@@ -1149,17 +1151,15 @@ mod tests {
         // An override that nests under a field an earlier override set to a
         // scalar is blamed itself, not the earlier valid one.
         let mut config = test_config();
-        let overrides: Vec<NodeConfigOverride> = [
-            "enable-index-processing=false",
-            "enable-index-processing.foo=1",
-        ]
-        .iter()
-        .map(|input| input.parse().unwrap())
-        .collect();
+        let overrides: Vec<NodeConfigOverride> =
+            ["enable-jsonrpc-api=false", "enable-jsonrpc-api.foo=1"]
+                .iter()
+                .map(|input| input.parse().unwrap())
+                .collect();
         let err = apply_node_config_overrides(&overrides, &mut config)
             .unwrap_err()
             .to_string();
-        assert!(err.contains("all:enable-index-processing.foo"), "{err}");
+        assert!(err.contains("all:enable-jsonrpc-api.foo"), "{err}");
     }
 
     #[test]
@@ -1327,8 +1327,8 @@ mod tests {
             ["p2p-config.seed-peers", "p2p-config.anemo-config"]
         );
 
-        let config_override: NodeConfigOverride = "enable-index-processing=false".parse().unwrap();
-        assert_eq!(config_override.field_paths(), ["enable-index-processing"]);
+        let config_override: NodeConfigOverride = "enable-jsonrpc-api=false".parse().unwrap();
+        assert_eq!(config_override.field_paths(), ["enable-jsonrpc-api"]);
 
         // An empty mapping still names the section itself.
         let config_override: NodeConfigOverride = "metrics={}".parse().unwrap();

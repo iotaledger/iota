@@ -6,12 +6,19 @@ use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
 use iota_multiaddr::Multiaddr;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
+use iota_sdk_move_types::{
+    iota_framework::{
+        bag::Bag, object::ID, system_admin_cap::IotaSystemAdminCap, table::Table,
+        table_vec::TableVec, vec_map::VecMap, vec_set::VecSet,
+    },
+    iota_system::{iota_system_state_inner::SystemParametersV1, validator_wrapper::Validator},
+};
 use iota_sdk_types::{Address, ObjectId};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AdvanceEpochParams, IotaSystemStateTrait, get_validators_from_table_vec,
+    AdvanceEpochParams, IotaSystemStateTrait, PoolTokenExchangeRate, get_validators_from_table_vec,
     iota_system_state_summary::{
         IotaSystemStateSummary, IotaSystemStateSummaryV1, IotaValidatorSummary,
     },
@@ -22,7 +29,6 @@ use crate::iota_system_state::epoch_start_iota_system_state::{
 };
 use crate::{
     balance::Balance,
-    collection_types::{Bag, Table, TableVec, VecMap, VecSet},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{
         AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
@@ -30,9 +36,7 @@ use crate::{
     },
     error::IotaError,
     gas_coin::IotaTreasuryCap,
-    id::ID,
     storage::ObjectStore,
-    system_admin_cap::IotaSystemAdminCap,
 };
 
 const E_METADATA_INVALID_POP: u64 = 0;
@@ -42,39 +46,6 @@ const E_METADATA_INVALID_PROTOCOL_PUBKEY: u64 = 3;
 const E_METADATA_INVALID_NET_ADDR: u64 = 4;
 const E_METADATA_INVALID_P2P_ADDR: u64 = 5;
 const E_METADATA_INVALID_PRIMARY_ADDR: u64 = 6;
-
-/// Rust version of the Move iota::iota_system::SystemParametersV1 type
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct SystemParametersV1 {
-    /// The duration of an epoch, in milliseconds.
-    pub epoch_duration_ms: u64,
-
-    /// Minimum number of active validators at any moment.
-    pub min_validator_count: u64,
-
-    /// Maximum number of active validators at any moment.
-    /// We do not allow the number of validators in any epoch to go above this.
-    pub max_validator_count: u64,
-
-    /// Lower-bound on the amount of stake required to become a validator.
-    pub min_validator_joining_stake: u64,
-
-    /// Validators with stake amount below `validator_low_stake_threshold` are
-    /// considered to have low stake and will be escorted out of the
-    /// validator set after being below this threshold for more than
-    /// `validator_low_stake_grace_period` number of epochs.
-    pub validator_low_stake_threshold: u64,
-
-    /// Validators with stake below `validator_very_low_stake_threshold` will be
-    /// removed immediately at epoch change, no grace period.
-    pub validator_very_low_stake_threshold: u64,
-
-    /// A validator can have stake below `validator_low_stake_threshold`
-    /// for this many epochs before being kicked out.
-    pub validator_low_stake_grace_period: u64,
-
-    pub extra_fields: Bag,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct ValidatorMetadataV1 {
@@ -383,6 +354,7 @@ impl ValidatorV1 {
                         Table {
                             id: exchange_rates_id,
                             size: exchange_rates_size,
+                            ..
                         },
                     pending_stake,
                     pending_total_iota_withdraw,
@@ -428,7 +400,7 @@ impl ValidatorV1 {
             staking_pool_iota_balance,
             rewards_pool: rewards_pool.value(),
             pool_token_balance,
-            exchange_rates_id,
+            exchange_rates_id: *exchange_rates_id.object_id(),
             exchange_rates_size,
             pending_stake,
             pending_total_iota_withdraw,
@@ -451,7 +423,7 @@ pub struct StakingPoolV1 {
     pub iota_balance: u64,
     pub rewards_pool: Balance,
     pub pool_token_balance: u64,
-    pub exchange_rates: Table,
+    pub exchange_rates: Table<u64, PoolTokenExchangeRate>,
     pub pending_stake: u64,
     pub pending_total_iota_withdraw: u64,
     pub pending_pool_token_withdraw: u64,
@@ -463,11 +435,11 @@ pub struct StakingPoolV1 {
 pub struct ValidatorSetV1 {
     pub total_stake: u64,
     pub active_validators: Vec<ValidatorV1>,
-    pub pending_active_validators: TableVec,
+    pub pending_active_validators: TableVec<ValidatorV1>,
     pub pending_removals: Vec<u64>,
-    pub staking_pool_mappings: Table,
-    pub inactive_validators: Table,
-    pub validator_candidates: Table,
+    pub staking_pool_mappings: Table<ID, Address>,
+    pub inactive_validators: Table<ID, Validator>,
+    pub validator_candidates: Table<Address, Validator>,
     pub at_risk_validators: VecMap<Address, u64>,
     pub extra_fields: Bag,
 }
@@ -572,7 +544,12 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
         &self,
         object_store: &S,
     ) -> Result<Vec<IotaValidatorSummary>, IotaError> {
-        let table_id = self.validators.pending_active_validators.contents.id;
+        let table_id = *self
+            .validators
+            .pending_active_validators
+            .contents
+            .id
+            .object_id();
         let table_size = self.validators.pending_active_validators.contents.size;
         let validators: Vec<ValidatorV1> =
             get_validators_from_table_vec(&object_store, table_id, table_size)?;
@@ -619,6 +596,7 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
                                 Table {
                                     id: pending_active_validators_id,
                                     size: pending_active_validators_size,
+                                    ..
                                 },
                         },
                     pending_removals,
@@ -626,16 +604,19 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
                         Table {
                             id: staking_pool_mappings_id,
                             size: staking_pool_mappings_size,
+                            ..
                         },
                     inactive_validators:
                         Table {
                             id: inactive_pools_id,
                             size: inactive_pools_size,
+                            ..
                         },
                     validator_candidates:
                         Table {
                             id: validator_candidates_id,
                             size: validator_candidates_size,
+                            ..
                         },
                     at_risk_validators:
                         VecMap {
@@ -692,14 +673,14 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
                 .into_iter()
                 .map(|v| v.into_iota_validator_summary(Some(protocol_version)))
                 .collect(),
-            pending_active_validators_id,
+            pending_active_validators_id: *pending_active_validators_id.object_id(),
             pending_active_validators_size,
             pending_removals,
-            staking_pool_mappings_id,
+            staking_pool_mappings_id: *staking_pool_mappings_id.object_id(),
             staking_pool_mappings_size,
-            inactive_pools_id,
+            inactive_pools_id: *inactive_pools_id.object_id(),
             inactive_pools_size,
-            validator_candidates_id,
+            validator_candidates_id: *validator_candidates_id.object_id(),
             validator_candidates_size,
             at_risk_validators: at_risk_validators
                 .into_iter()
@@ -717,12 +698,4 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             validator_low_stake_grace_period,
         })
     }
-}
-
-/// Rust version of the Move
-/// iota_system::validator_cap::UnverifiedValidatorOperationCap type
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct UnverifiedValidatorOperationCap {
-    pub id: ObjectId,
-    pub authorizer_validator_address: Address,
 }

@@ -2,6 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! Writing, uploading and restoring state snapshots, also called formal
+//! snapshots: the live object set as an epoch ended, published as files to an
+//! object store.
+
 #![allow(dead_code)]
 
 #[cfg(test)]
@@ -42,7 +46,7 @@ use iota_storage::{
 use iota_types::{
     IOTA_SYSTEM_STATE_OBJECT_ID,
     base_types::ExecutionDigests,
-    committee::{Committee, CommitteeChainVerifier},
+    committee::{Committee, CommitteeChainVerifier, EpochId},
     digests::ChainIdentifier,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     global_state_hash::GlobalStateHash,
@@ -82,20 +86,17 @@ use crate::{
 /// directory.
 ///
 /// Snapshot-format V2 additions over V1:
-/// - OBJECT file magic is `0x00B7EC76` (V1 was `0x00B7EC75`); a V2 reader fails
-///   fast on a V1 magic and vice versa. Encoded records are BCS-serialized
-///   `SnapshotLiveObject` carrying the per-object
-///   `previous_transaction_checkpoint` inline. The writer rejects rows whose
-///   checkpoint is `None` (lifted from pre-V2 store rows) at the publish
-///   boundary, so any record present in a published `.obj` file carries a
-///   concrete checkpoint sequence number.
+/// - OBJECT file magic is `0x00B7EC76` (V1 was `0x00B7EC75`); a V2 reader fails fast on a V1 magic
+///   and vice versa. Encoded records are BCS-serialized `SnapshotLiveObject` carrying the
+///   per-object `previous_transaction_checkpoint` inline. The writer rejects rows whose checkpoint
+///   is `None` (lifted from pre-V2 store rows) at the publish boundary, so any record present in a
+///   published `.obj` file carries a concrete checkpoint sequence number.
 /// - REFERENCE file format is unchanged from V1.
-/// - A per-snapshot `EPOCH_INFO` file carries one [`EpochInfoV1Entry`] per
-///   epoch in `[0, snapshot_epoch]` from the CheckpointStore's `epoch_info`
-///   table. The writer refuses to publish unless that table's completeness
-///   watermark covers `snapshot_epoch`.
-/// - `MANIFEST` is now [`ManifestV2`], adding a `chain_id` field so a restore
-///   can reject a foreign-chain snapshot.
+/// - A per-snapshot `EPOCH_INFO` file carries one [`EpochInfoV1Entry`] per epoch in `[0,
+///   snapshot_epoch]` from the CheckpointStore's `epoch_info` table. The writer refuses to publish
+///   unless that table's completeness watermark covers `snapshot_epoch`.
+/// - `MANIFEST` is now [`ManifestV2`], adding a `chain_id` field so a restore can reject a
+///   foreign-chain snapshot.
 ///
 /// State Snapshot Directory Layout
 ///  - snapshot/
@@ -296,8 +297,8 @@ impl Manifest {
 }
 
 /// On-disk schema for the per-snapshot `EPOCH_INFO` file. Versioned for
-/// future schema evolution. `entries[i]` is the entry for epoch `i`;
-/// length is `snapshot_epoch + 1`.
+/// future schema evolution. `entries[i]` is the entry for epoch `i`; the length
+/// must be `snapshot_epoch + 1`, which `verify_epoch_info_chain` enforces.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum EpochInfo {
     V1(EpochInfoV1),
@@ -346,6 +347,15 @@ impl VerifiedEpochInfo {
     /// the start system state of the epoch following the snapshot epoch.
     pub fn entries(&self) -> &[EpochInfoV1Entry] {
         self.epoch_info.entries()
+    }
+
+    /// The entry for the snapshot epoch, i.e. the last of [`Self::entries`].
+    pub fn snapshot_entry(&self) -> &EpochInfoV1Entry {
+        // `verify_epoch_info_chain` is the only constructor and rejects an
+        // entry count other than `snapshot_epoch + 1`, so there is one.
+        self.entries()
+            .last()
+            .expect("a verified EPOCH_INFO covers epochs [0, snapshot_epoch]")
     }
 
     /// Committees for epochs `[0, snapshot_epoch + 1]`: the genesis committee
@@ -409,13 +419,14 @@ impl VerifiedEpochInfo {
 /// Verify a snapshot's `EPOCH_INFO` against the operator's trust roots: the
 /// expected `chain_id`, the committee chain walked from `genesis_committee`,
 /// and `genesis_system_state` (epoch 0's start state, which no entry proves).
-/// Each entry must be the contiguous certified close of its epoch, signed by
-/// the committee the previous entry handed forward, with its proof bundle
-/// hashing back to the signed summary (see `verify_epoch_boundary_proof`).
-/// Nothing is written; the returned `VerifiedEpochInfo` is the witness
-/// consumers require.
+/// The entries must be the contiguous certified closes of epochs
+/// `[0, snapshot_epoch]`, each signed by the committee the previous entry
+/// handed forward, with its proof bundle hashing back to the signed summary
+/// (see `verify_epoch_boundary_proof`). Nothing is written; the returned
+/// `VerifiedEpochInfo` is the witness consumers require.
 pub fn verify_epoch_info_chain(
     epoch_info: EpochInfo,
+    snapshot_epoch: EpochId,
     genesis_committee: Committee,
     genesis_system_state: IotaSystemState,
     snapshot_chain_id: ChainIdentifier,
@@ -430,6 +441,15 @@ pub fn verify_epoch_info_chain(
         genesis_committee.epoch == 0,
         "the trust root must be the genesis committee, got epoch {}",
         genesis_committee.epoch
+    );
+    // With the contiguity check below, this binds the last entry to the
+    // requested epoch: a shorter chain would restore an earlier epoch, and an
+    // empty one leaves consumers with no snapshot boundary at all.
+    let entry_count = epoch_info.entries().len();
+    anyhow::ensure!(
+        entry_count as u64 == snapshot_epoch + 1,
+        "EPOCH_INFO carries {entry_count} entries, but a snapshot of epoch \
+         {snapshot_epoch} must carry one entry per epoch in [0, {snapshot_epoch}]"
     );
 
     let mut chain_verifier = CommitteeChainVerifier::new(genesis_committee);
@@ -617,15 +637,24 @@ pub async fn setup_db_state(
     .unwrap();
     perpetual_db.set_epoch_start_configuration(&epoch_start_configuration)?;
     perpetual_db.insert_root_state_hash(epoch, last_checkpoint.sequence_number, state_hash)?;
-    perpetual_db.set_highest_pruned_checkpoint_without_wb(last_checkpoint.sequence_number)?;
+    // A restore holds only the live object set, writes no ledger rows, and
+    // puts its checkpoints in their epoch's bucket, so the one-time backlog
+    // passes have nothing to find.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove with the sweep.
+    perpetual_db.mark_object_backlog_swept()?;
+    // TODO(https://github.com/iotaledger/iota/issues/12763): remove with the migration.
+    perpetual_db.mark_ledger_backlog_migrated()?;
+    checkpoint_store.mark_checkpoint_backlog_migrated()?;
     committee_store.insert_new_committee(&next_epoch_committee)?;
     checkpoint_store.update_highest_executed_checkpoint(&last_checkpoint)?;
 
     if verify {
-        let iter = perpetual_db.iter_live_object_set();
+        let iter = perpetual_db
+            .iter_live_object_set()
+            .map(|live_object| live_object.map_err(Into::into));
         let local_digest = ECMHLiveObjectSetDigest::from(
             accumulate_live_object_iter(Box::new(iter), m.clone(), num_live_objects)
-                .await
+                .await?
                 .digest(),
         );
         assert_eq!(
@@ -641,10 +670,10 @@ pub async fn setup_db_state(
 }
 
 pub async fn accumulate_live_object_iter(
-    iter: Box<dyn Iterator<Item = LiveObject> + '_>,
+    iter: Box<dyn Iterator<Item = Result<LiveObject>> + '_>,
     m: MultiProgress,
     num_live_objects: u64,
-) -> GlobalStateHash {
+) -> Result<GlobalStateHash> {
     // Monitor progress of live object accumulation, whose position the ticker
     // takes from the counter the loop below advances
     let accum_counter = Arc::new(AtomicU64::new(0));
@@ -666,7 +695,7 @@ pub async fn accumulate_live_object_iter(
     // Accumulate live objects
     let mut acc = GlobalStateHash::default();
     for live_object in iter {
-        GlobalStateHasher::accumulate_live_object(&mut acc, &live_object);
+        GlobalStateHasher::accumulate_live_object(&mut acc, &live_object?);
         accum_counter.fetch_add(1, Ordering::Relaxed);
     }
     let num_accumulated = accum_counter.load(Ordering::Relaxed);
@@ -675,5 +704,5 @@ pub async fn accumulate_live_object_iter(
         "Accumulated more objects ({num_accumulated}) than expected ({num_live_objects})"
     );
     accum_ticker.finish_with_message("DB live object accumulation completed");
-    acc
+    Ok(acc)
 }

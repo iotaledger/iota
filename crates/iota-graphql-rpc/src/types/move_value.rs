@@ -120,8 +120,7 @@ impl MoveValue {
 
     /// Representation of a Move value in JSON, where:
     ///
-    /// - Addresses, IDs, and UIDs are represented in canonical form, as JSON
-    ///   strings.
+    /// - Addresses, IDs, and UIDs are represented in canonical form, as JSON strings.
     /// - Bools are represented by JSON boolean literals.
     /// - u8, u16, and u32 are represented as JSON numbers.
     /// - u64, u128, and u256 are represented as JSON strings.

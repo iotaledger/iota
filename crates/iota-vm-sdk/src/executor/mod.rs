@@ -10,9 +10,8 @@
 //!
 //! - [`ExecutionMode::DevInspect`] — relaxed Move VM checks, no commit.
 //! - [`ExecutionMode::DryRun`] — full sign-time checks, no commit.
-//! - [`ExecutionMode::Execute`] — full checks; on success the effects (writes
-//!   *and* deletions) are applied back into the store and
-//!   [`ExecutionResult::committed`] is `true`.
+//! - [`ExecutionMode::Execute`] — full checks; on success the effects (writes *and* deletions) are
+//!   applied back into the store and [`ExecutionResult::committed`] is `true`.
 //!
 //! `DevInspect`/`DryRun` leave the store untouched.
 //!

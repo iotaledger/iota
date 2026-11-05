@@ -11,7 +11,7 @@ use std::{
 use backoff::backoff::Backoff;
 use futures::{StreamExt, TryStreamExt};
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use iota_grpc_client::Client as GrpcClient;
+use iota_grpc_client::GrpcClient;
 use iota_metrics::spawn_monitored_task;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
@@ -20,7 +20,7 @@ use object_store::ObjectStore;
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
 use tokio::{
-    sync::mpsc::{self},
+    sync::{mpsc, watch},
     task::JoinHandle,
     time::timeout,
 };
@@ -194,9 +194,9 @@ struct CheckpointReaderActor {
     last_pruned_watermark: CheckpointSequenceNumber,
     /// Channel for sending checkpoints to WorkerPools.
     checkpoint_tx: mpsc::Sender<Arc<CheckpointData>>,
-    /// Sends a garbage collection (GC) signal to prune checkpoint files below
+    /// Receives the latest garbage collection (GC) signal to prune checkpoint files below
     /// the specified watermark.
-    gc_signal_rx: mpsc::Receiver<CheckpointSequenceNumber>,
+    gc_signal_rx: watch::Receiver<CheckpointSequenceNumber>,
     /// Remote checkpoint reader for fetching checkpoints from the network.
     remote_store: Option<Arc<RemoteStore>>,
     /// Shutdown signal for the actor.
@@ -279,6 +279,13 @@ impl CheckpointReaderActor {
             .enumerate()
             .filter_map(|(index, metadata)| (index >= start_index).then_some(metadata))
         {
+            // We check capacity before downloading the file. This way, once its
+            // checkpoints are collected into memory we ensure that all will be
+            // sent through the channel.
+            if self.exceeds_capacity(self.current_checkpoint_number) {
+                return Err(IngestionError::MaxCheckpointsCapacityReached);
+            }
+
             let checkpoints = timeout(
                 Duration::from_secs(self.reader_options.timeout_secs),
                 historical_reader.iter_for_file(metadata.file_path()),
@@ -293,9 +300,24 @@ impl CheckpointReaderActor {
             .filter(|c| c.checkpoint_summary.sequence_number >= self.current_checkpoint_number)
             .collect::<Vec<CheckpointData>>();
 
+            // A file that fails to decode part way ends early, so check that it
+            // holds every checkpoint the manifest lists for it before sending any.
+            let expected = self.current_checkpoint_number..metadata.checkpoint_seq_range.end;
+            if !checkpoints
+                .iter()
+                .map(|c| c.checkpoint_summary.sequence_number)
+                .eq(expected.clone())
+            {
+                return Err(IngestionError::HistoryRead(format!(
+                    "checkpoint file {} does not hold checkpoints {expected:?}",
+                    metadata.file_path()
+                )));
+            }
+
             for checkpoint in checkpoints {
                 let size = bcs::serialized_size(&checkpoint)?;
-                self.send_remote_checkpoint_with_capacity_check(Arc::new(checkpoint), size)
+                self.data_limiter.add(&checkpoint, size);
+                self.send_checkpoint_to_channel(Arc::new(checkpoint))
                     .await?;
             }
         }
@@ -330,14 +352,14 @@ impl CheckpointReaderActor {
     /// Fetches checkpoints from the fullnode through a gRPC streaming
     /// connection and streams them to a channel.
     async fn relay_from_fullnode(&mut self, client: &mut GrpcClient) -> IngestionResult<()> {
-        let mut checkpoints_stream = client
-            .checkpoints_stream(
-                Some(self.current_checkpoint_number),
-                None,
-                self.fullnode_transaction_filter.clone().map(Into::into),
-                None,
-                iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA,
-            )
+        let mut query = client
+            .checkpoints_stream()
+            .start_sequence_number(self.current_checkpoint_number)
+            .read_mask(iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA);
+        if let Some(filter) = self.fullnode_transaction_filter.clone() {
+            query = query.transactions_filter(filter.into());
+        }
+        let mut checkpoints_stream = query
             .await
             .map_err(|e| {
                 IngestionError::Grpc(format!("failed to initialize the checkpoint stream: {e}"))
@@ -533,7 +555,8 @@ impl CheckpointReaderActor {
         loop {
             tokio::select! {
                 _ = self.token.cancelled() => break,
-                Some(watermark) = self.gc_signal_rx.recv() => {
+                Ok(()) = self.gc_signal_rx.changed() => {
+                    let watermark = *self.gc_signal_rx.borrow_and_update();
                     self.data_limiter.gc(watermark);
                     self.gc_processed_files(watermark).expect("failed to clean the directory");
                 }
@@ -553,7 +576,7 @@ impl CheckpointReaderActor {
 /// the actual checkpoint fetching and streaming logic.
 pub(crate) struct CheckpointReader {
     handle: JoinHandle<()>,
-    gc_signal_tx: mpsc::Sender<CheckpointSequenceNumber>,
+    gc_signal_tx: watch::Sender<CheckpointSequenceNumber>,
     checkpoint_rx: mpsc::Receiver<Arc<CheckpointData>>,
     token: CancellationToken,
 }
@@ -572,7 +595,7 @@ impl CheckpointReader {
         }
 
         let (checkpoint_tx, checkpoint_rx) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
-        let (gc_signal_tx, gc_signal_rx) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
+        let (gc_signal_tx, gc_signal_rx) = watch::channel(starting_checkpoint_number);
 
         let remote_store = if let Some(url) = config.base.remote_store_url {
             Some(Arc::new(
@@ -624,13 +647,17 @@ impl CheckpointReader {
     ///
     /// Transmits a watermark to the checkpoint reader, indicating that all
     /// checkpoints below this watermark can be safely pruned or cleaned up.
-    /// The signal is sent over an internal channel to the checkpoint reader
-    /// task.
-    pub(crate) async fn send_gc_signal(
+    /// The new watermark replaces the previous one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IngestionError::Channel`] if the checkpoint reader task
+    /// stopped.
+    pub(crate) fn send_gc_signal(
         &self,
         watermark: CheckpointSequenceNumber,
     ) -> IngestionResult<()> {
-        self.gc_signal_tx.send(watermark).await.map_err(|_| {
+        self.gc_signal_tx.send(watermark).map_err(|_| {
             IngestionError::Channel(
                 "unable to send GC operation to checkpoint reader, receiver half closed".into(),
             )

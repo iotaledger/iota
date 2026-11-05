@@ -39,12 +39,10 @@ pub struct Bls12381Bls12381MinSigVerifyCostParams {
 /// msg: &vector<u8>): bool`   gas cost:
 /// bls12381_bls12381_min_sig_verify_cost_base                    | covers
 /// various fixed costs in the oper
-///              + bls12381_bls12381_min_sig_verify_msg_cost_per_byte    *
-///                size_of(msg)        | covers cost of operating on each byte
-///                of `msg`
-///              + bls12381_bls12381_min_sig_verify_msg_cost_per_block   *
-///                num_blocks(msg)     | covers cost of operating on each block
-///                in `msg`
+///              + bls12381_bls12381_min_sig_verify_msg_cost_per_byte    * size_of(msg)        |
+///                covers cost of operating on each byte of `msg`
+///              + bls12381_bls12381_min_sig_verify_msg_cost_per_block   * num_blocks(msg)     |
+///                covers cost of operating on each block in `msg`
 /// Note: each block is of size `BLS12381_BLOCK_SIZE` bytes, and we round up.
 ///       `signature` and `public_key` are fixed size, so their costs are
 /// included in the base cost. *************************************************
@@ -127,12 +125,10 @@ pub struct Bls12381Bls12381MinPkVerifyCostParams {
 /// msg: &vector<u8>): bool`   gas cost:
 /// bls12381_bls12381_min_pk_verify_cost_base                    | covers
 /// various fixed costs in the oper
-///              + bls12381_bls12381_min_pk_verify_msg_cost_per_byte    *
-///                size_of(msg)        | covers cost of operating on each byte
-///                of `msg`
-///              + bls12381_bls12381_min_pk_verify_msg_cost_per_block   *
-///                num_blocks(msg)     | covers cost of operating on each block
-///                in `msg`
+///              + bls12381_bls12381_min_pk_verify_msg_cost_per_byte    * size_of(msg)        |
+///                covers cost of operating on each byte of `msg`
+///              + bls12381_bls12381_min_pk_verify_msg_cost_per_block   * num_blocks(msg)     |
+///                covers cost of operating on each block in `msg`
 /// Note: each block is of size `BLS12381_BLOCK_SIZE` bytes, and we round up.
 ///       `signature` and `public_key` are fixed size, so their costs are
 /// included in the base cost. *************************************************

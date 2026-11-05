@@ -16,6 +16,7 @@ use iota_sdk_types::{Address, MoveStruct, ObjectId, Owner, StructTag, Version};
 use iota_types::{
     IOTA_TRANSACTION_DENY_RULES_OBJECT_ID,
     committee::EpochId,
+    deny_list_v1::coin_type_for_denylist_check,
     error::{ExecutionError, ExecutionErrorKind, VMMemoryLimitExceededSubStatusCode},
     execution::DynamicallyLoadedObjectMetadata,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
@@ -81,6 +82,8 @@ pub struct RuntimeResults {
     pub loaded_child_objects: BTreeMap<ObjectId, LoadedRuntimeObject>,
     pub created_object_ids: Set<ObjectId>,
     pub deleted_object_ids: Set<ObjectId>,
+    // Types of the coins received, other than IOTA coins.
+    pub received_coin_types: BTreeSet<String>,
 }
 
 #[derive(Default)]
@@ -97,6 +100,8 @@ pub(crate) struct ObjectRuntimeState {
     // total size of events emitted so far
     total_events_size: u64,
     received: IndexMap<ObjectId, DynamicallyLoadedObjectMetadata>,
+    // types of the coins received, other than IOTA coins
+    received_coin_types: BTreeSet<String>,
 }
 
 #[derive(Tid)]
@@ -180,6 +185,7 @@ impl<'a> ObjectRuntime<'a> {
                 events: vec![],
                 total_events_size: 0,
                 received: IndexMap::new(),
+                received_coin_types: BTreeSet::new(),
             },
             is_metered,
             protocol_config,
@@ -253,11 +259,11 @@ impl<'a> ObjectRuntime<'a> {
                 .value_as::<AccountAddress>()?
                 .into_bytes(),
         );
-        // - An object is new if it is contained in the new ids or if it is one of the
-        //   objects created during genesis (the system state object or clock).
+        // - An object is new if it is contained in the new ids or if it is one of the objects
+        //   created during genesis (the system state object or clock).
         // - Otherwise, check the input objects for the previous owner
-        // - If it was not in the input objects, it must have been wrapped or must have
-        //   been a child object
+        // - If it was not in the input objects, it must have been wrapped or must have been a child
+        //   object
         let is_framework_obj = [
             ObjectId::SYSTEM_STATE,
             ObjectId::CLOCK,
@@ -354,6 +360,11 @@ impl<'a> ObjectRuntime<'a> {
         child_fully_annotated_layout: &MoveTypeLayout,
         child_struct_tag: StructTag,
     ) -> PartialVMResult<Option<ObjectResult<Value>>> {
+        let coin_type = if self.protocol_config.enable_pcool_flow() {
+            coin_type_for_denylist_check(&child_struct_tag)
+        } else {
+            None
+        };
         let Some((value, obj_meta)) = self.child_object_store.receive_object(
             parent,
             child,
@@ -378,6 +389,9 @@ impl<'a> ObjectRuntime<'a> {
                     if multiple `Receiving` arguments exist for the same object in the transaction which is impossible."
                 )),
             );
+        }
+        if let ObjectResult::Loaded(_) = &value {
+            self.state.received_coin_types.extend(coin_type);
         }
         Ok(Some(value))
     }
@@ -533,12 +547,11 @@ pub fn max_event_error(max_events: u64) -> PartialVMError {
 impl ObjectRuntimeState {
     /// Update `state_view` with the effects of successfully executing a
     /// transaction:
-    /// - Given the effects `Op<Value>` of child objects, processes the changes
-    ///   in terms of object writes/deletes
-    /// - Process `transfers` and `input_objects` to determine whether the type
-    ///   of change (WriteKind) to the object
-    /// - Process `deleted_ids` with previously determined information to
-    ///   determine the DeleteKind
+    /// - Given the effects `Op<Value>` of child objects, processes the changes in terms of object
+    ///   writes/deletes
+    /// - Process `transfers` and `input_objects` to determine whether the type of change
+    ///   (WriteKind) to the object
+    /// - Process `deleted_ids` with previously determined information to determine the DeleteKind
     /// - Passes through user events
     pub(crate) fn finish(
         mut self,
@@ -566,6 +579,7 @@ impl ObjectRuntimeState {
             events: user_events,
             total_events_size: _,
             received,
+            received_coin_types,
         } = self;
 
         // Check new owners from transfers, reports an error on cycles.
@@ -615,6 +629,7 @@ impl ObjectRuntimeState {
             loaded_child_objects,
             created_object_ids: new_ids,
             deleted_object_ids: deleted_ids,
+            received_coin_types,
         })
     }
 

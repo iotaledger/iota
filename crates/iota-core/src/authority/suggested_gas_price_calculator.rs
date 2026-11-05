@@ -54,36 +54,30 @@ type PerCommitCongestionInfo = HashMap<ObjectId, PerObjectCongestionInfo>;
 /// gas price should only be invoked for shed transactions.
 ///
 /// Roughly speaking, the suggested gas price calculator works as follows:
-/// 1. For every scheduled transaction, obtain its reference gas price,
-///    execution start time and estimated execution duration.
-/// 2. For every input shared object accessed mutably by the scheduled
-///    transaction, keep and update a map, ordered by execution start time
-///    (key), whose values store scheduled transaction's gas price and estimated
-///    execution duration. When execution-worker congestion control is active,
-///    also record every scheduled transaction in a worker list (each occupies
-///    an execution worker).
-/// 3. For every shed transaction, obtain its estimated execution duration, as
-///    well as all input shared objects.
+/// 1. For every scheduled transaction, obtain its reference gas price, execution start time and
+///    estimated execution duration.
+/// 2. For every input shared object accessed mutably by the scheduled transaction, keep and update
+///    a map, ordered by execution start time (key), whose values store scheduled transaction's gas
+///    price and estimated execution duration. When execution-worker congestion control is active,
+///    also record every scheduled transaction in a worker list (each occupies an execution worker).
+/// 3. For every shed transaction, obtain its estimated execution duration, as well as all input
+///    shared objects.
 /// 4. Calculate a suggested gas price for the shed transaction as follows:
-///    - compute its (imaginary) execution start time as congestion limit per
-///      commit minus its estimated execution duration;
-///    - for each input shared object, get the maximum gas price over scheduled
-///      transactions whose end execution time is larger than our imaginary
-///      start time, and take the maximum over the objects (the object clearing
-///      price);
-///    - take the N-th largest gas price over recorded worker entries whose end
-///      execution time is larger than our imaginary start time, where N is the
-///      worker concurrency cap (the worker clearing price — the object rule is
-///      its `N = 1` special case);
-///    - the suggested gas price equals the maximum of the two clearing prices
-///      plus 1, but such that it does not become larger than the maximum gas
-///      price set in the protocol. Transactions are scheduled in descending
-///      gas-price order, so any clearing price is at least the shed
+///    - compute its (imaginary) execution start time as congestion limit per commit minus its
+///      estimated execution duration;
+///    - for each input shared object, get the maximum gas price over scheduled transactions whose
+///      end execution time is larger than our imaginary start time, and take the maximum over the
+///      objects (the object clearing price);
+///    - take the N-th largest gas price over recorded worker entries whose end execution time is
+///      larger than our imaginary start time, where N is the worker concurrency cap (the worker
+///      clearing price — the object rule is its `N = 1` special case);
+///    - the suggested gas price equals the maximum of the two clearing prices plus 1, but such that
+///      it does not become larger than the maximum gas price set in the protocol. Transactions are
+///      scheduled in descending gas-price order, so any clearing price is at least the shed
 ///      transaction's own price, and the suggestion strictly exceeds it.
-///    - if neither clearing price exists (the transaction was shed purely by
-///      carried-over debt), suggest the reference gas price, floored to one
-///      above the shed transaction's own price when worker congestion control
-///      is active.
+///    - if neither clearing price exists (the transaction was shed purely by carried-over debt),
+///      suggest the reference gas price, floored to one above the shed transaction's own price when
+///      worker congestion control is active.
 ///
 /// Note that if shared-object congestion control is disabled, the calculator
 /// will suggest the reference gas price.

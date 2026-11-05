@@ -1,7 +1,6 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::read_mask_fields::ObjectReadMask;
 use iota_macros::sim_test;
 use iota_sdk_types::{ObjectId, Version};
 
@@ -17,7 +16,7 @@ async fn get_objects_scenarios() {
     // Test: get single object
     let object_id: ObjectId = "0x2".parse().expect("Invalid object ID");
     let objects = client
-        .objects([object_id], ObjectReadMask::default())
+        .objects([object_id])
         .await
         .expect("Failed to get object");
     assert_eq!(objects.body().len(), 1, "Expected exactly one object");
@@ -38,7 +37,7 @@ async fn get_objects_scenarios() {
         .map(|s| s.parse().expect("Invalid object ID"))
         .collect();
     let objects = client
-        .objects(object_ids.clone(), ObjectReadMask::default())
+        .objects(object_ids.clone())
         .await
         .expect("Failed to get objects");
     assert_eq!(
@@ -68,7 +67,7 @@ async fn get_objects_scenarios() {
 
     // Test: empty input returns an error
     let err = client
-        .objects([], ObjectReadMask::default())
+        .objects([])
         .await
         .expect_err("Empty input should return an error");
     assert!(
@@ -79,7 +78,7 @@ async fn get_objects_scenarios() {
     // Test: get object with specific version
     let object_id: ObjectId = "0x2".parse().expect("Invalid object ID");
     let objects = client
-        .objects([object_id], ObjectReadMask::default())
+        .objects([object_id])
         .await
         .expect("Failed to get object");
     let current_version = objects.body()[0]
@@ -89,10 +88,7 @@ async fn get_objects_scenarios() {
         .expect("Failed to get object reference")
         .version();
     let objects_with_version = client
-        .objects_with_versions(
-            [(object_id, Some(current_version))],
-            ObjectReadMask::default(),
-        )
+        .objects_with_versions([(object_id, Some(current_version))])
         .await
         .expect("Failed to get object with specific version");
     assert_eq!(
@@ -112,7 +108,7 @@ async fn get_objects_scenarios() {
         .parse()
         .expect("Invalid object ID");
     let mut results = client
-        .objects([fake_id], ObjectReadMask::default())
+        .objects([fake_id])
         .await
         .expect("The call itself should succeed")
         .into_inner();
@@ -122,10 +118,7 @@ async fn get_objects_scenarios() {
     // Test: invalid version returns a per-ref error
     let object_id: ObjectId = "0x2".parse().expect("Invalid object ID");
     let mut results = client
-        .objects_with_versions(
-            [(object_id, Some(Version::from_u64(999_999_999)))],
-            ObjectReadMask::default(),
-        )
+        .objects_with_versions([(object_id, Some(Version::from_u64(999_999_999)))])
         .await
         .expect("The call itself should succeed")
         .into_inner();
@@ -139,7 +132,7 @@ async fn get_objects_scenarios() {
         .parse()
         .expect("Invalid object ID");
     let mut results = client
-        .objects([valid_id, invalid_id], ObjectReadMask::default())
+        .objects([valid_id, invalid_id])
         .await
         .expect("The call itself should succeed")
         .into_inner();

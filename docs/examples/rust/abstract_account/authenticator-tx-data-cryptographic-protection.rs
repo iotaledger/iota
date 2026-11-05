@@ -214,7 +214,7 @@ pub async fn create_test_transaction(
     // Create a transaction
 
     let signature = UserSignature::MoveAuthenticator(
-        MoveAuthenticatorV1::new_with_shared_account_object(
+        MoveAuthenticatorV1::new(
             vec![],
             vec![],
             SharedObjectReference::new(account_ref.object_id, account_ref.version, false),

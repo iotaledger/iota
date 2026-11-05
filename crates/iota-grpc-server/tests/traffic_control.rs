@@ -13,16 +13,12 @@
 
 mod common;
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    future::Future,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashMap, future::Future, net::IpAddr, sync::Arc, time::Duration};
 
 use common::{
-    MockGrpcStateReader, create_large_object, start_test_server,
-    start_test_server_with_traffic_controller,
+    MockGrpcStateReader, PendingExecutor, TestCertificate, UnreachableExecutor,
+    call_execute_transactions_with_grpc_timeout, create_large_object, start_test_server,
+    start_test_server_with, start_test_server_with_traffic_controller,
 };
 use futures::StreamExt;
 use iota_grpc_server::GrpcServerHandle;
@@ -41,16 +37,10 @@ use iota_grpc_types::{
         types::{Address as ProtoAddress, ObjectId as ProtoObjectId, ObjectReference},
     },
 };
-use iota_sdk_types::{Transaction, TransactionDigest};
 use iota_traffic_controller::TrafficController;
 use iota_types::{
-    error::IotaError,
-    messages_checkpoint::CheckpointSequenceNumber,
-    quorum_driver_types::{
-        ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, QuorumDriverError,
-    },
-    traffic_control::{PolicyConfig, PolicyType, Weight},
-    transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
+    traffic_control::{ClientIdSource, PolicyConfig, PolicyType, Weight},
+    transaction_executor::TransactionExecutor,
 };
 use tonic::{Code, transport::Channel};
 
@@ -79,11 +69,13 @@ async fn server_with_policy(
     policy_config: PolicyConfig,
     executor: Option<Arc<dyn TransactionExecutor>>,
 ) -> GrpcServerHandle {
-    let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config, None));
+    let client_id_source = policy_config.client_id_source.clone();
+    let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config));
     let (handle, _reader) = start_test_server_with_traffic_controller(
         Arc::new(MockGrpcStateReader::default()),
         traffic_controller,
         executor,
+        client_id_source,
     )
     .await;
     handle
@@ -91,8 +83,15 @@ async fn server_with_policy(
 
 /// Connect a channel to the test server.
 async fn connect(handle: &GrpcServerHandle) -> Channel {
+    connect_from(handle, None).await
+}
+
+/// Connect a channel to the test server from `local_address`, or from an
+/// address the system picks if it is `None`.
+async fn connect_from(handle: &GrpcServerHandle, local_address: Option<IpAddr>) -> Channel {
     Channel::from_shared(format!("http://{}", handle.address()))
         .unwrap()
+        .local_address(local_address)
         .connect()
         .await
         .expect("failed to connect to test gRPC server")
@@ -137,38 +136,6 @@ where
     panic!("expected the traffic controller to block the client within {attempts} requests");
 }
 
-/// A `TransactionExecutor` for tests whose requests fail validation before
-/// reaching the executor.
-struct UnreachableExecutor;
-
-#[async_trait::async_trait]
-impl TransactionExecutor for UnreachableExecutor {
-    async fn execute_transaction(
-        &self,
-        _request: ExecuteTransactionRequestV1,
-        _skip_certification: bool,
-        _client_addr: Option<std::net::SocketAddr>,
-    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
-        unreachable!("test requests must fail validation before execution")
-    }
-
-    fn simulate_transaction(
-        &self,
-        _transaction: Transaction,
-        _checks: VmChecks,
-    ) -> Result<SimulateTransactionResult, IotaError> {
-        unreachable!("test requests must fail validation before simulation")
-    }
-
-    async fn wait_for_checkpoint_inclusion(
-        &self,
-        _digests: &[TransactionDigest],
-        _timeout: Duration,
-    ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError> {
-        unreachable!("test requests must fail validation before execution")
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -200,6 +167,154 @@ async fn handler_errors_feed_the_error_policy() {
         }
     })
     .await;
+}
+
+/// The traffic controller finds the client address also when the client
+/// connects over TLS.
+#[tokio::test]
+async fn handler_errors_over_tls_feed_the_error_policy() {
+    let certificate = TestCertificate::new();
+    let policy_config = PolicyConfig {
+        connection_blocklist_ttl_sec: 120,
+        error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
+        dry_run: false,
+        ..Default::default()
+    };
+    let client_id_source = policy_config.client_id_source.clone();
+    let (handle, _reader) = start_test_server_with(
+        Arc::new(MockGrpcStateReader::default()),
+        None,
+        Some(Arc::new(TrafficController::init_for_test(policy_config))),
+        Some(client_id_source),
+        None,
+        |config| config.tls = Some(certificate.tls_config.clone()),
+    )
+    .await;
+    let client = StateServiceClient::new(certificate.connect(handle.address()).await);
+
+    assert_client_blocked(ERROR_BLOCK_ATTEMPTS as usize, || {
+        let mut client = client.clone();
+        async move {
+            client
+                .list_owned_objects(ListOwnedObjectsRequest::default())
+                .await
+        }
+    })
+    .await;
+}
+
+/// The traffic controller blocks a client by its own address: a client from
+/// another address is still served. The server listens on 127.0.0.1, so a
+/// client address that is mixed up with the server address blocks both
+/// clients.
+// Other systems than Linux do not send 127.0.0.2 and 127.0.0.3 to the
+// loopback interface by default.
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_blocked_client_does_not_block_a_client_from_another_address() {
+    let handle = server_with_policy(
+        PolicyConfig {
+            connection_blocklist_ttl_sec: 120,
+            error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
+            dry_run: false,
+            ..Default::default()
+        },
+        None,
+    )
+    .await;
+    let blocked_client =
+        StateServiceClient::new(connect_from(&handle, Some(IpAddr::from([127, 0, 0, 2]))).await);
+    let other_client =
+        StateServiceClient::new(connect_from(&handle, Some(IpAddr::from([127, 0, 0, 3]))).await);
+
+    assert_client_blocked(ERROR_BLOCK_ATTEMPTS as usize, || {
+        let mut client = blocked_client.clone();
+        async move {
+            client
+                .list_owned_objects(ListOwnedObjectsRequest::default())
+                .await
+        }
+    })
+    .await;
+
+    let status = other_client
+        .clone()
+        .list_owned_objects(ListOwnedObjectsRequest::default())
+        .await
+        .expect_err("a request without an owner must fail");
+    assert_eq!(
+        status.code(),
+        Code::InvalidArgument,
+        "the client from another address must reach the handler: {status:?}"
+    );
+}
+
+/// A call that the server ends at its `grpc-timeout` counts as a request for
+/// the spam policy: at a threshold of one, the next request of the client is
+/// refused.
+#[tokio::test]
+async fn a_call_past_its_grpc_timeout_accrues_spam() {
+    let handle = server_with_policy(
+        PolicyConfig {
+            connection_blocklist_ttl_sec: 120,
+            spam_policy_type: PolicyType::TestNConnIP(1),
+            // Error policy off, so any block is attributable to the spam policy.
+            error_policy_type: PolicyType::NoOp,
+            // Count every tally deterministically.
+            spam_sample_rate: Weight::one(),
+            dry_run: false,
+            ..Default::default()
+        },
+        Some(Arc::new(PendingExecutor::default())),
+    )
+    .await;
+    assert_eq!(
+        call_execute_transactions_with_grpc_timeout(handle.address(), Duration::from_millis(200))
+            .await,
+        Code::DeadlineExceeded
+    );
+
+    let client = StateServiceClient::new(connect(&handle).await);
+    assert_client_blocked(1, || {
+        let mut client = client.clone();
+        async move {
+            client
+                .list_owned_objects(ListOwnedObjectsRequest::default())
+                .await
+        }
+    })
+    .await;
+}
+
+/// A call that the server ends at its `grpc-timeout` is not a client error, so
+/// it does not feed the error policy.
+#[tokio::test]
+async fn a_call_past_its_grpc_timeout_does_not_feed_the_error_policy() {
+    let handle = server_with_policy(
+        PolicyConfig {
+            connection_blocklist_ttl_sec: 120,
+            // Block on the first error tally, so a call past its deadline wrongly
+            // fed to the error policy would block the client and fail this test.
+            error_policy_type: PolicyType::TestNConnIP(1),
+            dry_run: false,
+            ..Default::default()
+        },
+        Some(Arc::new(PendingExecutor::default())),
+    )
+    .await;
+    assert_eq!(
+        call_execute_transactions_with_grpc_timeout(handle.address(), Duration::from_millis(200))
+            .await,
+        Code::DeadlineExceeded
+    );
+
+    StateServiceClient::new(connect(&handle).await)
+        .list_owned_objects(
+            ListOwnedObjectsRequest::default()
+                .with_owner(ProtoAddress::default().with_address(vec![1u8; 32])),
+        )
+        .await
+        .expect("a valid request after the call must be served");
 }
 
 /// Batch APIs embed per-item errors inside a successful gRPC response, where
@@ -318,17 +433,19 @@ async fn stream_errors_feed_the_error_policy() {
         objects: HashMap::from([(object_id, object)]),
         ..Default::default()
     });
-    let traffic_controller = Arc::new(TrafficController::init_for_test(
-        PolicyConfig {
-            connection_blocklist_ttl_sec: 120,
-            error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
-            dry_run: false,
-            ..Default::default()
-        },
+    let traffic_controller = Arc::new(TrafficController::init_for_test(PolicyConfig {
+        connection_blocklist_ttl_sec: 120,
+        error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
+        dry_run: false,
+        ..Default::default()
+    }));
+    let (handle, _reader) = start_test_server_with_traffic_controller(
+        state_reader,
+        traffic_controller,
         None,
-    ));
-    let (handle, _reader) =
-        start_test_server_with_traffic_controller(state_reader, traffic_controller, None).await;
+        ClientIdSource::SocketAddr,
+    )
+    .await;
     let client = LedgerServiceClient::new(connect(&handle).await);
 
     let request = GetObjectsRequest::default()
@@ -482,4 +599,44 @@ async fn read_errors_do_not_feed_the_error_policy() {
             item.expect("stream item should be Ok");
         }
     }
+}
+
+/// An allowlist admits the clients it names. The node resolves no client IP for
+/// a request that arrives without the `x-forwarded-for` header it reads, so it
+/// refuses that request, and serves one that names a listed client.
+#[tokio::test]
+async fn an_allowlist_refuses_an_unidentified_request_over_grpc() {
+    const LISTED: &str = "10.0.0.7";
+    let handle = server_with_policy(
+        PolicyConfig {
+            client_id_source: ClientIdSource::XForwardedFor(1),
+            allow_list: Some(vec![LISTED.to_string()]),
+            dry_run: false,
+            ..Default::default()
+        },
+        Some(Arc::new(UnreachableExecutor)),
+    )
+    .await;
+    let mut client = TransactionExecutionServiceClient::new(connect(&handle).await);
+
+    assert_client_blocked(1, || {
+        let mut client = client.clone();
+        async move { client.execute_transactions(execute_batch(1)).await }
+    })
+    .await;
+
+    client
+        .execute_transactions(forwarded_for(LISTED, execute_batch(1)))
+        .await
+        .expect("a request naming an allowlisted client is served");
+}
+
+/// `message` as a request carrying an `x-forwarded-for` header that names
+/// `client` as the request's origin.
+fn forwarded_for<T>(client: &str, message: T) -> tonic::Request<T> {
+    let mut request = tonic::Request::new(message);
+    request
+        .metadata_mut()
+        .insert("x-forwarded-for", client.parse().unwrap());
+    request
 }

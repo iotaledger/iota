@@ -18,7 +18,7 @@ use iota_types::{
 use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     IngestionError, IngestionResult, Reducer, Worker, executor::MAX_CHECKPOINTS_IN_PROGRESS,
@@ -442,23 +442,19 @@ impl<W: Worker + 'static> WorkerPool<W> {
     /// This function repeatedly calls the
     /// [`process_checkpoint`](Worker::process_checkpoint) method of the
     /// provided [`Worker`] until either:
-    /// - The checkpoint processing succeeds, returning `WorkerStatus::Running`
-    ///   with the processed message.
-    /// - A cancellation signal is received via the [`CancellationToken`],
-    ///   returning `WorkerStatus::Shutdown(<worker-id>)`.
-    /// - All retry attempts are exhausted within backoff's maximum elapsed
-    ///   time, causing a panic.
+    /// - The checkpoint processing succeeds, returning `WorkerStatus::Running` with the processed
+    ///   message.
+    /// - A cancellation signal is received via the [`CancellationToken`], returning
+    ///   `WorkerStatus::Shutdown(<worker-id>)`.
+    /// - All retry attempts are exhausted within backoff's maximum elapsed time: the pool is
+    ///   cancelled and `WorkerStatus::Shutdown(<worker-id>)` is returned.
     ///
     /// # Retry Mechanism:
-    /// - Uses [`ExponentialBackoff`](backoff::ExponentialBackoff) to introduce
-    ///   increasing delays between retry attempts.
+    /// - Uses [`ExponentialBackoff`](backoff::ExponentialBackoff) to introduce increasing delays
+    ///   between retry attempts.
     /// - Checks for cancellation both before and after each processing attempt.
-    /// - If a cancellation signal is received during a backoff delay, the
-    ///   function exits immediately with `WorkerStatus::Shutdown(<worker-id>)`.
-    ///
-    /// # Panics:
-    /// - If all retry attempts are exhausted within the backoff's maximum
-    ///   elapsed time, indicating a persistent failure.
+    /// - If a cancellation signal is received during a backoff delay, the function exits
+    ///   immediately with `WorkerStatus::Shutdown(<worker-id>)`.
     async fn process_checkpoint_with_retry(
         worker_id: WorkerID,
         worker: &W,
@@ -498,10 +494,15 @@ impl<W: Worker + 'static> WorkerPool<W> {
                     }
                 }
             }
-            // get next backoff duration or panic if max retries exceeded.
-            let duration = backoff
-                .next_backoff()
-                .expect("max elapsed time exceeded: checkpoint processing failed for checkpoint {sequence_number}");
+            // Retrying the same checkpoint any further cannot help, and a panic
+            // would abort the whole process in release builds, so stop the pool.
+            let Some(duration) = backoff.next_backoff() else {
+                error!(
+                    "checkpoint {sequence_number} processing failed and the retries are exhausted, shutting down"
+                );
+                token.cancel();
+                return WorkerStatus::Shutdown(worker_id);
+            };
             // if cancellation occurs during backoff wait, exit early with Shutdown.
             // Otherwise (if timeout expires), continue with the next retry attempt.
             if tokio::time::timeout(duration, token.cancelled())
@@ -523,8 +524,8 @@ impl<W: Worker + 'static> WorkerPool<W> {
     ///
     /// 2. Batch Processing (when reducer = Some):
     ///    - Reports progress only after successful batch commits.
-    ///    - A batch is committed based on
-    ///      [`should_close_batch`](Reducer::should_close_batch) policy.
+    ///    - A batch is committed based on [`should_close_batch`](Reducer::should_close_batch)
+    ///      policy.
     fn spawn_watermark_tracking(
         &mut self,
         watermark: CheckpointSequenceNumber,
@@ -557,8 +558,8 @@ impl<W: Worker + 'static> WorkerPool<W> {
     ///
     /// - Awaits all worker handles.
     /// - Awaits the reducer handle.
-    /// - Send `WorkerPoolStatus::Shutdown(<task-name>)` message notifying
-    ///   external components that Worker Pool has been shutdown.
+    /// - Send `WorkerPoolStatus::Shutdown(<task-name>)` message notifying external components that
+    ///   Worker Pool has been shutdown.
     async fn workers_graceful_shutdown(
         &self,
         workers_join_handles: Vec<JoinHandle<()>>,

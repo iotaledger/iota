@@ -106,11 +106,9 @@ impl TransactionBlockFilter {
     ///
     /// Combining the remaining filters does not have this effect:
     ///
-    /// * `sent_address` is available as a denormalized column on the other
-    ///   filters' tables, and is served by `tx_senders` only when set on its
-    ///   own.
-    /// * `{after,at,before}_checkpoint` bound the range of transactions each
-    ///   read is confined to.
+    /// * `sent_address` is available as a denormalized column on the other filters' tables, and is
+    ///   served by `tx_senders` only when set on its own.
+    /// * `{after,at,before}_checkpoint` bound the range of transactions each read is confined to.
     /// * `transaction_ids` matches at most one transaction per digest given.
     fn scan_count(&self) -> usize {
         [

@@ -25,8 +25,8 @@ pub struct ValidatorValidateMetadataBcsCostParams {
 /// Implementation of the Move native function `validate_metadata_bcs(metadata:
 /// vector<u8>)`   gas cost: validator_validate_metadata_cost_base           |
 /// fixed cosrs
-///              + validator_validate_metadata_data_cost_per_byte *
-///                metadata_bytes.len()   | assume cost is proportional to size
+///              + validator_validate_metadata_data_cost_per_byte * metadata_bytes.len()   | assume
+///                cost is proportional to size
 /// ****************************************************************************
 /// *******************
 pub fn validate_metadata_bcs(

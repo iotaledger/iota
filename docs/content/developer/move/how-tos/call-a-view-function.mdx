@@ -207,7 +207,7 @@ For a generic view, pass the type arguments in `typeArgs`. This call reads `vaul
 
 ## Call over gRPC
 
-The gRPC `TransactionExecutionService` exposes views as its `ViewFunctionCalls` method, which runs a batch of view calls in one request. The `iota_grpc_client::Client::view_function_call` helper wraps a single call, taking the same fully qualified name, type arguments, and JSON value arguments, and returning the view's outputs — the return values, or an execution error if the view aborted:
+The gRPC `TransactionExecutionService` exposes views as its `ViewFunctionCalls` method, which runs a batch of view calls in one request. The `iota_grpc_client::GrpcClient::view_function_call` helper wraps a single call, taking the same fully qualified name, type arguments, and JSON value arguments, and returning the view's outputs — the return values, or an execution error if the view aborted:
 
 ```rust reference
 https://github.com/iotaledger/iota-rust-sdk/blob/1b0213c2065f0b922ca3c75e52e047e7963bde32/crates/iota-sdk/examples/move_view_call_grpc.rs#L43-L61

@@ -237,8 +237,8 @@ impl ProgrammableTransactionBlock {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let input =
-                TransactionInput::try_from(self.native.inputs[c.ix].clone(), c.c).extend()?;
+            let input = TransactionInput::try_from(self.native.inputs[c.ix].clone(), c.c.into())
+                .extend()?;
             connection.edges.push(Edge::new(c.encode_cursor(), input));
         }
 
@@ -267,7 +267,9 @@ impl ProgrammableTransactionBlock {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let txn = ProgrammableTransaction::from(self.native.commands[c.ix].clone(), c.c);
+            let txn =
+                ProgrammableTransaction::try_from(self.native.commands[c.ix].clone(), c.c.into())
+                    .extend()?;
             connection.edges.push(Edge::new(c.encode_cursor(), txn));
         }
 
@@ -317,11 +319,11 @@ impl MoveCallTransaction {
     }
 
     /// The actual function parameters passed in for this move call.
-    async fn arguments(&self) -> Vec<TransactionArgument> {
+    async fn arguments(&self) -> Result<Vec<TransactionArgument>> {
         self.native
             .arguments
             .iter()
-            .map(|arg| TransactionArgument::from(*arg))
+            .map(|arg| TransactionArgument::try_from(*arg))
             .collect()
     }
 }
@@ -360,16 +362,24 @@ impl TransactionInput {
                 },
             }),
 
-            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
+            _ => {
+                return Err(crate::error::Error::Internal(
+                    "unknown CallArg variant in transaction input".to_string(),
+                )
+                .extend());
+            }
         })
     }
 }
 
 impl ProgrammableTransaction {
-    fn from(pt: NativeProgrammableTransaction, checkpoint_viewed_at: u64) -> Self {
+    fn try_from(
+        pt: NativeProgrammableTransaction,
+        checkpoint_viewed_at: u64,
+    ) -> Result<Self, Error> {
         use NativeProgrammableTransaction as N;
         use ProgrammableTransaction as P;
-        match pt {
+        Ok(match pt {
             N::MoveCall(cmd) => P::MoveCall(MoveCallTransaction {
                 native: cmd,
                 checkpoint_viewed_at,
@@ -378,25 +388,25 @@ impl ProgrammableTransaction {
                 inputs: cmd
                     .objects
                     .into_iter()
-                    .map(TransactionArgument::from)
-                    .collect(),
-                address: cmd.address.into(),
+                    .map(TransactionArgument::try_from)
+                    .collect::<Result<_, _>>()?,
+                address: cmd.address.try_into()?,
             }),
             N::SplitCoins(cmd) => P::SplitCoins(SplitCoinsTransaction {
-                coin: cmd.coin.into(),
+                coin: cmd.coin.try_into()?,
                 amounts: cmd
                     .amounts
                     .into_iter()
-                    .map(TransactionArgument::from)
-                    .collect(),
+                    .map(TransactionArgument::try_from)
+                    .collect::<Result<_, _>>()?,
             }),
             N::MergeCoins(cmd) => P::MergeCoins(MergeCoinsTransaction {
-                coin: cmd.coin.into(),
+                coin: cmd.coin.try_into()?,
                 coins: cmd
                     .coins_to_merge
                     .into_iter()
-                    .map(TransactionArgument::from)
-                    .collect(),
+                    .map(TransactionArgument::try_from)
+                    .collect::<Result<_, _>>()?,
             }),
             N::Publish(cmd) => P::Publish(PublishTransaction {
                 modules: cmd.modules.into_iter().map(Base64::from).collect(),
@@ -411,8 +421,8 @@ impl ProgrammableTransaction {
                 elements: cmd
                     .elements
                     .into_iter()
-                    .map(TransactionArgument::from)
-                    .collect(),
+                    .map(TransactionArgument::try_from)
+                    .collect::<Result<_, _>>()?,
             }),
             N::Upgrade(cmd) => P::Upgrade(UpgradeTransaction {
                 modules: cmd.modules.into_iter().map(Base64::from).collect(),
@@ -422,24 +432,36 @@ impl ProgrammableTransaction {
                     .map(IotaAddress::from)
                     .collect(),
                 current_package: cmd.package.into(),
-                upgrade_ticket: cmd.ticket.into(),
+                upgrade_ticket: cmd.ticket.try_into()?,
             }),
-            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
-        }
+            _ => {
+                return Err(crate::error::Error::Internal(
+                    "unknown Command variant in programmable transaction".to_string(),
+                )
+                .extend());
+            }
+        })
     }
 }
 
-impl From<NativeArgument> for TransactionArgument {
-    fn from(argument: NativeArgument) -> Self {
+impl TryFrom<NativeArgument> for TransactionArgument {
+    type Error = Error;
+
+    fn try_from(argument: NativeArgument) -> Result<Self, Error> {
         use NativeArgument as N;
         use TransactionArgument as A;
-        match argument {
+        Ok(match argument {
             N::Gas => A::GasCoin(GasCoin { dummy: None }),
             N::Input(ix) => A::Input(Input { ix }),
             N::Result(cmd) => A::Result(TxResult { cmd, ix: None }),
             N::NestedResult(cmd, ix) => A::Result(TxResult { cmd, ix: Some(ix) }),
-            _ => unimplemented!("a new Argument enum variant was added and needs to be handled"),
-        }
+            _ => {
+                return Err(crate::error::Error::Internal(
+                    "unknown Argument variant in programmable transaction".to_string(),
+                )
+                .extend());
+            }
+        })
     }
 }
 

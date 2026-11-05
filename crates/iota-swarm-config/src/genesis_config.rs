@@ -24,7 +24,11 @@ use iota_types::{
         NetworkPublicKey, PublicKey, generate_proof_of_possession, get_key_pair_from_rng,
     },
 };
-use rand::{SeedableRng, rngs::StdRng};
+use rand::{
+    SeedableRng,
+    rand_core::UnwrapErr,
+    rngs::{StdRng, SysRng},
+};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -135,6 +139,7 @@ pub struct ValidatorGenesisConfigBuilder {
     /// testing on AWS.
     p2p_listen_ip_address: Option<IpAddr>,
     metrics_ip_address: Option<IpAddr>,
+    protocol_version: Option<ProtocolVersion>,
 }
 
 impl ValidatorGenesisConfigBuilder {
@@ -180,7 +185,14 @@ impl ValidatorGenesisConfigBuilder {
         self
     }
 
-    pub fn build<R: rand::RngCore + rand::CryptoRng>(self, rng: &mut R) -> ValidatorGenesisConfig {
+    /// Stake the validator with the low stake threshold of
+    /// `protocol_version` rather than that of `ProtocolVersion::MAX`.
+    pub fn with_protocol_version(mut self, protocol_version: ProtocolVersion) -> Self {
+        self.protocol_version = Some(protocol_version);
+        self
+    }
+
+    pub fn build<R: rand::CryptoRng>(self, rng: &mut R) -> ValidatorGenesisConfig {
         let ip = self.ip.unwrap_or_else(local_ip_utils::get_new_ip);
         let localhost = local_ip_utils::localhost_for_testing();
 
@@ -249,12 +261,15 @@ impl ValidatorGenesisConfigBuilder {
             gas_price,
             commission_rate: DEFAULT_COMMISSION_RATE,
             primary_address,
-            // A test-wide protocol config override can replace even the MAX lookup
-            // with a pre-version-32 config where the threshold is absent, so fall
-            // back to the historical value.
-            stake: ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown)
-                .validator_low_stake_threshold_as_option()
-                .unwrap_or(PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD),
+            // Below protocol version 32 the threshold isn't present in the protocol
+            // config, and a test-wide protocol config override can replace even the
+            // MAX lookup with such a config, so fall back to the historical value.
+            stake: ProtocolConfig::get_for_version(
+                self.protocol_version.unwrap_or(ProtocolVersion::MAX),
+                Chain::Unknown,
+            )
+            .validator_low_stake_threshold_as_option()
+            .unwrap_or(PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD),
             name: None,
         }
     }
@@ -283,7 +298,7 @@ impl GenesisConfig {
         ProtocolConfig::get_for_version(self.parameters.protocol_version, Chain::Unknown)
     }
 
-    pub fn generate_accounts<R: rand::RngCore + rand::CryptoRng>(
+    pub fn generate_accounts<R: rand::CryptoRng>(
         &self,
         mut rng: R,
     ) -> Result<(Vec<AccountPrivateKey>, Vec<TokenAllocation>)> {
@@ -333,11 +348,11 @@ fn default_stake() -> u64 {
 }
 
 fn default_bls12381_key_pair() -> AuthorityKeyPair {
-    get_key_pair_from_rng(&mut rand::rngs::OsRng).1
+    get_key_pair_from_rng(&mut UnwrapErr(SysRng)).1
 }
 
 fn default_ed25519_key_pair() -> NetworkKeyPair {
-    get_key_pair_from_rng(&mut rand::rngs::OsRng).1
+    get_key_pair_from_rng(&mut UnwrapErr(SysRng)).1
 }
 
 fn default_iota_key_pair() -> SimpleKeypair {
@@ -539,7 +554,7 @@ impl GenesisConfig {
 mod tests {
     use std::net::Ipv4Addr;
 
-    use rand::rngs::OsRng;
+    use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
     use super::ValidatorGenesisConfigBuilder;
 
@@ -549,7 +564,7 @@ mod tests {
             .with_ip("127.0.0.1".to_owned())
             .with_deterministic_ports(9200)
             .with_metrics_ip_address(Ipv4Addr::LOCALHOST.into())
-            .build(&mut OsRng);
+            .build(&mut UnwrapErr(SysRng));
 
         assert_eq!(
             config.network_address.to_string(),
@@ -572,7 +587,7 @@ mod tests {
         let config = ValidatorGenesisConfigBuilder::new()
             .with_ip("127.0.0.1".to_owned())
             .with_deterministic_ports(9200)
-            .build(&mut OsRng);
+            .build(&mut UnwrapErr(SysRng));
 
         assert_eq!(config.metrics_address.to_string(), "0.0.0.0:9202");
     }

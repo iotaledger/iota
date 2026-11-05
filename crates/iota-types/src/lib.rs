@@ -19,8 +19,7 @@ use move_core_types::{account_address::AccountAddress, language_storage::ModuleI
 use object::OBJECT_START_VERSION;
 
 use crate::{
-    base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
-    id::RESOLVED_IOTA_ID,
+    base_types::{RESOLVED_ASCII_STR, RESOLVED_IOTA_ID, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
 };
 
@@ -28,20 +27,19 @@ use crate::{
 pub mod error;
 
 pub mod account_abstraction;
+pub mod attestation;
 pub mod auth_context;
 pub mod balance;
 pub mod base_types;
 pub mod clock;
 pub mod coin;
 pub mod coin_manager;
-pub mod collection_types;
 pub mod committee;
 pub mod config;
 pub mod crypto;
 pub mod deny_list_v1;
 pub mod deny_rule_governance;
 pub mod digests;
-pub mod display;
 pub mod dynamic_field;
 pub mod effects;
 pub mod epoch_data;
@@ -55,7 +53,6 @@ pub mod gas_coin;
 pub mod gas_model;
 pub mod global_state_hash;
 pub mod governance;
-pub mod id;
 pub mod in_memory_storage;
 pub mod inner_temporary_store;
 pub mod iota_sdk_types_conversions;
@@ -74,6 +71,7 @@ pub mod messages_safe_client;
 pub mod metrics;
 pub mod mock_checkpoint_builder;
 pub mod move_authenticator;
+pub mod move_layout;
 pub mod move_package;
 pub mod multisig;
 pub mod object;
@@ -88,7 +86,6 @@ pub mod signature_verification;
 pub mod stardust;
 pub mod storage;
 pub mod supported_protocol_versions;
-pub mod system_admin_cap;
 pub mod test_checkpoint_data_builder;
 pub mod timelock;
 pub mod traffic_control;
@@ -97,7 +94,6 @@ pub mod transaction_deny_rules;
 pub mod transaction_driver_types;
 pub mod transaction_executor;
 pub mod transfer;
-pub mod versioned;
 
 #[path = "./unit_tests/utils.rs"]
 pub mod utils;
@@ -160,10 +156,8 @@ pub fn iota_framework_address_concat_string(suffix: &str) -> String {
 
 /// Parses `s` as an address. Valid formats for addresses are:
 ///
-/// - A 256bit number, encoded in decimal, or hexadecimal with a leading "0x"
-///   prefix.
-/// - One of a number of pre-defined named addresses: std, iota, iota_system,
-///   stardust.
+/// - A 256bit number, encoded in decimal, or hexadecimal with a leading "0x" prefix.
+/// - One of a number of pre-defined named addresses: std, iota, iota_system, stardust.
 ///
 /// Parsing succeeds if and only if `s` matches one of these formats exactly,
 /// with no remaining suffix. This function is intended for use within the
@@ -268,6 +262,34 @@ impl MoveTypeTagTrait for Address {
 impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::object::ID {
     fn get_type_tag() -> TypeTag {
         TypeTag::Struct(Box::new(StructTag::new_id()))
+    }
+}
+
+impl<N: MoveTypeTagTrait> MoveTypeTagTrait
+    for iota_sdk_move_types::iota_framework::dynamic_object_field::Wrapper<N>
+{
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(
+            dynamic_field::DynamicFieldInfo::dynamic_object_field_wrapper(N::get_type_tag()),
+        ))
+    }
+}
+
+impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::deny_list::ConfigKey {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_config_key()))
+    }
+}
+
+impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::deny_list::AddressKey {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_address_key()))
+    }
+}
+
+impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::deny_list::GlobalPauseKey {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_global_pause_key()))
     }
 }
 

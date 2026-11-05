@@ -25,8 +25,8 @@ use iota_sdk_types::{
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRefForExecution,
-        authenticator_function_ref_v1_from_dynamic_field_object,
+        AuthenticatorFunctionRefForExecution, MoveAuthenticatorForExecution,
+        MoveAuthenticatorsForExecution, authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
@@ -850,11 +850,13 @@ impl LocalExec {
                             },
                         )?;
 
-                        Ok((
-                            move_authenticator.to_owned(),
-                            authenticator_function_ref,
-                            CheckedInputObjects::new_for_replay(authenticator_inputs),
-                        ))
+                        Ok(MoveAuthenticatorForExecution {
+                            authenticator: move_authenticator.to_owned(),
+                            function_ref: authenticator_function_ref,
+                            input_objects: CheckedInputObjects::new_for_replay(
+                                authenticator_inputs,
+                            ),
+                        })
                     },
                 )
                 .collect::<Result<Vec<_>, ReplayEngineError>>()?;
@@ -868,8 +870,8 @@ impl LocalExec {
                 extract_auth_fun_refs(tx_info.sender, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address() == address)
-                        .map(|t| t.1.authenticator_function_ref.clone())
+                        .find(|a| a.authenticator.address() == address)
+                        .map(|a| a.function_ref.authenticator_function_ref.clone())
                 });
 
             let auth_context_data = AuthContextData {
@@ -891,7 +893,7 @@ impl LocalExec {
                 tx_info.epoch_start_timestamp,
                 gas_data,
                 gas_status,
-                move_authenticators,
+                MoveAuthenticatorsForExecution::Resolved(move_authenticators),
                 CheckedInputObjects::new_for_replay(input_objects.clone()),
                 transaction_kind.clone(),
                 tx_info.sender,
@@ -1080,7 +1082,9 @@ impl LocalExec {
             // MoveAuthenticator path: read all objects (tx + auth), split, and
             // run authentication before PTB execution.
             let all_input_object_kinds = sender_signed_data
-                .collect_all_input_object_kind_for_reading()
+                .collect_all_input_object_kind_for_reading(
+                    protocol_config.move_authenticator_type_arg_packages_as_inputs(),
+                )
                 .unwrap();
             let all_input_objects: InputObjects = all_input_object_kinds
                 .into_iter()
@@ -1166,11 +1170,11 @@ impl LocalExec {
                         (move_authenticator, (_, authenticator_function_ref_for_execution)),
                         authenticator_checked_input_objects,
                     )| {
-                        (
-                            move_authenticator.to_owned(),
-                            authenticator_function_ref_for_execution,
-                            authenticator_checked_input_objects,
-                        )
+                        MoveAuthenticatorForExecution {
+                            authenticator: move_authenticator.to_owned(),
+                            function_ref: authenticator_function_ref_for_execution,
+                            input_objects: authenticator_checked_input_objects,
+                        }
                     },
                 )
                 .collect::<Vec<_>>();
@@ -1184,8 +1188,8 @@ impl LocalExec {
                 extract_auth_fun_refs(signer, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address() == address)
-                        .map(|t| t.1.authenticator_function_ref.clone())
+                        .find(|a| a.authenticator.address() == address)
+                        .map(|a| a.function_ref.authenticator_function_ref.clone())
                 });
 
             let auth_context_data = AuthContextData {
@@ -1207,7 +1211,7 @@ impl LocalExec {
                 epoch_start_timestamp,
                 gas_data,
                 gas_status,
-                move_authenticators,
+                MoveAuthenticatorsForExecution::Resolved(move_authenticators),
                 union_checked_input_objects,
                 kind,
                 signer,
@@ -1765,8 +1769,18 @@ impl LocalExec {
 
         let raw_tx_bytes = tx_info.clone().raw_transaction;
         let orig_tx: SenderSignedTransaction = bcs::from_bytes(&raw_tx_bytes).unwrap();
+
+        let epoch_id = effects.executed_epoch;
+        let chain = chain_from_chain_id(self.fetcher.get_chain_id().await?.as_str());
+        // Find the protocol version for this epoch
+        // This assumes we already initialized the protocol version table
+        // `protocol_version_epoch_table`
+        let protocol_config = self.get_protocol_config(epoch_id, chain).await?;
+
         let input_objs = orig_tx
-            .collect_all_input_object_kind_for_reading()
+            .collect_all_input_object_kind_for_reading(
+                protocol_config.move_authenticator_type_arg_packages_as_inputs(),
+            )
             .map_err(|e| match e {
                 IotaError::UserInput { error } => ReplayEngineError::UserInputError { err: error },
                 other => ReplayEngineError::GeneralError {
@@ -1802,9 +1816,6 @@ impl LocalExec {
             .map(|obj_ref| (obj_ref.object_id, obj_ref.version))
             .collect();
 
-        let epoch_id = effects.executed_epoch;
-        let chain = chain_from_chain_id(self.fetcher.get_chain_id().await?.as_str());
-
         // Extract the epoch start timestamp
         let (epoch_start_timestamp, reference_gas_price) = self
             .get_epoch_start_timestamp_and_rgp(epoch_id, tx_digest)
@@ -1825,10 +1836,7 @@ impl LocalExec {
             effects: IotaTransactionBlockEffects::V1(effects),
             receiving_objs,
             config_objects,
-            // Find the protocol version for this epoch
-            // This assumes we already initialized the protocol version table
-            // `protocol_version_epoch_table`
-            protocol_version: self.get_protocol_config(epoch_id, chain).await?.version,
+            protocol_version: protocol_config.version,
             tx_digest: *tx_digest,
             epoch_start_timestamp,
             sender_signed_data: orig_tx.clone(),
@@ -1856,8 +1864,17 @@ impl LocalExec {
         // Fetch full transaction content
         // let tx_info = self.fetcher.get_transaction(tx_digest).await?;
 
+        let epoch_id = dp.node_state_dump.executed_epoch;
+
+        let chain = chain_from_chain_id(self.fetcher.get_chain_id().await?.as_str());
+
+        let protocol_config =
+            ProtocolConfig::get_for_version(dp.node_state_dump.protocol_version.into(), chain);
+
         let input_objs = orig_tx
-            .collect_all_input_object_kind_for_reading()
+            .collect_all_input_object_kind_for_reading(
+                protocol_config.move_authenticator_type_arg_packages_as_inputs(),
+            )
             .map_err(|e| match e {
                 IotaError::UserInput { error } => ReplayEngineError::UserInputError { err: error },
                 other => ReplayEngineError::GeneralError {
@@ -1889,12 +1906,6 @@ impl LocalExec {
             .map(|obj_ref| (obj_ref.object_id, obj_ref.version))
             .collect();
 
-        let epoch_id = dp.node_state_dump.executed_epoch;
-
-        let chain = chain_from_chain_id(self.fetcher.get_chain_id().await?.as_str());
-
-        let protocol_config =
-            ProtocolConfig::get_for_version(dp.node_state_dump.protocol_version.into(), chain);
         // Extract the epoch start timestamp
         let (epoch_start_timestamp, reference_gas_price) = self
             .get_epoch_start_timestamp_and_rgp(epoch_id, tx_digest)

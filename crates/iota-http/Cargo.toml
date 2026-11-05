@@ -13,9 +13,11 @@ http.workspace = true
 http-body.workspace = true
 http-body-util.workspace = true
 hyper = { workspace = true, features = ["http1", "http2"] }
-hyper-util.workspace = true
+hyper-util = { workspace = true, features = ["server-graceful"] }
+parking_lot.workspace = true
 pin-project-lite.workspace = true
 socket2 = { version = "0.5", features = ["all"] }
+strum.workspace = true
 tokio = { workspace = true, features = ["macros"] }
 tokio-rustls.workspace = true
 tokio-util.workspace = true
@@ -23,13 +25,22 @@ tower.workspace = true
 tracing.workspace = true
 
 # internal dependencies
+iota-metrics.workspace = true
 # TLS support
 iota-tls.workspace = true
+prometheus-filtered.workspace = true
 
 [dev-dependencies]
+# external dependencies
 axum.workspace = true
 fastcrypto.workspace = true
+futures.workspace = true
+h2 = "0.4.19"
 reqwest.workspace = true
+rustls.workspace = true
+
+# internal dependencies
+iota-metrics = { workspace = true, features = ["test-utils"] }
 
 [lints]
 workspace = true

@@ -303,7 +303,7 @@ mod tests {
         genesis_config::ValidatorGenesisConfigBuilder,
         node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
     };
-    use rand::rngs::OsRng;
+    use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
     use super::*;
 
@@ -319,7 +319,7 @@ mod tests {
         let validator = ValidatorGenesisConfigBuilder::new()
             .with_ip("127.0.0.1".to_owned())
             .with_deterministic_ports(port_base)
-            .build(&mut OsRng);
+            .build(&mut UnwrapErr(SysRng));
         let primary_address = validator.primary_address.udp_multiaddr_to_listen_address();
         let config = ValidatorConfigBuilder::new()
             .with_config_directory(directory.to_path_buf())
@@ -330,7 +330,7 @@ mod tests {
     fn fullnode_config(directory: &Path) -> NodeConfig {
         FullnodeConfigBuilder::new()
             .with_config_directory(directory.to_path_buf())
-            .build_from_parts(&mut OsRng, &[], Genesis::new_empty())
+            .build_from_parts(&mut UnwrapErr(SysRng), &[], Genesis::new_empty())
     }
 
     /// Hold a TCP port for as long as the returned listener lives.
