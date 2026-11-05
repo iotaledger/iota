@@ -4231,6 +4231,10 @@ impl ProtocolConfig {
             .move_authenticator_type_arg_packages_as_inputs = val;
     }
 
+    pub fn set_disallow_self_identifier_in_transactions_for_testing(&mut self, val: bool) {
+        self.feature_flags.disallow_self_identifier_in_transactions = val;
+    }
+
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
         self.consensus_commits_per_schedule = Some(val);
     }
