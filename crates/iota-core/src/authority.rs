@@ -965,7 +965,7 @@ impl AuthorityMetrics {
 /// - Pin, i.e. confined to one place in memory (we don't want to copy private keys).
 /// - Sync, i.e. can be safely shared between threads.
 ///
-/// Typically instantiated with Box::pin(keypair) where keypair is a `KeyPair`
+/// Typically instantiated with `Arc::pin(key)` where `key` is an `AuthorityKeyPair`
 pub type StableSyncAuthoritySigner =
     Pin<Arc<dyn iota_sdk_crypto::Signer<AuthoritySignature> + Send + Sync>>;
 
