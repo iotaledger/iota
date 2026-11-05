@@ -9,6 +9,7 @@ mod request_retrier;
 mod transaction_submitter;
 
 use std::{
+    collections::BTreeSet,
     net::SocketAddr,
     sync::{Arc, Weak},
     time::{Duration, Instant},
@@ -22,7 +23,8 @@ use iota_common::{backoff::ExponentialBackoff, debug_fatal};
 use iota_metrics::{monitored_future, spawn_logged_monitored_task};
 use iota_sdk_types::{TransactionDigest, TransactionEvents};
 use iota_types::{
-    committee::EpochId, messages_grpc::TxStatusUpdate, transaction::TransactionEnvelope,
+    base_types::AuthorityName, committee::EpochId, messages_grpc::TxStatusUpdate,
+    transaction::TransactionEnvelope,
 };
 pub use metrics::*;
 use parking_lot::Mutex;
@@ -72,6 +74,10 @@ pub struct SubmitTransactionOptions {
     /// list cannot be used to submit the transaction to. When the blocked
     /// validator list is empty, no restrictions are applied.
     pub blocked_validators: Vec<String>,
+
+    /// Validators whose attested transactions are dropped for the rest of the
+    /// epoch; never chosen as submission targets.
+    pub cut_off_validators: BTreeSet<AuthorityName>,
 }
 
 #[derive(Clone, Debug)]

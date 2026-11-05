@@ -69,6 +69,7 @@ impl TransactionSubmitter {
             &options.allowed_validators,
             &options.blocked_validators,
         );
+        retrier.exclude(&options.cut_off_validators);
 
         let mut retries = 0;
         let mut request_rpcs = FuturesUnordered::new();

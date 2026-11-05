@@ -5,7 +5,10 @@
 //! path, the post-consensus checks of an attested transaction, and the record
 //! of an attested transaction's execution.
 
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashSet},
+    sync::Arc,
+};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
@@ -26,6 +29,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
     inner_temporary_store::InnerTemporaryStore,
+    messages_checkpoint::CheckpointSummaryExt,
     move_authenticator::MoveAuthenticatorExt,
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjects,
@@ -293,6 +297,36 @@ impl AuthorityState {
             )?;
         Ok((tx_checked_input_objects, per_authenticator_checked_inputs))
     }
+
+    /// The validators cut off for the rest of the epoch, as the highest
+    /// certified checkpoint summary this node holds shows them; empty when the
+    /// cutoff is off or that summary is from an earlier epoch.
+    pub(crate) fn cut_off_validators(&self) -> BTreeSet<AuthorityName> {
+        let epoch_store = self.load_epoch_store_one_call_per_task();
+        let protocol_config = epoch_store.protocol_config();
+        let Some(max_refuted_units_squared) =
+            protocol_config.attestation_max_refuted_units_squared_as_option()
+        else {
+            return BTreeSet::new();
+        };
+        let Ok(Some(checkpoint)) = self
+            .get_checkpoint_store()
+            .get_highest_verified_checkpoint()
+        else {
+            return BTreeSet::new();
+        };
+        if checkpoint.epoch != epoch_store.epoch() {
+            return BTreeSet::new();
+        }
+        match checkpoint.parse_version_specific_data(protocol_config) {
+            Ok(Some(data)) => data
+                .attestation_totals()
+                .map_or_else(BTreeSet::new, |totals| {
+                    cut_off_attestors(totals, max_refuted_units_squared, epoch_store.committee())
+                }),
+            _ => BTreeSet::new(),
+        }
+    }
 }
 
 /// The record of an attested transaction's execution: the certified record
@@ -333,6 +367,20 @@ pub(super) fn attestation_record(
 /// stops its attestations for the rest of the epoch.
 pub(crate) fn takes_whole_score(units_squared: u64, max_refuted_units_squared: u64) -> bool {
     units_squared >= max_refuted_units_squared.max(1)
+}
+
+/// The committee members whose `totals` take their whole score.
+fn cut_off_attestors(
+    totals: &AttestationTotals,
+    max_refuted_units_squared: u64,
+    committee: &Committee,
+) -> BTreeSet<AuthorityName> {
+    totals
+        .refuted_units_squared
+        .iter()
+        .filter(|&(_, &units_squared)| takes_whole_score(units_squared, max_refuted_units_squared))
+        .filter_map(|(&attestor, _)| committee.authority_by_index(u32::from(attestor)).copied())
+        .collect()
 }
 
 /// Cuts each attestor's score by the squared units its refuted attestations
@@ -480,5 +528,19 @@ mod tests {
             );
             assert_eq!(scores[0] == 0, whole);
         }
+    }
+
+    /// Only the members whose totals reach the threshold are cut off.
+    #[test]
+    fn cut_off_attestors_are_the_members_taking_the_whole_score() {
+        let (committee, _) = Committee::new_simple_test_committee();
+        let totals = AttestationTotals {
+            refuted_units_squared: [(0, 100), (1, 99)].into(),
+        };
+        let first = *committee.authority_by_index(0).unwrap();
+        assert_eq!(
+            cut_off_attestors(&totals, 100, &committee),
+            BTreeSet::from([first])
+        );
     }
 }
