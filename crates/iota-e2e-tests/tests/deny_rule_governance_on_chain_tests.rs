@@ -1488,7 +1488,6 @@ async fn deny_rule_crash_before_flush_replays_the_derivation() {
 #[sim_test]
 async fn deny_rule_committee_joiner_derives_identical_deltas() {
     use iota_swarm_config::genesis_config::ValidatorGenesisConfigBuilder;
-    use iota_types::crypto::KeypairTraits;
     use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
     telemetry_subscribers::init_for_testing();

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
+use fastcrypto::{bls12381::min_sig::BLS12381Signature, traits::ToFromBytes};
 use iota_multiaddr::Multiaddr;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
 use iota_sdk_move_types::{
@@ -30,8 +31,9 @@ use crate::{
     balance::Balance,
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{
-        AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
-        authority_pubkey_from_bytes, network_pubkey_from_bytes, verify_proof_of_possession,
+        AggregateAuthorityPublicKey, AuthorityPublicKey, AuthorityPublicKeyBytes,
+        AuthoritySignature, NetworkPublicKey, network_pubkey_from_bytes,
+        verify_proof_of_possession,
     },
     error::IotaError,
     gas_coin::IotaTreasuryCap,
@@ -100,18 +102,37 @@ impl VerifiedValidatorMetadataV1 {
     }
 }
 
+/// Checks a proof of possession on keys parsed the way this on-chain check
+/// always has: fastcrypto accepts compressed or uncompressed keys and leaves
+/// the group checks to the proof, so a bad key keeps aborting with
+/// `E_METADATA_INVALID_POP` and every node version agrees on the result.
+fn verify_pop(
+    authority_pubkey: &AggregateAuthorityPublicKey,
+    pop: &BLS12381Signature,
+    iota_address: Address,
+) -> Result<AuthorityPublicKey, u64> {
+    let authority_pubkey = AuthorityPublicKeyBytes::from_bytes(authority_pubkey.as_bytes())
+        .ok()
+        .and_then(|bytes| AuthorityPublicKey::try_from(bytes).ok())
+        .ok_or(E_METADATA_INVALID_POP)?;
+    let pop = AuthoritySignature::from_bytes(pop.as_bytes()).map_err(|_| E_METADATA_INVALID_POP)?;
+    verify_proof_of_possession(&pop, &authority_pubkey, iota_address)
+        .map_err(|_| E_METADATA_INVALID_POP)?;
+    Ok(authority_pubkey)
+}
+
 impl ValidatorMetadataV1 {
     /// Verify validator metadata and return a verified version (on success) or
     /// error code (on failure)
     pub fn verify(&self, metadata_v2: bool) -> Result<VerifiedValidatorMetadataV1, u64> {
-        let authority_pubkey = authority_pubkey_from_bytes(self.authority_pubkey_bytes.as_ref())
-            .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?;
+        let authority_pubkey =
+            AggregateAuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref())
+                .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?;
 
         // Verify proof of possession for the authority key
-        let pop = AuthoritySignature::from_bytes(&self.proof_of_possession_bytes)
+        let pop = BLS12381Signature::from_bytes(self.proof_of_possession_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_POP)?;
-        verify_proof_of_possession(&pop, &authority_pubkey, self.iota_address)
-            .map_err(|_| E_METADATA_INVALID_POP)?;
+        let authority_pubkey = verify_pop(&authority_pubkey, &pop, self.iota_address)?;
 
         let network_pubkey = network_pubkey_from_bytes(self.network_pubkey_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?;
@@ -143,35 +164,34 @@ impl ValidatorMetadataV1 {
             .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
 
         let next_epoch_authority_pubkey = match self.next_epoch_authority_pubkey_bytes.clone() {
-            None => Ok::<Option<AuthorityPublicKey>, u64>(None),
+            None => Ok::<Option<AggregateAuthorityPublicKey>, u64>(None),
             Some(bytes) => Ok(Some(
-                authority_pubkey_from_bytes(bytes.as_ref())
+                AggregateAuthorityPublicKey::from_bytes(bytes.as_ref())
                     .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?,
             )),
         }?;
 
         let next_epoch_pop = match self.next_epoch_proof_of_possession.clone() {
-            None => Ok::<Option<AuthoritySignature>, u64>(None),
+            None => Ok::<Option<BLS12381Signature>, u64>(None),
             Some(bytes) => Ok(Some(
-                AuthoritySignature::from_bytes(&bytes).map_err(|_| E_METADATA_INVALID_POP)?,
+                BLS12381Signature::from_bytes(bytes.as_ref())
+                    .map_err(|_| E_METADATA_INVALID_POP)?,
             )),
         }?;
         // Verify proof of possession for the next epoch authority key
-        if let Some(ref next_epoch_authority_pubkey) = next_epoch_authority_pubkey {
-            match next_epoch_pop {
-                Some(next_epoch_pop) => {
-                    verify_proof_of_possession(
-                        &next_epoch_pop,
-                        next_epoch_authority_pubkey,
-                        self.iota_address,
-                    )
-                    .map_err(|_| E_METADATA_INVALID_POP)?;
-                }
+        let next_epoch_authority_pubkey = match next_epoch_authority_pubkey {
+            Some(next_epoch_authority_pubkey) => match next_epoch_pop {
+                Some(next_epoch_pop) => Some(verify_pop(
+                    &next_epoch_authority_pubkey,
+                    &next_epoch_pop,
+                    self.iota_address,
+                )?),
                 None => {
                     return Err(E_METADATA_INVALID_POP);
                 }
-            }
-        }
+            },
+            None => None,
+        };
 
         let next_epoch_network_pubkey = match self.next_epoch_network_pubkey_bytes.clone() {
             None => Ok::<Option<NetworkPublicKey>, u64>(None),
@@ -695,5 +715,88 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             validator_very_low_stake_threshold,
             validator_low_stake_grace_period,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
+    use iota_sdk_move_types::iota_framework::object::UID;
+
+    use super::*;
+    use crate::crypto::{AuthorityKeyPair, generate_proof_of_possession};
+
+    fn metadata(
+        iota_address: Address,
+        authority_pubkey_bytes: Vec<u8>,
+        proof_of_possession_bytes: Vec<u8>,
+    ) -> ValidatorMetadataV1 {
+        ValidatorMetadataV1 {
+            iota_address,
+            authority_pubkey_bytes,
+            network_pubkey_bytes: Ed25519PrivateKey::new([1; 32])
+                .public_key()
+                .bytes()
+                .to_vec(),
+            protocol_pubkey_bytes: Ed25519PrivateKey::new([2; 32])
+                .public_key()
+                .bytes()
+                .to_vec(),
+            proof_of_possession_bytes,
+            name: "validator".to_string(),
+            description: String::new(),
+            image_url: String::new(),
+            project_url: String::new(),
+            net_address: "/ip4/127.0.0.1/tcp/8080/http".to_string(),
+            p2p_address: "/ip4/127.0.0.1/udp/8081".to_string(),
+            primary_address: "/ip4/127.0.0.1/udp/8082".to_string(),
+            next_epoch_authority_pubkey_bytes: None,
+            next_epoch_proof_of_possession: None,
+            next_epoch_network_pubkey_bytes: None,
+            next_epoch_protocol_pubkey_bytes: None,
+            next_epoch_net_address: None,
+            next_epoch_p2p_address: None,
+            next_epoch_primary_address: None,
+            extra_fields: Bag {
+                id: UID {
+                    id: ID {
+                        bytes: ObjectId::ZERO,
+                    },
+                },
+                size: 0,
+            },
+        }
+    }
+
+    // The Move native runs this check on-chain, so the encodings it accepts and
+    // the abort code it returns must not change between node versions.
+    #[test]
+    fn authority_key_checks_keep_their_on_chain_results() {
+        let address = Address::new([3; Address::LENGTH]);
+        let key = AuthorityKeyPair::new([7; 32]).unwrap();
+        let pop = generate_proof_of_possession(&key, address).bytes().to_vec();
+        let compressed = key.public_key().bytes().to_vec();
+        let uncompressed = AggregateAuthorityPublicKey::from_bytes(&compressed)
+            .unwrap()
+            .pubkey
+            .serialize()
+            .to_vec();
+        let mut infinity = vec![0; compressed.len()];
+        infinity[0] = 0xc0;
+
+        assert!(
+            metadata(address, compressed, pop.clone())
+                .verify(true)
+                .is_ok()
+        );
+        assert!(
+            metadata(address, uncompressed, pop.clone())
+                .verify(true)
+                .is_ok()
+        );
+        assert_eq!(
+            metadata(address, infinity, pop).verify(true).unwrap_err(),
+            E_METADATA_INVALID_POP
+        );
     }
 }

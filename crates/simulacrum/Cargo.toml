@@ -10,7 +10,6 @@ publish = false
 # external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
-fastcrypto.workspace = true
 rand.workspace = true
 tracing.workspace = true
 

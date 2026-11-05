@@ -13837,7 +13837,6 @@ version = "1.37.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
- "fastcrypto",
  "iota-config",
  "iota-execution",
  "iota-node-storage",
