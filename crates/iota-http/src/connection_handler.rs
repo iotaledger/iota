@@ -10,7 +10,7 @@ use tracing::{debug, trace};
 
 use crate::{
     ActiveConnections, BoxError, ConnectionId, connection_info::PeerConnectionGuard, fuse::Fuse,
-    idle::IdleSleep,
+    idle_timer::IdleTimer,
 };
 
 // This is moved to its own function as a way to get around
@@ -21,7 +21,7 @@ pub async fn serve_connection<IO, S, B, C>(
     builder: hyper_util::server::conn::auto::Builder<hyper_util::rt::TokioExecutor>,
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
     max_connection_age: Option<Duration>,
-    idle_timer: IdleSleep,
+    idle_timer: IdleTimer,
     on_connection_close: C,
 ) where
     B: http_body::Body + Send + 'static,
@@ -62,7 +62,7 @@ async fn serve_until_closed(
     conn: impl GracefulConnection<Error = BoxError>,
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
     max_connection_age: Option<Duration>,
-    idle_timer: IdleSleep,
+    idle_timer: IdleTimer,
 ) {
     let mut sig = pin!(Fuse::new(graceful_shutdown_token.cancelled_owned()));
 
@@ -87,7 +87,7 @@ async fn serve_until_closed(
                 // A request can arrive between the timer being reached and
                 // this running, so being ready is not on its own proof that
                 // the connection is still idle.
-                if idle_timer.is_busy() {
+                if !idle_timer.is_idle() {
                     continue;
                 }
                 debug!("closing a connection that has been idle past its deadline");
