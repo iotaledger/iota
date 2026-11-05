@@ -51,7 +51,7 @@ pub fn read_keypair_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Res
     SimpleKeypair::from_bech32(contents.as_str().trim()).map_err(|e| anyhow!(e))
 }
 
-/// Read from file as Base64 encoded `flag || privkey` and return a
+/// Read from file as Bech32 encoded `flag || privkey` and return a
 /// NetworkPrivateKey.
 pub fn read_network_keypair_from_file<P: AsRef<std::path::Path>>(
     path: P,

@@ -776,11 +776,11 @@ impl NodeConfig {
     }
 
     pub fn protocol_key_pair(&self) -> NetworkPrivateKey {
-        self.protocol_key_pair.network_keypair()
+        self.protocol_key_pair.network_private_key()
     }
 
     pub fn network_key_pair(&self) -> NetworkPrivateKey {
-        self.network_key_pair.network_keypair()
+        self.network_key_pair.network_private_key()
     }
 
     pub fn authority_public_key(&self) -> AuthorityPublicKeyBytes {
@@ -1626,10 +1626,10 @@ impl KeyPairWithPath {
             .as_ref()
     }
 
-    /// The stored keypair as an ed25519 network keypair, for the network
+    /// The stored keypair as an ed25519 network private key, for the network
     /// stacks that consume that type directly. Panics if the stored keypair
     /// is not ed25519.
-    pub fn network_keypair(&self) -> NetworkPrivateKey {
+    pub fn network_private_key(&self) -> NetworkPrivateKey {
         self.keypair()
             .as_opt_ed25519()
             .cloned()
