@@ -7,7 +7,7 @@ use std::{str::FromStr, sync::Arc, time::Duration};
 use anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::stream::{self, StreamExt, TryStreamExt};
+use futures::stream::{self, StreamExt};
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
     TransactionEvents, Version,
@@ -372,7 +372,10 @@ impl HttpKVStore {
     async fn multi_fetch(&self, uris: Vec<Key>) -> IotaResult<Vec<Option<Bytes>>> {
         let uris_vec = uris.to_vec();
         let fetches = stream::iter(uris_vec.into_iter().map(|url| self.fetch(url)));
-        fetches.buffered(uris.len()).try_collect().await
+        // Waits for every fetch, also after one fails, so that the others still
+        // cache what they read for a retry.
+        let results: Vec<_> = fetches.buffered(uris.len()).collect().await;
+        results.into_iter().collect()
     }
 
     /// Fetches one key, with `None` if the store does not have it.
@@ -432,7 +435,12 @@ impl HttpKVStore {
             // does not change.
             StatusCode::NOT_FOUND | StatusCode::BAD_REQUEST => Ok(None),
             status => {
-                warn!("key-value store returned {status} for url: {url}");
+                // A retry does not help for a 4xx other than 429.
+                if status.is_client_error() && status != StatusCode::TOO_MANY_REQUESTS {
+                    error!("key-value store returned {status} for url: {url}");
+                } else {
+                    warn!("key-value store returned {status} for url: {url}");
+                }
                 Err(IotaError::Storage(format!(
                     "key-value store returned {status} for {key:?}"
                 )))

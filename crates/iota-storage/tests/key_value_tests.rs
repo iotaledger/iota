@@ -415,7 +415,7 @@ mod simtests {
     type Storage = HashMap<String, Vec<u8>>;
 
     async fn svc(
-        State((state, missing)): State<(Arc<Mutex<Storage>>, hyper::StatusCode)>,
+        State((state, missing, delay)): State<(Arc<Mutex<Storage>>, hyper::StatusCode, Duration)>,
         request: Request<Body>,
     ) -> Response {
         let path = request.uri().path().to_string();
@@ -423,7 +423,10 @@ mod simtests {
         let value = state.lock().unwrap().get(key).cloned();
         info!("Got request for key: {:?}, value: {:?}", key, value);
         match value {
-            Some(v) => Response::new(Body::from(v)),
+            Some(v) => {
+                tokio::time::sleep(delay).await;
+                Response::new(Body::from(v))
+            }
             None => Response::builder()
                 .status(missing)
                 .body(Body::empty())
@@ -437,6 +440,16 @@ mod simtests {
 
     /// Serves `data`, and answers `missing` for a key it does not hold.
     async fn test_server_with_status(data: Arc<Mutex<Storage>>, missing: hyper::StatusCode) {
+        test_server_with_delay(data, missing, Duration::ZERO).await
+    }
+
+    /// Like [`test_server_with_status`], but waits `delay` before it serves a
+    /// key it holds.
+    async fn test_server_with_delay(
+        data: Arc<Mutex<Storage>>,
+        missing: hyper::StatusCode,
+        delay: Duration,
+    ) {
         let handle = iota_simulator::runtime::Handle::current();
         let builder = handle.create_node();
         let (startup_sender, mut startup_receiver) = tokio::sync::watch::channel(false);
@@ -449,7 +462,7 @@ mod simtests {
                 let data = data.clone();
                 let startup_sender = startup_sender.clone();
                 async move {
-                    let router = get(svc).with_state((data, missing));
+                    let router = get(svc).with_state((data, missing, delay));
                     let addr = SocketAddr::from(([10, 10, 10, 10], 8080));
                     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
 
@@ -642,6 +655,48 @@ mod simtests {
             "json_rpc_fallback",
         );
         assert_unavailable(fallback.multi_get_tx(&[TransactionDigest::random()]).await);
+    }
+
+    #[sim_test(config = "constant_latency_ms(250)")]
+    async fn failed_batch_caches_the_keys_it_read() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
+        let tx = random_tx();
+        let tx_digest = *tx.digest();
+        let data = Arc::new(Mutex::new(HashMap::from([(
+            format!("tx/{}", encode_digest(&tx_digest)),
+            bcs::to_bytes(&tx).unwrap(),
+        )])));
+        // The 429 comes back before the transaction.
+        test_server_with_delay(
+            data,
+            hyper::StatusCode::TOO_MANY_REQUESTS,
+            Duration::from_secs(1),
+        )
+        .await;
+        let metrics = KeyValueStoreMetrics::new_for_tests();
+        let store = HttpKVStore::new("http://10.10.10.10:8080", 1000, metrics.clone()).unwrap();
+
+        assert!(
+            store
+                .multi_get(&[TransactionDigest::random(), tx_digest], &[])
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            store.multi_get(&[tx_digest], &[]).await.unwrap(),
+            (vec![Some(tx)], vec![])
+        );
+        assert_eq!(
+            metrics
+                .key_value_store_num_fetches_success
+                .get_metric_with_label_values(&["http_cache", "url"])
+                .unwrap()
+                .get(),
+            1
+        );
     }
 
     #[sim_test(config = "constant_latency_ms(250)")]
