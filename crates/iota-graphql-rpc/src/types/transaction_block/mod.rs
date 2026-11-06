@@ -41,7 +41,7 @@ use crate::{
     types::{
         address::Address,
         base64::Base64,
-        cursor::{JsonCursor, Page, Target},
+        cursor::{JsonCursor, Page, Target, check_cursor_not_pruned},
         digest::Digest,
         epoch::Epoch,
         gas::GasInput,
@@ -487,6 +487,10 @@ impl TransactionBlock {
                 checkpoint_viewed_at,
             )
             .await;
+        }
+
+        if let Some(cursor_viewed_at) = cursor_viewed_at {
+            check_cursor_not_pruned(db, cursor_viewed_at)?;
         }
 
         use transactions::dsl as tx;
