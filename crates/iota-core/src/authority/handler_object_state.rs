@@ -67,8 +67,19 @@
 //!   ([`HandlerObjectState::write_checkpoint_rows_to_batch`]). So an object is never written
 //!   without its row. Rows never change once written for a key, so this batch takes no lock.
 //!
-//! Neither batch is synced to disk when written, so the order of these writes
-//! holds across a process crash but not across a power loss or kernel crash.
+//! The quarantine flush batch is never synced to disk. The checkpoint
+//! executor's batch of rows and the checkpoint's outputs are synced only when
+//! the switches of `crate::db_sync` are on. With nothing synced, the order
+//! of these writes holds across a process crash but not across a power loss
+//! or kernel crash, because they go to different databases:
+//! - with the handler object state switch on, the checkpoint executor's batch of rows is synced, so
+//!   after a power loss no object is on disk without its row. With the switch off, a power loss can
+//!   keep a checkpoint's outputs and lose their rows.
+//! - with the checkpoint outputs switch on, the outputs are synced, so whenever a quarantine flush
+//!   is on disk, the outputs of its checkpoint are too. With the switch off, a power loss can keep
+//!   the flush and lose the outputs. The handler then does not replay the flushed commits, so
+//!   nothing runs their transactions again, and checkpoint execution waits until the node executes
+//!   synced checkpoints at the end of the epoch.
 
 use std::{
     collections::{BTreeMap, btree_map::Entry},
