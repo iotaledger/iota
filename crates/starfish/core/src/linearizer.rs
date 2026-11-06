@@ -114,14 +114,30 @@ impl Linearizer {
         );
 
         drop(dag_state_guard);
+        // A block may reach quorum before it is traversed, e.g. via optimistic strong
+        // votes; the quorum check fires only once, so commit it on first traversal,
+        // before this commit's acknowledgments are counted.
+        let mut traversed_with_quorum = Vec::new();
         if self
             .context
             .protocol_config
             .consensus_commit_transactions_only_for_traversed_headers()
         {
+            let commit_once_traversed = self
+                .context
+                .protocol_config
+                .consensus_commit_transactions_once_traversed();
             for block_header in &to_commit {
-                self.traversed_headers_tracker
-                    .insert(block_header.reference());
+                let block_ref = block_header.reference();
+                if self.traversed_headers_tracker.insert(block_ref)
+                    && commit_once_traversed
+                    && self
+                        .transactions_ack_tracker
+                        .get(&block_ref)
+                        .is_some_and(|acks| acks.reached_threshold(&self.context.committee))
+                {
+                    traversed_with_quorum.push(block_ref);
+                }
             }
         }
 
@@ -140,6 +156,7 @@ impl Linearizer {
                 )
             })
             .collect::<Vec<BlockRef>>();
+        committed_transactions.extend(traversed_with_quorum);
 
         // Optimistic: record the leader's r+1 strong-voters as acks for the
         // leader's ref and each of its acknowledgments. Crossing 2f+1 commits
@@ -541,6 +558,8 @@ fn median_timestamps_by_stake_inner(
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
     use crate::{
         CommitIndex, TestBlockHeader,
@@ -1459,19 +1478,19 @@ mod tests {
         }
     }
 
-    /// A leader-ack that is not among the leader's ancestors never enters
-    /// the traversed-headers tracker, so the Optimistic path must not commit
-    /// it when `consensus_commit_transactions_only_for_traversed_headers` is
-    /// on.
+    #[rstest]
     #[tokio::test]
-    async fn test_optimistic_path_respects_traversed_headers_gate() {
+    async fn test_optimistic_path_respects_traversed_headers_gate(
+        #[values(false, true)] commit_once_traversed: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
         let (mut ctx, _) = Context::new_for_test(num_authorities);
         ctx.protocol_config
+            .set_consensus_commit_transactions_once_traversed_for_testing(commit_once_traversed);
+        ctx.protocol_config
             .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(true);
         let context = Arc::new(ctx);
-
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
             Arc::new(MemStore::new()),
@@ -1481,76 +1500,105 @@ mod tests {
             LeaderSwapTable::default(),
         ));
         let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
-
         let all_authorities: Vec<AuthorityIndex> = (0..num_authorities as u8)
             .map(AuthorityIndex::new_for_test)
             .collect();
-        // Pick an authority that is neither the local node (own_index = 0) nor
-        // the round-5 leader. Their round-3 block will be the orphaned ref.
+        let leader_author = AuthorityIndex::new_for_test(1);
         let orphan_author = AuthorityIndex::new_for_test(2);
 
         let mut dag_builder = DagBuilder::new(context);
         dag_builder
-            .layers(1..=3)
+            .layers(1..=4)
             .build()
             .persist_layers(dag_state.clone());
-
-        // Round 4: every authority builds, but no round-4 block references the
-        // orphan author's round-3 block as either ancestor or ack. The orphan's
-        // round-3 block stays in dag_state but is not in the transitive
-        // ancestry of any round-5 block.
-        dag_builder
-            .layers(4..=4)
-            .authorities(all_authorities.clone())
-            .skip_ancestor_links(vec![orphan_author])
-            .skip_acknowledgements(vec![orphan_author])
-            .build()
-            .persist_layers(dag_state.clone());
-
-        dag_builder
-            .layers(5..=5)
-            .build()
-            .persist_layers(dag_state.clone());
-
-        let orphan_block = dag_builder
-            .block_headers(3..=3)
-            .into_iter()
+        let round_4 = dag_builder.block_headers(4..=4);
+        let orphan_ref = round_4
+            .iter()
             .find(|b| b.author() == orphan_author)
-            .expect("orphan round-3 block should exist");
-        let orphan_ref = orphan_block.reference();
-
-        let leader_orig = dag_builder
-            .leader_block(5)
-            .expect("leader at round 5 should exist");
-        let leader_author = leader_orig.author();
-        let leader_ancestors: Vec<BlockRef> = leader_orig.ancestors().to_vec();
-        let mut modified_acks = leader_orig.acknowledgments().to_vec();
-        modified_acks.push(orphan_ref);
-        let leader_modified = VerifiedBlockHeader::new_for_test(
+            .unwrap()
+            .reference();
+        // The round-5 leader acknowledges every round-4 block but does not
+        // reference the orphan.
+        let mut ancestors = vec![
+            round_4
+                .iter()
+                .find(|b| b.author() == leader_author)
+                .unwrap()
+                .reference(),
+        ];
+        ancestors.extend(
+            round_4
+                .iter()
+                .filter(|b| b.author() != leader_author && b.author() != orphan_author)
+                .map(|b| b.reference()),
+        );
+        let leader = VerifiedBlockHeader::new_for_test(
             TestBlockHeader::new(5, leader_author.value() as u8)
-                .set_ancestors(leader_ancestors)
-                .set_acknowledgments(modified_acks)
+                .set_ancestors(ancestors)
+                .set_acknowledgments(round_4.iter().map(|b| b.reference()).collect())
                 .build(),
         );
         dag_state
             .write()
-            .accept_block_header(leader_modified.clone(), DataSource::Test);
+            .accept_block_header(leader.clone(), DataSource::Test);
+        // The others build round 5 on every round-4 block, and round 6 on top.
+        dag_builder
+            .layers(5..=5)
+            .authorities(vec![leader_author])
+            .skip_block()
+            .build()
+            .persist_layers(dag_state.clone());
+        dag_builder.layers(6..=7).build().persist_layers(dag_state);
+        let second_leader = dag_builder
+            .block_headers(6..=6)
+            .into_iter()
+            .find(|b| b.author() == AuthorityIndex::new_for_test(0))
+            .unwrap();
 
-        let subdags = linearizer.get_pending_sub_dags(vec![(
-            leader_modified,
+        let first = linearizer.get_pending_sub_dags(vec![(
+            leader,
             Some(CommitMetastate::Optimistic),
             all_authorities,
         )]);
-        assert_eq!(subdags.len(), 1);
-
-        let contains_orphan = subdags[0]
-            .committed_transaction_refs
-            .iter()
-            .any(|r| r.round() == orphan_ref.round && r.author() == orphan_ref.author);
+        let orphan_commits = |sub_dag: &PendingSubDag| {
+            sub_dag
+                .committed_transaction_refs
+                .iter()
+                .filter(|r| r.round() == orphan_ref.round && r.author() == orphan_ref.author)
+                .count()
+        };
+        assert_eq!(first.len(), 1);
+        assert_eq!(orphan_commits(&first[0]), 0);
+        assert!(!first[0].headers.iter().any(|h| h.reference() == orphan_ref));
         assert!(
-            !contains_orphan,
-            "Optimistic path must not commit a ref whose header is not traversed"
+            linearizer.transactions_ack_tracker[&orphan_ref]
+                .reached_threshold(&linearizer.context.committee)
         );
+
+        let second = linearizer.get_pending_sub_dags(vec![(
+            second_leader,
+            Some(CommitMetastate::Standard),
+            vec![],
+        )]);
+        assert_eq!(second.len(), 1);
+        assert!(
+            second[0]
+                .headers
+                .iter()
+                .any(|h| h.reference() == orphan_ref)
+        );
+        assert_eq!(
+            orphan_commits(&second[0]),
+            usize::from(commit_once_traversed)
+        );
+
+        let third = linearizer.get_pending_sub_dags(vec![(
+            dag_builder.leader_block(7).unwrap(),
+            Some(CommitMetastate::Standard),
+            vec![],
+        )]);
+        assert_eq!(third.len(), 1);
+        assert_eq!(orphan_commits(&third[0]), 0);
     }
 
     /// More than one header with the same payload shares one TransactionRef,
