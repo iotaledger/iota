@@ -242,9 +242,16 @@ pub(crate) struct DagState {
     /// Keeps track of the highest round that has been evicted for each
     /// authority. Any block header that are of round <= evict_round should
     /// be considered evicted, and if any exist we should not consider the
-    /// causally complete in the order they appear. The `evicted_rounds`
+    /// causally complete in the order they appear. The `evicted_header_rounds`
     /// size should be the same as the committee size.
-    evicted_rounds: Vec<Round>,
+    evicted_header_rounds: Vec<Round>,
+
+    /// Highest round evicted from `recent_transactions_by_authority`, per
+    /// authority. Payloads this node has above it are all held in
+    /// `recent_transactions_by_authority`, so reads above it skip the store.
+    /// Those at or below it are in the store, except one added after its round
+    /// was evicted, until the next flush writes it.
+    evicted_transaction_rounds: Vec<Round>,
 
     /// Highest round of blocks accepted.
     highest_accepted_round: Round,
@@ -448,7 +455,8 @@ impl DagState {
             misbehavior_store,
             store: store.clone(),
             cached_rounds,
-            evicted_rounds: vec![0; num_authorities],
+            evicted_header_rounds: vec![0; num_authorities],
+            evicted_transaction_rounds: vec![0; num_authorities],
             cordial_knowledge_senders: None,
             #[cfg(feature = "dag-visualizer")]
             dag_visualizer_sender: None,
@@ -468,7 +476,7 @@ impl DagState {
         state.misbehavior_store.initialize_misbehavior_counts(
             recovered_misbehavior_counts,
             &state.recent_headers_refs_by_authority,
-            &state.evicted_rounds,
+            &state.evicted_header_rounds,
             state.threshold_clock_round(),
             &state.context,
         );
@@ -544,7 +552,8 @@ impl DagState {
         data_source: DataSource,
     ) {
         let eviction_round = Self::eviction_round(committed_round, self.cached_rounds);
-        self.evicted_rounds[authority_index] = eviction_round;
+        self.evicted_header_rounds[authority_index] = eviction_round;
+        self.evicted_transaction_rounds[authority_index] = eviction_round;
 
         // Reload block headers from storage
         let block_headers = self
@@ -621,7 +630,7 @@ impl DagState {
         self.misbehavior_store.initialize_misbehavior_counts(
             recovered_misbehavior_counts,
             &self.recent_headers_refs_by_authority,
-            &self.evicted_rounds,
+            &self.evicted_header_rounds,
             self.threshold_clock_round(),
             &self.context,
         );
@@ -1122,66 +1131,6 @@ impl DagState {
         }
 
         Ok(transactions)
-    }
-
-    /// Gets serialized transactions by checking cached recent transactions in
-    /// memory, then storage. An element is None when the corresponding
-    /// transaction is not found.
-    pub(crate) fn get_serialized_transactions(
-        &self,
-        transactions_refs: &[GenericTransactionRef],
-    ) -> Vec<Option<Bytes>> {
-        let mut transactions = vec![None; transactions_refs.len()];
-        let mut missing = Vec::new();
-
-        for (index, transactions_ref) in transactions_refs.iter().enumerate() {
-            if transactions_ref.round() == GENESIS_ROUND {
-                if let Some(transaction) = self
-                    .get_genesis_block(*transactions_ref)
-                    .map(|block| block.verified_transactions.clone())
-                {
-                    transactions[index] = Some(transaction.serialized().clone());
-                }
-                continue;
-            }
-            if let Some(transaction) = self.recent_transactions_by_authority
-                [transactions_ref.author()]
-            .get(transactions_ref)
-            {
-                transactions[index] = Some(transaction.serialized().clone());
-                continue;
-            }
-            if let Some(empty) = self.context.empty_transactions_for_ref(*transactions_ref) {
-                transactions[index] = Some(empty.serialized().clone());
-                continue;
-            }
-            missing.push((index, transactions_ref));
-        }
-
-        if missing.is_empty() {
-            return transactions;
-        }
-
-        let missing_refs = missing
-            .iter()
-            .map(|(_, block_ref)| **block_ref)
-            .collect::<Vec<_>>();
-        let store_results = self
-            .store
-            .read_serialized_transactions(&missing_refs)
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
-        self.context
-            .metrics
-            .node_metrics
-            .dag_state_store_read_count
-            .with_label_values(&["get_serialized_transactions"])
-            .inc();
-
-        for ((index, _), result) in missing.into_iter().zip(store_results) {
-            transactions[index] = result;
-        }
-
-        transactions
     }
 
     /// Gets a block header by checking cached recent blocks then storage.
@@ -1882,7 +1831,7 @@ impl DagState {
                 .to_authority_index(authority_index)
                 .unwrap();
 
-            let last_evicted_round = self.evicted_rounds[authority_index];
+            let last_evicted_round = self.evicted_header_rounds[authority_index];
             if end_round.saturating_sub(1) <= last_evicted_round {
                 panic!(
                     "Attempted to request for blocks of rounds < {end_round}, when the last evicted round is {last_evicted_round} for authority {authority_index}",
@@ -1943,7 +1892,7 @@ impl DagState {
                 .map(|(_, b)| (**b).clone());
         }
 
-        if slot.round <= self.evicted_rounds[slot.authority] {
+        if slot.round <= self.evicted_header_rounds[slot.authority] {
             return None;
         }
 
@@ -2031,7 +1980,7 @@ impl DagState {
         let mut missing = Vec::new();
 
         for (index, tx_ref) in transaction_refs.into_iter().enumerate() {
-            if self.contains_transactions_in_memory(tx_ref) {
+            if self.contains_cached_transactions(tx_ref) {
                 exist[index] = true;
             } else if tx_ref.round() != GENESIS_ROUND {
                 missing.push((index, tx_ref));
@@ -2225,19 +2174,22 @@ impl DagState {
             author: block_ref.author,
             transactions_commitment: header.transactions_commitment(),
         };
-        self.contains_transactions_in_memory(transaction_ref.into())
+        self.contains_cached_transactions(transaction_ref.into())
     }
 
     /// Clean up old cached data for each authority, all cached blocks
     /// are guaranteed to be persisted. Used after flushing.
     pub(crate) fn evict_headers(&mut self) {
         for (authority_index, _) in self.context.committee.authorities() {
-            let eviction_round = self.calculate_authority_eviction_round(authority_index);
+            let header_eviction_round = self.calculate_header_eviction_round(authority_index);
             let recent_refs = &mut self.recent_headers_refs_by_authority[authority_index];
 
             // Evict everything below split_key
-            let split_key =
-                BlockRef::new(eviction_round + 1, authority_index, BlockHeaderDigest::MIN);
+            let split_key = BlockRef::new(
+                header_eviction_round + 1,
+                authority_index,
+                BlockHeaderDigest::MIN,
+            );
 
             let to_keep = recent_refs.split_off(&split_key);
             let evicted = std::mem::replace(recent_refs, to_keep);
@@ -2246,7 +2198,7 @@ impl DagState {
             for block_ref in &evicted {
                 self.recent_block_headers.remove(block_ref);
             }
-            self.evicted_rounds[authority_index] = eviction_round;
+            self.evicted_header_rounds[authority_index] = header_eviction_round;
         }
     }
 
@@ -2266,48 +2218,49 @@ impl DagState {
         }
     }
 
-    /// Function removes stalled transactions that are older than the minimum
-    /// between "last solid leader round minus MAX_TRANSACTIONS_ACK_DEPTH
-    /// (protocol_config.gc_depth) minus MAX_LINEARIZER_DEPTH
-    /// (protocol_config.gc_depth)" and the eviction round of corresponding
-    /// authority
+    /// Sets each authority's evicted transaction round to
+    /// `max(current, min(solid GC round, header eviction round))`, using the
+    /// solid GC round alone during fast sync, and evicts its transactions at or
+    /// below it.
     pub(crate) fn evict_transactions(&mut self) {
         let fast_sync = self.fast_sync_ongoing();
         let transaction_gc_round = self.gc_round_for_last_solid_commit();
         for (authority_index, _) in self.context.committee.authorities() {
             // During fast sync, recent_headers_refs_by_authority is frozen (no
-            // headers are added), so calculate_authority_eviction_round returns
+            // headers are added), so calculate_header_eviction_round returns
             // a stale value near GENESIS_ROUND. Use the commit-based GC round
             // directly — all transactions are persisted before eviction runs.
             let transaction_eviction_round = if fast_sync {
                 transaction_gc_round
             } else {
-                let eviction_round = self.calculate_authority_eviction_round(authority_index);
-                min(transaction_gc_round, eviction_round + 1)
+                let header_eviction_round = self.calculate_header_eviction_round(authority_index);
+                min(transaction_gc_round, header_eviction_round)
             };
+            // Recovery loads only transactions above the evicted round, while
+            // the solid GC round stays at genesis until the first solid commit.
+            let transaction_eviction_round =
+                transaction_eviction_round.max(self.evicted_transaction_rounds[authority_index]);
 
             // Evict everything below split_key
             let split_key = GenericTransactionRef::from(TransactionRef {
-                round: transaction_eviction_round,
+                round: transaction_eviction_round + 1,
                 author: authority_index,
                 transactions_commitment: TransactionsCommitment::MIN,
             });
             self.recent_transactions_by_authority[authority_index] =
                 self.recent_transactions_by_authority[authority_index].split_off(&split_key);
+            self.evicted_transaction_rounds[authority_index] = transaction_eviction_round;
         }
     }
 
+    /// Evicts entries at or below the evicted transaction round of each
+    /// authority, so it must run after `evict_transactions`.
     pub(crate) fn evict_tx_ref_to_block_digests(&mut self) {
-        let fast_sync = self.fast_sync_ongoing();
-        let transaction_gc_round = self.gc_round_for_last_solid_commit();
         for (authority_index, _) in self.context.committee.authorities() {
-            let eviction_round = if fast_sync {
-                transaction_gc_round
-            } else {
-                let eviction_round = self.calculate_authority_eviction_round(authority_index);
-                min(transaction_gc_round, eviction_round + 1)
-            };
-            let split_key = (eviction_round, TransactionsCommitment::MIN);
+            let split_key = (
+                self.evicted_transaction_rounds[authority_index] + 1,
+                TransactionsCommitment::MIN,
+            );
             self.tx_ref_to_block_digests_by_authority[authority_index] =
                 self.tx_ref_to_block_digests_by_authority[authority_index].split_off(&split_key);
         }
@@ -2361,14 +2314,14 @@ impl DagState {
     /// eviction happens.
     pub(crate) fn evict_cordial_knowledge(&mut self) {
         if let Some((_, eviction_sender)) = &self.cordial_knowledge_senders {
-            let mut eviction_rounds = vec![];
+            let mut header_eviction_rounds = vec![];
             for (authority_index, _) in self.context.committee.authorities() {
-                let eviction_round = self.calculate_authority_eviction_round(authority_index);
-                eviction_rounds.push(eviction_round);
+                let header_eviction_round = self.calculate_header_eviction_round(authority_index);
+                header_eviction_rounds.push(header_eviction_round);
             }
             if eviction_sender
                 .send(EvictionRounds {
-                    headers: eviction_rounds,
+                    headers: header_eviction_rounds,
                     shards: self.gc_round_for_last_commit(),
                 })
                 .is_err()
@@ -2454,7 +2407,8 @@ impl DagState {
         taken
     }
 
-    /// Index of the last commit.
+    /// Index of the last commit. It can be ahead of the last solid commit while
+    /// commits wait for their transaction data.
     pub(crate) fn last_commit_index(&self) -> CommitIndex {
         match &self.last_commit {
             Some(commit) => commit.index(),
@@ -2733,7 +2687,7 @@ impl DagState {
     /// After this round we are guaranteed to have all the produced blocks
     /// from that authority. For any round that is <= `last_evicted_round`
     /// we don't have such guarantees as out of order blocks might exist.
-    fn calculate_authority_eviction_round(&self, authority_index: AuthorityIndex) -> Round {
+    fn calculate_header_eviction_round(&self, authority_index: AuthorityIndex) -> Round {
         let last_round = self.recent_headers_refs_by_authority[authority_index]
             .last()
             .map(|block_ref| block_ref.round)
@@ -2756,8 +2710,8 @@ impl DagState {
         let mut metrics_to_write = BTreeMap::new();
         let threshold_clock_round = self.threshold_clock_round();
         for (authority_index, _) in self.context.committee.authorities() {
-            let last_eviction_round = self.evicted_rounds[authority_index];
-            let current_eviction_round = self.calculate_authority_eviction_round(authority_index);
+            let last_eviction_round = self.evicted_header_rounds[authority_index];
+            let current_eviction_round = self.calculate_header_eviction_round(authority_index);
             if let Some(metrics) = self
                 .misbehavior_store
                 .update_misbehavior_counts_on_eviction(
@@ -2874,7 +2828,7 @@ impl DagState {
 
     /// Whether the payload of `transaction_ref` is available without reading
     /// the store: genesis, empty, or among the recent transactions held here.
-    pub(crate) fn contains_transactions_in_memory(
+    pub(crate) fn contains_cached_transactions(
         &self,
         transaction_ref: GenericTransactionRef,
     ) -> bool {
@@ -2886,6 +2840,40 @@ impl DagState {
             .is_some()
             || self.recent_transactions_by_authority[transaction_ref.author()]
                 .contains_key(&transaction_ref)
+    }
+
+    /// Highest round of `authority_index` whose block headers are evicted
+    /// from the DAG state and read from the store.
+    pub(crate) fn evicted_header_round(&self, authority_index: AuthorityIndex) -> Round {
+        self.evicted_header_rounds[authority_index]
+    }
+
+    /// Highest round of `authority_index` whose transactions are evicted from
+    /// the DAG state and read from the store.
+    pub(crate) fn evicted_transaction_round(&self, authority_index: AuthorityIndex) -> Round {
+        self.evicted_transaction_rounds[authority_index]
+    }
+
+    /// Serialized payload of `transaction_ref` if it is available without
+    /// reading the store: genesis, empty, or among the recent transactions
+    /// held here.
+    pub(crate) fn get_cached_serialized_transactions(
+        &self,
+        transaction_ref: GenericTransactionRef,
+    ) -> Option<Bytes> {
+        if transaction_ref.round() == GENESIS_ROUND {
+            return self
+                .get_genesis_block(transaction_ref)
+                .map(|block| block.verified_transactions.serialized().clone());
+        }
+        if let Some(transactions) =
+            self.recent_transactions_by_authority[transaction_ref.author()].get(&transaction_ref)
+        {
+            return Some(transactions.serialized().clone());
+        }
+        self.context
+            .empty_transactions_for_ref(transaction_ref)
+            .map(|empty| empty.serialized().clone())
     }
 }
 #[cfg(test)]
@@ -4188,7 +4176,9 @@ mod test {
             empty_header.transaction_ref()
         );
         assert_eq!(
-            dag_state.get_serialized_transactions(&[tx_ref])[0].as_ref(),
+            dag_state
+                .get_cached_serialized_transactions(tx_ref)
+                .as_ref(),
             Some(transactions.serialized())
         );
 
@@ -4292,7 +4282,7 @@ mod test {
         let expected_block_headers = all_block_headers
             .iter()
             .filter(|x| {
-                x.round() > dag_state.evicted_rounds[x.author().value()]
+                x.round() > dag_state.evicted_header_rounds[x.author().value()]
                     || x.round() == GENESIS_ROUND
             })
             .cloned()
@@ -4472,7 +4462,7 @@ mod test {
             .gc_round_for_last_commit()
             .min(last_accepted_round.saturating_sub(CACHED_ROUNDS));
         assert_eq!(
-            dag_state.evicted_rounds[authority_to_skip],
+            dag_state.evicted_header_rounds[authority_to_skip],
             expected_eviction_round
         );
 
@@ -4882,5 +4872,38 @@ mod test {
                     .contains(&block_ref(6, author))
             );
         }
+    }
+
+    /// Recovery loads into the DAG state only transactions above the evicted
+    /// round, so a flush before the first solid commit must keep that round.
+    #[tokio::test]
+    async fn test_flush_after_recovery_keeps_evicted_transaction_rounds() {
+        telemetry_subscribers::init_for_testing();
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.dag_state_cached_rounds = 5;
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        let num_rounds: u32 = 50;
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=num_rounds).build();
+        dag_state.accept_block_headers(dag_builder.block_headers(1..=num_rounds), DataSource::Test);
+        for verified_transactions in dag_builder.transactions(1..=num_rounds) {
+            dag_state.add_transactions(verified_transactions, DataSource::Test);
+        }
+        for (_, commit) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
+            dag_state.add_commit(commit);
+        }
+        dag_state.flush();
+        drop(dag_state);
+
+        let mut dag_state = DagState::new(context, store);
+        let recovered_rounds = dag_state.evicted_transaction_rounds.clone();
+        assert!(recovered_rounds.iter().all(|&round| round > GENESIS_ROUND));
+
+        dag_state.flush();
+
+        assert_eq!(dag_state.evicted_transaction_rounds, recovered_rounds);
     }
 }
