@@ -385,13 +385,21 @@ impl CallArgExt for CallArg {
                 initial_shared_version: *initial_shared_version,
                 mutable: *mutable,
             }),
-            CallArg::Pure(_) | CallArg::Receiving(_) => None,
+            CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::TransactionDependency(_) => None,
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }
 
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         match self {
+            CallArg::TransactionDependency(_) => {
+                fp_ensure!(
+                    config.enable_transaction_dependencies(),
+                    UserInputError::Unsupported(
+                        "transaction dependency inputs are not enabled".to_string()
+                    )
+                );
+            }
             CallArg::Pure(bytes) => {
                 fp_ensure!(
                     bytes.len() < config.max_pure_argument_size() as usize,
@@ -702,6 +710,11 @@ pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Seal
     fn receiving_objects(&self) -> Vec<ObjectReference>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn validate_argument_indices(&self) -> UserInputResult;
+    /// The digest named by the transaction dependency input, if any.
+    fn transaction_dependency(&self) -> Option<TransactionDigest>;
+    /// Checks that at most one input is a transaction dependency and that no
+    /// command uses it.
+    fn validate_transaction_dependency_inputs(&self) -> UserInputResult;
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference>;
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
     fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>>;
@@ -767,6 +780,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         for input in inputs {
             input.validity_check(config)?
         }
+        self.validate_transaction_dependency_inputs()?;
         if let Some(max_publish_commands) = config.max_publish_or_upgrade_per_ptb_as_option() {
             let publish_count = commands
                 .iter()
@@ -809,6 +823,48 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         Ok(())
     }
 
+    fn transaction_dependency(&self) -> Option<TransactionDigest> {
+        self.inputs.iter().find_map(|input| match input {
+            CallArg::TransactionDependency(digest) => Some(*digest),
+            _ => None,
+        })
+    }
+
+    fn validate_transaction_dependency_inputs(&self) -> UserInputResult {
+        let dependency_inputs: Vec<usize> = self
+            .inputs
+            .iter()
+            .enumerate()
+            .filter_map(|(index, input)| {
+                matches!(input, CallArg::TransactionDependency(_)).then_some(index)
+            })
+            .collect();
+        fp_ensure!(
+            dependency_inputs.len() <= 1,
+            UserInputError::SizeLimitExceeded {
+                limit: "maximum transaction dependency inputs in a programmable transaction"
+                    .to_string(),
+                value: "1".to_string(),
+            }
+        );
+        if dependency_inputs.is_empty() {
+            return Ok(());
+        }
+        for (command_idx, command) in self.commands.iter().enumerate() {
+            for (argument_idx, argument) in command_arguments(command).enumerate() {
+                if let Argument::Input(index) = argument {
+                    if dependency_inputs.contains(&(*index as usize)) {
+                        return Err(UserInputError::TransactionDependencyInputUsed {
+                            command_idx,
+                            argument_idx,
+                        });
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn validate_argument_indices(&self) -> UserInputResult {
         for (command_idx, command) in self.commands.iter().enumerate() {
             for (argument_idx, argument) in command_arguments(command).enumerate() {
@@ -840,7 +896,10 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference> {
         self.inputs.iter().filter_map(|arg| match arg {
             CallArg::Shared(shared) => Some(*shared),
-            CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
+            CallArg::Pure(_)
+            | CallArg::Receiving(_)
+            | CallArg::ImmutableOrOwned(_)
+            | CallArg::TransactionDependency(_) => None,
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         })
     }
@@ -1182,6 +1241,11 @@ pub trait TransactionAPI {
 
     /// Returns the transaction expiration.
     fn expiration(&self) -> &TransactionExpiration;
+
+    /// Returns the digest of the transaction this transaction depends on, if
+    /// it carries a transaction dependency input: it executes only after that
+    /// transaction executed successfully.
+    fn transaction_dependency(&self) -> Option<TransactionDigest>;
 
     /// Returns a list of the transaction data shared input objects.
     ///
@@ -1594,7 +1658,20 @@ impl TransactionAPI for Transaction {
     #[instrument(level = "trace", skip_all)]
     fn validity_check_no_gas_check(&self, config: &ProtocolConfig) -> UserInputResult {
         self.kind().validity_check(config)?;
+        if self.transaction_dependency().is_some() {
+            fp_ensure!(
+                matches!(self.expiration(), TransactionExpiration::Epoch(_)),
+                UserInputError::TransactionDependencyRequiresExpiration
+            );
+        }
         self.check_sponsorship()
+    }
+
+    fn transaction_dependency(&self) -> Option<TransactionDigest> {
+        match self.kind() {
+            TransactionKind::Programmable(ptb) => ptb.transaction_dependency(),
+            _ => None,
+        }
     }
 
     fn check_gas_payment_size(&self, config: &ProtocolConfig) -> UserInputResult {

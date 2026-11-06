@@ -19,6 +19,7 @@ use crate::{
     types::{
         base64::Base64,
         cursor::{JsonCursor, Page},
+        digest::Digest,
         iota_address::IotaAddress,
         move_function::MoveFunction,
         move_type::MoveType,
@@ -43,6 +44,7 @@ enum TransactionInput {
     SharedInput(SharedInput),
     Receiving(Receiving),
     Pure(Pure),
+    TransactionDependency(TransactionDependencyInput),
 }
 
 /// A Move object, either immutable, or owned mutable.
@@ -79,6 +81,14 @@ struct Receiving {
 struct Pure {
     /// BCS serialized and Base64 encoded primitive value.
     bytes: Base64,
+}
+
+/// The transaction this transaction depends on: it executes only after that
+/// transaction executed successfully. No command can use this input.
+#[derive(SimpleObject, Clone, Eq, PartialEq)]
+struct TransactionDependencyInput {
+    /// Digest of the transaction depended on.
+    digest: Digest,
 }
 
 /// A single transaction, or command, in the programmable transaction block.
@@ -361,6 +371,12 @@ impl TransactionInput {
                     checkpoint_viewed_at,
                 },
             }),
+
+            N::TransactionDependency(digest) => {
+                I::TransactionDependency(TransactionDependencyInput {
+                    digest: digest.into(),
+                })
+            }
 
             _ => {
                 return Err(crate::error::Error::Internal(

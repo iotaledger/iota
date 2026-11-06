@@ -858,6 +858,11 @@ struct FeatureFlags {
     // of wrapping it at 2^256.
     #[serde(skip_serializing_if = "is_false")]
     secp256r1_ecrecover_checks_x_below_p: bool,
+
+    // If true, a programmable transaction may carry a transaction dependency
+    // input, and is executed only after the named transaction succeeded.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_transaction_dependencies: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2445,6 +2450,10 @@ impl ProtocolConfig {
 
     pub fn secp256r1_ecrecover_checks_x_below_p(&self) -> bool {
         self.feature_flags.secp256r1_ecrecover_checks_x_below_p
+    }
+
+    pub fn enable_transaction_dependencies(&self) -> bool {
+        self.feature_flags.enable_transaction_dependencies
     }
 }
 
@@ -4343,6 +4352,10 @@ impl ProtocolConfig {
 
     pub fn set_always_advance_dkg_to_resolution_for_testing(&mut self, val: bool) {
         self.feature_flags.always_advance_dkg_to_resolution = val;
+    }
+
+    pub fn set_enable_transaction_dependencies_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_transaction_dependencies = val;
     }
 
     /// Turning the flow on also turns on the flags it requires, turns off

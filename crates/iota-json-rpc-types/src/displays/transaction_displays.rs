@@ -45,6 +45,9 @@ impl Display for Pretty<'_, IotaProgrammableTransactionBlock> {
                         builder
                             .push_record(vec![format!("{i:<3} Receiving Object ID: {object_id}")]);
                     }
+                    IotaCallArg::TransactionDependency { digest } => {
+                        builder.push_record(vec![format!("{i:<3} Depends On Tx:      {digest}")]);
+                    }
                 }
             }
 

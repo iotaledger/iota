@@ -2635,6 +2635,7 @@ impl OwnedObjectRef {
     }
 }
 
+#[serde_as]
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum IotaCallArg {
@@ -2642,6 +2643,14 @@ pub enum IotaCallArg {
     Object(IotaObjectArg),
     // pure value, bcs encoded
     Pure(IotaPureValue),
+    /// The transaction this transaction depends on: it executes only after
+    /// that transaction executed successfully. Not usable by a command.
+    #[serde(rename_all = "camelCase")]
+    TransactionDependency {
+        #[serde_as(as = "Base58Schema")]
+        #[schemars(with = "Base58Schema")]
+        digest: TransactionDigest,
+    },
 }
 
 impl IotaCallArg {
@@ -2675,6 +2684,7 @@ impl IotaCallArg {
                 version: object_ref.version,
                 digest: object_ref.digest,
             }),
+            CallArg::TransactionDependency(digest) => IotaCallArg::TransactionDependency { digest },
             _ => anyhow::bail!("unknown CallArg variant"),
         })
     }
