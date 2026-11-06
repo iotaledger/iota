@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 40;
+pub const MAX_PROTOCOL_VERSION: u64 = 41;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -283,6 +283,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Update the gas model version to 3.
 //             Enable validator attestation on devnet, with the checkpoint
 //             summary data version that certifies the verdicts.
+// Version 41: A programmable transaction may carry a transaction dependency
+//             input: it executes only after the named transaction succeeded.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3958,6 +3960,11 @@ impl ProtocolConfig {
                         // and the checkpoint summary certifies the verdicts.
                         cfg.feature_flags.enable_validator_attestation = true;
                         cfg.checkpoint_summary_version_specific_data = Some(2);
+                    }
+                }
+                41 => {
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        cfg.feature_flags.enable_transaction_dependencies = true;
                     }
                 }
                 // Use this template when making changes:

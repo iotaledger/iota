@@ -1288,15 +1288,15 @@
           "params": [
             {
               "name": "version",
-              "value": 40
+              "value": 41
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "40",
-              "protocolVersion": "40",
+              "maxSupportedProtocolVersion": "41",
+              "protocolVersion": "41",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -1341,7 +1341,7 @@
                 "enable_move_authentication_for_sponsor": true,
                 "enable_pcool_flow": true,
                 "enable_poseidon": true,
-                "enable_transaction_dependencies": false,
+                "enable_transaction_dependencies": true,
                 "enable_validator_attestation": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
