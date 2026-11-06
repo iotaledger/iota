@@ -98,3 +98,4 @@
 96: AttestationAuthorMismatch
 97: AttestationUnitsBelowMinimum
 98: AttestationUnitsAboveBudget
+99: AttestorCutOff
