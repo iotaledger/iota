@@ -158,6 +158,11 @@ pub async fn start_grpc_server(
                 .max_connections_per_client_ip
                 .resolve(MAX_CONNECTIONS_PER_CLIENT_IP),
         )
+        .ipv6_prefix_len(
+            listener_limits
+                .ipv6_prefix_len
+                .unwrap_or(iota_http::DEFAULT_IPV6_PREFIX_LEN),
+        )
         .max_connection_idle(
             listener_limits
                 .max_connection_idle

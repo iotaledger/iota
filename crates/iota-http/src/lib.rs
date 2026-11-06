@@ -36,7 +36,7 @@ pub use config::{
     DEFAULT_MAX_PENDING_CONNECTIONS, PeerConnectionEvent,
 };
 pub use connection_info::{ConnectInfo, ConnectionId, ConnectionInfo, PeerCertificates};
-pub use listener::{Listener, ListenerExt};
+pub use listener::{DEFAULT_IPV6_PREFIX_LEN, Listener, ListenerExt};
 
 pub(crate) type BoxError = Box<dyn std::error::Error + Send + Sync>;
 /// h2 alpn in plain format for rustls.
