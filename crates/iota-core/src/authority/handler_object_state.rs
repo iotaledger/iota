@@ -324,7 +324,8 @@ pub(super) struct FlushedCommitRows {
 }
 
 /// The `Refuted` attestation totals of each completed commit that has any,
-/// and their sum through the highest horizon read so far.
+/// and their sum through the highest commit summed so far: the resume point
+/// when the store opened, then each horizon validation reads.
 #[derive(Default)]
 struct AttestationTotalsByCommit {
     by_commit: BTreeMap<CommitIndex, AttestationTotals>,
@@ -333,6 +334,22 @@ struct AttestationTotalsByCommit {
 }
 
 impl AttestationTotalsByCommit {
+    /// Seeded from the table at open: the totals of the commits through
+    /// `resume_point`, summed right away so a restart does not forget who is
+    /// cut off.
+    fn new(resume_point: CommitIndex, by_commit: BTreeMap<CommitIndex, AttestationTotals>) -> Self {
+        let sum = by_commit
+            .range(..=resume_point)
+            .fold(AttestationTotals::default(), |sum, (_, totals)| {
+                sum.with_totals(totals)
+            });
+        Self {
+            by_commit,
+            sum,
+            summed_through: resume_point,
+        }
+    }
+
     fn insert(&mut self, index: CommitIndex, totals: AttestationTotals) {
         if totals.refuted_units_squared.is_empty() {
             return;
@@ -474,10 +491,10 @@ impl HandlerObjectState {
             execution_watcher_error: OnceLock::new(),
             handler_processed_overlay: RwLock::new(BTreeMap::new()),
             handler_processed_cache: new_handler_processed_cache(100_000),
-            attestation_totals: Mutex::new(AttestationTotalsByCommit {
-                by_commit: attestation_totals,
-                ..Default::default()
-            }),
+            attestation_totals: Mutex::new(AttestationTotalsByCommit::new(
+                resume_point,
+                attestation_totals,
+            )),
             metrics,
         }
     }
@@ -903,9 +920,10 @@ impl HandlerObjectState {
             .cut_off_as_of(horizon, max_refuted_units_squared)
     }
 
-    /// Whether `attestor` is cut off as of the highest horizon validation has
-    /// read so far: for refusing submissions, never for validation, which
-    /// reads [`Self::attestors_cut_off_as_of`] at its own horizon.
+    /// Whether `attestor` is cut off as of the resume point the store opened
+    /// at, or the highest horizon validation has read since: for refusing
+    /// submissions, never for validation, which reads
+    /// [`Self::attestors_cut_off_as_of`] at its own horizon.
     pub fn is_cut_off_as_of_highest_horizon(
         &self,
         attestor: u8,

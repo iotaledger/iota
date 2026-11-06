@@ -2178,9 +2178,10 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// This validator's committee index if it is cut off as of the highest
-    /// horizon its validation has read so far; `None` otherwise, or when this
-    /// node does not cut off attestors.
+    /// This validator's committee index if it is cut off as of the resume
+    /// point the store opened at, or the highest horizon its validation has
+    /// read since; `None` otherwise, or when this node does not cut off
+    /// attestors.
     pub fn own_index_if_cut_off(&self) -> Option<u8> {
         let max_refuted_units_squared = self.cutoff_max_refuted_units_squared()?;
         let state = self.handler_object_state.as_ref()?;

@@ -3241,6 +3241,10 @@ mod handler_object_state_storage {
                 .unwrap();
         }
         let reopened = reopen(&authority, &store);
+        // Known from the flushed totals before validation reads any horizon.
+        let state = reopened.handler_object_state_for_testing();
+        assert!(state.is_cut_off_as_of_highest_horizon(0, MAX_REFUTED_UNITS_SQUARED));
+        assert!(state.is_cut_off_as_of_highest_horizon(1, MAX_REFUTED_UNITS_SQUARED));
         assert_eq!(cut_off(&reopened, 4), BTreeSet::from([0]));
         assert_eq!(cut_off(&reopened, 5), BTreeSet::from([0, 1]));
     }
