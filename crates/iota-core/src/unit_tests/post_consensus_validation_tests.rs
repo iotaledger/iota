@@ -52,7 +52,7 @@ use iota_types::{
     attestation::{
         Attestation, AttestationData, AttestationRecord, AttestationVerdict, AttestedTransaction,
     },
-    base_types::random_object_ref,
+    base_types::{EpochId, random_object_ref},
     crypto::{AccountPrivateKey, get_key_pair},
     deny_list_v1::{check_address_denied_by_config, get_per_type_coin_deny_list_v1},
     dynamic_field::{DynamicFieldInfo, get_dynamic_field_object_from_store},
@@ -3156,15 +3156,21 @@ impl HandlerObjectStateSetup {
     /// checkpoint executor does. `committed` must hold, oldest first, every
     /// uncommitted transaction that wrote the objects they touched.
     fn commit_outputs(&self, committed: &[TransactionDigest]) {
-        let epoch = self.epoch_store.epoch();
+        self.commit_outputs_in_epoch(self.epoch_store.epoch(), committed);
+    }
+
+    /// [`Self::commit_outputs`] in `epoch`, the one the transactions executed
+    /// in: the cache records the epoch a version was superseded in and expects
+    /// the commit to name the same one.
+    fn commit_outputs_in_epoch(&self, epoch: EpochId, committed: &[TransactionDigest]) {
         let cache_commit = self.authority.get_cache_commit();
         let batch = cache_commit.build_db_batch(epoch, 1, committed);
         cache_commit.commit_transaction_outputs(epoch, batch, committed);
     }
 
     /// [`Self::commit_outputs`] of every executed transaction not committed
-    /// yet, oldest first, and clears the execution caches, as after the
-    /// checkpoints holding them executed and a restart.
+    /// yet, oldest first and epoch by epoch, and clears the execution caches,
+    /// as after the checkpoints holding them executed and a restart.
     fn commit_all_executed_and_clear_caches(&self) {
         let cache = self.authority.get_transaction_cache_reader();
         let mut uncommitted: Vec<_> = self
@@ -3175,12 +3181,14 @@ impl HandlerObjectStateSetup {
                 let effects = cache
                     .get_executed_effects(&digest)
                     .expect("an uncommitted transaction was executed");
-                (effects.lamport_version(), digest)
+                (effects.epoch(), effects.lamport_version(), digest)
             })
             .collect();
         uncommitted.sort();
-        let digests: Vec<_> = uncommitted.into_iter().map(|(_, digest)| digest).collect();
-        self.commit_outputs(&digests);
+        for (epoch, chunk) in uncommitted.chunk_by(|a, b| a.0 == b.0).map(|c| (c[0].0, c)) {
+            let digests: Vec<_> = chunk.iter().map(|(_, _, digest)| *digest).collect();
+            self.commit_outputs_in_epoch(epoch, &digests);
+        }
         self.authority.clear_execution_caches_for_testing();
     }
 
