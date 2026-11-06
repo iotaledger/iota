@@ -5,8 +5,8 @@
 use std::{time::Duration, vec};
 
 use iota_sdk_types::{
-    ObjectId, Owner, RandomnessRound, SharedObjectReference, TransactionEffectsDigest, Version,
-    VersionAssignment,
+    ObjectId, Owner, RandomnessRound, SharedObjectReference, TransactionDigest,
+    TransactionEffectsDigest, Version, VersionAssignment,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -61,6 +61,22 @@ fn make_transaction(gas_object: Object, input: Vec<CallArg>) -> VerifiedExecutab
     let (sender, sender_key) = deterministic_random_account_private_key();
     let transaction = TestTransactionBuilder::new(sender, gas_object.object_ref(), rgp)
         .move_call(ObjectId::FRAMEWORK, "counter", "assert_value", input)
+        .build_and_sign(&sender_key);
+    VerifiedExecutableTransaction::new_system(VerifiedTransaction::new_unchecked(transaction), 0)
+}
+
+/// Like [`make_transaction`], with a transaction dependency input naming
+/// `dependency`.
+fn make_dependent_transaction(
+    gas_object: Object,
+    input: Vec<CallArg>,
+    dependency: TransactionDigest,
+) -> VerifiedExecutableTransaction {
+    let rgp = 100;
+    let (sender, sender_key) = deterministic_random_account_private_key();
+    let transaction = TestTransactionBuilder::new(sender, gas_object.object_ref(), rgp)
+        .move_call(ObjectId::FRAMEWORK, "counter", "assert_value", input)
+        .with_transaction_dependency(dependency, 0)
         .build_and_sign(&sender_key);
     VerifiedExecutableTransaction::new_system(VerifiedTransaction::new_unchecked(transaction), 0)
 }
@@ -1354,4 +1370,90 @@ async fn transaction_manager_skips_a_resolved_key_whose_transaction_executed() {
         transaction_manager.num_pending_transaction_keys_for_testing(),
         0
     );
+}
+
+/// A dependent enqueued before its dependency waits until the dependency's
+/// commit, however the two arrive.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn transaction_manager_waits_for_the_transaction_dependency() {
+    let (owner, _key) = deterministic_random_account_private_key();
+    let gas_objects: Vec<Object> = (0..2)
+        .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), owner))
+        .collect();
+    let state = init_state_with_objects(gas_objects.clone()).await;
+    let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);
+
+    let dependency = make_transaction(gas_objects[0].clone(), vec![]);
+    let dependent =
+        make_dependent_transaction(gas_objects[1].clone(), vec![], *dependency.digest());
+
+    transaction_manager.enqueue(
+        vec![(
+            Schedulable::Transaction(dependent.clone()),
+            ExecutionEnv::new(),
+        )],
+        &state.epoch_store_for_testing(),
+    );
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+    assert_eq!(transaction_manager.inflight_queue_len(), 1);
+
+    transaction_manager.enqueue(
+        vec![(
+            Schedulable::Transaction(dependency.clone()),
+            ExecutionEnv::new(),
+        )],
+        &state.epoch_store_for_testing(),
+    );
+    let ready = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(ready.transaction.digest(), dependency.digest());
+    assert!(rx_ready_transactions.try_recv().is_err());
+
+    // The dependency's commit releases the dependent, whatever objects it
+    // wrote.
+    transaction_manager.notify_commit(
+        dependency.digest(),
+        vec![],
+        &state.epoch_store_for_testing(),
+    );
+    let ready = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(ready.transaction.digest(), dependent.digest());
+
+    transaction_manager.notify_commit(dependent.digest(), vec![], &state.epoch_store_for_testing());
+    transaction_manager.check_empty_for_testing();
+}
+
+/// A dependent that sequencing cancelled executes at once: it never reads its
+/// dependency.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn transaction_manager_cancelled_dependent_does_not_wait() {
+    let (owner, _key) = deterministic_random_account_private_key();
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let shared_object = Object::shared_for_testing();
+    let state = init_state_with_objects(vec![gas_object.clone(), shared_object.clone()]).await;
+    let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);
+
+    let dependent = make_dependent_transaction(
+        gas_object,
+        vec![CallArg::Shared(SharedObjectReference::new(
+            shared_object.id(),
+            0.into(),
+            true,
+        ))],
+        TransactionDigest::random(),
+    );
+    let cancelled = ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+        shared_object.id(),
+        Version::CANCELED_READ,
+    )]);
+
+    transaction_manager.enqueue(
+        vec![(Schedulable::Transaction(dependent.clone()), cancelled)],
+        &state.epoch_store_for_testing(),
+    );
+    let ready = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(ready.transaction.digest(), dependent.digest());
+
+    transaction_manager.notify_commit(dependent.digest(), vec![], &state.epoch_store_for_testing());
+    transaction_manager.check_empty_for_testing();
 }

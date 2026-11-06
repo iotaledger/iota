@@ -118,7 +118,8 @@ pub fn unwrap_move_authentication_error(kind: &ExecutionErrorKind) -> &Execution
 
 /// Whether `kind` says the execution was canceled rather than failed: canceled
 /// at the consensus commit because of shared object congestion, execution
-/// worker congestion or unavailable randomness, or denied by
+/// worker congestion or unavailable randomness, canceled at execution because
+/// the transaction it depends on did not succeed, or denied by
 /// [`is_certificate_denied()`]. A Move authentication never reports a denial:
 /// its input checks skip the deny list, which applies after authentication. A
 /// kind wrapped in an [`ExecutionErrorKind::MoveAuthentication`] status must
@@ -131,6 +132,7 @@ pub fn is_cancellation(kind: &ExecutionErrorKind) -> bool {
             | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 { .. }
             | ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion { .. }
             | ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable
+            | ExecutionErrorKind::TransactionDependencyFailed { .. }
     )
 }
 

@@ -29,6 +29,7 @@ use crate::{
     execution_scheduler::{
         ExecutingGuard, ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats,
         executed_in_current_epoch, overload_tracker::OverloadTracker,
+        transaction_dependency_input_key,
     },
 };
 
@@ -129,11 +130,14 @@ impl ExecutionScheduler {
                 version: entry.version,
             })
             .collect();
-        let input_and_receiving_keys = [
+        let mut input_and_receiving_keys = [
             input_object_keys,
             receiving_object_keys.iter().cloned().collect(),
         ]
         .concat();
+        if let Some(key) = transaction_dependency_input_key(&tx, &execution_env.assigned_versions) {
+            input_and_receiving_keys.push(key);
+        }
 
         let epoch = epoch_store.epoch();
         let digest = tx.digest();
