@@ -1272,7 +1272,7 @@ fn write_state_sync_fullnode_configs(
         let ssfn_config = FullnodeConfigBuilder::new()
             .with_config_directory(config_directory.to_path_buf())
             .with_p2p_external_address(ssfn.p2p_address)
-            .with_network_key_pair(ssfn.network_key_pair)
+            .with_network_private_key(ssfn.network_key_pair)
             .with_p2p_listen_address(([0, 0, 0, 0], 8084))
             .with_db_path(PathBuf::from("/opt/iota/db/authorities_db/full_node_db"))
             .with_network_address("/ip4/0.0.0.0/tcp/8080/http".parse()?)
@@ -1298,7 +1298,7 @@ fn write_state_sync_fullnode_configs(
             })?;
             Ok(SeedPeer {
                 peer_id: Some(anemo::PeerId(
-                    config.network_key_pair().public_key().into_bytes(),
+                    config.network_private_key().public_key().into_bytes(),
                 )),
                 address,
             })

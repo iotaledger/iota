@@ -21,7 +21,7 @@ use iota_types::{
     committee::EpochId,
     crypto::{
         AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, KeypairTraits,
-        NetworkKeyPair, get_key_pair_from_rng,
+        NetworkPrivateKey, get_key_pair_from_rng,
     },
     messages_checkpoint::CheckpointSequenceNumber,
     supported_protocol_versions::{Chain, SupportedProtocolVersions},
@@ -775,12 +775,12 @@ impl NodeConfig {
         self.authority_key_pair.authority_keypair()
     }
 
-    pub fn protocol_key_pair(&self) -> NetworkKeyPair {
-        self.protocol_key_pair.network_keypair()
+    pub fn protocol_private_key(&self) -> NetworkPrivateKey {
+        self.protocol_key_pair.network_private_key()
     }
 
-    pub fn network_key_pair(&self) -> NetworkKeyPair {
-        self.network_key_pair.network_keypair()
+    pub fn network_private_key(&self) -> NetworkPrivateKey {
+        self.network_key_pair.network_private_key()
     }
 
     pub fn authority_public_key(&self) -> AuthorityPublicKeyBytes {
@@ -1626,10 +1626,10 @@ impl KeyPairWithPath {
             .as_ref()
     }
 
-    /// The stored keypair as an ed25519 network keypair, for the network
+    /// The stored keypair as an ed25519 network private key, for the network
     /// stacks that consume that type directly. Panics if the stored keypair
     /// is not ed25519.
-    pub fn network_keypair(&self) -> NetworkKeyPair {
+    pub fn network_private_key(&self) -> NetworkPrivateKey {
         self.keypair()
             .as_opt_ed25519()
             .cloned()
@@ -1718,7 +1718,7 @@ mod tests {
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_types::{
-        crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng},
+        crypto::{AuthorityKeyPair, NetworkPrivateKey, get_key_pair_from_rng},
         traffic_control::PolicyConfig,
     };
     use rand::{SeedableRng, rngs::StdRng};
@@ -2098,20 +2098,20 @@ mod tests {
     fn load_key_pairs_to_node_config() {
         let authority_key_pair: AuthorityKeyPair =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
-        let protocol_key_pair: NetworkKeyPair =
+        let protocol_private_key: NetworkPrivateKey =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
-        let network_key_pair: NetworkKeyPair =
+        let network_private_key: NetworkPrivateKey =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
 
         write_authority_keypair_to_file(&authority_key_pair, PathBuf::from("authority.key"))
             .unwrap();
         write_keypair_to_file(
-            &SimpleKeypair::from(protocol_key_pair.clone()),
+            &SimpleKeypair::from(protocol_private_key.clone()),
             PathBuf::from("protocol.key"),
         )
         .unwrap();
         write_keypair_to_file(
-            &SimpleKeypair::from(network_key_pair.clone()),
+            &SimpleKeypair::from(network_private_key.clone()),
             PathBuf::from("network.key"),
         )
         .unwrap();
@@ -2123,12 +2123,12 @@ mod tests {
             authority_key_pair.public()
         );
         assert_eq!(
-            template.network_key_pair().public_key(),
-            network_key_pair.public_key()
+            template.network_private_key().public_key(),
+            network_private_key.public_key()
         );
         assert_eq!(
-            template.protocol_key_pair().public_key(),
-            protocol_key_pair.public_key()
+            template.protocol_private_key().public_key(),
+            protocol_private_key.public_key()
         );
     }
 

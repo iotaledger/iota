@@ -963,7 +963,7 @@ impl ChannelPool {
                 .clone()
                 .into_inner(),
             certificate_server_name(&self.context),
-            Some(network_keypair.private_key().into_inner()),
+            Some(network_keypair.private_key()),
         );
         let endpoint = tonic_rustls::Channel::from_shared(address.clone())
             .map_err(|e| ConsensusError::NetworkConfig(format!("invalid URI '{address}': {e}")))?
@@ -1497,7 +1497,7 @@ impl<S: NetworkService> TonicManager<S> {
             .route_layer(layers);
 
         let tls_server_config = iota_tls::create_rustls_server_config_with_client_verifier(
-            self.network_keypair.clone().private_key().into_inner(),
+            self.network_keypair.clone().private_key(),
             certificate_server_name(&self.context),
             AllowPublicKeys::new(
                 self.context

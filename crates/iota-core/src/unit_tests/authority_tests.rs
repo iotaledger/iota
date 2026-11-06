@@ -1495,7 +1495,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority_state.config.network_key_pair().public_key(),
+        authority_state.config.network_private_key().public_key(),
     )
     .await
     .unwrap();
