@@ -827,7 +827,6 @@ pub struct CheckpointVersionSpecificDataV1 {
 mod tests {
     use std::collections::BTreeMap;
 
-    use fastcrypto::traits::KeyPair;
     use iota_sdk_types::{
         ConsensusCommitDigest, ObjectId, TransactionDigest, TransactionEffectsDigest,
         TransactionKind,
@@ -858,7 +857,7 @@ mod tests {
         let signed_checkpoints: Vec<_> = keys
             .iter()
             .map(|k| {
-                let name = k.public().into();
+                let name = (&k.verifying_key()).into();
 
                 SignedCheckpointSummary::new(
                     committee.epoch,
@@ -914,7 +913,7 @@ mod tests {
         let sign_infos: Vec<_> = keys
             .iter()
             .map(|k| {
-                let name = k.public().into();
+                let name = (&k.verifying_key()).into();
 
                 SignedCheckpointSummary::sign(committee.epoch, &summary, k, name)
             })
@@ -934,7 +933,7 @@ mod tests {
         let signed_checkpoints: Vec<_> = keys
             .iter()
             .map(|k| {
-                let name = k.public().into();
+                let name = (&k.verifying_key()).into();
                 let set = CheckpointContents::new_with_digests_only_for_tests([
                     ExecutionDigests::random(),
                 ]);
@@ -997,7 +996,12 @@ mod tests {
             let sign_infos = keys
                 .iter()
                 .map(|k| {
-                    SignedCheckpointSummary::sign(committee.epoch, &summary, k, k.public().into())
+                    SignedCheckpointSummary::sign(
+                        committee.epoch,
+                        &summary,
+                        k,
+                        (&k.verifying_key()).into(),
+                    )
                 })
                 .collect();
             CertifiedCheckpointSummary::new(summary, sign_infos, &committee).expect("cert is OK")
@@ -1020,7 +1024,7 @@ mod tests {
                         committee.epoch,
                         &summary_for_sequence_number(4),
                         k,
-                        k.public().into(),
+                        (&k.verifying_key()).into(),
                     )
                 })
                 .collect();

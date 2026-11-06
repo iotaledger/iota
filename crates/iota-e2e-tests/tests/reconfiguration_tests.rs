@@ -8,7 +8,6 @@ use std::{
     time::Duration,
 };
 
-use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
 use iota_core::{
     authority_aggregator::AggregatorSendCapabilityNotificationError,
@@ -46,8 +45,11 @@ use iota_types::{
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{TransactionAPI, VerifiedTransaction},
 };
-use rand::{rand_core::UnwrapErr, rngs::SysRng};
-use rand08::{SeedableRng, rngs::StdRng};
+use rand::{
+    SeedableRng,
+    rand_core::UnwrapErr,
+    rngs::{StdRng, SysRng},
+};
 use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 use tokio::time::sleep;
 
@@ -700,7 +702,7 @@ async fn run_reconfig_with_committee_change_basic() {
     // and then leave.
 
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut UnwrapErr(SysRng));
-    let new_authority_name = new_validator.authority_key_pair.public().into();
+    let new_authority_name = (&new_validator.authority_key_pair.verifying_key()).into();
     let address = new_validator.account_key_pair.public_key().derive_address();
     let mut test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
@@ -832,8 +834,7 @@ async fn run_reconfig_with_committee_change_basic() {
 #[sim_test]
 async fn test_reconfig_with_same_validator() {
     use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
-    use iota_types::crypto::{AuthorityPublicKeyBytes, KeypairTraits};
-    use rand::{SeedableRng, rngs::StdRng};
+    use iota_types::crypto::AuthorityPublicKeyBytes;
 
     // ValidatorGenesisConfig doesn't impl Clone
     // generate the same config with the same rng seed
@@ -847,7 +848,8 @@ async fn test_reconfig_with_same_validator() {
 
     // the node that will re-join committee
     let node_config = build_node_config();
-    let node_name: AuthorityPublicKeyBytes = node_config.authority_key_pair.public().into();
+    let node_name: AuthorityPublicKeyBytes =
+        (&node_config.authority_key_pair.verifying_key()).into();
     let node_address = node_config.account_key_pair.public_key().derive_address();
     let mut node_handle = None;
 
@@ -1320,10 +1322,9 @@ async fn test_authority_capabilities_invalid_signature_rejection() {
     let test_cluster = TestClusterBuilder::new().build().await;
 
     // Create a random authority key pair that's not a validator
-    let mut rng = StdRng::from_seed([0; 32]);
-
-    let random_authority_key_pair = AuthorityKeyPair::generate(&mut rng);
-    let random_authority_name: AuthorityName = random_authority_key_pair.public().into();
+    let (_, random_authority_key_pair): (_, AuthorityKeyPair) =
+        get_key_pair_from_rng(&mut StdRng::from_seed([0; 32]));
+    let random_authority_name: AuthorityName = (&random_authority_key_pair.verifying_key()).into();
 
     // Get the current epoch store
     let epoch_store = test_cluster
@@ -1388,7 +1389,7 @@ async fn test_authority_capabilities_incorrect_epoch_rejection() {
     // Test that SignedAuthorityCapabilities signed with an incorrect epoch
     // is rejected by the committee
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut UnwrapErr(SysRng));
-    let new_authority_name = new_validator.authority_key_pair.public().into();
+    let new_authority_name = (&new_validator.authority_key_pair.verifying_key()).into();
     let address = new_validator.account_key_pair.public_key().derive_address();
     let test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
@@ -1791,7 +1792,8 @@ async fn test_validator_scores_reach_their_validator_after_join() {
     let new_validator = ValidatorGenesisConfigBuilder::new()
         .with_authority_key_pair(authority_key_pair_sorting_first(&mut rng))
         .build(&mut rng);
-    let new_authority_name: AuthorityName = new_validator.authority_key_pair.public().into();
+    let new_authority_name: AuthorityName =
+        (&new_validator.authority_key_pair.verifying_key()).into();
     let new_validator_address = new_validator.account_key_pair.public_key().derive_address();
 
     let mut test_cluster = TestClusterBuilder::new()
@@ -1927,7 +1929,7 @@ async fn test_validator_scores_reach_their_validator_after_join() {
 fn authority_key_pair_sorting_first<R: rand::CryptoRng>(rng: &mut R) -> AuthorityKeyPair {
     loop {
         let (_, key_pair): (_, AuthorityKeyPair) = get_key_pair_from_rng(rng);
-        let name = AuthorityPublicKeyBytes::from(key_pair.public());
+        let name = AuthorityPublicKeyBytes::from(&key_pair.verifying_key());
         let bytes: &[u8] = name.as_ref();
         if bytes[0] == 0x80 && bytes[1] < 0x40 {
             return key_pair;

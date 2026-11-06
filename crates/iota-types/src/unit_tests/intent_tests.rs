@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::traits::KeyPair;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::IotaSigner as _;
 use iota_sdk_types::{
@@ -109,6 +108,6 @@ fn test_authority_signature_intent() {
 
     // Let's ensure we can sign and verify intents.
     let s = AuthoritySignature::new_secure(&intent_message, &epoch, &kp);
-    let verification = s.verify_secure(&intent_message, 0, kp.public().into());
+    let verification = s.verify_secure(&intent_message, 0, (&kp.verifying_key()).into());
     assert!(verification.is_ok())
 }

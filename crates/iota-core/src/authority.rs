@@ -66,7 +66,7 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
-    crypto::{AggregateAuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
+    crypto::{AggregateAuthorityPublicKey, AuthoritySignInfo, AuthoritySignature},
     deny_list_v1::{check_coin_deny_list_v1, coin_types_for_denylist_check},
     deny_rule_governance::DenyRuleConfig,
     digests::ChainIdentifier,
@@ -927,8 +927,9 @@ impl AuthorityMetrics {
 /// - Pin, i.e. confined to one place in memory (we don't want to copy private keys).
 /// - Sync, i.e. can be safely shared between threads.
 ///
-/// Typically instantiated with Box::pin(keypair) where keypair is a `KeyPair`
-pub type StableSyncAuthoritySigner = Pin<Arc<dyn Signer<AuthoritySignature> + Send + Sync>>;
+/// Typically instantiated with `Arc::pin(key)` where `key` is an `AuthorityKeyPair`
+pub type StableSyncAuthoritySigner =
+    Pin<Arc<dyn iota_sdk_crypto::Signer<AuthoritySignature> + Send + Sync>>;
 
 /// The checked transaction inputs and, per Move authenticator, its checked inputs.
 type CheckedValidationInputs = (CheckedInputObjects, Vec<CheckedInputObjects>);
