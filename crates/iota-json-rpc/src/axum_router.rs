@@ -115,8 +115,8 @@ pub async fn json_rpc_handler<L: Logger>(
         Ok(client) => client,
         Err(refused_response) => return ok_response(refused_response.into_result()),
     };
-    // Check the blocklist before reading the body, so a blocked client's body
-    // is neither read nor parsed.
+    // Check whether the client may be served before reading the body, so a
+    // refused client's body is neither read nor parsed.
     if let Some(traffic_controller) = &service.traffic_controller {
         if let Err(blocked_response) = handle_traffic_req(traffic_controller.clone(), &client) {
             return ok_response(blocked_response.into_result());
