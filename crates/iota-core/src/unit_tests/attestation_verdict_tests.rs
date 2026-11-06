@@ -9,8 +9,8 @@
 //! verdict is recorded separately as [`AttestationRecord::verdict`]. An
 //! attestation is refuted when authentication failed at exactly the recorded
 //! state, a recorded version is ahead of the executed one or was not superseded
-//! this epoch, or the re-run rejects; a deleted authenticator input leaves the
-//! judge undecided. When the gas owner's own authentication fails, a refuted
+//! this epoch, or the re-run rejects; a deleted authenticator input is judged
+//! like a changed one. When the gas owner's own authentication fails, a refuted
 //! or undecided attestation charges nobody, and the gas owner pays only when
 //! the account is at fault, because authentication passes at the attested
 //! state; a gas owner that authorized the transaction, as a sponsor signing
@@ -296,22 +296,16 @@ async fn honest_attestation_of_a_rotated_authenticator_is_recorded_valid_and_cha
     assert_charged(&effects);
 }
 
-/// An authenticator input deleted before execution leaves the judge undecided,
-/// without a re-run: nobody is charged, the attestor is not penalized, the
-/// effects report the deleted input, and the validator goes on. The deletion is
-/// ordered in the same commit, just before the attested transaction: a deletion
-/// at or below the horizon of the commit is seen by post-consensus validation,
-/// which drops the transaction before execution.
-#[tokio::test]
-async fn deleted_authenticator_input_is_recorded_undecided_and_not_charged() {
-    let _guard = attestation_config(None);
-
-    let mut env = AbstractAccountTestEnv::new().await;
-    let tx = env.account_transaction();
-
-    // Attested while the account, the authenticator's input, still exists.
-    let attestation = env.attest(&tx);
-    let gas_coin_before = gas_coin(&env, &tx);
+/// Submits `tx`, attested with `attestation`, in one commit right after a
+/// transaction that deletes the account, the authenticator's input, so that
+/// the attested transaction fails on the deleted input. Returns its effects.
+/// A deletion at or below the horizon of the commit is seen by post-consensus
+/// validation instead, which drops the transaction before execution.
+async fn submit_after_deleting_the_account(
+    env: &mut AbstractAccountTestEnv,
+    tx: TransactionEnvelope,
+    attestation: Attestation,
+) -> TransactionEffects {
     let delete_account = env.delete_account_transaction();
 
     let [deletion_effects, effects]: [TransactionEffects; 2] = env
@@ -327,7 +321,6 @@ async fn deleted_authenticator_input_is_recorded_undecided_and_not_charged() {
         "deleting the account must succeed, got {:?}",
         deletion_effects.status()
     );
-
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
@@ -335,9 +328,49 @@ async fn deleted_authenticator_input_is_recorded_undecided_and_not_charged() {
             command: None,
         }
     );
+
+    effects
+}
+
+/// An authenticator input deleted after an honest attestation is a changed
+/// one: the deletion superseded the recorded version, so the judge re-runs
+/// authentication there, where it passes. The account pays, as for a failure
+/// it authorized, and the attestation stays valid.
+#[tokio::test]
+async fn deleted_authenticator_input_is_charged_and_recorded_valid() {
+    let _guard = attestation_config(None);
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let tx = env.account_transaction();
+
+    // Attested while the account, the authenticator's input, still exists.
+    let attestation = env.attest(&tx);
+    let effects = submit_after_deleting_the_account(&mut env, tx, attestation).await;
+
+    assert_charged(&effects);
+    assert_record(&env, &effects, AttestationVerdict::Valid);
+}
+
+/// The same deletion, but the transaction fails authentication at the recorded
+/// version too: the re-run there fails, so the attestor is refuted with the
+/// re-run's units and nobody is charged.
+#[tokio::test]
+async fn deleted_authenticator_input_failing_at_the_recorded_version_is_recorded_refuted() {
+    let _guard = attestation_config(None);
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
+
+    // Signed with a key the account has never held, so authentication fails
+    // at the recorded version, which the attestor claims it passed at.
+    let tx = env.account_transaction_signed_with(&unrelated_key);
+    let attestation = env.attest_with_versions(vec![env.account_ref()]);
+    let gas_coin_before = gas_coin(&env, &tx);
+    let effects = submit_after_deleting_the_account(&mut env, tx, attestation).await;
+
     let gas_coin_after = env.object(&gas_coin_before.id());
     assert_not_charged(&effects, &gas_coin_before, &gas_coin_after);
-    assert_record(&env, &effects, AttestationVerdict::Undecided);
+    assert_refuted(&env, &effects);
 }
 
 /// A sponsor that signed with its key authorized the transaction, so the

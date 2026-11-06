@@ -156,9 +156,8 @@ pub(crate) enum AuthenticationFailureBlame {
     /// see [`AttestationVerdictContext::decide_authentication_failure_blame()`].
     Nobody,
 
-    /// The judge could not decide who is at fault: an authenticator input was
-    /// deleted, which it cannot place before or after the attestation, or its
-    /// own re-run failed with an internal error. Recorded as
+    /// The judge could not decide who is at fault: its own re-run failed with
+    /// an internal error. Recorded as
     /// [`attestation::AttestationVerdict::Undecided`], which is certified, so a
     /// node executing from a checkpoint charges nobody as well.
     Undecided,
@@ -168,11 +167,10 @@ impl AttestationVerdictContext<'_> {
     /// Decides who is at fault for `kind`, the error of a failed Move
     /// authentication, wrapped in an [`ExecutionErrorKind::MoveAuthentication`]
     /// status or not. Returns [`AuthenticationFailureBlame::Nobody`] for a
-    /// cancellation or an invariant violation, and
-    /// [`AuthenticationFailureBlame::Undecided`] for a deleted authenticator
-    /// input, without a re-run; otherwise, the recorded versions decide, through
-    /// a re-run of authentication at them when the executed state drifted from
-    /// them.
+    /// cancellation or an invariant violation, without a re-run; otherwise, the
+    /// recorded versions decide, through a re-run of authentication at them
+    /// when the executed state drifted from them. A deleted authenticator input
+    /// is a drifted one: the deletion superseded the recorded version.
     ///
     /// # Panics
     ///
@@ -196,20 +194,6 @@ impl AttestationVerdictContext<'_> {
         // TODO: decide whether a cancelled transaction charges a Move account.
         if is_cancellation(kind) || is_any_invariant_violation(kind) {
             return AuthenticationFailureBlame::Nobody;
-        }
-
-        // A failure on a deleted authenticator input leaves the judge
-        // undecided, without a re-run. At the recorded version, the input still
-        // exists, so a re-run there could pass and charge the gas owner, also
-        // when the attestor recorded the versions from before the deletion;
-        // refuting instead would let any sender penalize an honest attestor by
-        // deleting the input after the attestation. Only the judged failure
-        // counts: a deleted input of an authenticator that never ran says
-        // nothing about the one that failed.
-        // TODO: temporary rule, until the judge can distinguish a deletion
-        // before the attestation from one after it.
-        if matches!(kind, ExecutionErrorKind::InputObjectDeleted) {
-            return AuthenticationFailureBlame::Undecided;
         }
 
         // Nothing to re-run: the failure already reproduces at the recorded
