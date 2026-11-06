@@ -13,6 +13,9 @@ use crate::{
     idle_timer::IdleTimer,
 };
 
+/// How long a connection asked to close is given to shut down.
+pub(crate) const SHUTDOWN_GRACE_PERIOD: Duration = Duration::from_secs(1);
+
 // This is moved to its own function as a way to get around
 // https://github.com/rust-lang/rust/issues/102211
 pub async fn serve_connection<IO, S, B, C>(
@@ -57,7 +60,8 @@ pub async fn serve_connection<IO, S, B, C>(
 }
 
 /// Serves `conn` until it closes. Starts a graceful shutdown of `conn` on the
-/// shutdown signal and when it reaches `max_connection_age`.
+/// shutdown signal, at `max_connection_age`, and when `idle_timer` is reached.
+/// Drops `conn` if it has not closed [`SHUTDOWN_GRACE_PERIOD`] later.
 async fn serve_until_closed(
     conn: impl GracefulConnection<Error = BoxError>,
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
@@ -73,10 +77,24 @@ async fn serve_until_closed(
     tokio::pin!(sleep);
     tokio::pin!(idle);
 
+    // The peer may ignore a graceful shutdown, so it is bounded by
+    // `force_close`. Once requested, the branches that request it are disabled.
+    let mut shutdown_requested = false;
+    let force_close = sleep_or_pending(None);
+    tokio::pin!(force_close);
+
+    macro_rules! request_shutdown {
+        () => {{
+            shutdown_requested = true;
+            conn.as_mut().graceful_shutdown();
+            force_close.set(sleep_or_pending(Some(SHUTDOWN_GRACE_PERIOD)));
+        }};
+    }
+
     loop {
         tokio::select! {
-            _ = &mut sig => {
-                conn.as_mut().graceful_shutdown();
+            _ = &mut sig, if !shutdown_requested => {
+                request_shutdown!();
             }
             rv = &mut conn => {
                 if let Err(err) = rv {
@@ -84,15 +102,18 @@ async fn serve_until_closed(
                 }
                 break;
             },
-            _ = &mut idle => {
+            _ = &mut idle, if !shutdown_requested => {
                 debug!("closing a connection that has been idle past its deadline");
-                conn.as_mut().graceful_shutdown();
-                idle.set(idle_or_pending(None));
+                request_shutdown!();
             }
-            _ = &mut sleep  => {
-                conn.as_mut().graceful_shutdown();
-                sleep.set(sleep_or_pending(None));
-            },
+            _ = &mut sleep, if !shutdown_requested => {
+                debug!("closing a connection that has reached its maximum age");
+                request_shutdown!();
+            }
+            _ = &mut force_close => {
+                debug!("dropping a connection that did not close when asked");
+                break;
+            }
         }
     }
 }
