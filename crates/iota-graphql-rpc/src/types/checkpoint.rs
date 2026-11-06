@@ -359,7 +359,7 @@ impl Checkpoint {
     /// Returns the inclusive `[lo, hi]` checkpoint sequence-number range to
     /// paginate over, given the `checkpoint_viewed_at` and optional `epoch`
     /// filter. Returns `None` when `filter` targets an epoch that does not
-    /// exist.
+    /// exist or starts after `checkpoint_viewed_at`.
     ///
     /// The `epochs` table is never pruned but an in-progress epoch's
     /// `last_checkpoint_id` is NULL - in that case the upper bound is
@@ -386,11 +386,14 @@ impl Checkpoint {
             .await
             .map_err(|err| Error::Internal(format!("Failed to fetch epoch range: {err}")))?;
 
-        Ok(row.map(|(first, last)| {
+        Ok(row.and_then(|(first, last)| {
+            let lo = first as u64;
             let hi = last
                 .map(|l| std::cmp::min(l as u64, checkpoint_viewed_at))
                 .unwrap_or(checkpoint_viewed_at);
-            (first as u64, hi)
+            // The epoch starts after `checkpoint_viewed_at`, so it has no
+            // checkpoints yet.
+            (lo <= hi).then_some((lo, hi))
         }))
     }
 
@@ -429,12 +432,6 @@ impl Checkpoint {
         else {
             return Ok(Connection::new(false, false));
         };
-
-        // An epoch that starts after `checkpoint_viewed_at` has no checkpoints
-        // yet.
-        if absolute_lo_incl > absolute_hi_incl {
-            return Ok(Connection::new(false, false));
-        }
 
         // Without a fallback, anything below the pruning watermark is unreachable
         let oldest_available_checkpoint = if db.inner.is_fallback_enabled() {
