@@ -413,7 +413,7 @@ fn authenticator_function_not_found(account_id: ObjectId) -> ExecutionStatus {
 /// Asserts that `effects` create, delete and wrap no object, other than
 /// deleting `merged_gas_coins`, the gas coins merged into the first one when a
 /// gas owner that authorized the transaction pays.
-fn assert_no_object_created_deleted_or_wrapped(
+pub(crate) fn assert_no_object_created_deleted_or_wrapped(
     effects: &TransactionEffects,
     merged_gas_coins: &[ObjectId],
 ) {
@@ -438,7 +438,7 @@ fn assert_no_object_created_deleted_or_wrapped(
 
 /// Asserts that `after` is the object `before` moved to `version`, with its
 /// owner and contents unchanged.
-fn assert_moved_unchanged(before: &Object, after: &Object, version: Version) {
+pub(crate) fn assert_moved_unchanged(before: &Object, after: &Object, version: Version) {
     let contents = |object: &Object| object.data.as_opt_struct().unwrap().contents().to_vec();
     assert_eq!(after.version(), version, "{} must move", before.id());
     assert_eq!(
@@ -909,6 +909,7 @@ async fn pre_execution_failure_skips_execution_and_charges_gas() {
                 gas_owner: None,
             },
             checked_input_objects,
+            None,
             kind,
             signer,
             *executable.digest(),

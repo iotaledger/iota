@@ -40,7 +40,7 @@ use iota_types::{
 use crate::{
     authority::{
         AuthorityState, ValidationOutputs,
-        attestation_verdict::ExecutionOutcome,
+        attestation_verdict::{AuthenticationFailureBlame, ExecutionOutcome},
         authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
     },
     execution_scheduler::transaction_manager::AttestationSource,
@@ -214,6 +214,7 @@ impl AuthorityState {
                         gas_status,
                         MoveAuthenticatorsForExecution::Resolved(authenticators_for_exec),
                         auth_and_tx_checked,
+                        None, // gas_owner_pays
                         kind,
                         signer,
                         tx_digest,
@@ -343,21 +344,32 @@ pub(super) fn attestation_record(
         AttestationSource::Unattested => None,
         AttestationSource::Certified(record) => *record,
         AttestationSource::Attestation(attestation) => {
-            let charged_units =
-                || attestation::computation_units(effects.gas_cost_summary(), gas_price);
             // The claim is only measurable against a body that ran.
-            let executed_units = outcome.body_ran.then(charged_units);
-            // A refuted authentication wasted both runs: the one execution
-            // charged for and the judge's re-run.
-            let refuted_units = outcome
-                .refuted
-                .map(|rerun_units| charged_units().saturating_add(rerun_units));
-            let verdict = AttestationVerdict::new(
-                refuted_units,
-                attestation.computation_units(),
-                executed_units,
-                protocol_config.attestor_accuracy_tolerance_percentage_as_option(),
-            );
+            let executed_units = outcome
+                .body_ran
+                .then(|| attestation::computation_units(effects.gas_cost_summary(), gas_price));
+            let claimed_units = attestation.computation_units();
+            let tolerance = protocol_config.attestor_accuracy_tolerance_percentage_as_option();
+            let verdict = match outcome.blame {
+                Some(AuthenticationFailureBlame::Attestor {
+                    rerun_computation_units,
+                }) => {
+                    // A refuted authentication wasted both runs: execution's
+                    // own, whether or not the effects charge it, and the
+                    // judge's re-run.
+                    let units = outcome
+                        .consumed_units
+                        .saturating_add(rerun_computation_units);
+
+                    AttestationVerdict::new(Some(units), claimed_units, executed_units, tolerance)
+                }
+                // Certified, so a node executing from the checkpoint charges
+                // nobody, as the validators did.
+                Some(AuthenticationFailureBlame::Undecided) => AttestationVerdict::Undecided,
+                Some(AuthenticationFailureBlame::Account | AuthenticationFailureBlame::Nobody)
+                | None => AttestationVerdict::new(None, claimed_units, executed_units, tolerance),
+            };
+
             Some(AttestationRecord::new(attestation, verdict))
         }
     }
@@ -470,7 +482,84 @@ fn attestable_object_versions(
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::{GasCostSummary, TransactionDigest};
+    use iota_types::effects::TransactionEffectsExtForTesting;
+
     use super::*;
+
+    /// A refuted record counts the units execution's own run consumed plus the
+    /// judge's re-run, even when the effects charge nothing.
+    #[test]
+    fn refuted_record_units_do_not_depend_on_the_uncharged_effects() {
+        let attestation = attestation::Attestation::new_authority(
+            AttestationData::V1 {
+                computation_units: 1_000,
+                object_versions: vec![],
+            },
+            0,
+        );
+        let effects = TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
+        assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
+        let outcome = ExecutionOutcome {
+            blame: Some(AuthenticationFailureBlame::Attestor {
+                rerun_computation_units: 7,
+            }),
+            consumed_units: 30,
+            body_ran: false,
+        };
+
+        let record = attestation_record(
+            &AttestationSource::Attestation(attestation),
+            &outcome,
+            &effects,
+            1,
+            &ProtocolConfig::get_for_max_version_UNSAFE(),
+        );
+
+        assert_eq!(
+            record,
+            Some(AttestationRecord {
+                attestor: 0,
+                verdict: AttestationVerdict::Refuted { units: 37 },
+            })
+        );
+    }
+
+    /// When the judge could not decide, the record is undecided whatever the
+    /// units, so it is certified and a node executing from the checkpoint
+    /// charges nobody as well.
+    #[test]
+    fn undecided_blame_is_recorded_undecided() {
+        let attestation = attestation::Attestation::new_authority(
+            AttestationData::V1 {
+                computation_units: 1_000,
+                object_versions: vec![],
+            },
+            0,
+        );
+        let effects = TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
+        let outcome = ExecutionOutcome {
+            blame: Some(AuthenticationFailureBlame::Undecided),
+            consumed_units: 30,
+            body_ran: false,
+        };
+
+        let record = attestation_record(
+            &AttestationSource::Attestation(attestation),
+            &outcome,
+            &effects,
+            1,
+            &ProtocolConfig::get_for_max_version_UNSAFE(),
+        );
+
+        assert_eq!(
+            record,
+            Some(AttestationRecord {
+                attestor: 0,
+                verdict: AttestationVerdict::Undecided,
+            })
+        );
+    }
 
     /// A fault whose squared units reach `max_refuted_units_squared` takes the
     /// whole score, a smaller one the square of its fraction, and faults beyond
