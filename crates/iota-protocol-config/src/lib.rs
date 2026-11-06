@@ -4253,8 +4253,14 @@ impl ProtocolConfig {
         self.feature_flags.publish_package_metadata = val;
     }
 
+    /// Turning Move authentication off also turns off reporting Move
+    /// authentication errors and validator attestation, which require it.
     pub fn set_enable_move_authentication_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_move_authentication = val;
+        if !val {
+            self.set_report_move_authentication_error_for_testing(false);
+            self.set_enable_validator_attestation_for_testing(false);
+        }
     }
 
     pub fn set_enable_move_authentication_for_sponsor_for_testing(&mut self, val: bool) {
