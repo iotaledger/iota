@@ -428,24 +428,21 @@ impl ConsensusAdapter {
         committee: &Committee,
         transactions: &[ConsensusTransaction],
     ) -> (impl Future<Output = ()>, usize, usize, usize) {
-        // Use the minimum digest to compute submit delay.
+        // Use the minimum digest to compute submit delay. P-COOL user
+        // transactions (`UserTransactionV1`) are excluded: no submit delay
+        // needed (number of submitting validators controlled through another
+        // mechanism).
         let min_digest = transactions
             .iter()
-            .filter_map(|tx| match &tx.kind {
-                ConsensusTransactionKind::CertifiedTransaction(certificate) => {
-                    Some(certificate.digest())
-                }
-                ConsensusTransactionKind::UserTransactionV1(_) => {
-                    // P-COOL: no submit delay needed (number of submitting validators
-                    // controlled through another mechanism)
-                    None
-                }
-                _ => None,
+            .filter_map(|tx| {
+                tx.is_user_certificate()
+                    .then(|| tx.kind.transaction_digest())
+                    .flatten()
             })
             .min();
 
         let (duration, position, positions_moved, preceding_disconnected) = match min_digest {
-            Some(digest) => self.await_submit_delay_user_transaction(committee, digest),
+            Some(digest) => self.await_submit_delay_user_transaction(committee, &digest),
             _ => (Duration::ZERO, 0, 0, 0),
         };
         (
@@ -627,20 +624,21 @@ impl ConsensusAdapter {
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<JoinHandle<()>> {
         if transactions.len() > 1 {
-            // Soft-bundle batches must be homogeneous: either all
-            // CertifiedTransaction (certificate flow) or all
-            // UserTransactionV1 (P-COOL flow). submit_and_wait_inner
-            // assumes a single transaction kind across the batch.
-            for transaction in transactions {
-                // Routed through the shared user-transaction helpers rather than an
-                // inline match, so a new user-transaction kind is classified in one
-                // place (`ConsensusTransactionKind::is_user_transaction`) and becomes
-                // soft-bundle eligible automatically.
-                fp_ensure!(
-                    transaction.is_user_certificate() || transaction.kind.is_user_transaction(),
-                    IotaError::InvalidTxKindInSoftBundle
-                );
-            }
+            // Soft-bundle batches must be homogeneous and limited to the kinds we
+            // actually bundle: user or certified transactions. submit_and_wait_inner
+            // assumes a single, known transaction kind across the batch, so
+            // reject any other kind defensively rather than letting it pass
+            // silently into consensus. Checking the first element's kind is
+            // sufficient because the homogeneity check guarantees the rest share it.
+            let first = &transactions[0].kind;
+            let first_kind = std::mem::discriminant(first);
+            fp_ensure!(
+                (transactions[0].is_user_certificate() || first.is_user_transaction())
+                    && transactions
+                        .iter()
+                        .all(|tx| std::mem::discriminant(&tx.kind) == first_kind),
+                IotaError::InvalidTxKindInSoftBundle
+            );
         }
 
         epoch_store.insert_pending_consensus_transactions(transactions, lock)?;
@@ -758,7 +756,8 @@ impl ConsensusAdapter {
         }
 
         // submit_batch enforces that multi-tx batches (soft bundles) are
-        // homogeneous: either all CertifiedTransaction or all UserTransactionV1.
+        // homogeneous: all transactions share the same `ConsensusTransactionKind`
+        // (in practice all CertifiedTransaction or all UserTransactionV1).
         // Single-tx submits can be any kind.
         let is_soft_bundle = transactions.len() > 1;
 
@@ -939,9 +938,10 @@ impl ConsensusAdapter {
 
         let is_user_tx = is_soft_bundle
             || if epoch_store.protocol_config().enable_pcool_flow() {
-                // In the P-COOL flow, `UserTransactionV1` kind corresponds
-                // to user transactions.  Routed through the shared predicate
-                // so a new user-transaction kind is classified in one place.
+                // In the P-COOL flow, the `UserTransactionV1` kind corresponds
+                // to user transactions. Routed through the
+                // shared predicate so a new user-transaction kind is
+                // classified in one place.
                 transactions[0].kind.is_user_transaction()
             } else {
                 // In the certificate mode, `CertifiedTransaction` kind corresponds

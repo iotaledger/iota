@@ -393,6 +393,25 @@ impl HistoricObjects {
         }
     }
 
+    /// Whether `epoch`'s bucket holds a version under `key`, that is whether a
+    /// commit of that epoch relocated it; `false` also when there is no bucket
+    /// for `epoch`. Reads only that bucket, so the answer does not depend on
+    /// how many epochs the node retains.
+    ///
+    /// On a node whose one-time backlog sweep ran in `epoch`, that bucket also
+    /// holds the versions superseded before the sweep, so for that epoch alone
+    /// `true` does not mean superseded in `epoch`.
+    pub fn relocated_in_epoch(&self, epoch: EpochId, key: &ObjectKey) -> IotaResult<bool> {
+        let Some(bucket) = self.buckets.get(epoch) else {
+            return Ok(false);
+        };
+        match bucket.objects.contains_key(key) {
+            // The bucket was dropped during the read.
+            Err(TypedStoreError::UnregisteredColumn(_)) => Ok(false),
+            read => read.map_err(|e| IotaError::Storage(e.to_string())),
+        }
+    }
+
     /// Fills each `None` in `objects` — the live table's answers for `keys`, in
     /// the same order — with the version the buckets hold under that key.
     ///

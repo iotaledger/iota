@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use iota_types::{base_types::AuthorityName, committee::Committee};
 
@@ -94,6 +97,12 @@ impl<A> RequestRetrier<A> {
             retriable_errors_aggregator,
             missing_input_aggregators: BTreeMap::new(),
         }
+    }
+
+    /// Never targets `validators`.
+    pub(crate) fn exclude(&mut self, validators: &BTreeSet<AuthorityName>) {
+        self.ranked_clients
+            .retain(|(name, _)| !validators.contains(name));
     }
 
     // Selects the next target validator to attempt an operation.
@@ -306,6 +315,25 @@ mod tests {
         // The last validator will be picked up.
         assert_eq!(retrier.next_target().unwrap().0, *allowed_validator);
         // No more validators will be picked up.
+        assert!(retrier.next_target().is_err());
+    }
+
+    #[tokio::test]
+    async fn test_exclude() {
+        let auth_agg = get_authority_aggregator(4);
+        let client_monitor = ValidatorClientMonitor::new_for_test();
+        let excluded = auth_agg
+            .committee
+            .names()
+            .take(3)
+            .copied()
+            .collect::<BTreeSet<_>>();
+        let remaining = auth_agg.committee.names().nth(3).unwrap();
+
+        let mut retrier = RequestRetrier::new(&auth_agg, &client_monitor, &[], &[]);
+        retrier.exclude(&excluded);
+
+        assert_eq!(retrier.next_target().unwrap().0, *remaining);
         assert!(retrier.next_target().is_err());
     }
 

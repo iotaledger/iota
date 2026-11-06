@@ -1341,6 +1341,7 @@
                 "enable_move_authentication_for_sponsor": true,
                 "enable_pcool_flow": true,
                 "enable_poseidon": true,
+                "enable_validator_attestation": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
                 "limit_groth16_pvk_inputs": true,
@@ -1389,6 +1390,8 @@
                 "address_to_u256_cost_base": {
                   "u64": "52"
                 },
+                "attestation_max_refuted_units_squared": null,
+                "attestor_accuracy_tolerance_percentage": null,
                 "auth_context_authenticator_function_info_v1_cost_base": {
                   "u64": "270"
                 },
@@ -1511,7 +1514,7 @@
                   "u64": "20"
                 },
                 "checkpoint_summary_version_specific_data": {
-                  "u64": "1"
+                  "u64": "2"
                 },
                 "config_read_setting_impl_cost_base": {
                   "u64": "100"

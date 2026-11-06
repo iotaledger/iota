@@ -12,6 +12,7 @@ use iota_sdk_types::{
     ObjectId, ObjectReference, ObjectVersion, TransactionEffects, TransactionEvents,
 };
 use iota_types::{
+    attestation::AttestationRecord,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     inner_temporary_store::{InnerTemporaryStore, WrittenObjects},
     object::{Object, ObjectSet},
@@ -36,6 +37,9 @@ pub struct TransactionOutputs {
     pub live_object_markers_to_delete: Vec<ObjectReference>,
     pub new_live_object_markers_to_init: Vec<ObjectReference>,
     pub written: WrittenObjects,
+    pub record_superseded_versions: bool,
+    /// Verdict on the transaction's attestation, if it carried one.
+    pub attestation_record: Option<AttestationRecord>,
 }
 
 impl TransactionOutputs {
@@ -47,6 +51,8 @@ impl TransactionOutputs {
         inner_temporary_store: InnerTemporaryStore,
         read_objects: ObjectSet,
         metrics: &AuthorityMetrics,
+        record_superseded_versions: bool,
+        attestation_record: Option<AttestationRecord>,
     ) -> TransactionOutputs {
         let InnerTemporaryStore {
             input_objects,
@@ -173,6 +179,8 @@ impl TransactionOutputs {
             live_object_markers_to_delete,
             new_live_object_markers_to_init,
             written,
+            record_superseded_versions,
+            attestation_record,
         }
     }
 }

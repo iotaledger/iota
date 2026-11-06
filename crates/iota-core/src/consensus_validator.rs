@@ -70,12 +70,25 @@ impl IotaTxValidator {
         let mut ckpt_messages = Vec::new();
         let mut ckpt_batch = Vec::new();
         let mut authority_cap_batch = Vec::new();
-        let mut user_tx_v1_count: u64 = 0;
+        let mut user_tx_count: u64 = 0;
 
         for tx in txs.iter() {
             match tx {
                 ConsensusTransactionKind::CertifiedTransaction(certificate) => {
                     self.identifiers_check(certificate.data())?;
+                    // A certificate carries no attestation, so it would skip the
+                    // judge, the units claim and the cutoff.
+                    if self
+                        .epoch_store
+                        .protocol_config()
+                        .enable_validator_attestation()
+                    {
+                        return Err(IotaError::UnsupportedFeature {
+                            error: "CertifiedTransaction not allowed when validator attestation \
+                                    is enabled"
+                                .into(),
+                        });
+                    }
                     cert_batch.push(certificate.as_ref());
                 }
                 ConsensusTransactionKind::CheckpointSignature(signature) => {
@@ -125,6 +138,26 @@ impl IotaTxValidator {
                         });
                     }
                     self.identifiers_check(attested_tx.transaction.data())?;
+                    // An attestation is authenticated by the block signature,
+                    // so only its presence is checked here, against the flag;
+                    // post-consensus validation checks its content.
+                    let attested = attested_tx.attestation.is_some();
+                    let attestation_enabled = self
+                        .epoch_store
+                        .protocol_config()
+                        .enable_validator_attestation();
+                    if attested != attestation_enabled {
+                        return Err(IotaError::UnsupportedFeature {
+                            error: if attested {
+                                "attested UserTransactionV1 not supported at current protocol \
+                                 version"
+                            } else {
+                                "UserTransactionV1 must carry an attestation when validator \
+                                 attestation is enabled"
+                            }
+                            .into(),
+                        });
+                    }
                     // TODO: Batch signature verification for UserTransactionV1.
                     //  For now verify individually, but this should be batched for performance
                     //  similar to how certificates are batch-verified above.
@@ -134,7 +167,7 @@ impl IotaTxValidator {
                         .tap_err(|e| {
                             warn!("UserTransactionV1 signature verification failed: {}", e)
                         })?;
-                    user_tx_v1_count += 1;
+                    user_tx_count += 1;
                 }
 
                 ConsensusTransactionKind::EndOfPublish(_)
@@ -199,7 +232,7 @@ impl IotaTxValidator {
             .inc_by(authority_cap_count as u64);
         self.metrics
             .user_transaction_signatures_verified
-            .inc_by(user_tx_v1_count);
+            .inc_by(user_tx_count);
         Ok(())
 
         // todo - we should un-comment line below once we have a way to revert
@@ -285,7 +318,7 @@ mod tests {
 
     use fastcrypto::traits::KeyPair as _;
     use iota_macros::sim_test;
-    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+    use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::{Identifier, ObjectId, UserSignature};
     use iota_types::{
         attestation::AttestedTransaction,
@@ -310,6 +343,13 @@ mod tests {
 
     #[sim_test]
     async fn accept_valid_transaction() {
+        // A certificate carries no attestation, so this test runs with
+        // validator attestation off.
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_validator_attestation_for_testing(false);
+            config
+        });
+
         // Initialize an authority with a (owned) gas object and a shared object; then
         // make a test certificate.
         let mut objects = test_gas_objects();
@@ -520,6 +560,16 @@ mod tests {
             }
         }
     }
+    /// Validator attestation off, which the latest version has on, for tests
+    /// that send plain user transactions and certificates through block
+    /// verification.
+    fn validator_attestation_off() -> OverrideGuard {
+        ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_validator_attestation_for_testing(false);
+            config
+        })
+    }
+
     /// A single-validator authority at `protocol_version`, or at the latest
     /// version when `None`, with its validator keypair and a block verifier
     /// over its epoch store.
@@ -625,6 +675,7 @@ mod tests {
 
     #[tokio::test]
     async fn reject_identifier_move_core_rejects_in_user_transaction() {
+        let _guard = validator_attestation_off();
         let (state, _, validator) = self_identifier_fixture(None).await;
         assert!(
             validator
@@ -648,6 +699,7 @@ mod tests {
 
     #[tokio::test]
     async fn reject_identifier_move_core_rejects_in_certificate() {
+        let _guard = validator_attestation_off();
         let (state, keypair, validator) = self_identifier_fixture(None).await;
         assert!(
             validator
@@ -745,5 +797,34 @@ mod tests {
                 ),
             ])
             .unwrap();
+    }
+
+    /// A certificate carries no attestation, so block verification refuses it
+    /// while validator attestation is on, whatever it holds.
+    #[tokio::test]
+    async fn reject_certificate_with_validator_attestation_on() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_enable_validator_attestation_for_testing(true);
+            config.set_checkpoint_summary_version_specific_data_for_testing(2);
+            config
+        });
+        let (state, keypair, validator) = self_identifier_fixture(None).await;
+        assert!(
+            validator
+                .epoch_store
+                .protocol_config()
+                .enable_validator_attestation()
+        );
+
+        let result = validator.validate_transactions(vec![certificate(
+            move_call_with_type_name(&state, Identifier::from_static("IOTA")),
+            &state,
+            &keypair,
+        )]);
+        assert!(
+            matches!(&result, Err(IotaError::UnsupportedFeature { .. })),
+            "{result:?}"
+        );
     }
 }

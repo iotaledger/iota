@@ -61,7 +61,9 @@ use iota_sdk_types::{
     TransactionEffectsDigest, TransactionEvents, Version,
 };
 use iota_types::{
+    attestation::AttestationRecord,
     base_types::{EpochId, VerifiedExecutionData},
+    effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     global_state_hash::GlobalStateHash,
@@ -229,6 +231,9 @@ struct UncommittedData {
     // marker_cache.
     markers: DashMap<MarkerKey, CachedVersionMap<MarkerValue>>,
 
+    // The epoch in which each consumed object version stopped being current.
+    superseded_versions: DashMap<ObjectId, CachedVersionMap<EpochId>>,
+
     transaction_effects: DashMap<TransactionEffectsDigest, TransactionEffects>,
 
     transaction_events: DashMap<TransactionDigest, TransactionEvents>,
@@ -248,6 +253,7 @@ impl UncommittedData {
         Self {
             objects: DashMap::with_shard_amount(2048),
             markers: DashMap::with_shard_amount(2048),
+            superseded_versions: DashMap::with_shard_amount(2048),
             transaction_effects: DashMap::with_shard_amount(2048),
             executed_effects_digests: DashMap::with_shard_amount(2048),
             pending_transaction_writes: DashMap::with_shard_amount(2048),
@@ -260,6 +266,7 @@ impl UncommittedData {
     fn clear(&self) {
         self.objects.clear();
         self.markers.clear();
+        self.superseded_versions.clear();
         self.transaction_effects.clear();
         self.executed_effects_digests.clear();
         self.pending_transaction_writes.clear();
@@ -276,6 +283,7 @@ impl UncommittedData {
             assert!(
                 self.objects.is_empty()
                     && self.markers.is_empty()
+                    && self.superseded_versions.is_empty()
                     && self.transaction_effects.is_empty()
                     && self.executed_effects_digests.is_empty()
                     && self.transaction_events.is_empty()
@@ -322,6 +330,9 @@ struct CachedCommittedData {
     // See module level comment for an explanation of caching strategy.
     marker_cache: MokaCache<MarkerKey, Arc<Mutex<CachedVersionMap<MarkerValue>>>>,
 
+    // See module level comment for an explanation of caching strategy.
+    superseded_version_cache: MokaCache<ObjectId, Arc<Mutex<CachedVersionMap<EpochId>>>>,
+
     transactions: MonotonicCache<TransactionDigest, PointCacheItem<Arc<VerifiedTransaction>>>,
 
     transaction_effects:
@@ -349,6 +360,11 @@ impl CachedCommittedData {
                 config.marker_cache_size(),
             ))
             .build();
+        let superseded_version_cache = MokaCache::builder(8)
+            .max_capacity(randomize_cache_capacity_in_tests(
+                config.marker_cache_size(),
+            ))
+            .build();
 
         let transactions = MonotonicCache::new(randomize_cache_capacity_in_tests(
             config.transaction_cache_size(),
@@ -372,6 +388,7 @@ impl CachedCommittedData {
         Self {
             object_cache,
             marker_cache,
+            superseded_version_cache,
             transactions,
             transaction_effects,
             transaction_events,
@@ -383,6 +400,7 @@ impl CachedCommittedData {
     fn clear(&self) {
         self.object_cache.invalidate_all();
         self.marker_cache.invalidate_all();
+        self.superseded_version_cache.invalidate_all();
         self.transactions.invalidate_all();
         self.transaction_effects.invalidate_all();
         self.transaction_events.invalidate_all();
@@ -395,6 +413,7 @@ impl CachedCommittedData {
 
         assert_empty(&self.object_cache);
         assert_empty(&self.marker_cache);
+        assert_empty(&self.superseded_version_cache);
         assert!(self.transactions.is_empty());
         assert!(self.transaction_effects.is_empty());
         assert!(self.transaction_events.is_empty());
@@ -801,6 +820,35 @@ impl WritebackCache {
         )
     }
 
+    fn get_object_superseded_in_epoch_cache_only(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+    ) -> CacheResult<EpochId> {
+        Self::with_locked_cache_entries(
+            &self.dirty.superseded_versions,
+            &self.cached.superseded_version_cache,
+            object_id,
+            |dirty_entry, cached_entry| {
+                check_cache_entry_by_version!(
+                    self,
+                    "superseded_version",
+                    "uncommitted",
+                    dirty_entry,
+                    version
+                );
+                check_cache_entry_by_version!(
+                    self,
+                    "superseded_version",
+                    "committed",
+                    cached_entry,
+                    version
+                );
+                CacheResult::Miss
+            },
+        )
+    }
+
     fn get_latest_marker_value_cache_only(
         &self,
         object_id: &ObjectId,
@@ -1119,6 +1167,18 @@ impl WritebackCache {
             self.write_marker_value(epoch_id, object_key, *marker_value);
         }
 
+        // The versions this transaction consumed stop being current here.
+        if tx_outputs.record_superseded_versions {
+            for modified in effects.modified_at_versions() {
+                self.dirty
+                    .superseded_versions
+                    .entry(*modified.object_id())
+                    .or_default()
+                    .value_mut()
+                    .insert(modified.version(), epoch_id);
+            }
+        }
+
         // Write children before parents to ensure that readers do not observe a parent
         // object before its most recent children are visible.
         for (object_id, object) in written.iter() {
@@ -1385,6 +1445,18 @@ impl WritebackCache {
                 object_key.1,
                 marker_value,
             );
+        }
+
+        if outputs.record_superseded_versions {
+            for modified in effects.modified_at_versions() {
+                Self::move_version_from_dirty_to_cache(
+                    &self.dirty.superseded_versions,
+                    &self.cached.superseded_version_cache,
+                    *modified.object_id(),
+                    modified.version(),
+                    &epoch,
+                );
+            }
         }
 
         for (object_id, object) in written.iter() {
@@ -2000,6 +2072,21 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
+    fn try_object_superseded_in_epoch(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> IotaResult<bool> {
+        match self.get_object_superseded_in_epoch_cache_only(object_id, version) {
+            CacheResult::Hit(superseded_in) => Ok(superseded_in == epoch),
+            CacheResult::NegativeHit => Ok(false),
+            CacheResult::Miss => self
+                .record_db_get("superseded_version")
+                .object_superseded_in_epoch(object_id, version, epoch),
+        }
+    }
+
     fn try_get_latest_marker(
         &self,
         object_id: &ObjectId,
@@ -2168,6 +2255,37 @@ impl TransactionCacheRead for WritebackCache {
             digests,
             |store, digests| store.multi_get_transaction_blocks_in_epoch(epoch, digests),
             false,
+        )
+    }
+
+    fn try_multi_get_attestation_records_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<AttestationRecord>>> {
+        try_do_fallback_lookup(
+            digests,
+            |digest| {
+                self.metrics
+                    .record_cache_request("attestation_record", "uncommitted");
+                // Pending outputs are authoritative: `None` there means unattested.
+                match self.dirty.pending_transaction_writes.get(digest) {
+                    Some(outputs) => {
+                        self.metrics
+                            .record_cache_hit("attestation_record", "uncommitted");
+                        Ok(CacheResult::Hit(outputs.attestation_record))
+                    }
+                    None => {
+                        self.metrics
+                            .record_cache_miss("attestation_record", "uncommitted");
+                        Ok(CacheResult::Miss)
+                    }
+                }
+            },
+            |remaining| {
+                self.record_db_multi_get("attestation_record", remaining.len())
+                    .multi_get_attestation_records_in_epoch(epoch, remaining)
+            },
         )
     }
 
