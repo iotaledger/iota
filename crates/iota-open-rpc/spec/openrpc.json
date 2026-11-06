@@ -1712,7 +1712,7 @@
                   "u64": "1"
                 },
                 "gas_model_version": {
-                  "u64": "2"
+                  "u64": "3"
                 },
                 "gas_rounding_step": {
                   "u64": "1000"
