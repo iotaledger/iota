@@ -234,6 +234,15 @@ impl AttestationTotals {
         }
         self
     }
+
+    /// These totals plus `other`'s; saturating.
+    pub fn with_totals(mut self, other: &Self) -> Self {
+        for (&attestor, &units_squared) in &other.refuted_units_squared {
+            let sum = self.refuted_units_squared.entry(attestor).or_default();
+            *sum = sum.saturating_add(units_squared);
+        }
+        self
+    }
 }
 
 impl AttestedTransaction {

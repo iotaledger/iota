@@ -5,7 +5,10 @@
 //! path, the post-consensus checks of an attested transaction, and the record
 //! of an attested transaction's execution.
 
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashSet},
+    sync::Arc,
+};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
@@ -19,10 +22,13 @@ use iota_types::{
         self, AttestationData, AttestationRecord, AttestationTotals, AttestationVerdict,
     },
     auth_context::AuthContextData,
+    base_types::AuthorityName,
+    committee::Committee,
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
     inner_temporary_store::InnerTemporaryStore,
+    messages_checkpoint::CheckpointSummaryExt,
     move_authenticator::MoveAuthenticatorExt,
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjects,
@@ -284,6 +290,36 @@ impl AuthorityState {
             )?;
         Ok((tx_checked_input_objects, per_authenticator_checked_inputs))
     }
+
+    /// The validators cut off for the rest of the epoch, as the highest
+    /// certified checkpoint summary this node holds shows them; empty when the
+    /// cutoff is off or that summary is from an earlier epoch.
+    pub(crate) fn cut_off_validators(&self) -> BTreeSet<AuthorityName> {
+        let epoch_store = self.load_epoch_store_one_call_per_task();
+        let protocol_config = epoch_store.protocol_config();
+        let Some(max_refuted_units_squared) =
+            protocol_config.attestation_max_refuted_units_squared_as_option()
+        else {
+            return BTreeSet::new();
+        };
+        let Ok(Some(checkpoint)) = self
+            .get_checkpoint_store()
+            .get_highest_verified_checkpoint()
+        else {
+            return BTreeSet::new();
+        };
+        if checkpoint.epoch != epoch_store.epoch() {
+            return BTreeSet::new();
+        }
+        match checkpoint.parse_version_specific_data(protocol_config) {
+            Ok(Some(data)) => data
+                .attestation_totals()
+                .map_or_else(BTreeSet::new, |totals| {
+                    cut_off_attestors(totals, max_refuted_units_squared, epoch_store.committee())
+                }),
+            _ => BTreeSet::new(),
+        }
+    }
 }
 
 /// The record of an attested transaction's execution: the certified record
@@ -331,11 +367,42 @@ pub(super) fn attestation_record(
     }
 }
 
+/// Whether `units_squared` takes the attestor's whole score, which also
+/// stops its attestations for the rest of the epoch.
+fn takes_whole_score(units_squared: u64, max_refuted_units_squared: u64) -> bool {
+    units_squared >= max_refuted_units_squared.max(1)
+}
+
+/// The attestors whose `totals` take their whole score.
+pub(crate) fn attestors_taking_whole_score(
+    totals: &AttestationTotals,
+    max_refuted_units_squared: u64,
+) -> BTreeSet<u8> {
+    totals
+        .refuted_units_squared
+        .iter()
+        .filter(|&(_, &units_squared)| takes_whole_score(units_squared, max_refuted_units_squared))
+        .map(|(&attestor, _)| attestor)
+        .collect()
+}
+
+/// The committee members whose `totals` take their whole score.
+fn cut_off_attestors(
+    totals: &AttestationTotals,
+    max_refuted_units_squared: u64,
+    committee: &Committee,
+) -> BTreeSet<AuthorityName> {
+    attestors_taking_whole_score(totals, max_refuted_units_squared)
+        .into_iter()
+        .filter_map(|attestor| committee.authority_by_index(u32::from(attestor)).copied())
+        .collect()
+}
+
 /// Cuts each attestor's score by the squared units its refuted attestations
-/// wasted, relative to `max_fault_units`: a fault of that size takes the
-/// whole score, a smaller one the square of its fraction, and zero takes the
-/// whole score on any fault; the cuts add up and the score floors at zero.
-/// `scores` and the totals are both indexed by authority index.
+/// wasted, relative to `max_refuted_units_squared`: a sum that large takes the
+/// whole score, a smaller one its fraction, and zero takes the whole score on
+/// any fault; the score floors at zero. `scores` and the totals are both
+/// indexed by authority index.
 ///
 /// # Panics
 ///
@@ -343,9 +410,9 @@ pub(super) fn attestation_record(
 pub(crate) fn apply_fault_penalties(
     scores: &mut [u64],
     totals: &AttestationTotals,
-    max_fault_units: u64,
+    max_refuted_units_squared: u64,
 ) {
-    let full_cut = u128::from(max_fault_units).saturating_pow(2).max(1);
+    let full_cut = u128::from(max_refuted_units_squared.max(1));
     for (&attestor, &units_squared) in &totals.refuted_units_squared {
         let cut = u128::from(MAX_SCORE) * u128::from(units_squared).min(full_cut) / full_cut;
         let score = &mut scores[usize::from(attestor)];
@@ -475,26 +542,65 @@ mod tests {
         );
     }
 
-    /// A fault of `max_fault_units` takes the whole score, a smaller one the
-    /// square of its fraction, and faults beyond that saturate.
+    /// A fault whose squared units reach `max_refuted_units_squared` takes the
+    /// whole score, a smaller one the square of its fraction, and faults beyond
+    /// that saturate.
     #[test]
     fn fault_penalties_scale_with_the_square_of_the_wasted_units() {
-        const MAX_FAULT_UNITS: u64 = 10;
+        // One fault of 10 units takes the whole score.
+        const MAX_REFUTED_UNITS_SQUARED: u64 = 100;
         let record = |attestor, verdict| Some(AttestationRecord { attestor, verdict });
         let refuted = |units| AttestationVerdict::Refuted { units };
         let totals = AttestationTotals::default().with_records(&[
             // A full fault: the whole score.
-            record(0, refuted(MAX_FAULT_UNITS)),
+            record(0, refuted(10)),
             // Half a fault: a quarter of the score.
-            record(2, refuted(MAX_FAULT_UNITS / 2)),
+            record(2, refuted(5)),
             // Far beyond a full fault: still the whole score, nothing more.
-            record(3, refuted(10 * MAX_FAULT_UNITS)),
+            record(3, refuted(100)),
             record(1, AttestationVerdict::Valid),
             None,
         ]);
 
         let mut scores = vec![MAX_SCORE; 4];
-        apply_fault_penalties(&mut scores, &totals, MAX_FAULT_UNITS);
+        apply_fault_penalties(&mut scores, &totals, MAX_REFUTED_UNITS_SQUARED);
         assert_eq!(scores, vec![0, MAX_SCORE, MAX_SCORE - MAX_SCORE / 4, 0]);
+    }
+
+    /// The cutoff threshold is where the epoch-end cut takes the whole score.
+    #[test]
+    fn cutoff_matches_the_whole_score_cut() {
+        for (max_refuted_units_squared, units_squared, whole) in [
+            (100, 99, false),
+            (100, 100, true),
+            // Zero takes the whole score on any fault.
+            (0, 0, false),
+            (0, 1, true),
+        ] {
+            assert_eq!(
+                takes_whole_score(units_squared, max_refuted_units_squared),
+                whole
+            );
+            let totals = AttestationTotals {
+                refuted_units_squared: [(0, units_squared)].into(),
+            };
+            let mut scores = vec![MAX_SCORE; 4];
+            apply_fault_penalties(&mut scores, &totals, max_refuted_units_squared);
+            assert_eq!(scores[0] == 0, whole);
+        }
+    }
+
+    /// Only the members whose totals reach the threshold are cut off.
+    #[test]
+    fn cut_off_attestors_are_the_members_taking_the_whole_score() {
+        let (committee, _) = Committee::new_simple_test_committee();
+        let totals = AttestationTotals {
+            refuted_units_squared: [(0, 100), (1, 99)].into(),
+        };
+        let first = *committee.authority_by_index(0).unwrap();
+        assert_eq!(
+            cut_off_attestors(&totals, 100, &committee),
+            BTreeSet::from([first])
+        );
     }
 }

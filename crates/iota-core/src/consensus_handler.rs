@@ -759,12 +759,13 @@ impl ExecutionWatcher {
                 .try_notify_read_executed_effects(EXECUTION_WATCHER_NOTIFY_READ_TASK_NAME, &digests)
                 .await?;
             let upserts = handler_rows_for_commit(&effects, index);
+            let attestation_totals = epoch_store.commit_attestation_totals(&digests)?;
             #[cfg(test)]
             epoch_store.injected_watcher_completion_error()?;
             // A no-op once the commit's output has flushed: the flush derives
             // the durable rows from the same effects and completes the commit
             // itself.
-            epoch_store.record_commit_fully_executed(index, &upserts)?;
+            epoch_store.record_commit_fully_executed(index, &upserts, attestation_totals)?;
         }
         Ok(())
     }

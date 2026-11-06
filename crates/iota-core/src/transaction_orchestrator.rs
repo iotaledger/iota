@@ -907,6 +907,7 @@ where
                 Some(request.transaction.clone()),
                 SubmitTransactionOptions {
                     forwarded_client_addr: client_addr,
+                    cut_off_validators: validator_state.cut_off_validators(),
                     ..Default::default()
                 },
                 Some(WAIT_FOR_FINALITY_TIMEOUT),

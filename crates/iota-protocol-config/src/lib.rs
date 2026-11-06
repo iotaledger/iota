@@ -1681,13 +1681,15 @@ pub struct ProtocolConfig {
     /// it.
     attestor_accuracy_tolerance_percentage: Option<u64>,
 
-    /// Wasted authentication units at which one refuted attestation takes the
-    /// attestor's whole epoch reward, through its entry in the change-epoch
-    /// scores; a smaller fault takes the square of its fraction, and zero
-    /// takes the whole reward on the first refuted attestation. The cut
-    /// reaches the reward only under `adjust_rewards_by_score`. Unset
-    /// disables the penalty.
-    attestation_max_fault_units: Option<u64>,
+    /// Sum of the squared wasted authentication units of an attestor's refuted
+    /// attestations at which the cut takes its whole epoch reward, through its
+    /// entry in the change-epoch scores: one fault of √value units takes it
+    /// all, one of half that size a quarter; 0 takes the whole reward on the
+    /// first refuted attestation. The cut reaches the reward only under
+    /// `adjust_rewards_by_score`. An attestor whose sum reaches it has its
+    /// attested transactions dropped at post-consensus validation for the rest
+    /// of the epoch. Unset disables the penalty and the cutoff.
+    attestation_max_refuted_units_squared: Option<u64>,
 
     /// The max number of transactions that can be included in a single Soft
     /// Bundle.
@@ -2552,14 +2554,15 @@ impl ProtocolConfig {
                 "enable_validator_attestation requires checkpoint_summary_version_specific_data = 2"
             );
         }
-        if ret.attestation_max_fault_units.is_some() {
+        if ret.attestation_max_refuted_units_squared.is_some() {
             assert!(
                 ret.enable_validator_attestation(),
-                "attestation_max_fault_units requires enable_validator_attestation"
+                "attestation_max_refuted_units_squared requires enable_validator_attestation"
             );
             assert!(
                 ret.pass_validator_scores_to_advance_epoch(),
-                "attestation_max_fault_units requires pass_validator_scores_to_advance_epoch"
+                "attestation_max_refuted_units_squared requires \
+                 pass_validator_scores_to_advance_epoch"
             );
         }
 
@@ -3079,7 +3082,7 @@ impl ProtocolConfig {
 
             checkpoint_summary_version_specific_data: Some(1),
             attestor_accuracy_tolerance_percentage: None,
-            attestation_max_fault_units: None,
+            attestation_max_refuted_units_squared: None,
 
             max_soft_bundle_size: Some(5),
 

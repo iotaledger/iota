@@ -27,7 +27,7 @@
 //!   epoch. Commits from then on make no checkpoint and do not wait for the horizon to be fully
 //!   executed.
 
-use std::{path::PathBuf, str::FromStr, sync::Arc, time::Duration};
+use std::{collections::BTreeSet, path::PathBuf, str::FromStr, sync::Arc, time::Duration};
 
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_macros::sim_test;
@@ -49,7 +49,9 @@ use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRefV1, derive_authenticator_function_ref_v1_dynamic_field_id,
     },
-    attestation::{Attestation, AttestationData, AttestedTransaction},
+    attestation::{
+        Attestation, AttestationData, AttestationRecord, AttestationVerdict, AttestedTransaction,
+    },
     base_types::random_object_ref,
     crypto::{AccountPrivateKey, get_key_pair},
     deny_list_v1::{check_address_denied_by_config, get_per_type_coin_deny_list_v1},
@@ -96,7 +98,7 @@ use crate::{
         ConsensusCommitInfo, ExecutionWatcher, SequencedConsensusTransaction,
         VerifiedSequencedConsensusTransaction,
     },
-    execution_scheduler::ExecutionSchedulerAPI,
+    execution_scheduler::{ExecutionSchedulerAPI, transaction_manager::AttestationSource},
     post_consensus_input_reader::{
         DropKind, DynamicFieldAtHorizon, InputResolution, MissingKind, OwnedVerdict, SharedVerdict,
         ValidationAtCommit, reader::CommitIndexedReader,
@@ -2392,6 +2394,19 @@ fn enable_validator_attestation() -> OverrideGuard {
     })
 }
 
+/// Turns validator attestation and the attestor cutoff on while the guard
+/// lives. One refuted attestation of 10 units, 100 squared, takes an
+/// attestor's whole score.
+fn enable_attestor_cutoff() -> OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config.set_attestation_max_refuted_units_squared_for_testing(100);
+        config
+    })
+}
+
 /// A fresh authority holding `object` and `gas`, with their live references.
 async fn setup_transfer_inputs(
     object: Object,
@@ -2855,6 +2870,14 @@ struct ValidationResult {
     kept: Vec<TransactionDigest>,
     dropped: Vec<(TransactionDigest, IotaError)>,
     locks: std::collections::HashMap<ObjectReference, LockDetails>,
+}
+
+/// What one validation of attested copies decided: the digest and block
+/// author of each kept copy, and each drop with its decision.
+#[derive(Debug, PartialEq, Eq)]
+struct ValidatedCopies {
+    kept: Vec<(TransactionDigest, u32)>,
+    dropped: Vec<(TransactionDigest, IotaError, PostConsensusDecision)>,
 }
 
 async fn setup_handler_object_state(
@@ -3501,6 +3524,7 @@ impl HandlerObjectStateSetup {
                         deleted_by: None,
                     },
                 )],
+                Default::default(),
             )
             .unwrap();
     }
@@ -3523,7 +3547,7 @@ impl HandlerObjectStateSetup {
         self.epoch_store
             .assign_commit_to_transactions(index, vec![]);
         self.epoch_store
-            .record_commit_fully_executed(index, &[row])
+            .record_commit_fully_executed(index, &[row], Default::default())
             .unwrap();
         self.authority.insert_genesis_object(object);
     }
@@ -3657,7 +3681,7 @@ impl HandlerObjectStateSetup {
         self.epoch_store
             .assign_commit_to_transactions(index, vec![]);
         self.epoch_store
-            .record_commit_fully_executed(index, &[])
+            .record_commit_fully_executed(index, &[], Default::default())
             .unwrap();
     }
 
@@ -3763,6 +3787,67 @@ impl HandlerObjectStateSetup {
         }
     }
 
+    /// `tx` attested by `author` in `author`'s block, with the minimum units
+    /// Check #3 accepts.
+    fn attested_copy(
+        &self,
+        tx: &VerifiedTransaction,
+        author: u8,
+    ) -> VerifiedSequencedConsensusTransaction {
+        let protocol_config = self.epoch_store.protocol_config();
+        let units = protocol_config
+            .base_tx_cost_fixed()
+            .min(protocol_config.gas_rounding_step());
+        let mut copy = make_attested_user_tx(tx.clone().into(), author, units);
+        copy.0.certificate_author_index = author.into();
+        copy
+    }
+
+    /// Executes `tx`, whose commit is assigned, the way execution from a
+    /// certified checkpoint does when the checkpoint records `attestor`'s
+    /// attestation of it as refuted with `units`.
+    fn execute_refuted(&self, tx: VerifiedTransaction, attestor: u8, units: u64) {
+        let attestation = AttestationSource::Certified(Some(AttestationRecord {
+            attestor,
+            verdict: AttestationVerdict::Refuted { units },
+        }));
+        let effects = self.execute_executable(
+            &self.executable(tx),
+            ExecutionEnv::new().with_attestation(attestation),
+        );
+        assert!(effects.status().is_success(), "{:?}", effects.status());
+    }
+
+    /// Validates the consensus `copies` at commit `index` with deterministic
+    /// validation on.
+    async fn validate_copies_at(
+        &self,
+        index: CommitIndex,
+        mut copies: Vec<VerifiedSequencedConsensusTransaction>,
+    ) -> ValidatedCopies {
+        let (dropped, _, _) = post_consensus_validation::validate_and_resolve_conflicts(
+            &self.authority,
+            &self.epoch_store,
+            index,
+            &Default::default(),
+            &mut copies,
+        )
+        .await
+        .unwrap();
+        ValidatedCopies {
+            kept: copies
+                .iter()
+                .map(|tx| {
+                    (
+                        tx.0.transaction.user_transaction_digest().unwrap(),
+                        tx.0.certificate_author_index,
+                    )
+                })
+                .collect(),
+            dropped,
+        }
+    }
+
     /// The roots of every pending checkpoint, by height.
     fn checkpoint_roots(&self) -> Vec<(u64, Vec<TransactionKey>)> {
         self.epoch_store
@@ -3781,7 +3866,7 @@ impl HandlerObjectStateSetup {
             .flat_map(|effects| handler_processed_upserts(effects, index))
             .collect();
         self.epoch_store
-            .record_commit_fully_executed(index, &upserts)
+            .record_commit_fully_executed(index, &upserts, Default::default())
             .unwrap();
     }
 
@@ -4627,6 +4712,235 @@ async fn watcher_restores_rows_of_a_replayed_commit_after_restart() {
     for id in [obj2_id, gas2_id] {
         assert_eq!(row(&second, id).map(|row| row.produced_at), Some(2));
     }
+}
+
+/// An attestor whose refuted totals take its whole score is cut off from the
+/// commit whose horizon reaches them. Its attested copies drop as copies, so
+/// another author's copy of the same transaction is kept, and an attestor
+/// below the threshold is not cut off. After a restart the commit replays its
+/// saved decisions, and a later commit reads the totals back from the table.
+#[tokio::test]
+async fn cut_off_attestor_copies_drop_once_the_horizon_reaches_its_refuted_totals() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let inputs: Vec<(ObjectId, ObjectId)> = (0..5)
+        .map(|_| (ObjectId::random(), ObjectId::random()))
+        .collect();
+    let mut s = setup_handler_object_state_with_config_guard(
+        inputs
+            .iter()
+            .flat_map(|(object, gas)| [*object, *gas])
+            .map(|id| Object::with_id_owner_for_testing(id, sender))
+            .collect(),
+        Some(enable_attestor_cutoff()),
+    )
+    .await;
+    let transfer = |(object, gas): &(ObjectId, ObjectId)| {
+        s.build_transfer(object, gas, sender, &sender_key, Address::random())
+    };
+    let (refuted_0, refuted_2) = (transfer(&inputs[0]), transfer(&inputs[1]));
+    let (t1, t2, t3) = (
+        transfer(&inputs[2]),
+        transfer(&inputs[3]),
+        transfer(&inputs[4]),
+    );
+    let k = s.horizon_distance();
+
+    // Commit 1 refutes attestor 0 with 10 units, 100 squared, which takes its
+    // whole score, and attestor 2 with 9, 81 squared, which does not.
+    let watcher = s.start_execution_watcher();
+    let roots = vec![*refuted_0.digest(), *refuted_2.digest()];
+    s.epoch_store.assign_commit_to_transactions(
+        1,
+        roots
+            .iter()
+            .map(|digest| TransactionKey::Digest(*digest))
+            .collect(),
+    );
+    s.execute_refuted(refuted_0, 0, 10);
+    s.execute_refuted(refuted_2, 2, 9);
+    s.wait_for_fully_executed_commit(1).await;
+
+    // Commit `k` reads as of the horizon 0, before commit 1.
+    assert_eq!(
+        s.validate_copies_at(k, vec![s.attested_copy(&t1, 0)]).await,
+        ValidatedCopies {
+            kept: vec![(*t1.digest(), 0)],
+            dropped: vec![],
+        }
+    );
+
+    // Commit `k + 1` reads as of the horizon 1.
+    let copies = |s: &HandlerObjectStateSetup| {
+        vec![
+            s.attested_copy(&t1, 0),
+            s.attested_copy(&t2, 0),
+            s.attested_copy(&t2, 1),
+            s.attested_copy(&t3, 2),
+        ]
+    };
+    let cut_off = ValidatedCopies {
+        kept: vec![(*t2.digest(), 1), (*t3.digest(), 2)],
+        dropped: vec![(
+            *t1.digest(),
+            IotaError::AttestorCutOff { attestor: 0 },
+            PostConsensusDecision::DroppedCopy,
+        )],
+    };
+    assert_eq!(s.validate_copies_at(k + 1, copies(&s)).await, cut_off);
+    assert_eq!(
+        s.authority
+            .metrics
+            .consensus_handler_validation_attestor_cut_off_transactions
+            .get(),
+        2
+    );
+
+    // The node restarts once commit 1 has flushed.
+    s.epoch_store
+        .flush_commit_through_quarantine_for_testing(1, roots)
+        .unwrap();
+    drop(watcher);
+    s.restart_epoch_store().await;
+    assert_eq!(s.validate_copies_at(k + 1, copies(&s)).await, cut_off);
+    s.complete_empty_commit(2);
+    assert_eq!(
+        s.validate_copies_at(k + 2, vec![s.attested_copy(&t1, 0)])
+            .await,
+        ValidatedCopies {
+            kept: vec![],
+            dropped: cut_off.dropped,
+        }
+    );
+}
+
+/// The flush completes a commit with refuted roots before the watcher
+/// reaches it, deriving the commit's totals from the roots' records. The
+/// watcher reaching the commit afterwards must not count them again.
+#[tokio::test]
+async fn flush_records_refuted_totals_the_watcher_does_not_count_again() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj1_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let obj2_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+    let s = setup_handler_object_state_with_config_guard(
+        vec![
+            Object::with_id_owner_for_testing(obj1_id, sender),
+            Object::with_id_owner_for_testing(gas1_id, sender),
+            Object::with_id_owner_for_testing(obj2_id, sender),
+            Object::with_id_owner_for_testing(gas2_id, sender),
+        ],
+        Some(enable_attestor_cutoff()),
+    )
+    .await;
+
+    // Commit 1 refutes attestor 0 with 10 units, 100 squared, which takes its
+    // whole score, and attestor 2 with 8, 64 squared, which would only if
+    // counted twice. It flushes before any watcher runs.
+    let first = s.build_transfer(&obj1_id, &gas1_id, sender, &sender_key, Address::random());
+    let second = s.build_transfer(&obj2_id, &gas2_id, sender, &sender_key, Address::random());
+    let roots = vec![*first.digest(), *second.digest()];
+    s.epoch_store.assign_commit_to_transactions(
+        1,
+        roots
+            .iter()
+            .map(|digest| TransactionKey::Digest(*digest))
+            .collect(),
+    );
+    s.execute_refuted(first, 0, 10);
+    s.execute_refuted(second, 2, 8);
+    s.epoch_store
+        .flush_commit_through_quarantine_for_testing(1, roots)
+        .unwrap();
+    assert_eq!(
+        s.epoch_store.attestors_cut_off_as_of(1),
+        BTreeSet::from([0])
+    );
+
+    // The watcher now receives commit 1, then an empty commit 2.
+    let _watcher = s.start_execution_watcher();
+    s.epoch_store.assign_commit_to_transactions(2, vec![]);
+    s.wait_for_fully_executed_commit(2).await;
+    assert_eq!(
+        s.epoch_store.attestors_cut_off_as_of(2),
+        BTreeSet::from([0])
+    );
+}
+
+/// A commit the watcher completed before a crash, but that had not flushed,
+/// loses its refuted totals with the process. When the handler replays the
+/// commit, the watcher must restore them from the records on disk, on top of
+/// the totals the table holds for the flushed commits.
+#[tokio::test]
+async fn watcher_restores_refuted_totals_of_a_replayed_commit_after_restart() {
+    let (address_1, address_1_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (address_2, address_2_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj1_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let obj2_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+    let s = setup_handler_object_state_with_config_guard(
+        vec![
+            Object::with_id_owner_for_testing(obj1_id, address_1),
+            Object::with_id_owner_for_testing(gas1_id, address_1),
+            Object::with_id_owner_for_testing(obj2_id, address_2),
+            Object::with_id_owner_for_testing(gas2_id, address_2),
+        ],
+        Some(enable_attestor_cutoff()),
+    )
+    .await;
+
+    // Attestor 0 is refuted with 6 units, 36 squared, in commit 1, which
+    // flushes, and with 8, 64 squared, in commit 2, whose output is still in
+    // the quarantine when the node crashes: 100 together, its whole score.
+    let watcher = s.start_execution_watcher();
+    let first = s.build_transfer(
+        &obj1_id,
+        &gas1_id,
+        address_1,
+        &address_1_key,
+        Address::random(),
+    );
+    let first_digest = *first.digest();
+    s.epoch_store
+        .assign_commit_to_transactions(1, vec![TransactionKey::Digest(first_digest)]);
+    s.execute_refuted(first, 0, 6);
+    s.wait_for_fully_executed_commit(1).await;
+    s.epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![first_digest])
+        .unwrap();
+    let second = s.build_transfer(
+        &obj2_id,
+        &gas2_id,
+        address_2,
+        &address_2_key,
+        Address::random(),
+    );
+    let second_key = TransactionKey::Digest(*second.digest());
+    s.epoch_store
+        .assign_commit_to_transactions(2, vec![second_key]);
+    s.execute_refuted(second, 0, 8);
+    s.wait_for_fully_executed_commit(2).await;
+    assert_eq!(
+        s.epoch_store.attestors_cut_off_as_of(2),
+        BTreeSet::from([0])
+    );
+    drop(watcher);
+
+    let reopened = reopen(&s.authority, &s.epoch_store);
+    reopened.set_effects_store(s.authority.get_transaction_cache_reader().clone());
+    assert_eq!(reopened.attestors_cut_off_as_of(1), BTreeSet::new());
+
+    // The handler replays commit 2. Its transaction is not executed again.
+    let _watcher = ExecutionWatcher::start(reopened.clone());
+    reopened.assign_commit_to_transactions(2, vec![second_key]);
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        reopened.wait_for_fully_executed_commit(2),
+    )
+    .await
+    .expect("the replayed commit must become fully executed");
+    assert_eq!(reopened.attestors_cut_off_as_of(2), BTreeSet::from([0]));
 }
 
 /// A checkpoint's rows are written to the table with the checkpoint, before
@@ -7838,7 +8152,11 @@ async fn executed_deferred_transaction_replays_both_occurrences() {
         .find(|effects| effects.transaction_digest() == first[0].digest())
         .unwrap();
     s.epoch_store
-        .record_commit_fully_executed(1, &handler_processed_upserts(first_effects, 1))
+        .record_commit_fully_executed(
+            1,
+            &handler_processed_upserts(first_effects, 1),
+            Default::default(),
+        )
         .unwrap();
     assert!(
         s.process_at(3, std::slice::from_ref(&deferred))
@@ -8571,7 +8889,7 @@ async fn retry_after_retired_drop_matches_reopened_store() {
     assert_eq!(retry.dropped.len(), 1);
     normal
         .epoch_store
-        .record_commit_fully_executed(13, &[])
+        .record_commit_fully_executed(13, &[], Default::default())
         .unwrap();
     let accepted = normal
         .validate_at(17, std::slice::from_ref(&consumer))
