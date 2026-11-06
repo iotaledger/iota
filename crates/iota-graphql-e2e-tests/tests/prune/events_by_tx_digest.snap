@@ -107,7 +107,8 @@ Response: {
         "events"
       ],
       "extensions": {
-        "code": "DATA_PRUNED"
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
       }
     }
   ]

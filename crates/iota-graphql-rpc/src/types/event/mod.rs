@@ -170,7 +170,7 @@ impl Event {
     ) -> Result<Connection<String, Event>, Error> {
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         if let Some(cursor_viewed_at) = cursor_viewed_at {
-            check_cursor_not_pruned(db, cursor_viewed_at)?;
+            check_cursor_not_pruned(db, cursor_viewed_at, filter.oldest_available_checkpoint(db))?;
         }
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 

@@ -4,6 +4,8 @@
 
 use std::fmt::Write;
 
+use iota_indexer::pruning::CommitterTables;
+
 use crate::{
     data::pg::bytea_literal,
     filter, query,
@@ -11,11 +13,35 @@ use crate::{
     types::{
         cursor::Page,
         digest::Digest,
-        event::Cursor,
+        event::{Cursor, filter::EventFilter},
         iota_address::IotaAddress,
         type_filter::{ModuleFilter, TypeFilter},
     },
 };
+
+/// The lookup table the events query for `filter` reads, if the filter needs
+/// one. Mirrors the table choice of the `select_*` functions below.
+pub(crate) fn lookup_table(filter: &EventFilter) -> Option<CommitterTables> {
+    use CommitterTables::*;
+
+    match (filter.sender, &filter.emitting_module, &filter.event_type) {
+        (None, None, None) | (_, Some(_), Some(_)) => None,
+        (Some(_), None, None) => Some(EventSenders),
+        (_, None, Some(TypeFilter::ByModule(ModuleFilter::ByPackage(_)))) => {
+            Some(EventStructPackage)
+        }
+        (_, None, Some(TypeFilter::ByModule(ModuleFilter::ByModule(..)))) => {
+            Some(EventStructModule)
+        }
+        (_, None, Some(TypeFilter::ByType(tag))) => Some(if tag.type_params().is_empty() {
+            EventStructName
+        } else {
+            EventStructInstantiation
+        }),
+        (_, Some(ModuleFilter::ByPackage(_)), None) => Some(EventEmitPackage),
+        (_, Some(ModuleFilter::ByModule(..)), None) => Some(EventEmitModule),
+    }
+}
 
 fn select_ev(sender: Option<IotaAddress>, from: &str) -> RawQuery {
     let query = query!(format!(
