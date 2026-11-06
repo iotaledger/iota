@@ -18,7 +18,7 @@ use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 use tokio::sync::{Mutex, broadcast, mpsc::Sender};
-use tokio_util::sync::ReusableBoxFuture;
+use tokio_util::sync::{CancellationToken, ReusableBoxFuture};
 use tracing::{debug, error, info, warn};
 
 use crate::{
@@ -45,6 +45,7 @@ use crate::{
         BlockBundleStream, ChunkStream, FetchedCommitsAndTransactions, NetworkService,
         SerializedBlock, SerializedBlockBundle, SerializedBlockBundleParts,
         SerializedHeaderAndTransactions, SerializedTransactionsV2, StreamPosition,
+        admission::AdmissionGuard,
         tonic_network::{
             MAX_FETCH_RESPONSE_BYTES, chunk_data, max_serialized_transactions_entry_bytes,
         },
@@ -1001,8 +1002,9 @@ impl TransactionCursor {
         }
     }
 
-    /// Builds the next chunk, `None` once the response is over.
-    fn next_chunk(&mut self) -> ConsensusResult<Option<Vec<Bytes>>> {
+    /// Builds the next chunk, `None` once the response is over or `cancel` is
+    /// cancelled.
+    fn next_chunk(&mut self, cancel: &CancellationToken) -> ConsensusResult<Option<Vec<Bytes>>> {
         let byte_budget = self
             .context
             .parameters
@@ -1022,6 +1024,9 @@ impl TransactionCursor {
                 continue;
             }
             if !self.read.contains_key(&transaction_ref) {
+                if cancel.is_cancelled() {
+                    return Ok(None);
+                }
                 // Refs and store keys share their order, so the smallest unread
                 // ref is either read by this scan or absent from the store.
                 let unread: Vec<TransactionRef> = refs
@@ -1098,8 +1103,9 @@ where
         }
     }
 
-    /// Builds the next chunk, `None` once the response is over.
-    fn next_chunk(&mut self) -> ConsensusResult<Option<Vec<Bytes>>> {
+    /// Builds the next chunk, `None` once the response is over or `cancel` is
+    /// cancelled.
+    fn next_chunk(&mut self, cancel: &CancellationToken) -> ConsensusResult<Option<Vec<Bytes>>> {
         let mut chunk: Vec<Bytes> = Vec::new();
         let mut chunk_size = 0;
         loop {
@@ -1118,6 +1124,9 @@ where
             if space == 0 && !chunk.is_empty() {
                 return Ok(Some(chunk));
             }
+            if cancel.is_cancelled() {
+                return Ok(None);
+            }
             self.read
                 .extend((self.read_entries)(&mut self.refs, space)?);
         }
@@ -1126,38 +1135,49 @@ where
 
 /// Serves the chunks `next_chunk` builds as a stream, building each on the
 /// blocking pool when the transport asks for it. `next_chunk` returns `None`
-/// once the response is over.
-fn chunk_stream<F>(next_chunk: F) -> ChunkStream
+/// once the response is over, and stops reading once the token it gets is
+/// cancelled, which happens when the stream is dropped. A chunk being built
+/// holds `admission_guard` until it is done, so a peer that drops a response
+/// keeps its admission slot until the read ends.
+fn chunk_stream<F>(admission_guard: Option<Arc<AdmissionGuard>>, next_chunk: F) -> ChunkStream
 where
-    F: FnMut() -> ConsensusResult<Option<Vec<Bytes>>> + Send + 'static,
+    F: FnMut(&CancellationToken) -> ConsensusResult<Option<Vec<Bytes>>> + Send + 'static,
 {
-    stream::unfold(Some(next_chunk), |state| async move {
-        let mut next_chunk = state?;
-        let (next_chunk, chunk) = match spawn_blocking(move || {
-            let chunk = next_chunk();
-            (next_chunk, chunk)
-        })
-        .await
-        {
-            Ok(built) => built,
-            Err(e) => return Some((Err(e), None)),
-        };
-        match chunk {
-            Ok(Some(chunk)) => Some((Ok(chunk), Some(next_chunk))),
-            Ok(None) => None,
-            Err(e) => Some((Err(e), None)),
+    let cancel = CancellationToken::new();
+    let state = (next_chunk, cancel.clone().drop_guard());
+    stream::unfold(Some(state), move |state| {
+        let admission_guard = admission_guard.clone();
+        let cancel = cancel.clone();
+        async move {
+            let (mut next_chunk, cancel_on_drop) = state?;
+            let (next_chunk, chunk) = match spawn_blocking(move || {
+                let chunk = next_chunk(&cancel);
+                drop(admission_guard);
+                (next_chunk, chunk)
+            })
+            .await
+            {
+                Ok(built) => built,
+                Err(e) => return Some((Err(e), None)),
+            };
+            match chunk {
+                Ok(Some(chunk)) => Some((Ok(chunk), Some((next_chunk, cancel_on_drop)))),
+                Ok(None) => None,
+                Err(e) => Some((Err(e), None)),
+            }
         }
     })
     .boxed()
 }
 
 /// Serves the headers of `block_refs` to commit sync in their order, reading
-/// them as the transport asks for each chunk.
+/// them as the transport asks for each chunk while holding `admission_guard`.
 fn header_fetch_response(
     context: &Context,
     store: Arc<dyn Store>,
     dag_state: Arc<RwLock<DagState>>,
     block_refs: Vec<BlockRef>,
+    admission_guard: Option<Arc<AdmissionGuard>>,
 ) -> ChunkStream {
     let max_header_bytes = max_signed_block_header_bytes(context.committee.size());
     let mut cursor = RefCursor::new(
@@ -1171,17 +1191,18 @@ fn header_fetch_response(
             read_block_headers(store.as_ref(), &dag_state, &batch)
         },
     );
-    chunk_stream(move || cursor.next_chunk())
+    chunk_stream(admission_guard, move |cancel| cursor.next_chunk(cancel))
 }
 
 /// Serves the payloads of `transaction_refs` in their order, reading them as
-/// the transport asks for each chunk. A ref listed more than once is served
-/// once.
+/// the transport asks for each chunk while holding `admission_guard`. A ref
+/// listed more than once is served once.
 fn transaction_fetch_response(
     context: Arc<Context>,
     store: Arc<dyn Store>,
     dag_state: Arc<RwLock<DagState>>,
     mut transaction_refs: Vec<TransactionRef>,
+    admission_guard: Option<Arc<AdmissionGuard>>,
 ) -> ChunkStream {
     let mut listed = BTreeSet::new();
     transaction_refs.retain(|transaction_ref| listed.insert(*transaction_ref));
@@ -1192,7 +1213,7 @@ fn transaction_fetch_response(
             read_transactions_up_to_budget(&context, store.as_ref(), &dag_state, refs, byte_budget)
         },
     );
-    chunk_stream(move || cursor.next_chunk())
+    chunk_stream(admission_guard, move |cancel| cursor.next_chunk(cancel))
 }
 
 /// Takes refs from the front of `refs` and reads their entries in order, until
@@ -1764,6 +1785,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         peer: AuthorityIndex,
         mut block_refs: Vec<BlockRef>,
         highest_accepted_rounds: Vec<Round>,
+        admission_guard: Option<Arc<AdmissionGuard>>,
     ) -> ConsensusResult<ChunkStream> {
         fail_point_async!("consensus-rpc-response");
 
@@ -1813,6 +1835,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 self.store.clone(),
                 self.dag_state.clone(),
                 block_refs,
+                admission_guard,
             )
         } else {
             // For periodic or live synchronizer, we respond with requested blocks from the
@@ -2017,6 +2040,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
+        admission_guard: Option<Arc<AdmissionGuard>>,
     ) -> ConsensusResult<FetchedCommitsAndTransactions> {
         fail_point_async!("consensus-rpc-response");
 
@@ -2055,7 +2079,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             MAX_FETCH_RESPONSE_BYTES,
             commits_transaction_refs,
         );
-        let transactions = chunk_stream(move || cursor.next_chunk());
+        let transactions = chunk_stream(admission_guard, move |cancel| cursor.next_chunk(cancel));
 
         let serialized_commits: Vec<Bytes> = commits
             .into_iter()
@@ -2121,6 +2145,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         mut committed_transactions_refs: Vec<TransactionRef>,
+        admission_guard: Option<Arc<AdmissionGuard>>,
     ) -> ConsensusResult<ChunkStream> {
         fail_point_async!("consensus-rpc-response");
 
@@ -2152,6 +2177,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             self.store.clone(),
             self.dag_state.clone(),
             committed_transactions_refs,
+            admission_guard,
         ))
     }
 }
@@ -2400,7 +2426,8 @@ mod tests {
     use std::{
         cmp::min,
         collections::{BTreeMap, BTreeSet, VecDeque},
-        sync::Arc,
+        convert::Infallible,
+        sync::{Arc, mpsc::channel},
         time::Duration,
     };
 
@@ -2415,6 +2442,8 @@ mod tests {
         sync::{broadcast, mpsc},
         time::sleep,
     };
+    use tokio_util::sync::CancellationToken;
+    use tower::{Layer, ServiceExt, service_fn};
 
     use crate::{
         CommitConsumer, CommitIndex, Round, Transaction, TransactionClient,
@@ -2454,7 +2483,8 @@ mod tests {
             BlockBundle, BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient,
             NetworkService, SerializedBlock, SerializedBlockBundle, SerializedBlockBundleParts,
             SerializedHeaderAndTransactions, SerializedTransactionsV2, StreamPosition,
-            tonic_network::MAX_FETCH_RESPONSE_BYTES,
+            admission::{AdmissionGuard, AdmissionLayer},
+            tonic_network::{CONSENSUS_SERVICE_PATH_PREFIX, MAX_FETCH_RESPONSE_BYTES, PeerInfo},
         },
         shard_reconstructor::TransactionMessage,
         storage::{Store, WriteBatch, mem_store::MemStore},
@@ -5030,7 +5060,7 @@ mod tests {
             BlockHeaderDigest::MIN,
         ));
         let truncated_headers = authority_service
-            .handle_fetch_headers(peer, oversized_request, vec![])
+            .handle_fetch_headers(peer, oversized_request, vec![], None)
             .await
             .expect("Should return a valid vector of serialized block headers")
             .try_concat()
@@ -5179,7 +5209,12 @@ mod tests {
 
         let peer = context.committee.to_authority_index(1).unwrap();
         let err = authority_service
-            .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![1; validators + 1])
+            .handle_fetch_headers(
+                peer,
+                block_refs_to_request.clone(),
+                vec![1; validators + 1],
+                None,
+            )
             .await
             .err()
             .expect("Expected InvalidSizeOfHighestAcceptedRounds error");
@@ -5189,7 +5224,12 @@ mod tests {
             ConsensusError::InvalidSizeOfHighestAcceptedRounds(..)
         ));
         let truncated_headers = authority_service
-            .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![1; validators])
+            .handle_fetch_headers(
+                peer,
+                block_refs_to_request.clone(),
+                vec![1; validators],
+                None,
+            )
             .await
             .expect("Should return a valid vector of serialized block headers")
             .try_concat()
@@ -5218,7 +5258,12 @@ mod tests {
         block_refs_to_request.truncate(context.parameters.max_headers_per_header_sync_fetch / 2);
 
         let serialized_block_headers = authority_service
-            .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![1; validators])
+            .handle_fetch_headers(
+                peer,
+                block_refs_to_request.clone(),
+                vec![1; validators],
+                None,
+            )
             .await
             .expect("Should return a valid vector of serialized block headers")
             .try_concat()
@@ -5610,7 +5655,7 @@ mod tests {
 
         let peer = context.committee.to_authority_index(1).unwrap();
         let serialized_transactions = authority_service
-            .handle_fetch_transactions(peer, tx_refs_to_request_first_batch.clone())
+            .handle_fetch_transactions(peer, tx_refs_to_request_first_batch.clone(), None)
             .await
             .expect("We should expect a correct return of serialized transactions")
             .try_concat()
@@ -5660,7 +5705,7 @@ mod tests {
         );
 
         let serialized_transactions = authority_service
-            .handle_fetch_transactions(peer, tx_refs_to_request_second_batch.clone())
+            .handle_fetch_transactions(peer, tx_refs_to_request_second_batch.clone(), None)
             .await
             .expect("Should return an empty vector")
             .try_concat()
@@ -5692,7 +5737,7 @@ mod tests {
         assert!(empty_ref.round <= dag_state.read().evicted_transaction_round(empty_ref.author));
 
         let serialized_transactions = authority_service
-            .handle_fetch_transactions(peer, vec![empty_ref])
+            .handle_fetch_transactions(peer, vec![empty_ref], None)
             .await
             .unwrap()
             .try_concat()
@@ -5889,7 +5934,7 @@ mod tests {
         // sync path)
         let peer = context.committee.to_authority_index(1).unwrap();
         let returned_headers = authority_service
-            .handle_fetch_headers(peer, interleaved_refs.clone(), vec![])
+            .handle_fetch_headers(peer, interleaved_refs.clone(), vec![], None)
             .await
             .expect("Should return valid serialized block headers")
             .try_concat()
@@ -5929,7 +5974,7 @@ mod tests {
             .map(|block_ref| transaction_refs_by_block[block_ref])
             .collect();
         let returned_transactions = authority_service
-            .handle_fetch_transactions(peer, transaction_refs.clone())
+            .handle_fetch_transactions(peer, transaction_refs.clone(), None)
             .await
             .unwrap()
             .try_concat()
@@ -6164,7 +6209,7 @@ mod tests {
     /// Builds every chunk `cursor` serves.
     fn served_chunks(mut cursor: TransactionCursor) -> Vec<Vec<Bytes>> {
         let mut chunks = Vec::new();
-        while let Some(chunk) = cursor.next_chunk().unwrap() {
+        while let Some(chunk) = cursor.next_chunk(&CancellationToken::new()).unwrap() {
             chunks.push(chunk);
         }
         chunks
@@ -6457,7 +6502,7 @@ mod tests {
             MAX_FETCH_RESPONSE_BYTES,
             commits_transaction_refs.clone(),
         );
-        let mut transactions = chunk_stream(move || cursor.next_chunk());
+        let mut transactions = chunk_stream(None, move |cancel| cursor.next_chunk(cancel));
 
         // Written after the response was built: an eager reader would have
         // found none of them.
@@ -6620,7 +6665,7 @@ mod tests {
             },
         );
         let mut chunks = Vec::new();
-        while let Some(chunk) = cursor.next_chunk().unwrap() {
+        while let Some(chunk) = cursor.next_chunk(&CancellationToken::new()).unwrap() {
             chunks.push(chunk);
         }
         (chunks, spaces)
@@ -6688,13 +6733,26 @@ mod tests {
 
         let mut cursor = RefCursor::new((0..6).collect(), 30, odd_entries);
         assert_eq!(
-            cursor.next_chunk().unwrap().unwrap(),
+            cursor
+                .next_chunk(&CancellationToken::new())
+                .unwrap()
+                .unwrap(),
             [1, 3, 5].map(|r| Bytes::from(vec![r; 10]))
         );
-        assert!(cursor.next_chunk().unwrap().is_none());
+        assert!(
+            cursor
+                .next_chunk(&CancellationToken::new())
+                .unwrap()
+                .is_none()
+        );
 
         let mut cursor = RefCursor::new(vec![0, 2, 4], 30, odd_entries);
-        assert!(cursor.next_chunk().unwrap().is_none());
+        assert!(
+            cursor
+                .next_chunk(&CancellationToken::new())
+                .unwrap()
+                .is_none()
+        );
     }
 
     /// Refs are taken until their payloads reach the budget, whether the
@@ -6785,7 +6843,7 @@ mod tests {
             .collect();
         let block_refs: Vec<BlockRef> = headers.iter().map(|header| header.reference()).collect();
         let mut response =
-            header_fetch_response(&context, store.clone(), dag_state, block_refs.clone());
+            header_fetch_response(&context, store.clone(), dag_state, block_refs.clone(), None);
 
         // Written after the response was built: an eager reader would have
         // found none of them.
@@ -6822,7 +6880,7 @@ mod tests {
         let mut requested_refs = distinct_refs.clone();
         requested_refs.push(distinct_refs[0]);
         let mut response =
-            transaction_fetch_response(context, store.clone(), dag_state, requested_refs);
+            transaction_fetch_response(context, store.clone(), dag_state, requested_refs, None);
 
         // Written after the response was built: an eager reader would have
         // found none of them.
@@ -6831,5 +6889,101 @@ mod tests {
         let chunk = response.next().await.unwrap().unwrap();
         assert_eq!(entry_refs(&chunk), distinct_refs);
         assert!(response.next().await.is_none());
+    }
+
+    /// A peer that drops a fetch response while a chunk of it is being read
+    /// keeps its admission slot until the read ends, so its next fetch is
+    /// rejected until then.
+    #[tokio::test]
+    async fn a_dropped_response_holds_the_admission_slot_until_its_read_ends() {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .parameters
+            .tonic
+            .admission
+            .max_transaction_fetches_per_peer = 1;
+        let (read_started_tx, read_started) = channel();
+        // The read also ends when the test drops `finish_read`, so a failing
+        // test does not leave it waiting.
+        let (finish_read, finish_read_rx) = channel::<()>();
+        let finish_read_rx = Arc::new(Mutex::new(finish_read_rx));
+        let responses = Arc::new(Mutex::new(Vec::new()));
+        // Serves each fetch with a chunk whose read waits for the test, and
+        // keeps the response for the test to poll and drop.
+        let handler = service_fn({
+            let responses = responses.clone();
+            move |request: http::Request<()>| {
+                let (read_started, finish_read) = (read_started_tx.clone(), finish_read_rx.clone());
+                let mut cursor = RefCursor::new(
+                    vec![Bytes::from_static(b"entry")],
+                    MAX_FETCH_RESPONSE_BYTES,
+                    move |refs: &mut VecDeque<Bytes>, _| {
+                        read_started.send(()).unwrap();
+                        let _ = finish_read.lock().recv();
+                        Ok(refs.drain(..).collect())
+                    },
+                );
+                responses.lock().push(chunk_stream(
+                    request.extensions().get::<Arc<AdmissionGuard>>().cloned(),
+                    move |cancel| cursor.next_chunk(cancel),
+                ));
+                async { Ok::<_, Infallible>(http::Response::new(tonic::body::Body::default())) }
+            }
+        });
+        let service =
+            AdmissionLayer::new(Arc::new(context), Duration::from_secs(60)).layer(handler);
+        let fetch_is_rejected = || {
+            let mut request = http::Request::new(());
+            *request.uri_mut() = format!("{CONSENSUS_SERVICE_PATH_PREFIX}FetchTransactions")
+                .parse()
+                .unwrap();
+            request.extensions_mut().insert(PeerInfo {
+                authority_index: AuthorityIndex::new_for_test(1),
+            });
+            let service = service.clone();
+            async move {
+                let response = service.oneshot(request).await.unwrap();
+                tonic::Status::from_header_map(response.headers())
+                    .is_some_and(|status| status.code() == tonic::Code::ResourceExhausted)
+            }
+        };
+
+        assert!(!fetch_is_rejected().await);
+        let mut response = responses.lock().pop().unwrap();
+        assert!(futures::poll!(response.next()).is_pending());
+        read_started.recv_timeout(Duration::from_secs(10)).unwrap();
+        // The peer resets the stream while the chunk is being read.
+        drop(response);
+        assert!(fetch_is_rejected().await);
+
+        finish_read.send(()).unwrap();
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while fetch_is_rejected().await {
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("the slot is given back once the read ends");
+    }
+
+    /// A chunk stops before its next read once its response stream is dropped.
+    #[test]
+    fn a_chunk_stops_reading_once_its_stream_is_dropped() {
+        let cancel = CancellationToken::new();
+        let mut reads = 0;
+        let mut cursor = RefCursor::new(
+            vec![Bytes::from_static(b"entry"); 3],
+            MAX_FETCH_RESPONSE_BYTES,
+            |refs: &mut VecDeque<Bytes>, _| {
+                reads += 1;
+                // The stream is dropped while this read runs.
+                cancel.cancel();
+                Ok(refs.pop_front().into_iter().collect())
+            },
+        );
+
+        assert_eq!(cursor.next_chunk(&cancel).unwrap(), None);
+        drop(cursor);
+        assert_eq!(reads, 1);
     }
 }

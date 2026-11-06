@@ -21,6 +21,7 @@ use crate::{
     network::{
         BlockBundleStream, ChunkStream, FetchedCommitsAndTransactions, NetworkService,
         SerializedBlockBundle, StreamPosition,
+        admission::AdmissionGuard,
         tonic_network::{MAX_FETCH_RESPONSE_BYTES, chunk_data},
     },
     transaction_ref::TransactionRef,
@@ -162,6 +163,7 @@ impl NetworkService for Mutex<TestService> {
         peer: AuthorityIndex,
         block_refs: Vec<BlockRef>,
         _highest_accepted_rounds: Vec<Round>,
+        _admission_guard: Option<Arc<AdmissionGuard>>,
     ) -> ConsensusResult<ChunkStream> {
         let mut service = self.lock();
         service.handle_fetch_block_headers.push((peer, block_refs));
@@ -183,6 +185,7 @@ impl NetworkService for Mutex<TestService> {
         &self,
         _peer: AuthorityIndex,
         _commit_range: CommitRange,
+        _admission_guard: Option<Arc<AdmissionGuard>>,
     ) -> ConsensusResult<FetchedCommitsAndTransactions> {
         let service = self.lock();
         Ok(FetchedCommitsAndTransactions {
@@ -207,6 +210,7 @@ impl NetworkService for Mutex<TestService> {
         &self,
         peer: AuthorityIndex,
         transaction_refs: Vec<TransactionRef>,
+        _admission_guard: Option<Arc<AdmissionGuard>>,
     ) -> ConsensusResult<ChunkStream> {
         let mut service = self.lock();
         service
