@@ -818,7 +818,7 @@ fn abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
 mod faulty_attestor {
     use std::collections::{BTreeMap, BTreeSet};
 
-    use iota_macros::{clear_fail_point, register_fail_point_arg};
+    use iota_macros::{clear_fail_point, register_fail_point_arg, register_fail_point_if};
     use iota_node::IotaNodeHandle;
     use iota_protocol_config::{OverrideGuard, ProtocolConfig};
     use iota_sdk_types::{
@@ -830,6 +830,7 @@ mod faulty_attestor {
         attestation::AttestationRecord,
         base_types::{ConciseableName, EpochId},
         crypto::PublicKey,
+        error::IotaError,
         iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
         messages_checkpoint::CheckpointSequenceNumber,
         object::Object,
@@ -861,14 +862,23 @@ mod faulty_attestor {
     /// to the account.
     const BODY_TRANSFER_AMOUNT: u64 = 1;
 
-    /// The protocol config's `attestation_max_refuted_units_squared`: the sum
-    /// of the squared units an attestor's refuted attestations wasted at which
-    /// the cut takes its whole score, and from which its attested transactions
-    /// are dropped for the rest of the epoch. A refuted attestation of the test
-    /// wastes one `gas_rounding_step` of 1,000 units in execution's run, and
-    /// the one the judge re-runs another in the re-run, so the sum stays far
-    /// below it and the cut is a small part of the score.
+    /// The `attestation_max_refuted_units_squared` of the test with the six
+    /// scenarios: the sum of the squared units an attestor's refuted
+    /// attestations wasted at which the cut takes its whole score, and from
+    /// which its attested transactions are dropped for the rest of the epoch.
+    /// A refuted attestation of that test wastes one `gas_rounding_step` of
+    /// 1,000 units in execution's run, and the one the judge re-runs another
+    /// in the re-run, so the sum stays far below it and the cut is a small
+    /// part of the score.
     const MAX_REFUTED_UNITS_SQUARED: u64 = 50_000u64.pow(2);
+    /// The `attestation_max_refuted_units_squared` of the cutoff test: the sum
+    /// of two refutations without a re-run, each wasting one
+    /// `gas_rounding_step` of 1,000 units, so that the second cuts the
+    /// attestor off.
+    const CUTOFF_UNITS_SQUARED: u64 = 2 * 1_000u64.pow(2);
+    /// The refutations the cutoff test submits at most before it gives up on
+    /// reaching [`CUTOFF_UNITS_SQUARED`].
+    const MAX_REFUTATIONS_TO_CUT_OFF: usize = 10;
 
     /// The score every validator gets while the protocol feature flag
     /// `pass_calculated_validator_scores_to_advance_epoch` is off: a copy of
@@ -881,14 +891,14 @@ mod faulty_attestor {
     /// `enable_validator_attestation`, with the
     /// `checkpoint_summary_version_specific_data` of 2 that the flag requires,
     /// set `attestation_max_refuted_units_squared` to
-    /// [`MAX_REFUTED_UNITS_SQUARED`], and turn off the protocol feature flag
+    /// `max_refuted_units_squared`, and turn off the protocol feature flag
     /// `pass_calculated_validator_scores_to_advance_epoch`, so that every
     /// score is [`MAX_SCORE`] before the penalty.
-    fn enable_attestation_with_fault_penalty() -> OverrideGuard {
-        ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+    fn enable_attestation_with_fault_penalty(max_refuted_units_squared: u64) -> OverrideGuard {
+        ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
             config.set_enable_validator_attestation_for_testing(true);
             config.set_checkpoint_summary_version_specific_data_for_testing(2);
-            config.set_attestation_max_refuted_units_squared_for_testing(MAX_REFUTED_UNITS_SQUARED);
+            config.set_attestation_max_refuted_units_squared_for_testing(max_refuted_units_squared);
             config.set_pass_calculated_validator_scores_to_advance_epoch_for_testing(false);
 
             config
@@ -952,7 +962,7 @@ mod faulty_attestor {
     async fn every_validator_reaches_the_same_verdicts_totals_and_penalty()
     -> Result<(), anyhow::Error> {
         telemetry_subscribers::init_for_testing();
-        let _config = enable_attestation_with_fault_penalty();
+        let _config = enable_attestation_with_fault_penalty(MAX_REFUTED_UNITS_SQUARED);
 
         let mut env = TestEnvironment::with_a_retaining_validator().await;
         env.setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
@@ -1211,8 +1221,178 @@ mod faulty_attestor {
         Ok(())
     }
 
-    /// Helpers of the test. The ones that use the account need it set up first
-    /// with [`Self::setup_abstract_account()`].
+    /// Cuts the faulty attestor off: it attests transactions whose Move
+    /// authentication fails at the versions it read, refuted without a
+    /// re-run, until the sum of their squared units reaches
+    /// [`CUTOFF_UNITS_SQUARED`], this test's
+    /// `attestation_max_refuted_units_squared`. From then on the attestor
+    /// must reject every submission with [`IotaError::AttestorCutOff`]. When
+    /// it attests anyway, through the `attest-despite-cutoff` fail point,
+    /// every validator must drop the transaction at post-consensus
+    /// validation: no node executes or records it, and the certified records
+    /// and totals stay those of the refutations. Another validator's
+    /// attestation must still go through. At the epoch end the attestor's
+    /// whole score must be cut and the others left whole, and no node may
+    /// count a verdict mismatch.
+    #[sim_test]
+    async fn every_validator_drops_the_attestations_of_a_cut_off_attestor()
+    -> Result<(), anyhow::Error> {
+        telemetry_subscribers::init_for_testing();
+        let _config = enable_attestation_with_fault_penalty(CUTOFF_UNITS_SQUARED);
+
+        let mut env = TestEnvironment::with_validators().await;
+        env.setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+            .await?;
+        let owner = env.owner.expect("the account is set up");
+        let attestor = env.validator_at(ATTESTOR);
+        let honest = env.validator_at(HONEST);
+        let attestor_sim_id = env
+            .node(&attestor)
+            .with(|_| iota_simulator::current_simnode_id());
+        let attestor_index = env.authority_index(&attestor);
+        let attestor_position = env.position_in_committee_validators(&attestor);
+        let fullnode = &env.test_cluster.fullnode_handle.iota_node;
+
+        // Epoch 1, as in the first test, so that every checkpoint the test
+        // reads was built by the validators.
+        env.test_cluster.force_new_epoch().await;
+        let epoch = 1;
+
+        // Refute attestations until the certified sum reaches the cutoff.
+        let mut scenarios = Vec::new();
+        let (certified, totals_at_cutoff) = loop {
+            let tx = env
+                .craft_account_transaction_signed_over_another_digest_by(&owner)
+                .await?;
+            let digest = env
+                .submit_to_faulty_attestor(tx, &attestor, attestor_sim_id, None)
+                .await;
+            scenarios.push(Scenario {
+                name: "refuted on the way to the cutoff",
+                digest,
+                attestor,
+                authenticates: false,
+                expected_verdict: ExpectedVerdict::Refuted,
+            });
+            env.wait_for_transaction_checkpoint(&digest).await;
+            let (certified, totals) = read_certified_attestations(
+                &env.test_cluster,
+                epoch,
+                highest_executed_checkpoint(fullnode),
+            );
+            let sum = totals
+                .refuted_units_squared
+                .get(&attestor_index)
+                .copied()
+                .unwrap_or_default();
+            if sum >= CUTOFF_UNITS_SQUARED {
+                break (certified, totals);
+            }
+            assert!(
+                scenarios.len() < MAX_REFUTATIONS_TO_CUT_OFF,
+                "{MAX_REFUTATIONS_TO_CUT_OFF} refutations must reach the cutoff, the sum is {sum}"
+            );
+        };
+        assert_eq!(
+            certified.keys().copied().collect::<BTreeSet<_>>(),
+            scenarios
+                .iter()
+                .map(|scenario| scenario.digest)
+                .collect::<BTreeSet<_>>(),
+            "exactly the refuted attestations are certified"
+        );
+
+        // The attestor rejects submissions once a commit's horizon shows its
+        // sum at the cutoff.
+        env.wait_until_cut_off(&attestor, attestor_index).await;
+
+        // A cut-off attestor that attests anyway: every validator drops the
+        // transaction, so no node executes or records it.
+        for handle in env.test_cluster.all_validator_handles() {
+            assert_eq!(
+                read_cut_off_drops(&handle),
+                0.0,
+                "no validator drops a transaction before the attestor attests past the cutoff"
+            );
+        }
+        let tx = env.craft_account_transaction_signed_by(&owner).await?;
+        register_fail_point_if("attest-despite-cutoff", move || {
+            iota_simulator::current_simnode_id() == attestor_sim_id
+        });
+        let dropped = env.submit_to(tx, &attestor).await;
+        clear_fail_point("attest-despite-cutoff");
+        wait_for_cut_off_drops(&env.test_cluster, 1.0).await;
+        for handle in env.test_cluster.all_node_handles() {
+            handle.with(|node| {
+                assert!(
+                    !node
+                        .state()
+                        .get_transaction_cache_reader()
+                        .is_tx_already_executed(&dropped),
+                    "no node executes a dropped transaction"
+                );
+                assert_eq!(
+                    read_attestation_record(node, &dropped),
+                    None,
+                    "no node records the attestation of a dropped transaction"
+                );
+            });
+        }
+
+        // Another validator's attestations still go through.
+        let tx = env.craft_account_transaction_signed_by(&owner).await?;
+        let through_honest = env.submit_to(tx, &honest).await;
+        env.wait_for_transaction_checkpoint(&through_honest).await;
+        let effects = wait_for_effects_on_every_node(&env.test_cluster, through_honest).await;
+        assert!(
+            effects.iter().all(|on_node| on_node.status().is_success()),
+            "an honest validator's attestation executes on every node after the cutoff"
+        );
+
+        assert_validators_build_the_certified_checkpoints(&env.test_cluster).await;
+        for scenario in &scenarios {
+            env.assert_records(scenario, certified.get(&scenario.digest).copied());
+        }
+
+        env.test_cluster.force_new_epoch().await;
+        let last = fullnode
+            .with(|node| {
+                node.state()
+                    .get_checkpoint_store()
+                    .get_epoch_last_checkpoint_seq_number(epoch)
+            })
+            .unwrap()
+            .expect("the epoch ended");
+        let (certified_through_the_end, totals) =
+            read_certified_attestations(&env.test_cluster, epoch, last);
+        assert_eq!(
+            certified_through_the_end, certified,
+            "nothing is certified after the cutoff"
+        );
+        assert_eq!(
+            totals.refuted_units_squared, totals_at_cutoff.refuted_units_squared,
+            "the totals stay those of the refutations"
+        );
+        let mut expected_scores = vec![MAX_SCORE; NUM_VALIDATORS];
+        expected_scores[attestor_position] = 0;
+        assert_eq!(
+            read_change_epoch_scores(&env.test_cluster, epoch),
+            expected_scores,
+            "the cutoff takes the attestor's whole score and leaves the others whole"
+        );
+        for handle in env.test_cluster.all_node_handles() {
+            assert_eq!(
+                read_verdict_mismatches(&handle),
+                0.0,
+                "no node may record a verdict that differs from the certified one"
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Helpers of the tests. The ones that use the account need it set up
+    /// first with [`Self::setup_abstract_account()`].
     impl TestEnvironment {
         /// Builds an environment on [`NUM_VALIDATORS`] validators, of which the
         /// one at [`RETAINING`] keeps the superseded object versions of
@@ -1232,13 +1412,7 @@ mod faulty_attestor {
                 ])
                 .build()
                 .await;
-            let env = Self {
-                test_cluster,
-                owner: None,
-                aa_package_id: None,
-                aa_package_metadata_ref: None,
-                aa_ref: None,
-            };
+            let env = Self::from_cluster(test_cluster);
             for position in 0..NUM_VALIDATORS {
                 let retained = env
                     .test_cluster
@@ -1260,6 +1434,29 @@ mod faulty_attestor {
             }
 
             env
+        }
+
+        /// Builds an environment on [`NUM_VALIDATORS`] validators that keep
+        /// only the current epoch's object versions.
+        async fn with_validators() -> Self {
+            Self::from_cluster(
+                TestClusterBuilder::new()
+                    .with_num_validators(NUM_VALIDATORS)
+                    .with_epoch_duration_ms(EPOCH_DURATION_MS)
+                    .build()
+                    .await,
+            )
+        }
+
+        /// An environment on `test_cluster`, without an account.
+        fn from_cluster(test_cluster: TestCluster) -> Self {
+            Self {
+                test_cluster,
+                owner: None,
+                aa_package_id: None,
+                aa_package_metadata_ref: None,
+                aa_ref: None,
+            }
         }
 
         /// The validator at `position` in
@@ -1571,6 +1768,51 @@ mod faulty_attestor {
             }
 
             digest
+        }
+
+        /// Waits until `attestor`, at the committee index `attestor_index`,
+        /// rejects a submission with [`IotaError::AttestorCutOff`], which it
+        /// does once a commit's horizon shows its sum at the cutoff. Until
+        /// then it refuses the submitted transaction for its failed Move
+        /// authentication, so nothing executes meanwhile. Panics after 60
+        /// seconds, or if the attestor submits the transaction.
+        async fn wait_until_cut_off(&self, attestor: &AuthorityName, attestor_index: u8) {
+            let owner = self.owner.expect("the account is set up");
+            timeout(Duration::from_secs(60), async {
+                loop {
+                    let tx = self
+                        .craft_account_transaction_signed_over_another_digest_by(&owner)
+                        .await
+                        .expect("the transaction is crafted");
+                    let results = self
+                        .submit_tx_v2_to(tx, attestor)
+                        .await
+                        .expect("the validator answers the submission");
+                    let [(_, status)] = results.as_slice() else {
+                        panic!("one status update per submission, got {results:?}");
+                    };
+                    match status {
+                        TxStatusUpdate::Rejected {
+                            error: IotaError::AttestorCutOff { attestor: index },
+                        } => {
+                            assert_eq!(*index, attestor_index, "the attestor names itself");
+
+                            return;
+                        }
+                        TxStatusUpdate::Rejected { .. } => sleep(Duration::from_millis(500)).await,
+                        TxStatusUpdate::Submitted
+                        | TxStatusUpdate::Executed { .. }
+                        | TxStatusUpdate::Expired { .. }
+                        | TxStatusUpdate::TimedOut => {
+                            panic!(
+                                "the attestor must reject a failed authentication, got {status:?}"
+                            )
+                        }
+                    }
+                }
+            })
+            .await
+            .expect("the attestor rejects as cut off within 60s");
         }
 
         /// Asserts what the nodes recorded for the attestation of the
@@ -1930,18 +2172,58 @@ mod faulty_attestor {
         })
     }
 
-    /// Reads the node's `checkpoint_exec_attestation_verdict_mismatches`
-    /// counter: how many executed transactions the node recorded with a
-    /// verdict that differs from the certified one.
-    fn read_verdict_mismatches(handle: &IotaNodeHandle) -> f64 {
+    /// Reads the node's counter `name`, summed over its label sets. Panics if
+    /// the node does not register it.
+    fn read_counter(handle: &IotaNodeHandle, name: &str) -> f64 {
         handle
             .with(|node| node.gather_metrics())
             .iter()
-            .find(|family| family.name() == "checkpoint_exec_attestation_verdict_mismatches")
-            .expect("every node counts the verdict mismatches")
+            .find(|family| family.name() == name)
+            .unwrap_or_else(|| panic!("every node registers the counter {name}"))
             .get_metric()
             .iter()
             .map(|metric| metric.get_counter().value())
             .sum()
+    }
+
+    /// Reads the node's `checkpoint_exec_attestation_verdict_mismatches`
+    /// counter: how many executed transactions the node recorded with a
+    /// verdict that differs from the certified one.
+    fn read_verdict_mismatches(handle: &IotaNodeHandle) -> f64 {
+        read_counter(handle, "checkpoint_exec_attestation_verdict_mismatches")
+    }
+
+    /// Reads the validator's
+    /// `consensus_handler_validation_attestor_cut_off_transactions` counter:
+    /// how many attested transactions it dropped at post-consensus validation
+    /// because their attestor was cut off.
+    fn read_cut_off_drops(handle: &IotaNodeHandle) -> f64 {
+        read_counter(
+            handle,
+            "consensus_handler_validation_attestor_cut_off_transactions",
+        )
+    }
+
+    /// Waits until every validator's [`read_cut_off_drops()`] reads `drops`.
+    /// Panics after 60 seconds, or if a validator counts more.
+    async fn wait_for_cut_off_drops(test_cluster: &TestCluster, drops: f64) {
+        let validators = test_cluster.all_validator_handles();
+        timeout(Duration::from_secs(60), async {
+            while validators
+                .iter()
+                .any(|handle| read_cut_off_drops(handle) < drops)
+            {
+                sleep(Duration::from_millis(500)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("every validator must count {drops} dropped transactions"));
+        for handle in &validators {
+            assert_eq!(
+                read_cut_off_drops(handle),
+                drops,
+                "a validator counts more dropped transactions than expected"
+            );
+        }
     }
 }
