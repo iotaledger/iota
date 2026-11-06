@@ -16,18 +16,21 @@ use crate::{
 };
 
 const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
-/// hyper's own default for the header read deadline; hyper only enforces it
-/// when a timer is configured, which this crate always does.
-const DEFAULT_HTTP1_HEADER_READ_TIMEOUT: Duration = Duration::from_secs(30);
-/// Covers a round trip plus a few TCP retransmissions on a lossy link; an
-/// unloaded TLS 1.3 handshake completes in one round trip.
-const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
-/// Every connection to a TLS listener passes through the handshake phase, so
-/// together with the handshake deadline this bounds how many silent peers it
-/// takes to make honest connections wait in the kernel backlog. Concurrent
-/// handshakes only build up when peers are slow or silent, so this leaves ample
-/// room for a legitimate reconnect burst.
-const DEFAULT_MAX_PENDING_CONNECTIONS: NonZeroUsize = NonZeroUsize::new(4096).unwrap();
+/// The header read deadline a [`Config`] starts with.
+// hyper's own default; hyper only enforces it when a timer is configured, which
+// this crate always does.
+pub const DEFAULT_HTTP1_HEADER_READ_TIMEOUT: Duration = Duration::from_secs(30);
+/// The TLS handshake deadline a [`Config`] starts with.
+// Covers a round trip plus a few TCP retransmissions on a lossy link; an
+// unloaded TLS 1.3 handshake completes in one round trip.
+pub const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
+/// The cap on concurrent TLS handshakes a [`Config`] starts with.
+// Every connection to a TLS listener passes through the handshake phase, so
+// together with the handshake deadline this bounds how many silent peers it
+// takes to make honest connections wait in the kernel backlog. Concurrent
+// handshakes only build up when peers are slow or silent, so this leaves ample
+// room for a legitimate reconnect burst.
+pub const DEFAULT_MAX_PENDING_CONNECTIONS: NonZeroUsize = NonZeroUsize::new(4096).unwrap();
 /// The largest HTTP/2 flow-control window (RFC 9113, section 6.9.1); h2 panics
 /// on a larger connection window.
 const HTTP2_MAX_WINDOW_SIZE: u32 = (1 << 31) - 1;
