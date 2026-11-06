@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_move_types::iota_framework::object::UID;
+use iota_sdk_move_types::iota_framework::{balance::Supply, object::UID};
 use iota_sdk_types::{Identifier, ObjectData, ObjectId, StructTag, TypeTag};
 use move_core_types::{
     account_address::AccountAddress,
@@ -13,7 +13,7 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    balance::{Balance, Supply},
+    balance::Balance,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     move_layout::MoveLayout,
@@ -121,7 +121,7 @@ impl Coin {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct TreasuryCap {
     pub id: UID,
-    pub total_supply: Supply,
+    pub total_supply: Supply<()>,
 }
 
 impl TreasuryCap {

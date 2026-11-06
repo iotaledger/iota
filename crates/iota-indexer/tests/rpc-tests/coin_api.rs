@@ -15,11 +15,11 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk_crypto::{Signer, simple::SimpleKeypair};
+use iota_sdk_move_types::iota_framework::balance::Supply;
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, StructTag, TypeTag, crypto::SimpleSignature,
 };
 use iota_types::{
-    balance::Supply,
     crypto::{AccountPrivateKey, get_key_pair},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -607,7 +607,7 @@ async fn indexer_get_total_supply_with_migrated_coin_manager_coins() {
 
     let (_, result_indexer) =
         get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
-    assert_eq!(result_indexer, Some(Supply { value: 100_000 }));
+    assert_eq!(result_indexer, Some(Supply::new(100_000)));
 
     let (_, result_indexer) = get_total_supply_fullnode_indexer(
         cluster,
@@ -615,7 +615,7 @@ async fn indexer_get_total_supply_with_migrated_coin_manager_coins() {
         immutable_metadata_coin_name.to_string(),
     )
     .await;
-    assert_eq!(result_indexer, Some(Supply { value: 0 }));
+    assert_eq!(result_indexer, Some(Supply::new(0)));
 }
 
 #[tokio::test]
@@ -648,7 +648,7 @@ async fn get_total_supply_with_native_coin_manager_coins() {
 
     let (result_fullnode, result_indexer) =
         get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
-    assert_eq!(result_indexer, Some(Supply { value: 0 }));
+    assert_eq!(result_indexer, Some(Supply::new(0)));
     assert_eq!(result_fullnode, result_indexer);
 
     let (result_fullnode, result_indexer) = get_total_supply_fullnode_indexer(
@@ -657,7 +657,7 @@ async fn get_total_supply_with_native_coin_manager_coins() {
         immutable_metadata_coin_name.to_string(),
     )
     .await;
-    assert_eq!(result_indexer, Some(Supply { value: 0 }));
+    assert_eq!(result_indexer, Some(Supply::new(0)));
     assert_eq!(result_fullnode, result_indexer);
 }
 
@@ -784,7 +784,7 @@ async fn get_total_supply_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
     coin_type: String,
-) -> (Option<Supply>, Option<Supply>) {
+) -> (Option<Supply<()>>, Option<Supply<()>>) {
     let result_fullnode = cluster
         .rpc_client()
         .get_total_supply(coin_type.clone())
@@ -881,7 +881,7 @@ async fn mint_trusted_coin(
 ) -> Result<ObjectReference, anyhow::Error> {
     let http_client = cluster.rpc_client();
 
-    let result: Supply = http_client
+    let result: Supply<()> = http_client
         .get_total_supply(coin_name.clone())
         .await
         .unwrap()

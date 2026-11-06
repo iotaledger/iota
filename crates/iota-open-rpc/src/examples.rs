@@ -13,9 +13,9 @@ use iota_json_rpc_types::{
     IotaMoveAbility, IotaMoveAbilitySet, IotaMoveNormalizedFunction, IotaMoveNormalizedModule,
     IotaMoveNormalizedStruct, IotaMoveNormalizedType, IotaMoveVisibility, IotaObjectData,
     IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaParsedData, IotaPastObjectResponse, IotaTransactionBlock, IotaTransactionBlockData,
-    IotaTransactionBlockEffects, IotaTransactionBlockEffectsV1, IotaTransactionBlockEvents,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaParsedData, IotaPastObjectResponse, IotaSupply, IotaTransactionBlock,
+    IotaTransactionBlockData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsV1,
+    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionBlockResponseQuery, IotaTypeTag, MoveCallParams, MoveFunctionArgType,
     ObjectChange,
     ObjectValueKind::{ByImmutableReference, ByMutableReference, ByValue},
@@ -32,7 +32,6 @@ use iota_sdk_types::{
     TypeTag, UserSignature, Version,
 };
 use iota_types::{
-    balance::Supply,
     base_types::{ObjectType, random_object_ref},
     committee::Committee,
     crypto::{AccountPrivateKey, AggregateAuthoritySignature, get_key_pair_from_rng},
@@ -991,7 +990,7 @@ impl RpcExampleProvider {
         let mut coin = ObjectId::new(self.rng.random()).to_string();
         coin.push_str("::acoin::ACOIN");
 
-        let result = Supply { value: 12023692 };
+        let result = IotaSupply { value: 12023692 };
 
         Examples::new(
             "iotax_getTotalSupply",
