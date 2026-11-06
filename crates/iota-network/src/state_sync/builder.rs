@@ -139,7 +139,6 @@ where
 
         let router = anemo::Router::new()
             .add_rpc_service(state_sync_server)
-            // Size limit layer applied before deserialization.
             .route_layer(SizeLimitLayer::new(
                 state_sync_config.max_checkpoint_summary_size(),
             ));
@@ -171,6 +170,8 @@ where
             peers: HashMap::new(),
             unprocessed_checkpoints: HashMap::new(),
             sequence_number_to_digest: HashMap::new(),
+            max_checkpoint_lookahead: config.max_checkpoint_lookahead(),
+            max_checkpoint_summary_size: config.max_checkpoint_summary_size(),
             wait_interval_when_no_peer_to_sync_content: config
                 .wait_interval_when_no_peer_to_sync_content(),
         }
@@ -188,7 +189,6 @@ where
             peer_heights: peer_heights.clone(),
             sender: weak_sender,
             genesis_checkpoint: genesis_checkpoint.clone(),
-            max_checkpoint_lookahead: config.max_checkpoint_lookahead(),
         };
 
         (

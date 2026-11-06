@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-use anemo::{PeerId, Request, Response, rpc::Status};
+use anemo::{PeerId, Request, Response, rpc::Status, types::response::StatusCode};
 use anyhow::anyhow;
 use bytes::Bytes;
 use iota_config::{node::CheckpointArchiveConfig, p2p::StateSyncConfig};
@@ -49,9 +49,9 @@ use tokio::{
 use crate::{
     state_sync::{
         Builder, GetCheckpointAvailabilityResponse, GetCheckpointSummaryRequest, Handle,
-        PeerBalancer, PeerCheckpointRequestType, PeerStateSyncInfo, StateSync, StateSyncEventLoop,
-        StateSyncHandshake, StateSyncMessage, StateSyncServer, UnstartedStateSync,
-        get_or_fetch_checkpoint_summary,
+        PeerBalancer, PeerCheckpointRequestType, PeerStateSyncInfo, StateSync, StateSyncClient,
+        StateSyncEventLoop, StateSyncHandshake, StateSyncMessage, StateSyncServer,
+        UnstartedStateSync, get_or_fetch_checkpoint_summary,
         metrics::Metrics,
         pinned_checkpoint_digest,
         server::Server,
@@ -98,7 +98,7 @@ fn store_with_genesis_state(
 // sync job.
 async fn server_push_checkpoint() {
     let (committee, (ordered_checkpoints, _, _, _)) =
-        make_committee_and_checkpoints(0, 4, 2, None, empty_contents);
+        make_committee_and_checkpoints(0, 4, 4, None, empty_contents);
     let store = store_with_genesis_state(
         ordered_checkpoints.first().cloned().unwrap(),
         empty_contents(),
@@ -113,7 +113,13 @@ async fn server_push_checkpoint() {
             ..
         },
         server,
-    ) = Builder::new().store(store).build_internal();
+    ) = Builder::new()
+        .store(store)
+        .config(StateSyncConfig {
+            max_checkpoint_lookahead: Some(2),
+            ..Default::default()
+        })
+        .build_internal();
     let peer_id = PeerId([9; 32]); // fake PeerId
 
     peer_heights.write().unwrap().peers.insert(
@@ -162,6 +168,40 @@ async fn server_push_checkpoint() {
         mailbox.try_recv().unwrap(),
         StateSyncMessage::StartSyncJob
     ));
+
+    // A summary with the sequence number of a stored one but a different
+    // digest is dropped.
+    let (mut data, sig) = checkpoint.clone().into_data_and_sig();
+    data.timestamp_ms += 1;
+    let conflicting = CertifiedCheckpointSummary::new_from_data_and_sig(data, sig);
+    assert_ne!(conflicting.digest(), checkpoint.digest());
+    // The summary of the verified genesis checkpoint, one beyond the lookahead
+    // and one larger than the size limit once decompressed are dropped as
+    // well, but the peer's height still counts.
+    let (mut data, sig) = ordered_checkpoints[2]
+        .inner()
+        .to_owned()
+        .into_data_and_sig();
+    data.version_specific_data = vec![0; StateSyncConfig::default().max_checkpoint_summary_size()];
+    let oversized = CertifiedCheckpointSummary::new_from_data_and_sig(data, sig);
+    for pushed in [
+        conflicting,
+        ordered_checkpoints[0].inner().to_owned(),
+        ordered_checkpoints[3].inner().to_owned(),
+        oversized,
+    ] {
+        let request = Request::new(pushed).with_extension(peer_id);
+        server.push_checkpoint_summary(request).await.unwrap();
+    }
+    let peer_heights = peer_heights.read().unwrap();
+    assert_eq!(peer_heights.peers.get(&peer_id).unwrap().height, 3);
+    assert_eq!(peer_heights.unprocessed_checkpoints.len(), 1);
+    assert_eq!(peer_heights.sequence_number_to_digest.len(), 1);
+    assert!(
+        peer_heights
+            .unprocessed_checkpoints
+            .contains_key(checkpoint.digest())
+    );
 }
 
 #[tokio::test]
@@ -322,6 +362,34 @@ async fn isolated_sync_job() {
             &sequence_number_to_digest
         );
     }
+
+    // Node 2 rejects a request larger than the state sync size limit before
+    // handling it, and still handles one within the limit. Requests are
+    // compressed, so the padding must not compress.
+    let mut client = StateSyncClient::new(network_1.peer(network_2.peer_id()).unwrap());
+    let (mut data, sig) = ordered_checkpoints[1]
+        .clone()
+        .into_inner()
+        .into_data_and_sig();
+    let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+    data.version_specific_data = (0..StateSyncConfig::default().max_checkpoint_summary_size())
+        .map(|_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state as u8
+        })
+        .collect();
+    let oversized = CertifiedCheckpointSummary::new_from_data_and_sig(data, sig);
+    let status = client
+        .push_checkpoint_summary(Request::new(oversized))
+        .await
+        .unwrap_err();
+    assert_eq!(status.status(), StatusCode::BadRequest);
+    client
+        .push_checkpoint_summary(Request::new(ordered_checkpoints[1].clone().into_inner()))
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -677,6 +745,7 @@ async fn sync_with_checkpoints_watermark() {
         peer_id_1,
         checkpoint_1.clone().into(),
         Some(a_very_high_checkpoint_seq),
+        1,
     ));
 
     // Inject all the checkpoints to Peer 1
