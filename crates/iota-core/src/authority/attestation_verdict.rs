@@ -151,8 +151,9 @@ pub(crate) enum AuthenticationFailureBlame {
     /// so the account authorized the transaction at the attested state.
     Account,
 
-    /// Nobody is at fault. The failure is a cancellation or an invariant
-    /// violation during execution.
+    /// Nobody is charged or penalized. The failure is an invariant violation,
+    /// an internal error, or a cancellation, which the judge does not re-run;
+    /// see [`AttestationVerdictContext::decide_authentication_failure_blame()`].
     Nobody,
 
     /// The judge could not decide who is at fault: an authenticator input was
@@ -185,8 +186,14 @@ impl AttestationVerdictContext<'_> {
     ) -> AuthenticationFailureBlame {
         let kind = unwrap_move_authentication_error(kind);
 
-        // A cancellation comes from the consensus commit and an invariant
-        // violation is an internal error, so neither is anyone's fault.
+        // An invariant violation is an internal error, so nobody is at fault.
+        // A cancellation was decided at the consensus commit before any
+        // authenticator ran: only a re-run at the recorded versions could tell
+        // whether the account authorized the transaction, and that would add
+        // load exactly when the network is congested. A Move account therefore
+        // pays nothing for a cancelled transaction, while a gas owner that
+        // signed with a key does.
+        // TODO: decide whether a cancelled transaction charges a Move account.
         if is_cancellation(kind) || is_any_invariant_violation(kind) {
             return AuthenticationFailureBlame::Nobody;
         }

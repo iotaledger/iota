@@ -678,9 +678,9 @@ mod checked {
     /// Whether a gas owner that is a Move account and did not authorize the
     /// transaction pays for its failed authentication, as `gas_owner_pays`
     /// decides under the protocol feature flag `enable_validator_attestation`.
-    /// A cancellation was decided at the consensus commit and an invariant
-    /// violation is an internal error: neither says anything about the gas
-    /// owner, so `gas_owner_pays` is not asked about them.
+    /// `gas_owner_pays` is not asked about a cancellation, decided at the
+    /// consensus commit before any authenticator ran, nor about an invariant
+    /// violation, an internal error: such a gas owner is not charged.
     fn charge_gas_owner(
         protocol_config: &ProtocolConfig,
         error: &ExecutionError,
