@@ -800,13 +800,16 @@ fn abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
 // --- A faulty attestor, judged alike by every validator -----------
 // ------------------------------------------------------------------
 
-/// One validator attests through two fail points in
-/// `AuthorityState::attest_transaction()`: one makes it attest a transaction
-/// whose Move authentication fails in its dry run, the other replaces the
-/// object versions it records. Every validator must judge such an attestation
-/// alike, whatever earlier epochs of object versions it keeps: the same
-/// verdicts and with them the same effects, the same certified records and
-/// totals, and the same penalty at the epoch end.
+/// One validator attests through fail points as a faulty validator can: two
+/// in `AuthorityState::attest_transaction()` make it attest a transaction
+/// whose Move authentication fails in its dry run and replace the object
+/// versions it records, and one in the V2 submit path lets it attest once it
+/// is cut off. A fourth, in the judge, makes the re-run of one transaction
+/// end in an internal error, which no transaction can cause. Every validator
+/// must judge such an attestation alike, whatever earlier epochs of object
+/// versions it keeps: the same verdicts and with them the same effects, the
+/// same certified records and totals, and the same penalty at the epoch end.
+/// Every validator must also drop a cut-off attestor's transactions alike.
 ///
 /// Fail points exist only under the simulator or the `fail_points` cfg, and
 /// simulator node ids only under the simulator, where every node runs on the
@@ -862,8 +865,8 @@ mod faulty_attestor {
     /// to the account.
     const BODY_TRANSFER_AMOUNT: u64 = 1;
 
-    /// The `attestation_max_refuted_units_squared` of the test with the six
-    /// scenarios: the sum of the squared units an attestor's refuted
+    /// The `attestation_max_refuted_units_squared` of the first test: the sum
+    /// of the squared units an attestor's refuted
     /// attestations wasted at which the cut takes its whole score, and from
     /// which its attested transactions are dropped for the rest of the epoch.
     /// A refuted attestation of that test wastes one `gas_rounding_step` of
@@ -922,6 +925,10 @@ mod faulty_attestor {
         /// recorded versions too. Nobody pays, and the record carries the units
         /// of execution's own run and of the re-run.
         RefutedByRerun,
+        /// The judge could not decide: its re-run at the recorded versions
+        /// ended in an internal error. Nobody pays, and the record carries no
+        /// units.
+        Undecided,
     }
 
     struct Scenario {
@@ -933,23 +940,27 @@ mod faulty_attestor {
         expected_verdict: ExpectedVerdict,
     }
 
-    /// Runs an honest attestation and five attestations of the faulty attestor
-    /// in one epoch. Move authentication of the five fails at execution, and
+    /// Runs an honest attestation and six attestations of the faulty attestor
+    /// in one epoch. Move authentication of the six fails at execution, and
     /// the account version the attestor records decides the verdict:
     /// - the version the attestor read: [`Refuted`], no re-run;
     /// - a version superseded in the previous epoch: [`Refuted`], no re-run;
     /// - a version ahead of the executed one: [`Refuted`], no re-run;
     /// - a version superseded this epoch, holding the signer's key: [`Valid`];
-    /// - the same version, with a wrong signature: [`Refuted`] by the re-run.
+    /// - the same version, with a wrong signature: [`Refuted`] by the re-run;
+    /// - the same version, signer's key, internal re-run error: [`Undecided`].
     ///
     /// Only the validator that keeps earlier epochs still holds the version
     /// superseded in the previous epoch. The judge re-runs authentication only
     /// at versions superseded this epoch, so that validator refutes like the
-    /// others.
+    /// others. The last re-run ends in an internal error through the
+    /// `judge-rerun-internal-error` fail point, which no transaction can
+    /// cause.
     ///
     /// Every node must execute each transaction with the same effects, which
     /// charge the gas owner for a valid attestation and nobody for a refuted
-    /// one. Every validator must build the checkpoints as certified and record
+    /// or undecided one. Every validator must build the checkpoints as
+    /// certified and record
     /// the verdict the checkpoint certifies, or [`Valid`] where it certifies
     /// none. The fullnode must copy the certified records. The refutation by
     /// the re-run must carry more units than the refutations without one. The
@@ -958,6 +969,7 @@ mod faulty_attestor {
     ///
     /// [`Valid`]: AttestationVerdict::Valid
     /// [`Refuted`]: AttestationVerdict::Refuted
+    /// [`Undecided`]: AttestationVerdict::Undecided
     #[sim_test]
     async fn every_validator_reaches_the_same_verdicts_totals_and_penalty()
     -> Result<(), anyhow::Error> {
@@ -1097,6 +1109,27 @@ mod faulty_attestor {
             expected_verdict: ExpectedVerdict::RefutedByRerun,
         });
 
+        // The judge re-runs at execution on every validator, so the fail
+        // point stays registered until every node has executed the
+        // transaction, and names it so that no other re-run is touched.
+        let tx = env.craft_account_transaction_signed_by(&second_key).await?;
+        let undecided = *tx.digest();
+        register_fail_point_arg("judge-rerun-internal-error", move || Some(undecided));
+        scenarios.push(Scenario {
+            name: "the judge's re-run ends in an internal error",
+            digest: env
+                .submit_to_faulty_attestor(
+                    tx,
+                    &attestor,
+                    attestor_sim_id,
+                    Some(vec![account_with_second_key]),
+                )
+                .await,
+            attestor,
+            authenticates: false,
+            expected_verdict: ExpectedVerdict::Undecided,
+        });
+
         for scenario in &scenarios {
             env.wait_for_transaction_checkpoint(&scenario.digest).await;
             let effects = wait_for_effects_on_every_node(&env.test_cluster, scenario.digest).await;
@@ -1113,6 +1146,7 @@ mod faulty_attestor {
                 .expect("the fullnode holds the gas coin");
             assert_payment(scenario, &effects[0], &gas_coin);
         }
+        clear_fail_point("judge-rerun-internal-error");
 
         // A different verdict or total on a validator would change the
         // summary it builds. Validators drop their own summaries of earlier
@@ -1125,15 +1159,15 @@ mod faulty_attestor {
             epoch,
             highest_executed_checkpoint(fullnode),
         );
-        let refuted: BTreeSet<_> = scenarios
+        let other_than_valid: BTreeSet<_> = scenarios
             .iter()
             .filter(|scenario| scenario.expected_verdict != ExpectedVerdict::Valid)
             .map(|scenario| scenario.digest)
             .collect();
         assert_eq!(
             certified.keys().copied().collect::<BTreeSet<_>>(),
-            refuted,
-            "exactly the refuted attestations are certified"
+            other_than_valid,
+            "exactly the attestations other than valid are certified"
         );
         for scenario in &scenarios {
             env.assert_records(scenario, certified.get(&scenario.digest).copied());
@@ -1832,6 +1866,9 @@ mod faulty_attestor {
                     certified_verdict,
                     Some(AttestationVerdict::Refuted { units }) if units > 0
                 ),
+                ExpectedVerdict::Undecided => {
+                    matches!(certified_verdict, Some(AttestationVerdict::Undecided))
+                }
             };
             assert!(
                 matches_scenario && certified.is_none_or(|record| record.attestor == attestor),
@@ -1937,11 +1974,13 @@ mod faulty_attestor {
                     scenario.name
                 );
             }
-            ExpectedVerdict::Refuted | ExpectedVerdict::RefutedByRerun => {
+            ExpectedVerdict::Refuted
+            | ExpectedVerdict::RefutedByRerun
+            | ExpectedVerdict::Undecided => {
                 assert_eq!(
                     summary,
                     &GasCostSummary::default(),
-                    "{}: nobody pays for a refuted attestation",
+                    "{}: nobody pays for a refuted or undecided attestation",
                     scenario.name
                 );
                 assert_eq!(
