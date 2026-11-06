@@ -318,7 +318,7 @@ mod tests {
 
     use fastcrypto::traits::KeyPair as _;
     use iota_macros::sim_test;
-    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+    use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::{Identifier, ObjectId, UserSignature};
     use iota_types::{
         attestation::AttestedTransaction,
@@ -560,6 +560,16 @@ mod tests {
             }
         }
     }
+    /// Validator attestation off, which the latest version has on, for tests
+    /// that send plain user transactions and certificates through block
+    /// verification.
+    fn validator_attestation_off() -> OverrideGuard {
+        ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_validator_attestation_for_testing(false);
+            config
+        })
+    }
+
     /// A single-validator authority at `protocol_version`, or at the latest
     /// version when `None`, with its validator keypair and a block verifier
     /// over its epoch store.
@@ -665,6 +675,7 @@ mod tests {
 
     #[tokio::test]
     async fn reject_identifier_move_core_rejects_in_user_transaction() {
+        let _guard = validator_attestation_off();
         let (state, _, validator) = self_identifier_fixture(None).await;
         assert!(
             validator
@@ -688,6 +699,7 @@ mod tests {
 
     #[tokio::test]
     async fn reject_identifier_move_core_rejects_in_certificate() {
+        let _guard = validator_attestation_off();
         let (state, keypair, validator) = self_identifier_fixture(None).await;
         assert!(
             validator
