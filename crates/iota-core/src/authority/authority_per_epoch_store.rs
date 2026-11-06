@@ -1370,11 +1370,18 @@ impl AuthorityPerEpochStore {
                     .attestation_totals_by_commit
                     .safe_iter()
                     .collect::<Result<BTreeMap<_, _>, _>>()?;
-                Ok(HandlerObjectState::new(
-                    resume_point,
-                    attestation_totals,
-                    metrics.clone(),
-                ))
+                let state =
+                    HandlerObjectState::new(resume_point, attestation_totals, metrics.clone());
+                // Seeds the sum, so a restart does not forget who is cut off.
+                if let Some(max_refuted_units_squared) =
+                    protocol_config.attestation_max_refuted_units_squared_as_option()
+                {
+                    state.attestors_cut_off_as_of(
+                        horizon(&protocol_config, resume_point),
+                        max_refuted_units_squared,
+                    );
+                }
+                Ok(state)
             })
             .transpose()?;
         let pcool_bookkeeping_enabled =
@@ -2178,10 +2185,9 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// This validator's committee index if it is cut off as of the resume
-    /// point the store opened at, or the highest horizon its validation has
-    /// read since; `None` otherwise, or when this node does not cut off
-    /// attestors.
+    /// This validator's committee index if it is cut off as of the highest
+    /// horizon read so far, the resume point's at open or validation's since;
+    /// `None` otherwise, or when this node does not cut off attestors.
     pub fn own_index_if_cut_off(&self) -> Option<u8> {
         let max_refuted_units_squared = self.cutoff_max_refuted_units_squared()?;
         let state = self.handler_object_state.as_ref()?;

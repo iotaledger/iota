@@ -2790,6 +2790,7 @@ mod handler_object_state_storage {
     use std::collections::BTreeSet;
 
     use futures::FutureExt;
+    use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
         Address, ObjectDigest, ObjectReference, Owner, SenderSignedTransaction, TransactionEffects,
     };
@@ -3211,7 +3212,11 @@ mod handler_object_state_storage {
         let totals = |entries: &[(u8, u64)]| AttestationTotals {
             refuted_units_squared: entries.iter().copied().collect(),
         };
-        for index in 1..=5 {
+        // Enough empty commits for the resume point's horizon to reach 5.
+        let distance = store
+            .protocol_config()
+            .pcool_deterministic_validation_horizon_distance();
+        for index in 1..=5 + distance {
             let commit_totals = match index {
                 // Attestor 0 reaches the whole cut at commit 2, attestor 1
                 // only with commit 5.
@@ -3235,13 +3240,21 @@ mod handler_object_state_storage {
         // A lower horizon read after a higher one still stops at it.
         assert_eq!(cut_off(&store, 4), BTreeSet::from([0]));
 
-        for index in 1..=5 {
+        for index in 1..=5 + distance {
             store
                 .flush_commit_through_quarantine_for_testing(index, vec![])
                 .unwrap();
         }
+        // The reopened store seeds its sum only with the cutoff on, which the
+        // config asserts tie to attestation.
+        let _cutoff = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_validator_attestation_for_testing(true);
+            config.set_checkpoint_summary_version_specific_data_for_testing(2);
+            config.set_attestation_max_refuted_units_squared_for_testing(MAX_REFUTED_UNITS_SQUARED);
+            config
+        });
         let reopened = reopen(&authority, &store);
-        // Known from the flushed totals before validation reads any horizon.
+        // Seeded as of the resume point's horizon, before validation reads any.
         let state = reopened.handler_object_state_for_testing();
         assert!(state.is_cut_off_as_of_highest_horizon(0, MAX_REFUTED_UNITS_SQUARED));
         assert!(state.is_cut_off_as_of_highest_horizon(1, MAX_REFUTED_UNITS_SQUARED));
