@@ -302,6 +302,16 @@ impl ValidatorService {
             return (TxStatusUpdate::Rejected { error }, weight);
         }
 
+        // Every validator drops a cut-off validator's attested transactions
+        // for the rest of the epoch, so it rejects them here and the client
+        // submits through another validator. Before the signature check,
+        // which a rejected submission need not pay for.
+        if let Some(attestor) = epoch_store.own_index_if_cut_off() {
+            let error = IotaError::AttestorCutOff { attestor };
+            let weight = normalize(&error);
+            return (TxStatusUpdate::Rejected { error }, weight);
+        }
+
         // Verify user signature.
         let tx_verif_guard = metrics.tx_verification_latency.start_timer();
         let verified_tx = match epoch_store.verify_transaction(transaction) {
@@ -318,15 +328,6 @@ impl ValidatorService {
         if !admits_user_transactions(&epoch_store.get_reconfig_state_read_lock_guard()) {
             metrics.num_rejected_tx_in_epoch_boundary.inc();
             let error = IotaError::ValidatorHaltedAtEpochEnd;
-            let weight = normalize(&error);
-            return (TxStatusUpdate::Rejected { error }, weight);
-        }
-
-        // Every validator drops a cut-off validator's attested transactions
-        // for the rest of the epoch, so it rejects them here and the client
-        // submits through another validator.
-        if let Some(attestor) = epoch_store.own_index_if_cut_off() {
-            let error = IotaError::AttestorCutOff { attestor };
             let weight = normalize(&error);
             return (TxStatusUpdate::Rejected { error }, weight);
         }
