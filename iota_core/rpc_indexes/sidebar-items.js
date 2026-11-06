@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["column_family_options","legacy_index_dirs_size","remove_legacy_index_dirs"],"mod":["grpc_api","jsonrpc_api","live_scan","schema"],"struct":["RpcIndexesStore"]};

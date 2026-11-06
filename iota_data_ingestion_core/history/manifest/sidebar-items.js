@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Manifest"],"fn":["create_file_metadata","create_file_metadata_from_bytes","finalize_manifest","read_manifest","read_manifest_from_bytes","verify_historical_checkpoints_with_checksums","write_manifest"],"struct":["CheckpointUpdates","FileMetadata","ManifestV1"]};

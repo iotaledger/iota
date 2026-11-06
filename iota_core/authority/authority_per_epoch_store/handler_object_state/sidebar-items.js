@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["HandlerProcessedObjectKind"],"fn":["handler_processed_keys","handler_processed_upserts","handler_rows_for_commit"],"struct":["AssignedCommit","HandlerObjectState","HandlerProcessedObject"],"type":["CommitIndex"]};

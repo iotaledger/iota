@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["config","filters","v2"],"struct":["ReaderOptions"]};
