@@ -281,6 +281,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             also rejects a block that carries a system transaction kind in
 //             a user transaction or certificate.
 //             Update the gas model version to 3.
+//             Enable validator attestation on devnet, with the checkpoint
+//             summary data version that certifies the verdicts.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3930,6 +3932,13 @@ impl ProtocolConfig {
 
                     // Update the gas model version.
                     cfg.gas_model_version = Some(3);
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Validators attest the user transactions they propose,
+                        // and the checkpoint summary certifies the verdicts.
+                        cfg.feature_flags.enable_validator_attestation = true;
+                        cfg.checkpoint_summary_version_specific_data = Some(2);
+                    }
                 }
                 // Use this template when making changes:
                 //
@@ -4276,6 +4285,8 @@ impl ProtocolConfig {
     /// Turning the flow on also turns on the flags it requires, turns off
     /// `pre_consensus_sponsor_only_move_authentication`, which it excludes, and
     /// fills in the settings it requires when unset, whatever the version.
+    /// Turning the flow off also turns validator attestation off, since
+    /// attestation cannot run without the flow.
     pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_pcool_flow = val;
         if val {
@@ -4289,6 +4300,8 @@ impl ProtocolConfig {
             self.pcool_deterministic_validation_horizon_distance
                 .get_or_insert(4);
             self.deny_rule_update_max_entries_per_tx.get_or_insert(1000);
+        } else {
+            self.set_enable_validator_attestation_for_testing(false);
         }
     }
 
@@ -4372,7 +4385,7 @@ impl ProtocolConfig {
     pub fn set_consensus_dedup_only_recorded_messages_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_dedup_only_recorded_messages = val;
         if !val {
-            self.feature_flags.enable_pcool_flow = false;
+            self.set_enable_pcool_flow_for_testing(false);
         }
     }
 
