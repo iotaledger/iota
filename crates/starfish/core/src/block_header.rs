@@ -1629,7 +1629,7 @@ impl TestBlockHeader {
     /// Commits to `txs` the way a proposer does, so the commitment can be
     /// checked against the transactions.
     #[cfg(test)]
-    fn with_transactions(
+    pub(crate) fn with_transactions(
         round: Round,
         author: u8,
         txs: Vec<Transaction>,
