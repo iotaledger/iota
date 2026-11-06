@@ -106,7 +106,9 @@ use crate::{
             report_aggregator::ReportAggregator,
         },
         epoch_start_configuration::EpochStartConfiguration,
-        shared_object_congestion_tracker::{CongestionPerObjectDebt, CongestionWorkerDebt},
+        shared_object_congestion_tracker::{
+            CongestionPerObjectDebt, CongestionTransactionDebt, CongestionWorkerDebt,
+        },
         shared_object_version_manager::{
             AssignedTxAndVersions, AssignedVersions, ConsensusSharedObjVerAssignment, Schedulable,
             SharedObjVerManager,
@@ -417,6 +419,40 @@ impl CongestionControlParameters {
 /// (`None` for transactions deferred due to "randomness not available").
 pub(crate) type PreviouslyDeferredTransactions =
     HashMap<TransactionDigest, (DeferralKey, Option<u64>)>;
+
+/// What the sequencing pass of a commit knows so far about the commit's
+/// transactions, so a transaction with a dependency input is scheduled only
+/// once its dependency is a root.
+pub(crate) struct CommitDependencyState {
+    /// Every transaction of the commit with a digest, before sequencing.
+    batch: HashSet<TransactionDigest>,
+    /// Scheduled or cancelled at this commit so far, the roots, each with
+    /// whether it executes in the randomness phase.
+    scheduled: HashMap<TransactionDigest, bool>,
+    /// Deferred at this commit so far.
+    deferred: HashSet<TransactionDigest>,
+}
+
+impl CommitDependencyState {
+    /// The state for a commit of `transactions`, or `None` when none of them
+    /// has a dependency.
+    fn new<'a>(
+        transactions: impl IntoIterator<Item = &'a VerifiedSequencedConsensusTransaction> + Clone,
+    ) -> Option<Self> {
+        transactions
+            .clone()
+            .into_iter()
+            .any(|tx| tx.0.transaction.transaction_dependency().is_some())
+            .then(|| Self {
+                batch: transactions
+                    .into_iter()
+                    .filter_map(|tx| tx.0.transaction.executable_transaction_digest())
+                    .collect(),
+                scheduled: HashMap::new(),
+                deferred: HashSet::new(),
+            })
+    }
+}
 
 /// Holds a verified sequenced consensus transaction that is deferred
 /// and optionally a suggested gas price for that transaction.
@@ -1087,6 +1123,10 @@ pub struct AuthorityEpochTables {
     //
     /// Accumulated per-object debts for congestion control.
     congestion_control_object_debts: DBMap<ObjectId, CongestionPerObjectDebt>,
+
+    /// The execution time, past the budget of the commit that scheduled it,
+    /// still ahead of a transaction, for its dependents at later commits.
+    congestion_control_transaction_debts: DBMap<TransactionDigest, CongestionTransactionDebt>,
 
     /// Accumulated per-object debts for randomness congestion control.
     congestion_control_randomness_object_debts: DBMap<ObjectId, CongestionPerObjectDebt>,
@@ -3381,6 +3421,7 @@ impl AuthorityPerEpochStore {
         generating_randomness: bool,
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
+        dependency_state: Option<&CommitDependencyState>,
     ) -> SchedulingResult {
         // Defer transaction if it uses randomness but we aren't generating any this
         // round. Don't defer if DKG has failed or timed out for this commit; in
@@ -3404,6 +3445,51 @@ impl AuthorityPerEpochStore {
             return result;
         }
 
+        // A dependent is scheduled only once the transaction it depends on is
+        // a root of this or an earlier commit. Otherwise it would wait in the
+        // execution scheduler for a transaction that is scheduled only at a
+        // later commit, holding its assigned shared-object versions meanwhile
+        // and, under P-COOL, keeping this commit from being fully executed.
+        // A root of this commit's randomness phase counts only for a dependent
+        // in that phase: the regular phase is assigned versions first, so a
+        // dependent outside it would hold the lower version of a common object
+        // while waiting for the higher one. There is no `dependency_state`
+        // only when no transaction of the commit has a dependency.
+        if let Some((dependency, dependency_state)) = transaction
+            .data()
+            .transaction()
+            .transaction_dependency()
+            .zip(dependency_state)
+        {
+            let dependency_is_root =
+                dependency_state
+                    .scheduled
+                    .get(&dependency)
+                    .is_some_and(|&in_randomness_phase| {
+                        !in_randomness_phase || transaction.uses_randomness()
+                    });
+            let dependency_pending = dependency_state.deferred.contains(&dependency)
+                || dependency_state.batch.contains(&dependency)
+                || self.is_deferred_transaction(&dependency);
+            if !dependency_is_root && dependency_pending {
+                let deferred_from_round = previously_deferred_tx_digests
+                    .get(transaction.digest())
+                    .map(|previous_key_suggested_gas_price_pair| {
+                        previous_key_suggested_gas_price_pair
+                            .0
+                            .deferred_from_round()
+                    })
+                    .unwrap_or(commit_round);
+                let result = SchedulingResult::Defer(
+                    DeferralKey::new_for_consensus_round(commit_round + 1, deferred_from_round),
+                    DeferralReason::WaitingForDependency(dependency),
+                );
+                tracing::Span::current()
+                    .record("scheduling_result", tracing::field::debug(&result));
+                return result;
+            }
+        }
+
         let result = if shared_object_congestion_tracker
             .congestion_control_parameters()
             .is_congestion_control_enabled()
@@ -3423,6 +3509,12 @@ impl AuthorityPerEpochStore {
                     SchedulingResult::Defer(
                         deferral_key,
                         DeferralReason::SharedObjectCongestion(congested_objects),
+                    )
+                }
+                SequencingResult::DeferForDependency(deferral_key, dependency) => {
+                    SchedulingResult::Defer(
+                        deferral_key,
+                        DeferralReason::WaitingForDependency(dependency),
                     )
                 }
                 SequencingResult::Schedule(start_time) => SchedulingResult::Schedule(start_time),
@@ -5375,6 +5467,21 @@ impl AuthorityPerEpochStore {
         } else {
             Vec::new()
         };
+        // The end times of the transactions this commit's transactions depend
+        // on, whichever tracker scheduled them: both trackers get all of them.
+        let initial_transaction_debts = if has_transaction_dependencies {
+            self.consensus_quarantine
+                .read()
+                .load_initial_transaction_debts(
+                    self,
+                    consensus_commit_info.round,
+                    sequenced_transactions
+                        .iter()
+                        .chain(sequenced_randomness_transactions.iter()),
+                )?
+        } else {
+            Vec::new()
+        };
         let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             self.consensus_quarantine.read().load_initial_object_debts(
                 self,
@@ -5383,6 +5490,7 @@ impl AuthorityPerEpochStore {
                 &sequenced_transactions,
             )?,
             initial_worker_debt,
+            initial_transaction_debts.iter().copied(),
             congestion_control_parameters.clone(),
         );
         let shared_object_using_randomness_congestion_tracker = if use_combined_congestion_tracker {
@@ -5398,6 +5506,7 @@ impl AuthorityPerEpochStore {
                 // No worker debt: worker congestion control implies a single
                 // tracker, so the randomness tracker never carries one.
                 Vec::new(),
+                initial_transaction_debts.iter().copied(),
                 congestion_control_parameters,
             ))
         };
@@ -6073,6 +6182,15 @@ impl AuthorityPerEpochStore {
         let mut randomness_state_updated = false;
         let mut sequenced_non_randomness = Vec::new();
         let mut sequenced_randomness = Vec::new();
+        let mut dependency_state = if self.protocol_config.enable_transaction_dependencies() {
+            CommitDependencyState::new(
+                non_randomness_transactions
+                    .iter()
+                    .chain(randomness_transactions.iter()),
+            )
+        } else {
+            None
+        };
 
         for entry in non_randomness_transactions
             .iter()
@@ -6122,6 +6240,7 @@ impl AuthorityPerEpochStore {
                     congestion_tracker,
                     sgp_calculator,
                     authority_metrics,
+                    dependency_state.as_ref(),
                 )
                 .await?
             {
@@ -6130,6 +6249,11 @@ impl AuthorityPerEpochStore {
                     start_time,
                 } => {
                     notifications.push(key.clone());
+                    if let Some(dependency_state) = &mut dependency_state {
+                        dependency_state
+                            .scheduled
+                            .insert(*transaction.digest(), transaction.uses_randomness());
+                    }
                     // Transactions using randomness execute in the separate
                     // randomness phase and checkpoint, whichever list they
                     // were scheduled from.
@@ -6149,6 +6273,12 @@ impl AuthorityPerEpochStore {
                         .entry(deferral_key)
                         .or_default()
                         .push(DeferredTransaction::new(tx.clone(), suggested_gas_price));
+                    if let (Some(dependency_state), Some(digest)) = (
+                        &mut dependency_state,
+                        tx.0.transaction.executable_transaction_digest(),
+                    ) {
+                        dependency_state.deferred.insert(digest);
+                    }
                     filter_roots = true;
                     if tx.0.transaction.is_executable_transaction() {
                         // Notify consensus adapter that the consensus handler has received the
@@ -6158,6 +6288,13 @@ impl AuthorityPerEpochStore {
                 }
                 ConsensusTransactionResult::Cancelled((transaction, reason)) => {
                     notifications.push(key.clone());
+                    // A cancelled transaction executes, so its dependents
+                    // can be scheduled: they are cancelled at execution.
+                    if let Some(dependency_state) = &mut dependency_state {
+                        dependency_state
+                            .scheduled
+                            .insert(*transaction.digest(), transaction.uses_randomness());
+                    }
                     assert!(
                         cancelled_txns
                             .insert(*transaction.digest(), reason)
@@ -6295,6 +6432,18 @@ impl AuthorityPerEpochStore {
                 .accumulated_worker_debt(max_execution_duration_per_commit)
             {
                 output.set_congestion_control_worker_debt(debt);
+            }
+            if self.protocol_config.enable_transaction_dependencies() {
+                let mut transaction_debts = shared_object_congestion_tracker
+                    .accumulated_transaction_debts(max_execution_duration_per_commit);
+                if let Some(randomness_tracker) = &shared_object_using_randomness_congestion_tracker
+                {
+                    transaction_debts.extend(
+                        randomness_tracker
+                            .accumulated_transaction_debts(max_execution_duration_per_commit),
+                    );
+                }
+                output.set_congestion_control_transaction_debts(transaction_debts);
             }
             output.set_congestion_control_object_debts(
                 shared_object_congestion_tracker
@@ -6503,6 +6652,7 @@ impl AuthorityPerEpochStore {
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
         authority_metrics: &Arc<AuthorityMetrics>,
+        dependency_state: Option<&CommitDependencyState>,
     ) -> IotaResult<ConsensusTransactionResult> {
         let _scope = monitored_scope("HandleConsensusTransaction");
         let VerifiedSequencedConsensusTransaction(SequencedConsensusTransaction {
@@ -6580,6 +6730,7 @@ impl AuthorityPerEpochStore {
                     generating_randomness,
                     previously_deferred_tx_digests,
                     shared_object_congestion_tracker,
+                    dependency_state,
                 );
 
                 self.handle_scheduling_result(
@@ -6835,6 +6986,7 @@ impl AuthorityPerEpochStore {
                     generating_randomness,
                     previously_deferred_tx_digests,
                     shared_object_congestion_tracker,
+                    dependency_state,
                 );
 
                 self.handle_scheduling_result(
@@ -6932,6 +7084,26 @@ impl AuthorityPerEpochStore {
                         ConsensusTransactionResult::Deferred {
                             deferral_key,
                             suggested_gas_price: None,
+                        }
+                    }
+                    DeferralReason::WaitingForDependency(dependency) => {
+                        // No deferral limit of its own: the wait ends when the
+                        // dependency is scheduled, or cancelled after its own
+                        // limit. A suggested gas price from an earlier
+                        // congestion deferral is carried along.
+                        debug!(
+                            "Deferring verified executable transaction {:?} until its \
+                             dependency {dependency:?} is scheduled",
+                            verified_executable_tx.digest(),
+                        );
+                        authority_metrics
+                            .consensus_handler_dependency_deferred_transactions
+                            .inc();
+                        ConsensusTransactionResult::Deferred {
+                            deferral_key,
+                            suggested_gas_price: previously_deferred_tx_digests
+                                .get(verified_executable_tx.digest())
+                                .and_then(|(_, suggested_gas_price)| *suggested_gas_price),
                         }
                     }
                     DeferralReason::SharedObjectCongestion(congested_objects) => {
@@ -7405,6 +7577,18 @@ impl AuthorityPerEpochStore {
             "The following transactions were neither reverted nor checkpointed: {:?}",
             uncheckpointed_transactions
         );
+    }
+
+    /// Loads the stored transaction debts of `digests` from the consensus
+    /// quarantine, as `(round, debt)`.
+    #[cfg(test)]
+    pub(crate) fn load_stored_transaction_debts_for_testing(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<(CommitRound, u64)>> {
+        self.consensus_quarantine
+            .read()
+            .load_stored_transaction_debts_for_testing(digests)
     }
 
     // Only for testing purposes. Loads initial object debts from the consensus
