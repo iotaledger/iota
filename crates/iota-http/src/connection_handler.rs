@@ -9,9 +9,7 @@ use hyper_util::server::graceful::GracefulConnection;
 use tracing::{debug, trace};
 
 use crate::{
-    ActiveConnections, BoxError, ConnectionId,
-    connection_info::PeerConnectionGuard,
-    fuse::Fuse,
+    ActiveConnections, BoxError, ConnectionId, connection_info::PeerConnectionGuard, fuse::Fuse,
     idle_timer::IdleTimer,
 };
 

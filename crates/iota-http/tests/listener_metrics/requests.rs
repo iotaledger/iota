@@ -581,10 +581,14 @@ async fn a_shutdown_while_a_request_is_in_flight_ends_the_request_and_records_on
     let body = h2_get(&sender, "/big").await.await.unwrap().into_body();
     wait_until("the request to start", || in_flight(&reader) == 1.0).await;
 
+    // The request never finishes, so the shutdown waits out its grace; paused,
+    // the clock skips it.
+    tokio::time::pause();
     handle.trigger_shutdown();
     tokio::time::timeout(Duration::from_secs(10), handle.wait_for_shutdown())
         .await
         .expect("the server did not shut down");
+    tokio::time::resume();
 
     assert_request_ended(&reader).await;
     wait_until("the connection to close", || {

@@ -501,6 +501,16 @@ mod tests {
 
     use super::*;
 
+    /// The client connection preface: the fixed string and an empty SETTINGS
+    /// frame (RFC 9113, section 3.4).
+    const HTTP2_CLIENT_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n\0\0\0\x04\0\0\0\0\0";
+    /// An empty SETTINGS frame (RFC 9113, section 6.5).
+    const HTTP2_EMPTY_SETTINGS: &[u8] = b"\0\0\0\x04\0\0\0\0\0";
+    /// The types of HTTP/2 SETTINGS and GOAWAY frames (RFC 9113, sections 6.5
+    /// and 6.8).
+    const HTTP2_SETTINGS_FRAME: u8 = 0x4;
+    const HTTP2_GOAWAY_FRAME: u8 = 0x7;
+
     #[tokio::test]
     async fn simple() {
         const MESSAGE: &str = "Hello, World!";
@@ -793,9 +803,6 @@ mod tests {
     ) {
         use tokio::io::AsyncWriteExt as _;
 
-        // The type of an HTTP/2 SETTINGS frame (RFC 9113, section 6.5).
-        const HTTP2_SETTINGS_FRAME: u8 = 0x4;
-
         connection
             .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
             .await
@@ -818,14 +825,6 @@ mod tests {
     #[tokio::test]
     async fn an_http2_connection_gets_goaway_on_shutdown_and_at_its_maximum_age() {
         use tokio::io::AsyncWriteExt as _;
-
-        // The client connection preface: the fixed string and an empty
-        // SETTINGS frame (RFC 9113, section 3.4).
-        const HTTP2_CLIENT_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n\0\0\0\x04\0\0\0\0\0";
-        // The types of HTTP/2 SETTINGS and GOAWAY frames (RFC 9113, sections
-        // 6.5 and 6.8).
-        const HTTP2_SETTINGS_FRAME: u8 = 0x4;
-        const HTTP2_GOAWAY_FRAME: u8 = 0x7;
 
         for accept_http1 in [true, false] {
             for max_connection_age in [None, Some(Duration::from_millis(500))] {
@@ -1411,7 +1410,6 @@ mod tests {
         use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
         const IDLE: Duration = Duration::from_millis(200);
-        const EMPTY_SETTINGS: [u8; 9] = [0, 0, 0, 0x4, 0, 0, 0, 0, 0];
 
         let handle = Builder::new()
             .config(Config::default().max_connection_idle(Some(IDLE)))
@@ -1424,26 +1422,35 @@ mod tests {
         let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
             .await
             .unwrap();
-        connection
-            .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
-            .await
-            .unwrap();
-        connection.write_all(&EMPTY_SETTINGS).await.unwrap();
+        connection.write_all(HTTP2_CLIENT_PREFACE).await.unwrap();
 
-        // The server's first frame shows it is serving HTTP/2, so the clock
-        // can be paused without the deadline passing while it picks a protocol.
-        let mut buf = [0u8; 1024];
-        let read = connection.read(&mut buf).await.unwrap();
-        assert_ne!(read, 0, "the server must answer the HTTP/2 preface");
+        // The server's SETTINGS show it is serving HTTP/2, so the clock can be
+        // paused without the deadline passing while it picks a protocol.
+        let mut received = Vec::new();
+        read_until_done_or_closed(&mut connection, &mut received, |received| {
+            !frame_types(received).is_empty()
+        })
+        .await;
+        assert_eq!(
+            frame_types(&received).first(),
+            Some(&HTTP2_SETTINGS_FRAME),
+            "the server must serve the connection as HTTP/2"
+        );
         tokio::time::pause();
 
-        // Keep sending frames the server must read and answer, but never a
-        // request, until the write fails because it closed the connection.
-        // The peer never acknowledges the shutdown, so that is when the grace
-        // after the deadline ends.
-        while connection.write_all(&EMPTY_SETTINGS).await.is_ok() {
+        // Send frames the server must read and answer, but never a request,
+        // for twice the deadline: a deadline counted in bytes would end no
+        // sooner than a deadline after the last of them.
+        for _ in 0..20 {
+            connection.write_all(HTTP2_EMPTY_SETTINGS).await.unwrap();
             tokio::time::sleep(IDLE / 10).await;
         }
+
+        // Then read until the connection ends. The peer never acknowledges the
+        // shutdown, so that is when the grace after the deadline ends. Nothing
+        // here sleeps, so the paused clock cannot run ahead of the socket.
+        let mut buf = [0u8; 1024];
+        while connection.read(&mut buf).await.is_ok_and(|read| read != 0) {}
         let closed_after = started.elapsed();
         let grace_ends = IDLE + SHUTDOWN_GRACE_PERIOD;
         assert!(
@@ -1451,7 +1458,7 @@ mod tests {
             "the connection must be given the grace, closed after only {closed_after:?}"
         );
         assert!(
-            closed_after < grace_ends + SHUTDOWN_GRACE_PERIOD,
+            closed_after < IDLE * 2 + SHUTDOWN_GRACE_PERIOD,
             "traffic without requests must not hold a connection open, closed after {closed_after:?}"
         );
     }
@@ -1463,7 +1470,6 @@ mod tests {
         use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
         const AGE: Duration = Duration::from_millis(200);
-        const EMPTY_SETTINGS: [u8; 9] = [0, 0, 0, 0x4, 0, 0, 0, 0, 0];
 
         let handle = Builder::new()
             .config(Config::default().max_connection_age(AGE))
@@ -1478,20 +1484,26 @@ mod tests {
         // Started HTTP/2, so the server's shutdown waits for the peer to
         // acknowledge it, which this one never does. A peer that has not
         // picked a protocol yet would be closed at once.
-        connection
-            .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
-            .await
-            .unwrap();
-        connection.write_all(&EMPTY_SETTINGS).await.unwrap();
+        connection.write_all(HTTP2_CLIENT_PREFACE).await.unwrap();
 
-        // The server's first frame shows it is serving HTTP/2, so the clock
-        // can be paused without the age passing while it picks a protocol.
-        let mut buf = [0u8; 1024];
-        let read = connection.read(&mut buf).await.unwrap();
-        assert_ne!(read, 0, "the server must answer the HTTP/2 preface");
+        // The server's SETTINGS show it is serving HTTP/2, so the clock can be
+        // paused without the age passing while it picks a protocol.
+        let mut received = Vec::new();
+        read_until_done_or_closed(&mut connection, &mut received, |received| {
+            !frame_types(received).is_empty()
+        })
+        .await;
+        assert_eq!(
+            frame_types(&received).first(),
+            Some(&HTTP2_SETTINGS_FRAME),
+            "the server must serve the connection as HTTP/2"
+        );
         tokio::time::pause();
 
-        // Then comes the shutdown, so read until the connection ends.
+        // Then comes the shutdown, so read until the connection ends. Not
+        // through `read_until_done_or_closed`, whose own timeout would be
+        // reached on the paused clock before the grace ends.
+        let mut buf = [0u8; 1024];
         while connection.read(&mut buf).await.is_ok_and(|read| read != 0) {}
         let dropped_after = started.elapsed();
         let grace_ends = AGE + SHUTDOWN_GRACE_PERIOD;
@@ -1529,11 +1541,7 @@ mod tests {
             }),
         );
         let handle = Builder::new()
-            .config(
-                Config::default()
-                    .max_connection_age(AGE)
-                    .accept_http1(true),
-            )
+            .config(Config::default().max_connection_age(AGE).accept_http1(true))
             .serve(("localhost", 0), app)
             .unwrap();
 
@@ -1599,11 +1607,7 @@ mod tests {
             }),
         );
         let handle = Builder::new()
-            .config(
-                Config::default()
-                    .max_connection_age(AGE)
-                    .accept_http1(true),
-            )
+            .config(Config::default().max_connection_age(AGE).accept_http1(true))
             .serve(("localhost", 0), app)
             .unwrap();
 
