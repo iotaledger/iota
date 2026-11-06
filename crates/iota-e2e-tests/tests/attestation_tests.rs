@@ -861,13 +861,14 @@ mod faulty_attestor {
     /// to the account.
     const BODY_TRANSFER_AMOUNT: u64 = 1;
 
-    /// The protocol config's `attestation_max_fault_units`: one refuted
-    /// attestation that wasted this many units takes the attestor's whole
-    /// score, and a smaller one the square of its fraction. A refuted
-    /// attestation of the test wastes one `gas_rounding_step` of 1,000 units
-    /// in execution's run, and the one the judge re-runs another in the
-    /// re-run, so the cut is a small part of the score.
-    const MAX_FAULT_UNITS: u64 = 50_000;
+    /// The protocol config's `attestation_max_refuted_units_squared`: the sum
+    /// of the squared units an attestor's refuted attestations wasted at which
+    /// the cut takes its whole score, and from which its attested transactions
+    /// are dropped for the rest of the epoch. A refuted attestation of the test
+    /// wastes one `gas_rounding_step` of 1,000 units in execution's run, and
+    /// the one the judge re-runs another in the re-run, so the sum stays far
+    /// below it and the cut is a small part of the score.
+    const MAX_REFUTED_UNITS_SQUARED: u64 = 50_000u64.pow(2);
 
     /// The score every validator gets while the protocol feature flag
     /// `pass_calculated_validator_scores_to_advance_epoch` is off: a copy of
@@ -879,15 +880,15 @@ mod faulty_attestor {
     /// dropped. The overrides turn on the protocol feature flag
     /// `enable_validator_attestation`, with the
     /// `checkpoint_summary_version_specific_data` of 2 that the flag requires,
-    /// set `attestation_max_fault_units` to [`MAX_FAULT_UNITS`], and turn off
-    /// the protocol feature flag
+    /// set `attestation_max_refuted_units_squared` to
+    /// [`MAX_REFUTED_UNITS_SQUARED`], and turn off the protocol feature flag
     /// `pass_calculated_validator_scores_to_advance_epoch`, so that every
     /// score is [`MAX_SCORE`] before the penalty.
     fn enable_attestation_with_fault_penalty() -> OverrideGuard {
         ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_enable_validator_attestation_for_testing(true);
             config.set_checkpoint_summary_version_specific_data_for_testing(2);
-            config.set_attestation_max_fault_units_for_testing(MAX_FAULT_UNITS);
+            config.set_attestation_max_refuted_units_squared_for_testing(MAX_REFUTED_UNITS_SQUARED);
             config.set_pass_calculated_validator_scores_to_advance_epoch_for_testing(false);
 
             config
@@ -1182,9 +1183,9 @@ mod faulty_attestor {
             vec![attestor_index],
             "only the faulty attestor has refuted attestations"
         );
-        // A fault of `MAX_FAULT_UNITS` takes the whole score, a smaller one
-        // the square of its fraction.
-        let full_cut = u128::from(MAX_FAULT_UNITS).pow(2);
+        // A sum of `MAX_REFUTED_UNITS_SQUARED` takes the whole score, a smaller
+        // one its fraction.
+        let full_cut = u128::from(MAX_REFUTED_UNITS_SQUARED);
         let wasted = u128::from(totals.refuted_units_squared[&attestor_index]);
         let cut = u64::try_from(u128::from(MAX_SCORE) * wasted.min(full_cut) / full_cut).unwrap();
         assert!(
