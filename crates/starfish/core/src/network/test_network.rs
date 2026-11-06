@@ -19,8 +19,8 @@ use crate::{
     encoder::ShardEncoder,
     error::ConsensusResult,
     network::{
-        BlockBundleStream, FetchedCommitsAndTransactions, NetworkService, SerializedBlockBundle,
-        StreamPosition,
+        BlockBundleOutcome, BlockBundleStream, FetchedCommitsAndTransactions, NetworkService,
+        SerializedBlockBundle, StreamPosition,
     },
     transaction_ref::TransactionRef,
 };
@@ -56,6 +56,8 @@ pub(crate) struct TestService {
     pub(crate) fetch_latest_block_headers_response: Vec<Bytes>,
     /// Served as the commits of every regular commit-sync fetch.
     pub(crate) fetch_commits_response: Vec<TrustedCommit>,
+    /// Returned for every streamed bundle.
+    pub(crate) block_bundle_outcome: BlockBundleOutcome,
 }
 
 impl TestService {
@@ -90,6 +92,7 @@ impl TestService {
             fetch_transactions_response: Vec::new(),
             fetch_latest_block_headers_response: Vec::new(),
             fetch_commits_response: Vec::new(),
+            block_bundle_outcome: BlockBundleOutcome::ForwardedToCore,
         }
     }
 
@@ -107,7 +110,7 @@ impl NetworkService for Mutex<TestService> {
         serialized_block_bundle: SerializedBlockBundle,
         _encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
         _last_streamed_block: &mut StreamPosition,
-    ) -> ConsensusResult<()> {
+    ) -> ConsensusResult<BlockBundleOutcome> {
         let release = {
             let mut state = self.lock();
             state
@@ -121,7 +124,9 @@ impl NetworkService for Mutex<TestService> {
         if let Some(release) = release {
             release.notified().await;
         }
-        Ok(())
+        // Read after the gate opens, so a test can choose the outcome of the
+        // bundle in flight.
+        Ok(self.lock().block_bundle_outcome)
     }
 
     async fn handle_subscribe_block_bundles_request(
