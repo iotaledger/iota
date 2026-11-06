@@ -235,9 +235,9 @@ impl IotaValidatorCommand {
 
                 let authority_keypair: AuthorityKeyPair =
                     read_authority_keypair_from_file(authority_key_file_name)?;
-                let protocol_keypair: NetworkPrivateKey =
+                let protocol_private_key: NetworkPrivateKey =
                     read_network_private_key_from_file(protocol_key_file_name)?;
-                let network_keypair: NetworkPrivateKey =
+                let network_private_key: NetworkPrivateKey =
                     read_network_private_key_from_file(network_key_file_name)?;
 
                 let account_address = Address::from(&account_key.public());
@@ -247,9 +247,9 @@ impl IotaValidatorCommand {
                     info: iota_genesis_builder::validator_info::ValidatorInfo {
                         name,
                         authority_key: authority_keypair.public().into(),
-                        protocol_key: protocol_keypair.public_key(),
+                        protocol_key: protocol_private_key.public_key(),
                         account_address,
-                        network_key: network_keypair.public_key(),
+                        network_key: network_private_key.public_key(),
                         gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                         commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                         network_address: Multiaddr::try_from(format!(

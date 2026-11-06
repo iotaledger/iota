@@ -59,7 +59,7 @@ pub fn read_network_private_key_from_file<P: AsRef<std::path::Path>>(
     let kp = read_keypair_from_file(path)?;
     kp.as_opt_ed25519()
         .cloned()
-        .ok_or_else(|| anyhow!("invalid scheme for network keypair: {}", kp.scheme()))
+        .ok_or_else(|| anyhow!("invalid scheme for network private key: {}", kp.scheme()))
 }
 
 /// Read a SimpleKeypair from a file. The content could be any of the

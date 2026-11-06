@@ -211,7 +211,7 @@ impl ValidatorGenesisConfigBuilder {
             .unwrap_or_else(|| get_key_pair_from_rng(rng).1);
         let gas_price = self.gas_price.unwrap_or(DEFAULT_VALIDATOR_GAS_PRICE);
 
-        let (protocol_key_pair, network_key_pair): (NetworkPrivateKey, NetworkPrivateKey) =
+        let (protocol_private_key, network_private_key): (NetworkPrivateKey, NetworkPrivateKey) =
             (get_key_pair_from_rng(rng).1, get_key_pair_from_rng(rng).1);
 
         let metrics_ip = self.metrics_ip_address.map(|ip| ip.to_string());
@@ -257,9 +257,9 @@ impl ValidatorGenesisConfigBuilder {
 
         ValidatorGenesisConfig {
             authority_key_pair,
-            protocol_key_pair,
+            protocol_key_pair: protocol_private_key,
             account_key_pair: account_private_key.into(),
-            network_key_pair,
+            network_key_pair: network_private_key,
             network_address,
             p2p_address,
             p2p_listen_address,
@@ -386,7 +386,7 @@ mod base64_formatted_keypair {
     }
 }
 
-// Serde adapter storing the network keypair as base64 of the raw private key
+// Serde adapter storing the network private key as base64 of the raw private key
 // bytes, the on-disk format of these config fields.
 mod base64_formatted_network_private_key {
     use iota_sdk_crypto::ToFromBase64 as _;

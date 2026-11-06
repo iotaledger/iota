@@ -1295,7 +1295,7 @@ impl IotaNode {
             let server_name = format!("iota-{chain_identifier}");
             let network = Network::bind(config.p2p_config.listen_address)
                 .server_name(&server_name)
-                .private_key(config.network_key_pair().to_bytes())
+                .private_key(config.network_private_key().to_bytes())
                 .config(anemo_config)
                 .outbound_request_layer(outbound_layer)
                 .start(service)?;
@@ -1308,7 +1308,7 @@ impl IotaNode {
             network
         };
 
-        let discovery_handle = discovery.start(p2p_network.clone(), config.network_key_pair());
+        let discovery_handle = discovery.start(p2p_network.clone(), config.network_private_key());
         let state_sync_handle = state_sync.start(p2p_network.clone());
         let randomness_handle = randomness.start(p2p_network.clone());
 
@@ -1761,7 +1761,7 @@ impl IotaNode {
                 );
 
         let tls_config = iota_tls::create_rustls_server_config(
-            config.network_key_pair(),
+            config.network_private_key(),
             IOTA_TLS_SERVER_NAME.to_string(),
         );
 
@@ -3203,11 +3203,14 @@ mod listener_metrics_tests {
     async fn node_registry(groups: &MetricGroups) -> Registry {
         let registry = registry_with_groups(groups);
 
-        let key_pair = get_key_pair::<NetworkPrivateKey>().1;
+        let private_key = get_key_pair::<NetworkPrivateKey>().1;
         let tls_config =
-            iota_tls::create_rustls_server_config(key_pair.clone(), "test".to_string());
-        let client_config =
-            iota_tls::create_rustls_client_config(key_pair.public_key(), "test".to_string(), None);
+            iota_tls::create_rustls_server_config(private_key.clone(), "test".to_string());
+        let client_config = iota_tls::create_rustls_client_config(
+            private_key.public_key(),
+            "test".to_string(),
+            None,
+        );
         let config = Config::new();
         let validator = ServerBuilder::from_config(&config, GrpcMetrics::new(&registry))
             .listener_metrics(validator_server_listener_metrics(&registry))

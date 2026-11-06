@@ -47,10 +47,10 @@ fn build_network_impl(
 ) -> (anemo::Network, iota_types::crypto::NetworkPrivateKey) {
     use iota_sdk_crypto::ToFromBytes as _;
 
-    let keypair = iota_types::crypto::NetworkPrivateKey::random();
+    let private_key = iota_types::crypto::NetworkPrivateKey::random();
     let router = f(anemo::Router::new());
     let network = anemo::Network::bind(address)
-        .private_key(keypair.to_bytes())
+        .private_key(private_key.to_bytes())
         .config(anemo_config.unwrap_or_default())
         .server_name("test")
         .start(router)
@@ -61,5 +61,5 @@ fn build_network_impl(
         network.local_addr(),
         network.peer_id(),
     );
-    (network, keypair)
+    (network, private_key)
 }

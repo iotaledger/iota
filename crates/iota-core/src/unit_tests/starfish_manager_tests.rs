@@ -81,8 +81,8 @@ async fn test_starfish_manager() {
     let client = Arc::new(LazyStarfishClient::default());
 
     let manager = StarfishManager::new(
-        config.protocol_key_pair(),
-        config.network_key_pair(),
+        config.protocol_private_key(),
+        config.network_private_key(),
         consensus_config.db_path().to_path_buf(),
         registry_service,
         metrics,

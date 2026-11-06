@@ -124,7 +124,7 @@ impl UnstartedDiscovery {
     pub(super) fn build(
         self,
         network: anemo::Network,
-        keypair: NetworkPrivateKey,
+        private_key: NetworkPrivateKey,
     ) -> (DiscoveryEventLoop, Handle) {
         let Self {
             handle,
@@ -155,7 +155,7 @@ impl UnstartedDiscovery {
                 discovery_config: Arc::new(discovery_config),
                 allowlisted_peers,
                 network,
-                keypair,
+                private_key,
                 tasks: JoinSet::new(),
                 pending_dials: Default::default(),
                 dial_seed_peers_task: None,
@@ -168,9 +168,9 @@ impl UnstartedDiscovery {
         )
     }
 
-    pub fn start(self, network: anemo::Network, keypair: NetworkPrivateKey) -> Handle {
-        assert_eq!(network.peer_id().0, keypair.public_key().into_bytes());
-        let (event_loop, handle) = self.build(network, keypair);
+    pub fn start(self, network: anemo::Network, private_key: NetworkPrivateKey) -> Handle {
+        assert_eq!(network.peer_id().0, private_key.public_key().into_bytes());
+        let (event_loop, handle) = self.build(network, private_key);
         tokio::spawn(event_loop.start());
 
         handle

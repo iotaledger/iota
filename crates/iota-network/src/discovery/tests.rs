@@ -116,7 +116,7 @@ fn set_up_network_with_trusted_peer_change_rx(
         .config(p2p_config)
         .build();
 
-    let (network, keypair) = match address {
+    let (network, private_key) = match address {
         Some(addr) => build_network_with_address_and_anemo_config(
             |router| router.add_rpc_service(server.clone()),
             addr,
@@ -128,7 +128,7 @@ fn set_up_network_with_trusted_peer_change_rx(
         ),
     };
 
-    (discovery, server, network, keypair)
+    (discovery, server, network, private_key)
 }
 
 fn set_up_network(
@@ -146,9 +146,9 @@ fn set_up_network(
 fn start_network(
     discovery: UnstartedDiscovery,
     network: Network,
-    keypair: NetworkPrivateKey,
+    private_key: NetworkPrivateKey,
 ) -> (DiscoveryEventLoop, Handle, Arc<RwLock<State>>) {
-    let (mut event_loop, handle) = discovery.build(network.clone(), keypair);
+    let (mut event_loop, handle) = discovery.build(network.clone(), private_key);
     event_loop.config.external_address = Some(local_multiaddr_from_network(&network));
     let state = event_loop.state.clone();
     (event_loop, handle, state)
@@ -157,9 +157,9 @@ fn start_network(
 fn start_network_without_external_address(
     discovery: UnstartedDiscovery,
     network: Network,
-    keypair: NetworkPrivateKey,
+    private_key: NetworkPrivateKey,
 ) -> (DiscoveryEventLoop, Handle, Arc<RwLock<State>>) {
-    let (event_loop, handle) = discovery.build(network, keypair);
+    let (event_loop, handle) = discovery.build(network, private_key);
     let state = event_loop.state.clone();
     (event_loop, handle, state)
 }

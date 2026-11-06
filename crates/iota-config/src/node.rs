@@ -775,11 +775,11 @@ impl NodeConfig {
         self.authority_key_pair.authority_keypair()
     }
 
-    pub fn protocol_key_pair(&self) -> NetworkPrivateKey {
+    pub fn protocol_private_key(&self) -> NetworkPrivateKey {
         self.protocol_key_pair.network_private_key()
     }
 
-    pub fn network_key_pair(&self) -> NetworkPrivateKey {
+    pub fn network_private_key(&self) -> NetworkPrivateKey {
         self.network_key_pair.network_private_key()
     }
 
@@ -2098,20 +2098,20 @@ mod tests {
     fn load_key_pairs_to_node_config() {
         let authority_key_pair: AuthorityKeyPair =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
-        let protocol_key_pair: NetworkPrivateKey =
+        let protocol_private_key: NetworkPrivateKey =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
-        let network_key_pair: NetworkPrivateKey =
+        let network_private_key: NetworkPrivateKey =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
 
         write_authority_keypair_to_file(&authority_key_pair, PathBuf::from("authority.key"))
             .unwrap();
         write_keypair_to_file(
-            &SimpleKeypair::from(protocol_key_pair.clone()),
+            &SimpleKeypair::from(protocol_private_key.clone()),
             PathBuf::from("protocol.key"),
         )
         .unwrap();
         write_keypair_to_file(
-            &SimpleKeypair::from(network_key_pair.clone()),
+            &SimpleKeypair::from(network_private_key.clone()),
             PathBuf::from("network.key"),
         )
         .unwrap();
@@ -2123,12 +2123,12 @@ mod tests {
             authority_key_pair.public()
         );
         assert_eq!(
-            template.network_key_pair().public_key(),
-            network_key_pair.public_key()
+            template.network_private_key().public_key(),
+            network_private_key.public_key()
         );
         assert_eq!(
-            template.protocol_key_pair().public_key(),
-            protocol_key_pair.public_key()
+            template.protocol_private_key().public_key(),
+            protocol_private_key.public_key()
         );
     }
 

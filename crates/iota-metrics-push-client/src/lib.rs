@@ -15,7 +15,7 @@ mod client;
 pub fn start_metrics_push_task(
     push_interval_seconds: Option<u64>,
     push_url: String,
-    metrics_key_pair: NetworkPrivateKey,
+    metrics_private_key: NetworkPrivateKey,
     registry: RegistryService,
 ) {
     const DEFAULT_METRICS_PUSH_INTERVAL: Duration = Duration::from_secs(60);
@@ -25,7 +25,7 @@ pub fn start_metrics_push_task(
         .unwrap_or(DEFAULT_METRICS_PUSH_INTERVAL);
     let url = reqwest::Url::parse(&push_url).expect("unable to parse metrics push url");
 
-    let mut client = MetricsPushClient::new(metrics_key_pair.clone());
+    let mut client = MetricsPushClient::new(metrics_private_key.clone());
 
     tokio::spawn(async move {
         tracing::info!(push_url =% url, interval =? interval, "Started Metrics Push Service");
@@ -46,7 +46,7 @@ pub fn start_metrics_push_task(
                     tracing::warn!("unable to push metrics: {error}; new client will be created");
                 }
                 // aggressively recreate our client connection if we hit an error
-                client = MetricsPushClient::new(metrics_key_pair.clone());
+                client = MetricsPushClient::new(metrics_private_key.clone());
             } else {
                 errors = 0;
             }

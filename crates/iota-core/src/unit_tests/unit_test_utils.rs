@@ -54,16 +54,16 @@ async fn init_genesis(
     for i in 0..committee_size {
         let authority_key_pair: AuthorityKeyPair = get_key_pair().1;
         let authority_pubkey_bytes = authority_key_pair.public().into();
-        let protocol_key_pair: NetworkPrivateKey = get_key_pair().1;
-        let protocol_pubkey = protocol_key_pair.public_key();
+        let protocol_private_key: NetworkPrivateKey = get_key_pair().1;
+        let protocol_pubkey = protocol_private_key.public_key();
         let account_key_pair: SimpleKeypair = AccountPrivateKey::random().into();
-        let network_key_pair: NetworkPrivateKey = get_key_pair().1;
+        let network_private_key: NetworkPrivateKey = get_key_pair().1;
         let validator_info = ValidatorInfo {
             name: format!("validator-{i}"),
             authority_key: authority_pubkey_bytes,
             protocol_key: protocol_pubkey,
             account_address: account_key_pair.public_key().derive_address(),
-            network_key: network_key_pair.public_key(),
+            network_key: network_private_key.public_key(),
             gas_price: 1,
             commission_rate: 0,
             network_address: local_ip_utils::new_local_tcp_address_for_testing(),

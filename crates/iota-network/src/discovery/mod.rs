@@ -88,9 +88,9 @@ pub struct NodeInfo {
 }
 
 impl NodeInfo {
-    fn sign(self, keypair: &NetworkPrivateKey) -> SignedNodeInfo {
+    fn sign(self, private_key: &NetworkPrivateKey) -> SignedNodeInfo {
         let msg = bcs::to_bytes(&self).expect("BCS serialization should not fail");
-        let sig = keypair.sign(&msg);
+        let sig = private_key.sign(&msg);
         SignedNodeInfo::new_from_data_and_sig(self, sig)
     }
 }
@@ -129,7 +129,7 @@ struct DiscoveryEventLoop {
     discovery_config: Arc<DiscoveryConfig>,
     allowlisted_peers: Arc<HashMap<PeerId, Option<Multiaddr>>>,
     network: Network,
-    keypair: NetworkPrivateKey,
+    private_key: NetworkPrivateKey,
     tasks: JoinSet<()>,
     pending_dials: HashMap<PeerId, AbortHandle>,
     dial_seed_peers_task: Option<AbortHandle>,
@@ -229,7 +229,7 @@ impl DiscoveryEventLoop {
             timestamp_ms: now_unix(),
             access_type: self.discovery_config.access_type(),
         }
-        .sign(&self.keypair);
+        .sign(&self.private_key);
 
         self.state.write().unwrap().our_info = Some(our_info);
     }
@@ -277,7 +277,7 @@ impl DiscoveryEventLoop {
         if let Some(our_info) = &state.our_info {
             let mut data = our_info.data().clone();
             data.timestamp_ms = now_unix;
-            state.our_info = Some(data.sign(&self.keypair));
+            state.our_info = Some(data.sign(&self.private_key));
         }
     }
 

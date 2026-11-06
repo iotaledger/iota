@@ -144,14 +144,14 @@ async fn update_next_epoch_metadata(
     new_config.authority_key_pair = AuthorityKeyPairWithPath::new(new_authority_key_pair);
 
     // network key
-    let new_network_key_pair = NetworkPrivateKey::random();
-    let new_network_pubkey = new_network_key_pair.public_key();
-    new_config.network_key_pair = KeyPairWithPath::new(new_network_key_pair.into());
+    let new_network_private_key = NetworkPrivateKey::random();
+    let new_network_pubkey = new_network_private_key.public_key();
+    new_config.network_key_pair = KeyPairWithPath::new(new_network_private_key.into());
 
     // protocol key
-    let new_protocol_key_pair = NetworkPrivateKey::random();
-    let new_protocol_pubkey = new_protocol_key_pair.public_key();
-    new_config.protocol_key_pair = KeyPairWithPath::new(new_protocol_key_pair.into());
+    let new_protocol_private_key = NetworkPrivateKey::random();
+    let new_protocol_pubkey = new_protocol_private_key.public_key();
+    new_config.protocol_key_pair = KeyPairWithPath::new(new_protocol_private_key.into());
 
     // needs to be active_validators instead of committee_members here, so that
     // every validator can update their own metadata

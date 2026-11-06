@@ -55,8 +55,8 @@ impl StarfishManager {
     /// But for security, the protocol keypair must be different from the
     /// network keypair.
     pub fn new(
-        protocol_keypair: iota_types::crypto::NetworkPrivateKey,
-        network_keypair: iota_types::crypto::NetworkPrivateKey,
+        protocol_private_key: iota_types::crypto::NetworkPrivateKey,
+        network_private_key: iota_types::crypto::NetworkPrivateKey,
         storage_base_path: PathBuf,
         registry_service: RegistryService,
         metrics: Arc<ConsensusManagerMetrics>,
@@ -64,9 +64,9 @@ impl StarfishManager {
     ) -> Self {
         let (consumer_monitor_sender, _) = broadcast::channel(1);
         Self {
-            protocol_keypair: ProtocolKeyPair::from_bytes(&protocol_keypair.to_bytes())
+            protocol_keypair: ProtocolKeyPair::from_bytes(&protocol_private_key.to_bytes())
                 .expect("valid ed25519 private key bytes"),
-            network_keypair: NetworkKeyPair::new(network_keypair),
+            network_keypair: NetworkKeyPair::new(network_private_key),
             storage_base_path,
             running: Mutex::new(Running::False),
             metrics,

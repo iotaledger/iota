@@ -568,8 +568,8 @@ mod tests {
     // empty on a freshly deserialized config, so fill them in first.
     fn debug_with_keys_loaded(config: &NodeConfig) -> String {
         config.authority_key_pair();
-        config.protocol_key_pair();
-        config.network_key_pair();
+        config.protocol_private_key();
+        config.network_private_key();
         config.iota_address();
         format!("{config:?}")
     }

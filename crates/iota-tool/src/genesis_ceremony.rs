@@ -184,9 +184,9 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             let authority_keypair: AuthorityKeyPair =
                 read_authority_keypair_from_file(authority_key_file)?;
             let account_keypair: SimpleKeypair = read_keypair_from_file(account_key_file)?;
-            let protocol_keypair: NetworkPrivateKey =
+            let protocol_private_key: NetworkPrivateKey =
                 read_network_private_key_from_file(protocol_key_file)?;
-            let network_keypair: NetworkPrivateKey =
+            let network_private_key: NetworkPrivateKey =
                 read_network_private_key_from_file(network_key_file)?;
             let pop = generate_proof_of_possession(
                 &authority_keypair,
@@ -196,9 +196,9 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
                 iota_genesis_builder::validator_info::ValidatorInfo {
                     name,
                     authority_key: authority_keypair.public().into(),
-                    protocol_key: protocol_keypair.public_key(),
+                    protocol_key: protocol_private_key.public_key(),
                     account_address: account_keypair.public_key().derive_address(),
-                    network_key: network_keypair.public_key(),
+                    network_key: network_private_key.public_key(),
                     gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                     commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                     network_address,
@@ -350,17 +350,17 @@ mod test {
             .map(|i| {
                 let authority_keypair: AuthorityKeyPair =
                     get_key_pair_from_rng(&mut rand::rand_core::UnwrapErr(rand::rngs::SysRng)).1;
-                let protocol_keypair: NetworkPrivateKey =
+                let protocol_private_key: NetworkPrivateKey =
                     get_key_pair_from_rng(&mut rand::rand_core::UnwrapErr(rand::rngs::SysRng)).1;
-                let network_keypair: NetworkPrivateKey =
+                let network_private_key: NetworkPrivateKey =
                     get_key_pair_from_rng(&mut rand::rand_core::UnwrapErr(rand::rngs::SysRng)).1;
                 let account_private_key = AccountPrivateKey::random();
                 let info = ValidatorInfo {
                     name: format!("validator-{i}"),
                     authority_key: authority_keypair.public().into(),
-                    protocol_key: protocol_keypair.public_key(),
+                    protocol_key: protocol_private_key.public_key(),
                     account_address: account_private_key.public_key().derive_address(),
-                    network_key: network_keypair.public_key(),
+                    network_key: network_private_key.public_key(),
                     gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                     commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                     network_address: local_ip_utils::new_local_tcp_address_for_testing(),
@@ -374,11 +374,14 @@ mod test {
                 write_authority_keypair_to_file(&authority_keypair, &authority_key_file).unwrap();
 
                 let protocol_key_file = dir.path().join(format!("{}.key", info.name));
-                write_keypair_to_file(&SimpleKeypair::from(protocol_keypair), &protocol_key_file)
-                    .unwrap();
+                write_keypair_to_file(
+                    &SimpleKeypair::from(protocol_private_key),
+                    &protocol_key_file,
+                )
+                .unwrap();
 
                 let network_key_file = dir.path().join(format!("{}-1.key", info.name));
-                write_keypair_to_file(&SimpleKeypair::from(network_keypair), &network_key_file)
+                write_keypair_to_file(&SimpleKeypair::from(network_private_key), &network_key_file)
                     .unwrap();
 
                 let account_key_file = dir.path().join(format!("{}-2.key", info.name));

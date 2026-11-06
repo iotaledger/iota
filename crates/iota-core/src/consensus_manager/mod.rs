@@ -74,8 +74,8 @@ impl ConsensusManager {
         let starfish_client = Arc::new(LazyStarfishClient::new());
         consensus_client.set(starfish_client.clone());
         let starfish_manager = StarfishManager::new(
-            node_config.protocol_key_pair(),
-            node_config.network_key_pair(),
+            node_config.protocol_private_key(),
+            node_config.network_private_key(),
             consensus_config.db_path().to_path_buf(),
             registry_service.clone(),
             metrics,

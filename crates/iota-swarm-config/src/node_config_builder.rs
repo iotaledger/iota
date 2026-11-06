@@ -399,9 +399,12 @@ impl FullnodeConfigBuilder {
         self
     }
 
-    pub fn with_network_key_pair(mut self, network_key_pair: Option<NetworkPrivateKey>) -> Self {
-        if let Some(network_key_pair) = network_key_pair {
-            self.network_key_pair = Some(KeyPairWithPath::new(network_key_pair.into()));
+    pub fn with_network_private_key(
+        mut self,
+        network_private_key: Option<NetworkPrivateKey>,
+    ) -> Self {
+        if let Some(network_private_key) = network_private_key {
+            self.network_key_pair = Some(KeyPairWithPath::new(network_private_key.into()));
         }
         self
     }
@@ -536,7 +539,7 @@ impl FullnodeConfigBuilder {
                     })?;
                     Ok(SeedPeer {
                         peer_id: Some(anemo::PeerId(
-                            config.network_key_pair().public_key().into_bytes(),
+                            config.network_private_key().public_key().into_bytes(),
                         )),
                         address,
                     })
