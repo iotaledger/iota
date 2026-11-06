@@ -46,6 +46,7 @@ pub struct ServerBuilder<M: MetricsCallbackProvider = DefaultMetricsCallbackProv
     router: tonic::service::Routes,
     health_reporter: tonic_health::server::HealthReporter,
     listener_metrics: Option<ListenerMetrics>,
+    http_config: iota_http::Config,
 }
 
 impl<M: MetricsCallbackProvider> ServerBuilder<M> {
@@ -59,6 +60,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
             router,
             health_reporter,
             listener_metrics: None,
+            http_config: iota_http::Config::default(),
         }
     }
 
@@ -66,6 +68,15 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
     /// [`iota_http::Config::metrics`].
     pub fn listener_metrics(mut self, metrics: ListenerMetrics) -> Self {
         self.listener_metrics = Some(metrics);
+        self
+    }
+
+    /// Sets the listener's connection and HTTP/2 settings. Its metrics are set
+    /// by [`Self::listener_metrics`], which replaces any in `http_config`.
+    ///
+    /// Default is [`iota_http::Config::default`].
+    pub fn http_config(mut self, http_config: iota_http::Config) -> Self {
+        self.http_config = http_config;
         self
     }
 
@@ -125,7 +136,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
 
     pub async fn bind(self, addr: &Multiaddr, tls_config: Option<ServerConfig>) -> Result<Server> {
         let request_timeout = self.request_timeout();
-        let http_config = self.config.http_config().metrics(self.listener_metrics);
+        let http_config = self.http_config.metrics(self.listener_metrics);
 
         let metrics_provider = self.metrics_provider;
         let metrics = MetricsHandler::new(metrics_provider.clone());
@@ -745,11 +756,14 @@ mod test {
         const STREAM_CAP: u32 = 2;
 
         let started = Started::default();
-        let mut config = Config::new();
-        config.http2_max_concurrent_streams = std::num::NonZeroU32::new(STREAM_CAP);
+        let config = Config::new();
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let server = config
             .server_builder_with_metrics(started.clone())
+            .http_config(
+                iota_http::Config::default()
+                    .max_concurrent_streams(std::num::NonZeroU32::new(STREAM_CAP)),
+            )
             .add_service(DrainBody)
             .bind(&address, None)
             .await

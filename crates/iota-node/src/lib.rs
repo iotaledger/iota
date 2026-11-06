@@ -1736,29 +1736,42 @@ impl IotaNode {
         // every request to this validator over one connection, so the cap must
         // stay well above a busy fullnode's peak concurrency.
         const VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS: NonZeroU32 = NonZeroU32::new(1000).unwrap();
+        // Leaves room for every fullnode and validator holding a connection,
+        // while keeping a connection flood well inside the process fd limit,
+        // which this listener shares with RocksDB and the other listeners.
+        const VALIDATOR_GRPC_MAX_CONNECTIONS: NonZeroUsize = NonZeroUsize::new(4096).unwrap();
+        // Frees the connections of peers that stopped sending requests. A peer
+        // that comes back reconnects, paying one TLS handshake, which is cheap
+        // next to five minutes without a request.
+        const VALIDATOR_GRPC_MAX_CONNECTION_IDLE: Duration = Duration::from_secs(300);
 
-        let mut server_conf = iota_network_stack::config::Config::new();
-        server_conf.http2_keepalive_interval = Some(VALIDATOR_GRPC_KEEPALIVE);
-        server_conf.http2_keepalive_timeout = Some(VALIDATOR_GRPC_KEEPALIVE);
-        server_conf.http2_max_concurrent_streams = Some(VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS);
-        let server_builder =
-            ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
-                .listener_metrics(validator_server_listener_metrics(prometheus_registry))
-                .add_service_with_concurrency_limit(
-                    ValidatorServer::new(validator_service.clone()),
-                    concurrency_limit,
-                    load_shed,
-                )
-                .add_service_with_concurrency_limit(
-                    ValidatorV2Server::new(validator_service.clone()),
-                    concurrency_limit,
-                    load_shed,
-                )
-                .add_service_with_concurrency_limit(
-                    ValidatorPeerServer::new(validator_service),
-                    concurrency_limit,
-                    load_shed,
-                );
+        let http_config = iota_http::Config::default()
+            .http2_keepalive_interval(VALIDATOR_GRPC_KEEPALIVE)
+            .http2_keepalive_timeout(VALIDATOR_GRPC_KEEPALIVE)
+            .max_concurrent_streams(VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS)
+            .max_connections(VALIDATOR_GRPC_MAX_CONNECTIONS)
+            .max_connection_idle(VALIDATOR_GRPC_MAX_CONNECTION_IDLE);
+        let server_builder = ServerBuilder::from_config(
+            &iota_network_stack::config::Config::new(),
+            GrpcMetrics::new(prometheus_registry),
+        )
+        .http_config(http_config)
+        .listener_metrics(validator_server_listener_metrics(prometheus_registry))
+        .add_service_with_concurrency_limit(
+            ValidatorServer::new(validator_service.clone()),
+            concurrency_limit,
+            load_shed,
+        )
+        .add_service_with_concurrency_limit(
+            ValidatorV2Server::new(validator_service.clone()),
+            concurrency_limit,
+            load_shed,
+        )
+        .add_service_with_concurrency_limit(
+            ValidatorPeerServer::new(validator_service),
+            concurrency_limit,
+            load_shed,
+        );
 
         let tls_config = iota_tls::create_rustls_server_config(
             config.network_key_pair(),
@@ -2858,10 +2871,29 @@ pub async fn build_http_server(
 
     router = router.layer(layers);
 
+    // The listener is public and plaintext, so its connection count is bounded
+    // only by this, well inside the process fd limit it shares with RocksDB and
+    // the other listeners.
+    const JSON_RPC_MAX_CONNECTIONS: NonZeroUsize = NonZeroUsize::new(4096).unwrap();
+    // Longer than HTTP clients keep an unused pooled connection (90 s in Go and
+    // hyper), so they close first and a request is not sent on a
+    // connection this server is closing at the same moment.
+    const JSON_RPC_MAX_CONNECTION_IDLE: Duration = Duration::from_secs(300);
+    // The smallest value RFC 9113 recommends; a JSON-RPC client needs few
+    // requests in flight on one connection.
+    const JSON_RPC_MAX_CONCURRENT_STREAMS: NonZeroU32 = NonZeroU32::new(100).unwrap();
+    // Closes an HTTP/2 connection whose peer has gone while it still has a
+    // request in flight, which the idle deadline does not.
+    const JSON_RPC_HTTP2_KEEPALIVE: Duration = Duration::from_secs(60);
+
     let handle = iota_http::Builder::new()
         .config(
             iota_http::Config::default()
-                .metrics(Some(json_rpc_listener_metrics(prometheus_registry))),
+                .max_connections(JSON_RPC_MAX_CONNECTIONS)
+                .max_connection_idle(JSON_RPC_MAX_CONNECTION_IDLE)
+                .max_concurrent_streams(JSON_RPC_MAX_CONCURRENT_STREAMS)
+                .http2_keepalive_interval(JSON_RPC_HTTP2_KEEPALIVE)
+                .metrics(json_rpc_listener_metrics(prometheus_registry)),
         )
         .serve(&config.json_rpc_address, router)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
