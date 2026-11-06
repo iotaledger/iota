@@ -1274,65 +1274,11 @@ mod tests {
         );
     }
 
-    /// A streaming response resolves its future long before its last frame, so
-    /// the guard rides the body. While one is alive the connection is busy.
-    #[tokio::test]
-    async fn a_request_in_flight_keeps_a_connection_from_going_idle() {
-        const IDLE: Duration = Duration::from_millis(100);
-
-        let timer = idle_timer::idle_timeout(IDLE);
-        let handle = timer.handle();
-        let mut wait = std::pin::pin!(timer.wait());
-
-        let guard = handle.guard();
-
-        // Well past the deadline, but the request has not finished.
-        assert!(
-            tokio::time::timeout(IDLE * 10, &mut wait).await.is_err(),
-            "a connection serving a request must not be considered idle"
-        );
-
-        // Once it does, the deadline runs from that point.
-        drop(guard);
-        assert!(
-            tokio::time::timeout(IDLE * 10, &mut wait).await.is_ok(),
-            "a connection must go idle once its last request finishes"
-        );
-    }
-
-    /// The deadline runs from the last request rather than being sampled once
-    /// a period: a connection busy for several periods and then quiet must be
-    /// given a full period from the moment it went quiet, not closed at the
-    /// next tick.
-    #[tokio::test]
-    async fn the_deadline_runs_from_the_last_request() {
-        const IDLE: Duration = Duration::from_millis(100);
-
-        let timer = idle_timer::idle_timeout(IDLE);
-        let handle = timer.handle();
-        let mut wait = std::pin::pin!(timer.wait());
-
-        let guard = handle.guard();
-        // Held for several deadlines, so a timer that merely ticks would have
-        // fired more than once by now.
-        tokio::time::sleep(IDLE * 3).await;
-        let became_idle = tokio::time::Instant::now();
-        drop(guard);
-
-        tokio::time::timeout(IDLE * 10, &mut wait)
-            .await
-            .expect("the connection must go idle after its last request");
-        assert!(
-            became_idle.elapsed() >= IDLE,
-            "the deadline must run from the last request, elapsed only {:?}",
-            became_idle.elapsed()
-        );
-    }
-
     /// A connection goes idle, serves another request and goes idle again any
     /// number of times, and each time it is given a full deadline from the end
-    /// of its last request.
-    #[tokio::test]
+    /// of its last request. Each request is held for several deadlines, so a
+    /// timer that merely ticks would fire while it is served.
+    #[tokio::test(start_paused = true)]
     async fn a_connection_goes_idle_again_after_each_request() {
         const IDLE: Duration = Duration::from_millis(50);
 
@@ -1366,7 +1312,7 @@ mod tests {
 
     /// A request can start and finish between two polls of the timer. It must
     /// still push the deadline back to a full period from its end.
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn a_request_shorter_than_a_poll_pushes_the_deadline_back() {
         const IDLE: Duration = Duration::from_millis(100);
 
@@ -1386,31 +1332,6 @@ mod tests {
         tokio::time::timeout(IDLE * 10, &mut wait)
             .await
             .expect("the connection must go idle after the request");
-        assert!(
-            became_idle.elapsed() >= IDLE,
-            "the deadline must run from the end of the request, elapsed only {:?}",
-            became_idle.elapsed()
-        );
-    }
-
-    /// A request can start and finish between two polls of a timer that has
-    /// already been reached. The connection has been used again since, so the
-    /// timer must be ready again a full period after the request ends.
-    #[tokio::test]
-    async fn a_request_shorter_than_a_poll_makes_a_reached_timer_ready_again() {
-        const IDLE: Duration = Duration::from_millis(100);
-
-        let timer = idle_timer::idle_timeout(IDLE);
-        let handle = timer.handle();
-
-        timer.wait().await;
-
-        let became_idle = tokio::time::Instant::now();
-        drop(handle.guard());
-
-        tokio::time::timeout(IDLE * 10, timer.wait())
-            .await
-            .expect("a connection used after its timer was reached must go idle again");
         assert!(
             became_idle.elapsed() >= IDLE,
             "the deadline must run from the end of the request, elapsed only {:?}",
@@ -1438,7 +1359,7 @@ mod tests {
     /// ready, while the work continues for as long as frames are produced.
     /// Dropping the guard when the future resolves would call such a
     /// connection idle while it is still sending.
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn a_streaming_response_holds_its_connection() {
         const IDLE: Duration = Duration::from_millis(100);
 
