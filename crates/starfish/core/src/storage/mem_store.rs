@@ -8,7 +8,7 @@ use std::{
 };
 
 use bytes::Bytes;
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use starfish_config::AuthorityIndex;
 
 use super::{Store, WriteBatch, collect_transactions_within_budget, transaction_scan_bounds};
@@ -30,6 +30,8 @@ use crate::{
 /// In-memory storage for testing.
 pub(crate) struct MemStore {
     inner: RwLock<Inner>,
+    /// Number of refs in each `read_serialized_transactions` call.
+    transaction_reads: Mutex<Vec<usize>>,
 }
 
 struct Inner {
@@ -64,7 +66,13 @@ impl MemStore {
                 fast_sync_ongoing: false,
                 misbehavior_counts: BTreeMap::new(),
             }),
+            transaction_reads: Mutex::new(Vec::new()),
         }
+    }
+
+    /// Returns the size of each transaction read since the last call.
+    pub(crate) fn take_transaction_reads(&self) -> Vec<usize> {
+        std::mem::take(&mut *self.transaction_reads.lock())
     }
 }
 
@@ -175,6 +183,7 @@ impl Store for MemStore {
         if !check_ref_consistency(refs) {
             return Err(ConsensusError::InconsistentTransactionRefVariants);
         }
+        self.transaction_reads.lock().push(refs.len());
         let inner = self.inner.read();
         let transactions = refs
             .iter()

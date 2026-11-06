@@ -20,7 +20,7 @@ use crate::{
     error::ConsensusResult,
     network::{
         BlockBundleStream, FetchedCommitsAndTransactions, NetworkService, SerializedBlockBundle,
-        StreamPosition,
+        StreamPosition, TransactionChunkStream,
     },
     transaction_ref::TransactionRef,
 };
@@ -196,11 +196,12 @@ impl NetworkService for Mutex<TestService> {
         &self,
         peer: AuthorityIndex,
         transaction_refs: Vec<TransactionRef>,
-    ) -> ConsensusResult<Vec<Bytes>> {
+    ) -> ConsensusResult<TransactionChunkStream> {
         let mut service = self.lock();
         service
             .handle_fetch_transactions
             .push((peer, transaction_refs));
-        Ok(service.fetch_transactions_response.clone())
+        let response = service.fetch_transactions_response.clone();
+        Ok(stream::iter((!response.is_empty()).then_some(Ok(response))).boxed())
     }
 }
