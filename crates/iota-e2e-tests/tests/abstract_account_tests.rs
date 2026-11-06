@@ -48,9 +48,7 @@ use iota_types::{
     },
 };
 use move_command_line_common::error_bitset::ErrorBitset;
-use test_cluster::{
-    TestCluster, TestClusterBuilder, override_pcool_flow, override_validator_attestation,
-};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 
 const AA_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";
 const AA_MODULE_NAME: &str = "abstract_account";
@@ -1518,6 +1516,7 @@ async fn test_stale_abstract_account_tx_fails_with_effects_with_the_pcool_flow()
     use iota_core::authority_client::validator_v2::ValidatorV2API;
     use iota_macros::{clear_fail_point, register_fail_point_async};
     use iota_sdk_types::{ExecutionStatus, GasCostSummary};
+    use test_cluster::override_validator_attestation;
 
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
@@ -1778,6 +1777,7 @@ async fn test_denied_authenticator_package_is_dropped_at_the_commit() -> Result<
     use iota_macros::{clear_fail_point, register_fail_point_if};
     use iota_sdk_types::ExecutionStatus;
     use iota_types::messages_grpc::TxStatusUpdate;
+    use test_cluster::override_validator_attestation;
 
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
@@ -2107,6 +2107,7 @@ async fn test_received_version_named_as_owned_input_never_executes() -> Result<(
     use iota_core::authority_client::validator_v2::ValidatorV2API;
     use iota_macros::{clear_fail_point, register_fail_point_if};
     use iota_types::messages_grpc::{GetTxStatusRequest, TxStatusQuery, TxStatusUpdate};
+    use test_cluster::override_validator_attestation;
 
     // Wide enough that the receive, the account creation and the first
     // submission fit within it.
