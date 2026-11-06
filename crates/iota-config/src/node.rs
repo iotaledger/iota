@@ -329,6 +329,11 @@ pub struct ListenerLimitsConfig {
     #[serde(default, skip_serializing_if = "Setting::is_unset")]
     pub max_connections_per_client_ip: Setting<NonZeroUsize>,
 
+    /// How many leading bits of an IPv6 address identify one client.
+    /// Must be between 32 and 128.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ipv6_prefix_len: Option<u8>,
+
     /// How long a connection may serve no request before the listener closes
     /// it.
     #[serde(default, skip_serializing_if = "Setting::is_unset")]
@@ -381,9 +386,20 @@ impl ListenerLimitsConfig {
                  `max-pending-connections` to `null` too"
             );
         }
+        if let Some(len) = self
+            .ipv6_prefix_len
+            .filter(|len| !(MIN_IPV6_PREFIX_LEN..=128).contains(len))
+        {
+            anyhow::bail!(
+                "`{key}.ipv6-prefix-len` is {len}; set it between {MIN_IPV6_PREFIX_LEN} and 128"
+            );
+        }
         Ok(())
     }
 }
+
+/// The shortest IPv6 prefix length a listener accepts.
+const MIN_IPV6_PREFIX_LEN: u8 = 32;
 
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -2220,6 +2236,28 @@ mod tests {
         }
     }
 
+    /// The listener accepts IPv6 prefix lengths from 32 to 128 bits.
+    #[test]
+    fn validate_rejects_an_ipv6_prefix_len_out_of_range() {
+        for key in LISTENER_LIMITS_KEYS {
+            for len in [0, 31, 129] {
+                let err = config_with_listener_limits(key, &format!("{{ipv6-prefix-len: {len}}}"))
+                    .validate()
+                    .unwrap_err()
+                    .to_string();
+                assert!(
+                    err.contains(&format!("`{key}.ipv6-prefix-len` is {len}")),
+                    "{err}"
+                );
+            }
+            for len in [32, 128] {
+                config_with_listener_limits(key, &format!("{{ipv6-prefix-len: {len}}}"))
+                    .validate()
+                    .unwrap();
+            }
+        }
+    }
+
     #[test]
     fn enable_soft_locking_defaults_to_enabled() {
         // The template omits `enable-soft-locking`, so this exercises the serde
@@ -2456,6 +2494,7 @@ mod tests {
             max-pending-connections: 2
             max-connections: 3
             max-connections-per-client-ip: 4
+            ipv6-prefix-len: 48
             max-connection-idle: {secs: 5, nanos: 0}
             max-concurrent-streams: 6
             http2-keepalive-interval: {secs: 7, nanos: 0}
@@ -2469,6 +2508,7 @@ mod tests {
                 max_pending_connections: Setting::Value(NonZeroUsize::new(2).unwrap()),
                 max_connections: Setting::Value(NonZeroUsize::new(3).unwrap()),
                 max_connections_per_client_ip: Setting::Value(NonZeroUsize::new(4).unwrap()),
+                ipv6_prefix_len: Some(48),
                 max_connection_idle: Setting::Value(Duration::from_secs(5)),
                 max_concurrent_streams: Setting::Value(NonZeroU32::new(6).unwrap()),
                 http2_keepalive_interval: Setting::Value(Duration::from_secs(7)),
@@ -2485,6 +2525,7 @@ mod tests {
             max-pending-connections: null
             max-connections: null
             max-connections-per-client-ip: null
+            ipv6-prefix-len: null
             max-connection-idle: null
             max-concurrent-streams: null
             http2-keepalive-interval: null
@@ -2498,6 +2539,7 @@ mod tests {
                 max_pending_connections: Setting::Disabled,
                 max_connections: Setting::Disabled,
                 max_connections_per_client_ip: Setting::Disabled,
+                ipv6_prefix_len: None,
                 max_connection_idle: Setting::Disabled,
                 max_concurrent_streams: Setting::Disabled,
                 http2_keepalive_interval: Setting::Disabled,

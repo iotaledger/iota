@@ -1772,6 +1772,11 @@ impl IotaNode {
                     .max_connections_per_client_ip
                     .resolve(VALIDATOR_GRPC_MAX_CONNECTIONS_PER_CLIENT_IP),
             )
+            .ipv6_prefix_len(
+                limits
+                    .ipv6_prefix_len
+                    .unwrap_or(iota_http::DEFAULT_IPV6_PREFIX_LEN),
+            )
             .max_connection_idle(
                 limits
                     .max_connection_idle
@@ -2951,6 +2956,11 @@ pub async fn build_http_server(
             limits
                 .max_connections_per_client_ip
                 .resolve(JSON_RPC_MAX_CONNECTIONS_PER_CLIENT_IP),
+        )
+        .ipv6_prefix_len(
+            limits
+                .ipv6_prefix_len
+                .unwrap_or(iota_http::DEFAULT_IPV6_PREFIX_LEN),
         )
         .max_connection_idle(
             limits
