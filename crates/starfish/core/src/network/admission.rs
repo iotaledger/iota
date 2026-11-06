@@ -274,7 +274,9 @@ impl PerPeerAdmission {
 
 /// RAII guard for an admitted request: holds the peer's slot and keeps the
 /// per-group in-use gauge incremented for the request's (or stream's) lifetime.
-/// Dropping it releases the slot and decrements the gauge.
+/// It is shared: the response body holds it, and so does the request, for work
+/// that can outlive the response. The slot is released, and the gauge
+/// decremented, once the last holder drops it.
 pub(crate) struct AdmissionGuard {
     _peer: PeerHold,
     in_use: IntGauge,
@@ -293,6 +295,17 @@ impl AdmissionGuard {
 impl Drop for AdmissionGuard {
     fn drop(&mut self) {
         self.in_use.dec();
+    }
+}
+
+#[cfg(test)]
+impl AdmissionGuard {
+    /// A guard holding `permit` as the peer's slot.
+    pub(crate) fn holding(permit: OwnedSemaphorePermit) -> Self {
+        Self::new(
+            PeerHold::Semaphore { _permit: permit },
+            IntGauge::new("admission_in_use_for_test", "test").expect("valid gauge"),
+        )
     }
 }
 
@@ -347,7 +360,7 @@ where
     ResBody: HttpBody<Data = Bytes> + Send + 'static,
     ResBody::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    type Response = Response<ReclaimableBody<Body, TotalSlot, AdmissionGuard>>;
+    type Response = Response<ReclaimableBody<Body, TotalSlot, Arc<AdmissionGuard>>>;
     type Error = S::Error;
     type Future = AdmissionFuture<S::Future>;
 
@@ -355,7 +368,7 @@ where
         self.inner.poll_ready(cx)
     }
 
-    fn call(&mut self, request: Request<ReqBody>) -> Self::Future {
+    fn call(&mut self, mut request: Request<ReqBody>) -> Self::Future {
         let path = request.uri().path();
         // The deprecated method decodes its request before its handler answers,
         // so answering here is what keeps its body from being read.
@@ -393,7 +406,11 @@ where
                 let in_use = metrics
                     .admission_in_use
                     .with_label_values(&[group.as_str()]);
-                let guard = AdmissionGuard::new(peer, in_use);
+                let guard = Arc::new(AdmissionGuard::new(peer, in_use));
+                // A blocking read the handler started keeps the slot through
+                // this copy until it ends, even when the peer has cancelled the
+                // request and the response is gone.
+                request.extensions_mut().insert(guard.clone());
                 AdmissionFuture::admitted(
                     self.inner.call(request),
                     Some(guard),
@@ -427,7 +444,7 @@ pin_project! {
         Admitted {
             #[pin]
             inner: F,
-            guard: Option<AdmissionGuard>,
+            guard: Option<Arc<AdmissionGuard>>,
             total: Option<TotalSlot>,
             // The send deadline and the counter of responses it reclaims;
             // `None` for a response that may stay open.
@@ -442,7 +459,7 @@ pin_project! {
 impl<F> AdmissionFuture<F> {
     fn admitted(
         inner: F,
-        guard: Option<AdmissionGuard>,
+        guard: Option<Arc<AdmissionGuard>>,
         total: Option<TotalSlot>,
         send_deadline: Option<(Duration, IntCounter)>,
     ) -> Self {
@@ -470,7 +487,7 @@ where
     ResBody: HttpBody<Data = Bytes> + Send + 'static,
     ResBody::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    type Output = Result<Response<ReclaimableBody<Body, TotalSlot, AdmissionGuard>>, E>;
+    type Output = Result<Response<ReclaimableBody<Body, TotalSlot, Arc<AdmissionGuard>>>, E>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Self::Output> {
         match self.project() {

@@ -19,7 +19,7 @@
 //! network outside of this module, so they can be reused easily across network
 //! implementations.
 
-use std::{collections::BTreeSet, fmt, pin::Pin, time::Duration};
+use std::{collections::BTreeSet, fmt, pin::Pin, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -56,6 +56,8 @@ pub(crate) mod tonic_network;
 #[cfg(msim)]
 pub mod tonic_network;
 mod tonic_tls;
+
+pub(crate) use admission::AdmissionGuard;
 
 use crate::{
     commit_syncer::CommitSyncType, encoder::ShardEncoder, transaction_ref::TransactionRef,
@@ -220,11 +222,13 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)>;
 
     /// Handles the request to fetch commits and transactions by index range
-    /// from the peer. Used in fast commit sync.
+    /// from the peer. Used in fast commit sync. Each read of the transactions
+    /// holds `admission`, the request's admission slot, until it ends.
     async fn handle_fetch_commits_and_transactions(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
+        admission: Option<Arc<AdmissionGuard>>,
     ) -> ConsensusResult<FetchedCommitsAndTransactions>;
 
     /// Handles the request to fetch the latest block headers for the provided
