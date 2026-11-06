@@ -7,6 +7,7 @@
 // - paginating with a cursor that points below the pruning watermark
 // - `Query.checkpoint(sequenceNumber)` for both pruned and unpruned seqs
 // - nested `Epoch.checkpoints` on a fully-pruned epoch and on the current one
+// - nested `Epoch.checkpoints` with a cursor below the pruning watermark
 
 //# init --protocol-version 12 --addresses Test=0x0 --simulator --epochs-to-keep 1
 
@@ -129,6 +130,19 @@ module Test::M {
   epoch(id: 3) {
     epochId
     checkpoints {
+      pageInfo { hasPreviousPage hasNextPage }
+      nodes { sequenceNumber }
+    }
+  }
+}
+
+//# run-graphql --cursors {"c":9,"s":2}
+# I: nested Epoch.checkpoints with a cursor below the pruning watermark.
+# The cursor is below the epoch's range too, but pruning takes precedence:
+# DATA_PRUNED, not BAD_USER_INPUT.
+{
+  epoch(id: 3) {
+    checkpoints(first: 2, after: "@{cursor_0}") {
       pageInfo { hasPreviousPage hasNextPage }
       nodes { sequenceNumber }
     }
