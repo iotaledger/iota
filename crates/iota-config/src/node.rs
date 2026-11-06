@@ -312,6 +312,7 @@ pub struct NodeConfig {
 #[serde(rename_all = "kebab-case")]
 pub struct ListenerLimitsConfig {
     /// How long an accepted connection may take to complete its TLS handshake.
+    /// Can be turned off only together with `max-pending-connections`.
     #[serde(default, skip_serializing_if = "Setting::is_unset")]
     pub handshake_timeout: Setting<Duration>,
 
@@ -352,6 +353,35 @@ impl ListenerLimitsConfig {
     /// Whether every field was left out. Meant for `skip_serializing_if`.
     pub fn is_unset(&self) -> bool {
         *self == Self::default()
+    }
+
+    /// Rejects the limits the listener would refuse to start with. `key` is
+    /// the section's key in `NodeConfig`, used in the error.
+    fn validate(&self, key: &str) -> Result<()> {
+        for (name, duration) in [
+            ("handshake-timeout", self.handshake_timeout),
+            ("max-connection-idle", self.max_connection_idle),
+            ("http2-keepalive-interval", self.http2_keepalive_interval),
+            ("http1-header-read-timeout", self.http1_header_read_timeout),
+        ] {
+            if duration == Setting::Value(Duration::ZERO) {
+                anyhow::bail!(
+                    "`{key}.{name}` is 0; set it greater than zero, or to `null` to turn it off"
+                );
+            }
+        }
+        // Every listener defaults both settings to on, so an absent
+        // `max-pending-connections` is on too.
+        if self.handshake_timeout == Setting::Disabled
+            && self.max_pending_connections != Setting::Disabled
+        {
+            anyhow::bail!(
+                "`{key}.handshake-timeout` is `null`, but `max-pending-connections` is on, and \
+                 only the handshake timeout frees its slots; set a handshake timeout, or set \
+                 `max-pending-connections` to `null` too"
+            );
+        }
+        Ok(())
     }
 }
 
@@ -966,6 +996,18 @@ impl NodeConfig {
                 "`num-epochs-to-retain-for-checkpoints` is 0, but the previous epoch's \
                  checkpoints are still needed after an epoch boundary; set it to 1 or more"
             );
+        }
+        // Checked on every node: a fullnode starts the validator listener
+        // only when it joins the committee, at an epoch change.
+        for (key, limits) in [
+            (
+                "validator-grpc-listener-limits",
+                &self.validator_grpc_listener_limits,
+            ),
+            ("json-rpc-listener-limits", &self.json_rpc_listener_limits),
+            ("grpc-api-listener-limits", &self.grpc_api_listener_limits),
+        ] {
+            limits.validate(key)?;
         }
         Ok(())
     }
@@ -2109,6 +2151,73 @@ mod tests {
             .authority_store_pruning_config
             .set_num_epochs_to_retain_for_checkpoints(Some(1));
         config.validate().unwrap();
+    }
+
+    /// The keys of the listeners' limits sections in a node config.
+    const LISTENER_LIMITS_KEYS: [&str; 3] = [
+        "validator-grpc-listener-limits",
+        "json-rpc-listener-limits",
+        "grpc-api-listener-limits",
+    ];
+
+    /// The template config with `limits`, a YAML mapping, under `key`.
+    fn config_with_listener_limits(key: &str, limits: &str) -> NodeConfig {
+        serde_yaml::from_str(&format!("{TEMPLATE}\n{key}: {limits}\n")).unwrap()
+    }
+
+    /// The pending-connection limit is on unless turned off, and only the
+    /// handshake timeout frees its slots, so the timeout can be turned off
+    /// only together with it. The template is a fullnode's, so this also
+    /// covers the validator listener it starts only once it joins the
+    /// committee.
+    #[test]
+    fn validate_rejects_a_handshake_timeout_turned_off_alone() {
+        for key in LISTENER_LIMITS_KEYS {
+            for limits in [
+                "{handshake-timeout: null}",
+                "{handshake-timeout: null, max-pending-connections: 1}",
+            ] {
+                let err = config_with_listener_limits(key, limits)
+                    .validate()
+                    .unwrap_err()
+                    .to_string();
+                assert!(
+                    err.contains(&format!("`{key}.handshake-timeout` is `null`")),
+                    "{limits}: {err}"
+                );
+            }
+            config_with_listener_limits(
+                key,
+                "{handshake-timeout: null, max-pending-connections: null}",
+            )
+            .validate()
+            .unwrap();
+        }
+    }
+
+    /// A zero deadline is reached at once and a zero interval never pauses,
+    /// so the listener refuses either.
+    #[test]
+    fn validate_rejects_a_zero_listener_duration() {
+        for key in LISTENER_LIMITS_KEYS {
+            for name in [
+                "handshake-timeout",
+                "max-connection-idle",
+                "http2-keepalive-interval",
+                "http1-header-read-timeout",
+            ] {
+                let err =
+                    config_with_listener_limits(key, &format!("{{{name}: {{secs: 0, nanos: 0}}}}"))
+                        .validate()
+                        .unwrap_err()
+                        .to_string();
+                assert!(err.contains(&format!("`{key}.{name}` is 0")), "{err}");
+
+                config_with_listener_limits(key, &format!("{{{name}: {{secs: 1, nanos: 0}}}}"))
+                    .validate()
+                    .unwrap();
+            }
+        }
     }
 
     #[test]
