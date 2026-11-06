@@ -10,12 +10,13 @@ use iota_network::api::{
     GetTxStatusRequest, HealthCheckRequest, HealthCheckResponse, NotifyCapabilitiesRequest,
     NotifyCapabilitiesResponse, SubmitTxRequest, TxStatus, ValidatorV2,
 };
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, ObjectId, TransactionDigest, TransactionEffects};
 use iota_types::{
     attestation::{Attestation, AttestedTransaction},
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
-    error::IotaError,
+    error::{IotaError, IotaResult, UserInputError},
     fp_ensure,
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
@@ -146,6 +147,34 @@ fn admits_user_transactions(reconfig_state: &ReconfigState) -> bool {
     admits.get()
 }
 
+/// Checks that `consensus_tx` is no larger than consensus accepts: its BCS size
+/// against [`ProtocolConfig::max_transaction_size_bytes()`], above which
+/// Starfish refuses a submitted transaction.
+fn check_consensus_transaction_size(
+    consensus_tx: &ConsensusTransaction,
+    protocol_config: &ProtocolConfig,
+) -> IotaResult {
+    let size = bcs::serialized_size(consensus_tx).map_err(|error| {
+        IotaError::TransactionSerialization {
+            error: error.to_string(),
+        }
+    })?;
+    let max_size = protocol_config.max_transaction_size_bytes();
+    fp_ensure!(
+        size as u64 <= max_size,
+        IotaError::UserInput {
+            error: UserInputError::SizeLimitExceeded {
+                limit: format!(
+                    "serialized consensus transaction size exceeded maximum of {max_size}"
+                ),
+                value: size.to_string(),
+            }
+        }
+    );
+
+    Ok(())
+}
+
 impl ValidatorService {
     async fn submit_tx_impl(
         &self,
@@ -228,9 +257,10 @@ impl ValidatorService {
     /// execution, verifies signature, runs deny checks, and submits to
     /// consensus. Returns the terminal status together with the per-item
     /// traffic weight derived from the outcome: `Weight::one()` for an
-    /// already-executed duplicate (spam-like), `normalize(&error)` for a
-    /// rejection (signature/epoch errors weigh, others don't), and
-    /// `Weight::zero()` for a successful submission.
+    /// already-executed duplicate (spam-like) and for a transaction too large
+    /// for consensus once attested, `normalize(&error)` for any other rejection
+    /// (signature/epoch errors weigh, others don't), and `Weight::zero()` for a
+    /// successful submission.
     async fn submit_single_tx(
         state: &Arc<AuthorityState>,
         consensus_adapter: &Arc<ConsensusAdapter>,
@@ -448,24 +478,6 @@ impl ValidatorService {
             return (TxStatusUpdate::Rejected { error }, weight);
         }
 
-        // Soft-lock owned objects to prevent conflicting transactions.
-        // Same-digest resubmission while in flight → rejected (duplicate).
-        // Different-digest conflict on same objects → rejected.
-        // Placed after the reconfig check so we never acquire locks that would
-        // need releasing on the epoch-halt path.
-        if let Err(error) = soft_locks.try_acquire(tx_digest, &owned_objects) {
-            if matches!(error, IotaError::RecentlyResubmitted { .. }) {
-                metrics.num_rejected_tx_recently_resubmitted.inc();
-            } else {
-                metrics.num_rejected_tx_soft_lock_conflict.inc();
-            }
-            let weight = normalize(&error);
-            return (TxStatusUpdate::Rejected { error }, weight);
-        }
-        metrics
-            .soft_lock_table_size
-            .set(soft_locks.lock_count() as i64);
-
         // Build the consensus transaction.
         let consensus_tx = if let Some(attestation_data) = attestation_data {
             // submit_single_tx runs on a validator, so it must be present in its
@@ -487,6 +499,37 @@ impl ValidatorService {
         } else {
             ConsensusTransaction::new_user_transaction(verified_tx.into_inner())
         };
+
+        // The attestation adds object references for the shared inputs and the
+        // objects the dry run loaded, after the transaction passed its own size
+        // check, so a valid transaction can become larger than consensus
+        // accepts. Consensus would refuse it on every attempt while the adapter
+        // retries it until the epoch ends, holding a submit permit, so it is
+        // rejected here. The rejection weighs: the dry run has already run, and
+        // with no soft lock taken, the in-flight check does not stop a resend.
+        if let Err(error) =
+            check_consensus_transaction_size(&consensus_tx, epoch_store.protocol_config())
+        {
+            return (TxStatusUpdate::Rejected { error }, Weight::one());
+        }
+
+        // Soft-lock owned objects to prevent conflicting transactions.
+        // Same-digest resubmission while in flight → rejected (duplicate).
+        // Different-digest conflict on same objects → rejected.
+        // Placed after the reconfig and size checks so we never acquire locks
+        // that would need releasing on their rejection paths.
+        if let Err(error) = soft_locks.try_acquire(tx_digest, &owned_objects) {
+            if matches!(error, IotaError::RecentlyResubmitted { .. }) {
+                metrics.num_rejected_tx_recently_resubmitted.inc();
+            } else {
+                metrics.num_rejected_tx_soft_lock_conflict.inc();
+            }
+            let weight = normalize(&error);
+            return (TxStatusUpdate::Rejected { error }, weight);
+        }
+        metrics
+            .soft_lock_table_size
+            .set(soft_locks.lock_count() as i64);
 
         // Submit to consensus.
         if let Err(e) =

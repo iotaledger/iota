@@ -4,15 +4,18 @@
 use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, Transaction};
+use iota_sdk_types::{ObjectId, SharedObjectReference, Transaction};
 use iota_types::{
     attestation::Attestation,
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_key_pair},
+    error::{IotaError, UserInputError},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::TxStatusUpdate,
-    object::Object,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
+    object::{OBJECT_START_VERSION, Object},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    traffic_control::Weight,
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
     utils::to_sender_signed_transaction,
 };
 use tokio::sync::mpsc;
@@ -218,5 +221,136 @@ async fn test_submit_single_tx_attest_failure_rejected_without_reaching_consensu
     assert!(
         matches!(update, TxStatusUpdate::Rejected { .. }),
         "expected Rejected, got {update:?}",
+    );
+}
+
+/// Submits to `submit_single_tx`, with `enable_validator_attestation` on, a
+/// transaction that passes its own size check, but whose attestation, one
+/// object reference per shared input, makes the consensus transaction larger
+/// than consensus accepts. Asserts that the validator rejects it with the size
+/// limit and a traffic weight of one, without taking a soft lock or handing
+/// anything to the consensus adapter.
+#[tokio::test]
+async fn test_submit_single_tx_rejects_an_attested_transaction_too_large_for_consensus() {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config
+    });
+
+    // A read-only shared input takes about 43 bytes in the transaction and 73
+    // in the attestation's object reference. With the pure padding, the
+    // transaction stays under `max_tx_size_bytes` and the attested transaction
+    // exceeds `max_transaction_size_bytes`.
+    const SHARED_INPUTS: usize = 2_040;
+    const PADDING_INPUTS: u8 = 3;
+    const PADDING_BYTES: usize = 12_000;
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let shared_objects: Vec<_> = (0..SHARED_INPUTS)
+        .map(|_| Object::shared_for_testing())
+        .collect();
+    let mut objects = shared_objects.clone();
+    objects.push(Object::with_id_owner_for_testing(gas_id, sender));
+
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&objects)
+        .build()
+        .await;
+
+    // Consensus must never be reached — any submit call panics the test.
+    let mut mock = MockConsensusClient::new();
+    mock.expect_submit().never();
+
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(mock),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        100_000,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        50,
+    ));
+
+    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
+    let metrics = Arc::new(ValidatorServiceMetrics::new_for_tests());
+    let soft_locks = Arc::new(PreConsensusSoftLocks::new());
+
+    let mut builder = ProgrammableTransactionBuilder::new();
+    for object in &shared_objects {
+        builder
+            .input(CallArg::Shared(SharedObjectReference::new(
+                object.id(),
+                OBJECT_START_VERSION,
+                false,
+            )))
+            .unwrap();
+    }
+    for padding in 0..PADDING_INPUTS {
+        builder.pure_bytes(vec![padding; PADDING_BYTES], false);
+    }
+    builder.transfer_iota(dbg_addr(2), Some(1));
+
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
+    let tx_data = Transaction::new_programmable(
+        sender,
+        vec![gas.object_ref()],
+        builder.finish(),
+        rgp * 1_000_000,
+        rgp,
+    );
+    let protocol_config = epoch_store.protocol_config();
+    tx_data
+        .check_serialized_size(protocol_config)
+        .expect("the transaction alone must pass its size check");
+    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+
+    let (update, weight) = ValidatorService::submit_single_tx(
+        &authority_state,
+        &consensus_adapter,
+        &metrics,
+        &epoch_store,
+        &soft_locks,
+        tx,
+    )
+    .await;
+
+    let TxStatusUpdate::Rejected {
+        error:
+            IotaError::UserInput {
+                error: UserInputError::SizeLimitExceeded { limit, value },
+            },
+    } = &update
+    else {
+        panic!("expected the consensus transaction size limit, got {update:?}");
+    };
+    assert!(
+        limit.contains("consensus transaction"),
+        "expected the consensus transaction size limit, got {limit}"
+    );
+    let size: u64 = value.parse().unwrap();
+    assert!(
+        size > protocol_config.max_transaction_size_bytes(),
+        "the attested transaction must exceed the consensus limit, got {size}"
+    );
+    assert_eq!(
+        weight.value(),
+        Weight::one().value(),
+        "the rejection must weigh"
+    );
+    assert_eq!(soft_locks.lock_count(), 0, "no soft lock may be taken");
+    assert!(
+        epoch_store
+            .get_all_pending_consensus_transactions()
+            .is_empty(),
+        "nothing may reach the consensus adapter"
     );
 }
