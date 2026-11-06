@@ -1202,7 +1202,7 @@ async fn test_address_spoofing_prevention() -> Result<()> {
     let mut malicious_peers = Vec::new();
 
     for i in 0..5 {
-        // Create different keypairs (different private keys) for each malicious peer
+        // Create a different private key for each malicious peer
         let malicious_key = NetworkPrivateKey::random();
         let malicious_peer_id = anemo::PeerId(malicious_key.public_key().into_bytes());
         let timestamp_malicious = start_timestamp_ms + i + 100;
@@ -1645,7 +1645,7 @@ async fn test_peer_deduplication() -> Result<()> {
     // This test verifies that the deduplicate_peers function correctly handles
     // each field in NodeInfo individually
 
-    // Create test keypairs
+    // Create test private keys
     let key1 = NetworkPrivateKey::random();
     let key2 = NetworkPrivateKey::random();
 
