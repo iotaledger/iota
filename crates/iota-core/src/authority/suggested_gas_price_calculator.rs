@@ -396,6 +396,7 @@ pub mod suggested_gas_price_calculator_test_utils {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             vec![],
             Vec::new(),
+            vec![],
             congestion_control_parameters.clone(),
         );
 
@@ -844,6 +845,7 @@ mod tests {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [],         // initial_object_debts
             Vec::new(), // initial_worker_debt
+            [],         // initial_transaction_debts
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -1123,6 +1125,7 @@ mod tests {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [],         // initial_object_debts
             Vec::new(), // initial_worker_debt
+            [],         // initial_transaction_debts
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -1565,6 +1568,7 @@ mod tests {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [(object_1, 1), (object_2, 2)], // initial_object_debts
             Vec::new(),                     // initial_worker_debt
+            [],                             // initial_transaction_debts
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -1899,6 +1903,7 @@ mod tests {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [(object_1, 2_000_000), (object_2, 1_000_000)], // initial_object_debts
             Vec::new(),                                     // initial_worker_debt
+            [],                                             // initial_transaction_debts
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -2391,6 +2396,7 @@ mod tests {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [],         // initial_object_debts
             Vec::new(), // initial_worker_debt
+            [],         // initial_transaction_debts
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -2475,6 +2481,7 @@ mod tests {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             [(object_1, 3), (object_2, 3)], // initial_object_debts
             Vec::new(),                     // initial_worker_debt
+            [],                             // initial_transaction_debts
             congestion_control_parameters.clone(),
         );
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new_for_test(
@@ -2552,6 +2559,7 @@ mod tests {
                 calculator.update_congestion_info(bump_result);
             }
             SequencingResult::Defer(..) => panic!("transaction should have been scheduled"),
+            SequencingResult::DeferForDependency(..) => panic!("no transaction has a dependency"),
         }
     }
 
@@ -2561,7 +2569,7 @@ mod tests {
     fn worker_clearing_with_single_worker() {
         let parameters = worker_test_parameters(1, 1);
         let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), vec![], parameters.clone());
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         schedule_transaction(&mut tracker, &mut calculator, &[], 2_000);
@@ -2577,7 +2585,7 @@ mod tests {
     fn worker_clearing_takes_nth_largest_gas_price() {
         let parameters = worker_test_parameters(1, 2);
         let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), vec![], parameters.clone());
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         schedule_transaction(&mut tracker, &mut calculator, &[], 3_000);
@@ -2601,7 +2609,7 @@ mod tests {
     fn worker_clearing_ignores_transactions_outside_tail_window() {
         let parameters = worker_test_parameters(3, 1);
         let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), vec![], parameters.clone());
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         // Occupies [0, 1); the shed transaction's imaginary start is
@@ -2622,7 +2630,7 @@ mod tests {
         let object = ObjectId::random();
         let parameters = worker_test_parameters(2, 2);
         let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), vec![], parameters.clone());
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         // Descending gas-price order, as in the consensus handler.
@@ -2652,7 +2660,7 @@ mod tests {
     fn worker_clearing_with_tied_gas_price_suggests_one_more() {
         let parameters = worker_test_parameters(1, 1);
         let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), vec![], parameters.clone());
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         schedule_transaction(&mut tracker, &mut calculator, &[], REFERENCE_GAS_PRICE);
@@ -2713,7 +2721,7 @@ mod tests {
         let object = ObjectId::random();
         let parameters = worker_test_parameters(1, 2);
         let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), vec![], parameters.clone());
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
         schedule_transaction(&mut tracker, &mut calculator, &[(object, true)], 3_000);
         schedule_transaction(&mut tracker, &mut calculator, &[], 2_500);
@@ -2725,6 +2733,7 @@ mod tests {
                 assert_eq!(congested_objects, vec![object]);
             }
             SequencingResult::Schedule(_) => panic!("should defer"),
+            SequencingResult::DeferForDependency(..) => panic!("no transaction has a dependency"),
         }
         assert_eq!(calculator.calculate_suggested_gas_price(&shed), 3_001);
 
@@ -2747,7 +2756,7 @@ mod tests {
         );
         parameters.set_max_concurrent_execution_workers_for_test(1);
         let mut tracker =
-            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), vec![], parameters.clone());
         let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         // Descending price order; gas budget = duration in this mode.
@@ -2767,6 +2776,9 @@ mod tests {
                         calculator.update_congestion_info(bump_result);
                     }
                     SequencingResult::Defer(..) => panic!("should schedule"),
+                    SequencingResult::DeferForDependency(..) => {
+                        panic!("no transaction has a dependency")
+                    }
                 }
             }
         }
@@ -2778,6 +2790,7 @@ mod tests {
                 assert_eq!(congested_objects, vec![object]);
             }
             SequencingResult::Schedule(_) => panic!("should defer"),
+            SequencingResult::DeferForDependency(..) => panic!("no transaction has a dependency"),
         }
         assert_eq!(calculator.calculate_suggested_gas_price(&shed), 3_001);
     }
