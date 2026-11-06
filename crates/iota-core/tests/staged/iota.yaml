@@ -43,6 +43,10 @@ CallArg:
       Object:
         NEWTYPE:
           TYPENAME: ObjectArg
+    2:
+      TransactionDependency:
+        NEWTYPE:
+          TYPENAME: TransactionDigest
 CanceledTransaction:
   STRUCT:
     - digest:
@@ -502,6 +506,11 @@ ExecutionError:
         STRUCT:
           - object_id:
               TYPENAME: ObjectId
+    45:
+      TransactionDependencyFailed:
+        STRUCT:
+          - dependency:
+              TYPENAME: TransactionDigest
 ExecutionStatus:
   ENUM:
     0:

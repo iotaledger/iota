@@ -8002,8 +8002,6 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "1.0.0-rc.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7be7c68f7361494137105993c41b732f17760707699dd31ef2cac3528d2d719"
 dependencies = [
  "base64ct",
  "bcs 0.2.1",

@@ -2557,3 +2557,106 @@ fn check_serialized_size_rejects_a_transaction_above_the_size_limit() {
         .check_serialized_size(&config)
         .unwrap();
 }
+
+/// A transaction with a dependency input, expiring after `epoch` when given,
+/// built from `pt`.
+fn transaction_with_dependency_input(
+    pt: ProgrammableTransaction,
+    epoch: Option<u64>,
+) -> Transaction {
+    let sender_kp = SimpleKeypair::from(Ed25519PrivateKey::random());
+    let sender = (&PublicKey::from(&sender_kp)).into();
+    let gas_price = 10;
+    let gas_data = GasPayment {
+        objects: vec![random_object_ref()],
+        owner: sender,
+        price: gas_price,
+        budget: gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+    };
+    let mut transaction =
+        Transaction::new_with_gas_data(TransactionKind::new_programmable(pt), sender, gas_data);
+    if let (Some(epoch), Transaction::V1(v1)) = (epoch, &mut transaction) {
+        v1.expiration = TransactionExpiration::Epoch(epoch);
+    }
+    transaction
+}
+
+/// The latest protocol config, with transaction dependencies enabled.
+fn config_with_transaction_dependencies() -> ProtocolConfig {
+    let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+    config.set_enable_transaction_dependencies_for_testing(true);
+    config
+}
+
+#[test]
+fn transaction_dependency_input_is_valid_with_an_epoch_expiration() {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transaction_dependency(TransactionDigest::random());
+    builder
+        .transfer_object(dbg_addr(1), random_object_ref())
+        .unwrap();
+    let transaction = transaction_with_dependency_input(builder.finish(), Some(3));
+
+    transaction
+        .validity_check(&config_with_transaction_dependencies())
+        .unwrap();
+    assert!(transaction.transaction_dependency().is_some());
+}
+
+#[test]
+fn transaction_dependency_input_requires_an_epoch_expiration() {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transaction_dependency(TransactionDigest::random());
+    let transaction = transaction_with_dependency_input(builder.finish(), None);
+
+    assert_eq!(
+        transaction.validity_check(&config_with_transaction_dependencies()),
+        Err(UserInputError::TransactionDependencyRequiresExpiration)
+    );
+}
+
+#[test]
+fn at_most_one_transaction_dependency_input() {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transaction_dependency(TransactionDigest::random());
+    builder.transaction_dependency(TransactionDigest::random());
+    let transaction = transaction_with_dependency_input(builder.finish(), Some(3));
+
+    assert!(matches!(
+        transaction.validity_check(&config_with_transaction_dependencies()),
+        Err(UserInputError::SizeLimitExceeded { .. })
+    ));
+}
+
+#[test]
+fn transaction_dependency_input_cannot_be_used_by_a_command() {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    let recipient = builder.pure(dbg_addr(1)).unwrap();
+    let dependency = builder
+        .input(CallArg::TransactionDependency(TransactionDigest::random()))
+        .unwrap();
+    builder.command(Command::new_transfer_objects(vec![dependency], recipient));
+    let transaction = transaction_with_dependency_input(builder.finish(), Some(3));
+
+    assert_eq!(
+        transaction.validity_check(&config_with_transaction_dependencies()),
+        Err(UserInputError::TransactionDependencyInputUsed {
+            command_idx: 0,
+            argument_idx: 0,
+        })
+    );
+}
+
+#[test]
+fn transaction_dependency_input_is_unsupported_before_its_protocol_version() {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transaction_dependency(TransactionDigest::random());
+    let transaction = transaction_with_dependency_input(builder.finish(), Some(3));
+    let config = ProtocolConfig::get_for_version(ProtocolVersion::new(40), Chain::Unknown);
+    assert!(!config.enable_transaction_dependencies());
+
+    assert!(matches!(
+        transaction.validity_check(&config),
+        Err(UserInputError::Unsupported(_))
+    ));
+}
