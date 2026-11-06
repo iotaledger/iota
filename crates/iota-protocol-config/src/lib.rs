@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 40;
+pub const MAX_PROTOCOL_VERSION: u64 = 41;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -281,6 +281,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             also rejects a block that carries a system transaction kind in
 //             a user transaction or certificate.
 //             Update the gas model version to 3.
+// Version 41: Commit a block's transactions once its header is traversed even
+//             if its acknowledgment quorum was reached first, outside Mainnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3885,7 +3887,8 @@ impl ProtocolConfig {
 
                     // Update the gas model version.
                     cfg.gas_model_version = Some(3);
-
+                }
+                41 => {
                     // Commit a block's transactions once its header is
                     // traversed, also when their acknowledgment quorum came
                     // first.
@@ -4461,6 +4464,20 @@ mod test {
                 assert_yaml_snapshot!(
                     format!("{}version_{}", chain_str, cur.as_u64()),
                     ProtocolConfig::get_for_version(cur, *chain_id)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn commit_transactions_once_traversed_activation() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                assert_eq!(
+                    config.consensus_commit_transactions_once_traversed(),
+                    version >= 41 && chain != Chain::Mainnet,
+                    "unexpected activation for {chain:?} at version {version}"
                 );
             }
         }
