@@ -27,6 +27,7 @@ use iota_types::{
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
+    gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     messages_checkpoint::CheckpointSummaryExt,
     move_authenticator::MoveAuthenticatorExt,
@@ -86,6 +87,47 @@ impl AuthorityState {
         let backing_store = self.get_backing_store();
         let (kind, signer, gas_data) = tx.execution_parts();
         let tx_digest = *transaction.digest();
+
+        // The dry run meters authentication and body against the whole budget,
+        // as execution does, and a failed authentication is refused unpaid. So
+        // the authenticators first run on their own at the signing cap, as at
+        // admission: one that fails or exceeds `max_auth_gas` is refused before
+        // budget-sized work is done on it.
+        if !move_authenticators.is_empty() {
+            let function_refs = extract_auth_fun_refs(signer, gas_data.owner, |address| {
+                move_authenticators
+                    .iter()
+                    .zip(per_authenticator_checked_inputs.iter())
+                    .find(|(move_authenticator, _)| move_authenticator.address() == address)
+                    .map(|(_, (_, auth_fun_ref))| auth_fun_ref.clone())
+            });
+            let authenticators = move_authenticators
+                .iter()
+                .zip(per_authenticator_checked_inputs.iter())
+                .map(|(move_authenticator, (input_objects, function_ref))| {
+                    (
+                        (*move_authenticator).to_owned(),
+                        function_ref.clone(),
+                        CheckedInputObjects::new_with_checked_transaction_inputs(
+                            input_objects.inner().clone(),
+                        ),
+                    )
+                })
+                .collect();
+            let capped_gas_status = IotaGasStatus::new(
+                protocol_config.max_auth_gas(),
+                gas_data.price,
+                epoch_store.reference_gas_price(),
+                protocol_config,
+            )?;
+            self.authenticate_before_consensus(
+                epoch_store,
+                transaction,
+                capped_gas_status,
+                authenticators,
+                function_refs,
+            )?;
+        }
 
         // Capture the `InnerTemporaryStore` from the dry-run: its object maps are the
         // source of truth for the input versions the attestor observed. The account

@@ -167,6 +167,71 @@ async fn test_aa_tx_with_failed_authentication_is_dropped() -> Result<(), anyhow
     Ok(())
 }
 
+/// A valid AA transaction whose Move authentication needs more gas than
+/// `max_auth_gas` must be refused by the attestor. The dry run meters
+/// authentication against the whole budget, as execution does, so without the
+/// capped pre-run the attestor would do budget-sized work on a transaction it
+/// then drops unpaid.
+#[sim_test]
+async fn test_aa_tx_with_authentication_over_max_auth_gas_is_refused() -> Result<(), anyhow::Error>
+{
+    telemetry_subscribers::init_for_testing();
+    // Ten gas units at the cluster's gas price, far below what the ed25519
+    // verification in `authenticate_ed25519` costs.
+    let _env = ProtocolEnvOverride::new(&[
+        ("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1"),
+        (
+            "IOTA_PROTOCOL_CONFIG_OVERRIDE_CHECKPOINT_SUMMARY_VERSION_SPECIFIC_DATA",
+            "2",
+        ),
+        (
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW",
+            "true",
+        ),
+        (
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            "true",
+        ),
+        ("IOTA_PROTOCOL_CONFIG_OVERRIDE_MAX_AUTH_GAS", "10000"),
+    ]);
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb()?;
+    let tx_data = test_env.craft_tx_from_pt(pt, aa_gas, aa_sender).await?;
+    let tx_digest = tx_data.digest().into_bytes();
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    let aa_tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
+
+    match test_env.submit_tx_v2(aa_tx).await {
+        Ok(results) => {
+            let (_, status) = results.first().expect("expected one status update");
+            assert!(
+                matches!(status, TxStatusUpdate::Rejected { .. }),
+                "an authentication over max_auth_gas must be refused, got: {status:?}"
+            );
+        }
+        // A validator/transport-level error is also an acceptable outcome: the
+        // transaction was not attested or accepted.
+        Err(e) => {
+            tracing::info!("over-budget authentication errored as expected: {e:?}");
+        }
+    }
+
+    Ok(())
+}
+
 /// An AA transaction whose Move authentication SUCCEEDS but whose transaction
 /// body aborts must still be attested (status `Submitted`/`Executed`).
 #[sim_test]

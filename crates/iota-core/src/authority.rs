@@ -1227,7 +1227,7 @@ impl AuthorityState {
             per_authenticator_inputs: _,
         } = self.run_validation_checks(transaction, epoch_store, deny_config, false)?;
 
-        let (kind, signer, gas_data) = tx.execution_parts();
+        let (_, signer, gas_data) = tx.execution_parts();
 
         let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
             extract_auth_fun_refs(signer, gas_data.owner, |address| {
@@ -1257,20 +1257,10 @@ impl AuthorityState {
                 .zip(per_authenticator_checked_inputs)
                 .filter(|(a, _)| pre_consensus_move_authenticators.contains(a))
                 .unzip();
-        let per_authenticator_checked_input_objects: Vec<_> = per_authenticator_checked_inputs
-            .iter()
-            .map(|i| &i.0)
-            .collect();
-
         // If there are `MoveAuthenticator` signatures, execute them and check if they
         // all succeed.
         if !move_authenticators.is_empty() {
-            let aggregated_authenticator_input_objects =
-                iota_transaction_checks::aggregate_authenticator_input_objects(
-                    &per_authenticator_checked_input_objects,
-                )?;
-
-            let move_authenticators = move_authenticators
+            let authenticators = move_authenticators
                 .into_iter()
                 .zip(per_authenticator_checked_inputs)
                 .map(
@@ -1286,53 +1276,82 @@ impl AuthorityState {
                     },
                 )
                 .collect();
-
-            // It is supposed that `MoveAuthenticator` availability is checked in
-            // `SenderSignedTransaction::validity_check`.
-
-            // Serialize the Transaction for the auth context before decomposing.
-            let tx_bytes = bcs::to_bytes(tx).expect("Transaction serialization cannot fail");
-
-            let (sender_auth_digest, sponsor_auth_digest) =
-                transaction.data().compute_auth_digests()?;
-
-            let auth_context_data = AuthContextData {
-                transaction_data_bytes: tx_bytes,
-                sender_auth_digest,
-                sponsor_auth_digest,
-                sender_authenticator_function_ref,
-                sponsor_authenticator_function_ref,
-            };
-
-            // Execute the Move authenticators.
-            let (_gas_status, validation_result) = epoch_store.executor().authenticate_transaction(
-                self.get_backing_store().as_ref(),
-                protocol_config,
-                self.metrics.limits_metrics.clone(),
-                &epoch_store.epoch_start_config().epoch_data().epoch_id(),
-                epoch_store
-                    .epoch_start_config()
-                    .epoch_data()
-                    .epoch_start_timestamp(),
-                gas_data,
+            self.authenticate_before_consensus(
+                epoch_store,
+                transaction,
                 gas_status,
-                move_authenticators,
-                aggregated_authenticator_input_objects,
-                kind,
-                signer,
-                transaction.digest().to_owned(),
-                auth_context_data,
-                &mut None,
-            );
-
-            if let Err(validation_error) = validation_result {
-                return Err(IotaError::MoveAuthenticatorExecutionFailure {
-                    error: validation_error.to_string(),
-                });
-            }
+                authenticators,
+                (
+                    sender_authenticator_function_ref,
+                    sponsor_authenticator_function_ref,
+                ),
+            )?;
         }
 
         Ok(tx_checked_input_objects.inner().filter_owned_objects())
+    }
+
+    /// Runs `authenticators` on their own, metered by `gas_status`, and fails
+    /// as admission does when one rejects the transaction or runs out of gas.
+    /// `function_refs` are the sender's and the gas owner's authenticator
+    /// functions, resolved over every authenticator of the transaction.
+    fn authenticate_before_consensus(
+        &self,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        transaction: &VerifiedTransaction,
+        gas_status: IotaGasStatus,
+        authenticators: Vec<(
+            MoveAuthenticator,
+            AuthenticatorFunctionRef,
+            CheckedInputObjects,
+        )>,
+        function_refs: (
+            Option<AuthenticatorFunctionRef>,
+            Option<AuthenticatorFunctionRef>,
+        ),
+    ) -> IotaResult<()> {
+        let tx = transaction.data().transaction();
+        let (kind, signer, gas_data) = tx.execution_parts();
+        let input_objects: Vec<_> = authenticators
+            .iter()
+            .map(|(_, _, input_objects)| input_objects)
+            .collect();
+        let aggregated_authenticator_input_objects =
+            iota_transaction_checks::aggregate_authenticator_input_objects(&input_objects)?;
+        let (sender_auth_digest, sponsor_auth_digest) =
+            transaction.data().compute_auth_digests()?;
+        let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) = function_refs;
+        let auth_context_data = AuthContextData {
+            transaction_data_bytes: bcs::to_bytes(tx)
+                .expect("Transaction serialization cannot fail"),
+            sender_auth_digest,
+            sponsor_auth_digest,
+            sender_authenticator_function_ref,
+            sponsor_authenticator_function_ref,
+        };
+
+        let (_gas_status, result) = epoch_store.executor().authenticate_transaction(
+            self.get_backing_store().as_ref(),
+            epoch_store.protocol_config(),
+            self.metrics.limits_metrics.clone(),
+            &epoch_store.epoch_start_config().epoch_data().epoch_id(),
+            epoch_store
+                .epoch_start_config()
+                .epoch_data()
+                .epoch_start_timestamp(),
+            gas_data,
+            gas_status,
+            authenticators,
+            aggregated_authenticator_input_objects,
+            kind,
+            signer,
+            transaction.digest().to_owned(),
+            auth_context_data,
+            &mut None,
+        );
+        result.map_err(|error| IotaError::MoveAuthenticatorExecutionFailure {
+            error: error.to_string(),
+        })
     }
 
     /// Like [`Self::handle_transaction_validation_checks`], but for
