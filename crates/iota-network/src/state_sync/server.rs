@@ -8,6 +8,7 @@ use std::{
 };
 
 use anemo::{Request, Response, Result, rpc::Status, types::response::StatusCode};
+use bytes::Bytes;
 use dashmap::DashMap;
 use futures::future::BoxFuture;
 use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest};
@@ -55,6 +56,7 @@ pub(super) struct Server<S> {
     pub(super) sender: mpsc::WeakSender<StateSyncMessage>,
     /// Cached genesis checkpoint, shared with the event loop.
     pub(super) genesis_checkpoint: Arc<VerifiedCheckpoint>,
+    pub(super) max_checkpoint_lookahead: u64,
 }
 
 #[anemo::async_trait]
@@ -75,23 +77,41 @@ where
             .ok_or_else(|| Status::internal("unable to query sender's PeerId"))?;
 
         let checkpoint = request.into_inner();
-        if !self
-            .peer_heights
-            .write()
-            .unwrap()
-            .update_peer_info(peer_id, checkpoint.clone(), None)
-        {
-            return Ok(Response::new(()));
-        }
+        let checkpoint_seq = checkpoint.sequence_number();
 
         let highest_verified_checkpoint = self
             .store
             .try_get_highest_verified_checkpoint_seq_number()
             .map_err(|e| Status::internal(e.to_string()))?;
 
+        {
+            let mut peer_heights = self.peer_heights.write().unwrap();
+
+            // Always update the peer's height so we know what they claim to have,
+            // even if we don't store the checkpoint itself.
+            let peer_on_same_chain = peer_heights.update_peer_height(peer_id, checkpoint_seq, None);
+            if !peer_on_same_chain {
+                return Ok(Response::new(()));
+            }
+
+            if checkpoint_seq
+                <= highest_verified_checkpoint.saturating_add(self.max_checkpoint_lookahead)
+            {
+                peer_heights.insert_checkpoint(checkpoint);
+            } else {
+                tracing::debug!(
+                    peer_id = ?peer_id,
+                    checkpoint_seq = checkpoint_seq,
+                    highest_verified = highest_verified_checkpoint,
+                    max_lookahead = self.max_checkpoint_lookahead,
+                    "not storing checkpoint summary that exceeds max lookahead"
+                );
+            }
+        }
+
         // If this checkpoint is higher than our highest verified checkpoint notify the
         // event loop to potentially sync it
-        if checkpoint.sequence_number() > highest_verified_checkpoint {
+        if checkpoint_seq > highest_verified_checkpoint {
             if let Some(sender) = self.sender.upgrade() {
                 sender.send(StateSyncMessage::StartSyncJob).await.unwrap();
             }
@@ -221,6 +241,68 @@ where
             lowest_available_checkpoint: our_lowest,
         };
         Ok(Response::new(response))
+    }
+}
+
+/// [`Layer`] for limiting the size of incoming requests.
+#[derive(Clone)]
+pub(super) struct SizeLimitLayer {
+    max_size: usize,
+}
+
+impl SizeLimitLayer {
+    pub(super) fn new(max_size: usize) -> Self {
+        Self { max_size }
+    }
+}
+
+impl<S> tower::layer::Layer<S> for SizeLimitLayer {
+    type Service = SizeLimit<S>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        SizeLimit {
+            inner,
+            max_size: self.max_size,
+        }
+    }
+}
+
+/// Middleware for limiting the size of incoming requests.
+#[derive(Clone)]
+pub(super) struct SizeLimit<S> {
+    inner: S,
+    max_size: usize,
+}
+
+impl<S> tower::Service<Request<Bytes>> for SizeLimit<S>
+where
+    S: tower::Service<Request<Bytes>, Response = Response<Bytes>> + 'static + Clone + Send,
+    <S as tower::Service<Request<Bytes>>>::Future: Send,
+{
+    type Response = Response<Bytes>;
+    type Error = S::Error;
+    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    #[inline]
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, req: Request<Bytes>) -> Self::Future {
+        let body_size = req.body().len();
+        let max_size = self.max_size;
+        if body_size > max_size {
+            let peer_id = req.peer_id().copied();
+            tracing::info!(
+                ?peer_id,
+                body_size,
+                max_size,
+                "rejecting request that exceeds max size"
+            );
+            return Box::pin(async move { Ok(Response::new(Bytes::new())) });
+        }
+        let mut inner = self.inner.clone();
+        Box::pin(async move { inner.call(req).await })
     }
 }
 
