@@ -843,6 +843,11 @@ struct FeatureFlags {
     // shared-object scheduling.
     #[serde(skip_serializing_if = "is_false")]
     enable_validator_attestation: bool,
+
+    // If true, a programmable transaction may carry a transaction dependency
+    // input, and is executed only after the named transaction succeeded.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_transaction_dependencies: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2407,6 +2412,10 @@ impl ProtocolConfig {
     /// Its prerequisites are checked once, in [`Self::get_for_version`].
     pub fn enable_validator_attestation(&self) -> bool {
         self.feature_flags.enable_validator_attestation
+    }
+
+    pub fn enable_transaction_dependencies(&self) -> bool {
+        self.feature_flags.enable_transaction_dependencies
     }
 }
 
@@ -4286,6 +4295,10 @@ impl ProtocolConfig {
 
     pub fn set_always_advance_dkg_to_resolution_for_testing(&mut self, val: bool) {
         self.feature_flags.always_advance_dkg_to_resolution = val;
+    }
+
+    pub fn set_enable_transaction_dependencies_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_transaction_dependencies = val;
     }
 
     /// Turning the flow on also turns on the flags it requires, turns off

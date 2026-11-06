@@ -34,6 +34,10 @@ fn object_ref(oref: &ObjectReference) -> L::ObjectRef {
 fn input(env: &Env, arg: Input) -> Result<(L::InputArg, L::InputType), ExecutionError> {
     Ok(match arg {
         Input::Pure(bytes) => (L::InputArg::Pure(bytes), L::InputType::Bytes),
+        // Checked before execution, never used by a command (the validity
+        // check rejects any use): an empty value keeps the input indices
+        // aligned.
+        Input::TransactionDependency(_) => (L::InputArg::Pure(vec![]), L::InputType::Bytes),
         Input::Receiving(oref) => (
             L::InputArg::Receiving(object_ref(&oref)),
             L::InputType::Bytes,

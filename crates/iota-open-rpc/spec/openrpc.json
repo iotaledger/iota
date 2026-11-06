@@ -1341,6 +1341,7 @@
                 "enable_move_authentication_for_sponsor": true,
                 "enable_pcool_flow": true,
                 "enable_poseidon": true,
+                "enable_transaction_dependencies": false,
                 "enable_validator_attestation": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
@@ -7788,6 +7789,25 @@
                   {
                     "type": "null"
                   }
+                ]
+              }
+            }
+          },
+          {
+            "description": "The transaction this transaction depends on: it executes only after that transaction executed successfully. Not usable by a command.",
+            "type": "object",
+            "required": [
+              "digest",
+              "type"
+            ],
+            "properties": {
+              "digest": {
+                "$ref": "#/components/schemas/Base58"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "transactionDependency"
                 ]
               }
             }

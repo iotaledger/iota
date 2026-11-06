@@ -17,8 +17,8 @@ use iota_sdk_crypto::Signer;
 use iota_sdk_transaction_builder::PTBArgumentList;
 use iota_sdk_types::{
     Address, Identifier, Input, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-    SharedObjectReference, StructTag, Transaction, TransactionDigest, TransactionKind, TypeTag,
-    UserSignature, Version,
+    SharedObjectReference, StructTag, Transaction, TransactionDigest, TransactionExpiration,
+    TransactionKind, TypeTag, UserSignature, Version,
     crypto::{BitmapUnit, MultisigAggregatedSignature, MultisigCommittee, SimpleSignature},
 };
 use iota_types::{
@@ -38,6 +38,8 @@ pub struct TestTransactionBuilder {
     gas_price: u64,
     gas_budget: Option<u64>,
     nonce: Option<u64>,
+    /// A transaction dependency input and the epoch expiration it requires.
+    transaction_dependency: Option<(TransactionDigest, u64)>,
 }
 
 impl TestTransactionBuilder {
@@ -49,6 +51,7 @@ impl TestTransactionBuilder {
             gas_price,
             gas_budget: None,
             nonce: None,
+            transaction_dependency: None,
         }
     }
 
@@ -323,8 +326,21 @@ impl TestTransactionBuilder {
         self
     }
 
+    /// Makes the transaction depend on `dependency`: it carries a transaction
+    /// dependency input and expires after `epoch`, as a dependency requires.
+    /// Only for programmable transactions.
+    pub fn with_transaction_dependency(
+        mut self,
+        dependency: TransactionDigest,
+        epoch: u64,
+    ) -> Self {
+        self.transaction_dependency = Some((dependency, epoch));
+        self
+    }
+
     pub fn build(self) -> Transaction {
         let nonce = self.nonce;
+        let transaction_dependency = self.transaction_dependency;
         let mut data = self.build_inner();
         if let Some(nonce) = nonce {
             // A trailing pure input that no command references leaves execution
@@ -332,6 +348,14 @@ impl TestTransactionBuilder {
             // digest.
             if let TransactionKind::Programmable(pt) = data.kind_mut() {
                 pt.inputs.push(Input::Pure(nonce.to_le_bytes().to_vec()));
+            }
+        }
+        if let Some((dependency, epoch)) = transaction_dependency {
+            if let TransactionKind::Programmable(pt) = data.kind_mut() {
+                pt.inputs.push(Input::TransactionDependency(dependency));
+            }
+            if let Transaction::V1(v1) = &mut data {
+                v1.expiration = TransactionExpiration::Epoch(epoch);
             }
         }
         data

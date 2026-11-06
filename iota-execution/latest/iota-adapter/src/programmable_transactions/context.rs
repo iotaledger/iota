@@ -1697,6 +1697,10 @@ mod checked {
     ) -> Result<InputValue, ExecutionError> {
         Ok(match call_arg {
             CallArg::Pure(value) => InputValue::new_raw(RawValueType::Any, value),
+            // Checked before execution, never used by a command (the validity
+            // check rejects any use): an empty value keeps the input indices
+            // aligned.
+            CallArg::TransactionDependency(_) => InputValue::new_raw(RawValueType::Any, vec![]),
             other => load_object_arg(
                 vm,
                 state_view,
@@ -1749,6 +1753,9 @@ mod checked {
             )),
             CallArg::Pure(_) => Err(ExecutionError::invariant_violation(
                 "unexpected pure CallArg in load_object_arg",
+            )),
+            CallArg::TransactionDependency(_) => Err(ExecutionError::invariant_violation(
+                "unexpected transaction dependency CallArg in load_object_arg",
             )),
             _ => Err(ExecutionError::invariant_violation(
                 "a new CallArg enum variant was added and needs to be handled",
