@@ -761,6 +761,7 @@ impl ConsensusAdapter {
         // homogeneous: either all CertifiedTransaction or all UserTransactionV1.
         // Single-tx submits can be any kind.
         let is_soft_bundle = transactions.len() > 1;
+        let is_system_message = !is_soft_bundle && transactions[0].is_system_message();
 
         let mut transaction_keys = Vec::new();
 
@@ -851,12 +852,19 @@ impl ConsensusAdapter {
             guard.positions_moved = Some(positions_moved);
             guard.preceding_disconnected = Some(preceding_disconnected);
 
-            let _permit: SemaphorePermit = self
-                .submit_semaphore
-                .acquire()
-                .count_in_flight(self.metrics.sequencing_in_flight_semaphore_wait.clone())
-                .await
-                .expect("Consensus adapter does not close semaphore");
+            // System messages are not buffered behind user transactions, so they
+            // skip the submit semaphore.
+            let _permit: Option<SemaphorePermit> = if is_system_message {
+                None
+            } else {
+                Some(
+                    self.submit_semaphore
+                        .acquire()
+                        .count_in_flight(self.metrics.sequencing_in_flight_semaphore_wait.clone())
+                        .await
+                        .expect("Consensus adapter does not close semaphore"),
+                )
+            };
             let _in_flight_submission_guard =
                 GaugeGuard::acquire(&self.metrics.sequencing_in_flight_submissions);
 
