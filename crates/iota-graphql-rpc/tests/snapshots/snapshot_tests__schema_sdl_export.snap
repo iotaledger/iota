@@ -4523,6 +4523,14 @@ type TransactionBlockConnection {
 	A list of nodes.
 	"""
 	nodes: [TransactionBlock!]!
+	"""
+	The oldest checkpoint this page can contain data from. Anything before
+	it has been pruned and is not listed. Zero when nothing has been
+	pruned, or when the historical fallback serves the whole history. Null
+	when the query was not run, e.g. because its filters cannot match
+	anything.
+	"""
+	oldestAvailableCheckpoint: UInt53
 }
 
 """

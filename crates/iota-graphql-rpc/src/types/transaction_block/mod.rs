@@ -43,7 +43,7 @@ use crate::{
         address::Address,
         base64::Base64,
         cursor::{
-            JsonCursor, Page, Target, check_cursor_not_pruned, pruned_checkpoint_viewed_at_error,
+            JsonCursor, Page, Target, check_cursor_not_expired, pruned_checkpoint_viewed_at_error,
         },
         digest::Digest,
         epoch::Epoch,
@@ -61,7 +61,7 @@ mod tx_lookups;
 
 pub(crate) use cursor::Cursor;
 pub(crate) use filter::TransactionBlockFilter;
-pub(crate) use tx_lookups::{TxBounds, subqueries};
+pub(crate) use tx_lookups::{TxBounds, checkpoint_bounds_from_filter, subqueries};
 
 /// Wraps the actual transaction block data with the checkpoint sequence number
 /// at which the data was viewed, for consistent results on paginating through
@@ -405,12 +405,40 @@ impl TransactionBlock {
     /// `scan_limit`. This modifies querying behavior by limiting how many
     /// transactions to scan through before applying filters, and also affects
     /// pagination behavior.
+    ///
+    /// The connection reports the oldest checkpoint the query (with given `filter`) has data from.
+    /// A checkpoint range or a cursor below it fails with `DATA_PRUNED`.
     pub(crate) async fn paginate(
         ctx: &Context<'_>,
         page: Page<Cursor>,
         filter: TransactionBlockFilter,
         checkpoint_viewed_at: u64,
         scan_limit: Option<u64>,
+    ) -> Result<ScanConnection<String, TransactionBlock>, Error> {
+        let db: &Db = ctx.data_unchecked();
+        let oldest_available_checkpoint = filter.oldest_available_checkpoint(db);
+        let mut conn = Self::paginate_impl(
+            ctx,
+            page,
+            filter,
+            checkpoint_viewed_at,
+            scan_limit,
+            oldest_available_checkpoint,
+        )
+        .await?;
+        conn.oldest_available_checkpoint = Some(u64::from(oldest_available_checkpoint));
+        Ok(conn)
+    }
+
+    /// [`Self::paginate`] without the reported checkpoint set on the
+    /// connection.
+    async fn paginate_impl(
+        ctx: &Context<'_>,
+        page: Page<Cursor>,
+        filter: TransactionBlockFilter,
+        checkpoint_viewed_at: u64,
+        scan_limit: Option<u64>,
+        oldest_available_checkpoint: OldestAvailableCheckpoint,
     ) -> Result<ScanConnection<String, TransactionBlock>, Error> {
         let limits = &ctx.data_unchecked::<ServiceConfig>().limits;
 
@@ -476,7 +504,7 @@ impl TransactionBlock {
                 page,
                 address,
                 checkpoint_viewed_at,
-                filter.oldest_available_checkpoint(db),
+                oldest_available_checkpoint,
             )
             .await;
         }
@@ -494,8 +522,24 @@ impl TransactionBlock {
         }
 
         if let Some(cursor_viewed_at) = cursor_viewed_at {
-            check_cursor_not_pruned(db, cursor_viewed_at, filter.oldest_available_checkpoint(db))?;
+            check_cursor_not_expired(db, cursor_viewed_at, oldest_available_checkpoint)?;
         }
+
+        let Some(cp_bounds) = checkpoint_bounds_from_filter(&filter, checkpoint_viewed_at) else {
+            return Ok(ScanConnection::new(false, false));
+        };
+
+        // All filters that support fallback were handled above.
+        // Remaining filters, handled below, read data only from DB so we check only the DB
+        // watermarks.
+        if *cp_bounds.end() < oldest_available_checkpoint.db_checkpoint() {
+            return Err(Error::DataPruned {
+                message: "all transactions in the requested checkpoint range have been pruned"
+                    .into(),
+                oldest_available_checkpoint,
+            });
+        }
+        check_cursors_not_pruned_from_db(&page, oldest_available_checkpoint)?;
 
         use transactions::dsl as tx;
         let (prev, next, transactions, tx_bounds): (
@@ -507,10 +551,8 @@ impl TransactionBlock {
             .execute_repeatable(move |conn| {
                 let Some(tx_bounds) = TxBounds::query(
                     conn,
-                    filter.after_checkpoint.map(u64::from),
-                    filter.at_checkpoint.map(u64::from),
-                    filter.before_checkpoint.map(u64::from),
-                    checkpoint_viewed_at,
+                    cp_bounds,
+                    oldest_available_checkpoint,
                     scan_limit,
                     &page,
                 )?
@@ -995,6 +1037,29 @@ impl TryFrom<TransactionBlockEffects> for TransactionBlock {
             checkpoint_viewed_at,
         })
     }
+}
+
+/// Fails with `DATA_PRUNED` when any cursor of `page` points at a pruned transaction.
+fn check_cursors_not_pruned_from_db(
+    page: &Page<Cursor>,
+    oldest_available_checkpoint: OldestAvailableCheckpoint,
+) -> Result<(), Error> {
+    let oldest_available_tx = oldest_available_checkpoint.db_tx() as u64;
+    for (name, cursor) in [("after", page.after()), ("before", page.before())] {
+        let Some(tx_seq) = cursor.map(|c| u64::from(c.tx_sequence_number)) else {
+            continue;
+        };
+        if tx_seq < oldest_available_tx {
+            return Err(Error::DataPruned {
+                message: format!(
+                    "`{name}` cursor (transaction {tx_seq}) is below the oldest available \
+                     transaction {oldest_available_tx}"
+                ),
+                oldest_available_checkpoint,
+            });
+        }
+    }
+    Ok(())
 }
 
 fn apply_scan_limited_pagination(

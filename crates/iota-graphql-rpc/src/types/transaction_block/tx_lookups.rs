@@ -54,10 +54,17 @@
 //! scan over all candidate transactions. By limiting the size of the candidate
 //! set, we bound the work done in the worst case (whereas otherwise, the worst
 //! case would grow with the history of the chain).
-use std::fmt::Write;
+use std::{
+    collections::HashMap,
+    fmt::Write,
+    ops::{Range, RangeInclusive},
+};
 
-use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
-use iota_indexer::{ingestion::common::CommitterTables, schema::checkpoints};
+use diesel::{ExpressionMethods, QueryDsl};
+use iota_indexer::{
+    ingestion::common::CommitterTables,
+    pruning::oldest_available_checkpoint::OldestAvailableCheckpoint, schema::checkpoints,
+};
 
 use crate::{
     data::{Conn, DbConnection, pg::bytea_literal},
@@ -136,74 +143,50 @@ pub(crate) struct TxBounds {
 
 impl TxBounds {
     /// Determines the `tx_sequence_number` range from the checkpoint bounds for
-    /// a transaction block query. If no checkpoint range is specified, the
-    /// default is between 0 and the `checkpoint_viewed_at`. The
-    /// corresponding `tx_sequence_number` range is fetched from db, and
-    /// further adjusted by cursors and scan limit. If there are any
-    /// inconsistencies or invalid combinations, i.e. `after` cursor is
-    /// greater than the upper bound, return None.
+    /// a transaction block query. The corresponding `tx_sequence_number` range
+    /// is fetched from db, and further adjusted by cursors and scan limit. If
+    /// there are any inconsistencies or invalid combinations, i.e. `after`
+    /// cursor is greater than the upper bound, return None.
+    ///
+    /// When `cp_bounds` starts at or below `oldest_available`, the lower bound
+    /// is the first transaction the database serves.
     pub(crate) fn query(
         conn: &mut Conn,
-        cp_after: Option<u64>,
-        cp_at: Option<u64>,
-        cp_before: Option<u64>,
-        checkpoint_viewed_at: u64,
+        cp_bounds: RangeInclusive<u64>,
+        oldest_available: OldestAvailableCheckpoint,
         scan_limit: Option<u64>,
         page: &Page<Cursor>,
     ) -> Result<Option<Self>, diesel::result::Error> {
-        // Lowerbound in terms of checkpoint sequence number. We want to get the total
-        // transaction count of the checkpoint before this one, or 0 if there is
-        // no previous checkpoint.
-        let cp_lo = max_option([cp_after.map(|x| x.saturating_add(1)), cp_at]).unwrap_or(0);
+        let (cp_lo, cp_hi) = (*cp_bounds.start(), *cp_bounds.end());
 
-        let cp_before_inclusive = match cp_before {
-            // There are no results strictly before checkpoint 0.
-            Some(0) => return Ok(None),
-            Some(x) => Some(x - 1),
-            None => None,
-        };
-
-        // Upperbound in terms of checkpoint sequence number. We want to get the total
-        // transaction count at the end of this checkpoint. If no upperbound is
-        // given, use `checkpoint_viewed_at`.
-        //
-        // SAFETY: we can unwrap because of the `Some(checkpoint_viewed_at)
-        let cp_hi = min_option([cp_before_inclusive, cp_at, Some(checkpoint_viewed_at)]).unwrap();
+        // To map `cp_lo` to tx sequence number we need to read `network_total_transactions` of the
+        // previous cp. We can do it only if it's not pruned.
+        let cp_prev = (cp_lo > oldest_available.db_checkpoint()).then(|| cp_lo - 1);
 
         use checkpoints::dsl;
-        let (tx_lo, tx_hi) = if let Some(cp_prev) = cp_lo.checked_sub(1) {
-            let res: Vec<i64> = conn.results(move || {
+        let seqs: Vec<i64> = cp_prev
+            .into_iter()
+            .chain([cp_hi])
+            .map(|cp| cp as i64)
+            .collect();
+        let network_totals: HashMap<i64, i64> = conn
+            .results(move || {
                 dsl::checkpoints
-                    .select(dsl::network_total_transactions)
-                    .filter(dsl::sequence_number.eq_any([cp_prev as i64, cp_hi as i64]))
-                    .order_by(dsl::network_total_transactions.asc())
-            })?;
+                    .select((dsl::sequence_number, dsl::network_total_transactions))
+                    .filter(dsl::sequence_number.eq_any(seqs.clone()))
+            })?
+            .into_iter()
+            .collect();
+        // A missing row means that the checkpoint doesn't exist.
+        let network_total_transactions =
+            |cp: u64| network_totals.get(&(cp as i64)).map(|total| *total as u64);
 
-            // If there are not two distinct results, it means that the transaction bounds
-            // are empty (lo and hi are the same), or it means that the one or
-            // other of the checkpoints doesn't exist, so we can return early.
-            let &[lo, hi] = res.as_slice() else {
-                return Ok(None);
-            };
-
-            (lo as u64, hi as u64)
-        } else {
-            let res: Option<i64> = conn
-                .first(move || {
-                    dsl::checkpoints
-                        .select(dsl::network_total_transactions)
-                        .filter(dsl::sequence_number.eq(cp_hi as i64))
-                })
-                .optional()?;
-
-            // If there is no result, it means that the checkpoint doesn't exist, so we can
-            // return early.
-            let Some(hi) = res else {
-                return Ok(None);
-            };
-
-            (0, hi as u64)
+        let Some(tx_hi) = network_total_transactions(cp_hi) else {
+            return Ok(None);
         };
+        let tx_lo = cp_prev
+            .and_then(network_total_transactions)
+            .unwrap_or(oldest_available.db_tx() as u64);
 
         // If the cursors point outside checkpoint bounds, we can return early.
         if matches!(page.after(), Some(a) if tx_hi <= u64::from(a.tx_sequence_number).saturating_add(1))
@@ -304,6 +287,38 @@ impl TxBounds {
     pub(crate) fn scan_has_next_page(&self) -> bool {
         self.scan_end_cursor() + 1 < self.tx_hi
     }
+}
+
+/// The inclusive range of checkpoints a transaction block query with `filter`
+/// is confined to when viewed at `checkpoint_viewed_at`, or `None` when it is
+/// empty.
+///
+/// The function considers ranges defined by:
+/// - `checkpoint_viewed_at`
+/// - `after_checkpoint`, `before_checkpoint`, `at_checkpoint` properties of the `filter`
+pub(crate) fn checkpoint_bounds_from_filter(
+    filter: &TransactionBlockFilter,
+    checkpoint_viewed_at: u64,
+) -> Option<RangeInclusive<u64>> {
+    fn intersect(a: Range<u64>, b: Range<u64>) -> Range<u64> {
+        a.start.max(b.start)..a.end.min(b.end)
+    }
+
+    // Half-open ranges, so that `before_checkpoint` needs no adjustment.
+    let viewed = Some(0..checkpoint_viewed_at + 1);
+    let after = filter
+        .after_checkpoint
+        .map(|cp| u64::from(cp) + 1..u64::MAX);
+    let before = filter.before_checkpoint.map(|cp| 0..u64::from(cp));
+    let at = filter
+        .at_checkpoint
+        .map(|cp| u64::from(cp)..u64::from(cp) + 1);
+
+    let range = [viewed, after, before, at]
+        .into_iter()
+        .flatten()
+        .fold(0..u64::MAX, intersect);
+    (!range.is_empty()).then(|| range.start..=range.end - 1)
 }
 
 /// Determines the maximum value in an arbitrary number of Option<impl Ord>.
