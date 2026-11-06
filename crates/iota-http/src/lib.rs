@@ -500,7 +500,6 @@ mod tests {
     use axum::Router;
 
     use super::*;
-    use crate::connection_handler::MAX_GRACE_PERIODS;
 
     #[tokio::test]
     async fn simple() {
@@ -1409,7 +1408,7 @@ mod tests {
     /// idleness is measured in requests rather than in bytes.
     #[tokio::test]
     async fn protocol_traffic_alone_does_not_keep_a_connection_alive() {
-        use tokio::io::AsyncWriteExt as _;
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
         const IDLE: Duration = Duration::from_millis(200);
         const EMPTY_SETTINGS: [u8; 9] = [0, 0, 0, 0x4, 0, 0, 0, 0, 0];
@@ -1419,6 +1418,9 @@ mod tests {
             .serve(("localhost", 0), Router::new())
             .unwrap();
 
+        // Taken before the connection is made, so the idle deadline counts
+        // from later.
+        let started = tokio::time::Instant::now();
         let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
             .await
             .unwrap();
@@ -1426,25 +1428,36 @@ mod tests {
             .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
             .await
             .unwrap();
+        connection.write_all(&EMPTY_SETTINGS).await.unwrap();
+
+        // The server's first frame shows it is serving HTTP/2, so the clock
+        // can be paused without the deadline passing while it picks a protocol.
+        let mut buf = [0u8; 1024];
+        let read = connection.read(&mut buf).await.unwrap();
+        assert_ne!(read, 0, "the server must answer the HTTP/2 preface");
+        tokio::time::pause();
 
         // Keep sending frames the server must read and answer, but never a
         // request, until the write fails because it closed the connection.
-        let chattering = async {
-            loop {
-                if connection.write_all(&EMPTY_SETTINGS).await.is_err() {
-                    return;
-                }
-                tokio::time::sleep(IDLE / 10).await;
-            }
-        };
-        tokio::time::timeout(IDLE * 50, chattering)
-            .await
-            .expect("traffic without requests must not hold a connection open");
+        // The peer never acknowledges the shutdown, so that is when the grace
+        // after the deadline ends.
+        while connection.write_all(&EMPTY_SETTINGS).await.is_ok() {
+            tokio::time::sleep(IDLE / 10).await;
+        }
+        let closed_after = started.elapsed();
+        let grace_ends = IDLE + SHUTDOWN_GRACE_PERIOD;
+        assert!(
+            closed_after >= grace_ends,
+            "the connection must be given the grace, closed after only {closed_after:?}"
+        );
+        assert!(
+            closed_after < grace_ends + SHUTDOWN_GRACE_PERIOD,
+            "traffic without requests must not hold a connection open, closed after {closed_after:?}"
+        );
     }
 
     /// A connection past its age is dropped even if the peer ignores the
-    /// shutdown, because the grace that follows it is bounded. With nothing
-    /// in flight it is given that grace only once.
+    /// shutdown, because the grace that follows it is bounded.
     #[tokio::test]
     async fn a_connection_past_its_age_is_dropped_even_if_it_ignores_the_request() {
         use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
@@ -1453,15 +1466,12 @@ mod tests {
         const EMPTY_SETTINGS: [u8; 9] = [0, 0, 0, 0x4, 0, 0, 0, 0, 0];
 
         let handle = Builder::new()
-            .config(
-                Config::default()
-                    .max_connection_age(AGE)
-                    // So the server sees it has nothing in flight.
-                    .max_connection_idle(Some(AGE * 100)),
-            )
+            .config(Config::default().max_connection_age(AGE))
             .serve(("localhost", 0), Router::new())
             .unwrap();
 
+        // Taken before the connection is made, so the age counts from later.
+        let started = tokio::time::Instant::now();
         let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
             .await
             .unwrap();
@@ -1474,30 +1484,33 @@ mod tests {
             .unwrap();
         connection.write_all(&EMPTY_SETTINGS).await.unwrap();
 
-        // What the server sends first is its own settings and the shutdown,
-        // so read until the connection ends rather than just once.
-        let closed = async {
-            let mut buf = [0u8; 1024];
-            while let Ok(read) = connection.read(&mut buf).await {
-                if read == 0 {
-                    return;
-                }
-            }
-        };
-        tokio::time::timeout(AGE + SHUTDOWN_GRACE_PERIOD * 3, closed)
-            .await
-            .expect("a connection past its age must be dropped");
+        // The server's first frame shows it is serving HTTP/2, so the clock
+        // can be paused without the age passing while it picks a protocol.
+        let mut buf = [0u8; 1024];
+        let read = connection.read(&mut buf).await.unwrap();
+        assert_ne!(read, 0, "the server must answer the HTTP/2 preface");
+        tokio::time::pause();
+
+        // Then comes the shutdown, so read until the connection ends.
+        while connection.read(&mut buf).await.is_ok_and(|read| read != 0) {}
+        let dropped_after = started.elapsed();
+        let grace_ends = AGE + SHUTDOWN_GRACE_PERIOD;
+        assert!(
+            dropped_after >= grace_ends,
+            "the connection must be given the grace, dropped after only {dropped_after:?}"
+        );
+        assert!(
+            dropped_after < grace_ends + SHUTDOWN_GRACE_PERIOD,
+            "the connection must be dropped once the grace ends, dropped after {dropped_after:?}"
+        );
     }
 
-    /// The grace a closing connection is given is extended while it is still
-    /// serving, so reaching the age mid-request does not discard the response
-    /// the client is waiting for.
+    /// A request in flight when the age expires is finished if it ends within
+    /// the grace, so the response the client is waiting for is not discarded.
     #[tokio::test]
     async fn a_request_in_flight_when_the_age_expires_is_finished() {
         const AGE: Duration = Duration::from_millis(300);
-        // Longer than the grace a connection with nothing in flight gets, so
-        // a fixed grace would cut this response.
-        let handler = SHUTDOWN_GRACE_PERIOD * 3;
+        let handler = SHUTDOWN_GRACE_PERIOD / 2;
         const MESSAGE: &str = "finished anyway";
 
         let serving = Arc::new(tokio::sync::Notify::new());
@@ -1519,8 +1532,6 @@ mod tests {
             .config(
                 Config::default()
                     .max_connection_age(AGE)
-                    // Without an idle deadline the grace is never extended.
-                    .max_connection_idle(Some(handler * 10))
                     .accept_http1(true),
             )
             .serve(("localhost", 0), app)
@@ -1533,8 +1544,8 @@ mod tests {
         let request = tokio::spawn(async move { reqwest::get(&url).await?.bytes().await });
 
         // Paused only once the request is being served, as in
-        // `assert_an_unfinished_request_is_cut_after_the_last_grace`, so the
-        // age, the graces and the handler pass at once.
+        // `a_request_that_never_finishes_is_cut_after_the_grace`, so the age
+        // and the handler pass at once.
         serving.notified().await;
         tokio::time::pause();
 
@@ -1545,18 +1556,15 @@ mod tests {
         assert_eq!(body, MESSAGE.as_bytes());
     }
 
-    /// Sends a request that never finishes to a connection that reaches its
-    /// age while serving it, and checks the connection is dropped when the
-    /// last of `graces` ends and not before.
+    /// A connection that reaches its age while serving a request that never
+    /// finishes is dropped when the grace ends, and not before.
     ///
     /// Runs on real time until the request is being served, then pauses the
     /// clock. A paused clock skips ahead whenever the runtime has nothing ready,
     /// even while a socket still has data on the way, so it is paused only once
     /// the server is left waiting on its own timers alone.
-    async fn assert_an_unfinished_request_is_cut_after_the_last_grace(
-        max_connection_idle: Option<Duration>,
-        graces: u32,
-    ) {
+    #[tokio::test]
+    async fn a_request_that_never_finishes_is_cut_after_the_grace() {
         /// Sends the time it is dropped. Held by the handler, whose future
         /// HTTP/1 keeps inside the connection, so it is dropped when the
         /// connection is.
@@ -1571,7 +1579,7 @@ mod tests {
         }
 
         const AGE: Duration = Duration::from_millis(200);
-        let last_grace_ends = AGE + SHUTDOWN_GRACE_PERIOD * graces;
+        let grace_ends = AGE + SHUTDOWN_GRACE_PERIOD;
 
         let (serving_tx, serving_rx) = tokio::sync::oneshot::channel();
         let (dropped_tx, dropped_rx) = tokio::sync::oneshot::channel();
@@ -1594,7 +1602,6 @@ mod tests {
             .config(
                 Config::default()
                     .max_connection_age(AGE)
-                    .max_connection_idle(max_connection_idle)
                     .accept_http1(true),
             )
             .serve(("localhost", 0), app)
@@ -1617,12 +1624,12 @@ mod tests {
             .expect("the handler must be dropped with its connection")
             - started;
         assert!(
-            cut_after >= last_grace_ends,
-            "the request must be given {graces} graces, cut after only {cut_after:?}"
+            cut_after >= grace_ends,
+            "the request must be given the grace, cut after only {cut_after:?}"
         );
         assert!(
-            cut_after < last_grace_ends + SHUTDOWN_GRACE_PERIOD,
-            "the request must be cut once the last grace ends, cut after {cut_after:?}"
+            cut_after < grace_ends + SHUTDOWN_GRACE_PERIOD,
+            "the request must be cut once the grace ends, cut after {cut_after:?}"
         );
 
         let response = request.await.unwrap();
@@ -1630,23 +1637,5 @@ mod tests {
             response.is_err(),
             "a request that never finishes must not get a response, got {response:?}"
         );
-    }
-
-    /// A closing connection still serving a request is given the grace again,
-    /// but only so many times, so a request that never finishes is cut.
-    #[tokio::test]
-    async fn a_request_that_never_finishes_is_cut_after_the_last_grace() {
-        assert_an_unfinished_request_is_cut_after_the_last_grace(
-            Some(Duration::from_secs(3600)),
-            MAX_GRACE_PERIODS + 1,
-        )
-        .await;
-    }
-
-    /// A connection with no idle deadline is never given the grace again, so
-    /// it is dropped when the first one ends, even mid-request.
-    #[tokio::test]
-    async fn a_connection_with_no_idle_deadline_is_given_one_grace() {
-        assert_an_unfinished_request_is_cut_after_the_last_grace(None, 1).await;
     }
 }
