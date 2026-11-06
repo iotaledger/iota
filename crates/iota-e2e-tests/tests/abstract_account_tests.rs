@@ -48,7 +48,9 @@ use iota_types::{
     },
 };
 use move_command_line_common::error_bitset::ErrorBitset;
-use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
+use test_cluster::{
+    TestCluster, TestClusterBuilder, override_pcool_flow, override_validator_attestation,
+};
 
 const AA_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";
 const AA_MODULE_NAME: &str = "abstract_account";
@@ -1520,6 +1522,10 @@ async fn test_stale_abstract_account_tx_fails_with_effects_with_the_pcool_flow()
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
+    // The no-charge effect is the P-COOL flow's own: with attestation on, the
+    // judge finds the authentication valid at the attested versions and the
+    // account pays.
+    let _attestation = override_validator_attestation(false);
     let mut test_env = TestEnvironment::with_cluster(
         TestClusterBuilder::new()
             .with_epoch_duration_ms(600_000)
@@ -1776,6 +1782,9 @@ async fn test_denied_authenticator_package_is_dropped_at_the_commit() -> Result<
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
+    // The validator skipping admission submits the transaction unattested,
+    // which block verification refuses while attestation is on.
+    let _attestation = override_validator_attestation(false);
     let mut test_env = TestEnvironment::with_cluster(
         TestClusterBuilder::new()
             .with_epoch_duration_ms(600_000)
@@ -2110,6 +2119,9 @@ async fn test_received_version_named_as_owned_input_never_executes() -> Result<(
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
+    // The validator skipping its input checks submits the transaction
+    // unattested, which block verification refuses while attestation is on.
+    let _attestation = override_validator_attestation(false);
     let mut test_env = TestEnvironment::with_cluster(
         TestClusterBuilder::new()
             .with_epoch_duration_ms(600_000)

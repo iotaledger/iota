@@ -168,6 +168,39 @@ pub fn override_pcool_flow(enabled: bool) -> PcoolFlowOverride {
     PcoolFlowOverride
 }
 
+/// Reverts the validator attestation flag override when dropped.
+#[must_use = "the override only holds while the guard is alive"]
+pub struct ValidatorAttestationOverride;
+
+impl Drop for ValidatorAttestationOverride {
+    fn drop(&mut self) {
+        // SAFETY: paired with `override_validator_attestation`; both run on the
+        // test thread, outside the cluster's lifetime.
+        unsafe {
+            std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
+            std::env::remove_var(
+                "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            );
+        }
+    }
+}
+
+/// Sets the validator attestation flag for every node of a test cluster built
+/// while the returned guard is alive, leaving the P-COOL flow as the protocol
+/// version has it. See [`override_pcool_flow`] for why this goes through the
+/// environment.
+pub fn override_validator_attestation(enabled: bool) -> ValidatorAttestationOverride {
+    // SAFETY: called before the cluster is built, on the test thread.
+    unsafe {
+        std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
+        std::env::set_var(
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            enabled.to_string(),
+        );
+    }
+    ValidatorAttestationOverride
+}
+
 impl TestCluster {
     pub fn rpc_client(&self) -> &HttpClient {
         &self.fullnode_handle.rpc_client
