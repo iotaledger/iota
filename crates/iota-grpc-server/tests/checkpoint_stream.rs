@@ -66,34 +66,6 @@ fn mock_checkpoint_data_with_sender(
     }
 }
 
-fn build_large_checkpoint_transactions() -> Vec<CheckpointTransaction> {
-    // Create many dummy transactions to exceed the message size limit when chunked.
-    // Each transaction is roughly 500-1000 bytes when serialized as protobuf.
-    let num_transactions = 50000;
-    let mut transactions = Vec::with_capacity(num_transactions);
-
-    for _ in 0..num_transactions {
-        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
-        let gas = random_object_ref();
-        let transaction = TestTransactionBuilder::new(sender, gas, 1000)
-            .transfer(random_object_ref(), sender)
-            .build_and_sign(&key);
-
-        let effects = TestEffectsBuilder::new(transaction.data()).build();
-        let (input_objects, output_objects) = common::objects_for_effects(sender, &effects);
-
-        transactions.push(CheckpointTransaction {
-            transaction,
-            effects,
-            events: None,
-            input_objects,
-            output_objects,
-        });
-    }
-
-    transactions
-}
-
 /// Helper to set up test server with specific large checkpoints.
 async fn test_server_and_client_setup_with_large_checkpoints<
     I: Iterator<Item = u64>,
@@ -109,7 +81,10 @@ async fn test_server_and_client_setup_with_large_checkpoints<
     Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
 ) {
     let mut mock = MockGrpcStateReader::new_from_iter(checkpoint_range);
-    mock.large_checkpoint_transactions = build_large_checkpoint_transactions();
+    // Many transactions, so the checkpoint exceeds the message size limit and
+    // has to be chunked. Each is roughly 500-1000 bytes as protobuf.
+    mock.large_checkpoint_transactions =
+        common::build_checkpoint_transactions_with_events(50_000, 0);
     let mock = Arc::new(mock);
 
     // Mark specified checkpoints as large
@@ -302,7 +277,7 @@ async fn test_future_end_sequence_number_only_full() {
     let (server_handle, client, _) = test_server_and_client_setup(0..=10, |_| {}, None, None).await;
     spawn_checkpoint_sender(&server_handle, 11);
 
-    let range = (None, Some(100));
+    let range = (None, Some(20));
 
     let mut stream = stream_in_range(&client, range).await.unwrap();
 
@@ -327,7 +302,7 @@ async fn test_future_end_sequence_number_only_full() {
     .await
     .expect("waiting for stream timed out");
 
-    assert_eq!(results, vec![100]);
+    assert_eq!(results, vec![20]);
 
     // Clean up
     server_handle
@@ -453,7 +428,7 @@ async fn test_gap_fill_with_slow_client() {
     )
     .await;
 
-    // Producer: generates checkpoints 11..=200, one every 100ms
+    // Producer: generates checkpoints 11..=200, one every 40ms
     tokio::spawn({
         let data_broadcaster = server_handle.checkpoint_data_broadcaster().clone();
         let checkpoints = checkpoints.clone();
@@ -462,7 +437,7 @@ async fn test_gap_fill_with_slow_client() {
                 let data = mock_checkpoint_data(i);
                 checkpoints.lock().unwrap().insert(i);
                 data_broadcaster.send_traced(&data);
-                tokio::time::sleep(Duration::from_millis(100)).await;
+                tokio::time::sleep(Duration::from_millis(40)).await;
             }
         }
     });
@@ -480,7 +455,7 @@ async fn test_gap_fill_with_slow_client() {
                 Ok(response) => {
                     let sequence_number = response.sequence_number();
                     results.push(sequence_number);
-                    tokio::time::sleep(Duration::from_millis(250)).await; // slow down the client
+                    tokio::time::sleep(Duration::from_millis(100)).await; // slow down the client
                     if sequence_number >= 20 {
                         break;
                     }
@@ -927,9 +902,13 @@ async fn get_checkpoint_raw(
 
 #[tokio::test]
 async fn test_chunked_checkpoint_message_sizes_within_limit() {
-    // 10 000 transactions → total payload exceeds the 4 MB minimum message size
-    // enforced by the server, which enables the splitting test.
-    let transactions = common::build_checkpoint_transactions_with_events(10_000, 0);
+    // About 19 KB per transaction with 4 KiB objects, so 300 exceed the 4 MB
+    // minimum message size the server enforces, which enables the splitting
+    // test. Large objects rather than many transactions, because the server's
+    // work grows with the number of transactions, not with their size.
+    let mut transaction = common::build_checkpoint_transactions_with_events(1, 0).remove(0);
+    common::set_object_contents_len(&mut transaction, 4096);
+    let transactions = vec![transaction; 300];
     let summary = common::mock_summary(0, &common::EMPTY_CHECKPOINT_CONTENTS);
     let contents = common::EMPTY_CHECKPOINT_CONTENTS.clone();
 

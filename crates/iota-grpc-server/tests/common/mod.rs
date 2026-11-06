@@ -164,50 +164,72 @@ pub fn objects_for_effects(
     (input_objects, output_objects)
 }
 
-/// Build checkpoint transactions, each optionally carrying `events_per_tx`
-/// events.
+/// Build `count` copies of one checkpoint transaction, optionally carrying
+/// `events_per_tx` events. Every copy has the same digest, so the result only
+/// suits tests that need the transactions for their size or their number.
 pub fn build_checkpoint_transactions_with_events(
     count: usize,
     events_per_tx: usize,
 ) -> Vec<CheckpointTransaction> {
-    let mut transactions = Vec::with_capacity(count);
-    for _ in 0..count {
-        let (sender, key): (_, AccountPrivateKey) = get_key_pair();
-        let gas = random_object_ref();
-        let transaction = TestTransactionBuilder::new(sender, gas, 1000)
-            .transfer(random_object_ref(), sender)
-            .build_and_sign(&key);
-        let effects = TestEffectsBuilder::new(transaction.data()).build();
-        let events = if events_per_tx > 0 {
-            let mut data = Vec::with_capacity(events_per_tx);
-            for _ in 0..events_per_tx {
-                data.push(Event {
-                    package_id: ObjectId::ZERO,
-                    module: Identifier::from_static("test_module"),
-                    sender,
-                    struct_tag: StructTag::new(
-                        Address::ZERO,
-                        Identifier::from_static("test_module"),
-                        Identifier::from_static("TestEvent"),
-                        vec![],
-                    ),
-                    contents: vec![0u8; 64], // 64 bytes of dummy content
-                });
-            }
-            Some(TransactionEvents(data))
-        } else {
-            None
-        };
-        let (input_objects, output_objects) = objects_for_effects(sender, &effects);
-        transactions.push(CheckpointTransaction {
+    // Generating a key pair and signing dominated the tests that build
+    // thousands of transactions, so it is done once.
+    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+    let gas = random_object_ref();
+    let transaction = TestTransactionBuilder::new(sender, gas, 1000)
+        .transfer(random_object_ref(), sender)
+        .build_and_sign(&key);
+    let effects = TestEffectsBuilder::new(transaction.data()).build();
+    let events = (events_per_tx > 0).then(|| {
+        TransactionEvents(vec![
+            Event {
+                package_id: ObjectId::ZERO,
+                module: Identifier::from_static("test_module"),
+                sender,
+                struct_tag: StructTag::new(
+                    Address::ZERO,
+                    Identifier::from_static("test_module"),
+                    Identifier::from_static("TestEvent"),
+                    vec![],
+                ),
+                contents: vec![0u8; 64], // 64 bytes of dummy content
+            };
+            events_per_tx
+        ])
+    });
+    let (input_objects, output_objects) = objects_for_effects(sender, &effects);
+    vec![
+        CheckpointTransaction {
             transaction,
             effects,
             events,
             input_objects,
             output_objects,
-        });
+        };
+        count
+    ]
+}
+
+/// Replaces the contents of `transaction`'s input and output objects with
+/// `len` bytes of a test type, keeping the ids, versions and owners the
+/// effects refer to.
+pub fn set_object_contents_len(transaction: &mut CheckpointTransaction, len: usize) {
+    let object_type = StructTag::new(
+        Address::ZERO,
+        Identifier::from_static("test_module"),
+        Identifier::from_static("TestObject"),
+        vec![],
+    );
+    for object in transaction
+        .input_objects
+        .iter_mut()
+        .chain(transaction.output_objects.iter_mut())
+    {
+        // A Move object's contents start with its id.
+        let mut contents = object.id().into_bytes().to_vec();
+        contents.resize(len, 0);
+        let data = MoveStruct::new(object_type.clone().into(), object.version(), contents).unwrap();
+        *object = Object::new_move(data, object.owner, object.previous_transaction);
     }
-    transactions
 }
 
 /// Create a transaction and its effects so `get_transactions` can return it.
