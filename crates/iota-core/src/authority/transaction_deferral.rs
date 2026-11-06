@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, TransactionDigest};
 use iota_types::base_types::CommitRound;
 use serde::{Deserialize, Serialize};
 
@@ -85,6 +85,11 @@ pub enum DeferralReason {
 
     // The list of objects are congested objects.
     SharedObjectCongestion(Vec<ObjectId>),
+
+    // The transaction named by the transaction dependency input is not a root
+    // of a commit yet, or its scheduled execution ends past this commit's
+    // budget. Ends when the dependency's does: no limit of its own.
+    WaitingForDependency(TransactionDigest),
 }
 
 pub fn transaction_deferral_within_limit(

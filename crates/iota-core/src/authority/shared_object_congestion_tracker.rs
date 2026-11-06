@@ -4,7 +4,7 @@
 
 use std::{cmp::Ordering, collections::HashMap};
 
-use iota_sdk_types::{ObjectId, SharedObjectReference};
+use iota_sdk_types::{ObjectId, SharedObjectReference, TransactionDigest};
 use iota_types::{
     base_types::CommitRound,
     transaction::{SenderSignedTransactionAPI, TransactionAPI},
@@ -35,6 +35,11 @@ pub(super) enum SequencingResult {
     /// Sequencing result indicating that a transaction is deferred.
     /// The list of objects are congested objects.
     Defer(DeferralKey, Vec<ObjectId>),
+
+    /// Sequencing result indicating that a transaction is deferred because
+    /// the transaction it depends on, named by the digest, ends past this
+    /// commit's budget; its own inputs would fit.
+    DeferForDependency(DeferralKey, TransactionDigest),
 }
 
 /// An execution slot represents the allocated time slot for a transaction to be
@@ -411,18 +416,27 @@ pub(crate) struct SharedObjectCongestionTracker {
     /// which case every scheduled transaction — including owned-object-only
     /// ones — occupies a worker over its execution interval.
     worker_slots: Option<WorkerSlots>,
+    /// When the transactions scheduled at this commit end. A transaction
+    /// that depends on one of them starts no earlier.
+    scheduled_end_times: HashMap<TransactionDigest, ExecutionTime>,
+    /// Like `scheduled_end_times`, for transactions scheduled at earlier
+    /// commits that run past this commit's start, as carried over.
+    initial_transaction_debts: HashMap<TransactionDigest, ExecutionTime>,
     congestion_control_parameters: CongestionControlParameters,
 }
 
 impl SharedObjectCongestionTracker {
     /// Create a new `SharedObjectCongestionTracker` for the given
     /// `CongestionControlParameters`, taking into account the per-object debts
-    /// (`initial_object_debts`) and the execution-worker debt
-    /// (`initial_worker_debt`) carried over from prior commits. The worker debt
-    /// is ignored when execution-worker congestion control is inactive.
+    /// (`initial_object_debts`), the execution-worker debt
+    /// (`initial_worker_debt`) and the debts of transactions still running
+    /// past the previous commit's budget (`initial_transaction_debts`) carried
+    /// over from prior commits. The worker debt is ignored when
+    /// execution-worker congestion control is inactive.
     pub(super) fn new(
         initial_object_debts: impl IntoIterator<Item = (ObjectId, u64)>,
         initial_worker_debt: WorkerDebtSlots,
+        initial_transaction_debts: impl IntoIterator<Item = (TransactionDigest, u64)>,
         congestion_control_parameters: CongestionControlParameters,
     ) -> Self {
         let object_execution_slots = initial_object_debts
@@ -446,6 +460,8 @@ impl SharedObjectCongestionTracker {
         Self {
             object_execution_slots,
             worker_slots,
+            scheduled_end_times: HashMap::new(),
+            initial_transaction_debts: initial_transaction_debts.into_iter().collect(),
             congestion_control_parameters,
         }
     }
@@ -473,7 +489,10 @@ impl SharedObjectCongestionTracker {
     /// the starting time of the transaction if the transaction can be
     /// scheduled. Otherwise, returns None.
     ///
-    /// Starting time is determined by all the input shared objects' last write.
+    /// Starting time is determined by all the input shared objects' last
+    /// write and, when `dependency_end` is set, by the end of the transaction
+    /// this one depends on, which occupies the time before it like a busy
+    /// object.
     ///
     /// Before calling this function, the caller should ensure that the tracker
     /// is initialized for all objects in the transaction by first calling
@@ -484,7 +503,13 @@ impl SharedObjectCongestionTracker {
         shared_input_objects: &[SharedObjectReference],
         tx_duration: ExecutionTime,
         check_worker_limit: bool,
+        dependency_end: Option<ExecutionTime>,
     ) -> Option<ExecutionTime> {
+        let dependency_slots = dependency_end.map(|end_time| {
+            let mut slots = ObjectExecutionSlots::new();
+            slots.remove(ExecutionSlot::new(0, end_time));
+            slots
+        });
         let worker_free_slots = if check_worker_limit {
             self.worker_slots
                 .as_ref()
@@ -498,7 +523,8 @@ impl SharedObjectCongestionTracker {
         };
         // Collect the free-list of every resource the transaction must fit in:
         // one per shared input object, plus the execution-worker pool when
-        // worker congestion control is active and `check_worker_limit` is set.
+        // worker congestion control is active and `check_worker_limit` is set,
+        // plus the time before the dependency ends.
         let resources: Vec<&ObjectExecutionSlots> = shared_input_objects
             .iter()
             .map(|obj| {
@@ -507,6 +533,7 @@ impl SharedObjectCongestionTracker {
                     .expect("object should have been inserted at the start of this function.")
             })
             .chain(&worker_free_slots)
+            .chain(dependency_slots.as_ref())
             .collect();
 
         if resources.is_empty() {
@@ -632,16 +659,61 @@ impl SharedObjectCongestionTracker {
             return SequencingResult::Schedule(0);
         };
 
+        // The end of the transaction this one depends on, when the tracker
+        // scheduled it at this commit or carried its remaining time over from
+        // an earlier one. A dependency the tracker does not know finished
+        // within an earlier commit's budget and constrains nothing here; the
+        // execution scheduler still waits for its effects.
+        let dependency = transaction.data().transaction().transaction_dependency();
+        let dependency_end = dependency
+            .and_then(|dependency| {
+                self.scheduled_end_times
+                    .get(&dependency)
+                    .or_else(|| self.initial_transaction_debts.get(&dependency))
+                    .copied()
+            })
+            .filter(|end_time| *end_time > 0);
+
         // Try to compute a scheduling start time that fits both the shared
-        // objects and (when active) the execution-worker pool.
+        // objects and (when active) the execution-worker pool, after the
+        // dependency ends.
         if let Some(start_time) =
-            self.compute_tx_start_time(&shared_input_objects, tx_duration, true)
+            self.compute_tx_start_time(&shared_input_objects, tx_duration, true, dependency_end)
         {
             // `compute_tx_start_time` returns None if the transaction cannot be scheduled,
             // so no need to check for overflow when adding `tx_duration` here.
             if start_time + tx_duration <= congestion_limit {
                 // schedule this transaction and return the start time.
                 return SequencingResult::Schedule(start_time);
+            }
+        }
+
+        let deferral_key = if let Some(previous_key_suggested_gas_price_pair) =
+            previously_deferred_tx_digests.get(transaction.digest())
+        {
+            // This transaction has been deferred in previous consensus commit. Use its
+            // previous deferred_from_round.
+            DeferralKey::new_for_consensus_round(
+                commit_round + 1,
+                previous_key_suggested_gas_price_pair
+                    .0
+                    .deferred_from_round(),
+            )
+        } else {
+            // This transaction has not been deferred before. Use the current commit round
+            // as the deferred_from_round.
+            DeferralKey::new_for_consensus_round(commit_round + 1, commit_round)
+        };
+
+        // Waiting for the dependency alone pushes the transaction past the
+        // limit: it is deferred for that, not for congestion, since a higher
+        // gas price cannot make the dependency end sooner.
+        if let (Some(dependency), Some(_)) = (dependency, dependency_end) {
+            let fits_without_dependency = self
+                .compute_tx_start_time(&shared_input_objects, tx_duration, true, None)
+                .is_some_and(|start_time| start_time + tx_duration <= congestion_limit);
+            if fits_without_dependency {
+                return SequencingResult::DeferForDependency(deferral_key, dependency);
             }
         }
 
@@ -653,7 +725,7 @@ impl SharedObjectCongestionTracker {
         // fit and this probe would only repeat that work.
         let objects_fit = self.worker_slots.is_some()
             && self
-                .compute_tx_start_time(&shared_input_objects, tx_duration, false)
+                .compute_tx_start_time(&shared_input_objects, tx_duration, false, None)
                 .is_some_and(|start_time| start_time + tx_duration <= congestion_limit);
 
         let congested_objects: Vec<ObjectId> = if objects_fit {
@@ -690,22 +762,6 @@ impl SharedObjectCongestionTracker {
                 .collect()
         };
 
-        let deferral_key = if let Some(previous_key_suggested_gas_price_pair) =
-            previously_deferred_tx_digests.get(transaction.digest())
-        {
-            // This transaction has been deferred in previous consensus commit. Use its
-            // previous deferred_from_round.
-            DeferralKey::new_for_consensus_round(
-                commit_round + 1,
-                previous_key_suggested_gas_price_pair
-                    .0
-                    .deferred_from_round(),
-            )
-        } else {
-            // This transaction has not been deferred before. Use the current commit round
-            // as the deferred_from_round.
-            DeferralKey::new_for_consensus_round(commit_round + 1, commit_round)
-        };
         SequencingResult::Defer(deferral_key, congested_objects)
     }
 
@@ -733,6 +789,8 @@ impl SharedObjectCongestionTracker {
 
         let end_time = start_time.saturating_add(estimated_execution_duration);
         let occupied_slot = ExecutionSlot::new(start_time, end_time);
+        self.scheduled_end_times
+            .insert(*transaction.digest(), end_time);
 
         // Find IDs of shared objects for which execution slots should be bumped.
         let object_ids = transaction
@@ -798,6 +856,27 @@ impl SharedObjectCongestionTracker {
             .collect()
     }
 
+    /// Returns, for each transaction scheduled at this commit, the execution
+    /// time that extends past `max_execution_duration_per_commit`, to be
+    /// carried over so a dependent at a later commit starts after it. Sorted
+    /// by digest. A debt carried into this commit is not returned: the debt
+    /// stored when it arose ages to the same value.
+    pub(super) fn accumulated_transaction_debts(
+        &self,
+        max_execution_duration_per_commit: u64,
+    ) -> Vec<(TransactionDigest, u64)> {
+        let mut debts: Vec<_> = self
+            .scheduled_end_times
+            .iter()
+            .filter_map(|(digest, end_time)| {
+                let debt = end_time.saturating_sub(max_execution_duration_per_commit);
+                (debt > 0).then_some((*digest, debt))
+            })
+            .collect();
+        debts.sort();
+        debts
+    }
+
     /// Returns the execution-worker slots that extend past
     /// `max_execution_duration_per_commit`, shifted to start at time `0`, to be
     /// carried over as the next commit's initial worker slots. Returns
@@ -821,6 +900,26 @@ pub(crate) enum CongestionPerObjectDebt {
 }
 
 impl CongestionPerObjectDebt {
+    pub(super) fn new(round: CommitRound, debt: u64) -> Self {
+        Self::V1(round, debt)
+    }
+
+    pub(super) fn into_v1(self) -> (CommitRound, u64) {
+        match self {
+            Self::V1(round, debt) => (round, debt),
+        }
+    }
+}
+
+/// Stores the execution time of a transaction that runs past the budget of
+/// the consensus commit it was scheduled at, for its dependents at later
+/// commits.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub(crate) enum CongestionTransactionDebt {
+    V1(CommitRound, u64),
+}
+
+impl CongestionTransactionDebt {
     pub(super) fn new(round: CommitRound, debt: u64) -> Self {
         Self::V1(round, debt)
     }
@@ -1128,6 +1227,42 @@ pub mod shared_object_test_utils {
         VerifiedExecutableAttestedTransaction::new(tx, None)
     }
 
+    /// Like [`build_transaction`], with a transaction dependency input naming
+    /// `dependency`.
+    pub fn build_transaction_with_dependency(
+        objects: &[(ObjectId, bool)],
+        gas_budget: u64,
+        gas_price: u64,
+        dependency: TransactionDigest,
+    ) -> VerifiedExecutableTransaction {
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+        let gas_object = random_object_ref();
+        VerifiedExecutableTransaction::new_system(
+            VerifiedTransaction::new_unchecked(
+                TestTransactionBuilder::new(sender, gas_object, gas_price)
+                    .with_gas_budget(gas_budget)
+                    .move_call(
+                        ObjectId::random(),
+                        "unimportant_module",
+                        "unimportant_function",
+                        objects
+                            .iter()
+                            .map(|(id, mutable)| {
+                                CallArg::Shared(SharedObjectReference::new(
+                                    *id,
+                                    Version::default(),
+                                    *mutable,
+                                ))
+                            })
+                            .collect(),
+                    )
+                    .with_transaction_dependency(dependency, 0)
+                    .build_and_sign(&sender_key),
+            ),
+            0,
+        )
+    }
+
     pub(crate) fn initialize_tracker_and_compute_tx_start_time(
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         shared_input_objects: &[SharedObjectReference],
@@ -1138,6 +1273,7 @@ pub mod shared_object_test_utils {
             shared_input_objects,
             tx_duration,
             false,
+            None,
         )
     }
 
@@ -1163,6 +1299,7 @@ pub mod shared_object_test_utils {
         SharedObjectCongestionTracker::new(
             init_values.iter().map(|(id, debt)| (*id, *debt)),
             Vec::new(),
+            [],
             congestion_control_parameters,
         )
     }
@@ -1710,11 +1847,12 @@ mod object_cost_tests {
 
         shared_object_congestion_tracker.bump_object_execution_slots(&transaction, start_time);
         assert_eq!(
-            shared_object_congestion_tracker,
+            shared_object_congestion_tracker.object_execution_slots,
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
                 congestion_control_parameters,
             )
+            .object_execution_slots
         );
         assert_eq!(
             shared_object_congestion_tracker.max_occupied_slot_end_time(),
@@ -2081,6 +2219,7 @@ mod object_cost_tests {
                 SharedObjectCongestionTracker::new(
                     [(shared_obj_0, 301), (shared_obj_1, 199)],
                     Vec::new(),
+                    [],
                     congestion_control_parameters,
                 )
             }
@@ -2095,6 +2234,7 @@ mod object_cost_tests {
                 SharedObjectCongestionTracker::new(
                     [(shared_obj_0, 4), (shared_obj_1, 3)],
                     Vec::new(),
+                    [],
                     congestion_control_parameters,
                 )
             }
@@ -2197,6 +2337,7 @@ mod object_cost_tests {
                 (shared_obj_1, initial_object_debt),
             ],
             Vec::new(),
+            [],
             CongestionControlParameters::new_for_test(
                 mode,
                 assign_min_free_execution_slot,
@@ -2355,6 +2496,7 @@ mod object_cost_tests {
         let tracker = SharedObjectCongestionTracker::new(
             Vec::new(),
             vec![(0, 1, 1)],
+            Vec::new(),
             congestion_control_parameters,
         );
         let previously_deferred = PreviouslyDeferredTransactions::new();
@@ -2364,6 +2506,7 @@ mod object_cost_tests {
         // worker on [0, 1); it is shed for worker congestion.
         let tx = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
         match tracker.try_schedule(&tx, &previously_deferred, 0) {
+            SequencingResult::DeferForDependency(..) => panic!("no transaction has a dependency"),
             SequencingResult::Defer(_, congested_objects) => {
                 assert!(congested_objects.is_empty());
             }
@@ -2389,6 +2532,7 @@ mod object_cost_tests {
         let mut tracker = SharedObjectCongestionTracker::new(
             Vec::new(),
             Vec::new(),
+            Vec::new(),
             congestion_control_parameters,
         );
         let previously_deferred = PreviouslyDeferredTransactions::new();
@@ -2406,6 +2550,7 @@ mod object_cost_tests {
         // for execution-worker congestion (no specific congested object).
         let tx1 = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
         match tracker.try_schedule(&tx1, &previously_deferred, 0) {
+            SequencingResult::DeferForDependency(..) => panic!("no transaction has a dependency"),
             SequencingResult::Defer(_, congested_objects) => {
                 assert!(
                     congested_objects.is_empty(),
@@ -2435,6 +2580,7 @@ mod object_cost_tests {
         // A single execution worker, which serializes execution.
         congestion_control_parameters.set_max_concurrent_execution_workers_for_test(1);
         let mut tracker = SharedObjectCongestionTracker::new(
+            Vec::new(),
             Vec::new(),
             Vec::new(),
             congestion_control_parameters,
@@ -2480,6 +2626,7 @@ mod object_cost_tests {
         let mut tracker = SharedObjectCongestionTracker::new(
             Vec::new(),
             Vec::new(),
+            Vec::new(),
             congestion_control_parameters,
         );
         let previously_deferred = PreviouslyDeferredTransactions::new();
@@ -2508,6 +2655,7 @@ mod object_cost_tests {
         // whole per-commit limit, so it is shed for worker congestion.
         let tx2 = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
         match tracker.try_schedule(&tx2, &previously_deferred, 0) {
+            SequencingResult::DeferForDependency(..) => panic!("no transaction has a dependency"),
             SequencingResult::Defer(_, congested_objects) => {
                 assert!(congested_objects.is_empty());
             }
@@ -2520,6 +2668,7 @@ mod object_cost_tests {
         let tx3 = build_transaction(&[(shared_obj_b, true)], 0, TEST_ONLY_GAS_PRICE);
         tracker.initialize_object_execution_slots(&tx3.shared_input_objects());
         match tracker.try_schedule(&tx3, &previously_deferred, 0) {
+            SequencingResult::DeferForDependency(..) => panic!("no transaction has a dependency"),
             SequencingResult::Defer(_, congested_objects) => {
                 assert!(
                     congested_objects.is_empty(),
@@ -2552,6 +2701,7 @@ mod object_cost_tests {
         let mut tracker = SharedObjectCongestionTracker::new(
             Vec::new(),
             Vec::new(),
+            Vec::new(),
             congestion_control_parameters,
         );
         let previously_deferred = PreviouslyDeferredTransactions::new();
@@ -2565,6 +2715,9 @@ mod object_cost_tests {
         for (i, expected_start_time) in [0, 0, 1, 1, 2, 2].into_iter().enumerate() {
             let tx = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
             match tracker.try_schedule(&tx, &previously_deferred, 0) {
+                SequencingResult::DeferForDependency(..) => {
+                    panic!("no transaction has a dependency")
+                }
                 SequencingResult::Schedule(start_time) => {
                     assert_eq!(start_time, expected_start_time, "transaction {i}");
                 }
@@ -2585,6 +2738,7 @@ mod object_cost_tests {
         // with no congested object to report.
         let tx = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
         match tracker.try_schedule(&tx, &previously_deferred, 0) {
+            SequencingResult::DeferForDependency(..) => panic!("no transaction has a dependency"),
             SequencingResult::Defer(_, congested_objects) => {
                 assert!(congested_objects.is_empty());
             }
@@ -2608,6 +2762,7 @@ mod object_cost_tests {
         );
         congestion_control_parameters.set_max_concurrent_execution_workers_for_test(1);
         let mut tracker = SharedObjectCongestionTracker::new(
+            Vec::new(),
             Vec::new(),
             Vec::new(),
             congestion_control_parameters,
@@ -2698,6 +2853,7 @@ mod object_cost_tests {
         let tx = build_transaction(&[(free_object, true)], 0, TEST_ONLY_GAS_PRICE);
         tracker.initialize_object_execution_slots(&tx.shared_input_objects());
         match tracker.try_schedule(&tx, &previously_deferred, 0) {
+            SequencingResult::DeferForDependency(..) => panic!("no transaction has a dependency"),
             SequencingResult::Defer(_, congested_objects) => {
                 assert!(
                     congested_objects.is_empty(),
@@ -2711,6 +2867,7 @@ mod object_cost_tests {
         let tx = build_transaction(&[(congested_object, true)], 0, TEST_ONLY_GAS_PRICE);
         tracker.initialize_object_execution_slots(&tx.shared_input_objects());
         match tracker.try_schedule(&tx, &previously_deferred, 0) {
+            SequencingResult::DeferForDependency(..) => panic!("no transaction has a dependency"),
             SequencingResult::Defer(_, congested_objects) => {
                 assert_eq!(congested_objects, vec![congested_object]);
             }
@@ -2727,10 +2884,260 @@ mod object_cost_tests {
         let tx = build_transaction(&[(congested_object, true)], 0, TEST_ONLY_GAS_PRICE);
         tracker.initialize_object_execution_slots(&tx.shared_input_objects());
         match tracker.try_schedule(&tx, &previously_deferred, 0) {
+            SequencingResult::DeferForDependency(..) => panic!("no transaction has a dependency"),
             SequencingResult::Defer(_, congested_objects) => {
                 assert_eq!(congested_objects, vec![congested_object]);
             }
             SequencingResult::Schedule(_) => panic!("should defer"),
         }
+    }
+}
+
+#[cfg(test)]
+mod transaction_dependency_tests {
+    use iota_protocol_config::PerObjectCongestionControlMode;
+    use iota_sdk_types::TransactionDigest;
+
+    use super::{shared_object_test_utils::*, *};
+
+    /// A tracker in gas-budget mode with `limit` as the per-commit budget and
+    /// no overshoot, so a transaction fits only within the budget.
+    fn tracker(limit: ExecutionTime) -> SharedObjectCongestionTracker {
+        tracker_with_transaction_debts(limit, [])
+    }
+
+    /// Like `tracker`, with `transaction_debts` carried over from earlier
+    /// commits.
+    fn tracker_with_transaction_debts(
+        limit: ExecutionTime,
+        transaction_debts: impl IntoIterator<Item = (TransactionDigest, u64)>,
+    ) -> SharedObjectCongestionTracker {
+        SharedObjectCongestionTracker::new(
+            [],
+            Vec::new(),
+            transaction_debts,
+            CongestionControlParameters::new_for_test(
+                PerObjectCongestionControlMode::TotalGasBudget,
+                false,
+                Some(limit),
+                Some(0),
+                0,
+                false,
+                true,
+            ),
+        )
+    }
+
+    /// Like `tracker`, but taking the lowest free slot across the resources,
+    /// as every chain does: a transaction can be placed in a gap before the
+    /// slot of one scheduled earlier.
+    fn gap_filling_tracker(limit: ExecutionTime) -> SharedObjectCongestionTracker {
+        new_congestion_tracker_with_initial_value_for_test(
+            &[],
+            CongestionControlParameters::new_for_test(
+                PerObjectCongestionControlMode::TotalGasBudget,
+                true,
+                Some(limit),
+                Some(0),
+                0,
+                false,
+                true,
+            ),
+        )
+    }
+
+    fn schedule(
+        tracker: &mut SharedObjectCongestionTracker,
+        transaction: &VerifiedExecutableTransaction,
+    ) -> SequencingResult {
+        initialize_tracker_and_try_schedule(
+            tracker,
+            transaction,
+            &PreviouslyDeferredTransactions::new(),
+            0,
+        )
+    }
+
+    fn start_time(result: SequencingResult) -> ExecutionTime {
+        match result {
+            SequencingResult::Schedule(start_time) => start_time,
+            SequencingResult::Defer(..) => panic!("deferred for congestion"),
+            SequencingResult::DeferForDependency(..) => panic!("deferred for the dependency"),
+        }
+    }
+
+    /// Schedules `transaction`, which must fit, and records its slot.
+    fn schedule_and_bump(
+        tracker: &mut SharedObjectCongestionTracker,
+        transaction: &VerifiedExecutableTransaction,
+    ) -> ExecutionTime {
+        let start_time = start_time(schedule(tracker, transaction));
+        tracker.bump_object_execution_slots(transaction, start_time);
+        start_time
+    }
+
+    #[test]
+    fn dependent_starts_when_its_dependency_ends() {
+        let mut tracker = tracker(100);
+        let dependency = build_transaction(&[(ObjectId::random(), true)], 10, TEST_ONLY_GAS_PRICE);
+        assert_eq!(schedule_and_bump(&mut tracker, &dependency), 0);
+
+        let dependent = build_transaction_with_dependency(
+            &[(ObjectId::random(), true)],
+            5,
+            TEST_ONLY_GAS_PRICE,
+            *dependency.digest(),
+        );
+        assert_eq!(start_time(schedule(&mut tracker, &dependent)), 10);
+    }
+
+    #[test]
+    fn dependent_starts_at_the_later_of_dependency_end_and_object_free() {
+        let mut tracker = tracker(100);
+        let busy_object = ObjectId::random();
+        let dependency = build_transaction(&[(ObjectId::random(), true)], 10, TEST_ONLY_GAS_PRICE);
+        schedule_and_bump(&mut tracker, &dependency);
+        let other = build_transaction(&[(busy_object, true)], 20, TEST_ONLY_GAS_PRICE);
+        schedule_and_bump(&mut tracker, &other);
+
+        let dependent = build_transaction_with_dependency(
+            &[(busy_object, true)],
+            5,
+            TEST_ONLY_GAS_PRICE,
+            *dependency.digest(),
+        );
+        assert_eq!(start_time(schedule(&mut tracker, &dependent)), 20);
+    }
+
+    #[test]
+    fn dependent_takes_no_gap_before_its_dependency() {
+        let mut tracker = gap_filling_tracker(100);
+        let busy_object = ObjectId::random();
+        let common_object = ObjectId::random();
+        let other = build_transaction(&[(busy_object, true)], 10, TEST_ONLY_GAS_PRICE);
+        assert_eq!(schedule_and_bump(&mut tracker, &other), 0);
+        // The dependency starts once `busy_object` is free, leaving a gap on
+        // `common_object` before its slot, which a transaction without the
+        // dependency takes.
+        let dependency = build_transaction(
+            &[(common_object, true), (busy_object, true)],
+            10,
+            TEST_ONLY_GAS_PRICE,
+        );
+        assert_eq!(schedule_and_bump(&mut tracker, &dependency), 10);
+        let unrelated = build_transaction(&[(common_object, true)], 5, TEST_ONLY_GAS_PRICE);
+        assert_eq!(start_time(schedule(&mut tracker, &unrelated)), 0);
+
+        let dependent = build_transaction_with_dependency(
+            &[(common_object, true)],
+            5,
+            TEST_ONLY_GAS_PRICE,
+            *dependency.digest(),
+        );
+        assert_eq!(start_time(schedule(&mut tracker, &dependent)), 20);
+    }
+
+    #[test]
+    fn dependency_past_the_budget_defers_for_the_dependency() {
+        let mut tracker = tracker(15);
+        let dependency = build_transaction(&[(ObjectId::random(), true)], 12, TEST_ONLY_GAS_PRICE);
+        schedule_and_bump(&mut tracker, &dependency);
+
+        let dependent = build_transaction_with_dependency(
+            &[(ObjectId::random(), true)],
+            5,
+            TEST_ONLY_GAS_PRICE,
+            *dependency.digest(),
+        );
+        let SequencingResult::DeferForDependency(_, digest) = schedule(&mut tracker, &dependent)
+        else {
+            panic!("expected a deferral for the dependency");
+        };
+        assert_eq!(digest, *dependency.digest());
+    }
+
+    #[test]
+    fn congested_object_defers_for_congestion_not_the_dependency() {
+        let mut tracker = tracker(15);
+        let dependency = build_transaction(&[(ObjectId::random(), true)], 2, TEST_ONLY_GAS_PRICE);
+        schedule_and_bump(&mut tracker, &dependency);
+        let busy_object = ObjectId::random();
+        let other = build_transaction(&[(busy_object, true)], 14, TEST_ONLY_GAS_PRICE);
+        schedule_and_bump(&mut tracker, &other);
+
+        let dependent = build_transaction_with_dependency(
+            &[(busy_object, true)],
+            5,
+            TEST_ONLY_GAS_PRICE,
+            *dependency.digest(),
+        );
+        let SequencingResult::Defer(_, congested_objects) = schedule(&mut tracker, &dependent)
+        else {
+            panic!("expected a deferral for congestion");
+        };
+        assert_eq!(congested_objects, vec![busy_object]);
+    }
+
+    #[test]
+    fn carried_over_transaction_debt_bounds_the_dependent() {
+        let dependency = TransactionDigest::random();
+        let mut tracker = tracker_with_transaction_debts(100, [(dependency, 7)]);
+
+        let dependent = build_transaction_with_dependency(
+            &[(ObjectId::random(), true)],
+            3,
+            TEST_ONLY_GAS_PRICE,
+            dependency,
+        );
+        assert_eq!(start_time(schedule(&mut tracker, &dependent)), 7);
+    }
+
+    #[test]
+    fn unknown_dependency_adds_no_constraint() {
+        let mut tracker = tracker(100);
+        let dependent = build_transaction_with_dependency(
+            &[(ObjectId::random(), true)],
+            3,
+            TEST_ONLY_GAS_PRICE,
+            TransactionDigest::random(),
+        );
+        assert_eq!(start_time(schedule(&mut tracker, &dependent)), 0);
+    }
+
+    #[test]
+    fn owned_only_dependent_without_worker_control_schedules_at_zero() {
+        let mut tracker = tracker(100);
+        let dependency = build_transaction(&[(ObjectId::random(), true)], 10, TEST_ONLY_GAS_PRICE);
+        schedule_and_bump(&mut tracker, &dependency);
+
+        let dependent =
+            build_transaction_with_dependency(&[], 5, TEST_ONLY_GAS_PRICE, *dependency.digest());
+        assert_eq!(start_time(schedule(&mut tracker, &dependent)), 0);
+    }
+
+    #[test]
+    fn accumulated_transaction_debts_report_the_time_past_the_budget() {
+        let mut tracker = tracker(100);
+        let long = build_transaction(&[(ObjectId::random(), true)], 15, TEST_ONLY_GAS_PRICE);
+        schedule_and_bump(&mut tracker, &long);
+        let short = build_transaction(&[(ObjectId::random(), true)], 4, TEST_ONLY_GAS_PRICE);
+        schedule_and_bump(&mut tracker, &short);
+
+        assert_eq!(
+            tracker.accumulated_transaction_debts(10),
+            vec![(*long.digest(), 5)]
+        );
+    }
+
+    #[test]
+    fn carried_over_transaction_debts_are_not_reported_again() {
+        let mut tracker = tracker_with_transaction_debts(100, [(TransactionDigest::random(), 25)]);
+        let long = build_transaction(&[(ObjectId::random(), true)], 15, TEST_ONLY_GAS_PRICE);
+        schedule_and_bump(&mut tracker, &long);
+
+        assert_eq!(
+            tracker.accumulated_transaction_debts(10),
+            vec![(*long.digest(), 5)]
+        );
     }
 }
