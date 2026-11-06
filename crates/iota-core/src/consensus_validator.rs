@@ -75,14 +75,20 @@ impl IotaTxValidator {
         for tx in txs.iter() {
             match tx {
                 ConsensusTransactionKind::CertifiedTransaction(certificate) => {
-                    if self.epoch_store.protocol_config().enable_pcool_flow() {
+                    self.identifiers_check(certificate.data())?;
+                    // A certificate carries no attestation, so it would skip the
+                    // judge, the units claim and the cutoff.
+                    if self
+                        .epoch_store
+                        .protocol_config()
+                        .enable_validator_attestation()
+                    {
                         return Err(IotaError::UnsupportedFeature {
-                            error:
-                                "CertifiedTransaction not allowed when white-flag flow is enabled"
-                                    .into(),
+                            error: "CertifiedTransaction not allowed when validator attestation \
+                                    is enabled"
+                                .into(),
                         });
                     }
-                    self.identifiers_check(certificate.data())?;
                     cert_batch.push(certificate.as_ref());
                 }
                 ConsensusTransactionKind::CheckpointSignature(signature) => {
@@ -337,10 +343,10 @@ mod tests {
 
     #[sim_test]
     async fn accept_valid_transaction() {
-        // `CertifiedTransaction` is not submitted to consensus under the
-        // P-COOL flow, so this test runs with it off.
+        // A certificate carries no attestation, so this test runs with
+        // validator attestation off.
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(false);
+            config.set_enable_validator_attestation_for_testing(false);
             config
         });
 
@@ -779,5 +785,34 @@ mod tests {
                 ),
             ])
             .unwrap();
+    }
+
+    /// A certificate carries no attestation, so block verification refuses it
+    /// while validator attestation is on, whatever it holds.
+    #[tokio::test]
+    async fn reject_certificate_with_validator_attestation_on() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_enable_validator_attestation_for_testing(true);
+            config.set_checkpoint_summary_version_specific_data_for_testing(2);
+            config
+        });
+        let (state, keypair, validator) = self_identifier_fixture(None).await;
+        assert!(
+            validator
+                .epoch_store
+                .protocol_config()
+                .enable_validator_attestation()
+        );
+
+        let result = validator.validate_transactions(vec![certificate(
+            move_call_with_type_name(&state, Identifier::from_static("IOTA")),
+            &state,
+            &keypair,
+        )]);
+        assert!(
+            matches!(&result, Err(IotaError::UnsupportedFeature { .. })),
+            "{result:?}"
+        );
     }
 }
