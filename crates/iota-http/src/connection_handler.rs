@@ -12,15 +12,11 @@ use crate::{
     ActiveConnections, BoxError, ConnectionId,
     connection_info::PeerConnectionGuard,
     fuse::Fuse,
-    idle_timer::{IdleHandle, IdleTimer},
+    idle_timer::IdleTimer,
 };
 
 /// How long a connection asked to close is given to shut down.
 pub(crate) const SHUTDOWN_GRACE_PERIOD: Duration = Duration::from_secs(1);
-
-/// How many more grace periods a connection still serving a request is given
-/// before it is dropped.
-pub(crate) const MAX_GRACE_PERIODS: u32 = 5;
 
 // This is moved to its own function as a way to get around
 // https://github.com/rust-lang/rust/issues/102211
@@ -67,9 +63,7 @@ pub async fn serve_connection<IO, S, B, C>(
 
 /// Serves `conn` until it closes. Starts a graceful shutdown of `conn` on the
 /// shutdown signal, at `max_connection_age`, and when `idle_timer` is reached.
-/// Drops `conn` if it has not closed [`SHUTDOWN_GRACE_PERIOD`] later, unless it
-/// has `idle_timer` and is still serving a request, which extends the grace up
-/// to [`MAX_GRACE_PERIODS`] times.
+/// Drops `conn` if it has not closed [`SHUTDOWN_GRACE_PERIOD`] later.
 async fn serve_until_closed(
     conn: impl GracefulConnection<Error = BoxError>,
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
@@ -80,7 +74,6 @@ async fn serve_until_closed(
 
     let mut conn = pin!(conn);
 
-    let idle_handle = idle_timer.as_ref().map(IdleTimer::handle);
     let sleep = sleep_or_pending(max_connection_age);
     let idle = idle_or_pending(idle_timer);
     tokio::pin!(sleep);
@@ -89,7 +82,6 @@ async fn serve_until_closed(
     // The peer may ignore a graceful shutdown, so it is bounded by
     // `force_close`. Once requested, the branches that request it are disabled.
     let mut shutdown_requested = false;
-    let mut graces_given = 0;
     let force_close = sleep_or_pending(None);
     tokio::pin!(force_close);
 
@@ -121,14 +113,6 @@ async fn serve_until_closed(
                 request_shutdown!();
             }
             _ = &mut force_close => {
-                // Dropping a connection discards the response it is serving. One
-                // without an idle timer is dropped after the first grace.
-                let busy = idle_handle.as_ref().is_some_and(IdleHandle::is_busy);
-                if busy && graces_given < MAX_GRACE_PERIODS {
-                    graces_given += 1;
-                    force_close.set(sleep_or_pending(Some(SHUTDOWN_GRACE_PERIOD)));
-                    continue;
-                }
                 debug!("dropping a connection that did not close when asked");
                 break;
             }
