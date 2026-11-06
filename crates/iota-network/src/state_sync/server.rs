@@ -7,7 +7,11 @@ use std::{
     task::{Context, Poll},
 };
 
-use anemo::{Request, Response, Result, rpc::Status, types::response::StatusCode};
+use anemo::{
+    Request, Response, Result,
+    rpc::Status,
+    types::response::{IntoResponse, StatusCode},
+};
 use bytes::Bytes;
 use dashmap::DashMap;
 use futures::future::BoxFuture;
@@ -21,6 +25,7 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc};
+use tracing::debug;
 
 use super::{PeerHeights, PeerStateSyncInfo, StateSync, StateSyncMessage};
 
@@ -56,7 +61,6 @@ pub(super) struct Server<S> {
     pub(super) sender: mpsc::WeakSender<StateSyncMessage>,
     /// Cached genesis checkpoint, shared with the event loop.
     pub(super) genesis_checkpoint: Arc<VerifiedCheckpoint>,
-    pub(super) max_checkpoint_lookahead: u64,
 }
 
 #[anemo::async_trait]
@@ -94,19 +98,7 @@ where
                 return Ok(Response::new(()));
             }
 
-            if checkpoint_seq
-                <= highest_verified_checkpoint.saturating_add(self.max_checkpoint_lookahead)
-            {
-                peer_heights.insert_checkpoint(checkpoint);
-            } else {
-                tracing::debug!(
-                    peer_id = ?peer_id,
-                    checkpoint_seq = checkpoint_seq,
-                    highest_verified = highest_verified_checkpoint,
-                    max_lookahead = self.max_checkpoint_lookahead,
-                    "not storing checkpoint summary that exceeds max lookahead"
-                );
-            }
+            peer_heights.insert_peer_checkpoint(checkpoint, highest_verified_checkpoint);
         }
 
         // If this checkpoint is higher than our highest verified checkpoint notify the
@@ -198,6 +190,10 @@ where
         let our_genesis_digest = *self.genesis_checkpoint.digest();
 
         let on_same_chain = *handshake.genesis_checkpoint.digest() == our_genesis_digest;
+        let highest_verified_checkpoint = self
+            .store
+            .try_get_highest_verified_checkpoint_seq_number()
+            .map_err(|e| Status::internal(e.to_string()))?;
 
         {
             let mut guard = self.peer_heights.write().unwrap();
@@ -211,7 +207,10 @@ where
                 },
             );
             if on_same_chain {
-                guard.insert_checkpoint(handshake.highest_synced_checkpoint.clone());
+                guard.insert_peer_checkpoint(
+                    handshake.highest_synced_checkpoint.clone(),
+                    highest_verified_checkpoint,
+                );
             }
         }
 
@@ -244,7 +243,8 @@ where
     }
 }
 
-/// [`Layer`] for limiting the size of incoming requests.
+/// [`Layer`] for rejecting requests whose body is larger than `max_size`,
+/// before they are deserialized.
 #[derive(Clone)]
 pub(super) struct SizeLimitLayer {
     max_size: usize,
@@ -267,7 +267,8 @@ impl<S> tower::layer::Layer<S> for SizeLimitLayer {
     }
 }
 
-/// Middleware for limiting the size of incoming requests.
+/// Middleware for rejecting requests whose body is larger than `max_size`,
+/// before they are deserialized.
 #[derive(Clone)]
 pub(super) struct SizeLimit<S> {
     inner: S,
@@ -290,16 +291,14 @@ where
 
     fn call(&mut self, req: Request<Bytes>) -> Self::Future {
         let body_size = req.body().len();
-        let max_size = self.max_size;
-        if body_size > max_size {
-            let peer_id = req.peer_id().copied();
-            tracing::info!(
-                ?peer_id,
+        if body_size > self.max_size {
+            debug!(
+                peer_id = ?req.peer_id(),
                 body_size,
-                max_size,
-                "rejecting request that exceeds max size"
+                max_size = self.max_size,
+                "rejecting state sync request that exceeds the size limit"
             );
-            return Box::pin(async move { Ok(Response::new(Bytes::new())) });
+            return Box::pin(async { Ok(Status::new(StatusCode::BadRequest).into_response()) });
         }
         let mut inner = self.inner.clone();
         Box::pin(async move { inner.call(req).await })

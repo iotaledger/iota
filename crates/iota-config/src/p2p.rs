@@ -211,15 +211,18 @@ pub struct StateSyncConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_checkpoints_ahead_of_execution: Option<NonZeroU64>,
 
-    /// Maximum lookahead (in checkpoint sequence numbers) for storing
-    /// unverified checkpoint summaries received via PushCheckpointSummary.
+    /// Maximum lookahead (in checkpoint sequence numbers) above the highest
+    /// verified checkpoint for storing unverified checkpoint summaries
+    /// received from peers. Summaries further ahead are fetched again once
+    /// state sync reaches them.
     ///
     /// If unspecified, this will default to `1,000`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_checkpoint_lookahead: Option<u64>,
 
-    /// Maximum serialized size in bytes for a CertifiedCheckpointSummary
-    /// received via PushCheckpointSummary.
+    /// Maximum size in bytes of a request to any state sync RPC as received,
+    /// and of a checkpoint summary from a peer once decompressed. Larger
+    /// requests are rejected and larger summaries are not stored.
     ///
     /// If unspecified, this will default to `262,144` (256 KiB).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -299,7 +302,7 @@ impl StateSyncConfig {
     }
 
     pub fn max_checkpoint_summary_size(&self) -> usize {
-        const DEFAULT_MAX_CHECKPOINT_SUMMARY_SIZE: usize = 256 * 1024; // 256 KiB
+        const DEFAULT_MAX_CHECKPOINT_SUMMARY_SIZE: usize = 256 * 1024;
 
         self.max_checkpoint_summary_size
             .unwrap_or(DEFAULT_MAX_CHECKPOINT_SUMMARY_SIZE)
