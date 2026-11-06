@@ -175,6 +175,11 @@ struct PeerHeights {
     peers: HashMap<PeerId, PeerStateSyncInfo>,
     unprocessed_checkpoints: HashMap<CheckpointDigest, Checkpoint>,
     sequence_number_to_digest: HashMap<CheckpointSequenceNumber, CheckpointDigest>,
+    /// How far above the highest verified checkpoint a summary from a peer can
+    /// be and still be stored.
+    max_checkpoint_lookahead: u64,
+    /// Largest serialized size of a summary from a peer that can be stored.
+    max_checkpoint_summary_size: usize,
 
     // The amount of time to wait before retry if there are no peers to sync content from.
     wait_interval_when_no_peer_to_sync_content: Duration,
@@ -223,6 +228,7 @@ impl PeerHeights {
         peer_id: PeerId,
         checkpoint: Checkpoint,
         low_watermark: Option<CheckpointSequenceNumber>,
+        highest_verified_checkpoint: CheckpointSequenceNumber,
     ) -> bool {
         debug!("Update peer info");
 
@@ -235,7 +241,7 @@ impl PeerHeights {
         if let Some(low_watermark) = low_watermark {
             info.lowest = low_watermark;
         }
-        self.insert_checkpoint(checkpoint);
+        self.insert_peer_checkpoint(checkpoint, highest_verified_checkpoint);
 
         true
     }
@@ -262,6 +268,27 @@ impl PeerHeights {
                 entry.insert(info);
             }
         }
+    }
+
+    /// Updates the peer's height without storing any checkpoint data.
+    /// Returns false if the peer doesn't exist or is not on the same chain.
+    pub fn update_peer_height(
+        &mut self,
+        peer_id: PeerId,
+        height: CheckpointSequenceNumber,
+        low_watermark: Option<CheckpointSequenceNumber>,
+    ) -> bool {
+        let info = match self.peers.get_mut(&peer_id) {
+            Some(info) if info.on_same_chain_as_us => info,
+            _ => return false,
+        };
+
+        info.height = std::cmp::max(height, info.height);
+        if let Some(low_watermark) = low_watermark {
+            info.lowest = low_watermark;
+        }
+
+        true
     }
 
     pub fn mark_peer_as_not_on_same_chain(&mut self, peer_id: PeerId) {
@@ -304,11 +331,61 @@ impl PeerHeights {
         self.sequence_number_to_digest.shrink_to_fit();
     }
 
+    /// Stores a checkpoint summary a peer sent. Summaries at or below
+    /// `highest_verified_checkpoint`, more than `max_checkpoint_lookahead`
+    /// above it, or larger than `max_checkpoint_summary_size` are dropped.
+    pub fn insert_peer_checkpoint(
+        &mut self,
+        checkpoint: Checkpoint,
+        highest_verified_checkpoint: CheckpointSequenceNumber,
+    ) {
+        let sequence_number = checkpoint.sequence_number();
+        if sequence_number <= highest_verified_checkpoint
+            || sequence_number
+                > highest_verified_checkpoint.saturating_add(self.max_checkpoint_lookahead)
+        {
+            debug!(
+                sequence_number,
+                highest_verified_checkpoint,
+                max_lookahead = self.max_checkpoint_lookahead,
+                "not storing checkpoint summary outside the lookahead window"
+            );
+            return;
+        }
+        // Requests are size-checked while still compressed, so a summary that
+        // passed that check can still be much larger here.
+        let size = bcs::serialized_size(&checkpoint).unwrap_or(usize::MAX);
+        if size > self.max_checkpoint_summary_size {
+            debug!(
+                sequence_number,
+                size,
+                max_size = self.max_checkpoint_summary_size,
+                "not storing checkpoint summary that exceeds the size limit"
+            );
+            return;
+        }
+        self.insert_checkpoint(checkpoint);
+    }
+
+    /// Stores at most one checkpoint per sequence number: a checkpoint with
+    /// the same sequence number as a stored one but a different digest is
+    /// dropped.
     // TODO: also record who gives this checkpoint info for peer quality
     // measurement?
     pub fn insert_checkpoint(&mut self, checkpoint: Checkpoint) {
         let digest = *checkpoint.digest();
         let sequence_number = checkpoint.sequence_number();
+        if let Some(existing_digest) = self.sequence_number_to_digest.get(&sequence_number) {
+            if *existing_digest != digest {
+                debug!(
+                    sequence_number,
+                    ?existing_digest,
+                    ?digest,
+                    "dropping checkpoint summary with the same sequence number as a stored one but a different digest"
+                );
+            }
+            return;
+        }
         self.unprocessed_checkpoints.insert(digest, checkpoint);
         self.sequence_number_to_digest
             .insert(sequence_number, digest);
@@ -886,6 +963,10 @@ where
                 .store
                 .try_get_lowest_available_checkpoint()
                 .expect("store operation should not fail");
+            let highest_verified_checkpoint = self
+                .store
+                .try_get_highest_verified_checkpoint_seq_number()
+                .expect("store operation should not fail");
 
             let handshake = server::StateSyncHandshake {
                 genesis_checkpoint,
@@ -925,7 +1006,10 @@ where
                                     },
                                 );
                                 if on_same_chain {
-                                    guard.insert_checkpoint(their.highest_synced_checkpoint);
+                                    guard.insert_peer_checkpoint(
+                                        their.highest_synced_checkpoint,
+                                        highest_verified_checkpoint,
+                                    );
                                 }
                             }
                             // Kick the event loop so it can start syncing.
@@ -950,11 +1034,16 @@ where
     }
 
     fn handle_tick(&mut self, _now: std::time::Instant) {
+        let highest_verified_checkpoint = self
+            .store
+            .try_get_highest_verified_checkpoint_seq_number()
+            .expect("store operation should not fail");
         let task = query_peers_for_their_latest_checkpoint(
             self.network.clone(),
             self.peer_heights.clone(),
             self.weak_sender.clone(),
             self.config.timeout(),
+            highest_verified_checkpoint,
         );
         self.tasks.spawn(task);
 
@@ -1252,6 +1341,7 @@ async fn query_peers_for_their_latest_checkpoint(
     peer_heights: Arc<RwLock<PeerHeights>>,
     sender: mpsc::WeakSender<StateSyncMessage>,
     timeout: Duration,
+    highest_verified_checkpoint: CheckpointSequenceNumber,
 ) {
     let peer_heights = &peer_heights;
     let futs = peer_heights
@@ -1270,7 +1360,12 @@ async fn query_peers_for_their_latest_checkpoint(
                     Some((highest_checkpoint, low_watermark)) => peer_heights
                         .write()
                         .unwrap()
-                        .update_peer_info(peer_id, highest_checkpoint.clone(), Some(low_watermark))
+                        .update_peer_info(
+                            peer_id,
+                            highest_checkpoint.clone(),
+                            Some(low_watermark),
+                            highest_verified_checkpoint,
+                        )
                         .then_some(highest_checkpoint),
                     None => None,
                 }
@@ -1358,7 +1453,7 @@ where
                 }
 
                 // Iterate through peers trying each one in turn until we're able to
-                // successfully get the target checkpoint
+                // successfully get the target checkpoint.
                 for mut peer in peers {
                     let request = Request::new(GetCheckpointSummaryRequest::BySequenceNumber(next))
                         .with_timeout(timeout);
@@ -1376,6 +1471,10 @@ where
                                 "peer returned checkpoint with wrong sequence number: expected {next}, got {}",
                                 checkpoint.sequence_number()
                             );
+                            peer_heights
+                                .write()
+                                .unwrap()
+                                .mark_peer_as_not_on_same_chain(peer.inner().peer_id());
                             continue;
                         }
 
