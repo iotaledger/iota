@@ -337,10 +337,21 @@ impl ValidatorService {
         // for the rest of the epoch, so it rejects them here and the client
         // submits through another validator. Before the signature check,
         // which a rejected submission need not pay for.
-        if let Some(attestor) = epoch_store.own_index_if_cut_off() {
-            let error = IotaError::AttestorCutOff { attestor };
-            let weight = normalize(&error);
-            return (TxStatusUpdate::Rejected { error }, weight);
+        //
+        // Tests register the `attest-despite-cutoff` fail point to make a
+        // cut-off validator attest anyway, as a faulty validator can. A `Cell`
+        // keeps the binding immutable in builds where the fail point compiles
+        // to nothing.
+        let rejects_when_cut_off = std::cell::Cell::new(true);
+        iota_macros::fail_point_if!("attest-despite-cutoff", || {
+            rejects_when_cut_off.set(false)
+        });
+        if rejects_when_cut_off.get() {
+            if let Some(attestor) = epoch_store.own_index_if_cut_off() {
+                let error = IotaError::AttestorCutOff { attestor };
+                let weight = normalize(&error);
+                return (TxStatusUpdate::Rejected { error }, weight);
+            }
         }
 
         // Verify user signature.
