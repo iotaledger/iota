@@ -874,6 +874,25 @@ pub async fn start_test_server_with_traffic_controller(
     .await
 }
 
+/// Like [`start_test_server`], but with a transaction executor (required for
+/// the `TransactionExecutionService` to be registered) and no traffic
+/// controller.
+pub async fn start_test_server_with_executor(
+    state_reader: Arc<MockGrpcStateReader>,
+    executor: Arc<dyn iota_types::transaction_executor::TransactionExecutor>,
+    config_customizer: impl FnOnce(&mut GrpcApiConfig),
+) -> (GrpcServerHandle, Arc<GrpcReader>) {
+    start_test_server_with(
+        state_reader,
+        Some(executor),
+        None,
+        None,
+        None,
+        config_customizer,
+    )
+    .await
+}
+
 // ---------------------------------------------------------------------------
 // Client helpers
 // ---------------------------------------------------------------------------
