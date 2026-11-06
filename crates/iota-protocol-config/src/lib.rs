@@ -280,6 +280,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             after consensus and in block verification. Block verification
 //             also rejects a block that carries a system transaction kind in
 //             a user transaction or certificate.
+//             Update the gas model version to 3.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3865,6 +3866,9 @@ impl ProtocolConfig {
                     // Reject `<SELF>` as an identifier in transactions, at
                     // signing, after consensus and in block verification.
                     cfg.feature_flags.disallow_self_identifier_in_transactions = true;
+
+                    // Update the gas model version.
+                    cfg.gas_model_version = Some(3);
                 }
                 // Use this template when making changes:
                 //
