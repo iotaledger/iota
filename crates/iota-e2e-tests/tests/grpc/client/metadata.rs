@@ -39,6 +39,10 @@ fn assert_standard_headers(response: &impl ResponseExt, label: &str) {
         response.server_version().is_some(),
         "{label}: server_version header missing"
     );
+    assert!(
+        response.lowest_available_checkpoint_indexes().is_some(),
+        "{label}: lowest_available_checkpoint_indexes header missing"
+    );
 }
 
 /// Smoke-test that the high-level client surfaces IOTA metadata headers via

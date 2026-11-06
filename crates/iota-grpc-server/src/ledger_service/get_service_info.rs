@@ -29,6 +29,8 @@ use crate::{error::RpcError, ledger_service::LedgerGrpcService, validation::vali
 ///   checkpoint data can be requested
 /// - `lowest_available_checkpoint_objects` - lowest available checkpoint for which object data can
 ///   be requested
+/// - `lowest_available_checkpoint_indexes` - lowest checkpoint for which the transaction and event
+///   indexes are complete; unset when the node does not keep these indexes
 ///
 /// ## Server Fields
 /// - `server` - the server version
@@ -84,6 +86,12 @@ pub fn get_service_info(
     if read_mask.contains(GetServiceInfoResponse::SERVER_FIELD.name) {
         if let Some(server) = service.reader.server_version() {
             message = message.with_server(server);
+        }
+    }
+
+    if read_mask.contains(GetServiceInfoResponse::LOWEST_AVAILABLE_CHECKPOINT_INDEXES_FIELD.name) {
+        if let Some(lowest_indexes) = service.reader.get_lowest_available_checkpoint_indexes()? {
+            message = message.with_lowest_available_checkpoint_indexes(lowest_indexes);
         }
     }
 

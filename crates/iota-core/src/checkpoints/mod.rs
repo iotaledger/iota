@@ -1494,6 +1494,20 @@ impl CheckpointStore {
         self.tables.epoch_last_checkpoint_map.get(&epoch_id)
     }
 
+    /// Sequence number of `epoch_id`'s first checkpoint, `None` when the
+    /// previous epoch's last checkpoint is unknown.
+    pub fn get_epoch_first_checkpoint_seq_number(
+        &self,
+        epoch_id: EpochId,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        match epoch_id {
+            0 => Ok(Some(0)),
+            epoch_id => Ok(self
+                .get_epoch_last_checkpoint_seq_number(epoch_id - 1)?
+                .map(|seq| seq + 1)),
+        }
+    }
+
     /// The lowest checkpoint whose superseded object versions this node still
     /// holds, given the epoch of its oldest historic-object bucket: that
     /// epoch's first checkpoint. When there is no bucket, or that checkpoint
@@ -1515,10 +1529,7 @@ impl CheckpointStore {
             Some(epoch) if Some(epoch) == backlog_sweep_epoch => {
                 Some(objects_pruned_through.map_or(0, |pruned| pruned + 1))
             }
-            Some(0) => Some(0),
-            Some(epoch) => self
-                .get_epoch_last_checkpoint_seq_number(epoch - 1)?
-                .map(|seq| seq + 1),
+            Some(epoch) => self.get_epoch_first_checkpoint_seq_number(epoch)?,
             None => None,
         };
         let lowest = match lowest {
