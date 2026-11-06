@@ -29,7 +29,7 @@ use crate::{
     header_synchronizer::MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER,
     network::{BlockBundle, SerializedBlockBundleParts},
     peer_responsiveness::ShardPeerSelection,
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
+    transaction_ref::TransactionRef,
 };
 
 /// Maximum round gap to consider a peer's useful shards/headers as still
@@ -124,7 +124,7 @@ pub enum CordialKnowledgeMessage {
         ack_transactions_commitments: Vec<Option<TransactionsCommitment>>,
     },
     /// A new verified own shard to integrate into cordial knowledge.
-    NewShard(GenericTransactionRef),
+    NewShard(TransactionRef),
     /// Update internal state about shards from which authorities are useful for
     /// the local node
     UsefulShardsFromPeers(BTreeMap<AuthorityIndex, Round>),
@@ -483,9 +483,7 @@ impl CordialKnowledge {
                 header,
                 ack_transactions_commitments,
             } => self.update_cordial_knowledge(&header, &ack_transactions_commitments),
-            CordialKnowledgeMessage::NewShard(gen_tx_ref) => {
-                self.prepare_new_shard_msgs(gen_tx_ref)
-            }
+            CordialKnowledgeMessage::NewShard(tx_ref) => self.prepare_new_shard_msgs(tx_ref),
             CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shards_from_peer) => {
                 self.handle_useful_shards_from(useful_shards_from_peer);
                 None
@@ -829,20 +827,18 @@ impl CordialKnowledge {
     /// Called when a new own shard (created locally) is added to dag state.
     fn prepare_new_shard_msgs(
         &mut self,
-        gen_transaction_ref: GenericTransactionRef,
+        transaction_ref: TransactionRef,
     ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
         let mut vec_msgs: Vec<Vec<ConnectionKnowledgeMessage>> =
             Vec::with_capacity(self.cordial_knowledge.len());
         for index in 0..self.cordial_knowledge.len() {
             // Don't send own shard to the author of the block and local node
-            if index == gen_transaction_ref.author().value()
-                || index == self.context.own_index.value()
-            {
+            if index == transaction_ref.author.value() || index == self.context.own_index.value() {
                 vec_msgs.push(vec![]);
                 continue;
             }
             let msg = ConnectionKnowledgeMessage::NewShard {
-                gen_tx_ref: gen_transaction_ref,
+                tx_ref: transaction_ref,
             };
             vec_msgs.push(vec![msg]);
         }
@@ -968,15 +964,14 @@ impl CordialKnowledge {
             let Some(transactions_commitment) = transactions_commitment else {
                 continue;
             };
-            let gen_tx_ref =
-                GenericTransactionRef::TransactionRef(crate::transaction_ref::TransactionRef {
-                    round: acknowledgment.round,
-                    author: acknowledgment.author,
-                    transactions_commitment,
-                });
+            let tx_ref = crate::transaction_ref::TransactionRef {
+                round: acknowledgment.round,
+                author: acknowledgment.author,
+                transactions_commitment,
+            };
 
             vec_knowledge_msgs[block_author]
-                .push(ConnectionKnowledgeMessage::RemoveShard { gen_tx_ref });
+                .push(ConnectionKnowledgeMessage::RemoveShard { tx_ref });
         }
 
         // 4) Traversing back and marking the causal past as known by block_author
@@ -1033,9 +1028,9 @@ pub enum ConnectionKnowledgeMessage {
     /// Remove a block header from the "unknown" set .
     RemoveHeader { block_ref: BlockRef },
     /// A new shard was added globally.
-    NewShard { gen_tx_ref: GenericTransactionRef },
+    NewShard { tx_ref: TransactionRef },
     /// Remove a header from the "unknown" set.
-    RemoveShard { gen_tx_ref: GenericTransactionRef },
+    RemoveShard { tx_ref: TransactionRef },
     /// Replace the authors this peer is asked to push headers of. The cordial
     /// knowledge task is their only source.
     SetUsefulHeadersFromPeer(BTreeMap<AuthorityIndex, Round>),
@@ -1068,7 +1063,7 @@ pub struct ConnectionKnowledge {
     /// per slot.
     headers_not_known: Vec<BTreeMap<Round, BlockRef>>,
     /// Keeps track of which shards are not known by the peer yet.
-    shards_not_known: Vec<BTreeMap<Round, AHashSet<GenericTransactionRef>>>,
+    shards_not_known: Vec<BTreeMap<Round, AHashSet<TransactionRef>>>,
     /// Last rounds for (potentially) useful shards that can be sent to this
     /// peer
     last_useful_shards_to_peer_round: Vec<Option<Round>>,
@@ -1107,7 +1102,7 @@ impl ConnectionKnowledge {
     /// Take useful refs (headers or shards) for the given authorities
     /// up to the given round (exclusive), up to max_take total.
     /// Generic function that works with both BlockRef and
-    /// GenericTransactionRef.
+    /// TransactionRef.
     fn take_useful_refs_round<T, S>(
         maps: &mut [BTreeMap<Round, S>],
         round_upper_bound_exclusive: Round,
@@ -1187,15 +1182,15 @@ impl ConnectionKnowledge {
         &mut self,
         round_upper_bound_exclusive: Round,
         useful_authorities: &[usize],
-    ) -> Vec<GenericTransactionRef> {
+    ) -> Vec<TransactionRef> {
         let max_take = self.context.parameters.max_shards_per_bundle;
         Self::take_useful_refs_round(
             &mut self.shards_not_known,
             round_upper_bound_exclusive,
             useful_authorities,
             max_take,
-            |gen_tx_ref| gen_tx_ref.author().value(),
-            |gen_tx_ref| gen_tx_ref.round(),
+            |tx_ref| tx_ref.author.value(),
+            |tx_ref| tx_ref.round,
         )
     }
 
@@ -1224,11 +1219,11 @@ impl ConnectionKnowledge {
             ConnectionKnowledgeMessage::RemoveHeader { block_ref } => {
                 self.handle_remove_header(block_ref);
             }
-            ConnectionKnowledgeMessage::NewShard { gen_tx_ref } => {
-                self.handle_new_shard(gen_tx_ref);
+            ConnectionKnowledgeMessage::NewShard { tx_ref } => {
+                self.handle_new_shard(tx_ref);
             }
-            ConnectionKnowledgeMessage::RemoveShard { gen_tx_ref } => {
-                self.handle_remove_shard(gen_tx_ref);
+            ConnectionKnowledgeMessage::RemoveShard { tx_ref } => {
+                self.handle_remove_shard(tx_ref);
             }
             ConnectionKnowledgeMessage::EvictBelow(rounds) => {
                 self.evict_below(rounds.headers);
@@ -1461,14 +1456,14 @@ impl ConnectionKnowledge {
     }
 
     /// Handles adding a new shard to the set of potentially unknown shards.
-    fn handle_new_shard(&mut self, gen_tx_ref: GenericTransactionRef) {
-        let round = gen_tx_ref.round();
-        let authority = gen_tx_ref.author().value();
+    fn handle_new_shard(&mut self, tx_ref: TransactionRef) {
+        let round = tx_ref.round;
+        let authority = tx_ref.author.value();
 
         self.shards_not_known[authority]
             .entry(round)
             .or_default()
-            .insert(gen_tx_ref);
+            .insert(tx_ref);
     }
 
     /// Returns (total_headers_not_known, total_shards_not_known) entry counts.
@@ -1492,11 +1487,11 @@ impl ConnectionKnowledge {
     }
 
     /// Handles removing a shard that this peer now knows.
-    fn handle_remove_shard(&mut self, gen_tx_ref: GenericTransactionRef) {
+    fn handle_remove_shard(&mut self, tx_ref: TransactionRef) {
         SlotRefs::remove_ref(
-            &mut self.shards_not_known[gen_tx_ref.author().value()],
-            gen_tx_ref.round(),
-            &gen_tx_ref,
+            &mut self.shards_not_known[tx_ref.author.value()],
+            tx_ref.round,
+            &tx_ref,
         );
     }
 }
@@ -1574,11 +1569,11 @@ mod tests {
         let author = AuthorityIndex::new_for_test(1);
         for round in [3, 14, 15, 20] {
             connection_knowledge.process_one_message(ConnectionKnowledgeMessage::NewShard {
-                gen_tx_ref: GenericTransactionRef::TransactionRef(TransactionRef {
+                tx_ref: TransactionRef {
                     round,
                     author,
                     transactions_commitment: TransactionsCommitment::MIN,
-                }),
+                },
             });
         }
 
@@ -2507,13 +2502,11 @@ mod tests {
                     dag_state
                         .write()
                         .accept_block_header(verified_block_header, DataSource::Test);
-                    let gen_transaction_ref = GenericTransactionRef::TransactionRef(
-                        verified_transactions.transaction_ref(),
-                    );
+                    let transaction_ref = verified_transactions.transaction_ref();
                     let shard_for_core = VerifiedOwnShard {
                         serialized_shard: Bytes::from([0u8; 32].to_vec()), /* put some dummy
                                                                             * shard data */
-                        gen_transaction_ref,
+                        transaction_ref,
                     };
                     dag_state.write().add_shard(shard_for_core);
                 }
@@ -2531,11 +2524,10 @@ mod tests {
                 dag_state
                     .write()
                     .accept_block_header(verified_block_header, DataSource::Test);
-                let gen_transaction_ref =
-                    GenericTransactionRef::TransactionRef(verified_transactions.transaction_ref());
+                let transaction_ref = verified_transactions.transaction_ref();
                 let shard_for_core = VerifiedOwnShard {
                     serialized_shard: Bytes::from([0u8; 32].to_vec()), // put some dummy shard data
-                    gen_transaction_ref,
+                    transaction_ref,
                 };
                 dag_state.write().add_shard(shard_for_core);
             }

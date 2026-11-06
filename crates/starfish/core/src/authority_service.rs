@@ -50,7 +50,7 @@ use crate::{
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
     task::spawn_blocking,
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    transaction_ref::TransactionRef,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -834,11 +834,9 @@ fn read_transaction_payloads(
             }
         }
         if !above_gc.is_empty() {
-            let generic_refs: Vec<GenericTransactionRef> =
-                above_gc.iter().copied().map(Into::into).collect();
             payloads.extend(
                 dag_state
-                    .get_serialized_transactions(&generic_refs)
+                    .get_serialized_transactions(&above_gc)
                     .into_iter()
                     .zip(above_gc)
                     .filter_map(|(payload, transaction_ref)| {
@@ -861,7 +859,7 @@ fn take_payload(
 ) -> Option<Bytes> {
     payloads.remove(&transaction_ref).or_else(|| {
         context
-            .empty_transactions_for_ref(transaction_ref.into())
+            .empty_transactions_for_ref(transaction_ref)
             .map(|empty| empty.serialized().clone())
     })
 }
@@ -885,17 +883,13 @@ fn check_first_commit_payloads(
         transaction_refs
             .iter()
             .copied()
-            .filter(|&transaction_ref| {
-                !dag_state.contains_transactions_in_memory(transaction_ref.into())
-            })
+            .filter(|&transaction_ref| !dag_state.contains_transactions_in_memory(transaction_ref))
             .collect()
     };
     if not_in_memory.is_empty() {
         return Ok(());
     }
-    let generic_refs: Vec<GenericTransactionRef> =
-        not_in_memory.iter().copied().map(Into::into).collect();
-    let stored = store.contains_transactions(&generic_refs)?;
+    let stored = store.contains_transactions(&not_in_memory)?;
     match not_in_memory
         .into_iter()
         .zip(stored)
@@ -1140,7 +1134,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         )?;
         let block_ref = verified_block_header.reference();
         let transaction_ref = verified_block_header.transaction_ref();
-        let gen_transaction_ref = GenericTransactionRef::from(transaction_ref);
         let far_future_ceiling = self.dag_state.read().far_future_round_ceiling();
         let primary_block_far_future = block_ref.round > far_future_ceiling;
         if primary_block_far_future {
@@ -1413,7 +1406,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .into();
             let shard_for_core = VerifiedOwnShard {
                 serialized_shard: serialized_shard_for_core,
-                gen_transaction_ref,
+                transaction_ref,
             };
             self.core_dispatcher
                 .add_shards(vec![shard_for_core])
@@ -1832,19 +1825,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .handle_fetch_commits(peer, commit_range, CommitSyncType::Fast)
             .await?;
 
-        // The `BlockRef` arm exists only for `CommitV1`, which is no longer
-        // produced and never enters the per-epoch store these commits are read
-        // from.
         let commits_transaction_refs: Vec<Vec<TransactionRef>> = commits
             .iter()
-            .map(|commit| {
-                commit
-                    .committed_transactions()
-                    .into_iter()
-                    .map(GenericTransactionRef::expect_transaction_ref)
-                    .collect::<ConsensusResult<Vec<_>>>()
-            })
-            .collect::<ConsensusResult<_>>()?;
+            .map(|commit| commit.committed_transactions().to_vec())
+            .collect();
 
         if let (Some(first_commit), Some(first_commit_refs)) =
             (commits.first(), commits_transaction_refs.first())
@@ -1959,8 +1943,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // read entries no one wants.
         let mut transactions_by_ref =
             read_transaction_payloads(&self.dag_state, &committed_transactions_refs, |below_gc| {
-                let refs: Vec<GenericTransactionRef> =
-                    below_gc.iter().copied().map(Into::into).collect();
+                let refs: Vec<TransactionRef> = below_gc.iter().copied().collect();
                 Ok(self
                     .store
                     .read_serialized_transactions(&refs)?
@@ -1970,7 +1953,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                         payload
                             .or_else(|| {
                                 self.context
-                                    .empty_transactions_for_ref(transaction_ref.into())
+                                    .empty_transactions_for_ref(transaction_ref)
                                     .map(|empty| empty.serialized().clone())
                             })
                             .map(|payload| (transaction_ref, payload))
@@ -2295,7 +2278,7 @@ mod tests {
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
-        transaction_ref::{GenericTransactionRef, TransactionRef},
+        transaction_ref::TransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,
     };
 
@@ -3740,7 +3723,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -3756,7 +3739,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -3779,7 +3762,7 @@ mod tests {
 
         async fn get_missing_transaction_data(
             &self,
-        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!("Unimplemented")
         }
 
@@ -3789,7 +3772,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -3814,7 +3797,7 @@ mod tests {
             &self,
             _round: Round,
             _reason: ReasonToCreateBlock,
-        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!("Unimplemented")
         }
 
@@ -6344,11 +6327,7 @@ mod tests {
         let stored_blocks = two_rounds_of_payloads();
         write_payloads(&store, &stored_blocks);
         let in_store = stored_blocks[4].verified_block_header.transaction_ref();
-        assert!(
-            !dag_state
-                .read()
-                .contains_transactions_in_memory(in_store.into())
-        );
+        assert!(!dag_state.read().contains_transactions_in_memory(in_store));
         // A round neither the DAG state nor the store has anything at.
         let unknown_ref = TransactionRef {
             round: 3,

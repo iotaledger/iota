@@ -41,7 +41,7 @@ use crate::{
     misbehavior_store::{MisbehaviorCounts, MisbehaviorStore},
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 /// Represents the source from which data (block headers or transactions) was
@@ -218,13 +218,12 @@ pub(crate) struct DagState {
     /// entry with index transaction_ref.author. Evicted using the minimum
     /// between GC round for the last solid leader round evicted rounds by
     /// authority.
-    recent_transactions_by_authority:
-        Vec<BTreeMap<GenericTransactionRef, CommitmentVerifiedTransactions>>,
+    recent_transactions_by_authority: Vec<BTreeMap<TransactionRef, CommitmentVerifiedTransactions>>,
     /// Contains recent own serialized shards with their Merkle proofs per
     /// authority. To access own shard for a given transaction_ref, one
     /// needs to read first the entry with index transaction_ref.author.
     /// Evicted at the GC round of the last commit.
-    recent_shards_by_authority: Vec<BTreeMap<GenericTransactionRef, Bytes>>,
+    recent_shards_by_authority: Vec<BTreeMap<TransactionRef, Bytes>>,
     /// Indexes recent block headers refs by their authorities.
     /// Vec position corresponds to the authority index.
     recent_headers_refs_by_authority: Vec<BTreeSet<BlockRef>>,
@@ -745,8 +744,8 @@ impl DagState {
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
-        let generic_ref = GenericTransactionRef::from(transaction_ref);
-        if self.recent_transactions_by_authority[transaction_ref.author].contains_key(&generic_ref)
+        if self.recent_transactions_by_authority[transaction_ref.author]
+            .contains_key(&transaction_ref)
         {
             if transactions.has_transactions() {
                 self.context
@@ -766,14 +765,14 @@ impl DagState {
     }
 
     pub(crate) fn add_shard(&mut self, shard: VerifiedOwnShard) {
-        let gen_transaction_ref = shard.gen_transaction_ref;
-        if self.recent_shards_by_authority[gen_transaction_ref.author()]
-            .insert(gen_transaction_ref, shard.serialized_shard)
+        let transaction_ref = shard.transaction_ref;
+        if self.recent_shards_by_authority[transaction_ref.author]
+            .insert(transaction_ref, shard.serialized_shard)
             .is_none()
         {
-            debug!("Adding shard for transaction ref: {}", gen_transaction_ref);
+            debug!("Adding shard for transaction ref: {}", transaction_ref);
             if let Some((sender, _)) = &self.cordial_knowledge_senders {
-                let cordial_message = CordialKnowledgeMessage::NewShard(gen_transaction_ref);
+                let cordial_message = CordialKnowledgeMessage::NewShard(transaction_ref);
                 if let Err(TrySendError::Closed(_)) = sender.try_send(cordial_message) {
                     warn!("Failed to send cordial knowledge update: channel closed");
                 }
@@ -943,10 +942,9 @@ impl DagState {
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
-        let generic_ref = GenericTransactionRef::from(transaction_ref);
         self.recent_transactions_by_authority[transaction_ref.author]
-            .insert(generic_ref, transactions.clone());
-        tracing::debug!("Adding transactions for {generic_ref}");
+            .insert(transaction_ref, transactions.clone());
+        tracing::debug!("Adding transactions for {transaction_ref}");
 
         // Handle pending acknowledgments for recent blocks
         let has_transactions = transactions.has_transactions();
@@ -995,8 +993,8 @@ impl DagState {
 
     /// Finds a genesis block matching the given TransactionRef. Uses a range
     /// query on (round, author) with transactions_commitment filtering.
-    fn find_genesis_by_transaction_ref(&self, tx_ref: &TransactionRef) -> Option<&VerifiedBlock> {
-        let author = tx_ref.author();
+    fn get_genesis_block(&self, tx_ref: &TransactionRef) -> Option<&VerifiedBlock> {
+        let author = tx_ref.author;
         let round = tx_ref.round;
         let min_ref = BlockRef {
             round,
@@ -1028,18 +1026,6 @@ impl DagState {
         }
     }
 
-    /// Finds genesis block matching the generic transaction reference.
-    /// For BlockRef: direct lookup. For TransactionRef: range query with
-    /// transactions_commitment verification.
-    fn get_genesis_block(&self, tx_ref: GenericTransactionRef) -> Option<&VerifiedBlock> {
-        match tx_ref {
-            GenericTransactionRef::BlockRef(block_ref) => self.genesis.get(&block_ref),
-            GenericTransactionRef::TransactionRef(tx_ref) => {
-                self.find_genesis_by_transaction_ref(&tx_ref)
-            }
-        }
-    }
-
     /// Accepts block headers into DagState and keeps it in memory.
     pub(crate) fn accept_block_headers(
         &mut self,
@@ -1063,7 +1049,7 @@ impl DagState {
     /// found.
     pub(crate) fn get_verified_transactions(
         &self,
-        transactions_refs: &[GenericTransactionRef],
+        transactions_refs: &[TransactionRef],
     ) -> Vec<Option<CommitmentVerifiedTransactions>> {
         self.try_get_verified_transactions(transactions_refs)
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
@@ -1075,21 +1061,20 @@ impl DagState {
     /// Returns a storage error when persisted transactions cannot be read.
     pub(crate) fn try_get_verified_transactions(
         &self,
-        transactions_refs: &[GenericTransactionRef],
+        transactions_refs: &[TransactionRef],
     ) -> ConsensusResult<Vec<Option<CommitmentVerifiedTransactions>>> {
         let mut transactions = vec![None; transactions_refs.len()];
         let mut missing = Vec::new();
 
         for (index, transactions_ref) in transactions_refs.iter().enumerate() {
-            if transactions_ref.round() == GENESIS_ROUND {
-                if let Some(genesis_block) = self.get_genesis_block(*transactions_ref) {
+            if transactions_ref.round == GENESIS_ROUND {
+                if let Some(genesis_block) = self.get_genesis_block(transactions_ref) {
                     transactions[index] = Some(genesis_block.verified_transactions.clone());
                 }
                 continue;
             }
-            if let Some(transaction) = self.recent_transactions_by_authority
-                [transactions_ref.author()]
-            .get(transactions_ref)
+            if let Some(transaction) =
+                self.recent_transactions_by_authority[transactions_ref.author].get(transactions_ref)
             {
                 transactions[index] = Some(transaction.clone());
                 continue;
@@ -1129,24 +1114,23 @@ impl DagState {
     /// transaction is not found.
     pub(crate) fn get_serialized_transactions(
         &self,
-        transactions_refs: &[GenericTransactionRef],
+        transactions_refs: &[TransactionRef],
     ) -> Vec<Option<Bytes>> {
         let mut transactions = vec![None; transactions_refs.len()];
         let mut missing = Vec::new();
 
         for (index, transactions_ref) in transactions_refs.iter().enumerate() {
-            if transactions_ref.round() == GENESIS_ROUND {
+            if transactions_ref.round == GENESIS_ROUND {
                 if let Some(transaction) = self
-                    .get_genesis_block(*transactions_ref)
+                    .get_genesis_block(transactions_ref)
                     .map(|block| block.verified_transactions.clone())
                 {
                     transactions[index] = Some(transaction.serialized().clone());
                 }
                 continue;
             }
-            if let Some(transaction) = self.recent_transactions_by_authority
-                [transactions_ref.author()]
-            .get(transactions_ref)
+            if let Some(transaction) =
+                self.recent_transactions_by_authority[transactions_ref.author].get(transactions_ref)
             {
                 transactions[index] = Some(transaction.serialized().clone());
                 continue;
@@ -1209,7 +1193,7 @@ impl DagState {
 
             // Check genesis blocks
             if round == GENESIS_ROUND {
-                results[index] = self.find_genesis_by_transaction_ref(tx_ref).is_some();
+                results[index] = self.get_genesis_block(tx_ref).is_some();
                 continue;
             }
 
@@ -1460,7 +1444,7 @@ impl DagState {
         let mut block_headers: Vec<Option<VerifiedBlockHeader>> = vec![None; tx_refs.len()];
         for (index, tx_ref) in tx_refs.iter().enumerate() {
             if tx_ref.round == GENESIS_ROUND {
-                if let Some(block) = self.find_genesis_by_transaction_ref(tx_ref) {
+                if let Some(block) = self.get_genesis_block(tx_ref) {
                     block_headers[index] = Some(block.verified_block_header.clone());
                 }
                 continue;
@@ -1476,15 +1460,10 @@ impl DagState {
     }
 
     /// Gets shards by checking cached recent shards in memory.
-    pub(crate) fn get_cached_shards(
-        &self,
-        gen_tran_refs: &[GenericTransactionRef],
-    ) -> Vec<Option<Bytes>> {
-        let mut shards: Vec<Option<Bytes>> = vec![None; gen_tran_refs.len()];
-        for (index, gen_tran_ref) in gen_tran_refs.iter().enumerate() {
-            if let Some(shard) =
-                self.recent_shards_by_authority[gen_tran_ref.author()].get(gen_tran_ref)
-            {
+    pub(crate) fn get_cached_shards(&self, tx_refs: &[TransactionRef]) -> Vec<Option<Bytes>> {
+        let mut shards: Vec<Option<Bytes>> = vec![None; tx_refs.len()];
+        for (index, tx_ref) in tx_refs.iter().enumerate() {
+            if let Some(shard) = self.recent_shards_by_authority[tx_ref.author].get(tx_ref) {
                 shards[index] = Some(shard.clone());
             }
         }
@@ -1627,11 +1606,11 @@ impl DagState {
             if last.round > GENESIS_ROUND {
                 let last_header_opt = self.recent_block_headers.get(last);
                 if let Some(last_header) = last_header_opt {
-                    let transaction_ref = GenericTransactionRef::from(TransactionRef {
+                    let transaction_ref = TransactionRef {
                         round: last.round,
                         author: last.author,
                         transactions_commitment: last_header.transactions_commitment(),
-                    });
+                    };
 
                     if let Some(last_transactions) =
                         self.recent_transactions_by_authority[last.author].get(&transaction_ref)
@@ -1692,11 +1671,11 @@ impl DagState {
             let header_opt = self.recent_block_headers.get(block_ref);
             let mut block_constructed = false;
             if let Some(header) = header_opt {
-                let transaction_ref = GenericTransactionRef::from(TransactionRef {
+                let transaction_ref = TransactionRef {
                     round: block_ref.round,
                     author: block_ref.author,
                     transactions_commitment: header.transactions_commitment(),
-                });
+                };
                 let transactions_opt =
                     self.recent_transactions_by_authority[block_ref.author].get(&transaction_ref);
                 if let Some(transactions) = transactions_opt {
@@ -2023,17 +2002,14 @@ impl DagState {
     /// check in store. The method is not caching back the
     /// results, so it's expensive to keep asking for cache missing
     /// transactions.
-    pub(crate) fn contains_transactions(
-        &self,
-        transaction_refs: Vec<GenericTransactionRef>,
-    ) -> Vec<bool> {
+    pub(crate) fn contains_transactions(&self, transaction_refs: Vec<TransactionRef>) -> Vec<bool> {
         let mut exist = vec![false; transaction_refs.len()];
         let mut missing = Vec::new();
 
         for (index, tx_ref) in transaction_refs.into_iter().enumerate() {
             if self.contains_transactions_in_memory(tx_ref) {
                 exist[index] = true;
-            } else if tx_ref.round() != GENESIS_ROUND {
+            } else if tx_ref.round != GENESIS_ROUND {
                 missing.push((index, tx_ref));
             }
         }
@@ -2225,7 +2201,7 @@ impl DagState {
             author: block_ref.author,
             transactions_commitment: header.transactions_commitment(),
         };
-        self.contains_transactions_in_memory(transaction_ref.into())
+        self.contains_transactions_in_memory(transaction_ref)
     }
 
     /// Clean up old cached data for each authority, all cached blocks
@@ -2256,11 +2232,11 @@ impl DagState {
         let eviction_round = self.gc_round_for_last_commit();
         for (authority_index, _) in self.context.committee.authorities() {
             // Evict everything below split_key
-            let split_key = GenericTransactionRef::from(TransactionRef {
+            let split_key = TransactionRef {
                 round: eviction_round + 1,
                 author: authority_index,
                 transactions_commitment: TransactionsCommitment::MIN,
-            });
+            };
             self.recent_shards_by_authority[authority_index] =
                 self.recent_shards_by_authority[authority_index].split_off(&split_key);
         }
@@ -2287,11 +2263,11 @@ impl DagState {
             };
 
             // Evict everything below split_key
-            let split_key = GenericTransactionRef::from(TransactionRef {
+            let split_key = TransactionRef {
                 round: transaction_eviction_round,
                 author: authority_index,
                 transactions_commitment: TransactionsCommitment::MIN,
-            });
+            };
             self.recent_transactions_by_authority[authority_index] =
                 self.recent_transactions_by_authority[authority_index].split_off(&split_key);
         }
@@ -2874,17 +2850,14 @@ impl DagState {
 
     /// Whether the payload of `transaction_ref` is available without reading
     /// the store: genesis, empty, or among the recent transactions held here.
-    pub(crate) fn contains_transactions_in_memory(
-        &self,
-        transaction_ref: GenericTransactionRef,
-    ) -> bool {
-        if transaction_ref.round() == GENESIS_ROUND {
-            return self.get_genesis_block(transaction_ref).is_some();
+    pub(crate) fn contains_transactions_in_memory(&self, transaction_ref: TransactionRef) -> bool {
+        if transaction_ref.round == GENESIS_ROUND {
+            return self.get_genesis_block(&transaction_ref).is_some();
         }
         self.context
             .empty_transactions_for_ref(transaction_ref)
             .is_some()
-            || self.recent_transactions_by_authority[transaction_ref.author()]
+            || self.recent_transactions_by_authority[transaction_ref.author]
                 .contains_key(&transaction_ref)
     }
 }
@@ -3427,7 +3400,7 @@ mod test {
         // All transactions should be found in DagState.
         let transactions_refs = all_block_headers
             .iter()
-            .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+            .map(|bh| bh.transaction_ref())
             .collect::<Vec<_>>();
         let result = dag_state
             .get_verified_transactions(transactions_refs.as_slice())
@@ -3471,7 +3444,7 @@ mod test {
         let vec_transactions = dag_builder.transactions(1..=5);
         let transactions_refs = block_headers
             .iter()
-            .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+            .map(|bh| bh.transaction_ref())
             .collect::<Vec<_>>();
         let result = dag_state
             .get_verified_transactions(&transactions_refs)
@@ -3501,7 +3474,7 @@ mod test {
         assert!(retrieved_block_headers.is_empty());
         let transactions_refs = missing_block_headers
             .iter()
-            .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+            .map(|bh| bh.transaction_ref())
             .collect::<Vec<_>>();
         let retrieved_transactions = dag_state
             .get_verified_transactions(&transactions_refs)
@@ -4060,7 +4033,7 @@ mod test {
         // is from DagState.
         let mut transactions_refs = blocks
             .iter()
-            .map(|block| GenericTransactionRef::from(block.transaction_ref()))
+            .map(|block| block.transaction_ref())
             .collect::<Vec<_>>();
         let result = dag_state.contains_transactions(transactions_refs.clone());
 
@@ -4069,11 +4042,11 @@ mod test {
         assert_eq!(result, expected);
 
         // Now try to ask also for one block ref that is neither in cache nor in store
-        let non_existent_ref = GenericTransactionRef::from(TransactionRef {
+        let non_existent_ref = TransactionRef {
             round: 11,
             author: AuthorityIndex::new_for_test(0),
             transactions_commitment: TransactionsCommitment::default(),
-        });
+        };
         transactions_refs.insert(3, non_existent_ref);
         let result = dag_state.contains_transactions(transactions_refs);
 
@@ -4089,7 +4062,7 @@ mod test {
 
         let transactions_refs = blocks
             .iter()
-            .map(|block| GenericTransactionRef::from(block.transaction_ref()))
+            .map(|block| block.transaction_ref())
             .collect::<Vec<_>>();
         let result = dag_state.contains_transactions(transactions_refs);
 
@@ -4170,14 +4143,9 @@ mod test {
         dag_state.accept_block_header(empty_header.clone(), DataSource::Test);
 
         // An empty-commitment ref counts as present and reads back as the
-        // empty payload, although no payload was stored. The legacy BlockRef
-        // form carries no commitment and is not recognized.
-        let tx_ref = GenericTransactionRef::from(empty_header.transaction_ref());
-        let block_ref = GenericTransactionRef::BlockRef(empty_header.reference());
-        assert_eq!(
-            dag_state.contains_transactions(vec![tx_ref, block_ref]),
-            vec![true, false]
-        );
+        // empty payload, although no payload was stored.
+        let tx_ref = empty_header.transaction_ref();
+        assert_eq!(dag_state.contains_transactions(vec![tx_ref]), vec![true]);
         let read = dag_state.try_get_verified_transactions(&[tx_ref]).unwrap();
         let transactions = read[0].as_ref().unwrap();
         assert!(!transactions.has_transactions());
@@ -4192,7 +4160,7 @@ mod test {
 
         // A non-empty commitment without a stored payload stays missing.
         let other = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(6, 1).build());
-        let other_ref = GenericTransactionRef::from(other.transaction_ref());
+        let other_ref = other.transaction_ref();
         dag_state.accept_block_header(other, DataSource::Test);
         assert_eq!(
             dag_state.contains_transactions(vec![other_ref]),
@@ -4314,7 +4282,7 @@ mod test {
 
         let transaction_refs = block_headers_above_gc
             .iter()
-            .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+            .map(|bh| bh.transaction_ref())
             .collect::<Vec<_>>();
 
         let expected_transactions_in_dag = dag_builder.transactions(gc_round + 1..=num_rounds);
@@ -4341,7 +4309,7 @@ mod test {
         // All transactions should be found in DagState or store.
         let transaction_refs = all_block_headers
             .iter()
-            .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+            .map(|bh| bh.transaction_ref())
             .collect::<Vec<_>>();
 
         let result = dag_state
@@ -4498,18 +4466,16 @@ mod test {
 
         let author = AuthorityIndex::new_for_test(3);
         let shard_refs = (1..=NUM_ROUNDS)
-            .map(|round| {
-                GenericTransactionRef::from(TransactionRef {
-                    round,
-                    author,
-                    transactions_commitment: TransactionsCommitment::MIN,
-                })
+            .map(|round| TransactionRef {
+                round,
+                author,
+                transactions_commitment: TransactionsCommitment::MIN,
             })
             .collect::<Vec<_>>();
-        for &gen_transaction_ref in &shard_refs {
+        for &transaction_ref in &shard_refs {
             dag_state.add_shard(VerifiedOwnShard {
                 serialized_shard: Bytes::from_static(&[0u8; 8]),
-                gen_transaction_ref,
+                transaction_ref,
             });
         }
         let leader = BlockRef::new(

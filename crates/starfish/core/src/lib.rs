@@ -88,4 +88,4 @@ pub use transaction::NoopTransactionVerifier;
 pub use transaction::{
     BlockStatus, ClientError, TransactionClient, TransactionVerifier, ValidationError,
 };
-pub use transaction_ref::GenericTransactionRef;
+pub use transaction_ref::TransactionRef;

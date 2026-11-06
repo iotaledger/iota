@@ -27,7 +27,7 @@ use iota_types::{
 use move_core_types::account_address::AccountAddress;
 use parking_lot::Mutex;
 use rand::{RngExt, SeedableRng, rngs::StdRng};
-use starfish_core::{BlockRef, BlockStatus};
+use starfish_core::BlockStatus;
 use tokio::time::sleep;
 
 use super::*;
@@ -265,16 +265,16 @@ async fn submit_transaction_to_consensus_adapter() {
     // Make a new consensus adapter instance.
     let block_status_receivers = vec![
         with_block_status(BlockStatus::GarbageCollected(
-            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            starfish_core::TransactionRef::default(),
         )),
         with_block_status(BlockStatus::GarbageCollected(
-            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            starfish_core::TransactionRef::default(),
         )),
         with_block_status(BlockStatus::GarbageCollected(
-            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            starfish_core::TransactionRef::default(),
         )),
         with_block_status(BlockStatus::Sequenced(
-            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            starfish_core::TransactionRef::default(),
         )),
     ];
     let adapter = make_consensus_adapter_for_test(
@@ -325,7 +325,7 @@ async fn submit_multiple_transactions_to_consensus_adapter() {
         process_via_checkpoint,
         false,
         vec![with_block_status(BlockStatus::Sequenced(
-            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            starfish_core::TransactionRef::default(),
         ))],
     );
 
@@ -364,7 +364,7 @@ async fn submit_checkpoint_signature_to_consensus_adapter() {
         HashSet::new(),
         false,
         vec![with_block_status(BlockStatus::Sequenced(
-            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            starfish_core::TransactionRef::default(),
         ))],
     );
 
@@ -470,7 +470,7 @@ async fn submit_checkpoint_signature_to_consensus_adapter() {
 /// are submitted instead of one.
 #[tokio::test]
 async fn submit_recovered_end_of_publish_crash_recovery() {
-    use starfish_core::{BlockRef, BlockStatus};
+    use starfish_core::BlockStatus;
     use tokio::sync::Notify;
 
     use crate::mock_consensus::with_block_status;
@@ -497,7 +497,7 @@ async fn submit_recovered_end_of_publish_crash_recovery() {
             self.notify.notify_one();
 
             Ok(with_block_status(BlockStatus::Sequenced(
-                starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+                starfish_core::TransactionRef::default(),
             )))
         }
     }

@@ -47,7 +47,7 @@ use crate::{
     network::{FetchedCommitsAndTransactions, NetworkClient, SerializedTransactionsV2},
     sliding_window_schedule::SlidingWindowSchedule,
     task::spawn_blocking,
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 /// Timeout for fetching block headers during close-to-quorum finalization.
@@ -653,18 +653,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         })
         .await??;
 
-        // 3. Collect the committed transaction refs of each commit. Commits passing verify_commits
-        //    are V2/V3, which only carry `TransactionRef`s, so the legacy `BlockRef` variant is an
-        //    error.
+        // 3. Collect the committed transaction refs of each commit.
         let mut commits_tx_refs: Vec<Vec<TransactionRef>> = commits
             .iter()
-            .map(|c| {
-                c.committed_transactions()
-                    .into_iter()
-                    .map(GenericTransactionRef::expect_transaction_ref)
-                    .collect()
-            })
-            .collect::<ConsensusResult<_>>()?;
+            .map(|c| c.committed_transactions().to_vec())
+            .collect();
         let mut committed_tx_refs: BTreeSet<TransactionRef> =
             commits_tx_refs.iter().flatten().copied().collect();
 
@@ -1132,7 +1125,7 @@ fn fill_missing_empty_transactions(
     fetched_transactions: &mut BTreeMap<TransactionRef, CommitmentVerifiedTransactions>,
 ) {
     committed_tx_refs.retain(|transaction_ref| {
-        let Some(empty) = context.empty_transactions_for_ref((*transaction_ref).into()) else {
+        let Some(empty) = context.empty_transactions_for_ref(*transaction_ref) else {
             return true;
         };
         fetched_transactions.insert(*transaction_ref, empty);
@@ -1240,7 +1233,7 @@ mod tests {
             misbehavior_store::MisbehaviorStore,
             network::SerializedTransactionsV2,
             storage::{Store, mem_store::MemStore},
-            transaction_ref::{GenericTransactionRef, TransactionRef},
+            transaction_ref::TransactionRef,
             transactions_synchronizer::TransactionsSynchronizer,
         };
 
@@ -1372,7 +1365,7 @@ mod tests {
             round: u32,
             author: u8,
             transactions: &[Transaction],
-        ) -> (GenericTransactionRef, Bytes) {
+        ) -> (TransactionRef, Bytes) {
             let serialized = Transaction::serialize(transactions).unwrap();
             let transaction_ref = TransactionRef {
                 round,
@@ -1390,16 +1383,13 @@ mod tests {
             })
             .unwrap()
             .into();
-            (
-                GenericTransactionRef::TransactionRef(transaction_ref),
-                entry,
-            )
+            (transaction_ref, entry)
         }
 
         /// A response of one chained commit per element of `listings`, each
         /// committing the refs it holds, carrying `response_transactions`.
         fn chained_response(
-            listings: Vec<Vec<GenericTransactionRef>>,
+            listings: Vec<Vec<TransactionRef>>,
             response_transactions: Vec<Bytes>,
         ) -> (Vec<Bytes>, Vec<Bytes>, Vec<Bytes>) {
             let mut commits: Vec<TrustedCommit> = Vec::new();
@@ -2327,7 +2317,7 @@ mod tests {
                 0,
                 leader,
                 vec![leader],
-                transactions.iter().copied().map(Into::into).collect(),
+                transactions.to_vec(),
             )
         }
 
