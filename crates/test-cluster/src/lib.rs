@@ -731,7 +731,7 @@ impl TestCluster {
     /// The P-COOL flow has no certificate to hand to individual validators, so
     /// this is the counterpart of `submit_transaction_to_validators` for
     /// callers that only need the raw execution results.
-    async fn execute_transaction_via_orchestrator(
+    pub async fn execute_transaction_via_orchestrator(
         &self,
         tx: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, TransactionEvents)> {
