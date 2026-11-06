@@ -298,7 +298,7 @@ impl IotaTxValidatorMetrics {
             .unwrap(),
             user_transaction_signatures_verified: register_int_counter_with_registry!(
                 "user_transaction_signatures_verified",
-                "Number of user transaction (V1 and V2) signatures verified in consensus validator",
+                "Number of UserTransactionV1 signatures verified in consensus validator",
                 registry
             )
             .unwrap(),

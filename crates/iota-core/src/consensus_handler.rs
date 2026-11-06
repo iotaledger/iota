@@ -887,7 +887,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
             if attested_tx.transaction.data().contains_shared_object() {
                 "shared_user_transaction"
             } else {
-                "owned_user_transaction_v1"
+                "owned_user_transaction"
             }
         }
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
