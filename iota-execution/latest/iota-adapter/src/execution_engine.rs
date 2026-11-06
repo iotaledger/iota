@@ -39,7 +39,8 @@ mod checked {
         error::{ExecutionError, ExecutionErrorKind},
         execution::{
             AuthenticateThenExecuteOutput, ExecutionResults, ExecutionResultsV1, ExecutionTiming,
-            ResultWithTimings, SharedInput, is_certificate_denied,
+            ResultWithTimings, SharedInput, is_any_invariant_violation, is_cancellation,
+            is_certificate_denied, unwrap_move_authentication_error,
         },
         execution_config_utils::to_binary_config,
         gas::{IotaGasStatus, IotaGasStatusAPI},
@@ -294,8 +295,10 @@ mod checked {
     ///   - If it fails, then it charges gas for the failed execution of the authentication and
     ///     produces transaction effects with the appropriate error status. With the P-COOL flow on,
     ///     a gas owner that is a Move account and did not authorize the transaction is not charged;
-    ///     see `execute_without_gas_charge_to_effects`. A gas owner that did authorize it is
-    ///     charged, and every owned input moves to its next version.
+    ///     see `execute_without_gas_charge_to_effects`. When `gas_owner_pays` is given, it decides
+    ///     whether such a gas owner pays anyway, unless the failure is a cancellation or an
+    ///     invariant violation. A gas owner that did authorize it is charged, and every owned input
+    ///     moves to its next version.
     ///   - Else, if the authentication is successful, it continues with the normal transaction
     ///     execution.
     /// It combines the input objects from both the authentication and
@@ -321,6 +324,7 @@ mod checked {
         // Authentication
         authenticators: MoveAuthenticatorsForExecution,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
+        gas_owner_pays: Option<&dyn Fn(&ExecutionErrorKind) -> bool>,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_signer: Address,
@@ -597,9 +601,13 @@ mod checked {
 
         // Under the P-COOL flow, the gas owner's authenticator runs for the
         // first time here, so a transaction it did not authorize can reach
-        // execution. Nobody pays for it.
+        // execution. Nobody pays for it, unless `gas_owner_pays` answers `true`.
         let authentication_execution_result = match authentication_execution_result {
-            Err(error) if !gas_owner_authorized && protocol_config.enable_pcool_flow() => {
+            Err(error)
+                if !gas_owner_authorized
+                    && protocol_config.enable_pcool_flow()
+                    && !charge_gas_owner(protocol_config, &error, gas_owner_pays) =>
+            {
                 let (inner_temp_store, gas_status, effects, timings, execution_result) =
                     execute_without_gas_charge_to_effects::<Mode>(
                         temporary_store,
@@ -614,6 +622,7 @@ mod checked {
                         certificate_deny_set,
                         error,
                     );
+
                 return (
                     inner_temp_store,
                     gas_status,
@@ -623,6 +632,8 @@ mod checked {
                     authentication_error,
                 );
             }
+            // Also a gas owner that `gas_owner_pays` charges: it pays like any
+            // failed transaction its gas owner authorized.
             result => result,
         };
         // Transaction execution.
@@ -662,6 +673,25 @@ mod checked {
             execution_result,
             authentication_error,
         )
+    }
+
+    /// Whether a gas owner that is a Move account and did not authorize the
+    /// transaction pays for its failed authentication, as `gas_owner_pays`
+    /// decides under the protocol feature flag `enable_validator_attestation`.
+    /// `gas_owner_pays` is not asked about a cancellation, decided at the
+    /// consensus commit before any authenticator ran, nor about an invariant
+    /// violation, an internal error: such a gas owner is not charged.
+    fn charge_gas_owner(
+        protocol_config: &ProtocolConfig,
+        error: &ExecutionError,
+        gas_owner_pays: Option<&dyn Fn(&ExecutionErrorKind) -> bool>,
+    ) -> bool {
+        let kind = unwrap_move_authentication_error(error.kind());
+
+        protocol_config.enable_validator_attestation()
+            && !is_cancellation(kind)
+            && !is_any_invariant_violation(kind)
+            && gas_owner_pays.is_some_and(|pays| pays(kind))
     }
 
     /// Produces the effects of a transaction whose gas owner is a Move account

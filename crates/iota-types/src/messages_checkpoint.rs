@@ -1385,10 +1385,16 @@ mod tests {
         });
         let v2 = CheckpointVersionSpecificData::V2(CheckpointVersionSpecificDataV2 {
             randomness_rounds: vec![RandomnessRound::new(3)],
-            attestation_entries: vec![AttestationEntry {
-                position: 1,
-                record: attestation_record(2, AttestationVerdict::Refuted { units: 5 }),
-            }],
+            attestation_entries: vec![
+                AttestationEntry {
+                    position: 1,
+                    record: attestation_record(2, AttestationVerdict::Refuted { units: 5 }),
+                },
+                AttestationEntry {
+                    position: 3,
+                    record: attestation_record(1, AttestationVerdict::Undecided),
+                },
+            ],
             attestation_totals: AttestationTotals {
                 refuted_units_squared: BTreeMap::from([(2, 16)]),
             },

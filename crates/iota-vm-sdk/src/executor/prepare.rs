@@ -447,6 +447,7 @@ pub(super) fn execute_with_move_authenticators(
             gas_status,
             MoveAuthenticatorsForExecution::Resolved(exec_authenticators),
             union_checked,
+            None,
             kind,
             signer,
             transaction.digest(),

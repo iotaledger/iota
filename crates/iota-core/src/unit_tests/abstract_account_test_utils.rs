@@ -26,7 +26,7 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionAPI, TransactionEnvelope},
-    utils::to_sender_signed_transaction,
+    utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_optional_sponsor},
 };
 
 use crate::authority::{
@@ -51,6 +51,9 @@ const AA_KEYED_MODULE: &str = "abstract_account_keyed";
 const AA_AUTHENTICATE_ED25519: &str = "authenticate_ed25519";
 pub const AA_AUTHENTICATE_ED25519_VIA_SIGNING_DIGEST: &str =
     "authenticate_ed25519_via_signing_digest";
+/// The funder's coin that the setup leaves untouched, so a sponsored
+/// transaction can pay with it.
+const SPONSOR_GAS_INDEX: usize = 7;
 
 pub struct AbstractAccountTestEnv {
     pub authority: Arc<AuthorityState>,
@@ -77,7 +80,38 @@ impl AbstractAccountTestEnv {
     /// a fresh ed25519 key, and funds it.
     pub async fn new() -> Self {
         let (funder, funder_key): (_, AccountPrivateKey) = get_key_pair();
+        let (_, owner_key): (_, AccountPrivateKey) = get_key_pair();
+        let gas_ids = (0..8).map(|_| ObjectId::random()).collect();
+
+        Self::new_with(funder, funder_key, owner_key, gas_ids).await
+    }
+
+    /// Two environments built from the same keys and objects through the same
+    /// transactions, so they hold the same state, and a transaction built on
+    /// one executes alike on the other: one stands in for a validator, the
+    /// other for a node executing from a checkpoint.
+    pub async fn new_pair() -> (Self, Self) {
+        let (funder, funder_key): (_, AccountPrivateKey) = get_key_pair();
+        let (_, owner_key): (_, AccountPrivateKey) = get_key_pair();
         let gas_ids: Vec<ObjectId> = (0..8).map(|_| ObjectId::random()).collect();
+        let first = Self::new_with(
+            funder,
+            funder_key.clone(),
+            owner_key.clone(),
+            gas_ids.clone(),
+        )
+        .await;
+        let second = Self::new_with(funder, funder_key, owner_key, gas_ids).await;
+
+        (first, second)
+    }
+
+    async fn new_with(
+        funder: Address,
+        funder_key: AccountPrivateKey,
+        owner_key: Ed25519PrivateKey,
+        gas_ids: Vec<ObjectId>,
+    ) -> Self {
         let objects: Vec<Object> = gas_ids
             .iter()
             .map(|id| Object::with_id_owner_for_testing(*id, funder))
@@ -87,7 +121,6 @@ impl AbstractAccountTestEnv {
             .build()
             .await;
 
-        let (_, owner_key): (_, AccountPrivateKey) = get_key_pair();
         let mut env = Self {
             authority,
             funder,
@@ -114,10 +147,21 @@ impl AbstractAccountTestEnv {
 
     /// The account object at its current version.
     pub fn account_ref(&self) -> ObjectReference {
+        self.object(&self.account.object_id).object_ref()
+    }
+
+    /// The key account that published the package and funded the account. It
+    /// is the sponsor of a sponsored account transaction.
+    pub fn funder(&self) -> Address {
+        self.funder
+    }
+
+    /// The object with `id` as the authority holds it now; panics when it is not
+    /// live.
+    pub fn object(&self, id: &ObjectId) -> Object {
         self.authority
-            .get_object(&self.account.object_id)
-            .unwrap()
-            .object_ref()
+            .get_object(id)
+            .unwrap_or_else(|| panic!("{id} must be live"))
     }
 
     pub(crate) fn rgp(&self) -> u64 {
@@ -310,28 +354,60 @@ impl AbstractAccountTestEnv {
         &mut self,
         signing_key: &Ed25519PrivateKey,
     ) -> TransactionEnvelope {
+        let pt = self.add_field_transaction();
+
+        self.sign_with_move_authenticator(pt, signing_key)
+    }
+
+    /// Like [`Self::account_transaction_signed_with()`], but sponsored by the
+    /// funder, which signs with its key and pays with a coin of its own: the
+    /// gas owner authorized the transaction whatever the account's
+    /// authenticator says.
+    pub fn sponsored_account_transaction_signed_with(
+        &mut self,
+        signing_key: &Ed25519PrivateKey,
+    ) -> TransactionEnvelope {
+        let pt = self.add_field_transaction();
+        let tx_data = Transaction::new_programmable_allow_sponsor(
+            self.account_address,
+            vec![self.gas_ref(SPONSOR_GAS_INDEX)],
+            pt,
+            self.budget(),
+            self.rgp(),
+            self.funder,
+        );
+        let authenticator = self.move_authenticator(&tx_data, signing_key);
+
+        to_sender_signed_transaction_with_optional_sponsor(
+            tx_data,
+            authenticator,
+            Some(&self.funder_key),
+        )
+    }
+
+    /// The body of an account transaction: it writes a fresh dynamic field, so
+    /// it always succeeds.
+    fn add_field_transaction(&mut self) -> ProgrammableTransaction {
         let field_key = self.next_field_key;
         self.next_field_key += 1;
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            let account = builder
-                .obj(CallArg::Shared(SharedObjectReference {
-                    mutable: true,
-                    ..self.account
-                }))
-                .unwrap();
-            let name = builder.pure(field_key).unwrap();
-            let value = builder.pure(field_key).unwrap();
-            builder.programmable_move_call(
-                self.package_id,
-                Identifier::from_static(AA_MODULE),
-                Identifier::from_static("add_field"),
-                vec![TypeTag::U8, TypeTag::U8],
-                vec![account, name, value],
-            );
-            builder.finish()
-        };
-        self.sign_with_move_authenticator(pt, signing_key)
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let account = builder
+            .obj(CallArg::Shared(SharedObjectReference {
+                mutable: true,
+                ..self.account
+            }))
+            .unwrap();
+        let name = builder.pure(field_key).unwrap();
+        let value = builder.pure(field_key).unwrap();
+        builder.programmable_move_call(
+            self.package_id,
+            Identifier::from_static(AA_MODULE),
+            Identifier::from_static("add_field"),
+            vec![TypeTag::U8, TypeTag::U8],
+            vec![account, name, value],
+        );
+
+        builder.finish()
     }
 
     fn sign_with_move_authenticator(
@@ -347,16 +423,26 @@ impl AbstractAccountTestEnv {
             self.budget(),
             self.rgp(),
         );
+        let authenticator = self.move_authenticator(&tx_data, signing_key);
 
-        // The authenticator verifies a hex-encoded raw ed25519 signature over
-        // the transaction digest.
+        TransactionEnvelope::from_user_sig_data(tx_data, vec![authenticator])
+    }
+
+    /// The account's signature on `tx_data`: the authenticator verifies a
+    /// hex-encoded raw ed25519 signature over the transaction digest.
+    fn move_authenticator(
+        &self,
+        tx_data: &Transaction,
+        signing_key: &Ed25519PrivateKey,
+    ) -> UserSignature {
         let signature: Ed25519Signature = signing_key.sign(tx_data.digest().bytes());
         let signature_arg = CallArg::Pure(bcs::to_bytes(&Hex::encode(signature.bytes())).unwrap());
 
-        let authenticator = UserSignature::MoveAuthenticator(MoveAuthenticator::V1(
-            MoveAuthenticatorV1::new(vec![signature_arg], vec![], self.account),
-        ));
-        TransactionEnvelope::from_user_sig_data(tx_data, vec![authenticator])
+        UserSignature::MoveAuthenticator(MoveAuthenticator::V1(MoveAuthenticatorV1::new(
+            vec![signature_arg],
+            vec![],
+            self.account,
+        )))
     }
 
     /// Rotates the account's public key, which supersedes the account's version
@@ -364,6 +450,24 @@ impl AbstractAccountTestEnv {
     /// key that was replaced.
     pub async fn rotate_owner_key(&mut self) -> Ed25519PrivateKey {
         let (_, new_key): (_, AccountPrivateKey) = get_key_pair();
+        let tx = self.rotate_owner_key_transaction(&new_key);
+        let effects = self.submit(tx, None).await;
+        assert!(
+            effects.status().is_success(),
+            "rotating the owner key must succeed, got {:?}",
+            effects.status()
+        );
+
+        std::mem::replace(&mut self.owner_key, new_key)
+    }
+
+    /// The transaction of [`Self::rotate_owner_key()`] for `new_key`, signed
+    /// with the key in force, for the caller to submit. The key this
+    /// environment signs with stays as it is.
+    pub fn rotate_owner_key_transaction(
+        &mut self,
+        new_key: &Ed25519PrivateKey,
+    ) -> TransactionEnvelope {
         let new_public_key = new_key.public_key().bytes().to_vec();
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -384,15 +488,33 @@ impl AbstractAccountTestEnv {
         };
         // Signed with the key still in force, so the rotation authenticates.
         let current_key = self.owner_key.clone();
-        let tx = self.sign_with_move_authenticator(pt, &current_key);
-        let effects = self.submit(tx, None).await;
-        assert!(
-            effects.status().is_success(),
-            "rotating the owner key must succeed, got {:?}",
-            effects.status()
-        );
 
-        std::mem::replace(&mut self.owner_key, new_key)
+        self.sign_with_move_authenticator(pt, &current_key)
+    }
+
+    /// A transaction from the account that deletes it, signed with the current
+    /// key: `delete_account` accepts only the account as sender.
+    pub fn delete_account_transaction(&mut self) -> TransactionEnvelope {
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let account = builder
+                .obj(CallArg::Shared(SharedObjectReference {
+                    mutable: true,
+                    ..self.account
+                }))
+                .unwrap();
+            builder.programmable_move_call(
+                self.package_id,
+                Identifier::from_static(AA_MODULE),
+                Identifier::from_static("delete_account"),
+                vec![],
+                vec![account],
+            );
+            builder.finish()
+        };
+        let current_key = self.owner_key.clone();
+
+        self.sign_with_move_authenticator(pt, &current_key)
     }
 
     /// Rotates the account's authenticator to `authenticate_function`, keeping
