@@ -21,7 +21,8 @@ use iota_config::{
     transaction_deny_config::TransactionDenyConfig,
 };
 use iota_core::{
-    authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
+    authority_aggregator::AuthorityAggregator,
+    authority_client::{NetworkAuthorityClient, validator_v2::ValidatorV2API},
 };
 use iota_grpc_client::read_mask_fields::TransactionField;
 use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
@@ -62,12 +63,12 @@ use iota_types::{
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
-    error::IotaResult,
+    error::{IotaError, IotaResult},
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
-    messages_grpc::HandleCertificateRequestV1,
+    messages_grpc::{HandleCertificateRequestV1, TxStatusUpdate},
     object::Object,
     quorum_driver_types::{ExecuteTransactionRequestType, ExecuteTransactionRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
@@ -698,14 +699,20 @@ impl TestCluster {
     }
 
     /// Different from `execute_transaction`, this function returns raw
-    /// effects, events and extra objects returned by the validators,
-    /// aggregated manually (without authority aggregator). It also does not
-    /// check whether the transaction is executed successfully. In order to
-    /// keep the fullnode up-to-date so that latter queries can read consistent
-    /// results, it executes the transaction again through the fullnode's gRPC
-    /// API. This is less efficient and verbose, but can be used if more
-    /// details are needed from the execution results, and if the transaction
-    /// is expected to fail.
+    /// effects and events, and does not check whether the transaction is
+    /// executed successfully. It can be used if more details are needed from
+    /// the execution results, and if the transaction is expected to fail.
+    ///
+    /// With the certificate flow, the effects and events are the ones the
+    /// validators returned, aggregated manually (without authority
+    /// aggregator). To keep the fullnode up-to-date so that latter queries
+    /// can read consistent results, the transaction is executed again through
+    /// the fullnode's gRPC API.
+    ///
+    /// With the P-COOL flow there is no certificate to hand to the validators.
+    /// The transaction goes through the fullnode's transaction orchestrator,
+    /// and the effects are the fullnode's own; they are not compared with the
+    /// validators'.
     pub async fn execute_transaction_return_raw_effects(
         &self,
         tx: TransactionEnvelope,
@@ -756,6 +763,82 @@ impl TestCluster {
             response.effects.effects,
             response.events.unwrap_or_default(),
         ))
+    }
+
+    /// Sends `tx` to one validator with `submit_tx` and returns the single
+    /// status update it answers with.
+    ///
+    /// Opens a new connection to the validator, so it also reaches one that
+    /// was restarted, unlike the clients of [`Self::authority_aggregator`].
+    pub async fn submit_tx_to_validator(
+        &self,
+        authority: &AuthorityName,
+        tx: TransactionEnvelope,
+    ) -> Result<TxStatusUpdate, IotaError> {
+        let client = {
+            let config = self.swarm.node(authority).unwrap().config();
+            NetworkAuthorityClient::connect_lazy(
+                &config
+                    .network_address
+                    .clone()
+                    .rewrite_udp_to_tcp()
+                    .rewrite_http_to_https(),
+                config.network_key_pair().public_key(),
+            )
+        };
+        let mut updates = client
+            .submit_tx(vec![tx], Some(SocketAddr::new([127, 0, 0, 1].into(), 0)))
+            .await?;
+        assert_eq!(
+            updates.len(),
+            1,
+            "one transaction gets one status update, got: {updates:?}"
+        );
+        Ok(updates.remove(0).1)
+    }
+
+    /// Sends `tx` to one validator with `submit_tx`, expects the validator to
+    /// reject it, and returns the error. Checks that no validator holds a soft
+    /// lock afterwards.
+    pub async fn submit_tx_expecting_rejection(
+        &self,
+        authority: &AuthorityName,
+        tx: TransactionEnvelope,
+    ) -> IotaError {
+        let update = self
+            .submit_tx_to_validator(authority, tx)
+            .await
+            .expect("the submit_tx stream should open");
+        let TxStatusUpdate::Rejected { error } = update else {
+            panic!("expected the transaction to be rejected, got: {update:?}");
+        };
+        #[cfg(msim)]
+        self.assert_no_soft_locks().await;
+        error
+    }
+
+    /// Asserts that no validator holds a pre-consensus soft lock, going by the
+    /// soft-lock table size gauge, which only the simulator can read. The
+    /// validator's periodic sweep refreshes the gauge, so this waits for one
+    /// sweep first.
+    #[cfg(msim)]
+    pub async fn assert_no_soft_locks(&self) {
+        const GAUGE: &str = "validator_service_soft_lock_table_size";
+        // Just over the sweep interval of 10 s, and under the 12 s lock TTL.
+        tokio::time::sleep(Duration::from_secs(11)).await;
+        for handle in self.all_validator_handles() {
+            let families = handle.with(|node| node.gather_metrics());
+            let gauge = families
+                .iter()
+                .find(|family| family.name() == GAUGE)
+                .unwrap_or_else(|| panic!("the validator does not register {GAUGE}"));
+            let locked: f64 = gauge
+                .get_metric()
+                .iter()
+                .map(|metric| metric.get_gauge().value())
+                .sum();
+            assert_eq!(locked, 0.0, "a validator holds soft locks");
+        }
     }
 
     pub fn authority_aggregator(&self) -> Arc<AuthorityAggregator<NetworkAuthorityClient>> {

@@ -13,6 +13,7 @@ use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
+    messages_consensus::ConsensusTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, VerifiedCertificate},
@@ -20,15 +21,18 @@ use iota_types::{
 
 use crate::{
     authority::{
-        AuthorityState,
+        AuthorityState, ExecutionEnv,
         authority_test_utils::{certify_transaction, send_consensus},
         authority_tests::{
             build_programmable_transaction, execute_programmable_transaction,
-            execute_programmable_transaction_with_shared,
+            execute_programmable_transaction_with_shared, sequence_past_executed_transactions,
         },
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
         test_authority_builder::TestAuthorityBuilder,
     },
+    checkpoints::CheckpointServiceNoop,
+    consensus_handler::SequencedConsensusTransaction,
+    execution_scheduler::ExecutionSchedulerAPI,
     move_call,
 };
 
@@ -1057,6 +1061,136 @@ async fn test_tto_not_locked() {
         assert_effects_equivalent(&valid1, &valid2);
         assert_effects_equivalent(&invalid1, &invalid2);
     }
+}
+
+/// Two `UserTransactionV1`s receive the same child in one commit, one through
+/// its real parent and one through another object. Receiving objects take no
+/// lock, so the commit keeps both whatever their order, and the one with the
+/// real parent succeeds while the other aborts, as with certificates.
+#[rstest::rstest]
+#[tokio::test]
+async fn test_tto_two_receives_of_one_child_in_one_commit(
+    #[values(false, true)] valid_first: bool,
+) {
+    let mut runner = TestRunner::new_with_objects("tto", 3, false).await;
+    let effects = runner
+        .run({
+            let mut builder = ProgrammableTransactionBuilder::new();
+            move_call! {
+                builder,
+                (runner.package.object_id)::M3::start()
+            };
+            builder.finish()
+        })
+        .await;
+    let (parent, child) = get_parent_and_child(effects.created());
+    let fake_parent = *effects
+        .created()
+        .iter()
+        .find(|created| {
+            created.reference().object_id != parent.reference().object_id
+                && created.reference().object_id != child.reference().object_id
+        })
+        .unwrap();
+
+    let receive_through = async |parent: OwnedObjectReference, gas_index: usize| {
+        let transaction = build_programmable_transaction(
+            &runner.authority_state,
+            &runner.gas_object_ids[gas_index],
+            &runner.sender,
+            &runner.sender_key,
+            {
+                let mut builder = ProgrammableTransactionBuilder::new();
+                let parent = builder
+                    .obj(CallArg::ImmutableOrOwned(*parent.reference()))
+                    .unwrap();
+                let child = builder.obj(CallArg::Receiving(*child.reference())).unwrap();
+                move_call!(builder, (runner.package.object_id)::M3::receiver(parent, child));
+                builder.finish()
+            },
+            TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        )
+        .await
+        .unwrap();
+        transaction
+    };
+    let valid = receive_through(parent, 1).await;
+    let fake = receive_through(fake_parent, 2).await;
+    let (valid_digest, fake_digest) = (*valid.digest(), *fake.digest());
+
+    let authority = &runner.authority_state;
+    sequence_past_executed_transactions(authority).await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let ordered = if valid_first {
+        [valid, fake]
+    } else {
+        [fake, valid]
+    };
+    let (schedulables, assigned_versions) = epoch_store
+        .process_consensus_transactions_for_tests(
+            ordered
+                .into_iter()
+                .map(|transaction| {
+                    SequencedConsensusTransaction::new_test(
+                        ConsensusTransaction::new_user_transaction(transaction),
+                    )
+                })
+                .collect(),
+            &Arc::new(CheckpointServiceNoop {}),
+            authority.get_object_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority,
+        )
+        .await
+        .unwrap();
+    assert_eq!(schedulables.len(), 2, "the commit must keep both");
+
+    let assigned_versions = assigned_versions.into_map();
+    let executables: Vec<_> = schedulables
+        .into_iter()
+        .map(|schedulable| {
+            let executable = schedulable.as_tx().unwrap().clone();
+            let env = ExecutionEnv::new().with_assigned_versions(
+                assigned_versions
+                    .get(&executable.key())
+                    .cloned()
+                    .unwrap_or_default(),
+            );
+            (executable, env)
+        })
+        .collect();
+    epoch_store.assign_to_a_new_commit_for_testing(
+        &executables
+            .iter()
+            .map(|(executable, _)| executable.key())
+            .collect::<Vec<_>>(),
+    );
+    authority
+        .execution_scheduler()
+        .enqueue_transactions(executables, &epoch_store);
+    let effects = tokio::time::timeout(
+        std::time::Duration::from_secs(20),
+        authority
+            .get_transaction_cache_reader()
+            .try_notify_read_executed_effects("", &[valid_digest, fake_digest]),
+    )
+    .await
+    .expect("both transactions must execute")
+    .unwrap();
+
+    assert!(
+        effects[0].status().is_success(),
+        "{:?}",
+        effects[0].status()
+    );
+    assert!(matches!(
+        effects[1].status(),
+        ExecutionStatus::Failure {
+            error: ExecutionError::MoveAbort { .. },
+            ..
+        }
+    ));
 }
 
 #[tokio::test]

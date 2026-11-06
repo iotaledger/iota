@@ -14,6 +14,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::PublicKey,
     error::{IotaError, IotaResult, UserInputError},
+    messages_grpc::TxStatusUpdate,
     transaction::TransactionEnvelope,
 };
 use p256::pkcs8::DecodePublicKey;
@@ -68,8 +69,26 @@ pub struct PasskeyResponse<T> {
     intent_msg: IntentMessage<T>,
 }
 
-/// Submits a transaction to the test cluster and returns the result.
-async fn execute_tx(tx: TransactionEnvelope, test_cluster: &TestCluster) -> IotaResult {
+/// Submits a transaction to a validator of the test cluster and returns the
+/// error it rejects the transaction with, if any. With the P-COOL flow the
+/// transaction goes through `submit_tx`, and a rejection leaves no soft lock.
+async fn execute_tx(
+    tx: TransactionEnvelope,
+    test_cluster: &TestCluster,
+    pcool: bool,
+) -> IotaResult {
+    if pcool {
+        let validator = test_cluster.get_validator_pubkeys()[0];
+        return match test_cluster.submit_tx_to_validator(&validator, tx).await? {
+            TxStatusUpdate::Submitted => Ok(()),
+            TxStatusUpdate::Rejected { error } => {
+                #[cfg(msim)]
+                test_cluster.assert_no_soft_locks().await;
+                Err(error)
+            }
+            other => panic!("expected the transaction to be submitted or rejected, got: {other:?}"),
+        };
+    }
     test_cluster
         .authority_aggregator()
         .authority_clients
@@ -236,7 +255,7 @@ async fn test_passkey_feature_deny() {
     let test_cluster = TestClusterBuilder::new().build().await;
     let response = create_credential_and_sign_test_tx(&test_cluster, None, false, false).await;
     let tx = make_good_passkey_tx(response);
-    let err = execute_tx(tx, &test_cluster).await.unwrap_err();
+    let err = execute_tx(tx, &test_cluster, false).await.unwrap_err();
     assert!(matches!(
         err,
         IotaError::UserInput {
@@ -247,17 +266,35 @@ async fn test_passkey_feature_deny() {
 
 #[sim_test]
 async fn test_passkey_authenticator_verifies() {
-    let _pcool_guard = override_pcool_flow(false);
+    test_passkey_authenticator_verifies_scenario(false).await
+}
+
+#[sim_test]
+async fn test_passkey_authenticator_verifies_pcool_flow() {
+    test_passkey_authenticator_verifies_scenario(true).await
+}
+
+async fn test_passkey_authenticator_verifies_scenario(pcool: bool) {
+    let _pcool_guard = override_pcool_flow(pcool);
     let test_cluster = TestClusterBuilder::new().build().await;
     let response = create_credential_and_sign_test_tx(&test_cluster, None, false, false).await;
     let tx = make_good_passkey_tx(response);
-    let res = execute_tx(tx, &test_cluster).await;
+    let res = execute_tx(tx, &test_cluster, pcool).await;
     assert!(res.is_ok());
 }
 
 #[sim_test]
 async fn test_passkey_fails_mismatched_challenge() {
-    let _pcool_guard = override_pcool_flow(false);
+    test_passkey_fails_mismatched_challenge_scenario(false).await
+}
+
+#[sim_test]
+async fn test_passkey_fails_mismatched_challenge_pcool_flow() {
+    test_passkey_fails_mismatched_challenge_scenario(true).await
+}
+
+async fn test_passkey_fails_mismatched_challenge_scenario(pcool: bool) {
+    let _pcool_guard = override_pcool_flow(pcool);
     let test_cluster = TestClusterBuilder::new().build().await;
 
     // Tweak intent in challenge that is sent to passkey.
@@ -271,7 +308,7 @@ async fn test_passkey_fails_mismatched_challenge() {
         .unwrap(),
     );
     let tx = TransactionEnvelope::from_user_sig_data(response.intent_msg.value, vec![sig]);
-    let res = execute_tx(tx, &test_cluster).await;
+    let res = execute_tx(tx, &test_cluster, pcool).await;
     let err = res.unwrap_err();
     assert_eq!(
         err,
@@ -293,7 +330,7 @@ async fn test_passkey_fails_mismatched_challenge() {
         .unwrap(),
     );
     let tx = TransactionEnvelope::from_user_sig_data(response.intent_msg.value, vec![sig]);
-    let res = execute_tx(tx, &test_cluster).await;
+    let res = execute_tx(tx, &test_cluster, pcool).await;
     let err = res.unwrap_err();
     assert_eq!(
         err,
@@ -307,7 +344,16 @@ async fn test_passkey_fails_mismatched_challenge() {
 
 #[sim_test]
 async fn test_passkey_fails_to_verify_sig() {
-    let _pcool_guard = override_pcool_flow(false);
+    test_passkey_fails_to_verify_sig_scenario(false).await
+}
+
+#[sim_test]
+async fn test_passkey_fails_to_verify_sig_pcool_flow() {
+    test_passkey_fails_to_verify_sig_scenario(true).await
+}
+
+async fn test_passkey_fails_to_verify_sig_scenario(pcool: bool) {
+    let _pcool_guard = override_pcool_flow(pcool);
     let test_cluster = TestClusterBuilder::new().build().await;
     let response = create_credential_and_sign_test_tx(&test_cluster, None, false, false).await;
     let mut modified_sig = response.user_sig_bytes.clone();
@@ -325,7 +371,7 @@ async fn test_passkey_fails_to_verify_sig() {
         .unwrap(),
     );
     let tx = TransactionEnvelope::from_user_sig_data(response.intent_msg.value.clone(), vec![sig]);
-    let res = execute_tx(tx, &test_cluster).await;
+    let res = execute_tx(tx, &test_cluster, pcool).await;
     let err = res.unwrap_err();
     assert_eq!(
         err,
@@ -351,7 +397,7 @@ async fn test_passkey_fails_to_verify_sig() {
         .unwrap(),
     );
     let tx = TransactionEnvelope::from_user_sig_data(response.intent_msg.value, vec![sig]);
-    let res = execute_tx(tx, &test_cluster).await;
+    let res = execute_tx(tx, &test_cluster, pcool).await;
     let err = res.unwrap_err();
     assert_eq!(
         err,
@@ -364,7 +410,16 @@ async fn test_passkey_fails_to_verify_sig() {
 
 #[sim_test]
 async fn test_passkey_fails_wrong_author() {
-    let _pcool_guard = override_pcool_flow(false);
+    test_passkey_fails_wrong_author_scenario(false).await
+}
+
+#[sim_test]
+async fn test_passkey_fails_wrong_author_pcool_flow() {
+    test_passkey_fails_wrong_author_scenario(true).await
+}
+
+async fn test_passkey_fails_wrong_author_scenario(pcool: bool) {
+    let _pcool_guard = override_pcool_flow(pcool);
     let test_cluster = TestClusterBuilder::new().build().await;
     // Modify sender that receives gas and construct test txn.
     let response =
@@ -378,7 +433,7 @@ async fn test_passkey_fails_wrong_author() {
         .unwrap(),
     );
     let tx = TransactionEnvelope::from_user_sig_data(response.intent_msg.value, vec![sig]);
-    let res = execute_tx(tx, &test_cluster).await;
+    let res = execute_tx(tx, &test_cluster, pcool).await;
     let err = res.unwrap_err();
     assert!(matches!(err, IotaError::SignerSignatureAbsent { .. }));
 }

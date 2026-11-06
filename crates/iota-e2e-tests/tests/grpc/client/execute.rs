@@ -210,3 +210,91 @@ async fn execute_transaction_idempotency() {
         "Re-execution should show success (cached result)"
     );
 }
+
+async fn execute_transaction_error(
+    client: &iota_grpc_client::GrpcClient,
+    tx: iota_sdk_types::SignedTransaction,
+) -> iota_grpc_types::google::rpc::Status {
+    match client
+        .execute_transaction(tx)
+        .await
+        .expect_err("the transaction must be rejected")
+    {
+        GrpcError::Server(status) => status,
+        other => panic!("expected a server error, got: {other:?}"),
+    }
+}
+
+#[sim_test]
+async fn execute_transaction_missing_gas_object_error() {
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
+    let (sender, _) = test_cluster
+        .wallet
+        .get_one_gas_object()
+        .await
+        .unwrap()
+        .unwrap();
+    let gas_price = test_cluster.get_reference_gas_price().await;
+    let missing_gas = iota_sdk_types::ObjectReference::new(
+        iota_sdk_types::ObjectId::new([7; 32]),
+        iota_sdk_types::Version::from_u64(1),
+        iota_sdk_types::ObjectDigest::new([0; 32]),
+    );
+    let tx = test_cluster.wallet.sign_transaction(
+        &iota_test_transaction_builder::TestTransactionBuilder::new(sender, missing_gas, gas_price)
+            .transfer_iota(Some(1), sender)
+            .build(),
+    );
+
+    // Validators report a missing input as retriable, since it may only be
+    // missing locally, so the driver retries until it times out.
+    let status = execute_transaction_error(&client, tx.into()).await;
+    assert_eq!(
+        status.code,
+        i32::from(tonic::Code::Unavailable),
+        "{status:?}"
+    );
+    assert_eq!(status.message, "timed-out before finality could be reached");
+    assert!(status.details.is_empty(), "{status:?}");
+}
+
+#[sim_test]
+async fn execute_transaction_double_used_object_error() {
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
+
+    let first =
+        make_transfer_iota_transaction(&test_cluster.wallet, Some(Address::random()), Some(1))
+            .await;
+    let second =
+        make_transfer_iota_transaction(&test_cluster.wallet, Some(Address::random()), Some(2))
+            .await;
+    assert_ne!(first.digest(), second.digest());
+
+    client
+        .execute_transaction(first.into())
+        .await
+        .expect("the first transaction should execute");
+
+    let status = execute_transaction_error(&client, second.into()).await;
+    assert_eq!(
+        status.code,
+        i32::from(tonic::Code::InvalidArgument),
+        "{status:?}"
+    );
+    assert!(
+        status.message.starts_with(
+            "Invalid transaction: unknown error: Transaction was rejected as invalid by more \
+             than 1/3 of validator stake during submission (non-retriable): "
+        ),
+        "{status:?}"
+    );
+    assert!(
+        status.message.contains("is not available for consumption"),
+        "{status:?}"
+    );
+    assert_eq!(status.details.len(), 1, "{status:?}");
+    let error_info = status.details[0]
+        .to_msg::<iota_grpc_types::google::rpc::ErrorInfo>()
+        .expect("the detail must be an ErrorInfo");
+    assert_eq!(error_info.reason, "REJECTED_BY_VALIDATORS");
+}
