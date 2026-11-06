@@ -1584,6 +1584,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Get requested block headers from store.
         let serialized_headers = if commit_sync_handle {
+            // A repeated ref would be read and sent once per repeat.
+            let mut seen = BTreeSet::new();
+            block_refs.retain(|block_ref| seen.insert(*block_ref));
+
             // For commit sync, optimize by fetching from store for headers below GC round
             let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
 
@@ -4890,6 +4894,21 @@ mod tests {
                 VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
             assert_eq!(verified_block_header.reference(), block_refs_to_request[i],);
         }
+
+        // A repeated ref is served once, in the order of its first occurrence.
+        let (first, second) = (block_refs_to_request[0], block_refs_to_request[1]);
+        let headers = authority_service
+            .handle_fetch_headers(peer, vec![second, first, second, second], vec![])
+            .await
+            .unwrap();
+        let served: Vec<BlockRef> = headers
+            .into_iter()
+            .map(|serialized| {
+                let signed: SignedBlockHeader = bcs::from_bytes(&serialized).unwrap();
+                VerifiedBlockHeader::new_verified(signed, serialized).reference()
+            })
+            .collect();
+        assert_eq!(served, vec![second, first]);
     }
 
     #[tokio::test]
