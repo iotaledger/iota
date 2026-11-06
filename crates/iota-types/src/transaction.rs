@@ -2336,6 +2336,9 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
         if let Some((gas_object_id, version)) = input_objects.gas_object_cancellation() {
             tx_input_objects.set_gas_object_cancellation(gas_object_id, version);
         }
+        if let Some(dependency) = input_objects.transaction_dependency() {
+            tx_input_objects.set_transaction_dependency(dependency);
+        }
 
         let per_authenticator_inputs =
             self.move_authenticators()
@@ -3238,16 +3241,30 @@ pub struct InputObjects {
     /// the gas object itself is still read normally, because the cancelled
     /// execution must charge gas to it.
     gas_object_cancellation: Option<(ObjectId, Version)>,
+    /// The transaction named by the transaction dependency input, with
+    /// whether it executed successfully. Set when the input objects are read
+    /// for execution; absent when the transaction has no dependency or is
+    /// cancelled at sequencing, which never waits for the dependency.
+    transaction_dependency: Option<TransactionDependencyReadResult>,
+}
+
+/// The outcome of the transaction named by a transaction dependency input, as
+/// read when the dependent is executed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TransactionDependencyReadResult {
+    pub digest: TransactionDigest,
+    pub succeeded: bool,
 }
 
 impl std::fmt::Debug for InputObjects {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.gas_object_cancellation {
-            None => f.debug_list().entries(self.objects.iter()).finish(),
-            Some(gas_object_cancellation) => f
+        match (&self.gas_object_cancellation, &self.transaction_dependency) {
+            (None, None) => f.debug_list().entries(self.objects.iter()).finish(),
+            (gas_object_cancellation, transaction_dependency) => f
                 .debug_struct("InputObjects")
                 .field("objects", &self.objects)
                 .field("gas_object_cancellation", gas_object_cancellation)
+                .field("transaction_dependency", transaction_dependency)
                 .finish(),
         }
     }
@@ -3298,6 +3315,7 @@ impl InputObjects {
         Self {
             objects,
             gas_object_cancellation: None,
+            transaction_dependency: None,
         }
     }
 
@@ -3399,7 +3417,27 @@ impl InputObjects {
         self.objects
             .iter()
             .filter_map(|obj| obj.get_previous_transaction())
+            .chain(
+                self.transaction_dependency
+                    .map(|dependency| dependency.digest),
+            )
             .collect()
+    }
+
+    pub fn set_transaction_dependency(&mut self, dependency: TransactionDependencyReadResult) {
+        self.transaction_dependency = Some(dependency);
+    }
+
+    pub fn transaction_dependency(&self) -> Option<TransactionDependencyReadResult> {
+        self.transaction_dependency
+    }
+
+    /// The transaction named by the dependency input when it did not execute
+    /// successfully, so this transaction must be cancelled before running.
+    pub fn failed_transaction_dependency(&self) -> Option<TransactionDigest> {
+        self.transaction_dependency
+            .filter(|dependency| !dependency.succeeded)
+            .map(|dependency| dependency.digest)
     }
 
     pub fn mutable_inputs(&self) -> BTreeMap<ObjectId, (VersionDigest, Owner)> {

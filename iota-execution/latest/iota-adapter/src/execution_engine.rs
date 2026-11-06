@@ -120,6 +120,7 @@ mod checked {
         let transaction_dependencies = input_objects.transaction_dependencies();
         let contains_deleted_input = input_objects.contains_deleted_objects();
         let cancelled_objects = input_objects.get_cancelled_objects();
+        let failed_dependency = input_objects.failed_transaction_dependency();
 
         let temporary_store = TemporaryStore::new(
             store,
@@ -162,6 +163,7 @@ mod checked {
             transaction_dependencies,
             contains_deleted_input,
             cancelled_objects,
+            failed_dependency,
             transaction_kind,
             transaction_signer,
             transaction_digest,
@@ -188,6 +190,7 @@ mod checked {
         mut transaction_dependencies: BTreeSet<TransactionDigest>,
         contains_deleted_input: bool,
         cancelled_objects: Option<(CancelledObjects, Version)>,
+        failed_dependency: Option<TransactionDigest>,
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
@@ -226,6 +229,7 @@ mod checked {
             deny_cert,
             contains_deleted_input,
             cancelled_objects,
+            failed_dependency,
             trace_builder_opt,
             pre_execution_result_opt,
         );
@@ -359,6 +363,7 @@ mod checked {
         // inputs
         let contains_deleted_input = input_objects.contains_deleted_objects();
         let mut cancelled_objects = input_objects.get_cancelled_objects();
+        let mut failed_dependency = input_objects.failed_transaction_dependency();
 
         // Prepare the temporary store.
         let mut temporary_store = TemporaryStore::new(
@@ -425,13 +430,18 @@ mod checked {
                 }
             };
 
-        // A cancelled transaction fails with its cancellation: its
-        // authenticators are not run, and a failure to resolve them is not
-        // reported. The cancellation is reported as is, not as an
-        // authentication failure, and only once: the transaction execution
-        // gets no cancelled objects to check.
-        let cancellation_check =
-            run_inputs_checks(protocol_config, false, false, cancelled_objects.take());
+        // A cancelled transaction, or one whose transaction dependency did not
+        // succeed, fails with that status: its authenticators are not run, and
+        // a failure to resolve them is not reported. The status is reported as
+        // is, not as an authentication failure, and only once: the transaction
+        // execution gets no cancelled objects or failed dependency to check.
+        let cancellation_check = run_inputs_checks(
+            protocol_config,
+            false,
+            false,
+            cancelled_objects.take(),
+            failed_dependency.take(),
+        );
 
         // Next to the result, whether the gas owner authorized the transaction.
         // An owner that signed it did, as its signature is checked before
@@ -606,6 +616,7 @@ mod checked {
                     transaction_dependencies,
                     contains_deleted_input,
                     cancelled_objects,
+                    failed_dependency,
                     transaction_digest,
                     epoch_id,
                     protocol_config,
@@ -631,6 +642,7 @@ mod checked {
             transaction_dependencies,
             contains_deleted_input,
             cancelled_objects,
+            failed_dependency,
             transaction_kind,
             transaction_signer,
             transaction_digest,
@@ -668,6 +680,7 @@ mod checked {
         mut transaction_dependencies: BTreeSet<TransactionDigest>,
         contains_deleted_input: bool,
         cancelled_objects: Option<(CancelledObjects, Version)>,
+        failed_dependency: Option<TransactionDigest>,
         transaction_digest: TransactionDigest,
         epoch_id: &EpochId,
         protocol_config: &ProtocolConfig,
@@ -686,6 +699,7 @@ mod checked {
             deny_cert,
             contains_deleted_input,
             cancelled_objects,
+            failed_dependency,
         )
         .err()
         .unwrap_or(authentication_error);
@@ -955,11 +969,14 @@ mod checked {
         // It must NOT charge gas for reading the Move authenticator input objects from
         // the storage. It will be done later during the transaction execution.
         // Then execute the authentication.
+        // A failed transaction dependency is reported before any authenticator
+        // runs, so none is checked here.
         run_inputs_checks(
             protocol_config,
             deny_cert,
             contains_deleted_input,
             cancelled_objects,
+            None,
         )
         .and_then(|()| {
             let authenticator_move_call =
@@ -1039,6 +1056,7 @@ mod checked {
         deny_cert: bool,
         contains_deleted_input: bool,
         cancelled_objects: Option<(CancelledObjects, Version)>,
+        failed_dependency: Option<TransactionDigest>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         pre_execution_result_opt: Option<
             Result<
@@ -1079,6 +1097,7 @@ mod checked {
                         deny_cert,
                         contains_deleted_input,
                         cancelled_objects,
+                        failed_dependency,
                     )
                     .map_err(|e| (e, vec![]))?;
 
@@ -1321,6 +1340,7 @@ mod checked {
         deny_cert: bool,
         contains_deleted_input: bool,
         cancelled_objects: Option<(CancelledObjects, Version)>,
+        failed_dependency: Option<TransactionDigest>,
     ) -> Result<(), ExecutionError> {
         if deny_cert {
             Err(ExecutionError::new(
@@ -1376,6 +1396,11 @@ mod checked {
                 )),
                 _ => panic!("invalid cancellation reason Version: {reason}"),
             }
+        } else if let Some(dependency) = failed_dependency {
+            Err(ExecutionError::new(
+                ExecutionErrorKind::TransactionDependencyFailed { dependency },
+                None,
+            ))
         } else {
             Ok(())
         }

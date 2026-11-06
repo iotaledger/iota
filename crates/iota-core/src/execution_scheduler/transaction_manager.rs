@@ -36,7 +36,7 @@ use crate::{
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
     execution_scheduler::{
         ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats,
-        executed_in_current_epoch,
+        executed_in_current_epoch, transaction_dependency_input_key,
     },
 };
 
@@ -73,6 +73,10 @@ struct CacheInner {
     // we cache packages separately, because they are more expensive to look up in the db, so we
     // don't want to evict packages in favor of mutable objects.
     unversioned_cache: LruCache<ObjectId, ()>,
+    // Transactions known to have executed, for dependents waiting on them.
+    // Kept apart from the object caches: an executed digest is a stable fact,
+    // like a live package.
+    executed_transactions: LruCache<TransactionDigest, ()>,
 
     max_size: usize,
     metrics: Arc<AuthorityMetrics>,
@@ -83,6 +87,7 @@ impl CacheInner {
         Self {
             versioned_cache: LruCache::unbounded(),
             unversioned_cache: LruCache::unbounded(),
+            executed_transactions: LruCache::unbounded(),
             max_size,
             metrics,
         }
@@ -103,65 +108,98 @@ impl CacheInner {
                 .transaction_manager_object_cache_evictions
                 .inc();
         }
+        while self.executed_transactions.len() > self.max_size {
+            self.executed_transactions.pop_lru();
+        }
         self.metrics
             .transaction_manager_object_cache_size
             .set(self.versioned_cache.len() as i64);
         self.metrics
             .transaction_manager_package_cache_size
             .set(self.unversioned_cache.len() as i64);
+        self.metrics
+            .transaction_manager_executed_transaction_cache_size
+            .set(self.executed_transactions.len() as i64);
     }
 
     fn insert(&mut self, object: &InputKey) {
-        if let Some(version) = object.version() {
-            if let Some((previous_id, previous_version)) =
-                self.versioned_cache.push(object.id(), version)
-            {
-                if previous_id == object.id() && previous_version > version {
-                    // do not allow highest known version to decrease
-                    // This should not be possible unless bugs are introduced elsewhere in this
-                    // module.
-                    self.versioned_cache.put(object.id(), previous_version);
-                } else {
-                    self.metrics
-                        .transaction_manager_object_cache_evictions
-                        .inc();
+        match object {
+            InputKey::VersionedObject { id, version } => {
+                if let Some((previous_id, previous_version)) =
+                    self.versioned_cache.push(*id, *version)
+                {
+                    if previous_id == *id && previous_version > *version {
+                        // do not allow highest known version to decrease
+                        // This should not be possible unless bugs are introduced elsewhere in
+                        // this module.
+                        self.versioned_cache.put(*id, previous_version);
+                    } else {
+                        self.metrics
+                            .transaction_manager_object_cache_evictions
+                            .inc();
+                    }
                 }
-            }
-            self.metrics
-                .transaction_manager_object_cache_size
-                .set(self.versioned_cache.len() as i64);
-        } else if let Some((previous_id, _)) = self.unversioned_cache.push(object.id(), ()) {
-            // lru_cache will does not check if the value being evicted is the same as the
-            // value being inserted, so we do need to check if the id is
-            // different before counting this as an eviction.
-            if previous_id != object.id() {
                 self.metrics
-                    .transaction_manager_package_cache_evictions
-                    .inc();
+                    .transaction_manager_object_cache_size
+                    .set(self.versioned_cache.len() as i64);
             }
-            self.metrics
-                .transaction_manager_package_cache_size
-                .set(self.unversioned_cache.len() as i64);
+            InputKey::Package { id } => {
+                if let Some((previous_id, _)) = self.unversioned_cache.push(*id, ()) {
+                    // lru_cache will does not check if the value being evicted is the same as
+                    // the value being inserted, so we do need to check if the id is
+                    // different before counting this as an eviction.
+                    if previous_id != *id {
+                        self.metrics
+                            .transaction_manager_package_cache_evictions
+                            .inc();
+                    }
+                }
+                self.metrics
+                    .transaction_manager_package_cache_size
+                    .set(self.unversioned_cache.len() as i64);
+            }
+            InputKey::ExecutedTransaction { digest } => {
+                self.executed_transactions.push(*digest, ());
+                self.metrics
+                    .transaction_manager_executed_transaction_cache_size
+                    .set(self.executed_transactions.len() as i64);
+            }
         }
     }
 
     // Returns Some(true/false) for a definitive result. Returns None if the caller
     // must defer to the db.
     fn is_object_available(&mut self, object: &InputKey) -> Option<bool> {
-        if let Some(version) = object.version() {
-            if let Some(current) = self.versioned_cache.get(&object.id()) {
-                self.metrics.transaction_manager_object_cache_hits.inc();
-                Some(*current >= version)
-            } else {
-                self.metrics.transaction_manager_object_cache_misses.inc();
-                None
+        match object {
+            InputKey::VersionedObject { id, version } => {
+                if let Some(current) = self.versioned_cache.get(id) {
+                    self.metrics.transaction_manager_object_cache_hits.inc();
+                    Some(*current >= *version)
+                } else {
+                    self.metrics.transaction_manager_object_cache_misses.inc();
+                    None
+                }
             }
-        } else {
-            self.unversioned_cache
-                .get(&object.id())
+            InputKey::Package { id } => self
+                .unversioned_cache
+                .get(id)
                 .tap_some(|_| self.metrics.transaction_manager_package_cache_hits.inc())
                 .tap_none(|| self.metrics.transaction_manager_package_cache_misses.inc())
-                .map(|_| true)
+                .map(|_| true),
+            InputKey::ExecutedTransaction { digest } => self
+                .executed_transactions
+                .get(digest)
+                .tap_some(|_| {
+                    self.metrics
+                        .transaction_manager_executed_transaction_cache_hits
+                        .inc()
+                })
+                .tap_none(|| {
+                    self.metrics
+                        .transaction_manager_executed_transaction_cache_misses
+                        .inc()
+                })
+                .map(|_| true),
         }
     }
 }
@@ -217,6 +255,10 @@ struct Inner {
     /// insertion order is preserved.
     input_objects: HashMap<ObjectId, TransactionQueue>,
 
+    /// Stores age info for all transactions waiting on the execution of the
+    /// transaction named by their transaction dependency input.
+    dependency_waiters: HashMap<TransactionDigest, TransactionQueue>,
+
     /// Maps object IDs to the highest observed sequence number of the object.
     /// When the value is `None`, indicates that the object is immutable,
     /// corresponding to an `InputKey` with no sequence number.
@@ -242,6 +284,7 @@ impl Inner {
             epoch,
             missing_inputs: HashMap::with_capacity(MIN_HASHMAP_CAPACITY),
             input_objects: HashMap::with_capacity(MIN_HASHMAP_CAPACITY),
+            dependency_waiters: HashMap::with_capacity(MIN_HASHMAP_CAPACITY),
             available_objects_cache: AvailableObjectsCache::new(metrics),
             pending_transactions: HashMap::with_capacity(MIN_HASHMAP_CAPACITY),
             executing_transactions: HashSet::with_capacity(MIN_HASHMAP_CAPACITY),
@@ -269,15 +312,9 @@ impl Inner {
             return ready_transactions;
         };
 
-        let input_txns = self
-            .input_objects
-            .get_mut(&input_key.id())
-            .unwrap_or_else(|| {
-                panic!(
-                    "# of transactions waiting on object {:?} cannot be 0",
-                    input_key.id()
-                )
-            });
+        let input_txns = self.waiting_queue_mut(&input_key).unwrap_or_else(|| {
+            panic!("# of transactions waiting on input {input_key:?} cannot be 0")
+        });
         for digest in digests.iter() {
             let age_opt = input_txns.remove(digest).expect("digest must be in map");
             metrics
@@ -286,7 +323,7 @@ impl Inner {
         }
 
         if input_txns.is_empty() {
-            self.input_objects.remove(&input_key.id());
+            self.remove_waiting_queue(&input_key);
         }
 
         for digest in digests {
@@ -307,9 +344,44 @@ impl Inner {
         ready_transactions
     }
 
+    /// The queue of transactions waiting on `input_key`: by object for an
+    /// object key, by digest for an executed-transaction key.
+    fn waiting_queue_mut(&mut self, input_key: &InputKey) -> Option<&mut TransactionQueue> {
+        match input_key {
+            InputKey::ExecutedTransaction { digest } => self.dependency_waiters.get_mut(digest),
+            InputKey::VersionedObject { id, .. } | InputKey::Package { id } => {
+                self.input_objects.get_mut(id)
+            }
+        }
+    }
+
+    /// The queue of transactions waiting on `input_key`, created if absent.
+    fn waiting_queue_entry(&mut self, input_key: &InputKey) -> &mut TransactionQueue {
+        match input_key {
+            InputKey::ExecutedTransaction { digest } => {
+                self.dependency_waiters.entry(*digest).or_default()
+            }
+            InputKey::VersionedObject { id, .. } | InputKey::Package { id } => {
+                self.input_objects.entry(*id).or_default()
+            }
+        }
+    }
+
+    fn remove_waiting_queue(&mut self, input_key: &InputKey) {
+        match input_key {
+            InputKey::ExecutedTransaction { digest } => {
+                self.dependency_waiters.remove(digest);
+            }
+            InputKey::VersionedObject { id, .. } | InputKey::Package { id } => {
+                self.input_objects.remove(id);
+            }
+        }
+    }
+
     fn maybe_reserve_capacity(&mut self) {
         self.missing_inputs.maybe_reserve_capacity();
         self.input_objects.maybe_reserve_capacity();
+        self.dependency_waiters.maybe_reserve_capacity();
         self.pending_transactions.maybe_reserve_capacity();
         self.executing_transactions.maybe_reserve_capacity();
     }
@@ -319,6 +391,7 @@ impl Inner {
     fn maybe_shrink_capacity(&mut self) {
         self.missing_inputs.maybe_shrink_capacity();
         self.input_objects.maybe_shrink_capacity();
+        self.dependency_waiters.maybe_shrink_capacity();
         self.pending_transactions.maybe_shrink_capacity();
         self.executing_transactions.maybe_shrink_capacity();
     }
@@ -467,6 +540,11 @@ impl TransactionManager {
                             version: entry.version,
                         };
                         receiving_objects.insert(key);
+                        input_object_keys.insert(key);
+                    }
+                    if let Some(key) =
+                        transaction_dependency_input_key(&tx, &execution_env.assigned_versions)
+                    {
                         input_object_keys.insert(key);
                     }
 
@@ -635,7 +713,7 @@ impl TransactionManager {
                         inner.missing_inputs.entry(key).or_default().insert(digest),
                         "Duplicated transaction {digest:?} for missing object {key:?}"
                     );
-                    let input_txns = inner.input_objects.entry(key.id()).or_default();
+                    let input_txns = inner.waiting_queue_entry(&key);
                     input_txns.insert(digest, pending_transaction_enqueue_time);
                 }
             }
@@ -735,10 +813,12 @@ impl TransactionManager {
     pub(crate) fn notify_commit(
         &self,
         digest: &TransactionDigest,
-        output_object_keys: Vec<InputKey>,
+        mut output_object_keys: Vec<InputKey>,
         epoch_store: &AuthorityPerEpochStore,
     ) {
         let _scope = monitored_scope("TransactionManager::notify_commit");
+        // The committed transaction itself, for dependents waiting on it.
+        output_object_keys.push(InputKey::ExecutedTransaction { digest: *digest });
         let reconfig_lock = self.inner.read();
         {
             let commit_time = Instant::now();
@@ -908,6 +988,11 @@ impl TransactionManager {
             inner.input_objects.is_empty(),
             "Input objects: {:?}",
             inner.input_objects
+        );
+        assert!(
+            inner.dependency_waiters.is_empty(),
+            "Dependency waiters: {:?}",
+            inner.dependency_waiters
         );
         assert!(
             inner.pending_transactions.is_empty(),

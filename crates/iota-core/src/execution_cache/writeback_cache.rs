@@ -1169,6 +1169,10 @@ impl WritebackCache {
 
         self.executed_effects_digests_notify_read
             .notify(&tx_digest, &effects_digest);
+        // Dependents waiting in the execution scheduler for this transaction
+        // to execute.
+        self.object_notify_read
+            .notify(&InputKey::ExecutedTransaction { digest: tx_digest }, &());
 
         self.metrics
             .pending_notify_read
@@ -2126,6 +2130,17 @@ impl ObjectCacheRead for WritebackCache {
             .boxed()
     }
 
+    fn try_multi_transactions_executed(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<bool>> {
+        Ok(self
+            .try_multi_get_executed_effects_digests(digests)?
+            .into_iter()
+            .map(|effects_digest| effects_digest.is_some())
+            .collect())
+    }
+
     fn multi_input_objects_available_cache_only(&self, keys: &[InputKey]) -> Vec<bool> {
         keys.iter()
             .map(|key| {
@@ -2138,6 +2153,10 @@ impl ObjectCacheRead for WritebackCache {
                             CacheResult::Hit(_)
                         ),
                         InputKey::Package { id } => self.packages.contains_key(id),
+                        InputKey::ExecutedTransaction { digest } => matches!(
+                            self.executed_effects_digest_from_memory(digest),
+                            CacheResult::Hit(Some(_))
+                        ),
                     }
                 }
             })
