@@ -142,8 +142,13 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
             .as_ref()
             .map_or(0, |batch| batch.requests.len());
         validate_read_batch_size(item_count, self.config.max_get_objects_batch_size)?;
-        let stream = get_objects::get_objects(self.reader.clone(), metrics, request)
-            .map_err(tonic::Status::from)?;
+        let stream = get_objects::get_objects(
+            self.reader.clone(),
+            metrics,
+            self.config.max_message_size_bytes(),
+            request,
+        )
+        .map_err(tonic::Status::from)?;
         let stream = tally_read_stream(stream, tally_handle, item_count, |response| {
             response.objects.len()
         });

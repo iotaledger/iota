@@ -21,7 +21,7 @@ use prost::Message;
 use prost_types::FieldMask;
 
 use crate::{
-    constants::validate_max_message_size,
+    constants::effective_max_message_size,
     error::{ObjectNotFoundError, RpcError},
     merge::Merge,
     metrics::{RequestMetrics, ResponseItemKind},
@@ -82,14 +82,15 @@ pub(crate) fn validate_get_object_requests(
 pub(crate) fn get_objects(
     reader: Arc<GrpcReader>,
     metrics: RequestMetrics,
+    operator_max_message_size_bytes: u32,
     GetObjectsRequest {
         requests,
         read_mask,
-        max_message_size_bytes,
+        max_message_size_bytes: client_max_message_size_bytes,
         ..
     }: GetObjectsRequest,
 ) -> Result<impl Stream<Item = ObjectsStreamResult> + Send, RpcError> {
-    metrics.record_requested_max_message_size(max_message_size_bytes);
+    metrics.record_requested_max_message_size(client_max_message_size_bytes);
     let requests = requests
         .map(|r| r.requests)
         .unwrap_or_default()
@@ -104,8 +105,11 @@ pub(crate) fn get_objects(
         .collect();
     let (requests, read_mask) = validate_get_object_requests(requests, read_mask)?;
 
-    // Validate and set max_message_size
-    let max_message_size = validate_max_message_size(max_message_size_bytes)?;
+    // Validate the client's requested size and clamp it to the operator config.
+    let max_message_size = effective_max_message_size(
+        client_max_message_size_bytes,
+        operator_max_message_size_bytes,
+    )?;
 
     // Create lazy stream that fetches and batches objects on-demand
     Ok(crate::create_batching_stream!(

@@ -1093,3 +1093,64 @@ fn stream_in_range(
     }
     query
 }
+
+/// `get_checkpoint` clamps the client's requested size to the operator
+/// config through `GrpcApiConfig::max_message_size_client_bytes`, with the
+/// operator config below the client's request.
+#[tokio::test]
+async fn get_checkpoint_message_size_clamped_by_operator_config() {
+    // Below what the client asks for, but strictly above both the
+    // client-omitted default (4 MiB) and the floor
+    // `GrpcApiConfig::max_message_size_bytes` applies to any configured value
+    // (also 4 MiB). A value at or below that floor would be indistinguishable
+    // from "the operator config was never consulted".
+    const OPERATOR_MAX_MESSAGE_SIZE_BYTES: u32 = 8 * 1024 * 1024;
+    const CLIENT_REQUESTED_MAX_MESSAGE_SIZE_BYTES: u32 = 128 * 1024 * 1024;
+
+    // 20 000 transactions clearly exceed the 8 MiB operator cap (10 000
+    // already exceeds 4 MB per the test above).
+    let transactions = common::build_checkpoint_transactions_with_events(20_000, 0);
+    let summary = common::mock_summary(0, &common::EMPTY_CHECKPOINT_CONTENTS);
+    let contents = common::EMPTY_CHECKPOINT_CONTENTS.clone();
+
+    let state_reader = Arc::new(MockGrpcStateReader {
+        summary: Some(summary),
+        contents: Some(contents),
+        checkpoint_transactions: transactions,
+        ..Default::default()
+    });
+    let (server_handle, _) = common::start_test_server(state_reader, |config| {
+        config.max_message_size_bytes = OPERATOR_MAX_MESSAGE_SIZE_BYTES;
+    })
+    .await;
+    let addr = server_handle.address();
+
+    let channel = tonic::transport::Channel::from_shared(format!("http://{addr}"))
+        .unwrap()
+        .connect()
+        .await
+        .expect("connect");
+    let mut client =
+        iota_grpc_types::v1::ledger_service::ledger_service_client::LedgerServiceClient::new(
+            channel,
+        )
+        .max_decoding_message_size(128 * 1024 * 1024);
+
+    let stream = get_checkpoint_raw(
+        &mut client,
+        "checkpoint.summary,transactions",
+        CLIENT_REQUESTED_MAX_MESSAGE_SIZE_BYTES,
+    )
+    .await;
+    let (all_messages, tx_sizes, _) = collect_checkpoint_data_stream(stream).await;
+
+    assert!(
+        tx_sizes.len() > 1,
+        "the operator cap ({OPERATOR_MAX_MESSAGE_SIZE_BYTES} bytes) must force more than one \
+         transaction batch even though the client asked for \
+         {CLIENT_REQUESTED_MAX_MESSAGE_SIZE_BYTES}"
+    );
+    common::assert_messages_within_limit(&all_messages, OPERATOR_MAX_MESSAGE_SIZE_BYTES);
+
+    server_handle.shutdown().await.expect("shutdown");
+}

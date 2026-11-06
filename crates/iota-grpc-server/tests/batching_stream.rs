@@ -18,11 +18,60 @@ use iota_grpc_types::{
         types::ObjectReference,
     },
 };
+use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffects};
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::{
+    base_types::random_object_ref,
+    crypto::{AccountPrivateKey, get_key_pair},
+    effects::TestEffectsBuilder,
+    transaction::{CallArg, VerifiedTransaction},
+};
 use prost::Message;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// A transaction and its effects, as `create_test_transaction`, but a Move
+/// call with an input of `padding` bytes, so that it is larger by that much.
+fn create_padded_transaction(
+    padding: usize,
+) -> (
+    TransactionDigest,
+    Arc<VerifiedTransaction>,
+    TransactionEffects,
+) {
+    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
+    let gas = random_object_ref();
+    let tx = TestTransactionBuilder::new(sender, gas, 1000)
+        .move_call(
+            ObjectId::ZERO,
+            "test",
+            "pad",
+            vec![CallArg::Pure(vec![0u8; padding])],
+        )
+        .build_and_sign(&key);
+    let effects = TestEffectsBuilder::new(tx.data()).build();
+    let digest = *tx.digest();
+    (
+        digest,
+        Arc::new(VerifiedTransaction::new_unchecked(tx)),
+        effects,
+    )
+}
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+/// Operator cap used by the clamp tests below: below what the client asks
+/// for, but strictly above both the client-omitted default (4 MiB, see
+/// `constants::DEFAULT_MAX_MESSAGE_SIZE_BYTES`) and the floor
+/// `GrpcApiConfig::max_message_size_bytes` applies to any configured value
+/// (also 4 MiB). A value at or below that floor would be indistinguishable
+/// from "the operator config was never consulted".
+const OPERATOR_MAX_MESSAGE_SIZE_BYTES: u32 = 8 * 1024 * 1024;
+const CLIENT_REQUESTED_MAX_MESSAGE_SIZE_BYTES: u32 = 128 * 1024 * 1024;
 
 #[tokio::test]
 async fn test_get_objects_batching_within_limit() {
@@ -76,7 +125,7 @@ async fn test_get_objects_batching_within_limit() {
     );
     let read_mask = prost_types::FieldMask::from_str("reference,bcs");
 
-    // --- Pass 1: unlimited (128 MB) → measure single-batch encoded size ---
+    // --- Pass 1: one message; measure its encoded size ---
     let req = GetObjectsRequest::default()
         .with_requests(requests.clone())
         .with_read_mask(read_mask.clone())
@@ -95,7 +144,7 @@ async fn test_get_objects_batching_within_limit() {
     assert_eq!(
         all_responses.len(),
         1,
-        "With 128 MB limit everything should fit in a single response"
+        "With a large limit everything should fit in a single response"
     );
     assert!(
         !all_responses[0].has_next,
@@ -179,6 +228,90 @@ async fn test_get_objects_batching_within_limit() {
     server_handle.shutdown().await.expect("shutdown");
 }
 
+/// The operator config must bound the response size even when the client
+/// asks for far more.
+#[tokio::test]
+async fn get_objects_message_size_clamped_by_operator_config() {
+    // 60 objects of ~200 KB each (~12 MB total) clearly exceed the 8 MiB
+    // operator cap, so the split is not conditional on exact encoded sizes.
+    const NUM_OBJECTS: usize = 60;
+    const PADDING: usize = 200_000;
+
+    let mut objects = HashMap::new();
+    let mut object_ids = Vec::with_capacity(NUM_OBJECTS);
+    for _ in 0..NUM_OBJECTS {
+        let (id, obj) = create_large_object(PADDING);
+        object_ids.push(id);
+        objects.insert(id, obj);
+    }
+
+    let state_reader = Arc::new(MockGrpcStateReader {
+        objects,
+        ..Default::default()
+    });
+
+    let (server_handle, _) = common::start_test_server(state_reader, |config| {
+        config.max_get_objects_batch_size = NUM_OBJECTS as u32;
+        config.max_message_size_bytes = OPERATOR_MAX_MESSAGE_SIZE_BYTES;
+    })
+    .await;
+    let addr = server_handle.address();
+
+    let channel = tonic::transport::Channel::from_shared(format!("http://{addr}"))
+        .unwrap()
+        .connect()
+        .await
+        .expect("connect");
+    let mut client = LedgerServiceClient::new(channel).max_decoding_message_size(128 * 1024 * 1024);
+
+    let requests = ObjectRequests::default().with_requests(
+        object_ids
+            .iter()
+            .map(|id| {
+                ObjectRequest::default().with_object_ref(
+                    ObjectReference::default().with_object_id(
+                        iota_grpc_types::v1::types::ObjectId::default()
+                            .with_object_id(id.into_bytes().to_vec()),
+                    ),
+                )
+            })
+            .collect(),
+    );
+    let read_mask = prost_types::FieldMask::from_str("reference,bcs");
+
+    let req = GetObjectsRequest::default()
+        .with_requests(requests)
+        .with_read_mask(read_mask)
+        .with_max_message_size_bytes(CLIENT_REQUESTED_MAX_MESSAGE_SIZE_BYTES);
+    let mut stream = client
+        .get_objects(req)
+        .await
+        .expect(
+            "the server must accept the client's request and clamp the response to the \
+             operator config instead of erroring",
+        )
+        .into_inner();
+
+    let mut responses = Vec::new();
+    while let Some(resp) = stream.message().await.expect("stream should not error") {
+        responses.push(resp);
+    }
+
+    assert!(
+        responses.len() > 1,
+        "the operator cap ({OPERATOR_MAX_MESSAGE_SIZE_BYTES} bytes) must force more than one \
+         response even though the client asked for {CLIENT_REQUESTED_MAX_MESSAGE_SIZE_BYTES}"
+    );
+    let total_items: usize = responses.iter().map(|r| r.objects.len()).sum();
+    assert_eq!(
+        total_items, NUM_OBJECTS,
+        "all objects must still be returned"
+    );
+    common::assert_messages_within_limit(&responses, OPERATOR_MAX_MESSAGE_SIZE_BYTES);
+
+    server_handle.shutdown().await.expect("shutdown");
+}
+
 #[tokio::test]
 async fn test_get_transactions_batching_within_limit() {
     // Each transaction proto (with bcs + signatures + effects) is ~1 KB.
@@ -232,7 +365,7 @@ async fn test_get_transactions_batching_within_limit() {
     );
     let read_mask = prost_types::FieldMask::from_str("transaction,signatures,effects");
 
-    // --- Pass 1: unlimited (128 MB) → measure single-batch encoded size ---
+    // --- Pass 1: one message; measure its encoded size ---
     let req = GetTransactionsRequest::default()
         .with_requests(requests.clone())
         .with_read_mask(read_mask.clone())
@@ -251,7 +384,7 @@ async fn test_get_transactions_batching_within_limit() {
     assert_eq!(
         all_responses.len(),
         1,
-        "With 128 MB limit everything should fit in a single response"
+        "With a large limit everything should fit in a single response"
     );
     assert!(
         !all_responses[0].has_next,
@@ -337,6 +470,90 @@ async fn test_get_transactions_batching_within_limit() {
 
     // Every response should fit within the message size limit
     common::assert_messages_within_limit(&split_responses, tight_limit);
+
+    server_handle.shutdown().await.expect("shutdown");
+}
+
+/// The operator config must bound the response size even when the client
+/// asks for far more.
+#[tokio::test]
+async fn get_transactions_message_size_clamped_by_operator_config() {
+    // 200 transactions of about 64 KiB each (about 13 MB) exceed the 8 MiB
+    // operator cap.
+    const NUM_TXS: usize = 200;
+
+    let mut transactions = HashMap::new();
+    let mut effects_map = HashMap::new();
+    let mut digests = Vec::with_capacity(NUM_TXS);
+    for _ in 0..NUM_TXS {
+        let (digest, tx, effects) = create_padded_transaction(64 * 1024);
+        digests.push(digest);
+        transactions.insert(digest, tx);
+        effects_map.insert(digest, effects);
+    }
+
+    let state_reader = Arc::new(MockGrpcStateReader {
+        transactions,
+        effects: effects_map,
+        ..Default::default()
+    });
+
+    let (server_handle, _) = common::start_test_server(state_reader, |config| {
+        config.max_get_transactions_batch_size = NUM_TXS as u32;
+        config.max_message_size_bytes = OPERATOR_MAX_MESSAGE_SIZE_BYTES;
+    })
+    .await;
+    let addr = server_handle.address();
+
+    let channel = tonic::transport::Channel::from_shared(format!("http://{addr}"))
+        .unwrap()
+        .connect()
+        .await
+        .expect("connect");
+    let mut client = LedgerServiceClient::new(channel).max_decoding_message_size(128 * 1024 * 1024);
+
+    let requests = TransactionRequests::default().with_requests(
+        digests
+            .iter()
+            .map(|d| {
+                TransactionRequest::default().with_digest(
+                    iota_grpc_types::v1::types::Digest::default()
+                        .with_digest(d.into_bytes().to_vec()),
+                )
+            })
+            .collect(),
+    );
+    let read_mask = prost_types::FieldMask::from_str("transaction,signatures,effects");
+
+    let req = GetTransactionsRequest::default()
+        .with_requests(requests)
+        .with_read_mask(read_mask)
+        .with_max_message_size_bytes(CLIENT_REQUESTED_MAX_MESSAGE_SIZE_BYTES);
+    let mut stream = client
+        .get_transactions(req)
+        .await
+        .expect(
+            "the server must accept the client's request and clamp the response to the \
+             operator config instead of erroring",
+        )
+        .into_inner();
+
+    let mut responses = Vec::new();
+    while let Some(resp) = stream.message().await.expect("stream should not error") {
+        responses.push(resp);
+    }
+
+    assert!(
+        responses.len() > 1,
+        "the operator cap ({OPERATOR_MAX_MESSAGE_SIZE_BYTES} bytes) must force more than one \
+         response even though the client asked for {CLIENT_REQUESTED_MAX_MESSAGE_SIZE_BYTES}"
+    );
+    let total_items: usize = responses.iter().map(|r| r.transaction_results.len()).sum();
+    assert_eq!(
+        total_items, NUM_TXS,
+        "all transactions must still be returned"
+    );
+    common::assert_messages_within_limit(&responses, OPERATOR_MAX_MESSAGE_SIZE_BYTES);
 
     server_handle.shutdown().await.expect("shutdown");
 }
