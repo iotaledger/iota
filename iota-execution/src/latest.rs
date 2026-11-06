@@ -26,7 +26,7 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::TxContext,
     committee::EpochId,
-    error::{ExecutionError, IotaError, IotaResult},
+    error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     execution::{AuthenticateThenExecuteOutput, ExecutionResult, ExecutionTiming, TypeLayoutStore},
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
@@ -194,6 +194,7 @@ impl executor::Executor for Executor {
         // Authentication
         authenticators: MoveAuthenticatorsForExecution,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
+        gas_owner_pays: Option<&dyn Fn(&ExecutionErrorKind) -> bool>,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_signer: Address,
@@ -214,6 +215,7 @@ impl executor::Executor for Executor {
             gas_status,
             authenticators,
             authenticator_and_transaction_input_objects,
+            gas_owner_pays,
             transaction_kind,
             transaction_signer,
             transaction_digest,

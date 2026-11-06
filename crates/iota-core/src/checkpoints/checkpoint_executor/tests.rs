@@ -820,7 +820,7 @@ pub async fn test_reconfig_crash_recovery() {
 /// matches an absent certified one.
 #[test]
 fn attestation_record_differs_ignores_a_valid_local_record() {
-    use AttestationVerdict::{Inaccurate, Refuted, Valid};
+    use AttestationVerdict::{Inaccurate, Refuted, Undecided, Valid};
     let record = |verdict| {
         Some(AttestationRecord {
             attestor: 1,
@@ -833,6 +833,9 @@ fn attestation_record_differs_ignores_a_valid_local_record() {
     assert!(attestation_record_differs(None, record(Inaccurate)));
     let refuted = record(Refuted { units: 7 });
     assert!(!attestation_record_differs(refuted, refuted));
+    let undecided = record(Undecided);
+    assert!(!attestation_record_differs(undecided, undecided));
+    assert!(attestation_record_differs(undecided, None));
 }
 
 /// Builds the executor for a committee validator when `in_committee`, or for a

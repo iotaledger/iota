@@ -50,6 +50,8 @@ AttestationVerdict:
       Refuted:
         STRUCT:
           - units: U64
+    3:
+      Undecided: UNIT
 AuthorityPublicKeyBytes:
   NEWTYPESTRUCT: BYTES
 AuthorityQuorumSignInfo:

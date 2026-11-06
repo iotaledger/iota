@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    cell::Cell,
     collections::{BTreeMap, HashMap, HashSet},
     fs::File,
     io::Write,
@@ -63,7 +64,7 @@ use iota_types::{
         authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
-    attestation::AttestationRecord,
+    attestation::{AttestationRecord, AttestationVerdict},
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
@@ -2355,7 +2356,7 @@ impl AuthorityState {
         let move_authenticators = transaction.move_authenticators();
 
         #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
-        let (inner_temp_store, _, mut effects, execution_error, outcome) = if move_authenticators
+        let (inner_temp_store, mut effects, execution_error, outcome) = if move_authenticators
             .is_empty()
         {
             // No Move authentication required, proceed to execute the transaction directly.
@@ -2372,7 +2373,7 @@ impl AuthorityState {
 
             let owned_object_refs = tx_checked_input_objects.inner().filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
-            let (inner_temp_store, gas_status, effects, _timings, execution_error_opt) =
+            let (inner_temp_store, _gas_status, effects, _timings, execution_error_opt) =
                 epoch_store.executor().execute_transaction_to_effects(
                     backing_store,
                     protocol_config,
@@ -2393,18 +2394,13 @@ impl AuthorityState {
                     tx_digest,
                     &mut None,
                 );
-            // Without Move authentication there is nothing to refute.
+            // Without Move authentication there is nothing to judge.
             let outcome = attestation_verdict::ExecutionOutcome {
-                refuted: None,
+                blame: None,
+                consumed_units: 0,
                 body_ran: attestation_verdict::body_ran(false, execution_error_opt.as_ref().err()),
             };
-            (
-                inner_temp_store,
-                gas_status,
-                effects,
-                execution_error_opt,
-                outcome,
-            )
+            (inner_temp_store, effects, execution_error_opt, outcome)
         } else {
             // One or more `MoveAuthenticator` signatures present — authenticate each and
             // then execute the transaction.
@@ -2542,8 +2538,8 @@ impl AuthorityState {
                 "Move authenticators amount must match the number of checked authenticator inputs"
             );
             // Under deterministic validation, a gas owner that cannot be resolved
-            // did not authorize the transaction, so nobody pays; its own failure is
-            // then the one reported.
+            // did not authorize the transaction, so `gas_owner_pays` decides who
+            // pays; its own failure is then the one reported.
             let deterministic_validation = protocol_config.enable_pcool_flow();
             let mut first_resolution_error = None;
             let mut gas_owner_resolution_error = None;
@@ -2602,6 +2598,40 @@ impl AuthorityState {
                 None => MoveAuthenticatorsForExecution::Resolved(resolved_authenticators),
             };
 
+            // Whether the gas owner pays when its own authentication fails: the
+            // judge answers for an attested transaction, the certified record
+            // when executing from a checkpoint, and nobody pays otherwise. The
+            // judge's answer is kept for the record.
+            let blame = Cell::new(None);
+            let gas_owner_pays = |kind: &ExecutionErrorKind| {
+                match (attestation, &attestation_verdict_context) {
+                    (AttestationSource::Attestation(_), Some(context)) => {
+                        let answer = context.decide_authentication_failure_blame(kind);
+                        blame.set(Some(answer));
+
+                        answer == attestation_verdict::AuthenticationFailureBlame::Account
+                    }
+                    (AttestationSource::Certified(record), _)
+                        if protocol_config.enable_validator_attestation() =>
+                    {
+                        // Only the records other than `Valid` are certified, and
+                        // consensus requires an attestation on every user
+                        // transaction while the flag is on, so no record means
+                        // the attestation was valid. The gas owner pays unless
+                        // the judge blamed the attestor or could not decide.
+                        !matches!(
+                            record,
+                            Some(AttestationRecord {
+                                verdict: AttestationVerdict::Refuted { .. }
+                                    | AttestationVerdict::Undecided,
+                                ..
+                            })
+                        )
+                    }
+                    _ => false,
+                }
+            };
+
             let (
                 inner_temp_store,
                 gas_status,
@@ -2625,6 +2655,7 @@ impl AuthorityState {
                     gas_status,
                     authenticators,
                     authenticator_and_tx_checked_input_objects,
+                    Some(&gas_owner_pays),
                     kind,
                     signer,
                     tx_digest,
@@ -2633,24 +2664,29 @@ impl AuthorityState {
                 );
             // Only an attested transaction whose authentication failed is
             // judged, on the authentication error itself: the body's own
-            // checks may have replaced it in the effects.
-            let outcome = attestation_verdict::ExecutionOutcome {
-                refuted: match (&authentication_error, &attestation_verdict_context) {
-                    (Some(kind), Some(context)) => context.refuted(kind),
+            // checks may have replaced it in the effects. The engine asks the
+            // judge only when a gas owner that is a Move account did not
+            // authorize the transaction, and never about a cancellation or an
+            // invariant violation; any other failure is judged here, for the
+            // record.
+            let blame = blame.get().or_else(|| {
+                match (&attestation_verdict_context, &authentication_error) {
+                    (Some(context), Some(kind)) => {
+                        Some(context.decide_authentication_failure_blame(kind))
+                    }
                     _ => None,
-                },
+                }
+            });
+            let outcome = attestation_verdict::ExecutionOutcome {
+                blame,
+                consumed_units: attestation_verdict::consumed_units(gas_status),
                 body_ran: attestation_verdict::body_ran(
                     authentication_error.is_some(),
                     execution_error_opt.as_ref().err(),
                 ),
             };
-            (
-                inner_temp_store,
-                gas_status,
-                effects,
-                execution_error_opt,
-                outcome,
-            )
+
+            (inner_temp_store, effects, execution_error_opt, outcome)
         };
 
         // Judged before the fork-injecting fail point below, so that only the
