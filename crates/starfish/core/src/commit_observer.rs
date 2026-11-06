@@ -1588,12 +1588,12 @@ mod tests {
         assert!(txs_after >= txs_before * 4,);
     }
 
-    /// Run the commit pipeline through a restart. With `starfish_speed` true,
-    /// L5 is committed Optimistically (full-committee strong-voters); with
-    /// false, L5 is committed standardly. Returns L5's ref, L5's acks, the
-    /// refs in L5's commit, and the refs across all post-restart commits.
+    /// Run the commit pipeline through a restart. With `optimistic` true, L5
+    /// is committed Optimistically (full-committee strong-voters); with false,
+    /// L5 is committed standardly. Returns L5's ref, L5's acks, the refs in
+    /// L5's commit, and the refs across all post-restart commits.
     async fn run_recovery_scenario(
-        starfish_speed: bool,
+        optimistic: bool,
     ) -> (
         BlockRef,
         Vec<BlockRef>,
@@ -1602,9 +1602,7 @@ mod tests {
     ) {
         let num_authorities = 4;
 
-        let mut protocol_config =
-            iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_starfish_speed_for_testing(starfish_speed);
+        let protocol_config = iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
 
         let (committee, _keypairs) =
             starfish_config::local_committee_and_keys(0, vec![1; num_authorities]);
@@ -1669,7 +1667,7 @@ mod tests {
             )
             .unwrap();
 
-        let l5_meta = if starfish_speed {
+        let l5_meta = if optimistic {
             let strong_voters: Vec<AuthorityIndex> = (0..num_authorities as u8)
                 .map(AuthorityIndex::new_for_test)
                 .collect();
@@ -1714,71 +1712,72 @@ mod tests {
         (l5_ref, l5_acks, pre_refs, post_refs)
     }
 
-    /// With `consensus_starfish_speed` ON, L5 is committed Optimistically and
-    /// its ref + acks land in commit 5 (early); recovery seeding then
-    /// suppresses re-commit post-restart. With the flag OFF, L5 is
-    /// committed standardly: its ref + acks are NOT in commit 5 and appear
-    /// only later, when natural 2f+1 acks accumulate across post-restart
-    /// commits.
+    /// When L5 is committed Optimistically, its ref + acks land in commit 5
+    /// (early); recovery seeding then suppresses re-commit post-restart. When
+    /// L5 is committed standardly, its ref + acks are NOT in commit 5 and
+    /// appear only later, when natural 2f+1 acks accumulate across
+    /// post-restart commits.
     #[tokio::test]
     async fn test_optimistic_vs_standard_recovery_timing() {
         telemetry_subscribers::init_for_testing();
 
-        let (l5_ref_on, l5_acks_on, pre_on, post_on) = run_recovery_scenario(true).await;
-        let (l5_ref_off, l5_acks_off, pre_off, post_off) = run_recovery_scenario(false).await;
+        let (l5_ref_optimistic, l5_acks_optimistic, pre_optimistic, post_optimistic) =
+            run_recovery_scenario(true).await;
+        let (l5_ref_standard, l5_acks_standard, pre_standard, post_standard) =
+            run_recovery_scenario(false).await;
 
-        assert!(!l5_acks_on.is_empty(), "leader should have acks");
-        assert!(!l5_acks_off.is_empty(), "leader should have acks");
+        assert!(!l5_acks_optimistic.is_empty(), "leader should have acks");
+        assert!(!l5_acks_standard.is_empty(), "leader should have acks");
 
         let contains = |refs: &[GenericTransactionRef], target: &BlockRef| -> bool {
             refs.iter()
                 .any(|r| r.round() == target.round && r.author() == target.author)
         };
 
-        // Flag ON: L5's ref + every ack land in L5's commit (early), and
+        // Optimistic: L5's ref + every ack land in L5's commit (early), and
         // recovery seeding suppresses re-commit post-restart.
         assert!(
-            contains(&pre_on, &l5_ref_on),
-            "ON: L5's commit should include L5_ref"
+            contains(&pre_optimistic, &l5_ref_optimistic),
+            "Optimistic: L5's commit should include L5_ref"
         );
-        for ack in &l5_acks_on {
+        for ack in &l5_acks_optimistic {
             assert!(
-                contains(&pre_on, ack),
-                "ON: L5's commit should include L5_ack {ack:?}"
+                contains(&pre_optimistic, ack),
+                "Optimistic: L5's commit should include L5_ack {ack:?}"
             );
         }
         assert!(
-            !contains(&post_on, &l5_ref_on),
-            "ON: post-restart commits must NOT re-include L5_ref"
+            !contains(&post_optimistic, &l5_ref_optimistic),
+            "Optimistic: post-restart commits must NOT re-include L5_ref"
         );
-        for ack in &l5_acks_on {
+        for ack in &l5_acks_optimistic {
             assert!(
-                !contains(&post_on, ack),
-                "ON: post-restart commits must NOT re-include L5_ack {ack:?}"
+                !contains(&post_optimistic, ack),
+                "Optimistic: post-restart commits must NOT re-include L5_ack {ack:?}"
             );
         }
 
-        // Flag OFF: L5's ref + acks are NOT in L5's commit (no Optimistic
+        // Standard: L5's ref + acks are NOT in L5's commit (no Optimistic
         // pre-credit); they appear only in some later commit when 2f+1 acks
         // accumulate naturally.
         assert!(
-            !contains(&pre_off, &l5_ref_off),
-            "OFF: L5's commit must NOT include L5_ref"
+            !contains(&pre_standard, &l5_ref_standard),
+            "Standard: L5's commit must NOT include L5_ref"
         );
-        for ack in &l5_acks_off {
+        for ack in &l5_acks_standard {
             assert!(
-                !contains(&pre_off, ack),
-                "OFF: L5's commit must NOT include L5_ack {ack:?}"
+                !contains(&pre_standard, ack),
+                "Standard: L5's commit must NOT include L5_ack {ack:?}"
             );
         }
         assert!(
-            contains(&post_off, &l5_ref_off),
-            "OFF: post-restart commits SHOULD include L5_ref once natural acks accumulate"
+            contains(&post_standard, &l5_ref_standard),
+            "Standard: post-restart commits SHOULD include L5_ref once natural acks accumulate"
         );
-        for ack in &l5_acks_off {
+        for ack in &l5_acks_standard {
             assert!(
-                contains(&post_off, ack),
-                "OFF: post-restart commits SHOULD include L5_ack {ack:?} once natural acks accumulate"
+                contains(&post_standard, ack),
+                "Standard: post-restart commits SHOULD include L5_ack {ack:?} once natural acks accumulate"
             );
         }
     }
@@ -1794,13 +1793,12 @@ mod tests {
     #[case::standard(false)]
     #[case::optimistic(true)]
     #[tokio::test]
-    async fn test_recovery_seeds_backlog_acks(#[case] starfish_speed: bool) {
+    async fn test_recovery_seeds_backlog_acks(#[case] optimistic: bool) {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
 
         let mut protocol_config =
             iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_starfish_speed_for_testing(starfish_speed);
         // Small gc_depth so the backlog only needs to exceed 2 * gc_depth commits.
         let gc_depth = 5;
         protocol_config.set_gc_depth_for_testing(gc_depth);
@@ -1863,7 +1861,7 @@ mod tests {
         )
         .await;
 
-        let committed_leaders = if starfish_speed {
+        let committed_leaders = if optimistic {
             let strong_voters: Vec<AuthorityIndex> = (0..num_authorities as u8)
                 .map(AuthorityIndex::new_for_test)
                 .collect();

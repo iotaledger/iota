@@ -6,7 +6,6 @@ use std::{env, sync::Arc};
 
 use parking_lot::RwLock;
 use rand::{RngExt, SeedableRng, prelude::SliceRandom, rngs::StdRng};
-use rstest::rstest;
 use starfish_config::AuthorityIndex;
 
 use crate::{
@@ -31,15 +30,14 @@ const NUM_ROUNDS: u32 = 200;
 /// - Links to leader of previous round.
 ///
 /// Should result in a direct commit for every round.
-#[rstest]
 #[tokio::test]
-async fn test_randomized_dag_all_direct_commit(#[values(false, true)] starfish_speed: bool) {
+async fn test_randomized_dag_all_direct_commit() {
     let mut random_test_setup = random_test_setup();
 
     for _ in 0..NUM_RUNS {
         let seed = random_test_setup.seeded_rng.random_range(0..10000);
         let num_authorities = random_test_setup.seeded_rng.random_range(4..10);
-        let mut authority = authority_setup(num_authorities, 0, starfish_speed);
+        let mut authority = authority_setup(num_authorities, 0);
 
         let include_leader_percentage = 100;
         let dag_builder = create_random_dag(
@@ -87,9 +85,8 @@ async fn test_randomized_dag_all_direct_commit(#[values(false, true)] starfish_s
 /// sequence will include Commit & Skip decisions and potentially will stop
 /// before coming to a decision on all waves as we may have an Undecided leader
 /// somewhere early in the sequence.
-#[rstest]
 #[tokio::test]
-async fn test_randomized_dag_and_decision_sequence(#[values(false, true)] starfish_speed: bool) {
+async fn test_randomized_dag_and_decision_sequence() {
     let mut random_test_setup = random_test_setup();
 
     for _ in 0..NUM_RUNS {
@@ -97,7 +94,7 @@ async fn test_randomized_dag_and_decision_sequence(#[values(false, true)] starfi
         let num_authorities = random_test_setup.seeded_rng.random_range(4..10);
 
         // Setup for Authority 1
-        let mut authority_1 = authority_setup(num_authorities, 1, starfish_speed);
+        let mut authority_1 = authority_setup(num_authorities, 1);
 
         let include_leader_percentage = 50;
         let dag_builder = create_random_dag(
@@ -151,7 +148,7 @@ async fn test_randomized_dag_and_decision_sequence(#[values(false, true)] starfi
         assert!(authority_1.block_manager.is_empty());
 
         // Setup for Authority 2
-        let mut authority_2 = authority_setup(num_authorities, 2, starfish_speed);
+        let mut authority_2 = authority_setup(num_authorities, 2);
 
         let mut all_blocks = dag_builder
             .block_headers
@@ -225,17 +222,10 @@ struct AuthorityTestFixture {
     block_manager: BlockManager,
 }
 
-fn authority_setup(
-    num_authorities: usize,
-    authority_index: u8,
-    starfish_speed: bool,
-) -> AuthorityTestFixture {
-    let mut context = Context::new_for_test(num_authorities)
+fn authority_setup(num_authorities: usize, authority_index: u8) -> AuthorityTestFixture {
+    let context = Context::new_for_test(num_authorities)
         .0
         .with_authority_index(AuthorityIndex::new_for_test(authority_index));
-    context
-        .protocol_config
-        .set_consensus_starfish_speed_for_testing(starfish_speed);
     let context = Arc::new(context);
     let leader_schedule = Arc::new(LeaderSchedule::new(
         context.clone(),

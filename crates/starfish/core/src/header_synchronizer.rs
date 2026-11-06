@@ -3107,7 +3107,6 @@ mod tests {
             let mut d = dag_state.write();
             for index in 1..=commit_index {
                 let commit = TrustedCommit::new_for_test(
-                    &context,
                     index,
                     CommitDigest::MIN,
                     0,
@@ -3221,7 +3220,6 @@ mod tests {
             let mut d = dag_state.write();
             for index in 1..=12u32 {
                 d.add_commit(TrustedCommit::new_for_test(
-                    &context,
                     index,
                     CommitDigest::MIN,
                     0,

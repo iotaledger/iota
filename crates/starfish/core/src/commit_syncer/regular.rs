@@ -1175,7 +1175,6 @@ mod tests {
             let leader_header_2 =
                 VerifiedBlockHeader::new_for_test(TestBlockHeader::new(2, 1).build());
             let commit_1 = TrustedCommit::new_for_test(
-                context,
                 1,
                 CommitDigest::MIN,
                 0,
@@ -1184,7 +1183,6 @@ mod tests {
                 vec![GenericTransactionRef::TransactionRef(transaction_refs[0])],
             );
             let commit_2 = TrustedCommit::new_for_test(
-                context,
                 2,
                 commit_1.digest(),
                 0,
