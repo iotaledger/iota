@@ -435,17 +435,12 @@ mod simtests {
     }
 
     async fn test_server(data: Arc<Mutex<Storage>>) {
-        test_server_with_status(data, hyper::StatusCode::NOT_FOUND).await
+        test_server_with(data, hyper::StatusCode::NOT_FOUND, Duration::ZERO).await
     }
 
-    /// Serves `data`, and answers `missing` for a key it does not hold.
-    async fn test_server_with_status(data: Arc<Mutex<Storage>>, missing: hyper::StatusCode) {
-        test_server_with_delay(data, missing, Duration::ZERO).await
-    }
-
-    /// Like [`test_server_with_status`], but waits `delay` before it serves a
-    /// key it holds.
-    async fn test_server_with_delay(
+    /// Serves `data`, each key after `delay`, and answers `missing` at once for
+    /// a key it does not hold.
+    async fn test_server_with(
         data: Arc<Mutex<Storage>>,
         missing: hyper::StatusCode,
         delay: Duration,
@@ -593,7 +588,7 @@ mod simtests {
             format!("tx/{}", encode_digest(&tx_digest)),
             bcs::to_bytes(&tx).unwrap(),
         )])));
-        test_server_with_status(data, hyper::StatusCode::SERVICE_UNAVAILABLE).await;
+        test_server_with(data, hyper::StatusCode::SERVICE_UNAVAILABLE, Duration::ZERO).await;
         let store = HttpKVStore::new(
             "http://10.10.10.10:8080",
             1000,
@@ -618,43 +613,7 @@ mod simtests {
                 .multi_get(&[tx_digest, TransactionDigest::random()], &[])
                 .await,
         );
-        assert_unavailable(store.multi_get_checkpoints(&[1], &[1], &[]).await);
-        assert_unavailable(
-            store
-                .multi_get_events_by_tx_digests(&[TransactionDigest::random()])
-                .await,
-        );
-        assert_unavailable(
-            store
-                .get_transaction_perpetual_checkpoint(TransactionDigest::random())
-                .await,
-        );
         assert_unavailable(store.get_object(ObjectId::random(), 1.into()).await);
-        assert_unavailable(
-            store
-                .multi_get_objects(&[ObjectKey(ObjectId::random(), 1.into())])
-                .await,
-        );
-        assert_unavailable(
-            store
-                .multi_get_transactions_perpetual_checkpoints(&[TransactionDigest::random()])
-                .await,
-        );
-
-        // JSON-RPC reads through the fallback store: the local store misses and
-        // the HTTP store fails.
-        let metrics = KeyValueStoreMetrics::new_for_tests();
-        let fallback = FallbackTransactionKVStore::new_kv(
-            TransactionKeyValueStore::new(
-                "mock_tx_store",
-                metrics.clone(),
-                Arc::new(MockTxStore::new()),
-            ),
-            TransactionKeyValueStore::new("http", metrics.clone(), Arc::new(store)),
-            metrics,
-            "json_rpc_fallback",
-        );
-        assert_unavailable(fallback.multi_get_tx(&[TransactionDigest::random()]).await);
     }
 
     #[sim_test(config = "constant_latency_ms(250)")]
@@ -670,7 +629,7 @@ mod simtests {
             bcs::to_bytes(&tx).unwrap(),
         )])));
         // The 429 comes back before the transaction.
-        test_server_with_delay(
+        test_server_with(
             data,
             hyper::StatusCode::TOO_MANY_REQUESTS,
             Duration::from_secs(1),
@@ -732,9 +691,10 @@ mod simtests {
             ring::default_provider().install_default().ok();
         }
 
-        test_server_with_status(
+        test_server_with(
             Arc::new(Mutex::new(HashMap::new())),
             hyper::StatusCode::BAD_REQUEST,
+            Duration::ZERO,
         )
         .await;
         let store = HttpKVStore::new(

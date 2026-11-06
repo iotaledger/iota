@@ -374,8 +374,12 @@ impl HttpKVStore {
         let fetches = stream::iter(uris_vec.into_iter().map(|url| self.fetch(url)));
         // Waits for every fetch, also after one fails, so that the others still
         // cache what they read for a retry.
-        let results: Vec<_> = fetches.buffered(uris.len()).collect().await;
-        results.into_iter().collect()
+        fetches
+            .buffered(uris.len())
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect()
     }
 
     /// Fetches one key, with `None` if the store does not have it.
@@ -435,12 +439,7 @@ impl HttpKVStore {
             // does not change.
             StatusCode::NOT_FOUND | StatusCode::BAD_REQUEST => Ok(None),
             status => {
-                // A retry does not help for a 4xx other than 429.
-                if status.is_client_error() && status != StatusCode::TOO_MANY_REQUESTS {
-                    error!("key-value store returned {status} for url: {url}");
-                } else {
-                    warn!("key-value store returned {status} for url: {url}");
-                }
+                warn!("key-value store returned {status} for url: {url}");
                 Err(IotaError::Storage(format!(
                     "key-value store returned {status} for {key:?}"
                 )))
