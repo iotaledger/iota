@@ -353,6 +353,14 @@ where
         transaction
             .validity_check(&epoch_store.tx_validity_check_context())
             .map_err(QuorumDriverError::InvalidTransaction)?;
+        // A dependency this fullnode already knows failed, or knows ran in an
+        // earlier epoch, can never let the transaction execute.
+        self.validator_state
+            .check_transaction_dependency_known_outcome(
+                transaction.data().transaction(),
+                epoch_store.epoch(),
+            )
+            .map_err(QuorumDriverError::InvalidTransaction)?;
 
         let (mut response, seq) =
             match (self.select_driver(&epoch_store)?, wait_for_local_execution) {
@@ -739,6 +747,14 @@ where
         // epoch's checks (e.g. its expiration epoch has passed).
         transaction
             .validity_check(&epoch_store.tx_validity_check_context())
+            .map_err(QuorumDriverError::InvalidTransaction)?;
+        // A dependency this fullnode already knows failed, or knows ran in an
+        // earlier epoch, can never let the transaction execute.
+        self.validator_state
+            .check_transaction_dependency_known_outcome(
+                transaction.data().transaction(),
+                epoch_store.epoch(),
+            )
             .map_err(QuorumDriverError::InvalidTransaction)?;
 
         match self.select_driver(&epoch_store)? {
