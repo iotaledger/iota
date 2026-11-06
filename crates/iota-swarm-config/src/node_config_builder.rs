@@ -20,7 +20,7 @@ use iota_config::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
         CheckpointExecutorConfig, ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis,
         GrpcApiConfig, KeyPairWithPath, RunWithRange, StateSnapshotConfig,
-        default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
+        default_enable_jsonrpc_api, default_end_of_epoch_broadcast_channel_capacity,
         default_full_checkpoint_contents_cache_size_mb,
     },
     p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
@@ -31,9 +31,7 @@ use iota_multiaddr::Multiaddr;
 use iota_names::config::IotaNamesConfig;
 use iota_protocol_config::Chain;
 use iota_types::{
-    crypto::{
-        AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair, network_to_simple_keypair,
-    },
+    crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair},
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::PolicyConfig,
 };
@@ -180,9 +178,9 @@ impl ValidatorConfigBuilder {
             ..Default::default()
         };
 
-        let mut pruning_config = AuthorityStorePruningConfig::default();
+        let mut pruning_config = local_network_pruning_config();
         if self.force_unpruned_checkpoints {
-            pruning_config.set_num_epochs_to_retain_for_checkpoints(None);
+            pruning_config.set_num_epochs_to_retain_for_checkpoints(Some(u64::MAX));
         }
         let pruning_config = pruning_config;
         let checkpoint_executor_config = CheckpointExecutorConfig {
@@ -192,13 +190,9 @@ impl ValidatorConfigBuilder {
 
         NodeConfig {
             authority_key_pair: AuthorityKeyPairWithPath::new(validator.authority_key_pair),
-            network_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
-                &validator.network_key_pair,
-            )),
+            network_key_pair: KeyPairWithPath::new(validator.network_key_pair.into()),
             account_key_pair: KeyPairWithPath::new(validator.account_key_pair),
-            protocol_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
-                &validator.protocol_key_pair,
-            )),
+            protocol_key_pair: KeyPairWithPath::new(validator.protocol_key_pair.into()),
             // A validator serves no JSON-RPC (`build_http_server` returns
             // early on one), so this address is never bound. It is derived
             // from the network address rather than picked, so that the same
@@ -215,7 +209,8 @@ impl ValidatorConfigBuilder {
             metrics_address: validator.metrics_address,
             admin_interface_address: validator.admin_interface_address,
             consensus_config: Some(consensus_config),
-            enable_index_processing: default_enable_index_processing(),
+            enable_jsonrpc_api: default_enable_jsonrpc_api(),
+            enable_index_processing: None,
             genesis: Genesis::new_empty(),
             migration_tx_data_path,
             grpc_load_shed: None,
@@ -237,7 +232,6 @@ impl ValidatorConfigBuilder {
             state_debug_dump_config: Default::default(),
             checkpoint_archive_config: None,
             state_snapshot_write_config: StateSnapshotConfig::default(),
-            indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: None,
             authority_overload_config: self.authority_overload_config.unwrap_or_default(),
@@ -245,7 +239,6 @@ impl ValidatorConfigBuilder {
             full_checkpoint_contents_cache_size_mb: default_full_checkpoint_contents_cache_size_mb(
             ),
             run_with_range: None,
-            jsonrpc_server_type: None,
             policy_config: self.policy_config,
             enable_validator_tx_finalizer: true,
             enable_soft_locking: true,
@@ -300,7 +293,10 @@ pub struct FullnodeConfigBuilder {
     policy_config: Option<PolicyConfig>,
     data_ingestion_dir: Option<PathBuf>,
     disable_pruning: bool,
+    num_epochs_to_retain_for_indexes: Option<u64>,
     iota_names_config: Option<IotaNamesConfig>,
+    /// Unset takes the node config's default.
+    enable_jsonrpc_api: Option<bool>,
     enable_grpc_api: bool,
     grpc_api_config: Option<GrpcApiConfig>,
     discovery_config: Option<DiscoveryConfig>,
@@ -405,10 +401,13 @@ impl FullnodeConfigBuilder {
 
     pub fn with_network_key_pair(mut self, network_key_pair: Option<NetworkKeyPair>) -> Self {
         if let Some(network_key_pair) = network_key_pair {
-            self.network_key_pair = Some(KeyPairWithPath::new(network_to_simple_keypair(
-                &network_key_pair,
-            )));
+            self.network_key_pair = Some(KeyPairWithPath::new(network_key_pair.into()));
         }
+        self
+    }
+
+    pub fn with_num_epochs_to_retain_for_indexes(mut self, epochs: Option<u64>) -> Self {
+        self.num_epochs_to_retain_for_indexes = epochs;
         self
     }
 
@@ -431,6 +430,13 @@ impl FullnodeConfigBuilder {
 
     pub fn with_iota_names_config(mut self, config: Option<IotaNamesConfig>) -> Self {
         self.iota_names_config = config;
+        self
+    }
+
+    /// A `FullNodeHandle` cannot be built with `false`, as it needs a JSON-RPC
+    /// client.
+    pub fn with_enable_jsonrpc_api(mut self, enable_jsonrpc_api: bool) -> Self {
+        self.enable_jsonrpc_api = Some(enable_jsonrpc_api);
         self
     }
 
@@ -530,7 +536,7 @@ impl FullnodeConfigBuilder {
                     })?;
                     Ok(SeedPeer {
                         peer_id: Some(anemo::PeerId(
-                            config.network_key_pair().public().0.to_bytes(),
+                            config.network_key_pair().public_key().into_bytes(),
                         )),
                         address,
                     })
@@ -592,21 +598,22 @@ impl FullnodeConfigBuilder {
             ..Default::default()
         };
 
-        let mut pruning_config = AuthorityStorePruningConfig::default();
+        let mut pruning_config = local_network_pruning_config();
+        if let Some(epochs) = self.num_epochs_to_retain_for_indexes {
+            pruning_config.num_epochs_to_retain_for_indexes = Some(epochs);
+        }
         if self.disable_pruning {
-            pruning_config.set_num_epochs_to_retain_for_checkpoints(None);
+            pruning_config.set_num_epochs_to_retain_for_checkpoints(Some(u64::MAX));
             pruning_config.set_num_epochs_to_retain(u64::MAX);
         };
 
         Ok(NodeConfig {
             authority_key_pair: AuthorityKeyPairWithPath::new(genesis_config.authority_key_pair),
             account_key_pair: KeyPairWithPath::new(genesis_config.account_key_pair),
-            protocol_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
-                &genesis_config.protocol_key_pair,
-            )),
-            network_key_pair: self.network_key_pair.unwrap_or(KeyPairWithPath::new(
-                network_to_simple_keypair(&genesis_config.network_key_pair),
-            )),
+            protocol_key_pair: KeyPairWithPath::new(genesis_config.protocol_key_pair.into()),
+            network_key_pair: self
+                .network_key_pair
+                .unwrap_or(KeyPairWithPath::new(genesis_config.network_key_pair.into())),
             db_path: self
                 .db_path
                 .unwrap_or(config_directory.join(FULL_NODE_DB_PATH).join(key_path)),
@@ -621,7 +628,10 @@ impl FullnodeConfigBuilder {
                 .unwrap_or(genesis_config.admin_interface_address),
             json_rpc_address,
             consensus_config: None,
-            enable_index_processing: default_enable_index_processing(),
+            enable_jsonrpc_api: self
+                .enable_jsonrpc_api
+                .unwrap_or_else(default_enable_jsonrpc_api),
+            enable_index_processing: None,
             genesis,
             migration_tx_data_path,
             grpc_load_shed: None,
@@ -643,12 +653,10 @@ impl FullnodeConfigBuilder {
             state_debug_dump_config: Default::default(),
             checkpoint_archive_config: None,
             state_snapshot_write_config: self.state_snapshot_write_config.unwrap_or_default(),
-            indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
             authority_overload_config: Default::default(),
             run_with_range: self.run_with_range,
-            jsonrpc_server_type: None,
             policy_config: self.policy_config,
             execution_cache_config: ExecutionCacheConfig::default(),
             full_checkpoint_contents_cache_size_mb: default_full_checkpoint_contents_cache_size_mb(
@@ -731,6 +739,18 @@ fn get_key_path(key_pair: &AuthorityKeyPair) -> String {
     key_path
 }
 
+/// The pruning config of the nodes of a local network (localnet, test
+/// clusters): the transaction, checkpoint and index history is kept in full,
+/// since such networks run short epochs that the operators' default retention
+/// would expire within minutes. Simulator tests keep their short retention.
+fn local_network_pruning_config() -> AuthorityStorePruningConfig {
+    let mut pruning_config = AuthorityStorePruningConfig::default();
+    if !cfg!(msim) {
+        pruning_config.set_num_epochs_to_retain_for_checkpoints(Some(u64::MAX));
+    }
+    pruning_config
+}
+
 #[cfg(test)]
 mod tests {
     use rand::{rand_core::UnwrapErr, rngs::SysRng};
@@ -797,5 +817,24 @@ mod tests {
 
         assert_eq!(config.admin_interface_address.to_string(), "127.0.0.1:1337");
         assert_eq!(config.metrics_address.to_string(), "127.0.0.1:9184");
+    }
+    /// `default()` and `new()` build the same JSON-RPC setting, the node
+    /// config's default, and `with_enable_jsonrpc_api` overrides it.
+    #[test]
+    fn every_builder_constructor_serves_json_rpc_unless_told_otherwise() {
+        let build = |builder: FullnodeConfigBuilder| {
+            let genesis_config = ValidatorGenesisConfigBuilder::new()
+                .with_ip("127.0.0.1".to_owned())
+                .build(&mut UnwrapErr(SysRng));
+            builder
+                .try_build_from_genesis_config(genesis_config, &[], Genesis::new_empty())
+                .unwrap()
+                .enable_jsonrpc_api
+        };
+        assert!(build(FullnodeConfigBuilder::default()));
+        assert!(build(FullnodeConfigBuilder::new()));
+        assert!(!build(
+            FullnodeConfigBuilder::new().with_enable_jsonrpc_api(false)
+        ));
     }
 }

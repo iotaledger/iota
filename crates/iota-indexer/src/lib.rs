@@ -7,7 +7,7 @@
 use anyhow::Result;
 use errors::IndexerError;
 use iota_grpc_client::GrpcClient;
-use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle, ServerType};
+use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle};
 use iota_metrics::spawn_monitored_task;
 use metrics::IndexerMetrics;
 use prometheus_filtered::Registry;
@@ -75,7 +75,7 @@ pub async fn build_json_rpc_server(
     ))?;
 
     let handle = builder
-        .start(config.rpc_address, None, ServerType::Http, Some(cancel))
+        .start(config.rpc_address, None, Some(cancel))
         .await?;
 
     Ok(handle)

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The oracle for P-COOL deterministic validation: the result a validator
+//! The oracle for P-COOL post-consensus validation: the result a validator
 //! with perfect knowledge gives at commit `C`, as a pure function of the
 //! consensus history and the epoch-start state. It knows nothing about
 //! execution progress, state sync, crashes, caches or pruning, which is what

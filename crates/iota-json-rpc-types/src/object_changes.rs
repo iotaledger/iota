@@ -345,3 +345,98 @@ impl Display for ObjectChange {
         }
     }
 }
+
+impl TryFrom<iota_sdk_types::ObjectChange> for ObjectChange {
+    type Error = anyhow::Error;
+
+    fn try_from(change: iota_sdk_types::ObjectChange) -> std::result::Result<Self, Self::Error> {
+        use iota_sdk_types::ObjectChange as SdkObjectChange;
+        Ok(match change {
+            SdkObjectChange::Published {
+                package_id,
+                version,
+                digest,
+                modules,
+            } => Self::Published {
+                package_id,
+                version,
+                digest,
+                modules,
+            },
+            SdkObjectChange::Mutated {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                previous_version,
+                digest,
+            } => Self::Mutated {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                previous_version,
+                digest,
+            },
+            SdkObjectChange::Deleted {
+                sender,
+                object_type,
+                object_id,
+                version,
+            } => Self::Deleted {
+                sender,
+                object_type,
+                object_id,
+                version,
+            },
+            SdkObjectChange::Wrapped {
+                sender,
+                object_type,
+                object_id,
+                version,
+            } => Self::Wrapped {
+                sender,
+                object_type,
+                object_id,
+                version,
+            },
+            SdkObjectChange::Unwrapped {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            } => Self::Unwrapped {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            },
+            SdkObjectChange::Created {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            } => Self::Created {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            },
+            _ => {
+                return Err(anyhow::anyhow!(
+                    "a new ObjectChange enum variant was added and needs to be handled"
+                ));
+            }
+        })
+    }
+}

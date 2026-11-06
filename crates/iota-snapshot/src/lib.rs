@@ -637,15 +637,24 @@ pub async fn setup_db_state(
     .unwrap();
     perpetual_db.set_epoch_start_configuration(&epoch_start_configuration)?;
     perpetual_db.insert_root_state_hash(epoch, last_checkpoint.sequence_number, state_hash)?;
-    perpetual_db.set_highest_pruned_checkpoint_without_wb(last_checkpoint.sequence_number)?;
+    // A restore holds only the live object set, writes no ledger rows, and
+    // puts its checkpoints in their epoch's bucket, so the one-time backlog
+    // passes have nothing to find.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove with the sweep.
+    perpetual_db.mark_object_backlog_swept()?;
+    // TODO(https://github.com/iotaledger/iota/issues/12763): remove with the migration.
+    perpetual_db.mark_ledger_backlog_migrated()?;
+    checkpoint_store.mark_checkpoint_backlog_migrated()?;
     committee_store.insert_new_committee(&next_epoch_committee)?;
     checkpoint_store.update_highest_executed_checkpoint(&last_checkpoint)?;
 
     if verify {
-        let iter = perpetual_db.iter_live_object_set();
+        let iter = perpetual_db
+            .iter_live_object_set()
+            .map(|live_object| live_object.map_err(Into::into));
         let local_digest = ECMHLiveObjectSetDigest::from(
             accumulate_live_object_iter(Box::new(iter), m.clone(), num_live_objects)
-                .await
+                .await?
                 .digest(),
         );
         assert_eq!(
@@ -661,10 +670,10 @@ pub async fn setup_db_state(
 }
 
 pub async fn accumulate_live_object_iter(
-    iter: Box<dyn Iterator<Item = LiveObject> + '_>,
+    iter: Box<dyn Iterator<Item = Result<LiveObject>> + '_>,
     m: MultiProgress,
     num_live_objects: u64,
-) -> GlobalStateHash {
+) -> Result<GlobalStateHash> {
     // Monitor progress of live object accumulation, whose position the ticker
     // takes from the counter the loop below advances
     let accum_counter = Arc::new(AtomicU64::new(0));
@@ -686,7 +695,7 @@ pub async fn accumulate_live_object_iter(
     // Accumulate live objects
     let mut acc = GlobalStateHash::default();
     for live_object in iter {
-        GlobalStateHasher::accumulate_live_object(&mut acc, &live_object);
+        GlobalStateHasher::accumulate_live_object(&mut acc, &live_object?);
         accum_counter.fetch_add(1, Ordering::Relaxed);
     }
     let num_accumulated = accum_counter.load(Ordering::Relaxed);
@@ -695,5 +704,5 @@ pub async fn accumulate_live_object_iter(
         "Accumulated more objects ({num_accumulated}) than expected ({num_live_objects})"
     );
     accum_ticker.finish_with_message("DB live object accumulation completed");
-    acc
+    Ok(acc)
 }

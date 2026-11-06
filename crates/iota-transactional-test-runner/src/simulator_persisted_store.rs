@@ -204,7 +204,7 @@ impl SimulatorStore for PersistedStore {
         iota_types::iota_system_state::get_iota_system_state(self).expect("system state must exist")
     }
 
-    fn get_clock(&self) -> iota_types::clock::Clock {
+    fn get_clock(&self) -> iota_sdk_move_types::iota_framework::clock::Clock {
         SimulatorStore::get_object(self, &ObjectId::CLOCK)
             .expect("clock should exist")
             .to_rust()
@@ -812,6 +812,15 @@ impl GrpcStateReader for PersistedStoreInnerReadOnlyWrapper {
 
     fn grpc_indexes(&self) -> Option<&dyn iota_node_storage::GrpcIndexes> {
         None
+    }
+
+    fn get_transaction_checkpoint(
+        &self,
+        _digest: &TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+        // This store keeps no digest-to-checkpoint mapping, and no
+        // transactional test exercises the gRPC checkpoint lookup.
+        Ok(None)
     }
 
     fn get_struct_layout(

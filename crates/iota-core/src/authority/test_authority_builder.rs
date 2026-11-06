@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, sync::Arc};
+use std::{collections::BTreeSet, path::PathBuf, sync::Arc};
 
 use fastcrypto::traits::KeyPair;
 use iota_config::{
@@ -29,9 +29,8 @@ use super::{
 };
 use crate::{
     authority::{
-        AuthorityState, AuthorityStore,
-        authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
+        AuthorityState, AuthorityStore, authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store_tables::AuthorityPerpetualTables,
         epoch_start_configuration::EpochStartConfiguration,
     },
     checkpoints::CheckpointStore,
@@ -39,10 +38,12 @@ use crate::{
         committee_store::CommitteeStore, epoch_metrics::EpochMetrics, randomness::RandomnessManager,
     },
     execution_cache::build_execution_cache,
-    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::IndexStore,
     mock_consensus::{ConsensusMode, MockConsensusClient},
     module_cache_metrics::ResolverMetrics,
+    rpc_indexes::{
+        RpcIndexesStore,
+        schema::{IndexGroup, RPC_INDEXES_DIR},
+    },
     signature_verifier::SignatureVerifierMetrics,
 };
 
@@ -68,6 +69,9 @@ pub struct TestAuthorityBuilder<'a> {
     cache_config: Option<ExecutionCacheConfig>,
     disable_execute_genesis_transactions: bool,
     chain_override: Option<Chain>,
+    num_epochs_to_retain: Option<u64>,
+    num_epochs_to_retain_for_checkpoints: Option<u64>,
+    num_epochs_to_retain_for_indexes: Option<u64>,
 }
 
 impl<'a> TestAuthorityBuilder<'a> {
@@ -181,6 +185,40 @@ impl<'a> TestAuthorityBuilder<'a> {
         self
     }
 
+    /// The number of historic epochs whose superseded object versions are
+    /// retained beyond the current one. `u64::MAX` retains all of them.
+    pub fn with_num_epochs_to_retain(mut self, num_epochs_to_retain: u64) -> Self {
+        assert!(
+            self.num_epochs_to_retain
+                .replace(num_epochs_to_retain)
+                .is_none()
+        );
+        self
+    }
+
+    /// The number of epochs of transaction and checkpoint history retained,
+    /// counting the epoch the node has last executed. Left unset, the
+    /// pruning config's own default applies.
+    pub fn with_num_epochs_to_retain_for_checkpoints(mut self, num_epochs_to_retain: u64) -> Self {
+        assert!(
+            self.num_epochs_to_retain_for_checkpoints
+                .replace(num_epochs_to_retain)
+                .is_none()
+        );
+        self
+    }
+
+    /// The number of epochs of RPC index history retained, counting the
+    /// epoch the node is in. Left unset, index pruning is off.
+    pub fn with_num_epochs_to_retain_for_indexes(mut self, num_epochs_to_retain: u64) -> Self {
+        assert!(
+            self.num_epochs_to_retain_for_indexes
+                .replace(num_epochs_to_retain)
+                .is_none()
+        );
+        self
+    }
+
     pub fn with_chain_override(mut self, chain: Chain) -> Self {
         self.chain_override = Some(chain);
         self
@@ -227,17 +265,22 @@ impl<'a> TestAuthorityBuilder<'a> {
             .unwrap_or_else(|| iota_common::tempdir().keep());
         let mut config = local_network_config.validator_configs()[0].clone();
         let registry = Registry::new();
+
         let authority_store = match self.store {
             Some(store) => store,
             None => {
-                let perpetual_tables_options = AuthorityPerpetualTablesOptions::default();
-                let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
-                    &storage_dir.join("store"),
-                    Some(perpetual_tables_options),
-                ));
                 // unwrap ok - for testing only.
+                let (perpetual_tables, historic_objects, historic_ledger, epoch_markers) =
+                    AuthorityPerpetualTables::open_with_historic_objects(
+                        &storage_dir.join("store"),
+                        None,
+                    )
+                    .unwrap();
                 AuthorityStore::open_with_committee_for_testing(
-                    perpetual_tables,
+                    Arc::new(perpetual_tables),
+                    Arc::new(historic_objects),
+                    Arc::new(historic_ledger),
+                    Arc::new(epoch_markers),
                     &genesis_committee,
                     genesis,
                 )
@@ -317,35 +360,39 @@ impl<'a> TestAuthorityBuilder<'a> {
                 &epoch_store,
             );
         }
-        let index_store = if self.disable_indexer {
+        let rpc_indexes_store = if self.disable_indexer {
             None
         } else {
-            Some(Arc::new(IndexStore::new(
-                storage_dir.join("indexes"),
-                &registry,
-                epoch_store
-                    .protocol_config()
-                    .max_move_identifier_len_as_option(),
-            )))
-        };
-        let grpc_indexes_store = if self.disable_indexer {
-            None
-        } else {
-            Some(Arc::new(
-                GrpcIndexesStore::new(
-                    storage_dir.join(GRPC_INDEXES_DIR),
-                    Arc::clone(&authority_store),
+            Some(
+                RpcIndexesStore::new(
+                    storage_dir.join(RPC_INDEXES_DIR),
+                    None,
+                    &registry,
+                    BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+                    epoch_store
+                        .protocol_config()
+                        .max_move_identifier_len_as_option(),
+                    self.num_epochs_to_retain_for_indexes,
+                    &authority_store,
                     &checkpoint_store,
+                    Arc::default(),
                 )
-                .await,
-            ))
+                .await
+                .expect("failed to open the RPC index store"),
+            )
         };
 
         let transaction_deny_config = self.transaction_deny_config.unwrap_or_default();
         let certificate_deny_config = self.certificate_deny_config.unwrap_or_default();
         let verifier_signing_config = self.verifier_signing_config.unwrap_or_default();
         let authority_overload_config = self.authority_overload_config.unwrap_or_default();
-        let pruning_config = AuthorityStorePruningConfig::default();
+        let mut pruning_config = AuthorityStorePruningConfig::default();
+        if let Some(num_epochs_to_retain) = self.num_epochs_to_retain {
+            pruning_config.set_num_epochs_to_retain(num_epochs_to_retain);
+        }
+        if let Some(num_epochs_to_retain) = self.num_epochs_to_retain_for_checkpoints {
+            pruning_config.set_num_epochs_to_retain_for_checkpoints(Some(num_epochs_to_retain));
+        }
 
         config.transaction_deny_config = transaction_deny_config;
         config.certificate_deny_config = certificate_deny_config;
@@ -364,15 +411,12 @@ impl<'a> TestAuthorityBuilder<'a> {
             cache_traits,
             epoch_store.clone(),
             committee_store,
-            index_store,
-            grpc_indexes_store,
+            rpc_indexes_store,
             checkpoint_store,
             &registry,
-            genesis.objects(),
             config.clone(),
             None,
             chain_identifier,
-            None,
             policy_config,
             None,
         )

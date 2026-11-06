@@ -195,9 +195,12 @@ impl StressTestRunner {
         for kind in effects.input_shared_objects() {
             let reference = kind.object_reference();
             let (obj_id, version) = (reference.object_id, reference.version);
+            // The input version may already have moved into the historic
+            // buckets, which this read falls back to.
             let object = state
-                .get_object_store()
-                .get_object_by_key(&obj_id, version)
+                .get_past_object_read(&obj_id, version)
+                .unwrap()
+                .into_object()
                 .unwrap();
             let struct_tag = object.struct_tag().unwrap();
             let total_iota =

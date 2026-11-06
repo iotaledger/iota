@@ -12,7 +12,7 @@ pub enum TypedStoreError {
     RocksDB(String),
     #[error("(de)serialization error: {0}")]
     Serialization(String),
-    #[error("the column family {0} was not registered with the database")]
+    #[error("column family {0} is not open")]
     UnregisteredColumn(String),
     #[error("a batch operation can't operate across databases")]
     CrossDBBatch,
@@ -20,4 +20,8 @@ pub enum TypedStoreError {
     MetricsReporting,
     #[error("Transaction should be retried")]
     RetryableTransaction,
+    /// The data the operation names has been pruned and will not come back.
+    /// The message says what the store still retains.
+    #[error("{0}")]
+    Pruned(String),
 }
