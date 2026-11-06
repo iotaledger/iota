@@ -18,9 +18,9 @@ use tokio::{
 };
 
 use super::{
-    Handle, PeerHeights, StateSync, StateSyncEventLoop, StateSyncMessage, StateSyncServer,
+    Handle, PeerHeights, StateSyncEventLoop, StateSyncMessage, StateSyncServer,
     metrics::Metrics,
-    server::{CheckpointContentsDownloadLimitLayer, Server},
+    server::{CheckpointContentsDownloadLimitLayer, Server, SizeLimitLayer},
 };
 
 pub struct Builder<S> {
@@ -92,7 +92,7 @@ impl<S> Builder<S>
 where
     S: WriteStore + Clone + Send + Sync + 'static,
 {
-    pub fn build(self) -> (UnstartedStateSync<S>, StateSyncServer<impl StateSync>) {
+    pub fn build(self) -> (UnstartedStateSync<S>, anemo::Router<anemo::ServicesSealed>) {
         let state_sync_config = self.config.clone().unwrap_or_default();
         let (mut builder, server) = self.build_internal();
         let mut state_sync_server = StateSyncServer::new(server);
@@ -137,7 +137,14 @@ where
                 .add_layer_for_get_checkpoint_contents(InboundRequestLayer::new(layer));
         }
 
-        (builder, state_sync_server)
+        let router = anemo::Router::new()
+            .add_rpc_service(state_sync_server)
+            // Size limit layer applied before deserialization.
+            .route_layer(SizeLimitLayer::new(
+                state_sync_config.max_checkpoint_summary_size(),
+            ));
+
+        (builder, router)
     }
 
     pub(super) fn build_internal(self) -> (UnstartedStateSync<S>, Server<S>) {
@@ -181,6 +188,7 @@ where
             peer_heights: peer_heights.clone(),
             sender: weak_sender,
             genesis_checkpoint: genesis_checkpoint.clone(),
+            max_checkpoint_lookahead: config.max_checkpoint_lookahead(),
         };
 
         (

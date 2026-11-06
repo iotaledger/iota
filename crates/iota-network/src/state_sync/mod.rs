@@ -264,6 +264,27 @@ impl PeerHeights {
         }
     }
 
+    /// Updates the peer's height without storing any checkpoint data.
+    /// Returns false if the peer doesn't exist or is not on the same chain.
+    pub fn update_peer_height(
+        &mut self,
+        peer_id: PeerId,
+        height: CheckpointSequenceNumber,
+        low_watermark: Option<CheckpointSequenceNumber>,
+    ) -> bool {
+        let info = match self.peers.get_mut(&peer_id) {
+            Some(info) if info.on_same_chain_as_us => info,
+            _ => return false,
+        };
+
+        info.height = std::cmp::max(height, info.height);
+        if let Some(low_watermark) = low_watermark {
+            info.lowest = low_watermark;
+        }
+
+        true
+    }
+
     pub fn mark_peer_as_not_on_same_chain(&mut self, peer_id: PeerId) {
         if let Some(info) = self.peers.get_mut(&peer_id) {
             info.on_same_chain_as_us = false;
@@ -304,11 +325,31 @@ impl PeerHeights {
         self.sequence_number_to_digest.shrink_to_fit();
     }
 
+    /// Inserts a checkpoint into the unprocessed checkpoints store.
+    /// Only one checkpoint per sequence number is stored. If a checkpoint with
+    /// the same sequence number but different digest already exists, the new
+    /// one is dropped.
     // TODO: also record who gives this checkpoint info for peer quality
     // measurement?
     pub fn insert_checkpoint(&mut self, checkpoint: Checkpoint) {
         let digest = *checkpoint.digest();
         let sequence_number = checkpoint.sequence_number();
+
+        // Check if we already have a checkpoint for this sequence number.
+        if let Some(existing_digest) = self.sequence_number_to_digest.get(&sequence_number) {
+            if *existing_digest == digest {
+                // Same checkpoint, nothing to do.
+                return;
+            }
+            tracing::info!(
+                ?sequence_number,
+                ?existing_digest,
+                ?digest,
+                "received checkpoint with same sequence number but different digest, dropping new checkpoint"
+            );
+            return;
+        }
+
         self.unprocessed_checkpoints.insert(digest, checkpoint);
         self.sequence_number_to_digest
             .insert(sequence_number, digest);
@@ -1358,7 +1399,7 @@ where
                 }
 
                 // Iterate through peers trying each one in turn until we're able to
-                // successfully get the target checkpoint
+                // successfully get the target checkpoint.
                 for mut peer in peers {
                     let request = Request::new(GetCheckpointSummaryRequest::BySequenceNumber(next))
                         .with_timeout(timeout);
@@ -1376,6 +1417,10 @@ where
                                 "peer returned checkpoint with wrong sequence number: expected {next}, got {}",
                                 checkpoint.sequence_number()
                             );
+                            peer_heights
+                                .write()
+                                .unwrap()
+                                .mark_peer_as_not_on_same_chain(peer.inner().peer_id());
                             continue;
                         }
 
