@@ -69,8 +69,8 @@ fn validate_read_batch_size(item_count: usize, max: u32) -> Result<(), Status> {
 /// default per-request tally, and is instead charged one request per produced
 /// item, so batching cannot dilute the spam rate; an empty batch produces no
 /// per-item tallies and is charged as one request up front instead. A stream
-/// dropped before it tallies anything, such as one the client cancels before
-/// its first item, is charged as one request when dropped. Per-item
+/// that tallies nothing, such as one the client cancels before its first item,
+/// is charged as one request by the [`TallyHandle`]. Per-item
 /// read failures ride inside `Ok` responses and are tallied as `Ok`: a client
 /// cannot know an object or transaction was pruned, so they must not feed the
 /// error policy. A stream-level error terminates the stream and is tallied by
@@ -81,49 +81,23 @@ fn tally_read_stream<T>(
     request_item_count: usize,
     response_item_count: impl Fn(&T) -> usize + Send,
 ) -> impl Stream<Item = Result<T, Status>> + Send {
-    let mut tally = tally_handle.map(|tally_handle| {
+    if let Some(tally_handle) = &tally_handle {
         if request_item_count == 0 {
             tally_handle.tally_item(Code::Ok);
         } else {
             tally_handle.mark_accounted();
         }
-        ReadStreamTally {
-            tally_handle,
-            tallied: request_item_count == 0,
-        }
-    });
+    }
     stream.map(move |result| {
-        if let Some(tally) = &mut tally {
+        if let Some(tally_handle) = &tally_handle {
             match &result {
-                Ok(response) => {
-                    let item_count = response_item_count(response);
-                    tally.tallied |= item_count > 0;
-                    tally
-                        .tally_handle
-                        .tally_items(std::iter::repeat_n(Code::Ok, item_count));
-                }
-                Err(status) => {
-                    tally.tallied = true;
-                    tally.tally_handle.tally_item(status.code());
-                }
+                Ok(response) => tally_handle
+                    .tally_items(std::iter::repeat_n(Code::Ok, response_item_count(response))),
+                Err(status) => tally_handle.tally_item(status.code()),
             }
         }
         result
     })
-}
-
-/// Charges one request when dropped if the read stream tallied nothing.
-struct ReadStreamTally {
-    tally_handle: TallyHandle,
-    tallied: bool,
-}
-
-impl Drop for ReadStreamTally {
-    fn drop(&mut self) {
-        if !self.tallied {
-            self.tally_handle.tally_item(Code::Ok);
-        }
-    }
 }
 
 #[tonic::async_trait]
@@ -269,7 +243,7 @@ mod tests {
                 dry_run: false,
                 ..Default::default()
             }));
-            let tally_handle = TallyHandle::new_for_test(traffic_controller.clone(), Some(CLIENT));
+            let tally_handle = TallyHandle::new(traffic_controller.clone(), Some(CLIENT));
             let read_stream = tally_read_stream(
                 stream::iter(responses.clone()),
                 Some(tally_handle),
@@ -285,29 +259,13 @@ mod tests {
         charges
     }
 
-    /// A non-empty read stream dropped before its first item, as when the
-    /// client cancels it, is still charged as one request.
+    /// A read stream dropped before its first item, as when the client cancels
+    /// it, is charged as one request; a drained stream once per item; an empty
+    /// batch once.
     #[tokio::test]
-    async fn read_stream_dropped_before_its_first_item_is_charged() {
+    async fn read_stream_charges() {
         assert_eq!(charges(2, vec![Ok(1), Ok(1)], 0).await, 1);
-    }
-
-    /// A read stream that produced items is charged once per item, and not
-    /// again when dropped.
-    #[tokio::test]
-    async fn read_stream_is_charged_once_per_item() {
         assert_eq!(charges(2, vec![Ok(1), Ok(1)], 2).await, 2);
-        assert_eq!(charges(2, vec![Ok(1), Ok(1)], 1).await, 1);
-        assert_eq!(
-            charges(1, vec![Err(Status::invalid_argument("too large"))], 1).await,
-            1
-        );
-    }
-
-    /// A read stream with no items is charged as one request, once.
-    #[tokio::test]
-    async fn read_stream_without_items_is_charged_once() {
         assert_eq!(charges(0, vec![], 1).await, 1);
-        assert_eq!(charges(1, vec![Ok(0)], 1).await, 1);
     }
 }

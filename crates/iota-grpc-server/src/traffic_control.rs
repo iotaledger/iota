@@ -6,12 +6,11 @@
 //!
 //! The layer extracts the client IP and tallies each request against the
 //! traffic controller, deriving the error weight from the response's gRPC
-//! status code. A request dropped before it is answered, such as one the client
-//! resets while its handler awaits, is tallied as one request without an error,
-//! unless its handler accounts for its items itself. A batch API's items are
-//! invisible at this level: their results ride in the response body — embedded
-//! in a unary response or produced lazily by a stream — while the layer only
-//! inspects the response status, so a batch
+//! status code. A request that nothing tallied, such as one the client resets
+//! while its handler awaits, is tallied as one request without an error once
+//! it ends. A batch API's items are invisible at this level: their results
+//! ride in the response body — embedded in a unary response or produced lazily
+//! by a stream — while the layer only inspects the response status, so a batch
 //! would count as a single request regardless of how many items it carries.
 //! Handlers report each item through the [`TallyHandle`] request extension: an
 //! item counts as one request for the spam policy, and a per-item client error
@@ -111,13 +110,6 @@ where
             }
         };
 
-        // A batch handler sets this through its `TallyHandle` once it has
-        // accounted for each item, so the layer skips its default
-        // one-tally-per-request accounting below.
-        let tally_handle = TallyHandle::new(traffic_controller.clone(), client);
-        let mut req = req;
-        req.extensions_mut().insert(tally_handle.clone());
-
         // Tower contract: `self.inner` is the ready one (poll_ready set it up),
         // so call it and leave the clone for the next request.
         let cloned = self.inner.clone();
@@ -128,42 +120,21 @@ where
                 return Ok(Status::resource_exhausted("Too many requests").into_http());
             }
 
-            let mut unanswered = UnansweredRequestTally {
-                tally_handle: tally_handle.clone(),
-                answered: false,
-            };
-            let result = inner.call(req).await;
-            unanswered.answered = true;
-            if let Ok(response) = &result {
-                // Batch handlers account for each embedded item themselves; only
-                // tally the request here when a handler didn't.
-                if !tally_handle.per_item_accounted() {
-                    let code =
-                        Status::from_header_map(response.headers()).map_or(Code::Ok, |s| s.code());
-                    tally(&traffic_controller, client, code);
-                }
+            // Created after the check, so a refused request is not charged.
+            let tally_handle = TallyHandle::new(traffic_controller, client);
+            let mut req = req;
+            req.extensions_mut().insert(tally_handle.clone());
+
+            let response = inner.call(req).await?;
+            // Batch handlers account for each embedded item themselves; only
+            // tally the request here when a handler didn't.
+            if !tally_handle.per_item_accounted() {
+                let code =
+                    Status::from_header_map(response.headers()).map_or(Code::Ok, |s| s.code());
+                tally_handle.tally(code);
             }
-            result
+            Ok(response)
         })
-    }
-}
-
-/// Charges one request when dropped before the inner service answered, unless a
-/// handler accounts for the request's items itself.
-struct UnansweredRequestTally {
-    tally_handle: TallyHandle,
-    answered: bool,
-}
-
-impl Drop for UnansweredRequestTally {
-    fn drop(&mut self) {
-        if !self.answered && !self.tally_handle.per_item_accounted() {
-            tally(
-                &self.tally_handle.traffic_controller,
-                self.tally_handle.client,
-                Code::Ok,
-            );
-        }
     }
 }
 
@@ -176,46 +147,52 @@ impl Drop for UnansweredRequestTally {
 /// carries. Reporting each item makes it count as one request for the spam
 /// policy and, on a client error, feeds the error policy — so batching cannot
 /// dilute a client's request rate or hide its errors.
+///
+/// If nothing tallied the request, it is charged as one request when the last
+/// copy of the handle is dropped. A copy kept past the request delays that
+/// charge.
 #[derive(Clone)]
-pub struct TallyHandle {
+pub struct TallyHandle(Arc<TallyState>);
+
+struct TallyState {
     traffic_controller: Arc<TrafficController>,
     client: Option<IpAddr>,
-    per_item_accounted: Arc<AtomicBool>,
+    per_item_accounted: AtomicBool,
+    tallied: AtomicBool,
+}
+
+impl Drop for TallyState {
+    fn drop(&mut self) {
+        if !*self.tallied.get_mut() {
+            tally(&self.traffic_controller, self.client, Code::Ok);
+        }
+    }
 }
 
 impl TallyHandle {
-    fn new(traffic_controller: Arc<TrafficController>, client: Option<IpAddr>) -> Self {
-        Self {
+    pub(crate) fn new(traffic_controller: Arc<TrafficController>, client: Option<IpAddr>) -> Self {
+        Self(Arc::new(TallyState {
             traffic_controller,
             client,
-            per_item_accounted: Arc::new(AtomicBool::new(false)),
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn new_for_test(
-        traffic_controller: Arc<TrafficController>,
-        client: Option<IpAddr>,
-    ) -> Self {
-        Self::new(traffic_controller, client)
+            per_item_accounted: AtomicBool::new(false),
+            tallied: AtomicBool::new(false),
+        }))
     }
 
     /// Whether a handler has accounted for this request's items itself, in
     /// which case the layer skips its default one-tally-per-request
     /// accounting.
     fn per_item_accounted(&self) -> bool {
-        self.per_item_accounted.load(Ordering::Relaxed)
+        self.0.per_item_accounted.load(Ordering::Relaxed)
     }
 
     /// Signal that the handler will account for this request's items itself, so
     /// the layer skips its default one-tally-per-request accounting. Call this
     /// when the per-item tallies happen later than the handler returns — e.g. a
     /// streaming handler that tallies each item as its response stream is
-    /// consumed, after the layer has already checked the flag. The handler must
-    /// then tally the request at least once, even if its stream is dropped
-    /// before it produces an item.
+    /// consumed, after the layer has already checked the flag.
     pub fn mark_accounted(&self) {
-        self.per_item_accounted.store(true, Ordering::Relaxed);
+        self.0.per_item_accounted.store(true, Ordering::Relaxed);
     }
 
     /// Account for one item of a batch response: count it as one request for
@@ -225,8 +202,8 @@ impl TallyHandle {
     /// Also signals the layer to skip its default per-request tally, so a batch
     /// is charged per item rather than once.
     pub fn tally_item(&self, code: Code) {
-        self.per_item_accounted.store(true, Ordering::Relaxed);
-        tally(&self.traffic_controller, self.client, code);
+        self.mark_accounted();
+        self.tally(code);
     }
 
     /// Account for each item of a batch response by its status code (see
@@ -235,6 +212,11 @@ impl TallyHandle {
         for code in codes {
             self.tally_item(code);
         }
+    }
+
+    fn tally(&self, code: Code) {
+        self.0.tallied.store(true, Ordering::Relaxed);
+        tally(&self.0.traffic_controller, self.0.client, code);
     }
 }
 
@@ -271,10 +253,7 @@ fn normalize(code: Code) -> Weight {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        convert::Infallible,
-        net::{IpAddr, Ipv4Addr, SocketAddr},
-    };
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     use futures::FutureExt;
     use iota_types::traffic_control::{PolicyConfig, PolicyType};
@@ -288,10 +267,8 @@ mod tests {
     #[derive(Clone, Copy)]
     enum Handler {
         Answers,
-        TalliesTwoItemsAndAnswers,
-        TalliesTwoItemsAndNeverAnswers,
         NeverAnswers,
-        MarksAccountedAndNeverAnswers,
+        Fails,
     }
 
     /// How many requests one request through the layer is charged for when it
@@ -310,26 +287,11 @@ mod tests {
             }));
             let service =
                 TrafficControlLayer::new(traffic_controller.clone(), ClientIdSource::SocketAddr)
-                    .layer(tower::service_fn(move |request: http::Request<()>| {
-                        let tally_handle = request.extensions().get::<TallyHandle>().cloned();
-                        async move {
-                            let tally_handle = tally_handle.unwrap();
-                            match handler {
-                                Handler::Answers => {}
-                                Handler::TalliesTwoItemsAndAnswers => {
-                                    tally_handle.tally_items([Code::Ok, Code::Ok])
-                                }
-                                Handler::TalliesTwoItemsAndNeverAnswers => {
-                                    tally_handle.tally_items([Code::Ok, Code::Ok]);
-                                    std::future::pending::<()>().await
-                                }
-                                Handler::NeverAnswers => std::future::pending::<()>().await,
-                                Handler::MarksAccountedAndNeverAnswers => {
-                                    tally_handle.mark_accounted();
-                                    std::future::pending::<()>().await
-                                }
-                            }
-                            Ok::<_, Infallible>(http::Response::new(()))
+                    .layer(tower::service_fn(move |_: http::Request<()>| async move {
+                        match handler {
+                            Handler::Answers => Ok(http::Response::new(())),
+                            Handler::NeverAnswers => std::future::pending().await,
+                            Handler::Fails => Err("failed"),
                         }
                     }));
             let mut request = http::Request::new(());
@@ -346,27 +308,12 @@ mod tests {
         charges
     }
 
-    /// A request dropped before it is answered, as when the client resets it
-    /// while its handler awaits, is charged as one request.
+    /// A request is charged once, whether it is answered, dropped while its
+    /// handler awaits, or failed by the inner service.
     #[tokio::test]
-    async fn a_request_dropped_before_it_is_answered_is_charged_once() {
-        assert_eq!(charges(Handler::NeverAnswers).await, 1);
-    }
-
-    /// An answered request is charged once, or once per item its handler
-    /// tallied.
-    #[tokio::test]
-    async fn an_answered_request_is_charged_once_or_per_item() {
+    async fn a_request_is_charged_once() {
         assert_eq!(charges(Handler::Answers).await, 1);
-        assert_eq!(charges(Handler::TalliesTwoItemsAndAnswers).await, 2);
-    }
-
-    /// A dropped request whose handler accounts for it itself, such as a read
-    /// stream or a batch that tallied its items, is not charged again by the
-    /// layer.
-    #[tokio::test]
-    async fn a_dropped_request_accounted_by_its_handler_is_not_charged_by_the_layer() {
-        assert_eq!(charges(Handler::MarksAccountedAndNeverAnswers).await, 0);
-        assert_eq!(charges(Handler::TalliesTwoItemsAndNeverAnswers).await, 2);
+        assert_eq!(charges(Handler::NeverAnswers).await, 1);
+        assert_eq!(charges(Handler::Fails).await, 1);
     }
 }
