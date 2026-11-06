@@ -23,7 +23,7 @@ use iota_types::{
     error::{IotaError, IotaResult},
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
-    transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
+    transaction::{SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction},
 };
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
@@ -1030,6 +1030,19 @@ impl SequencedConsensusTransactionKind {
     pub fn user_transaction_digest(&self) -> Option<TransactionDigest> {
         match self {
             SequencedConsensusTransactionKind::External(ext) => ext.kind.transaction_digest(),
+            SequencedConsensusTransactionKind::System(_) => None,
+        }
+    }
+
+    /// The transaction dependency of a user-originated transaction
+    /// (`CertifiedTransaction` and `UserTransactionV1`), or `None` for one
+    /// without it and for every other kind.
+    pub fn transaction_dependency(&self) -> Option<TransactionDigest> {
+        match self {
+            SequencedConsensusTransactionKind::External(ext) => ext
+                .kind
+                .as_sender_signed_transaction()
+                .and_then(|data| data.transaction().transaction_dependency()),
             SequencedConsensusTransactionKind::System(_) => None,
         }
     }

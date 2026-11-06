@@ -25,7 +25,9 @@ use iota_types::{
         TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
     },
     traffic_control::Weight,
-    transaction::{SenderSignedTransactionAPI, TransactionEnvelope},
+    transaction::{
+        SenderSignedTransactionAPI, TransactionAPI, TransactionEnvelope, VerifiedTransaction,
+    },
 };
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -117,6 +119,40 @@ const MAX_CONCURRENT_SUBMIT_TASKS: usize = 16;
 /// A single streamed item in a V2 RPC response. The `Weight` is the per-item
 /// spam-policy contribution decided by the producing code path.
 type TxUpdateItem = Result<((TransactionDigest, TxStatusUpdate), Weight), tonic::Status>;
+
+/// Admits a transaction with a transaction dependency input only with local
+/// evidence that its dependency exists: executed with success in this epoch,
+/// a root or deferred at a commit this validator processed, or submitted to
+/// consensus through this validator and still in flight. A dependency known
+/// to have failed, been dropped for good, or run in an earlier epoch is
+/// rejected for good; an unknown one with a retriable error. Local by
+/// design: post-consensus validation decides the same way on every validator.
+fn check_transaction_dependency_for_submission(
+    state: &AuthorityState,
+    epoch_store: &AuthorityPerEpochStore,
+    soft_locks: &PreConsensusSoftLocks,
+    transaction: &VerifiedTransaction,
+) -> IotaResult<()> {
+    let data = transaction.data().transaction();
+    let Some(digest) = data.transaction_dependency() else {
+        return Ok(());
+    };
+    state.check_transaction_dependency_known_outcome(data, epoch_store.epoch())?;
+    if state
+        .get_transaction_cache_reader()
+        .try_is_tx_already_executed(&digest)?
+        || epoch_store.root_commit_of(&digest)?.is_some()
+        || epoch_store.is_deferred_transaction(&digest)
+        || epoch_store.is_pending_consensus_user_transaction(&digest)?
+        || soft_locks.check_in_flight(&digest)
+    {
+        return Ok(());
+    }
+    if epoch_store.recorded_dropped_transaction(&digest).is_some() {
+        return Err(UserInputError::TransactionDependencyFailed { digest }.into());
+    }
+    Err(UserInputError::TransactionDependencyNotFound { digest }.into())
+}
 
 /// Whether admission checks the transaction's inputs against local state: that
 /// they load at the declared versions, pass the deny checks and get their soft
@@ -361,6 +397,18 @@ impl ValidatorService {
             let error = IotaError::ValidatorHaltedAtEpochEnd;
             let weight = normalize(&error);
             return (TxStatusUpdate::Rejected { error }, weight);
+        }
+
+        if checks_admitted_inputs() {
+            if let Err(e) = check_transaction_dependency_for_submission(
+                state,
+                epoch_store,
+                soft_locks,
+                &verified_tx,
+            ) {
+                let weight = normalize(&e);
+                return (TxStatusUpdate::Rejected { error: e }, weight);
+            }
         }
 
         // Deny-rule source for admission. With governance enabled, admission
