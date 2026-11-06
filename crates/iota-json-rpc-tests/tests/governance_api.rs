@@ -894,3 +894,34 @@ async fn get_validators_apy() {
     assert_eq!(apys.len(), 4);
     assert!(apys.iter().any(|apy| apy.apy == 0.0));
 }
+
+#[sim_test]
+async fn get_latest_iota_system_state_reports_protocol_config_validator_parameters() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let config = cluster.protocol_config();
+    let client = cluster.rpc_client();
+
+    let summary: IotaSystemStateSummary = client
+        .get_latest_iota_system_state_v2()
+        .await
+        .unwrap()
+        .into();
+    assert_eq!(summary.min_validator_count(), config.min_validator_count());
+    assert_eq!(summary.max_validator_count(), config.max_validator_count());
+    assert_eq!(
+        summary.min_validator_joining_stake(),
+        config.min_validator_joining_stake()
+    );
+    assert_eq!(
+        summary.validator_low_stake_threshold(),
+        config.validator_low_stake_threshold()
+    );
+    assert_eq!(
+        summary.validator_very_low_stake_threshold(),
+        config.validator_very_low_stake_threshold()
+    );
+    assert_eq!(
+        summary.validator_low_stake_grace_period(),
+        config.validator_low_stake_grace_period()
+    );
+}
