@@ -17,7 +17,10 @@
 //!   commit_interval` of the oldest drainable transactions leave it, and their slots and permits
 //!   are released;
 //! - the semaphore has as many permits as the hard limit, unless a scenario sets today's count,
-//!   `max_pending_transactions × 2 ÷ committee size`.
+//!   `max_pending_transactions × 2 ÷ committee size`;
+//! - arrivals come from a steady sender and, when a scenario adds one, a bursty sender that fires a
+//!   fixed number of transactions at once at a fixed offset after each commit, so the share each
+//!   sender gets in can be compared.
 //!
 //! The clock is tokio's paused clock: a simulated minute takes a fraction of
 //! a second, and the arrivals, with their digests, are the same in every run
@@ -132,6 +135,8 @@ struct Load {
     measured: Duration,
     /// A burst of extra arrivals in one instant, on top of the steady load.
     spike: Option<Spike>,
+    /// A second sender that fires bursts timed to the commits.
+    bursts: Option<Bursts>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -140,6 +145,19 @@ struct Spike {
     /// When the burst lands, measured from the end of the warm-up.
     at: Duration,
 }
+
+/// A sender that fires `size` transactions at once, `offset` after every
+/// commit.
+#[derive(Clone, Copy, Debug)]
+struct Bursts {
+    size: usize,
+    offset: Duration,
+}
+
+/// Senders, as indexes into the per-sender counts.
+const STEADY: usize = 0;
+const BURSTY: usize = 1;
+const SENDER_NAMES: [&str; 2] = ["steady", "bursty"];
 
 impl Load {
     fn steady(overload: f64) -> Self {
@@ -151,6 +169,7 @@ impl Load {
             warm_up: WARM_UP,
             measured: MEASURED,
             spike: None,
+            bursts: None,
         }
     }
 
@@ -159,8 +178,26 @@ impl Load {
         self
     }
 
+    fn with_bursts(mut self, size: usize, offset: Duration) -> Self {
+        self.bursts = Some(Bursts { size, offset });
+        self
+    }
+
+    fn with_commit_interval(mut self, commit_interval: Duration) -> Self {
+        self.commit_interval = commit_interval;
+        self
+    }
+
+    /// Arrivals per second from the bursty sender.
+    fn burst_rate(&self) -> f64 {
+        self.bursts.map_or(0.0, |bursts| {
+            bursts.size as f64 / self.commit_interval.as_secs_f64()
+        })
+    }
+
+    /// All arrivals against what consensus drains.
     fn overload(&self) -> f64 {
-        self.arrival_rate / self.drain_rate
+        (self.arrival_rate + self.burst_rate()) / self.drain_rate
     }
 
     /// Transactions one commit drains.
@@ -227,14 +264,38 @@ struct Simulation<'a> {
     window_end: Instant,
     queue: VecDeque<Entry<'a>>,
     next_index: u64,
-    /// Steady arrivals inside the window.
-    accepted: usize,
-    rejected: usize,
+    /// Arrivals inside the window, for each sender.
+    senders: [SenderCounts; 2],
     /// Time from admission to the commit that drained the transaction, for
-    /// steady arrivals accepted inside the window.
+    /// arrivals accepted inside the window.
     waits: Vec<Duration>,
     /// Queue length before and after each commit inside the window.
     samples: Vec<usize>,
+}
+
+/// What one sender's arrivals inside the window got.
+#[derive(Clone, Copy, Default)]
+struct SenderCounts {
+    accepted: usize,
+    rejected: usize,
+}
+
+impl SenderCounts {
+    fn record(&mut self, accepted: bool) {
+        if accepted {
+            self.accepted += 1;
+        } else {
+            self.rejected += 1;
+        }
+    }
+
+    fn arrivals(&self) -> usize {
+        self.accepted + self.rejected
+    }
+
+    fn accept_share(&self) -> f64 {
+        self.accepted as f64 / self.arrivals() as f64
+    }
 }
 
 impl Simulation<'_> {
@@ -326,11 +387,17 @@ struct Outcome {
     spike_accepted: Option<usize>,
     /// Increase of each `transaction_overload_sources` label during the run.
     rejections: Vec<(&'static str, u64)>,
+    /// Each sender's arrivals inside the window, in `SENDER_NAMES` order.
+    senders: [SenderCounts; 2],
 }
 
 impl Outcome {
     fn reject_fraction(&self) -> f64 {
         self.rejected as f64 / (self.accepted + self.rejected) as f64
+    }
+
+    fn sender(&self, index: usize) -> SenderCounts {
+        self.senders[index]
     }
 
     fn rejections_labelled(&self, label: &str) -> u64 {
@@ -353,8 +420,17 @@ impl Outcome {
             .map(|(label, count)| format!("{label}={count}"))
             .collect::<Vec<_>>()
             .join(" ");
+        let shares = if self.sender(BURSTY).arrivals() > 0 {
+            format!(
+                "  accepted share: steady {:.1}%, bursty {:.1}%",
+                self.sender(STEADY).accept_share() * 100.0,
+                self.sender(BURSTY).accept_share() * 100.0,
+            )
+        } else {
+            String::new()
+        };
         info!(
-            "{:<28} reject {:>5.1}%  accepted {:>6.0}/s  queue mean {:>6.1} (min {:>4}, max {:>4})  wait mean {:.3} s, p50 {:.3} s, p99 {:.3} s{}  [{}]",
+            "{:<28} reject {:>5.1}%  accepted {:>6.0}/s  queue mean {:>6.1} (min {:>4}, max {:>4})  wait mean {:.3} s, p50 {:.3} s, p99 {:.3} s{}{}  [{}]",
             self.policy.name,
             self.reject_fraction() * 100.0,
             self.accepted_rate,
@@ -365,6 +441,7 @@ impl Outcome {
             self.wait_p50.as_secs_f64(),
             self.wait_p99.as_secs_f64(),
             spike,
+            shares,
             rejections,
         );
     }
@@ -432,6 +509,10 @@ async fn run(
 
     let mut arrivals = interval_at(start, Duration::from_secs_f64(1.0 / load.arrival_rate));
     let mut commits = interval_at(start + load.commit_interval, load.commit_interval);
+    // The bursty sender fires `offset` after every commit.
+    let mut bursts = load
+        .bursts
+        .map(|bursts| interval_at(start + bursts.offset, load.commit_interval));
 
     let mut sim = Simulation {
         state,
@@ -442,8 +523,7 @@ async fn run(
         window_end,
         queue: VecDeque::new(),
         next_index: 0,
-        accepted: 0,
-        rejected: 0,
+        senders: [SenderCounts::default(); 2],
         waits: Vec::new(),
         samples: Vec::new(),
     };
@@ -451,12 +531,26 @@ async fn run(
     let mut now = start;
     while now < window_end {
         tokio::select! {
-            // A commit and an arrival at the same instant: the commit frees
-            // room first.
+            // At the same instant, a commit frees room first, then the burst
+            // lands, then the steady sender's arrival.
             biased;
             tick = commits.tick() => {
                 now = tick;
                 sim.commit(now);
+            }
+            tick = async { bursts.as_mut().expect("checked by the precondition").tick().await },
+                if bursts.is_some() =>
+            {
+                now = tick;
+                if now < window_end {
+                    let measured = now >= window_start;
+                    for _ in 0..load.bursts.expect("checked by the precondition").size {
+                        let accepted = sim.admit(now, measured);
+                        if measured {
+                            sim.senders[BURSTY].record(accepted);
+                        }
+                    }
+                }
             }
             tick = arrivals.tick() => {
                 now = tick;
@@ -468,12 +562,9 @@ async fn run(
                 }
                 if now < window_end {
                     let measured = now >= window_start;
-                    if sim.admit(now, measured) {
-                        if measured {
-                            sim.accepted += 1;
-                        }
-                    } else if measured {
-                        sim.rejected += 1;
+                    let accepted = sim.admit(now, measured);
+                    if measured {
+                        sim.senders[STEADY].record(accepted);
                     }
                 }
             }
@@ -488,12 +579,13 @@ async fn run(
     }
 
     let Simulation {
-        accepted,
-        rejected,
+        senders,
         mut waits,
         samples,
         ..
     } = sim;
+    let accepted: usize = senders.iter().map(|sender| sender.accepted).sum();
+    let rejected: usize = senders.iter().map(|sender| sender.rejected).sum();
     assert_eq!(
         adapter.num_inflight_transactions(),
         0,
@@ -527,6 +619,7 @@ async fn run(
         wait_p99: percentile(0.99),
         spike_accepted,
         rejections,
+        senders,
     }
 }
 
@@ -829,5 +922,74 @@ async fn todays_permit_count_leaves_both_policies_idle() {
             graduated_outcome.wait_mean.as_secs_f64(),
             0.02 * graduated_outcome.wait_mean.as_secs_f64(),
         );
+    }
+}
+
+/// Under the binary cutoff, which sender gets in depends on when it sends
+/// relative to the commits: a burst just after a commit takes the room the
+/// commit freed, and a burst late in the cycle finds none. Under graduated
+/// shedding every sender gets the same share, whatever its timing.
+///
+/// Commits come every 20 ms here, so one commit is 4% of the ramp between the
+/// soft and the hard limit, as in production (2 to 10%). At the default
+/// 100 ms one commit is 20% of the ramp, and the rejection rate a burst meets
+/// would swing with its phase by that much.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn graduated_shedding_shares_rejections_evenly_across_senders() {
+    telemetry_subscribers::init_for_testing();
+    let state = TestAuthorityBuilder::new().build().await;
+    let factory = TransactionFactory::new();
+    let graduated = Policy::graduated("graduated, soft 50%", HARD_LIMIT, SOFT_LIMIT_PCT);
+    let binary = Policy::binary("binary at the cap", HARD_LIMIT);
+
+    // The steady sender alone matches the drain rate; the bursty one adds a
+    // quarter of it, so the two together are 1.25x overload.
+    let commit_interval = Duration::from_millis(20);
+    let burst_size = 5;
+    for (phase, offset, bursty_first) in [
+        ("just after each commit", Duration::from_millis(2), true),
+        ("late in each cycle", Duration::from_millis(19), false),
+    ] {
+        let load = Load::steady(1.0)
+            .with_commit_interval(commit_interval)
+            .with_bursts(burst_size, offset);
+        info!(
+            "bursts of {burst_size} {phase}, commits every {commit_interval:?}, {:.2}× overload in total",
+            load.overload(),
+        );
+        let binary_outcome = run(&state, &factory, binary, load).await;
+        let graduated_outcome = run(&state, &factory, graduated, load).await;
+        binary_outcome.log();
+        graduated_outcome.log();
+
+        assert_rejects_the_excess(&binary_outcome, load);
+        assert_rejects_the_excess(&graduated_outcome, load);
+
+        // Graduated shedding: each sender gets the share everyone gets.
+        let overall = 1.0 / load.overload();
+        for (index, name) in SENDER_NAMES.iter().enumerate() {
+            assert_close(
+                &format!("graduated, bursts {phase}, {name} sender: accepted share"),
+                graduated_outcome.sender(index).accept_share(),
+                overall,
+                0.05,
+            );
+        }
+
+        // The binary cutoff: the room a commit frees goes to whoever arrives
+        // first, so the bursty sender gets everything or almost nothing.
+        let steady = binary_outcome.sender(STEADY).accept_share();
+        let bursty = binary_outcome.sender(BURSTY).accept_share();
+        if bursty_first {
+            assert!(
+                bursty >= 0.95 && steady <= 0.80,
+                "binary, bursts {phase}: bursty sender got {bursty:.2}, steady sender {steady:.2}; expected the bursts to take the freed room",
+            );
+        } else {
+            assert!(
+                bursty <= 0.30 && steady >= 0.90,
+                "binary, bursts {phase}: bursty sender got {bursty:.2}, steady sender {steady:.2}; expected the bursts to find the queue full",
+            );
+        }
     }
 }
