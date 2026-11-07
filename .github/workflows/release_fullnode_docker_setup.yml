@@ -32,21 +32,23 @@ jobs:
       - name: Clean up and validate ref and networks to build and create artifacts
         id: ref
         shell: bash
+        env:
+          IOTA_BRANCH: ${{ inputs.iota_branch }}
+          RELEASE_NAME: ${{ github.event.release.name }}
         run: |
           # Manual dispatch on a branch ref
           if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
-            echo "iota_ref=${{ inputs.iota_branch }}" >> $GITHUB_OUTPUT
+            echo "iota_ref=${IOTA_BRANCH}" >> $GITHUB_OUTPUT
             echo 'iota_networks=["mainnet","testnet","devnet"]' >> $GITHUB_OUTPUT
             echo "upload_artifacts=true" >> $GITHUB_OUTPUT
 
           # Release builds on a tag ref
           elif [ "$GITHUB_EVENT_NAME" == "release" ]; then
-            export iota_ref=$(echo ${{ github.ref }} | sed s/'refs\/tags\/'// )
+            export iota_ref=$(echo "${GITHUB_REF}" | sed s/'refs\/tags\/'// )
             echo "iota_ref=${iota_ref}" >> $GITHUB_OUTPUT
 
             # Check if the release name starts with a network tag
-            release_name="${{ github.event.release.name }}"
-            release_name_lower=$(echo "$release_name" | tr '[:upper:]' '[:lower:]')
+            release_name_lower=$(echo "$RELEASE_NAME" | tr '[:upper:]' '[:lower:]')
 
             if [[ "$release_name_lower" == "[mainnet]"* ]]; then
               echo 'iota_networks=["mainnet"]' >> $GITHUB_OUTPUT
@@ -91,10 +93,11 @@ jobs:
 
       - name: Set variables
         id: vars
+        env:
+          IOTA_REF: ${{ needs.determine-ref-and-networks.outputs.iota_ref }}
         run: |
           # replace potential slashes in the ref with dashes, so we can use it in the folder name and archive name
-          raw_ref="${{ needs.determine-ref-and-networks.outputs.iota_ref }}"
-          safe_ref="${raw_ref//\//-}"  # Replace all slashes with dashes
+          safe_ref="${IOTA_REF//\//-}"  # Replace all slashes with dashes
 
           export work_dir="${{ env.TMP_BUILD_DIR }}/fullnode-docker-setup_${{ matrix.network }}-${safe_ref}"
           export target_dir="${{ env.TMP_BUILD_DIR }}/archive_fullnode-docker-setup_${{ matrix.network }}-${safe_ref}"
@@ -104,29 +107,40 @@ jobs:
           echo "archive_name=$archive_name" >> $GITHUB_OUTPUT
 
       - name: Create working folder and data/config subfolder
+        env:
+          WORK_DIR: ${{ steps.vars.outputs.work_dir }}
+          TARGET_DIR: ${{ steps.vars.outputs.target_dir }}
         run: |
-          mkdir -p ${{ steps.vars.outputs.work_dir }}/data/config
-          mkdir -p ${{ steps.vars.outputs.target_dir }}
+          mkdir -p "${WORK_DIR}/data/config"
+          mkdir -p "${TARGET_DIR}"
 
       - name: Copy fullnode docker files
+        env:
+          WORK_DIR: ${{ steps.vars.outputs.work_dir }}
         run: |
           cp setups/fullnode/fullnode-${{ matrix.network }}.yaml \
-             ${{ steps.vars.outputs.work_dir }}/data/config/fullnode.yaml
+             "${WORK_DIR}/data/config/fullnode.yaml"
           cp setups/fullnode/docker/prepare_${{ matrix.network }}.sh \
-             ${{ steps.vars.outputs.work_dir }}/prepare.sh
+             "${WORK_DIR}/prepare.sh"
           cp setups/fullnode/docker/docker-compose.yaml \
-             ${{ steps.vars.outputs.work_dir }}/docker-compose.yaml
+             "${WORK_DIR}/docker-compose.yaml"
 
       - name: Replace docker image placeholder
+        env:
+          WORK_DIR: ${{ steps.vars.outputs.work_dir }}
         run: |
           sed -i "s|iotaledger/iota-node:_network_placeholder_|iotaledger/iota-node:${{ matrix.network }}|g" \
-              ${{ steps.vars.outputs.work_dir }}/docker-compose.yaml
+              "${WORK_DIR}/docker-compose.yaml"
 
       - name: Archive artifact
         shell: bash
+        env:
+          WORK_DIR: ${{ steps.vars.outputs.work_dir }}
+          TARGET_DIR: ${{ steps.vars.outputs.target_dir }}
+          ARCHIVE_NAME: ${{ steps.vars.outputs.archive_name }}
         run: |
-          tar -cvzf ${{ steps.vars.outputs.target_dir }}/${{ steps.vars.outputs.archive_name }} \
-              -C ${{ steps.vars.outputs.work_dir }} .
+          tar -cvzf "${TARGET_DIR}/${ARCHIVE_NAME}" \
+              -C "${WORK_DIR}" .
 
       - name: Upload artifact to workflow run
         if: github.event_name != 'release'
