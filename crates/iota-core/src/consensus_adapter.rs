@@ -32,7 +32,7 @@ use iota_types::{
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
 };
 use itertools::Itertools;
-use parking_lot::RwLockReadGuard;
+use parking_lot::{Mutex, RwLockReadGuard};
 use prometheus_filtered::{
     Histogram, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, MetricLevel, Registry,
     register_histogram_vec_with_registry, register_histogram_with_registry,
@@ -65,6 +65,27 @@ const SEQUENCING_CERTIFICATE_POSITION_BUCKETS: &[f64] = &[
     0., 1., 2., 3., 5., 10., 15., 20., 25., 30., 50., 100., 150., 200.,
 ];
 
+/// Consensus queue length as a percentage of `max_pending_transactions`.
+/// Finer between 50% and 70%, where graduated shedding settles under mild
+/// overload at the default soft limit.
+const CONSENSUS_QUEUE_FILL_PCT_BUCKETS: &[f64] = &[
+    5., 10., 15., 20., 25., 30., 35., 40., 45., 50., 52.5, 55., 57.5, 60., 62.5, 65., 67.5, 70.,
+    75., 80., 85., 90., 95., 97.5, 100., 102.5, 105., 110., 125., 150., 200.,
+];
+
+/// Number of consecutive admission decisions with the same outcome.
+const ADMISSION_STRETCH_LENGTH_BUCKETS: &[f64] = &[
+    1., 2., 3., 5., 10., 20., 50., 100., 200., 500., 1_000., 2_000., 5_000., 10_000., 20_000.,
+    50_000.,
+];
+
+/// Time from the first to the last of consecutive admission decisions with
+/// the same outcome, in seconds. A stretch of one decision takes no time.
+const ADMISSION_STRETCH_DURATION_SEC_BUCKETS: &[f64] = &[
+    0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1., 2.5, 5.,
+    10., 30., 60.,
+];
+
 pub struct ConsensusAdapterMetrics {
     // Certificate sequencing metrics
     pub sequencing_certificate_attempt: IntCounterVec,
@@ -95,6 +116,25 @@ pub struct ConsensusAdapterMetrics {
     pub sequencing_submit_pre_acquire_duration: Histogram,
     pub sequencing_estimated_latency: IntGauge,
     pub sequencing_resubmission_interval_ms: IntGauge,
+    /// The load shedding settings the adapter was built with, by `setting`:
+    /// `max_pending_transactions`, `soft_limit_pct`, `saturation_pct`,
+    /// `submit_permits`, and `semaphore_shedding_enabled` as 1 or 0.
+    pub consensus_queue_settings: IntGaugeVec,
+    /// The consensus queue length each P-COOL admission decision was judged
+    /// against, as a percentage of `max_pending_transactions`, by `outcome`:
+    /// `accepted` or `rejected` by the consensus queue checks.
+    pub consensus_queue_fill_at_admission: HistogramVec,
+    /// The number of consecutive P-COOL admission decisions with the same
+    /// outcome at the consensus queue checks, by that `outcome`. A stretch
+    /// is recorded when a decision with the other outcome ends it.
+    pub consensus_queue_admission_stretch_length: HistogramVec,
+    /// The time from the first to the last decision of such a stretch, in
+    /// seconds, by `outcome`.
+    pub consensus_queue_admission_stretch_duration: HistogramVec,
+    /// The time a P-COOL user transaction held the slot in the consensus
+    /// queue it took at admission, until the slot was released, by `tx_type`
+    /// and `processed_method`.
+    pub consensus_queue_wait_since_admission: HistogramVec,
 }
 
 impl ConsensusAdapterMetrics {
@@ -233,6 +273,54 @@ impl ConsensusAdapterMetrics {
             sequencing_resubmission_interval_ms: register_int_gauge_with_registry!(
                 "sequencing_resubmission_interval_ms",
                 "Resubmission interval used by consensus adapter in milliseconds",
+                registry,
+            )
+            .unwrap(),
+            consensus_queue_settings: register_int_gauge_vec_with_registry!(
+                "consensus_queue_settings",
+                "Load shedding settings the consensus adapter was built with: \
+                 max_pending_transactions, soft_limit_pct, saturation_pct, \
+                 submit_permits, and semaphore_shedding_enabled as 1 or 0.",
+                &["setting"],
+                registry,
+            )
+            .unwrap(),
+            consensus_queue_fill_at_admission: register_histogram_vec_with_registry!(
+                "consensus_queue_fill_at_admission",
+                "Consensus queue length each P-COOL admission decision was \
+                 judged against, as a percentage of max_pending_transactions, \
+                 by the outcome of the consensus queue checks.",
+                &["outcome"],
+                CONSENSUS_QUEUE_FILL_PCT_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            consensus_queue_admission_stretch_length: register_histogram_vec_with_registry!(
+                "consensus_queue_admission_stretch_length",
+                "Number of consecutive P-COOL admission decisions with the same \
+                 outcome at the consensus queue checks, recorded when a \
+                 decision with the other outcome ends the stretch.",
+                &["outcome"],
+                ADMISSION_STRETCH_LENGTH_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            consensus_queue_admission_stretch_duration: register_histogram_vec_with_registry!(
+                "consensus_queue_admission_stretch_duration",
+                "Time from the first to the last of consecutive P-COOL \
+                 admission decisions with the same outcome at the consensus \
+                 queue checks, in seconds.",
+                &["outcome"],
+                ADMISSION_STRETCH_DURATION_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            consensus_queue_wait_since_admission: register_histogram_vec_with_registry!(
+                "consensus_queue_wait_since_admission",
+                "Time a P-COOL user transaction held the slot in the consensus \
+                 queue it took at admission, until the slot was released.",
+                &["tx_type", "processed_method"],
+                LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -376,6 +464,11 @@ pub struct ConsensusAdapter {
     /// The submit path still awaits a permit, so the semaphore keeps capping
     /// concurrent submissions. Set via `ConsensusConfig`.
     semaphore_shedding_enabled: bool,
+
+    /// The stretch of admission decisions with the same outcome that the
+    /// latest decision belongs to; see
+    /// [`ConsensusAdapter::record_admission_outcome()`].
+    admission_stretch: Mutex<Option<AdmissionStretch>>,
 }
 
 pub trait CheckConnection: Send + Sync {
@@ -415,6 +508,28 @@ impl ConsensusAdapter {
         let num_inflight_transactions = Default::default();
         let low_scoring_authorities =
             ArcSwap::from_pointee(Arc::new(ArcSwap::from_pointee(HashMap::new())));
+        for (setting, value) in [
+            ("max_pending_transactions", max_pending_transactions as i64),
+            (
+                "soft_limit_pct",
+                graduated_load_shedding_soft_limit_pct as i64,
+            ),
+            (
+                "saturation_pct",
+                graduated_load_shedding_saturation_pct as i64,
+            ),
+            ("submit_permits", max_pending_local_submissions as i64),
+            (
+                "semaphore_shedding_enabled",
+                semaphore_shedding_enabled as i64,
+            ),
+        ] {
+            metrics
+                .consensus_queue_settings
+                .with_label_values(&[setting])
+                .set(value);
+        }
+
         Self {
             consensus_client,
             checkpoint_store,
@@ -431,6 +546,7 @@ impl ConsensusAdapter {
             graduated_load_shedding_soft_limit_pct,
             graduated_load_shedding_saturation_pct,
             semaphore_shedding_enabled,
+            admission_stretch: Mutex::new(None),
         }
     }
 
@@ -796,6 +912,59 @@ impl ConsensusAdapter {
         InflightSlot {
             adapter: self.clone(),
             queue_length_before,
+            taken_at: Instant::now(),
+        }
+    }
+
+    /// Records one P-COOL admission decision at the consensus queue checks,
+    /// judged against `queue_length` other transactions in the queue:
+    /// in [`ConsensusAdapterMetrics::consensus_queue_fill_at_admission`] at
+    /// once, and in the stretch metrics when its outcome differs from the
+    /// previous decision's, which ends the previous stretch.
+    pub(crate) fn record_admission_outcome(&self, queue_length: usize, accepted: bool) {
+        let outcome_label = |accepted: bool| if accepted { "accepted" } else { "rejected" };
+        let fill_pct = queue_length as f64 * 100.0 / self.max_pending_transactions.max(1) as f64;
+        self.metrics
+            .consensus_queue_fill_at_admission
+            .with_label_values(&[outcome_label(accepted)])
+            .observe(fill_pct);
+
+        let ended = {
+            let mut current = self.admission_stretch.lock();
+            // Taken under the lock, so the decisions of a stretch are timed in
+            // the order they joined it.
+            let now = Instant::now();
+            if let Some(stretch) = current
+                .as_mut()
+                .filter(|stretch| stretch.accepted == accepted)
+            {
+                stretch.decisions += 1;
+                stretch.last_at = now;
+                None
+            } else {
+                current.replace(AdmissionStretch {
+                    accepted,
+                    decisions: 1,
+                    first_at: now,
+                    last_at: now,
+                })
+            }
+        };
+        if let Some(stretch) = ended {
+            let outcome = outcome_label(stretch.accepted);
+            self.metrics
+                .consensus_queue_admission_stretch_length
+                .with_label_values(&[outcome])
+                .observe(stretch.decisions as f64);
+            self.metrics
+                .consensus_queue_admission_stretch_duration
+                .with_label_values(&[outcome])
+                .observe(
+                    stretch
+                        .last_at
+                        .saturating_duration_since(stretch.first_at)
+                        .as_secs_f64(),
+                );
         }
     }
 
@@ -1552,6 +1721,19 @@ impl<T> Drop for CancelOnDrop<T> {
 pub(crate) struct InflightSlot {
     adapter: Arc<ConsensusAdapter>,
     queue_length_before: u64,
+    /// When the slot was taken.
+    taken_at: Instant,
+}
+
+/// Consecutive P-COOL admission decisions with the same outcome at the
+/// consensus queue checks.
+struct AdmissionStretch {
+    /// Whether the consensus queue checks accepted these decisions'
+    /// transactions.
+    accepted: bool,
+    decisions: u64,
+    first_at: Instant,
+    last_at: Instant,
 }
 
 impl InflightSlot {
@@ -1577,6 +1759,8 @@ struct InflightDropGuard<'a> {
     /// The transaction's [`InflightSlot`], released first when the guard
     /// drops.
     slot: Option<InflightSlot>,
+    /// When the slot was taken, if the transaction took it at admission.
+    admitted_at: Option<Instant>,
     start: Instant,
     position: Option<usize>,
     positions_moved: Option<usize>,
@@ -1600,6 +1784,7 @@ impl<'a> InflightDropGuard<'a> {
         tx_type: &'static str,
         slot: Option<InflightSlot>,
     ) -> Self {
+        let admitted_at = slot.as_ref().map(|slot| slot.taken_at);
         let slot = slot.unwrap_or_else(|| adapter.reserve_inflight_slot());
         adapter
             .metrics
@@ -1614,6 +1799,7 @@ impl<'a> InflightDropGuard<'a> {
         Self {
             adapter,
             slot: Some(slot),
+            admitted_at,
             start: Instant::now(),
             position: None,
             positions_moved: None,
@@ -1670,6 +1856,13 @@ impl Drop for InflightDropGuard<'_> {
             .sequencing_certificate_latency
             .with_label_values(&[position.as_str(), self.tx_type, processed_method])
             .observe(latency.as_secs_f64());
+        if let Some(admitted_at) = self.admitted_at {
+            self.adapter
+                .metrics
+                .consensus_queue_wait_since_admission
+                .with_label_values(&[self.tx_type, processed_method])
+                .observe(admitted_at.elapsed().as_secs_f64());
+        }
 
         // Only sample latency after consensus quorum is up. Otherwise, the wait for
         // consensus quorum at the beginning of an epoch can distort the sampled
@@ -1737,6 +1930,85 @@ mod adapter_tests {
         starfish_adapter::LazyStarfishClient,
     };
 
+    /// Each admission decision is recorded in the fill histogram at once, by
+    /// outcome; a stretch of decisions with the same outcome is recorded when a
+    /// decision with the other outcome ends it. The settings gauge reports what
+    /// the adapter was built with.
+    #[tokio::test]
+    async fn admission_outcomes_are_recorded_by_stretch() {
+        let committee = test_committee();
+        let adapter = ConsensusAdapter::new(
+            Arc::new(LazyStarfishClient::new()),
+            CheckpointStore::new_for_tests(),
+            *committee.authority_by_index(0).unwrap(),
+            Arc::new(ConnectionMonitorStatusForTests {}),
+            1_000,
+            400,
+            None,
+            None,
+            ConsensusAdapterMetrics::new_test(),
+            50,
+            100,
+            false,
+        );
+        let setting = |name: &str| {
+            adapter
+                .metrics
+                .consensus_queue_settings
+                .with_label_values(&[name])
+                .get()
+        };
+        assert_eq!(setting("max_pending_transactions"), 1_000);
+        assert_eq!(setting("soft_limit_pct"), 50);
+        assert_eq!(setting("saturation_pct"), 100);
+        assert_eq!(setting("submit_permits"), 400);
+        assert_eq!(setting("semaphore_shedding_enabled"), 0);
+
+        for (queue_length, accepted) in [
+            (500, true),
+            (600, true),
+            (1_000, false),
+            (1_000, false),
+            (1_000, false),
+            (900, true),
+        ] {
+            adapter.record_admission_outcome(queue_length, accepted);
+        }
+
+        let fill = |outcome: &str| {
+            adapter
+                .metrics
+                .consensus_queue_fill_at_admission
+                .with_label_values(&[outcome])
+        };
+        assert_eq!(fill("accepted").get_sample_count(), 3);
+        assert_eq!(fill("accepted").get_sample_sum(), 50.0 + 60.0 + 90.0);
+        assert_eq!(fill("rejected").get_sample_count(), 3);
+        assert_eq!(fill("rejected").get_sample_sum(), 300.0);
+
+        // Two stretches have ended: two acceptances, then three rejections.
+        // The last acceptance starts a stretch that has not ended yet.
+        let length = |outcome: &str| {
+            adapter
+                .metrics
+                .consensus_queue_admission_stretch_length
+                .with_label_values(&[outcome])
+        };
+        assert_eq!(length("accepted").get_sample_count(), 1);
+        assert_eq!(length("accepted").get_sample_sum(), 2.0);
+        assert_eq!(length("rejected").get_sample_count(), 1);
+        assert_eq!(length("rejected").get_sample_sum(), 3.0);
+        let duration_count = |outcome: &str| {
+            adapter
+                .metrics
+                .consensus_queue_admission_stretch_duration
+                .with_label_values(&[outcome])
+                .get_sample_count()
+        };
+        assert_eq!(duration_count("accepted"), 1);
+        assert_eq!(duration_count("rejected"), 1);
+    }
+
     /// A slot counts in the consensus queue from the moment it is taken until
     /// it is dropped: on its own, inside the guard it was passed to, or inside
     /// a submission future that never ran.
@@ -1780,6 +2052,17 @@ mod adapter_tests {
         assert_eq!(adapter.num_inflight_transactions(), 1);
         drop(guard);
         assert_eq!(adapter.num_inflight_transactions(), 0);
+
+        // Only the slot taken at admission records the wait since admission.
+        let wait = |tx_type: &str| {
+            adapter
+                .metrics
+                .consensus_queue_wait_since_admission
+                .with_label_values(&[tx_type, "processed_via_consensus"])
+                .get_sample_count()
+        };
+        assert_eq!(wait("owned_user_transaction"), 1);
+        assert_eq!(wait("checkpoint_signature"), 0);
 
         // A slot moved into a submission future is released when the future
         // is dropped, even if it was never polled, as `within_alive_epoch`

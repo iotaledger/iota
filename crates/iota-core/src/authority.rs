@@ -1747,7 +1747,9 @@ impl AuthorityState {
 
     /// The consensus queue checks of the P-COOL path, judged against
     /// `queue_length`, the number of other transactions in the queue:
-    /// graduated shedding, then the binary cutoff and the permit check.
+    /// graduated shedding, then the binary cutoff and the permit check. The
+    /// outcome is recorded with
+    /// [`ConsensusAdapter::record_admission_outcome()`].
     fn check_consensus_queue_overload(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
@@ -1758,17 +1760,25 @@ impl AuthorityState {
         // soft to the hard limit.
         // No `tap_err` here: the graduated check labels its own rejections
         // with which part of the curve rejected the transaction.
-        self.check_consensus_queue_graduated_limits(consensus_adapter, tx, queue_length)?;
+        let result = self
+            .check_consensus_queue_graduated_limits(consensus_adapter, tx, queue_length)
+            .and_then(|()| {
+                // NOTE: the queue-length part of this check is redundant with
+                // graduated shedding once the queue reaches
+                // `max_pending_transactions`, but the semaphore part is not: it
+                // is a separate concurrency limit that graduated shedding does
+                // not cover.
+                match consensus_adapter.check_consensus_limits_reason() {
+                    Some(reason) => {
+                        self.update_overload_metrics(reason.metric_label());
+                        Err(IotaError::TooManyTransactionsPendingConsensus)
+                    }
+                    None => Ok(()),
+                }
+            });
+        consensus_adapter.record_admission_outcome(queue_length, result.is_ok());
 
-        // NOTE: the queue-length part of this check is redundant with
-        // graduated shedding once the queue reaches `max_pending_transactions`,
-        // but the semaphore part is not: it is a separate concurrency limit
-        // that graduated shedding does not cover.
-        if let Some(reason) = consensus_adapter.check_consensus_limits_reason() {
-            self.update_overload_metrics(reason.metric_label());
-            return Err(IotaError::TooManyTransactionsPendingConsensus);
-        }
-        Ok(())
+        result
     }
 
     /// Rejects `tx` via graduated shedding at `queue_length`, the number of
