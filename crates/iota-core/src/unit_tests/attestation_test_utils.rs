@@ -43,6 +43,7 @@ impl AbstractAccountTestEnv {
                 &verified,
                 &epoch_store,
                 &self.authority.config.transaction_deny_config,
+                |_| Ok(()),
             )
             .expect("attesting must succeed while authentication passes");
         Attestation::Authority {

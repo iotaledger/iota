@@ -144,6 +144,7 @@ pub use crate::checkpoints::checkpoint_executor::utils::{
 };
 use crate::{
     authority::{
+        attestation_semaphore::{AttestationPermit, AttestationSemaphore},
         authority_per_epoch_store::{AuthorityPerEpochStore, TxGuard},
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
@@ -254,6 +255,7 @@ mod attestation_verdict_tests;
 pub mod authority_test_utils;
 
 pub(crate) mod attestation;
+pub(crate) mod attestation_semaphore;
 mod attestation_verdict;
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
@@ -351,6 +353,14 @@ pub struct AuthorityMetrics {
     pub(crate) local_post_consensus_load_shedding_percentage: IntGauge,
 
     pub(crate) transaction_overload_sources: IntCounterVec,
+
+    /// Attestation dry runs running now.
+    pub(crate) attestations_in_progress: IntGauge,
+    /// Submissions waiting for a free attestation dry run.
+    pub(crate) attestations_waiting: IntGauge,
+    /// Submissions rejected because every attestation dry run was taken and
+    /// the queue was full.
+    pub(crate) attestations_rejected_total: IntCounter,
 
     /// Checkpoint-inclusion waits that timed out before the RPC indexes
     /// caught up.
@@ -745,6 +755,24 @@ impl AuthorityMetrics {
                 &["source"],
                 registry)
                 .unwrap(),
+            attestations_in_progress: register_int_gauge_with_registry!(
+                "attestations_in_progress",
+                "Number of attestation dry runs running",
+                registry,
+            )
+                .unwrap(),
+            attestations_waiting: register_int_gauge_with_registry!(
+                "attestations_waiting",
+                "Number of submissions waiting for a free attestation dry run",
+                registry,
+            )
+                .unwrap(),
+            attestations_rejected_total: register_int_counter_with_registry!(
+                "attestations_rejected_total",
+                "Number of submissions rejected because every attestation dry run was taken and the queue was full",
+                registry,
+            )
+                .unwrap(),
             execution_driver_executed_transactions: register_int_counter_with_registry!(
                 "execution_driver_executed_transactions",
                 "Cumulative number of transaction executed by execution driver",
@@ -1119,6 +1147,9 @@ pub struct AuthorityState {
 
     /// Current overload status in this authority. Updated periodically.
     pub overload_info: AuthorityOverloadInfo,
+
+    /// Limits the attestation dry runs of the submit path.
+    attestation_semaphore: AttestationSemaphore,
 
     pub validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
 
@@ -1665,9 +1696,10 @@ impl AuthorityState {
 
     /// Checks system overload conditions before accepting a transaction.
     ///
-    /// In certificate-less (P-COOL) mode: only checks consensus
-    /// queue overload, since execution-based overload will be handled
-    /// post-consensus.
+    /// In certificate-less (P-COOL) mode: checks consensus queue overload,
+    /// since execution-based overload will be handled post-consensus, and
+    /// rejects when every attestation dry run is taken and the queue for them
+    /// is full.
     ///
     /// In certificate mode: runs all checks — authority overload
     /// (execution latency), the execution scheduler (execution queue),
@@ -1695,6 +1727,10 @@ impl AuthorityState {
             // separate concurrency limit not covered by the graduated shedding.
             consensus_adapter.check_consensus_overload().tap_err(|_| {
                 self.update_overload_metrics("consensus");
+            })?;
+
+            self.attestation_semaphore.check_overload().tap_err(|_| {
+                self.update_overload_metrics("attestation");
             })?;
         } else {
             if do_authority_overload_check {
@@ -1728,6 +1764,18 @@ impl AuthorityState {
         }
 
         Ok(())
+    }
+
+    /// Waits for a free attestation dry run, within the limits of
+    /// `max_concurrent_attestations` and `max_queued_attestations`. The dry
+    /// run must hold the permit until it ends.
+    ///
+    /// # Errors
+    ///
+    /// [`IotaError::ValidatorOverloadedRetryAfter`] when every dry run is
+    /// taken and the queue for them is full.
+    pub(crate) async fn acquire_attestation_permit(&self) -> IotaResult<AttestationPermit> {
+        self.attestation_semaphore.acquire().await
     }
 
     /// Rejects `tx_data` via graduated shedding based on consensus queue
@@ -3279,6 +3327,8 @@ impl AuthorityState {
                 traffic_controller_metrics,
             ))
         });
+        let attestation_semaphore =
+            AttestationSemaphore::new(&config.authority_overload_config, &metrics);
         let state = Arc::new(AuthorityState {
             name,
             secret,
@@ -3298,6 +3348,7 @@ impl AuthorityState {
             object_retention,
             config,
             overload_info: AuthorityOverloadInfo::default(),
+            attestation_semaphore,
             validator_tx_finalizer,
             chain_identifier,
             congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
