@@ -144,7 +144,6 @@ pub(crate) enum ReasonToCreateBlock {
     Recover,
     QuorumSubscribersExist,
     KnownLastBlock,
-    #[allow(dead_code)]
     FastSyncComplete,
 }
 
@@ -707,12 +706,14 @@ impl Core {
         )
     }
 
-    /// Reinitialize consensus components after fast sync completes.
-    /// This stores block headers on disk and reinitializes DagState,
-    /// BlockManager, and CommitObserver so that regular syncer can take
-    /// over.
+    /// Rebuilds the consensus components from storage and `block_headers`
+    /// when fast sync ends, so that regular sync can take over, then proposes
+    /// a block if one is due and signals the current round. `block_headers`
+    /// should cover the `dag_state_cached_rounds` window.
     ///
-    /// Block headers should cover the cached_rounds window (~500 rounds).
+    /// # Errors
+    ///
+    /// Fails if reading the stored commits fails or the node is shutting down.
     pub(crate) async fn reinitialize_components(
         &mut self,
         block_headers: Vec<VerifiedBlockHeader>,
@@ -765,6 +766,11 @@ impl Core {
 
         // 8. Reset signaling state
         self.last_signaled_round = threshold_round.saturating_sub(1);
+
+        // 9. Proposal triggers that arrived during fast sync were dropped and
+        // no new header may come, so propose now if due and signal the round.
+        self.try_propose(ReasonToCreateBlock::FastSyncComplete)?;
+        self.try_signal_new_round();
 
         info!("Components reinitialized successfully");
         Ok(())
@@ -2020,6 +2026,7 @@ impl CoreTestFixture {
 mod test {
     use std::{
         collections::{BTreeSet, HashSet},
+        iter,
         time::Duration,
     };
 
@@ -2038,7 +2045,7 @@ mod test {
             BlockHeaderDigest, TestBlockHeader, TestBlockHeaderVersion, TransactionsCommitment,
             genesis_block_headers, genesis_blocks,
         },
-        commit::{CommitAPI, CommitRange},
+        commit::{CommitAPI, CommitDigest, CommitRange, CommitRef},
         leader_scoring::ReputationScores,
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
@@ -4586,5 +4593,74 @@ mod test {
             sent_indices.push(sub_dag.commit_ref.index);
         }
         assert_eq!(sent_indices, (1..=last_commit_index).collect::<Vec<_>>());
+    }
+
+    /// When fast sync ends, a node proposes and broadcasts a block without
+    /// waiting for another header if a proposal is due, and signals the
+    /// current round either way.
+    #[rstest]
+    #[case::proposal_due(0, Some(5), 6)]
+    #[case::behind_quorum_commit_round(5, None, 5)]
+    #[tokio::test]
+    async fn fast_sync_reinitialization_proposes_only_when_due(
+        #[case] quorum_commit_index: CommitIndex,
+        #[case] proposed_round: Option<Round>,
+        #[case] signaled_round: Round,
+    ) {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN a node that stored peer headers before fast sync: authorities
+        // 1, 2 and 3 up to round 4, and only 1 and 2 at round 5, so a quorum at
+        // round 5 needs this node's block. The node has no commits and peers
+        // voted for commits up to `quorum_commit_index`; at 5 the approximate
+        // quorum commit round reaches round 5, so no proposal is due.
+        let (context, _) = Context::new_for_test(4);
+        let own_index = AuthorityIndex::new_for_test(0);
+        let mut fixture =
+            CoreTestFixture::new(context.clone(), vec![1; 4], own_index, false, false, None).await;
+        let mut dag_builder = DagBuilder::new(Arc::new(context));
+        dag_builder
+            .layers(1..=4)
+            .authorities(vec![own_index])
+            .skip_block()
+            .build();
+        dag_builder
+            .layers(5..=5)
+            .authorities(vec![own_index, AuthorityIndex::new_for_test(3)])
+            .skip_block()
+            .build();
+        {
+            let mut dag_state = fixture.core.dag_state.write();
+            dag_state.accept_block_headers(dag_builder.block_headers(1..=5), DataSource::Test);
+            dag_state.set_fast_sync_ongoing_flag(true);
+            dag_state.flush();
+        }
+        for author in 1..=3 {
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(5, author)
+                    .set_commit_votes(vec![CommitRef::new(quorum_commit_index, CommitDigest::MIN)])
+                    .build(),
+            );
+            fixture.core.commit_vote_monitor.observe_block(&header);
+        }
+        assert_eq!(fixture.core.last_proposed_round(), 1);
+        let mut block_receiver = fixture.signal_receivers.block_broadcast_receiver();
+        let mut new_round_receiver = fixture.signal_receivers.new_round_receiver();
+        new_round_receiver.mark_unchanged();
+
+        // WHEN fast sync ends.
+        fixture.core.reinitialize_components(vec![]).await.unwrap();
+
+        // THEN, only if a proposal is due, the node broadcasts blocks up to
+        // round 5; it signals the current round either way.
+        let last_broadcast_round = iter::from_fn(|| block_receiver.try_recv().ok())
+            .last()
+            .map(|block| block.round());
+        assert_eq!(last_broadcast_round, proposed_round);
+        assert_eq!(
+            fixture.core.last_proposed_round(),
+            proposed_round.unwrap_or(1)
+        );
+        assert!(new_round_receiver.has_changed().unwrap());
+        assert_eq!(*new_round_receiver.borrow(), signaled_round);
     }
 }
