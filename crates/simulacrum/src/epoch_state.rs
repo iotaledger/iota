@@ -213,7 +213,7 @@ impl EpochState {
             certificate_deny_set: &HashSet::new(),
             verifier_signing_config,
             bytecode_verifier_metrics: &self.bytecode_verifier_metrics,
-            limits_metrics: self.limits_metrics.clone(),
+            limits_metrics: &self.limits_metrics,
         };
         simulate_transaction(
             &env,

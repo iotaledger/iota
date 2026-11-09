@@ -2741,38 +2741,11 @@ impl AuthorityState {
         })
     }
 
-    /// Simulate a transaction without committing it.
-    ///
-    /// `checks` selects the Move VM semantics: `VmChecks::Enabled` runs the
-    /// transaction as it would run on chain (a dry run), while
-    /// `VmChecks::Disabled` relaxes the checks around entry functions and
-    /// argument values (a dev inspect). Both report the per-command return
-    /// values in [`SimulateTransactionResult::execution_result`].
-    ///
-    /// Under either `checks`, the simulation fills in whatever gas the
-    /// transaction leaves unset, so that a caller with no gas to declare can
-    /// leave all of it out: no gas payment mints a mock gas coin, whose ID is
-    /// reported back in [`SimulateTransactionResult::mock_gas_id`]; a zero gas
-    /// price becomes the epoch's reference gas price; and a zero gas budget
-    /// becomes as much as the gas coins can back, up to
-    /// [`max_tx_gas`](iota_protocol_config::ProtocolConfig::max_tx_gas).
-    /// Anything the transaction does declare is metered as given, so a dry run
-    /// still rejects the gas a validator would.
-    ///
-    /// Under either `checks`, the packages the transaction publishes are run
-    /// through the bytecode verifier with this node's signing-time limits, so a
-    /// package that signing would reject with
-    /// [`UserInputError::PackageVerificationTimedout`] is rejected here too.
-    ///
-    /// Whatever the budget resolves to, the gas coins have to cover it, since
-    /// execution reserves the whole budget from them before running any command
-    /// and refunds it afterwards. A caller leaving the budget at zero to have
-    /// the cost estimated therefore gets an estimate whatever its coins hold,
-    /// but the reserved budget is off limits for the duration of the
-    /// programmable transaction: a transaction that also pays out of its gas
-    /// coin has to declare a budget leaving room for that, exactly as it would
-    /// on chain. A balance too small to declare the minimum budget at all is
-    /// rejected with [`UserInputError::GasBalanceTooLow`].
+    /// Simulate a transaction without committing it, under this node's deny
+    /// config and signing-time verifier limits, and with a suggested gas price
+    /// from its congestion tracker. See
+    /// [`iota_transaction_checks::simulate::simulate_transaction`] for how
+    /// `checks`, unset gas and published packages are handled.
     pub fn simulate_transaction(
         &self,
         transaction: Transaction,
@@ -2844,7 +2817,7 @@ impl AuthorityState {
             certificate_deny_set: self.config.certificate_deny_config.certificate_deny_set(),
             verifier_signing_config: &self.config.verifier_signing_config,
             bytecode_verifier_metrics: &self.metrics.bytecode_verifier_metrics,
-            limits_metrics: self.metrics.limits_metrics.clone(),
+            limits_metrics: &self.metrics.limits_metrics,
         };
         let executor = iota_execution::executor(
             protocol_config,

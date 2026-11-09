@@ -38,15 +38,46 @@ pub struct SimulationEnv<'a> {
     pub certificate_deny_set: &'a HashSet<TransactionDigest>,
     pub verifier_signing_config: &'a VerifierSigningConfig,
     pub bytecode_verifier_metrics: &'a Arc<BytecodeVerifierMetrics>,
-    pub limits_metrics: Arc<LimitsMetrics>,
+    pub limits_metrics: &'a Arc<LimitsMetrics>,
 }
 
-/// Run `transaction` without committing anything: a dry run with `checks`
-/// enabled, a dev inspect with them disabled.
+/// Simulate `transaction` without committing it.
 ///
-/// `load_objects` loads the transaction's input and receiving objects. A
-/// missing gas payment is replaced by a mock gas coin. The returned
-/// `suggested_gas_price` is always `None`.
+/// `checks` selects the Move VM semantics: `VmChecks::Enabled` runs the
+/// transaction as it would run on chain (a dry run), while
+/// `VmChecks::Disabled` relaxes the checks around entry functions and
+/// argument values (a dev inspect). Both report the per-command return
+/// values in [`SimulateTransactionResult::execution_result`]. System
+/// transactions are rejected.
+///
+/// Under either `checks`, the simulation fills in whatever gas the
+/// transaction leaves unset, so that a caller with no gas to declare can
+/// leave all of it out: no gas payment mints a mock gas coin, whose ID is
+/// reported back in [`SimulateTransactionResult::mock_gas_id`]; a zero gas
+/// price becomes `env.reference_gas_price`; and a zero gas budget becomes as
+/// much as the gas coins can back, up to
+/// [`max_tx_gas`](ProtocolConfig::max_tx_gas). Anything the transaction does
+/// declare is metered as given, so a dry run still rejects the gas a validator
+/// would.
+///
+/// Under either `checks`, the packages the transaction publishes are run
+/// through the bytecode verifier with the limits in
+/// `env.verifier_signing_config`, so a package those limits reject at signing
+/// is rejected here too, with
+/// [`UserInputError::PackageVerificationTimedout`](iota_types::error::UserInputError::PackageVerificationTimedout).
+///
+/// Whatever the budget resolves to, the gas coins have to cover it, since
+/// execution reserves the whole budget from them before running any command
+/// and refunds it afterwards. A caller leaving the budget at zero to have the
+/// cost estimated therefore gets an estimate whatever its coins hold, but the
+/// reserved budget is off limits for the duration of the programmable
+/// transaction: a transaction that also pays out of its gas coin has to
+/// declare a budget leaving room for that, exactly as it would on chain. A
+/// balance too small to declare the minimum budget at all is rejected with
+/// [`UserInputError::GasBalanceTooLow`](iota_types::error::UserInputError::GasBalanceTooLow).
+///
+/// `load_objects` loads the transaction's input and receiving objects. The
+/// returned `suggested_gas_price` is always `None`.
 pub fn simulate_transaction(
     env: &SimulationEnv<'_>,
     executor: &dyn Executor,
@@ -81,8 +112,7 @@ pub fn simulate_transaction(
     let input_object_kinds = transaction.input_objects()?;
     let receiving_object_refs = transaction.receiving_objects();
 
-    // Since we need to simulate a validator signing the transaction, the first step
-    // is to check if some transaction elements are denied.
+    // Reject denied transaction elements, as signing would.
     check_transaction_for_validation(
         &transaction,
         &[],
@@ -152,9 +182,8 @@ pub fn simulate_transaction(
 
         // Execution verifies the packages a transaction publishes with neither a
         // limit nor a meter, trusting signing to have bounded them — so with the
-        // signing-time checks skipped here, this has to bound them. The node's
-        // own limits reject nothing that signing would accept. With the checks
-        // enabled, `check_transaction_input` covers it.
+        // signing-time checks skipped here, this has to bound them. With the
+        // checks enabled, `check_transaction_input` covers it.
         check_non_system_packages_to_be_published(
             &transaction,
             protocol_config,
