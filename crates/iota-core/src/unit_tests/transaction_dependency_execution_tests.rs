@@ -8,13 +8,15 @@
 
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, ObjectId, SharedObjectReference, TransactionDigest,
-    TransactionEffects,
+    Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, SharedObjectReference,
+    TransactionDigest, TransactionEffects,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    attestation::AttestationData,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
+    error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -120,6 +122,21 @@ impl Setup {
             .unwrap();
         effects.inner().data().clone()
     }
+
+    /// The attestor's dry run of `transaction`, as admission runs it before
+    /// submitting to consensus.
+    fn attest(
+        &self,
+        transaction: TransactionEnvelope,
+    ) -> IotaResult<(AttestationData, Vec<ObjectReference>)> {
+        let epoch_store = self.authority.epoch_store_for_testing();
+        let verified = epoch_store.verify_transaction(transaction)?;
+        self.authority.attest_transaction(
+            &verified,
+            &epoch_store,
+            &self.authority.config.transaction_deny_config,
+        )
+    }
 }
 
 #[tokio::test]
@@ -171,4 +188,46 @@ async fn dependent_of_a_successful_transaction_executes() {
     assert!(effects.status().is_success(), "{effects:?}");
     assert!(effects.dependencies().contains(&dependency_digest));
     assert!(!effects.created().is_empty());
+}
+
+#[tokio::test]
+async fn attestor_refuses_a_dependent_of_a_failed_transaction() {
+    let setup = setup().await;
+    let failing = setup.transfer(0, u64::MAX, None, false);
+    let failing_digest = *failing.digest();
+    assert!(!setup.execute(failing, false).status().is_success());
+
+    let dependent = setup.transfer(1, 1_000, Some(failing_digest), false);
+    let result = setup.attest(dependent);
+
+    assert!(
+        matches!(
+            &result,
+            Err(IotaError::UserInput {
+                error: UserInputError::TransactionDependencyFailed { digest }
+            }) if *digest == failing_digest
+        ),
+        "{result:?}"
+    );
+}
+
+#[tokio::test]
+async fn attestor_dry_runs_a_dependent_of_a_transaction_not_executed_yet() {
+    let setup = setup().await;
+    let dependent = setup.transfer(1, 1_000, Some(TransactionDigest::random()), false);
+
+    let (data, owned_objects) = setup.attest(dependent).unwrap();
+
+    let AttestationData::V1 {
+        computation_units, ..
+    } = data
+    else {
+        panic!("unexpected attestation data version: {data:?}");
+    };
+    assert!(computation_units > 0);
+    assert!(
+        owned_objects
+            .iter()
+            .any(|object| object.object_id == setup.gas[1].id())
+    );
 }
