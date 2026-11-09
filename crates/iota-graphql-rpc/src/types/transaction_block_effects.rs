@@ -28,6 +28,7 @@ use move_core_types::{account_address::AccountAddress, language_storage::ModuleI
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
+    connection::OldestAvailableCheckpointField,
     consistency::{ConsistentIndexCursor, UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER},
     data::package_resolver::PackageResolver,
     error::Error,
@@ -40,7 +41,7 @@ use crate::{
         date_time::DateTime,
         digest::Digest,
         epoch::Epoch,
-        event::Event,
+        event::{Event, EventConnection},
         gas::GasEffects,
         object_change::{ObjectChange, ObjectChangeSource},
         transaction_block::{TransactionBlock, TransactionBlockInner},
@@ -441,9 +442,13 @@ impl TransactionBlockEffects {
         after: Option<CEvent>,
         last: Option<u64>,
         before: Option<CEvent>,
-    ) -> Result<Connection<String, Event>> {
+    ) -> Result<EventConnection> {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
-        let mut connection = Connection::new(false, false);
+        let mut connection = Connection::with_additional_fields(
+            false,
+            false,
+            OldestAvailableCheckpointField::default(),
+        );
         let len = match &self.kind {
             TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } => {
                 stored_tx.get_event_len()

@@ -199,15 +199,25 @@ Response: {
 task 19, lines 101-110:
 //# run-graphql --cursors {"tx":5,"e":0,"c":10}
 Response: {
-  "data": {
-    "events": {
-      "nodes": [],
-      "pageInfo": {
-        "hasNextPage": false,
-        "hasPreviousPage": false
+  "data": null,
+  "errors": [
+    {
+      "message": "Requested data has been pruned: `after` cursor (transaction 5) is below the oldest available transaction 7",
+      "locations": [
+        {
+          "line": 5,
+          "column": 3
+        }
+      ],
+      "path": [
+        "events"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED",
+        "oldestAvailableCheckpoint": 7
       }
     }
-  }
+  ]
 }
 
 task 20, lines 112-120:

@@ -1285,6 +1285,14 @@ type EventConnection {
 	A list of nodes.
 	"""
 	nodes: [Event!]!
+	"""
+	The oldest checkpoint this page can contain data from. Anything before
+	it has been pruned and is not listed. Zero when nothing has been
+	pruned, or when the historical fallback serves the whole history. Null
+	when pruning cannot affect the page, such as the events of one
+	transaction block.
+	"""
+	oldestAvailableCheckpoint: UInt53
 }
 
 """
