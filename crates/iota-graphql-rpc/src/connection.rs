@@ -12,6 +12,8 @@ use async_graphql::{
     },
 };
 
+use crate::types::uint53::UInt53;
+
 /// Mirrors the `Connection` type from async-graphql, with the exception that if
 /// `start_cursor` and/ or `end_cursor` is set on the struct, then when
 /// `page_info` is called, it will use those values before deferring to `edges`.
@@ -44,6 +46,9 @@ pub(crate) struct ScanConnection<
     pub has_next_page: bool,
     pub start_cursor: Option<String>,
     pub end_cursor: Option<String>,
+    /// The oldest checkpoint the page can contain data from, when the query
+    /// reads historical data.
+    pub oldest_available_checkpoint: Option<u64>,
 }
 
 #[Object(name_type)]
@@ -84,6 +89,15 @@ where
     async fn nodes(&self) -> Vec<&Node> {
         self.edges.iter().map(|e| &e.node).collect()
     }
+
+    /// The oldest checkpoint this page can contain data from. Anything before
+    /// it has been pruned and is not listed. Zero when nothing has been
+    /// pruned, or when the historical fallback serves the whole history. Null
+    /// when the query was not run, e.g. because its filters cannot match
+    /// anything.
+    async fn oldest_available_checkpoint(&self) -> Option<UInt53> {
+        self.oldest_available_checkpoint.map(UInt53::new_unchecked)
+    }
 }
 
 impl<Cursor, Node, NodesField, EdgeFields, Name, EdgeName>
@@ -108,6 +122,7 @@ where
             has_next_page,
             start_cursor: None,
             end_cursor: None,
+            oldest_available_checkpoint: None,
         }
     }
 }
