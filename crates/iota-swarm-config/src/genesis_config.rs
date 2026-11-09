@@ -394,10 +394,10 @@ mod base64_formatted_network_private_key {
     use serde::{Deserialize, Deserializer, Serializer};
 
     pub fn serialize<S: Serializer>(
-        kp: &NetworkPrivateKey,
+        private_key: &NetworkPrivateKey,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&kp.to_base64())
+        serializer.serialize_str(&private_key.to_base64())
     }
 
     pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<NetworkPrivateKey, D::Error> {
@@ -411,11 +411,11 @@ mod base64_formatted_network_private_key {
         use super::*;
 
         pub fn serialize<S: Serializer>(
-            kp: &Option<NetworkPrivateKey>,
+            private_key: &Option<NetworkPrivateKey>,
             serializer: S,
         ) -> Result<S::Ok, S::Error> {
-            match kp {
-                Some(kp) => serializer.serialize_some(&kp.to_base64()),
+            match private_key {
+                Some(private_key) => serializer.serialize_some(&private_key.to_base64()),
                 None => serializer.serialize_none(),
             }
         }
