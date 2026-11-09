@@ -248,8 +248,8 @@ where
 
 /// Fails with `DATA_PRUNED` when `cursor_viewed_at` (from
 /// [`Page::validate_cursor_consistency`]) is a checkpoint that has been pruned
-/// from the `checkpoints` table. The error reports
-/// `oldest_available_checkpoint`, the bound of the data the page reads.
+/// from the `checkpoints` table, or is below `oldest_available_checkpoint`.
+/// The error reports `oldest_available_checkpoint`, the bound of the data the page reads.
 pub(crate) fn check_cursor_not_expired(
     db: &Db,
     cursor_viewed_at: u64,
@@ -265,6 +265,41 @@ pub(crate) fn check_cursor_not_expired(
             cursor_viewed_at,
             oldest_available_checkpoint,
         ));
+    }
+    let data_available_from = u64::from(oldest_available_checkpoint);
+    if cursor_viewed_at < data_available_from {
+        return Err(Error::DataPruned {
+            message: format!(
+                "all data up to checkpoint {cursor_viewed_at} the query is viewed at has been \
+                 pruned, data is available from checkpoint {data_available_from}"
+            ),
+            oldest_available_checkpoint,
+        });
+    }
+    Ok(())
+}
+
+/// Fails with `DATA_PRUNED` when any cursor of `page` points at a pruned
+/// transaction. `tx_sequence_number` reads the transaction a cursor points at.
+pub(crate) fn check_cursors_not_pruned<C>(
+    page: &Page<C>,
+    tx_sequence_number: impl Fn(&C) -> u64,
+    oldest_available_checkpoint: OldestAvailableCheckpoint,
+) -> Result<(), Error> {
+    let oldest_available_tx = oldest_available_checkpoint.served_tx() as u64;
+    for (name, cursor) in [("after", page.after()), ("before", page.before())] {
+        let Some(tx_seq) = cursor.map(&tx_sequence_number) else {
+            continue;
+        };
+        if tx_seq < oldest_available_tx {
+            return Err(Error::DataPruned {
+                message: format!(
+                    "`{name}` cursor (transaction {tx_seq}) is below the oldest available \
+                     transaction {oldest_available_tx}"
+                ),
+                oldest_available_checkpoint,
+            });
+        }
     }
     Ok(())
 }

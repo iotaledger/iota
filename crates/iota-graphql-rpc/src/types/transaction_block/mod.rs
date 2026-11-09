@@ -43,7 +43,8 @@ use crate::{
         address::Address,
         base64::Base64,
         cursor::{
-            JsonCursor, Page, Target, check_cursor_not_expired, pruned_checkpoint_viewed_at_error,
+            JsonCursor, Page, Target, check_cursor_not_expired, check_cursors_not_pruned,
+            pruned_checkpoint_viewed_at_error,
         },
         digest::Digest,
         epoch::Epoch,
@@ -531,7 +532,11 @@ impl TransactionBlock {
         if let Some(cursor_viewed_at) = cursor_viewed_at {
             check_cursor_not_expired(db, cursor_viewed_at, oldest_available_checkpoint)?;
         }
-        check_cursors_not_pruned_from_db(&page, oldest_available_checkpoint)?;
+        check_cursors_not_pruned(
+            &page,
+            |cursor| u64::from(cursor.tx_sequence_number),
+            oldest_available_checkpoint,
+        )?;
 
         let Some(cp_bounds) = checkpoint_bounds_from_filter(&filter, checkpoint_viewed_at) else {
             return Ok(TransactionBlockConnection::new(false, false));
@@ -1036,29 +1041,6 @@ impl TryFrom<TransactionBlockEffects> for TransactionBlock {
             checkpoint_viewed_at,
         })
     }
-}
-
-/// Fails with `DATA_PRUNED` when any cursor of `page` points at a pruned transaction.
-fn check_cursors_not_pruned_from_db(
-    page: &Page<Cursor>,
-    oldest_available_checkpoint: OldestAvailableCheckpoint,
-) -> Result<(), Error> {
-    let oldest_available_tx = oldest_available_checkpoint.db_tx() as u64;
-    for (name, cursor) in [("after", page.after()), ("before", page.before())] {
-        let Some(tx_seq) = cursor.map(|c| u64::from(c.tx_sequence_number)) else {
-            continue;
-        };
-        if tx_seq < oldest_available_tx {
-            return Err(Error::DataPruned {
-                message: format!(
-                    "`{name}` cursor (transaction {tx_seq}) is below the oldest available \
-                     transaction {oldest_available_tx}"
-                ),
-                oldest_available_checkpoint,
-            });
-        }
-    }
-    Ok(())
 }
 
 fn apply_scan_limited_pagination(
