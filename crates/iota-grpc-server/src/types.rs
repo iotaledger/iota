@@ -390,8 +390,8 @@ impl GrpcReader {
                         transactions_mask,
                         events_mask,
                         max_message_size_bytes as usize,
-                        transaction_filter,
-                        event_filter,
+                        transaction_filter.map(Arc::new),
+                        event_filter.map(Arc::new),
                         metrics,
                     ));
 
@@ -428,8 +428,8 @@ impl GrpcReader {
         transactions_mask: Option<FieldMaskTree>,
         events_mask: Option<FieldMaskTree>,
         max_message_size_bytes: usize,
-        transaction_filter: Option<crate::transaction_filter::TransactionFilter>,
-        event_filter: Option<crate::event_filter::EventFilter>,
+        transaction_filter: Option<Arc<crate::transaction_filter::TransactionFilter>>,
+        event_filter: Option<Arc<crate::event_filter::EventFilter>>,
         metrics: RequestMetrics,
     ) -> impl futures::Stream<Item = Result<grpc_ledger_service::CheckpointData, Status>> + Send
     where
@@ -895,8 +895,8 @@ impl GrpcReader {
     /// Returns true on first match (OR semantics when both filters are set).
     async fn has_matching_data<S>(
         transaction_stream: S,
-        transaction_filter: &Option<crate::transaction_filter::TransactionFilter>,
-        event_filter: &Option<crate::event_filter::EventFilter>,
+        transaction_filter: &Option<Arc<crate::transaction_filter::TransactionFilter>>,
+        event_filter: &Option<Arc<crate::event_filter::EventFilter>>,
     ) -> Result<bool, Status>
     where
         S: futures::Stream<Item = anyhow::Result<IotaTypesCheckpointTransaction>> + Send,
@@ -935,8 +935,8 @@ impl GrpcReader {
     /// last emitted message.
     async fn match_checkpoint_filter_or_report_progress<S>(
         transaction_stream: S,
-        transaction_filter: &Option<crate::transaction_filter::TransactionFilter>,
-        event_filter: &Option<crate::event_filter::EventFilter>,
+        transaction_filter: &Option<Arc<crate::transaction_filter::TransactionFilter>>,
+        event_filter: &Option<Arc<crate::event_filter::EventFilter>>,
         last_msg_time: &std::sync::Mutex<tokio::time::Instant>,
         progress_interval: std::time::Duration,
         seq: u64,
@@ -993,6 +993,8 @@ impl GrpcReader {
         let checkpoint_mask_historical = checkpoint_mask.clone();
         let transactions_mask_historical = transactions_mask.clone();
         let events_mask_historical = events_mask.clone();
+        let transaction_filter = transaction_filter.map(Arc::new);
+        let event_filter = event_filter.map(Arc::new);
         let transaction_filter_historical = transaction_filter.clone();
         let event_filter_historical = event_filter.clone();
 

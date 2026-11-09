@@ -4,7 +4,7 @@
 
 use iota_grpc_types::v1::filter as proto_filter;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{Address, Command, ExecutionStatus, ObjectId, Owner};
+use iota_sdk_types::{Address, Command, ExecutionStatus, Identifier, ObjectId, Owner};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     full_checkpoint_content::CheckpointTransaction,
@@ -80,8 +80,8 @@ pub enum CommandFilter {
     /// Package is required; module and function are optional.
     MoveCall {
         package: ObjectId,
-        module: Option<String>,
-        function: Option<String>,
+        module: Option<Identifier>,
+        function: Option<Identifier>,
     },
     /// Match a TransferObjects command.
     TransferObjects,
@@ -143,10 +143,18 @@ impl TryFrom<proto_filter::CommandFilter> for CommandFilter {
                     .object_id;
                 let package = ObjectId::from_bytes(&package_bytes)
                     .map_err(|e| format!("invalid package_id: {e}"))?;
+                let module = call_filter
+                    .module
+                    .map(|m| Identifier::new(m).map_err(|e| format!("invalid module name: {e}")))
+                    .transpose()?;
+                let function = call_filter
+                    .function
+                    .map(|f| Identifier::new(f).map_err(|e| format!("invalid function name: {e}")))
+                    .transpose()?;
                 Ok(CommandFilter::MoveCall {
                     package,
-                    module: call_filter.module,
-                    function: call_filter.function,
+                    module,
+                    function,
                 })
             }
             ProtoCommandFilter::TransferObjects(_) => Ok(CommandFilter::TransferObjects),
@@ -502,6 +510,29 @@ mod tests {
             TransactionFilter::try_from(proto_any(vec![proto_events(); MAX_FILTER_NODES / 2]))
                 .unwrap_err();
         assert!(err.contains("nodes"), "{err}");
+    }
+
+    fn proto_move_call(module: &str, function: &str) -> proto_filter::CommandFilter {
+        let mut package_id = iota_grpc_types::v1::types::ObjectId::default();
+        package_id.object_id = ObjectId::random().as_bytes().to_vec().into();
+        let mut move_call = proto_filter::MoveCallCommandFilter::default();
+        move_call.package_id = Some(package_id);
+        move_call.module = Some(module.to_string());
+        move_call.function = Some(function.to_string());
+        let mut command = proto_filter::CommandFilter::default();
+        command.filter = Some(proto_filter::command_filter::Filter::MoveCall(move_call));
+        command
+    }
+
+    #[test]
+    fn proto_conversion_rejects_invalid_move_call_names() {
+        assert!(CommandFilter::try_from(proto_move_call("my_module", "my_func")).is_ok());
+
+        let too_long = "a".repeat(129);
+        let err = CommandFilter::try_from(proto_move_call(&too_long, "my_func")).unwrap_err();
+        assert!(err.contains("invalid module name"), "{err}");
+        let err = CommandFilter::try_from(proto_move_call("my_module", &too_long)).unwrap_err();
+        assert!(err.contains("invalid function name"), "{err}");
     }
 
     // --- CommandFilter matching tests ---
