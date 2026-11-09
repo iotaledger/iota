@@ -288,7 +288,7 @@ pub struct FullnodeConfigBuilder {
     genesis: Option<Genesis>,
     p2p_external_address: Option<Multiaddr>,
     p2p_listen_address: Option<SocketAddr>,
-    network_private_key: Option<KeyPairWithPath>,
+    network_key_pair: Option<KeyPairWithPath>,
     run_with_range: Option<RunWithRange>,
     policy_config: Option<PolicyConfig>,
     data_ingestion_dir: Option<PathBuf>,
@@ -404,7 +404,7 @@ impl FullnodeConfigBuilder {
         network_private_key: Option<NetworkPrivateKey>,
     ) -> Self {
         if let Some(network_private_key) = network_private_key {
-            self.network_private_key = Some(KeyPairWithPath::new(network_private_key.into()));
+            self.network_key_pair = Some(KeyPairWithPath::new(network_private_key.into()));
         }
         self
     }
@@ -615,7 +615,7 @@ impl FullnodeConfigBuilder {
             account_key_pair: KeyPairWithPath::new(genesis_config.account_key_pair),
             protocol_key_pair: KeyPairWithPath::new(genesis_config.protocol_key_pair.into()),
             network_key_pair: self
-                .network_private_key
+                .network_key_pair
                 .unwrap_or(KeyPairWithPath::new(genesis_config.network_key_pair.into())),
             db_path: self
                 .db_path
