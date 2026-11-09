@@ -62,12 +62,6 @@ impl NetworkKeyPair {
     pub fn private_key(self) -> iota_sdk_crypto::ed25519::Ed25519PrivateKey {
         self.0
     }
-
-    pub fn private_key_bytes(self) -> [u8; 32] {
-        use iota_sdk_crypto::ToFromBytes as _;
-
-        self.0.to_bytes()
-    }
 }
 
 /// Protocol key is used for signing blocks and verifying block signatures.
