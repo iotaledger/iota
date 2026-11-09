@@ -221,8 +221,8 @@ fn move_authenticator_accepts_but_aborting_body_stays_verified() {
 }
 
 /// In dev-inspect the declared budget is often still `0` (not yet settled) and
-/// the run meters at the dev-inspect budget instead, so a body abort must not
-/// be misreported as `SignatureStatus::Failed`. Same flow as
+/// the run meters at the dev-inspect budget instead. A body abort must still
+/// report `SignatureStatus::Verified`. Same flow as
 /// [`move_authenticator_accepts_but_aborting_body_stays_verified`], with the
 /// declared budget zeroed (the free-access authenticator ignores the message,
 /// so the mutated transaction still authenticates).
