@@ -136,12 +136,16 @@ impl Drop for PcoolFlowOverride {
         unsafe {
             std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
             std::env::remove_var("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW");
+            std::env::remove_var(
+                "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            );
         }
     }
 }
 
 /// Sets the P-COOL protocol flag for every node of a test cluster built while
-/// the returned guard is alive.
+/// the returned guard is alive. Turning the flow off also turns validator
+/// attestation off, since attestation cannot run without the flow.
 ///
 /// `ProtocolConfig::apply_overrides_for_testing` is thread-local and does not
 /// reach the tasks a cluster spawns, so the flag goes through the protocol
@@ -154,8 +158,47 @@ pub fn override_pcool_flow(enabled: bool) -> PcoolFlowOverride {
             "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW",
             enabled.to_string(),
         );
+        if !enabled {
+            std::env::set_var(
+                "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+                "false",
+            );
+        }
     }
     PcoolFlowOverride
+}
+
+/// Reverts the validator attestation flag override when dropped.
+#[must_use = "the override only holds while the guard is alive"]
+pub struct ValidatorAttestationOverride;
+
+impl Drop for ValidatorAttestationOverride {
+    fn drop(&mut self) {
+        // SAFETY: paired with `override_validator_attestation`; both run on the
+        // test thread, outside the cluster's lifetime.
+        unsafe {
+            std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
+            std::env::remove_var(
+                "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            );
+        }
+    }
+}
+
+/// Sets the validator attestation flag for every node of a test cluster built
+/// while the returned guard is alive, leaving the P-COOL flow as the protocol
+/// version has it. See [`override_pcool_flow`] for why this goes through the
+/// environment.
+pub fn override_validator_attestation(enabled: bool) -> ValidatorAttestationOverride {
+    // SAFETY: called before the cluster is built, on the test thread.
+    unsafe {
+        std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
+        std::env::set_var(
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            enabled.to_string(),
+        );
+    }
+    ValidatorAttestationOverride
 }
 
 impl TestCluster {

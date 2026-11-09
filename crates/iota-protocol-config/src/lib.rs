@@ -280,6 +280,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             after consensus and in block verification. Block verification
 //             also rejects a block that carries a system transaction kind in
 //             a user transaction or certificate.
+//             Update the gas model version to 3.
+//             Enable validator attestation on devnet, with the checkpoint
+//             summary data version that certifies the verdicts.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -833,6 +836,13 @@ struct FeatureFlags {
     // publish yet fails an authentication that the others pass.
     #[serde(skip_serializing_if = "is_false")]
     move_authenticator_type_arg_packages_as_inputs: bool,
+
+    // If true, the block-proposing validator attests each received user transaction
+    // before sending it to consensus. The attestor certifies that Move authentication
+    // passed and the attestation carries a computation cost estimate for
+    // shared-object scheduling.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_validator_attestation: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -865,8 +875,9 @@ impl ConsensusTransactionOrdering {
 pub enum PerObjectCongestionControlMode {
     #[default]
     None, // No congestion control.
-    TotalGasBudget, // Use txn gas budget as execution cost.
-    TotalTxCount,   // Use total txn count as execution cost.
+    TotalGasBudget,        // Use txn gas budget as execution cost.
+    TotalTxCount,          // Use total txn count as execution cost.
+    TotalComputationUnits, // Use attested computation units as execution cost.
 }
 
 impl PerObjectCongestionControlMode {
@@ -1661,7 +1672,26 @@ pub struct ProtocolConfig {
     checkpoint_rate_window_size: Option<u64>,
 
     /// Version number to use for version_specific_data in `CheckpointSummary`.
+    /// 2 adds the attestation entries and totals and is required by
+    /// `enable_validator_attestation`.
     checkpoint_summary_version_specific_data: Option<u64>,
+
+    /// Tolerance, in percent of the executed computation units, within which
+    /// an attestor's claimed units count as accurate. Both sides are rounded
+    /// up to `gas_rounding_step` and capped at the budget on out-of-gas, and
+    /// the check only applies when the transaction body ran. Unset disables
+    /// it.
+    attestor_accuracy_tolerance_percentage: Option<u64>,
+
+    /// Sum of the squared wasted authentication units of an attestor's refuted
+    /// attestations at which the cut takes its whole epoch reward, through its
+    /// entry in the change-epoch scores: one fault of √value units takes it
+    /// all, one of half that size a quarter; 0 takes the whole reward on the
+    /// first refuted attestation. The cut reaches the reward only under
+    /// `adjust_rewards_by_score`. An attestor whose sum reaches it has its
+    /// attested transactions dropped at post-consensus validation for the rest
+    /// of the epoch. Unset disables the penalty and the cutoff.
+    attestation_max_refuted_units_squared: Option<u64>,
 
     /// The max number of transactions that can be included in a single Soft
     /// Bundle.
@@ -2373,6 +2403,11 @@ impl ProtocolConfig {
         self.feature_flags
             .move_authenticator_type_arg_packages_as_inputs
     }
+
+    /// Its prerequisites are checked once, in [`Self::get_for_version`].
+    pub fn enable_validator_attestation(&self) -> bool {
+        self.feature_flags.enable_validator_attestation
+    }
 }
 
 #[cfg(not(msim))]
@@ -2505,6 +2540,33 @@ impl ProtocolConfig {
                 }),
             "deny_rule_update_max_entries_per_tx must be positive, at most {DENY_RULE_UPDATE_MAX_ENTRIES_PER_TX_CEILING}, and within the system transaction object limits"
         );
+
+        if ret.enable_validator_attestation() {
+            assert!(
+                ret.enable_pcool_flow(),
+                "enable_validator_attestation requires enable_pcool_flow to be set"
+            );
+            assert!(
+                ret.report_move_authentication_error(),
+                "enable_validator_attestation requires report_move_authentication_error to be set"
+            );
+            // The attestation verdicts are certified in the summary's version 2.
+            assert!(
+                ret.checkpoint_summary_version_specific_data == Some(2),
+                "enable_validator_attestation requires checkpoint_summary_version_specific_data = 2"
+            );
+        }
+        if ret.attestation_max_refuted_units_squared.is_some() {
+            assert!(
+                ret.enable_validator_attestation(),
+                "attestation_max_refuted_units_squared requires enable_validator_attestation"
+            );
+            assert!(
+                ret.pass_validator_scores_to_advance_epoch(),
+                "attestation_max_refuted_units_squared requires \
+                 pass_validator_scores_to_advance_epoch"
+            );
+        }
 
         ret
     }
@@ -3021,6 +3083,8 @@ impl ProtocolConfig {
             checkpoint_rate_window_size: None,
 
             checkpoint_summary_version_specific_data: Some(1),
+            attestor_accuracy_tolerance_percentage: None,
+            attestation_max_refuted_units_squared: None,
 
             max_soft_bundle_size: Some(5),
 
@@ -3865,6 +3929,16 @@ impl ProtocolConfig {
                     // Reject `<SELF>` as an identifier in transactions, at
                     // signing, after consensus and in block verification.
                     cfg.feature_flags.disallow_self_identifier_in_transactions = true;
+
+                    // Update the gas model version.
+                    cfg.gas_model_version = Some(3);
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Validators attest the user transactions they propose,
+                        // and the checkpoint summary certifies the verdicts.
+                        cfg.feature_flags.enable_validator_attestation = true;
+                        cfg.checkpoint_summary_version_specific_data = Some(2);
+                    }
                 }
                 // Use this template when making changes:
                 //
@@ -4179,8 +4253,14 @@ impl ProtocolConfig {
         self.feature_flags.publish_package_metadata = val;
     }
 
+    /// Turning Move authentication off also turns off reporting Move
+    /// authentication errors and validator attestation, which require it.
     pub fn set_enable_move_authentication_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_move_authentication = val;
+        if !val {
+            self.set_report_move_authentication_error_for_testing(false);
+            self.set_enable_validator_attestation_for_testing(false);
+        }
     }
 
     pub fn set_enable_move_authentication_for_sponsor_for_testing(&mut self, val: bool) {
@@ -4211,6 +4291,8 @@ impl ProtocolConfig {
     /// Turning the flow on also turns on the flags it requires, turns off
     /// `pre_consensus_sponsor_only_move_authentication`, which it excludes, and
     /// fills in the settings it requires when unset, whatever the version.
+    /// Turning the flow off also turns validator attestation off, since
+    /// attestation cannot run without the flow.
     pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_pcool_flow = val;
         if val {
@@ -4224,6 +4306,8 @@ impl ProtocolConfig {
             self.pcool_deterministic_validation_horizon_distance
                 .get_or_insert(4);
             self.deny_rule_update_max_entries_per_tx.get_or_insert(1000);
+        } else {
+            self.set_enable_validator_attestation_for_testing(false);
         }
     }
 
@@ -4307,8 +4391,12 @@ impl ProtocolConfig {
     pub fn set_consensus_dedup_only_recorded_messages_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_dedup_only_recorded_messages = val;
         if !val {
-            self.feature_flags.enable_pcool_flow = false;
+            self.set_enable_pcool_flow_for_testing(false);
         }
+    }
+
+    pub fn set_enable_validator_attestation_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_validator_attestation = val;
     }
 }
 

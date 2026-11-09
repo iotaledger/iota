@@ -22,7 +22,7 @@ use iota_types::{
 };
 use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
 use reqwest::{
-    Client, Url,
+    Client, StatusCode, Url,
     header::{CONTENT_LENGTH, HeaderValue},
 };
 use serde::{Deserialize, Serialize};
@@ -363,12 +363,33 @@ impl HttpKVStore {
         }
     }
 
-    async fn multi_fetch(&self, uris: Vec<Key>) -> Vec<IotaResult<Option<Bytes>>> {
+    /// Fetches every key: one entry per key, in key order, with `None` for a
+    /// key the store does not have.
+    ///
+    /// # Errors
+    ///
+    /// Fails if any fetch fails.
+    async fn multi_fetch(&self, uris: Vec<Key>) -> IotaResult<Vec<Option<Bytes>>> {
         let uris_vec = uris.to_vec();
         let fetches = stream::iter(uris_vec.into_iter().map(|url| self.fetch(url)));
-        fetches.buffered(uris.len()).collect::<Vec<_>>().await
+        // Waits for every fetch, also after one fails, so that the others still
+        // cache what they read for a retry.
+        fetches
+            .buffered(uris.len())
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect()
     }
 
+    /// Fetches one key, with `None` if the store does not have it.
+    ///
+    /// # Errors
+    ///
+    /// Fails if the URL cannot be built, if the request or reading the body
+    /// fails, and on an HTTP status other than success, `404 Not Found` and
+    /// `400 Bad Request`. The error text reaches clients, so it leaves out the
+    /// store's URL.
     async fn fetch(&self, key: Key) -> IotaResult<Option<Bytes>> {
         let url = self.get_url(&key)?;
 
@@ -393,6 +414,7 @@ impl HttpKVStore {
             .get(url.clone())
             .send()
             .await
+            .map_err(|err| request_failed(&url, err))
             .into_iota_result()?;
         trace!(
             "got response {} for url: {}, len: {:?}",
@@ -402,16 +424,35 @@ impl HttpKVStore {
                 .get(CONTENT_LENGTH)
                 .unwrap_or(&HeaderValue::from_static("0"))
         );
-        // return None if 400
-        if resp.status().is_success() {
-            let bytes = resp.bytes().await.into_iota_result()?;
-            self.cache.insert(url, bytes.clone());
+        match resp.status() {
+            status if status.is_success() => {
+                let bytes = resp
+                    .bytes()
+                    .await
+                    .map_err(|err| request_failed(&url, err))
+                    .into_iota_result()?;
+                self.cache.insert(url, bytes.clone());
 
-            Ok(Some(bytes))
-        } else {
-            Ok(None)
+                Ok(Some(bytes))
+            }
+            // The store answers 400 for a key it cannot parse, which a retry
+            // does not change.
+            StatusCode::NOT_FOUND | StatusCode::BAD_REQUEST => Ok(None),
+            status => {
+                warn!("key-value store returned {status} for url: {url}");
+                Err(IotaError::Storage(format!(
+                    "key-value store returned {status} for {key:?}"
+                )))
+            }
         }
     }
+}
+
+/// Logs a failed request and drops the URL from the error, whose text reaches
+/// clients.
+fn request_failed(url: &Url, err: reqwest::Error) -> reqwest::Error {
+    warn!("key-value store request failed for url: {url}: {err:?}");
+    err.without_url()
 }
 
 fn deser<K, T>(key: &K, bytes: &[u8]) -> Option<T>
@@ -424,19 +465,8 @@ where
         .ok()
 }
 
-fn map_fetch<'a, K>(fetch: (&'a IotaResult<Option<Bytes>>, &'a K)) -> Option<(&'a Bytes, &'a K)>
-where
-    K: std::fmt::Debug,
-{
-    let (fetch, key) = fetch;
-    match fetch {
-        Ok(Some(bytes)) => Some((bytes, key)),
-        Ok(None) => None,
-        Err(err) => {
-            warn!("Error fetching key: {:?}, error: {:?}", key, err);
-            None
-        }
-    }
+fn map_fetch<'a, K>((fetch, key): (&'a Option<Bytes>, &'a K)) -> Option<(&'a Bytes, &'a K)> {
+    fetch.as_ref().map(|bytes| (bytes, key))
 }
 
 fn multi_split_slice<'a, T>(slice: &'a [T], lengths: &'a [usize]) -> Vec<&'a [T]> {
@@ -454,7 +484,7 @@ fn multi_split_slice<'a, T>(slice: &'a [T], lengths: &'a [usize]) -> Vec<&'a [T]
 
 /// The keys whose fetch returned data that was then rejected.
 fn rejected_keys<'a, K: Copy, T>(
-    fetches: &'a [IotaResult<Option<Bytes>>],
+    fetches: &'a [Option<Bytes>],
     keys: &'a [K],
     values: &'a [Option<T>],
 ) -> impl Iterator<Item = K> + 'a {
@@ -462,7 +492,7 @@ fn rejected_keys<'a, K: Copy, T>(
         .iter()
         .zip(keys)
         .zip(values)
-        .filter(|((fetch, _), value)| matches!(fetch, Ok(Some(_))) && value.is_none())
+        .filter(|((fetch, _), value)| fetch.is_some() && value.is_none())
         .map(|((_, key), _)| *key)
 }
 
@@ -500,7 +530,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .chain(effects_keys.iter().map(|fx| Key::TransactionEffects(*fx)))
             .collect::<Vec<_>>();
 
-        let fetches = self.multi_fetch(keys).await;
+        let fetches = self.multi_fetch(keys).await?;
         let txn_slice = fetches[..num_txns].to_vec();
         let fx_slice = fetches[num_txns..num_txns + num_effects].to_vec();
 
@@ -563,7 +593,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
         let contents_len = checkpoint_contents.len();
         let summaries_by_digest_len = checkpoint_summaries_by_digest.len();
 
-        let fetches = self.multi_fetch(keys).await;
+        let fetches = self.multi_fetch(keys).await?;
 
         let input_slices = [summaries_len, contents_len, summaries_by_digest_len];
 
@@ -659,7 +689,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .map(|key| Key::ObjectKey(*key))
             .collect::<Vec<_>>();
 
-        let fetches = self.multi_fetch(keys).await;
+        let fetches = self.multi_fetch(keys).await?;
 
         let results = fetches
             .iter()
@@ -681,7 +711,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .map(|digest| Key::TransactionToCheckpoint(*digest))
             .collect::<Vec<_>>();
 
-        let fetches = self.multi_fetch(keys).await;
+        let fetches = self.multi_fetch(keys).await?;
 
         let results = fetches
             .iter()
@@ -707,7 +737,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .collect::<Vec<_>>();
         Ok(self
             .multi_fetch(keys)
-            .await
+            .await?
             .iter()
             .zip(digests.iter())
             .map(map_fetch)

@@ -39,6 +39,7 @@ pub struct Config {
     pub(crate) handshake_timeout: Option<Duration>,
     pub(crate) max_pending_connections: Option<usize>,
     pub(crate) max_connections_per_peer: Option<usize>,
+    pub(crate) max_connection_idle: Option<Duration>,
     pub(crate) on_peer_connection_event: Option<OnPeerConnectionEvent>,
     pub(crate) metrics: Option<ListenerMetrics>,
 }
@@ -94,6 +95,7 @@ impl Default for Config {
             handshake_timeout: Some(DEFAULT_HANDSHAKE_TIMEOUT),
             max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
             max_connections_per_peer: None,
+            max_connection_idle: None,
             on_peer_connection_event: None,
             metrics: None,
         }
@@ -316,6 +318,25 @@ impl Config {
         }
     }
 
+    /// Sets how long a connection may serve no request before it is closed.
+    ///
+    /// Keepalive closes a connection whose peer has gone; this closes one
+    /// whose peer is present and doing nothing. Idle means no request, not no
+    /// bytes: the server's own keepalive pings and the answers to them are
+    /// bytes, so a peer that answers them and asks for nothing is idle. A
+    /// connection that has not yet chosen a protocol is idle too.
+    ///
+    /// Must exceed the longest gap between requests a peer that is behaving
+    /// leaves.
+    ///
+    /// Default is no deadline (`None`).
+    pub fn max_connection_idle(self, max_connection_idle: Option<Duration>) -> Self {
+        Self {
+            max_connection_idle,
+            ..self
+        }
+    }
+
     /// Sets a callback invoked with the peer's public key each time one of its
     /// connections is established, closed or refused at the limit. Only
     /// connections counted under `max_connections_per_peer` are reported. It
@@ -342,6 +363,12 @@ impl Config {
 
     /// Rejects settings the accept loop cannot recover from.
     pub(crate) fn validate(&self) -> Result<(), crate::BoxError> {
+        if self.max_connection_idle == Some(Duration::ZERO) {
+            return Err("'max_connection_idle' must be greater than zero, \
+                        a connection closed the moment it goes idle can never serve anything"
+                .into());
+        }
+
         if self.max_connections_per_peer == Some(0) {
             return Err("'max_connections_per_peer' must be greater than zero, \
                         a peer allowed no connection can never be served"

@@ -32,7 +32,7 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::VersionNumber,
     committee::EpochId,
-    error::{ExecutionError, IotaError, IotaResult},
+    error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
     execution::SharedInput,
     gas::IotaGasStatus,
@@ -883,24 +883,30 @@ impl LocalExec {
                 sponsor_authenticator_function_ref,
             };
 
-            executor.authenticate_then_execute_transaction_to_effects(
-                &self,
-                protocol_config,
-                metrics.clone(),
-                expensive_checks,
-                &certificate_deny_set,
-                &tx_info.executed_epoch,
-                tx_info.epoch_start_timestamp,
-                gas_data,
-                gas_status,
-                MoveAuthenticatorsForExecution::Resolved(move_authenticators),
-                CheckedInputObjects::new_for_replay(input_objects.clone()),
-                transaction_kind.clone(),
-                tx_info.sender,
-                *tx_digest,
-                auth_context_data,
-                &mut None,
-            )
+            // The authentication error only feeds the validator's attestation
+            // verdict; replay must reproduce effects regardless, so drop it.
+            let (inner_store, gas_status, effects, timings, result, _authentication_error) =
+                executor.authenticate_then_execute_transaction_to_effects(
+                    &self,
+                    protocol_config,
+                    metrics.clone(),
+                    expensive_checks,
+                    &certificate_deny_set,
+                    &tx_info.executed_epoch,
+                    tx_info.epoch_start_timestamp,
+                    gas_data,
+                    gas_status,
+                    MoveAuthenticatorsForExecution::Resolved(move_authenticators),
+                    CheckedInputObjects::new_for_replay(input_objects.clone()),
+                    gas_owner_pays(protocol_config),
+                    transaction_kind.clone(),
+                    tx_info.sender,
+                    *tx_digest,
+                    auth_context_data,
+                    &mut None,
+                );
+
+            (inner_store, gas_status, effects, timings, result)
         };
 
         if let Err(err) = self.pretty_print_for_tracing(
@@ -1146,9 +1152,10 @@ impl LocalExec {
             let authenticator_gas_budget = protocol_config.max_auth_gas();
             let (gas_status, per_authenticator_checked_input_objects, union_checked_input_objects) =
                 iota_transaction_checks::check_certificate_and_move_authenticator_input(
-                    &executable,
+                    executable.data().transaction(),
                     tx_input_objects,
                     per_authenticator_input_objects,
+                    None,
                     authenticator_gas_budget,
                     &protocol_config,
                     reference_gas_price,
@@ -1201,24 +1208,30 @@ impl LocalExec {
                 sponsor_authenticator_function_ref,
             };
 
-            executor.authenticate_then_execute_transaction_to_effects(
-                &store,
-                &protocol_config,
-                Arc::new(LimitsMetrics::new(&Registry::new())),
-                true,
-                &HashSet::new(),
-                &executed_epoch,
-                epoch_start_timestamp,
-                gas_data,
-                gas_status,
-                MoveAuthenticatorsForExecution::Resolved(move_authenticators),
-                union_checked_input_objects,
-                kind,
-                signer,
-                *executable.digest(),
-                auth_context_data,
-                &mut None,
-            )
+            // The authentication error only feeds the validator's attestation
+            // verdict; replay must reproduce effects regardless, so drop it.
+            let (inner_store, gas_status, effects, timings, exec_res, _authentication_error) =
+                executor.authenticate_then_execute_transaction_to_effects(
+                    &store,
+                    &protocol_config,
+                    Arc::new(LimitsMetrics::new(&Registry::new())),
+                    true,
+                    &HashSet::new(),
+                    &executed_epoch,
+                    epoch_start_timestamp,
+                    gas_data,
+                    gas_status,
+                    MoveAuthenticatorsForExecution::Resolved(move_authenticators),
+                    union_checked_input_objects,
+                    gas_owner_pays(&protocol_config),
+                    kind,
+                    signer,
+                    *executable.digest(),
+                    auth_context_data,
+                    &mut None,
+                );
+
+            (inner_store, gas_status, effects, timings, exec_res)
         };
 
         let effects =
@@ -2189,6 +2202,24 @@ fn load_authenticator_function_ref(
 
     authenticator_function_ref_v1_from_dynamic_field_object(account_object_id, &field_obj)
         .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })
+}
+
+/// Whether the gas owner pays for a failed Move authentication, as replay
+/// answers it. Replay has no judge and no certified record. In an epoch with
+/// validator attestation, every user transaction was attested, and the gas
+/// owner paid unless the judge found the attestor at fault or could not
+/// decide. Replay assumes it paid, so only those two cases replay wrongly.
+fn gas_owner_pays(
+    protocol_config: &ProtocolConfig,
+) -> Option<&'static dyn Fn(&ExecutionErrorKind) -> bool> {
+    fn always_pays(_: &ExecutionErrorKind) -> bool {
+        true
+    }
+
+    // TODO: read the certified record from the checkpoint summary.
+    protocol_config
+        .enable_validator_attestation()
+        .then_some(&always_pays)
 }
 
 // <---------------------  Implement necessary traits for LocalExec to work with

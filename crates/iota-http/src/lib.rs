@@ -18,6 +18,7 @@ use tracing::trace;
 use self::{
     body::BoxBody,
     connection_info::{ActiveConnections, PeerConnectionCounts},
+    idle_timer::{IdleHandle, IdleTimer},
 };
 
 pub mod body;
@@ -25,6 +26,7 @@ mod config;
 mod connection_handler;
 mod connection_info;
 mod fuse;
+mod idle_timer;
 mod io;
 mod listener;
 pub mod metrics;
@@ -38,6 +40,16 @@ pub(crate) type BoxError = Box<dyn std::error::Error + Send + Sync>;
 const ALPN_H2: &[u8] = b"h2";
 /// h1 alpn in plain format for rustls.
 const ALPN_H1: &[u8] = b"http/1.1";
+
+/// Replaces the protocols a caller advertised with the ones this crate serves.
+fn with_alpn_protocols(mut tls: rustls::ServerConfig, accept_http1: bool) -> rustls::ServerConfig {
+    tls.alpn_protocols = if accept_http1 {
+        vec![ALPN_H2.into(), ALPN_H1.into()]
+    } else {
+        vec![ALPN_H2.into()]
+    };
+    tls
+}
 
 #[derive(Default)]
 pub struct Builder {
@@ -119,13 +131,9 @@ impl Builder {
         let graceful_shutdown_token = tokio_util::sync::CancellationToken::new();
         let connections = ActiveConnections::default();
 
-        let tls_config = self.tls_config.map(|mut tls| {
-            tls.alpn_protocols.push(ALPN_H2.into());
-            if self.config.accept_http1 {
-                tls.alpn_protocols.push(ALPN_H1.into());
-            }
-            Arc::new(tls)
-        });
+        let tls_config = self
+            .tls_config
+            .map(|tls| Arc::new(with_alpn_protocols(tls, self.config.accept_http1)));
 
         if let (Some(metrics), Some(_)) = (&self.config.metrics, &tls_config) {
             metrics.enable_tls();
@@ -351,6 +359,11 @@ where
         }
 
         let connection_shutdown_token = self.graceful_shutdown_token.child_token();
+        let idle_timer = self
+            .config
+            .max_connection_idle
+            .map(idle_timer::idle_timeout);
+        let idle_handle = idle_timer.as_ref().map(IdleTimer::handle);
         let connection_info = ConnectionInfo::new(
             remote_addr,
             io.peer_certs(),
@@ -366,16 +379,31 @@ where
         let hyper_io = hyper_util::rt::TokioIo::new(io);
 
         let service = TrackRequests::new(self.service.clone(), connection_metrics);
-        let hyper_svc = TowerToHyperService::new(service.map_request(
-            move |mut request: Request<hyper::body::Incoming>| {
-                request.extensions_mut().insert(connect_info.clone());
-                if let Some(peer_certificates) = peer_certificates.clone() {
-                    request.extensions_mut().insert(peer_certificates);
-                }
+        let hyper_svc = TowerToHyperService::new(
+            service
+                .map_request(move |mut request: Request<hyper::body::Incoming>| {
+                    request.extensions_mut().insert(connect_info.clone());
+                    if let Some(peer_certificates) = peer_certificates.clone() {
+                        request.extensions_mut().insert(peer_certificates);
+                    }
 
-                request.map(body::boxed)
-            },
-        ));
+                    request.map(body::boxed)
+                })
+                .map_future(move |future| {
+                    // Held by the response body rather than dropped here, so a
+                    // streaming response counts as work until its last frame.
+                    let guard = idle_handle.as_ref().map(IdleHandle::guard);
+                    async move {
+                        let response = future.await;
+                        response.map(|response| {
+                            response.map(|inner| match guard {
+                                Some(guard) => body::boxed(body::GuardedBody::new(inner, guard)),
+                                None => body::boxed(inner),
+                            })
+                        })
+                    }
+                }),
+        );
 
         self.connections
             .write()
@@ -394,6 +422,7 @@ where
                 self.config.connection_builder(),
                 connection_shutdown_token,
                 self.config.max_connection_age,
+                idle_timer,
                 on_connection_close,
             ));
     }
@@ -526,6 +555,24 @@ mod tests {
             iota_tls::create_rustls_server_config(private_key, SERVER_NAME.to_string()),
             iota_tls::create_rustls_client_config(public_key, SERVER_NAME.to_string(), None),
         )
+    }
+
+    /// A caller may hand over a `ServerConfig` that already advertises
+    /// protocols; what this listener serves is not up to them.
+    #[test]
+    fn the_listener_decides_which_protocols_it_advertises() {
+        let (server_tls_config, _) = test_tls_configs();
+        let mut caller_set_h2 = server_tls_config;
+        caller_set_h2.alpn_protocols = vec![ALPN_H2.into(), b"spdy/3".to_vec()];
+
+        let http2_only = with_alpn_protocols(caller_set_h2.clone(), false);
+        assert_eq!(http2_only.alpn_protocols, vec![ALPN_H2.to_vec()]);
+
+        let with_http1 = with_alpn_protocols(caller_set_h2, true);
+        assert_eq!(
+            with_http1.alpn_protocols,
+            vec![ALPN_H2.to_vec(), ALPN_H1.to_vec()]
+        );
     }
 
     /// The peer is unauthenticated until its handshake completes, so a peer
@@ -1170,6 +1217,186 @@ mod tests {
             )
             .is_ok(),
             "removing both bounds stays allowed"
+        );
+    }
+
+    /// An id derived from the connection's address in memory comes back as
+    /// soon as the allocator reuses that address, so two live connections can
+    /// share one. The listener's table is keyed by it: the second insertion
+    /// would replace the first, and the first connection's own close would
+    /// then remove the newcomer's entry.
+    #[test]
+    fn a_connection_id_is_never_reused() {
+        let connection = || {
+            ConnectionInfo::new(
+                "127.0.0.1:1".parse::<std::net::SocketAddr>().unwrap(),
+                None,
+                tokio_util::sync::CancellationToken::new(),
+            )
+        };
+
+        // Dropped before the next is made, which is what frees the address for
+        // the next allocation to be handed.
+        let first = connection();
+        let first_id = first.id();
+        drop(first);
+
+        let second = connection();
+        assert_ne!(
+            first_id,
+            second.id(),
+            "an id must not be reused once its connection has gone"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_peer_that_never_picks_a_protocol_is_closed_when_idle() {
+        use tokio::io::AsyncReadExt as _;
+
+        const IDLE: Duration = Duration::from_millis(200);
+
+        let handle = Builder::new()
+            .config(Config::default().max_connection_idle(Some(IDLE)))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+
+        let mut buf = [0u8; 1];
+        let read = tokio::time::timeout(IDLE * 50, connection.read(&mut buf))
+            .await
+            .expect("an idle connection must be closed by its deadline");
+        assert!(
+            matches!(read, Ok(0) | Err(_)),
+            "the server must close the connection, got {read:?}"
+        );
+    }
+
+    /// A connection goes idle, serves another request and goes idle again any
+    /// number of times, and each time it is given a full deadline from the end
+    /// of its last request. Each request is held for several deadlines, so a
+    /// timer that merely ticks would fire while it is served.
+    #[tokio::test(start_paused = true)]
+    async fn a_connection_goes_idle_again_after_each_request() {
+        const IDLE: Duration = Duration::from_millis(50);
+
+        let timer = idle_timer::idle_timeout(IDLE);
+        let handle = timer.handle();
+
+        tokio::time::timeout(IDLE * 10, timer.wait())
+            .await
+            .expect("a connection that is never used must go idle");
+
+        for request in 0..3 {
+            let guard = handle.guard();
+            let mut wait = std::pin::pin!(timer.wait());
+            assert!(
+                tokio::time::timeout(IDLE * 3, &mut wait).await.is_err(),
+                "request {request}: a connection serving a request must not be considered idle"
+            );
+            let became_idle = tokio::time::Instant::now();
+            drop(guard);
+
+            tokio::time::timeout(IDLE * 10, &mut wait)
+                .await
+                .unwrap_or_else(|_| panic!("request {request}: the connection must go idle again"));
+            assert!(
+                became_idle.elapsed() >= IDLE,
+                "request {request}: the deadline must run from the end of the request, elapsed only {:?}",
+                became_idle.elapsed()
+            );
+        }
+    }
+
+    /// A request can start and finish between two polls of the timer. It must
+    /// still push the deadline back to a full period from its end.
+    #[tokio::test(start_paused = true)]
+    async fn a_request_shorter_than_a_poll_pushes_the_deadline_back() {
+        const IDLE: Duration = Duration::from_millis(100);
+
+        let timer = idle_timer::idle_timeout(IDLE);
+        let handle = timer.handle();
+        let mut wait = std::pin::pin!(timer.wait());
+
+        // Polled once, so it is waiting on the deadline counted from creation.
+        assert!(
+            tokio::time::timeout(IDLE / 2, &mut wait).await.is_err(),
+            "the deadline must not be reached early"
+        );
+
+        let became_idle = tokio::time::Instant::now();
+        drop(handle.guard());
+
+        tokio::time::timeout(IDLE * 10, &mut wait)
+            .await
+            .expect("the connection must go idle after the request");
+        assert!(
+            became_idle.elapsed() >= IDLE,
+            "the deadline must run from the end of the request, elapsed only {:?}",
+            became_idle.elapsed()
+        );
+    }
+
+    /// A response body with a frame still to come: what a streaming response
+    /// looks like between its headers and its last frame.
+    struct NeverEnds;
+
+    impl http_body::Body for NeverEnds {
+        type Data = bytes::Bytes;
+        type Error = BoxError;
+
+        fn poll_frame(
+            self: std::pin::Pin<&mut Self>,
+            _cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
+            std::task::Poll::Pending
+        }
+    }
+
+    /// A streaming response resolves its future as soon as the headers are
+    /// ready, while the work continues for as long as frames are produced.
+    /// Dropping the guard when the future resolves would call such a
+    /// connection idle while it is still sending.
+    #[tokio::test(start_paused = true)]
+    async fn a_streaming_response_holds_its_connection() {
+        const IDLE: Duration = Duration::from_millis(100);
+
+        let timer = idle_timer::idle_timeout(IDLE);
+        let idle = timer.handle();
+        let mut wait = std::pin::pin!(timer.wait());
+
+        // What the server does per request: take a guard and hand it to the
+        // response body.
+        let guard = idle.guard();
+        let streaming = body::GuardedBody::new(NeverEnds, guard);
+
+        assert!(
+            tokio::time::timeout(IDLE * 10, &mut wait).await.is_err(),
+            "a connection still sending its response must not be considered idle"
+        );
+
+        // The response ends when its body is dropped.
+        drop(streaming);
+        assert!(
+            tokio::time::timeout(IDLE * 10, &mut wait).await.is_ok(),
+            "the connection must go idle once the body ends"
+        );
+    }
+
+    /// A deadline of zero would close every connection the moment it was
+    /// established.
+    #[tokio::test]
+    async fn an_idle_deadline_of_zero_is_rejected() {
+        let served = Builder::new()
+            .config(Config::default().max_connection_idle(Some(Duration::ZERO)))
+            .serve(("localhost", 0), Router::new());
+
+        let error = served.expect_err("a zero deadline must be rejected");
+        assert!(
+            error.to_string().contains("max_connection_idle"),
+            "the error should name the setting, got: {error}"
         );
     }
 }

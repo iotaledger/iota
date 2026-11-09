@@ -37,6 +37,7 @@ use iota_sdk_types::{
     TransactionKind, UserSignature,
 };
 use iota_types::{
+    attestation::{AttestationEntry, AttestationRecord, AttestationTotals},
     base_types::{AuthorityName, ConciseableName, EpochId, ExecutionData},
     committee::StakeUnit,
     crypto::AuthorityStrongQuorumSignInfo,
@@ -88,6 +89,7 @@ pub use crate::checkpoints::{
 use crate::{
     authority::{
         AuthorityState,
+        attestation::apply_fault_penalties,
         authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
         historic_ledger::HistoricLedger,
         ledger_backlog_migration::CheckpointBacklogMigrationProgress,
@@ -709,6 +711,13 @@ impl CheckpointStore {
         Ok(())
     }
 
+    /// Compares the summary this node built with the certified one for the
+    /// same sequence number.
+    ///
+    /// # Panics
+    ///
+    /// If they differ: the node has forked from the network, so both summaries
+    /// and their contents are logged before the panic.
     #[instrument(level = "trace", skip_all)]
     fn check_for_checkpoint_fork(
         &self,
@@ -762,6 +771,13 @@ impl CheckpointStore {
                 ?verified_contents,
                 ?local_checkpoint,
                 ?local_contents,
+                // Two summaries over identical contents can still differ in
+                // their attestation entries, which the dump above would not
+                // show.
+                attestation_entry_differences =
+                    ?attestation_entry_differences(local_checkpoint, verified_checkpoint),
+                attestation_totals_difference =
+                    ?attestation_totals_difference(local_checkpoint, verified_checkpoint),
                 "Local checkpoint fork detected!",
             );
             fatal!(
@@ -2220,15 +2236,26 @@ impl CheckpointBuilder {
         &self,
         transactions_effects_and_sizes: Vec<(TransactionEnvelope, TransactionEffects, usize)>,
         signatures: Vec<Vec<UserSignature>>,
+        attestations: Vec<Option<AttestationRecord>>,
     ) -> CheckpointBuilderResult<
-        Vec<Vec<(TransactionEnvelope, TransactionEffects, Vec<UserSignature>)>>,
+        Vec<
+            Vec<(
+                TransactionEnvelope,
+                TransactionEffects,
+                Vec<UserSignature>,
+                Option<AttestationRecord>,
+            )>,
+        >,
     > {
         let _guard = monitored_scope("CheckpointBuilder::split_checkpoint_chunks");
         let mut chunks = Vec::new();
         let mut chunk = Vec::new();
         let mut chunk_size: usize = 0;
-        for ((transaction, effects, transaction_size), signatures) in
-            transactions_effects_and_sizes.into_iter().zip(signatures)
+        for (((transaction, effects, transaction_size), signatures), attestation) in
+            transactions_effects_and_sizes
+                .into_iter()
+                .zip(signatures)
+                .zip(attestations)
         {
             // Roll over to a new chunk after either max count or max size is reached.
             // The size calculation here is intended to estimate the size of the
@@ -2253,7 +2280,7 @@ impl CheckpointBuilder {
                 }
             }
 
-            chunk.push((transaction, effects, signatures));
+            chunk.push((transaction, effects, signatures, attestation));
             chunk_size += size;
         }
 
@@ -2328,6 +2355,24 @@ impl CheckpointBuilder {
             .state
             .get_transaction_cache_reader()
             .try_get_transactions_and_serialized_sizes(&all_digests)?;
+        // Only attested transactions carry a verdict, and only the attestation
+        // flag lets any be attested: without it there is nothing to fetch. The
+        // records are written in the same batch as the effects, so present for
+        // every executed digest.
+        let all_attestations = if self
+            .epoch_store
+            .protocol_config()
+            .enable_validator_attestation()
+        {
+            self.state
+                .get_transaction_cache_reader()
+                .try_multi_get_attestation_records_in_epoch(
+                    self.epoch_store.epoch(),
+                    &all_digests,
+                )?
+        } else {
+            vec![None; all_digests.len()]
+        };
         let mut all_effects_and_transaction_sizes = Vec::with_capacity(all_effects.len());
         let mut transactions = Vec::with_capacity(all_effects.len());
         let mut transaction_keys = Vec::with_capacity(all_effects.len());
@@ -2403,7 +2448,11 @@ impl CheckpointBuilder {
             .zip(all_effects_and_transaction_sizes)
             .map(|(transaction, (effects, size))| (transaction.into_inner(), effects, size))
             .collect();
-        let chunks = self.split_checkpoint_chunks(transactions_effects_and_sizes, signatures)?;
+        let chunks = self.split_checkpoint_chunks(
+            transactions_effects_and_sizes,
+            signatures,
+            all_attestations,
+        )?;
         let chunks_count = chunks.len();
 
         let mut checkpoints = Vec::with_capacity(chunks_count);
@@ -2441,16 +2490,21 @@ impl CheckpointBuilder {
                 }
             }
 
-            let (chunk_transactions, mut effects, mut signatures): (
-                Vec<TransactionEnvelope>,
-                Vec<TransactionEffects>,
-                Vec<Vec<UserSignature>>,
+            let (chunk_transactions, mut effects, mut signatures, mut attestations): (
+                Vec<_>,
+                Vec<_>,
+                Vec<_>,
+                Vec<_>,
             ) = chunk.into_iter().multiunzip();
             let epoch_rolling_gas_cost_summary =
                 self.get_epoch_total_gas_cost(last_checkpoint.as_ref().map(|(_, c)| c), &effects);
+            let attestation_totals = self.get_epoch_attestation_totals(
+                last_checkpoint.as_ref().map(|(_, c)| c),
+                &attestations,
+            );
 
             let end_of_epoch_data = if last_checkpoint_of_epoch {
-                let scores: Vec<u64> = if self
+                let mut scores: Vec<u64> = if self
                     .epoch_store
                     .protocol_config()
                     .pass_calculated_validator_scores_to_advance_epoch()
@@ -2460,6 +2514,17 @@ impl CheckpointBuilder {
                     // Give everyone in the committee the max score
                     vec![MAX_SCORE; self.epoch_store.committee().num_members()]
                 };
+                if let Some(max_refuted_units_squared) = self
+                    .epoch_store
+                    .protocol_config()
+                    .attestation_max_refuted_units_squared_as_option()
+                {
+                    apply_fault_penalties(
+                        &mut scores,
+                        &attestation_totals,
+                        max_refuted_units_squared,
+                    );
+                }
 
                 let (system_state_obj, system_epoch_info_event) = self
                     .augment_epoch_last_checkpoint(
@@ -2467,6 +2532,7 @@ impl CheckpointBuilder {
                         timestamp_ms,
                         &mut effects,
                         &mut signatures,
+                        &mut attestations,
                         sequence_number,
                         scores,
                     )
@@ -2563,6 +2629,8 @@ impl CheckpointBuilder {
                 end_of_epoch_data,
                 timestamp_ms,
                 matching_randomness_rounds,
+                AttestationEntry::from_records(&attestations),
+                attestation_totals,
             );
             summary.report_checkpoint_age(&self.metrics.last_created_checkpoint_age);
             if last_checkpoint_of_epoch {
@@ -2610,6 +2678,35 @@ impl CheckpointBuilder {
         Ok(NonEmpty::from_vec(checkpoints).expect("at least one checkpoint"))
     }
 
+    /// The epoch's attestation totals through this checkpoint: the previous
+    /// summary's totals when it belongs to this epoch, plus this checkpoint's
+    /// `Refuted` records. Empty without attestation.
+    ///
+    /// # Panics
+    ///
+    /// If the previous summary's version-specific data does not decode: the
+    /// builder wrote it itself.
+    fn get_epoch_attestation_totals(
+        &self,
+        last_checkpoint: Option<&CheckpointSummary>,
+        attestations: &[Option<AttestationRecord>],
+    ) -> AttestationTotals {
+        let protocol_config = self.epoch_store.protocol_config();
+        if !protocol_config.enable_validator_attestation() {
+            return AttestationTotals::default();
+        }
+        last_checkpoint
+            .filter(|summary| summary.epoch == self.epoch_store.epoch())
+            .and_then(|summary| {
+                summary
+                    .parse_version_specific_data(protocol_config)
+                    .expect("the builder's own summary decodes")
+            })
+            .and_then(|data| data.attestation_totals().cloned())
+            .unwrap_or_default()
+            .with_records(attestations)
+    }
+
     fn get_epoch_total_gas_cost(
         &self,
         last_checkpoint: Option<&CheckpointSummary>,
@@ -2645,6 +2742,7 @@ impl CheckpointBuilder {
         epoch_start_timestamp_ms: CheckpointTimestamp,
         checkpoint_effects: &mut Vec<TransactionEffects>,
         signatures: &mut Vec<Vec<UserSignature>>,
+        attestations: &mut Vec<Option<AttestationRecord>>,
         checkpoint: CheckpointSequenceNumber,
         scores: Vec<u64>,
     ) -> CheckpointBuilderResult<(IotaSystemState, Option<SystemEpochInfoEvent>)> {
@@ -2660,6 +2758,7 @@ impl CheckpointBuilder {
             .await?;
         checkpoint_effects.push(effects);
         signatures.push(vec![]);
+        attestations.push(None);
         Ok((system_state, system_epoch_info_event))
     }
 
@@ -3087,6 +3186,40 @@ impl CheckpointSignatureAggregator {
             });
         }
     }
+}
+
+/// The attestation entries of two summaries when they disagree.
+fn attestation_entry_differences(
+    local: &CheckpointSummary,
+    verified: &CheckpointSummary,
+) -> Option<(Vec<AttestationEntry>, Vec<AttestationEntry>)> {
+    let decode = |summary: &CheckpointSummary| {
+        decode_version_specific_data(summary)
+            .map(|data| data.attestation_entries().to_vec())
+            .unwrap_or_default()
+    };
+    let (local, verified) = (decode(local), decode(verified));
+    (local != verified).then_some((local, verified))
+}
+
+/// The attestation totals of two summaries when they disagree.
+fn attestation_totals_difference(
+    local: &CheckpointSummary,
+    verified: &CheckpointSummary,
+) -> Option<(AttestationTotals, AttestationTotals)> {
+    let decode = |summary: &CheckpointSummary| {
+        decode_version_specific_data(summary)
+            .and_then(|data| data.attestation_totals().cloned())
+            .unwrap_or_default()
+    };
+    let (local, verified) = (decode(local), decode(verified));
+    (local != verified).then_some((local, verified))
+}
+
+fn decode_version_specific_data(
+    summary: &CheckpointSummary,
+) -> Option<iota_types::messages_checkpoint::CheckpointVersionSpecificData> {
+    bcs::from_bytes(&summary.version_specific_data).ok()
 }
 
 /// Create data dump containing relevant data for diagnosing cause of the
@@ -3679,6 +3812,7 @@ mod tests {
         TransactionEffectsDigest, TransactionEvents, Version,
     };
     use iota_types::{
+        attestation::AttestationVerdict,
         effects::{TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting},
         messages_checkpoint::SignedCheckpointSummary,
         messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
@@ -3845,62 +3979,23 @@ mod tests {
     #[tokio::test]
     async fn builder_caches_full_contents_only_after_durable_contents_write() {
         let state = TestAuthorityBuilder::new().build().await;
+        let epoch_store = state.epoch_store_for_testing();
 
         let tx = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
         let digest = *tx.digest();
-        state
-            .database_for_testing()
-            .get_historic_ledger()
-            .ensure(0)
-            .unwrap()
-            .transactions
-            .insert(&digest, tx.serializable_ref())
-            .unwrap();
-
         let mut effects_map = HashMap::new();
-        commit_cert_for_test(
-            &mut effects_map,
-            state.clone(),
-            digest,
-            vec![],
-            GasCostSummary::new(1, 1, 1, 1, 1),
-        );
+        store_executed_tx(&state, &mut effects_map, &tx);
         let effects = effects_map[&digest].clone();
-
-        let signature = iota_types::crypto::zero_ed25519_signature().into();
-        state
-            .epoch_store_for_testing()
-            .test_insert_user_signature(digest, vec![signature]);
-
-        let (output, _result) = mpsc::channel::<(CheckpointContents, CheckpointSummary)>(10);
-        let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
 
         let tmp_dir = iota_common::tempdir();
         let checkpoint_store = CheckpointStore::new(tmp_dir.path());
-        let epoch_store = state.epoch_store_for_testing();
-
-        let global_state_hasher = Arc::new(GlobalStateHasher::new_for_tests(
-            state.get_global_state_hash_store().clone(),
-        ));
-
-        let checkpoint_service = CheckpointService::build(
-            state.clone(),
-            checkpoint_store.clone(),
-            epoch_store.clone(),
-            Arc::new(effects_map),
-            Arc::downgrade(&global_state_hasher),
-            Box::new(output),
-            Box::new(certified_output),
-            CheckpointMetrics::new_for_tests(),
-            3,
-            100_000,
-        );
         // Drive the builder manually instead of spawning it, to observe the
-        // store between checkpoint creation and the durable batch write. The
-        // state hasher must stay alive: `create_checkpoints` sends to it.
-        let (builder, _aggregator, _hasher) = checkpoint_service.state.lock().take_unstarted();
+        // store between checkpoint creation and the durable batch write.
+        let service = manual_checkpoint_service(&state, checkpoint_store.clone(), effects_map);
+        let (builder, _aggregator, _hasher) = service.service.state.lock().take_unstarted();
 
-        checkpoint_service
+        service
+            .service
             .write_and_notify_checkpoint_for_testing(&epoch_store, p(0, vec![digest], 0))
             .unwrap();
 
@@ -4187,6 +4282,187 @@ mod tests {
         assert_eq!(certified[0].digest(), &summary.digest());
     }
 
+    /// The summary certifies only the records other than `Valid`, each at
+    /// its transaction's position in contents order.
+    #[tokio::test]
+    async fn summary_certifies_records_other_than_valid_at_their_positions() {
+        let mut protocol_config =
+            ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config.set_enable_pcool_flow_for_testing(true);
+        protocol_config.set_enable_validator_attestation_for_testing(true);
+        protocol_config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        let state = TestAuthorityBuilder::new()
+            .with_protocol_config(protocol_config)
+            .build()
+            .await;
+        let epoch_store = state.epoch_store_for_testing();
+
+        let txs = [genesis_package_tx(1, 1), genesis_package_tx(2, 1)];
+        let digests: Vec<_> = txs.iter().map(|tx| *tx.digest()).collect();
+        let mut effects_map = HashMap::new();
+        for tx in &txs {
+            store_executed_tx(&state, &mut effects_map, tx);
+        }
+        // A valid record for the first transaction, a refuted one for the second.
+        let bucket = state
+            .database_for_testing()
+            .get_historic_ledger()
+            .ensure(epoch_store.epoch())
+            .unwrap();
+        let records = &bucket.attestation_records;
+        records
+            .insert(
+                &digests[0],
+                &AttestationRecord {
+                    attestor: 0,
+                    verdict: AttestationVerdict::Valid,
+                },
+            )
+            .unwrap();
+        let refuted = AttestationRecord {
+            attestor: 2,
+            verdict: AttestationVerdict::Refuted { units: 7 },
+        };
+        records.insert(&digests[1], &refuted).unwrap();
+        let effects: Vec<_> = digests.iter().map(|d| effects_map[d].clone()).collect();
+
+        let tmp_dir = iota_common::tempdir();
+        let service =
+            manual_checkpoint_service(&state, CheckpointStore::new(tmp_dir.path()), effects_map);
+        let (builder, _aggregator, _hasher) = service.service.state.lock().take_unstarted();
+        service
+            .service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(0, digests.clone(), 0))
+            .unwrap();
+        let details = PendingCheckpointInfo {
+            timestamp_ms: 0,
+            last_of_epoch: false,
+            checkpoint_height: 0,
+        };
+        let new_checkpoints = builder
+            .create_checkpoints(
+                effects,
+                &details,
+                &digests.iter().copied().collect::<HashSet<_>>(),
+            )
+            .await
+            .unwrap();
+        let built = new_checkpoints.first();
+
+        let entries = built
+            .summary
+            .parse_version_specific_data(epoch_store.protocol_config())
+            .unwrap()
+            .expect("version 2 summaries carry version specific data")
+            .attestation_entries()
+            .to_vec();
+        let position = built
+            .contents
+            .iter()
+            .position(|d| d.transaction == digests[1])
+            .unwrap();
+        assert_eq!(
+            entries,
+            vec![AttestationEntry {
+                position: position as u32,
+                record: refuted,
+            }]
+        );
+    }
+
+    /// The summary carries the epoch's refuted totals so far: the previous
+    /// summary's totals plus this checkpoint's `Refuted` records.
+    #[tokio::test]
+    async fn summary_attestation_totals_accumulate_across_checkpoints() {
+        let mut protocol_config =
+            ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config.set_enable_pcool_flow_for_testing(true);
+        protocol_config.set_enable_validator_attestation_for_testing(true);
+        protocol_config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        let state = TestAuthorityBuilder::new()
+            .with_protocol_config(protocol_config)
+            .build()
+            .await;
+        let epoch_store = state.epoch_store_for_testing();
+
+        let txs = [
+            genesis_package_tx(1, 1),
+            genesis_package_tx(2, 1),
+            genesis_package_tx(3, 1),
+        ];
+        let digests: Vec<_> = txs.iter().map(|tx| *tx.digest()).collect();
+        let mut effects_map = HashMap::new();
+        for tx in &txs {
+            store_executed_tx(&state, &mut effects_map, tx);
+        }
+        let record = |digest, attestor, verdict| {
+            state
+                .database_for_testing()
+                .get_historic_ledger()
+                .ensure(epoch_store.epoch())
+                .unwrap()
+                .attestation_records
+                .insert(digest, &AttestationRecord { attestor, verdict })
+                .unwrap();
+        };
+        record(&digests[0], 1, AttestationVerdict::Valid);
+        record(&digests[1], 2, AttestationVerdict::Refuted { units: 7 });
+        record(&digests[2], 2, AttestationVerdict::Refuted { units: 7 });
+
+        let tmp_dir = iota_common::tempdir();
+        let service = manual_checkpoint_service(
+            &state,
+            CheckpointStore::new(tmp_dir.path()),
+            effects_map.clone(),
+        );
+        let (builder, _aggregator, _hasher) = service.service.state.lock().take_unstarted();
+        let builder = &builder;
+        let build = |height, roots: Vec<TransactionDigest>| {
+            let effects = roots.iter().map(|d| effects_map[d].clone()).collect();
+            let roots_set: HashSet<_> = roots.iter().copied().collect();
+            service
+                .service
+                .write_and_notify_checkpoint_for_testing(&epoch_store, p(height, roots, 0))
+                .unwrap();
+            let details = PendingCheckpointInfo {
+                timestamp_ms: 0,
+                last_of_epoch: false,
+                checkpoint_height: height,
+            };
+            async move {
+                builder
+                    .create_checkpoints(effects, &details, &roots_set)
+                    .await
+                    .unwrap()
+            }
+        };
+        let totals_of = |built: &BuiltCheckpoint| {
+            built
+                .summary
+                .parse_version_specific_data(epoch_store.protocol_config())
+                .unwrap()
+                .expect("version 2 summaries carry version specific data")
+                .attestation_totals()
+                .cloned()
+                .expect("version 2 summaries carry totals")
+        };
+
+        // Each refuted record wasted 7 units, below one max-gas run.
+        let checkpoints = build(0, digests[..2].to_vec()).await;
+        assert_eq!(
+            totals_of(checkpoints.first()).refuted_units_squared,
+            BTreeMap::from([(2, 49)])
+        );
+        builder.write_checkpoints(0, checkpoints).await.unwrap();
+
+        let checkpoints = build(1, digests[2..].to_vec()).await;
+        assert_eq!(
+            totals_of(checkpoints.first()).refuted_units_squared,
+            BTreeMap::from([(2, 98)]),
+            "the second checkpoint adds to the first one's totals"
+        );
+    }
+
     #[sim_test]
     pub async fn checkpoint_builder_test() {
         telemetry_subscribers::init_for_testing();
@@ -4207,32 +4483,12 @@ mod tests {
         // digest, and the assertions below rely on that order. Transactions
         // 15..20 carry a large payload to exercise size-based checkpoint
         // splitting.
-        let make_tx = |seed: u8, payload_size: usize| {
-            let mut id = [0u8; 32];
-            id[0] = seed;
-            VerifiedTransaction::new_genesis_transaction(
-                vec![GenesisObject::new(
-                    ObjectData::Package(MovePackage::new(
-                        ObjectId::new(id),
-                        Version::default(),
-                        BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; payload_size])]),
-                        // no modules so empty type_origin_table as no types are defined in
-                        // this package
-                        Vec::new(),
-                        // no modules so empty linkage_table as no dependencies of this package
-                        // exist
-                        BTreeMap::new(),
-                    )),
-                    Owner::Immutable,
-                )],
-                vec![],
-            )
-        };
-
-        let mut small: Vec<_> = (0..15).map(|seed| make_tx(seed, 1)).collect();
+        let mut small: Vec<_> = (0..15).map(|seed| genesis_package_tx(seed, 1)).collect();
         small.sort_by_key(|tx| *tx.digest());
 
-        let mut large: Vec<_> = (0..5).map(|seed| make_tx(100 + seed, 40000)).collect();
+        let mut large: Vec<_> = (0..5)
+            .map(|seed| genesis_package_tx(100 + seed, 40000))
+            .collect();
         large.sort_by_key(|tx| *tx.digest());
 
         let txns: Vec<_> = small.into_iter().chain(large).collect();
@@ -4482,28 +4738,7 @@ mod tests {
         // Distinct real transactions: only build timing is under test, but the
         // builder pairs each stored transaction with its effects by digest, so
         // effects must reference the digests of actually stored transactions.
-        let make_tx = |seed: u8| {
-            let mut id = [0u8; 32];
-            id[0] = seed;
-            VerifiedTransaction::new_genesis_transaction(
-                vec![GenesisObject::new(
-                    ObjectData::Package(MovePackage::new(
-                        ObjectId::new(id),
-                        Version::default(),
-                        BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 1])]),
-                        // no modules so empty type_origin_table as no types are defined in
-                        // this package
-                        Vec::new(),
-                        // no modules so empty linkage_table as no dependencies of this package
-                        // exist
-                        BTreeMap::new(),
-                    )),
-                    Owner::Immutable,
-                )],
-                vec![],
-            )
-        };
-        let txns: Vec<_> = (1..=8).map(make_tx).collect();
+        let txns: Vec<_> = (1..=8).map(|seed| genesis_package_tx(seed, 1)).collect();
         let digests: Vec<TransactionDigest> = txns.iter().map(|tx| *tx.digest()).collect();
         // Digest for test index `i` (1-based).
         let d = |i: u8| digests[(i - 1) as usize];
@@ -4625,6 +4860,14 @@ mod tests {
     }
 
     impl TransactionCacheRead for HashMap<TransactionDigest, TransactionEffects> {
+        fn try_multi_get_attestation_records_in_epoch(
+            &self,
+            _: EpochId,
+            digests: &[TransactionDigest],
+        ) -> IotaResult<Vec<Option<AttestationRecord>>> {
+            Ok(vec![None; digests.len()])
+        }
+
         fn try_notify_read_executed_effects(
             &self,
             _: &str,
@@ -4735,6 +4978,97 @@ mod tests {
         ) -> IotaResult {
             self.try_send(summary.clone()).unwrap();
             Ok(())
+        }
+    }
+
+    /// A distinct genesis transaction publishing an empty package whose id
+    /// starts with `seed`; `payload_size` pads it to exercise size limits.
+    fn genesis_package_tx(seed: u8, payload_size: usize) -> VerifiedTransaction {
+        let mut id = [0u8; 32];
+        id[0] = seed;
+        VerifiedTransaction::new_genesis_transaction(
+            vec![GenesisObject::new(
+                ObjectData::Package(MovePackage::new(
+                    ObjectId::new(id),
+                    Version::default(),
+                    BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; payload_size])]),
+                    // No modules, so no type origins and no linkage.
+                    Vec::new(),
+                    BTreeMap::new(),
+                )),
+                Owner::Immutable,
+            )],
+            vec![],
+        )
+    }
+
+    /// Stores `tx` as executed: in the epoch's ledger bucket, with effects in
+    /// `effects_map`, and with a user signature for the checkpoint builder.
+    fn store_executed_tx(
+        state: &Arc<AuthorityState>,
+        effects_map: &mut HashMap<TransactionDigest, TransactionEffects>,
+        tx: &VerifiedTransaction,
+    ) {
+        let digest = *tx.digest();
+        state
+            .database_for_testing()
+            .get_historic_ledger()
+            .ensure(state.epoch_store_for_testing().epoch())
+            .unwrap()
+            .transactions
+            .insert(&digest, tx.serializable_ref())
+            .unwrap();
+        commit_cert_for_test(
+            effects_map,
+            state.clone(),
+            digest,
+            vec![],
+            GasCostSummary::new(1, 1, 1, 1, 1),
+        );
+        let signature = iota_types::crypto::zero_ed25519_signature().into();
+        state
+            .epoch_store_for_testing()
+            .test_insert_user_signature(digest, vec![signature]);
+    }
+
+    /// A checkpoint service whose builder is driven by hand. Keeps alive what
+    /// the builder needs: the state hasher `create_checkpoints` sends to and
+    /// the output channels.
+    struct ManualCheckpointService {
+        service: Arc<CheckpointService>,
+        _hasher: Arc<GlobalStateHasher>,
+        _outputs: (
+            mpsc::Receiver<(CheckpointContents, CheckpointSummary)>,
+            mpsc::Receiver<CertifiedCheckpointSummary>,
+        ),
+    }
+
+    fn manual_checkpoint_service(
+        state: &Arc<AuthorityState>,
+        checkpoint_store: Arc<CheckpointStore>,
+        effects_map: HashMap<TransactionDigest, TransactionEffects>,
+    ) -> ManualCheckpointService {
+        let (output, result) = mpsc::channel(10);
+        let (certified_output, certified_result) = mpsc::channel(10);
+        let hasher = Arc::new(GlobalStateHasher::new_for_tests(
+            state.get_global_state_hash_store().clone(),
+        ));
+        let service = CheckpointService::build(
+            state.clone(),
+            checkpoint_store,
+            state.epoch_store_for_testing().clone(),
+            Arc::new(effects_map),
+            Arc::downgrade(&hasher),
+            Box::new(output),
+            Box::new(certified_output),
+            CheckpointMetrics::new_for_tests(),
+            3,
+            100_000,
+        );
+        ManualCheckpointService {
+            service,
+            _hasher: hasher,
+            _outputs: (result, certified_result),
         }
     }
 

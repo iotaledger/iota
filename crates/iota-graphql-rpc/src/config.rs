@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, fmt::Display};
+use std::{collections::BTreeSet, fmt::Display, num::NonZeroU32};
 
 use async_graphql::*;
 use iota_graphql_config::GraphQLConfig;
@@ -200,6 +200,15 @@ pub struct Limits {
     pub max_transaction_ids: u32,
     /// Maximum number of candidates to scan when gathering a page of results.
     pub max_scan_limit: u32,
+    /// Maximum number of checkpoints a subscription may replay from the
+    /// database when resuming from `startAfter`, measured as the difference
+    /// between the sequence number of the latest indexed checkpoint and that
+    /// of the checkpoint containing the `startAfter` digest. A digest further
+    /// behind is rejected.
+    pub max_subscription_recovery_checkpoints: NonZeroU32,
+    /// Maximum number of subscriptions that may be active at the same time
+    /// across all connections.
+    pub max_active_subscriptions: NonZeroU32,
 }
 
 #[GraphQLConfig]
@@ -601,6 +610,9 @@ impl Default for Limits {
             //
             // <https://github.com/iotaledger/iota/blob/29c410ac809dd7c71dbf0237a96f08d72b406e52/crates/iota-protocol-config/src/lib.rs#L1566>
             max_tx_payload_size: (128u32 * 1024u32 * 4u32).div_ceil(3),
+            max_subscription_recovery_checkpoints: NonZeroU32::new(20_000)
+                .expect("value must be non zero"),
+            max_active_subscriptions: NonZeroU32::new(1000).expect("value must be non zero"),
         }
     }
 }
@@ -666,6 +678,8 @@ mod tests {
                 max-move-value-depth = 256
                 max-transaction-ids = 11
                 max-scan-limit = 50
+                max-subscription-recovery-checkpoints = 500
+                max-active-subscriptions = 20
             "#,
         )
         .unwrap();
@@ -688,6 +702,8 @@ mod tests {
                 max_move_value_depth: 256,
                 max_transaction_ids: 11,
                 max_scan_limit: 50,
+                max_subscription_recovery_checkpoints: NonZeroU32::new(500).unwrap(),
+                max_active_subscriptions: NonZeroU32::new(20).unwrap(),
             },
             ..Default::default()
         };
@@ -753,6 +769,8 @@ mod tests {
                 max-move-value-depth = 256
                 max-transaction-ids = 42
                 max-scan-limit = 420
+                max-subscription-recovery-checkpoints = 4200
+                max-active-subscriptions = 42
 
                 [experiments]
                 test-flag = true
@@ -778,6 +796,8 @@ mod tests {
                 max_move_value_depth: 256,
                 max_transaction_ids: 42,
                 max_scan_limit: 420,
+                max_subscription_recovery_checkpoints: NonZeroU32::new(4200).unwrap(),
+                max_active_subscriptions: NonZeroU32::new(42).unwrap(),
             },
             disabled_features: BTreeSet::from([FunctionalGroup::Analytics]),
             experiments: Experiments { test_flag: true },

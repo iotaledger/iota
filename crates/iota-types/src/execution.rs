@@ -9,12 +9,15 @@ use std::{
 
 use iota_sdk_types::{
     Argument, Event, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, TransactionDigest,
-    TypeTag, Version,
+    TransactionEffects, TypeTag, Version,
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    error::{ExecutionError, ExecutionErrorKind},
+    gas::IotaGasStatus,
+    inner_temporary_store::InnerTemporaryStore,
     object::{MoveStructExt, Object},
     storage::BackingPackageStore,
 };
@@ -87,6 +90,60 @@ pub type ExecutionResult = (
     // return_values
     Vec<(Vec<u8>, TypeTag)>,
 );
+
+/// What authenticating and then executing a transaction returns: the temporary
+/// store, the gas status, the effects, the timings and the execution result,
+/// plus the Move authentication error when that phase failed. The body's own
+/// checks may replace that error in the effects.
+pub type AuthenticateThenExecuteOutput<R> = (
+    InnerTemporaryStore,
+    IotaGasStatus,
+    TransactionEffects,
+    Vec<ExecutionTiming>,
+    Result<R, ExecutionError>,
+    Option<ExecutionErrorKind>,
+);
+
+/// Returns the error wrapped in an [`ExecutionErrorKind::MoveAuthentication`]
+/// status, the way the engine reports a failed authentication when the
+/// protocol feature flag `report_move_authentication_error` is on, so the
+/// authenticator's own failure can be matched. Any other kind is returned as
+/// it is.
+pub fn unwrap_move_authentication_error(kind: &ExecutionErrorKind) -> &ExecutionErrorKind {
+    match kind {
+        ExecutionErrorKind::MoveAuthentication { error } => error.as_ref(),
+        kind => kind,
+    }
+}
+
+/// Whether `kind` says the execution was canceled rather than failed: canceled
+/// at the consensus commit because of shared object congestion, execution
+/// worker congestion or unavailable randomness, or denied by
+/// [`is_certificate_denied()`]. A Move authentication never reports a denial:
+/// its input checks skip the deny list, which applies after authentication. A
+/// kind wrapped in an [`ExecutionErrorKind::MoveAuthentication`] status must
+/// be unwrapped first with [`unwrap_move_authentication_error()`].
+pub fn is_cancellation(kind: &ExecutionErrorKind) -> bool {
+    matches!(
+        kind,
+        ExecutionErrorKind::CertificateDenied
+            | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion { .. }
+            | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 { .. }
+            | ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion { .. }
+            | ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable
+    )
+}
+
+/// Whether `kind` is an invariant violation of the execution layer or of the
+/// Move VM: an internal error, not a failure the transaction caused. A kind
+/// wrapped in an [`ExecutionErrorKind::MoveAuthentication`] status must be
+/// unwrapped first with [`unwrap_move_authentication_error()`].
+pub fn is_any_invariant_violation(kind: &ExecutionErrorKind) -> bool {
+    matches!(
+        kind,
+        ExecutionErrorKind::InvariantViolation | ExecutionErrorKind::VmInvariantViolation
+    )
+}
 
 impl ExecutionResultsV1 {
     pub fn drop_writes(&mut self) {

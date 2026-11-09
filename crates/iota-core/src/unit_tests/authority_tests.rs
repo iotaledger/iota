@@ -5972,7 +5972,7 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
                 tracking_id: Default::default(),
             }),
         ];
-        authority_state
+        let (scheduled, assigned_versions) = authority_state
             .epoch_store_for_testing()
             .process_consensus_transactions_for_tests(
                 transactions,
@@ -5983,7 +5983,8 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
                 &authority_state,
             )
             .await
-            .unwrap()
+            .unwrap();
+        (drop_attestations(scheduled), assigned_versions)
     } else {
         // Submit as certificates (original path).
         let mut certificates = vec![];
@@ -7544,7 +7545,8 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     let non_congested_tx_count = match mode {
         PerObjectCongestionControlMode::None => unreachable!(),
-        PerObjectCongestionControlMode::TotalGasBudget => 5,
+        PerObjectCongestionControlMode::TotalGasBudget
+        | PerObjectCongestionControlMode::TotalComputationUnits => 5,
         PerObjectCongestionControlMode::TotalTxCount => 2,
     };
     let gas_objects_commit_1 = create_gas_objects(5 + non_congested_tx_count, sender);
@@ -7557,7 +7559,8 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     match mode {
         PerObjectCongestionControlMode::None => unreachable!(),
-        PerObjectCongestionControlMode::TotalGasBudget => {
+        PerObjectCongestionControlMode::TotalGasBudget
+        | PerObjectCongestionControlMode::TotalComputationUnits => {
             protocol_config
                 .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
                     200_000_000,
@@ -8257,7 +8260,7 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     // production the consensus handler submits through AsyncTransactionScheduler;
     // here we enqueue directly to keep the test focused on the seam.
     let assigned_versions = assigned_versions.into_map();
-    let executable_txs: Vec<_> = executable_txs
+    let executable_txs: Vec<_> = drop_attestations(executable_txs)
         .into_iter()
         .map(|txn| {
             let key = txn.key();
