@@ -61,11 +61,10 @@ impl Builder {
         let metrics = metrics.unwrap_or_else(Metrics::disabled);
         let (sender, mailbox) = mpsc::channel(config.mailbox_capacity());
         let mailbox_sender = sender.downgrade();
-        let handle = Handle {
-            sender: sender.clone(),
-        };
+        let handle = Handle { sender };
+        let (peer_sender, peer_mailbox) = mpsc::channel(config.peer_mailbox_capacity());
         let server = Server {
-            sender: sender.downgrade(),
+            sender: peer_sender,
         };
         let randomness_server = RandomnessServer::new(server).add_layer_for_send_signatures(
             InboundRequestLayer::new(inflight_limit::InflightLimitLayer::new(
@@ -85,6 +84,7 @@ impl Builder {
                 config,
                 handle,
                 mailbox,
+                peer_mailbox,
                 mailbox_sender,
                 allowed_peers,
                 metrics,
@@ -101,6 +101,7 @@ pub struct UnstartedRandomness {
     pub(super) config: RandomnessConfig,
     pub(super) handle: Handle,
     pub(super) mailbox: mpsc::Receiver<RandomnessMessage>,
+    pub(super) peer_mailbox: mpsc::Receiver<RandomnessMessage>,
     pub(super) mailbox_sender: mpsc::WeakSender<RandomnessMessage>,
     pub(super) allowed_peers: AllowedPeersUpdatable,
     pub(super) metrics: Metrics,
@@ -114,6 +115,7 @@ impl UnstartedRandomness {
             config,
             handle,
             mailbox,
+            peer_mailbox,
             mailbox_sender,
             allowed_peers,
             metrics,
@@ -124,6 +126,7 @@ impl UnstartedRandomness {
                 name,
                 config,
                 mailbox,
+                peer_mailbox,
                 mailbox_sender,
                 network,
                 allowed_peers,

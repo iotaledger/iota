@@ -552,12 +552,21 @@ pub struct RandomnessConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub partial_signature_retry_interval_ms: Option<u64>,
 
-    /// Size of the Randomness actor's mailbox. This should be set large enough
-    /// to never overflow unless a bug is encountered.
+    /// Size of the Randomness actor's mailbox for the node's own messages. This
+    /// should be set large enough to never overflow unless a bug is
+    /// encountered.
     ///
     /// If unspecified, this will default to `1,000,000`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mailbox_capacity: Option<usize>,
+
+    /// Size of the Randomness actor's mailbox for signatures received from
+    /// peers. Requests that arrive while it is full are rejected, and the peer
+    /// retries them.
+    ///
+    /// If unspecified, this will default to `10,000`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_mailbox_capacity: Option<usize>,
 
     /// Per-peer inflight limit for the SendPartialSignatures RPC.
     ///
@@ -600,6 +609,12 @@ impl RandomnessConfig {
         const MAILBOX_CAPACITY: usize = 1_000_000;
 
         self.mailbox_capacity.unwrap_or(MAILBOX_CAPACITY)
+    }
+
+    pub fn peer_mailbox_capacity(&self) -> usize {
+        const PEER_MAILBOX_CAPACITY: usize = 10_000;
+
+        self.peer_mailbox_capacity.unwrap_or(PEER_MAILBOX_CAPACITY)
     }
 
     pub fn send_partial_signatures_inflight_limit(&self) -> usize {

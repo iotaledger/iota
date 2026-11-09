@@ -234,6 +234,7 @@ struct RandomnessEventLoop {
     name: AuthorityName,
     config: RandomnessConfig,
     mailbox: mpsc::Receiver<RandomnessMessage>,
+    peer_mailbox: mpsc::Receiver<RandomnessMessage>,
     mailbox_sender: mpsc::WeakSender<RandomnessMessage>,
     network: anemo::Network,
     allowed_peers: AllowedPeersUpdatable,
@@ -269,6 +270,8 @@ impl RandomnessEventLoop {
 
         loop {
             tokio::select! {
+                // Serve the node's own messages first, so peer traffic cannot delay them.
+                biased;
                 maybe_message = self.mailbox.recv() => {
                     // Once all handles to our mailbox have been dropped this
                     // will yield `None` and we can terminate the event loop.
@@ -278,6 +281,7 @@ impl RandomnessEventLoop {
                         break;
                     }
                 },
+                Some(message) = self.peer_mailbox.recv() => self.handle_message(message),
             }
         }
 
