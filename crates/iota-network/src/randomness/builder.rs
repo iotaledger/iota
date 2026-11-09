@@ -60,7 +60,6 @@ impl Builder {
         let config = config.unwrap_or_default();
         let metrics = metrics.unwrap_or_else(Metrics::disabled);
         let (sender, mailbox) = mpsc::channel(config.mailbox_capacity());
-        let mailbox_sender = sender.downgrade();
         let handle = Handle { sender };
         let (peer_sender, peer_mailbox) = mpsc::channel(config.peer_mailbox_capacity());
         let server = Server {
@@ -85,7 +84,6 @@ impl Builder {
                 handle,
                 mailbox,
                 peer_mailbox,
-                mailbox_sender,
                 allowed_peers,
                 metrics,
                 randomness_tx,
@@ -102,7 +100,6 @@ pub struct UnstartedRandomness {
     pub(super) handle: Handle,
     pub(super) mailbox: mpsc::Receiver<RandomnessMessage>,
     pub(super) peer_mailbox: mpsc::Receiver<RandomnessMessage>,
-    pub(super) mailbox_sender: mpsc::WeakSender<RandomnessMessage>,
     pub(super) allowed_peers: AllowedPeersUpdatable,
     pub(super) metrics: Metrics,
     pub(super) randomness_tx: mpsc::Sender<(EpochId, RandomnessRound, Vec<u8>)>,
@@ -116,7 +113,6 @@ impl UnstartedRandomness {
             handle,
             mailbox,
             peer_mailbox,
-            mailbox_sender,
             allowed_peers,
             metrics,
             randomness_tx,
@@ -127,7 +123,6 @@ impl UnstartedRandomness {
                 config,
                 mailbox,
                 peer_mailbox,
-                mailbox_sender,
                 network,
                 allowed_peers,
                 allowed_peers_set: HashSet::new(),

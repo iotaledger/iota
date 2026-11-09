@@ -5,7 +5,10 @@
 use std::collections::BTreeSet;
 
 use anemo::types::response::StatusCode;
-use fastcrypto::{groups::bls12381, serde_helpers::ToFromByteArray};
+use fastcrypto::{
+    groups::{GroupElement, bls12381},
+    serde_helpers::ToFromByteArray,
+};
 use fastcrypto_tbls::{mocked_dkg, nodes};
 use iota_macros::sim_test;
 use iota_swarm_config::test_utils::CommitteeFixture;
@@ -638,6 +641,91 @@ async fn test_full_peer_mailbox_rejects_requests() {
     })
     .await
     .expect("request should be accepted once the mailbox drains");
+}
+
+/// Builds the event loop of the first member of a 4-member committee, in
+/// epoch 0 with round 0 requested, and returns it with the mocked DKG output of
+/// the second member and that member's peer ID.
+fn event_loop_at_round_0() -> (RandomnessEventLoop, dkg_v1::Output<PkG, EncG>, PeerId) {
+    let committee_fixture =
+        CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
+    let committee = committee_fixture.committee();
+    let config = RandomnessConfig {
+        max_ignored_peer_weight_factor: Some(0.3),
+        ..Default::default()
+    };
+
+    let mut authority_info = HashMap::new();
+    let mut nodes = Vec::new();
+    for (i, (authority, stake)) in committee.members().enumerate() {
+        let node = node_from_committee(committee, authority, *stake);
+        authority_info.insert(*authority, (PeerId([i as u8; 32]), node.id));
+        nodes.push(node);
+    }
+    let nodes = nodes::Nodes::new(nodes).unwrap();
+    let threshold = committee.validity_threshold();
+    let mock_dkg_output = |party_id| {
+        mocked_dkg::generate_mocked_output::<PkG, EncG>(
+            nodes.clone(),
+            threshold.try_into().unwrap(),
+            0,
+            party_id,
+        )
+    };
+
+    let (authority, _) = committee.members().next().unwrap();
+    let (tx, _rx) = mpsc::channel(3);
+    let (unstarted, _router) = Builder::new(*authority, tx).config(config).build();
+    let (mut event_loop, _handle) = unstarted.build(utils::build_network(|r| r));
+    let own_party_id = authority_info[authority].1;
+    event_loop
+        .update_epoch(
+            0,
+            authority_info.clone(),
+            mock_dkg_output(own_party_id),
+            threshold.try_into().unwrap(),
+            None,
+        )
+        .unwrap();
+    event_loop.send_partial_signatures(0, RandomnessRound::new(0));
+
+    let (peer_name, _) = committee.members().nth(1).unwrap();
+    let (peer_id, peer_party_id) = authority_info[peer_name];
+    (event_loop, mock_dkg_output(peer_party_id), peer_id)
+}
+
+#[tokio::test]
+async fn test_invalid_full_sig_ignores_peer() {
+    let (mut event_loop, _, peer_id) = event_loop_at_round_0();
+    assert!(event_loop.allowed_peers_set.contains(&peer_id));
+
+    event_loop.receive_full_signature(
+        peer_id,
+        0,
+        RandomnessRound::new(0),
+        RandomnessSignature::generator(),
+    );
+
+    assert!(!event_loop.allowed_peers_set.contains(&peer_id));
+}
+
+#[tokio::test]
+async fn test_invalid_partial_sigs_ignore_peer() {
+    let (mut event_loop, peer_dkg_output, peer_id) = event_loop_at_round_0();
+    assert!(event_loop.allowed_peers_set.contains(&peer_id));
+
+    // Signed for the wrong round, so they fail verification for round 0.
+    let partial_sigs = ThresholdBls12381MinSig::partial_sign_batch(
+        peer_dkg_output.shares.unwrap().iter(),
+        &RandomnessRound::new(1).signature_message(),
+    );
+    let sig_bytes = partial_sigs
+        .iter()
+        .map(|sig| bcs::to_bytes(sig).unwrap())
+        .collect();
+    event_loop.receive_partial_signatures(peer_id, 0, RandomnessRound::new(0), sig_bytes);
+
+    assert!(!event_loop.allowed_peers_set.contains(&peer_id));
 }
 
 fn node_from_committee(
