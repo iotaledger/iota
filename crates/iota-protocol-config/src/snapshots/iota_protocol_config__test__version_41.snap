@@ -1,6 +1,7 @@
 ---
 source: crates/iota-protocol-config/src/lib.rs
 expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
+snapshot_kind: text
 ---
 version: 41
 feature_flags:
@@ -68,6 +69,7 @@ feature_flags:
   reject_immutable_account_creation: true
   validate_input_object_versions: true
   disallow_self_identifier: true
+  disallow_self_identifier_in_transactions: true
   check_canonical_module_version_header: true
   disallow_randomness_in_move_authenticator: true
   check_cyclic_dependencies: true
@@ -80,6 +82,7 @@ feature_flags:
   deprecate_global_storage_ops: true
   meter_instantiation_loops: true
   move_authenticator_type_arg_packages_as_inputs: true
+  enable_validator_attestation: true
   enable_transaction_dependencies: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
@@ -166,7 +169,7 @@ obj_access_cost_delete_per_byte: 40
 obj_access_cost_verify_per_byte: 200
 max_type_to_layout_nodes: 512
 max_ptb_value_size: 1048576
-gas_model_version: 2
+gas_model_version: 3
 obj_data_cost_refundable: 100
 obj_metadata_cost_non_refundable: 50
 storage_rebate_rate: 10000
@@ -363,7 +366,7 @@ consensus_max_num_transactions_in_block: 512
 max_deferral_rounds_for_congestion_control: 10
 min_checkpoint_interval_ms: 200
 checkpoint_rate_window_size: 20
-checkpoint_summary_version_specific_data: 1
+checkpoint_summary_version_specific_data: 2
 max_soft_bundle_size: 5
 max_accumulated_txn_cost_per_object_in_mysticeti_commit: 10
 max_committee_members_count: 100
