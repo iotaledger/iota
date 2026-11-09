@@ -1130,8 +1130,10 @@ mod faulty_attestor {
             expected_verdict: ExpectedVerdict::Undecided,
         });
 
+        let mut checkpoints_to_compare = BTreeSet::new();
         for scenario in &scenarios {
-            env.wait_for_transaction_checkpoint(&scenario.digest).await;
+            let checkpoint = env.wait_for_transaction_checkpoint(&scenario.digest).await;
+            checkpoints_to_compare.insert(checkpoint.sequence_number);
             let effects = wait_for_effects_on_every_node(&env.test_cluster, scenario.digest).await;
             assert!(
                 effects.iter().all(|on_node| *on_node == effects[0]),
@@ -1151,7 +1153,11 @@ mod faulty_attestor {
         // A different verdict or total on a validator would change the
         // summary it builds. Validators drop their own summaries of earlier
         // epochs, so this runs in the epoch of the scenarios.
-        assert_validators_build_the_certified_checkpoints(&env.test_cluster).await;
+        assert_validators_build_the_certified_checkpoints(
+            &env.test_cluster,
+            &checkpoints_to_compare,
+        )
+        .await;
 
         let fullnode = &env.test_cluster.fullnode_handle.iota_node;
         let (certified, _) = read_certified_attestations(
@@ -1294,6 +1300,7 @@ mod faulty_attestor {
 
         // Refute attestations until the certified sum reaches the cutoff.
         let mut scenarios = Vec::new();
+        let mut checkpoints_to_compare = BTreeSet::new();
         let (certified, totals_at_cutoff) = loop {
             let tx = env
                 .craft_account_transaction_signed_over_another_digest_by(&owner)
@@ -1308,7 +1315,8 @@ mod faulty_attestor {
                 authenticates: false,
                 expected_verdict: ExpectedVerdict::Refuted,
             });
-            env.wait_for_transaction_checkpoint(&digest).await;
+            let checkpoint = env.wait_for_transaction_checkpoint(&digest).await;
+            checkpoints_to_compare.insert(checkpoint.sequence_number);
             let (certified, totals) = read_certified_attestations(
                 &env.test_cluster,
                 epoch,
@@ -1376,14 +1384,19 @@ mod faulty_attestor {
         // Another validator's attestations still go through.
         let tx = env.craft_account_transaction_signed_by(&owner).await?;
         let through_honest = env.submit_to(tx, &honest).await;
-        env.wait_for_transaction_checkpoint(&through_honest).await;
+        let checkpoint = env.wait_for_transaction_checkpoint(&through_honest).await;
+        checkpoints_to_compare.insert(checkpoint.sequence_number);
         let effects = wait_for_effects_on_every_node(&env.test_cluster, through_honest).await;
         assert!(
             effects.iter().all(|on_node| on_node.status().is_success()),
             "an honest validator's attestation executes on every node after the cutoff"
         );
 
-        assert_validators_build_the_certified_checkpoints(&env.test_cluster).await;
+        assert_validators_build_the_certified_checkpoints(
+            &env.test_cluster,
+            &checkpoints_to_compare,
+        )
+        .await;
         for scenario in &scenarios {
             env.assert_records(scenario, certified.get(&scenario.digest).copied());
         }
@@ -2064,8 +2077,13 @@ mod faulty_attestor {
     /// past the one the fullnode has executed. Then asserts that each
     /// validator's own summary of every checkpoint matches the certified one,
     /// for the checkpoints whose own summary the validator still holds: in
-    /// practice those of its current epoch.
-    async fn assert_validators_build_the_certified_checkpoints(test_cluster: &TestCluster) {
+    /// practice those of its current epoch. Panics if a validator does not
+    /// reach that checkpoint within 180 seconds, or lacks its own summary or
+    /// the certified one of a checkpoint in `must_compare`.
+    async fn assert_validators_build_the_certified_checkpoints(
+        test_cluster: &TestCluster,
+        must_compare: &BTreeSet<CheckpointSequenceNumber>,
+    ) {
         let target = highest_executed_checkpoint(&test_cluster.fullnode_handle.iota_node) + 5;
         let validators = test_cluster.all_validator_handles();
         timeout(Duration::from_secs(180), async {
@@ -2081,6 +2099,7 @@ mod faulty_attestor {
         for handle in &validators {
             handle.with(|node| {
                 let store = node.state().get_checkpoint_store().clone();
+                let mut compared = BTreeSet::new();
                 for sequence_number in 1..=target {
                     let local = store
                         .get_locally_computed_checkpoint(sequence_number)
@@ -2095,8 +2114,15 @@ mod faulty_attestor {
                             "validator {}'s checkpoint {sequence_number} must match the certified one",
                             node.state().name.concise(),
                         );
+                        compared.insert(sequence_number);
                     }
                 }
+                assert!(
+                    must_compare.is_subset(&compared),
+                    "validator {} must hold its own summaries of checkpoints {must_compare:?}, \
+                     compared {compared:?}",
+                    node.state().name.concise(),
+                );
             });
         }
     }
