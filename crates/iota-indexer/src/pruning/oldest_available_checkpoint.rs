@@ -22,6 +22,7 @@ use crate::{
 /// decide whether fallback needs to be consulted, the latter is the value reported to the user.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OldestAvailableCheckpoint {
+    /// The oldest checkpoint the database alone has data for.
     db_checkpoint: CheckpointSequenceNumber,
     /// The transaction `db_checkpoint` starts at.
     db_tx: i64,
@@ -34,12 +35,12 @@ impl OldestAvailableCheckpoint {
     /// A checkpoint looked up by sequence number or digest, or a page of
     /// checkpoints.
     pub fn checkpoint(reader: &IndexerReader) -> Self {
-        Self::resolve(reader, &[CommitterTables::Checkpoints], true)
+        Self::for_tables(reader, &[CommitterTables::Checkpoints], true)
     }
 
     /// A transaction looked up by its digest, or the events of a single transaction.
     pub fn transaction_by_digest(reader: &IndexerReader) -> Self {
-        Self::resolve(
+        Self::for_tables(
             reader,
             &[
                 CommitterTables::Transactions,
@@ -51,7 +52,7 @@ impl OldestAvailableCheckpoint {
 
     /// The transactions of a checkpoint.
     pub fn transactions_by_checkpoint(reader: &IndexerReader) -> Self {
-        Self::resolve(
+        Self::for_tables(
             reader,
             &[
                 CommitterTables::Transactions,
@@ -64,7 +65,7 @@ impl OldestAvailableCheckpoint {
 
     /// The transactions sent to or received by an address.
     pub fn transactions_by_address(reader: &IndexerReader) -> Self {
-        Self::resolve(
+        Self::for_tables(
             reader,
             &[
                 CommitterTables::TxSenders,
@@ -92,7 +93,7 @@ impl OldestAvailableCheckpoint {
         use CommitterTables::*;
 
         let Some(filter) = filter else {
-            return Ok(Self::resolve(reader, &[Transactions], false));
+            return Ok(Self::for_tables(reader, &[Transactions], false));
         };
         let lookup_tables: &[CommitterTables] = match filter {
             TransactionFilterKind::V1(TransactionFilter::Checkpoint(_))
@@ -162,12 +163,12 @@ impl OldestAvailableCheckpoint {
         if !reader.is_fallback_enabled() {
             tables.push(Transactions);
         }
-        Ok(Self::resolve(reader, &tables, false))
+        Ok(Self::for_tables(reader, &tables, false))
     }
 
     /// The events of a transaction looked up by its digest.
     pub fn events_by_tx_digest(reader: &IndexerReader) -> Self {
-        Self::resolve(
+        Self::for_tables(
             reader,
             &[CommitterTables::Events, CommitterTables::TxGlobalOrder],
             true,
@@ -203,24 +204,28 @@ impl OldestAvailableCheckpoint {
                 ));
             }
         };
-        Ok(Self::resolve(reader, tables, false))
+        Ok(Self::for_tables(reader, tables, false))
     }
 
     /// Whether an object version exists, from `objects_version`.
     pub fn past_object_version(reader: &IndexerReader) -> Self {
-        Self::resolve(reader, &[CommitterTables::ObjectsVersion], true)
+        Self::for_tables(reader, &[CommitterTables::ObjectsVersion], true)
     }
 
     /// The content of a superseded object version, from
     /// `objects_backward_history`.
     pub fn past_object_content(reader: &IndexerReader) -> Self {
-        Self::resolve(reader, &[CommitterTables::ObjectsBackwardHistory], true)
+        Self::for_tables(reader, &[CommitterTables::ObjectsBackwardHistory], true)
     }
 
+    /// A request reading `tables`. Use this for a request without a constructor of its own.
+    /// Returns `served_checkpoint` as 0 when `served_by_fallback` is set and a fallback is
+    /// configured.
+    ///
     /// A table absent from the cache has not been written yet, and so has not
     /// been pruned either: it is treated as 0. This relies on the cache being filled before the RPC
     /// server starts serving.
-    fn resolve(
+    pub fn for_tables(
         reader: &IndexerReader,
         tables: &[CommitterTables],
         served_by_fallback: bool,

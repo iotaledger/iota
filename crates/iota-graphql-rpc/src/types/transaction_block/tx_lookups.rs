@@ -57,7 +57,7 @@
 use std::fmt::Write;
 
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
-use iota_indexer::schema::checkpoints;
+use iota_indexer::{ingestion::common::CommitterTables, schema::checkpoints};
 
 use crate::{
     data::{Conn, DbConnection, pg::bytea_literal},
@@ -390,6 +390,57 @@ pub(crate) fn subqueries(
     }
 
     join_subqueries(subqueries)
+}
+
+/// The lookup tables [`subqueries`] reads for `filter`.
+pub(crate) fn subquery_tables(filter: &TransactionBlockFilter) -> Vec<CommitterTables> {
+    use CommitterTables::*;
+
+    let sender = filter.sent_address;
+
+    let mut tables = vec![];
+
+    if let Some(f) = &filter.function {
+        tables.push(match f {
+            FqNameFilter::ByModule(ModuleFilter::ByPackage(_)) => TxCallsPkg,
+            FqNameFilter::ByModule(ModuleFilter::ByModule(..)) => TxCallsMod,
+            FqNameFilter::ByFqName(..) => TxCallsFun,
+        });
+    }
+    if let Some(kind) = &filter.kind {
+        tables.push(match (kind, sender) {
+            (TransactionBlockKindInput::ProgrammableTx, Some(_)) => TxSenders,
+            _ => TxKinds,
+        });
+    }
+    if filter.recv_address.is_some() {
+        tables.push(TxRecipients);
+    }
+    if filter.input_object.is_some() {
+        tables.push(TxInputObjects);
+    }
+    if filter.changed_object.is_some() {
+        tables.push(TxChangedObjects);
+    }
+    if filter.wrapped_or_deleted_object.is_some() {
+        tables.push(TxWrappedOrDeletedObjects);
+    }
+    if filter.explicit_sender().is_some() {
+        tables.push(TxSenders);
+    }
+    if filter.transaction_ids.is_some() {
+        tables.push(TxGlobalOrder);
+    }
+
+    if let Some(affected) = &filter.affected_address {
+        match sender {
+            Some(sender) if sender == *affected => tables.push(TxSenders),
+            Some(_) => tables.push(TxRecipients),
+            None => tables.extend([TxSenders, TxRecipients]),
+        }
+    }
+
+    tables
 }
 
 /// Joins `subqueries` on `tx_sequence_number` into a single query, or `None` if

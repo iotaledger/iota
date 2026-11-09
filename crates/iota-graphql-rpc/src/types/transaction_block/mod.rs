@@ -16,6 +16,7 @@ use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{
     apis::ReadApi,
     models::transactions::{OptimisticTransaction, StoredTransaction},
+    pruning::oldest_available_checkpoint::OldestAvailableCheckpoint,
     read::TransactionRead,
     schema::{checkpoints, transactions},
     types::IndexedBalanceChange,
@@ -41,7 +42,9 @@ use crate::{
     types::{
         address::Address,
         base64::Base64,
-        cursor::{JsonCursor, Page, Target, check_cursor_not_pruned},
+        cursor::{
+            JsonCursor, Page, Target, check_cursor_not_pruned, pruned_checkpoint_viewed_at_error,
+        },
         digest::Digest,
         epoch::Epoch,
         gas::GasInput,
@@ -473,6 +476,7 @@ impl TransactionBlock {
                 page,
                 address,
                 checkpoint_viewed_at,
+                filter.oldest_available_checkpoint(db),
             )
             .await;
         }
@@ -490,7 +494,7 @@ impl TransactionBlock {
         }
 
         if let Some(cursor_viewed_at) = cursor_viewed_at {
-            check_cursor_not_pruned(db, cursor_viewed_at)?;
+            check_cursor_not_pruned(db, cursor_viewed_at, filter.oldest_available_checkpoint(db))?;
         }
 
         use transactions::dsl as tx;
@@ -646,11 +650,14 @@ impl TransactionBlock {
 
     /// Paginates the transactions that affect `address`, with fallback
     /// support when part of the history has been pruned from Postgres.
+    /// `oldest_available_checkpoint` is reported when `checkpoint_viewed_at`
+    /// has been pruned.
     async fn paginate_by_affected_address_with_fallback(
         db: &Db,
         page: Page<Cursor>,
         address: IotaAddress,
         checkpoint_viewed_at: u64,
+        oldest_available_checkpoint: OldestAvailableCheckpoint,
     ) -> Result<ScanConnection<String, TransactionBlock>, Error> {
         use checkpoints::dsl;
         // Exclusive upperbound, we cannot return newer data than
@@ -666,7 +673,11 @@ impl TransactionBlock {
             })
             .await?
             .ok_or_else(|| {
-                Error::DataPruned(format!("checkpoint {checkpoint_viewed_at} has been pruned"))
+                pruned_checkpoint_viewed_at_error(
+                    db,
+                    checkpoint_viewed_at,
+                    oldest_available_checkpoint,
+                )
             })?;
 
         // Page cursors are inclusive, we need to convert them to exclusive
