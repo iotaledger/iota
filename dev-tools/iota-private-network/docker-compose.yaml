@@ -13,6 +13,13 @@ x-common-validator: &common-validator
     # TODO: Remove these overrides once P-COOL flow is enabled by default in the protocol config on develop.
     - IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=${IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE:-0}
     - IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW=${IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW:-false}
+    # Protocol version 40 turns validator attestation on for every chain but
+    # mainnet and testnet, together with the second checkpoint summary format.
+    # The load shedding runs keep both as mainnet has them by default. Every
+    # node, fullnodes included, must get the same values, or they disagree on
+    # checkpoints.
+    - IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION=${IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION:-false}
+    - IOTA_PROTOCOL_CONFIG_OVERRIDE_CHECKPOINT_SUMMARY_VERSION_SPECIFIC_DATA=${IOTA_PROTOCOL_CONFIG_OVERRIDE_CHECKPOINT_SUMMARY_VERSION_SPECIFIC_DATA:-1}
     # Expose all metrics in a private network for full observability. `trace`
     # is the most permissive threshold, and being set here it also overrides
     # any stricter directive coming from the node config.
@@ -43,6 +50,10 @@ services:
   validator-1:
     <<: *common-validator
     container_name: validator-1
+    # Optional CPU pinning (VALIDATOR_N_CPUSET, FULLNODE_1_CPUSET), so a
+    # client on the same machine never competes with the validators for CPU.
+    # Unset, the container is not pinned.
+    cpuset: "${VALIDATOR_1_CPUSET:-}"
     hostname: validator-1
     networks:
       iota-network:
@@ -69,6 +80,7 @@ services:
   validator-2:
     <<: *common-validator
     container_name: validator-2
+    cpuset: "${VALIDATOR_2_CPUSET:-}"
     hostname: validator-2
     networks:
       iota-network:
@@ -83,6 +95,7 @@ services:
   validator-3:
     <<: *common-validator
     container_name: validator-3
+    cpuset: "${VALIDATOR_3_CPUSET:-}"
     hostname: validator-3
     networks:
       iota-network:
@@ -97,6 +110,7 @@ services:
   validator-4:
     <<: *common-validator
     container_name: validator-4
+    cpuset: "${VALIDATOR_4_CPUSET:-}"
     hostname: validator-4
     networks:
       iota-network:
@@ -291,6 +305,7 @@ services:
   fullnode-1:
     <<: *common-fullnode
     container_name: fullnode-1
+    cpuset: "${FULLNODE_1_CPUSET:-}"
     hostname: fullnode-1
     networks:
       iota-network:
