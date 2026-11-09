@@ -1234,10 +1234,10 @@ pub mod shared_object_test_utils {
         gas_budget: u64,
         gas_price: u64,
         dependency: TransactionDigest,
-    ) -> VerifiedExecutableTransaction {
+    ) -> VerifiedExecutableAttestedTransaction {
         let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let gas_object = random_object_ref();
-        VerifiedExecutableTransaction::new_system(
+        let tx = VerifiedExecutableTransaction::new_system(
             VerifiedTransaction::new_unchecked(
                 TestTransactionBuilder::new(sender, gas_object, gas_price)
                     .with_gas_budget(gas_budget)
@@ -1260,7 +1260,8 @@ pub mod shared_object_test_utils {
                     .build_and_sign(&sender_key),
             ),
             0,
-        )
+        );
+        VerifiedExecutableAttestedTransaction::new(tx, None)
     }
 
     pub(crate) fn initialize_tracker_and_compute_tx_start_time(
@@ -2948,7 +2949,7 @@ mod transaction_dependency_tests {
 
     fn schedule(
         tracker: &mut SharedObjectCongestionTracker,
-        transaction: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableAttestedTransaction,
     ) -> SequencingResult {
         initialize_tracker_and_try_schedule(
             tracker,
@@ -2969,7 +2970,7 @@ mod transaction_dependency_tests {
     /// Schedules `transaction`, which must fit, and records its slot.
     fn schedule_and_bump(
         tracker: &mut SharedObjectCongestionTracker,
-        transaction: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableAttestedTransaction,
     ) -> ExecutionTime {
         let start_time = start_time(schedule(tracker, transaction));
         tracker.bump_object_execution_slots(transaction, start_time);
