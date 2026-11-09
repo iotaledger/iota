@@ -56,7 +56,7 @@ use iota_storage::{
 use iota_traffic_controller::{TrafficController, metrics::TrafficControllerMetrics};
 use iota_transaction_checks::{
     VerifierLimitsSource,
-    simulate::{SimulationEnv, simulate_transaction},
+    simulate::{self, SimulationEnv},
 };
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
@@ -2826,7 +2826,7 @@ impl AuthorityState {
         )
         .expect("Creating an executor should not fail here");
 
-        let result = simulate_transaction(
+        let result = simulate::simulate_transaction(
             &env,
             executor.as_ref(),
             self.get_backing_store().as_ref(),

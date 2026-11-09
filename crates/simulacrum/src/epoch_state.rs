@@ -13,7 +13,7 @@ use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{Transaction, TransactionEffects};
 use iota_transaction_checks::{
     VerifierLimitsSource,
-    simulate::{SimulationEnv, simulate_transaction},
+    simulate::{self, SimulationEnv},
 };
 use iota_types::{
     committee::{Committee, EpochId},
@@ -215,7 +215,7 @@ impl EpochState {
             bytecode_verifier_metrics: &self.bytecode_verifier_metrics,
             limits_metrics: &self.limits_metrics,
         };
-        simulate_transaction(
+        simulate::simulate_transaction(
             &env,
             self.executor.as_ref(),
             store.backing_store(),
