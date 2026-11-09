@@ -285,6 +285,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             summary data version that certifies the verdicts.
 // Version 41: Commit a block's transactions once its header is traversed even
 //             if its acknowledgment quorum was reached first, outside Mainnet.
+//             The Move authenticators run at execution get at most
+//             `max_auth_gas`, as before consensus, on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -850,6 +852,12 @@ struct FeatureFlags {
     // before its header is traversed is committed once its header is traversed.
     #[serde(skip_serializing_if = "is_false")]
     consensus_commit_transactions_once_traversed: bool,
+
+    // If true, the Move authenticators run at execution share at most
+    // `max_auth_gas`, as before consensus; the transaction body gets the rest
+    // of the budget.
+    #[serde(skip_serializing_if = "is_false")]
+    limit_move_authentication_gas_at_execution: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2434,6 +2442,11 @@ impl ProtocolConfig {
     pub fn enable_validator_attestation(&self) -> bool {
         self.feature_flags.enable_validator_attestation
     }
+
+    pub fn limit_move_authentication_gas_at_execution(&self) -> bool {
+        self.feature_flags
+            .limit_move_authentication_gas_at_execution
+    }
 }
 
 #[cfg(not(msim))]
@@ -3973,6 +3986,12 @@ impl ProtocolConfig {
                     if chain != Chain::Mainnet {
                         cfg.feature_flags
                             .consensus_commit_transactions_once_traversed = true;
+                    }
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // The Move authenticators run at execution get at most
+                        // `max_auth_gas`, as before consensus, on devnet.
+                        cfg.feature_flags.limit_move_authentication_gas_at_execution = true;
                     }
                 }
                 // Use this template when making changes:
