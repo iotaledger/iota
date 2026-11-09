@@ -89,10 +89,12 @@ impl AuthorityState {
         let tx_digest = *transaction.digest();
 
         // The dry run meters authentication and body against the whole budget,
-        // as execution does, and a failed authentication is refused unpaid. So
-        // the authenticators first run on their own at the signing cap, as at
-        // admission: one that fails or exceeds `max_auth_gas` is refused before
-        // budget-sized work is done on it.
+        // as execution does (the authenticators at most `max_auth_gas` of it
+        // under `limit_move_authentication_gas_at_execution`), and a failed
+        // authentication is refused unpaid. So the authenticators first run on
+        // their own at the signing cap, as at admission: one that fails or
+        // exceeds `max_auth_gas` is refused before budget-sized work is done on
+        // it.
         if !move_authenticators.is_empty() {
             let function_refs = extract_auth_fun_refs(signer, gas_data.owner, |address| {
                 move_authenticators
