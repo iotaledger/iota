@@ -34,14 +34,15 @@ public fun spend_gas(iterations: u64) {
 
 // The authenticator stays within `max_auth_gas` and the body goes beyond it:
 // the transaction succeeds.
-//# abstract --account immshared(4,2) --sponsor A --auth-inputs 1 --ptb-inputs 10000
+//# abstract --account immshared(4,2) --sponsor A --auth-inputs 1 --ptb-inputs 30000
 //> 0: test::authenticate::spend_gas(Input(0));
 
 //# view-object 0,0
 
 // The authenticator goes beyond `max_auth_gas`: it runs out of gas and the
-// body does not run. The sponsor pays only the minimum computation cost.
-//# abstract --account immshared(4,2) --sponsor A --auth-inputs 10000 --ptb-inputs 1
+// body does not run. The sponsor pays for `max_auth_gas` and the input
+// reads, not for the whole loop.
+//# abstract --account immshared(4,2) --sponsor A --auth-inputs 30000 --ptb-inputs 1
 //> 0: test::authenticate::spend_gas(Input(0));
 
 //# view-object 0,0

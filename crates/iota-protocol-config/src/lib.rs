@@ -285,6 +285,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             summary data version that certifies the verdicts.
 // Version 41: The Move authenticators run at execution get at most
 //             `max_auth_gas`, as before consensus, on devnet.
+//             Raise `max_auth_gas` to 0.001 IOTA on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3966,6 +3967,9 @@ impl ProtocolConfig {
                         // The Move authenticators run at execution get at most
                         // `max_auth_gas`, as before consensus, on devnet.
                         cfg.feature_flags.limit_move_authentication_gas_at_execution = true;
+                        // Raise max_auth_gas to 0.001 IOTA, the minimum transaction
+                        // cost at a gas price of 1000.
+                        cfg.max_auth_gas = Some(1_000_000);
                     }
                 }
                 // Use this template when making changes:
