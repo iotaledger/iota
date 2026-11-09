@@ -13,7 +13,8 @@
 //!
 //! Two test entry points are exposed:
 //! - [`test_abstract_iota_accounts_examples_across_all_max_auth_gas_budgets`] exercises every
-//!   variant of [`MaxAuthGas`] (full sweep).
+//!   variant of [`MaxAuthGas`] (full sweep). It runs longer than nextest's default timeout, so run
+//!   it with `--profile simtestnightly`.
 //! - [`test_abstract_iota_accounts_examples_across_network_max_auth_gas_budgets`] exercises only
 //!   the fixed budgets that match the `max_auth_gas` values currently configured for live IOTA
 //!   networks ([`MaxAuthGas::NETWORKS`]).
@@ -36,7 +37,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
+    Address, Argument, Command, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, SharedObjectReference, SignatureScheme, Transaction,
     TransactionEffects, TypeTag, UserSignature, WriteKind, crypto::Intent,
 };
@@ -120,6 +121,18 @@ impl MaxAuthGas {
 /// Move function performs `N` ed25519 verifications. Use this to probe
 /// how many verifications fit inside each `max_auth_gas` budget.
 const NUM_OF_CYCLES: &[u64] = &[1, 200, 1_000, 5_000];
+
+/// Depths of the made-up Merkle proofs the `onesig#depth=N` scenarios
+/// authenticate with. A batch of 65_536 transactions gives depth 16; the
+/// deeper proofs find how long a proof the authenticator can walk within each
+/// budget, up to the 16 KiB limit on a pure argument (about 490 hashes).
+const ONESIG_PROOF_DEPTHS: &[usize] = &[16, 64, 480];
+
+/// Numbers of `withdraw_from_balance_reserve` calls in the
+/// `spending_limit#withdrawals=N` scenarios. A programmable transaction
+/// holds at most 1024 commands, two of which merge and transfer the
+/// withdrawn coins; 1000 withdrawals fit none of the budgets.
+const SPENDING_LIMIT_WITHDRAWALS: &[usize] = &[10, 100, 500];
 
 // Fixture data for the `lean_imt_account` example. The Groth16 verifying
 // key, proof points and leaf are tied to a specific account address, and
@@ -254,6 +267,24 @@ fn expected_outcome(name: &str, budget: MaxAuthGas) -> Expectation {
             expected_super_heavy(cycles, budget)
         }
 
+        // `onesig` with a Merkle proof of the depth in the result name.
+        n if n.starts_with("onesig#depth=") => {
+            let depth: usize = n
+                .strip_prefix("onesig#depth=")
+                .and_then(|d| d.parse().ok())
+                .unwrap_or_else(|| panic!("could not parse depth from result name: {n}"));
+            expected_onesig_depth(depth, budget)
+        }
+
+        // `spending_limit` with the number of withdrawals in the result name.
+        n if n.starts_with("spending_limit#withdrawals=") => {
+            let count: usize = n
+                .strip_prefix("spending_limit#withdrawals=")
+                .and_then(|c| c.parse().ok())
+                .unwrap_or_else(|| panic!("could not parse withdrawals from result name: {n}"));
+            expected_spending_limit_withdrawals(count, budget)
+        }
+
         _ => panic!("missing expectation for package: {name}"),
     };
 
@@ -278,6 +309,38 @@ fn expected_super_heavy(cycles: u64, budget: MaxAuthGas) -> Outcome {
         G625m | G1250m => 1_000,
     };
     if cycles <= max_cycles { Pass } else { Fail }
+}
+
+/// Deepest of the [`ONESIG_PROOF_DEPTHS`] each `max_auth_gas` budget can
+/// walk before `onesig_authenticator` aborts with `OUT_OF_GAS`; 0 when none
+/// fits.
+fn expected_onesig_depth(depth: usize, budget: MaxAuthGas) -> Outcome {
+    use MaxAuthGas::*;
+    use Outcome::{Fail, Pass};
+
+    let max_depth = match budget {
+        G20k => 0,
+        G1m => 16,
+        G5m | G25m | G125m => 64,
+        G625m | G1250m => 480,
+    };
+    if depth <= max_depth { Pass } else { Fail }
+}
+
+/// Largest of the [`SPENDING_LIMIT_WITHDRAWALS`] each `max_auth_gas` budget
+/// can read before `ed25519_authenticator` aborts with `OUT_OF_GAS`; 0 when
+/// none fits.
+fn expected_spending_limit_withdrawals(count: usize, budget: MaxAuthGas) -> Outcome {
+    use MaxAuthGas::*;
+    use Outcome::{Fail, Pass};
+
+    let max_count = match budget {
+        G20k => 0,
+        G1m | G5m => 10,
+        G25m | G125m => 100,
+        G625m | G1250m => 500,
+    };
+    if count <= max_count { Pass } else { Fail }
 }
 
 fn print_one_budget(budget: MaxAuthGas, results: &[PackageResult]) {
@@ -373,6 +436,13 @@ async fn run_across_max_auth_gas_budgets(budgets: &[MaxAuthGas]) -> Result<(), a
         results.push(run_whitelist_sponsorship(&env).await);
         results.push(run_sponsorship_ed25519(&env).await);
         results.extend(run_account_for_benchmarks(&env, NUM_OF_CYCLES).await);
+        // Outside the simulator the budget does not reach the validators (see
+        // `expected_outcome`) and a refused transaction is retried in real
+        // time, so the scenarios that grow an input run only in it.
+        if cfg!(msim) {
+            results.extend(run_onesig_deep_proofs(&env, ONESIG_PROOF_DEPTHS).await);
+            results.extend(run_spending_limit_withdrawals(&env, SPENDING_LIMIT_WITHDRAWALS).await);
+        }
 
         // Every package must publish successfully — independent of the
         // `max_auth_gas` budget.
@@ -903,35 +973,7 @@ async fn run_onesig(env: &TestEnvironment) -> PackageResult {
         }
     };
 
-    let account_type = type_tag(&pkg_id, "account", "OneSigAccount");
-    let pt = {
-        let mut b = ProgrammableTransactionBuilder::new();
-        let auth_ref = match build_auth_function_ref_v1(
-            &mut b,
-            account_type.clone(),
-            metadata_ref,
-            "account",
-            "onesig_authenticator",
-        ) {
-            Ok(v) => v,
-            Err(e) => {
-                r.create_outcome = Outcome::Fail;
-                r.create_err = Some(format!("{e:?}"));
-                return r;
-            }
-        };
-        let pk_arg = b.pure(env.owner_pk_bytes()).unwrap();
-        b.programmable_move_call(
-            pkg_id,
-            Identifier::from_static("account"),
-            Identifier::from_static("create"),
-            vec![],
-            vec![pk_arg, auth_ref],
-        );
-        b.finish()
-    };
-
-    let account_ref = match create_account_with_pt(env, pt).await {
+    let account_ref = match create_onesig_account(env, pkg_id, metadata_ref).await {
         Ok(v) => {
             r.create_outcome = Outcome::Pass;
             v
@@ -1006,6 +1048,241 @@ async fn run_onesig(env: &TestEnvironment) -> PackageResult {
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
     r
+}
+
+/// `onesig::account::create(pk, ref)` with `onesig_authenticator` as the
+/// authenticate function.
+async fn create_onesig_account(
+    env: &TestEnvironment,
+    pkg_id: ObjectId,
+    metadata_ref: ObjectReference,
+) -> anyhow::Result<ObjectReference> {
+    let account_type = type_tag(&pkg_id, "account", "OneSigAccount");
+    let mut b = ProgrammableTransactionBuilder::new();
+    let auth_ref = build_auth_function_ref_v1(
+        &mut b,
+        account_type,
+        metadata_ref,
+        "account",
+        "onesig_authenticator",
+    )?;
+    let pk_arg = b.pure(env.owner_pk_bytes())?;
+    b.programmable_move_call(
+        pkg_id,
+        Identifier::from_static("account"),
+        Identifier::from_static("create"),
+        vec![],
+        vec![pk_arg, auth_ref],
+    );
+    create_account_with_pt(env, b.finish()).await
+}
+
+/// `onesig` authenticating with a Merkle proof of each depth in `depths`.
+/// The sibling hashes are made up, and the owner signs the root they lead to
+/// from the transaction's digest, so every proof is valid.
+async fn run_onesig_deep_proofs(env: &TestEnvironment, depths: &[usize]) -> Vec<PackageResult> {
+    let make_label = |depth: usize| format!("onesig#depth={depth}");
+    let fail_all = |error: String, slot: &str| -> Vec<PackageResult> {
+        depths
+            .iter()
+            .map(|&depth| placeholder_result(make_label(depth), error.clone(), slot))
+            .collect()
+    };
+
+    let (pkg_id, metadata_ref, _resp) = match env.publish_example_with_metadata("onesig").await {
+        Ok(v) => v,
+        Err(e) => return fail_all(format!("{e:?}"), "publish"),
+    };
+    let account_ref = match create_onesig_account(env, pkg_id, metadata_ref).await {
+        Ok(v) => v,
+        Err(e) => return fail_all(format!("{e:?}"), "create"),
+    };
+
+    let aa_sender: Address = account_ref.object_id.into();
+    let rgp = env.test_cluster.get_reference_gas_price().await;
+    let mut results = Vec::with_capacity(depths.len());
+    for &depth in depths {
+        let mut r = PackageResult::new(make_label(depth));
+        r.publish_ok = true;
+        r.create_outcome = Outcome::Pass;
+
+        let gas = env
+            .test_cluster
+            .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+            .await;
+        let tx_data = tx_data_from_pt(env, simple_sender_clock_ptb(), aa_sender, gas).await;
+
+        let proof: Vec<Vec<u8>> = (0..depth as u64)
+            .map(|i| keccak256(&i.to_le_bytes()))
+            .collect();
+        let merkle_root = proof.iter().fold(
+            keccak256(&tx_data.digest().into_bytes()),
+            |node, sibling| hash_pair_sorted(&node, sibling),
+        );
+        let root_arr: [u8; 32] = merkle_root
+            .as_slice()
+            .try_into()
+            .expect("Keccak256 always produces 32 bytes");
+        let signature = env.sign_digest_raw(&root_arr);
+
+        let auth = match make_move_authenticator(
+            account_ref,
+            vec![
+                CallArg::Pure(bcs::to_bytes(&merkle_root).unwrap()),
+                CallArg::Pure(bcs::to_bytes(&proof).unwrap()),
+                CallArg::Pure(bcs::to_bytes(&signature).unwrap()),
+            ],
+        ) {
+            Ok(v) => v,
+            Err(e) => {
+                r.authenticate_outcome = Outcome::Fail;
+                r.authenticate_err = Some(format!("{e:?}"));
+                results.push(r);
+                continue;
+            }
+        };
+        let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![auth]);
+        let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
+        r.authenticate_outcome = outcome;
+        r.authenticate_err = err;
+        results.push(r);
+    }
+    results
+}
+
+/// `spending_limit` authenticating a transaction that makes each number of
+/// `withdraw_from_balance_reserve` calls in `counts`, each of 1 nano; the
+/// authenticator reads the amount of every call. One account, whose limit
+/// and reserve cover every count, serves them all.
+async fn run_spending_limit_withdrawals(
+    env: &TestEnvironment,
+    counts: &[usize],
+) -> Vec<PackageResult> {
+    let make_label = |count: usize| format!("spending_limit#withdrawals={count}");
+    let fail_all = |error: String, slot: &str| -> Vec<PackageResult> {
+        counts
+            .iter()
+            .map(|&count| placeholder_result(make_label(count), error.clone(), slot))
+            .collect()
+    };
+
+    let (pkg_id, metadata_ref, _resp) =
+        match env.publish_example_with_metadata("spending_limit").await {
+            Ok(v) => v,
+            Err(e) => return fail_all(format!("{e:?}"), "publish"),
+        };
+
+    let total: u64 = counts.iter().map(|&count| count as u64).sum();
+    let account_type = type_tag(&pkg_id, "spending_limit_account", "SpendingLimitAccount");
+    let create_pt = {
+        let mut b = ProgrammableTransactionBuilder::new();
+        let auth_ref = match build_auth_function_ref_v1(
+            &mut b,
+            account_type,
+            metadata_ref,
+            "spending_limit_account",
+            "ed25519_authenticator",
+        ) {
+            Ok(v) => v,
+            Err(e) => return fail_all(format!("{e:?}"), "create"),
+        };
+        let pk_arg = b.pure(env.owner_pk_bytes()).unwrap();
+        // The example refuses a limit of 0, so the limit stays one above
+        // every withdrawal together.
+        let limit_arg = b.pure(total + 1).unwrap();
+        b.programmable_move_call(
+            pkg_id,
+            Identifier::from_static("spending_limit_account"),
+            Identifier::from_static("create"),
+            vec![],
+            vec![pk_arg, limit_arg, auth_ref],
+        );
+        b.finish()
+    };
+    let account_ref = match create_account_with_pt(env, create_pt).await {
+        Ok(v) => v,
+        Err(e) => return fail_all(format!("{e:?}"), "create"),
+    };
+    let account_arg = CallArg::Shared(SharedObjectReference {
+        object_id: account_ref.object_id,
+        initial_shared_version: account_ref.version,
+        mutable: true,
+    });
+
+    // Fund the reserve from the owner, once for every count.
+    let deposit_pt = {
+        let mut b = ProgrammableTransactionBuilder::new();
+        let amount = b.pure(total).unwrap();
+        let coin = b.command(Command::new_split_coins(Argument::Gas, vec![amount]));
+        let account = b.obj(account_arg.clone()).unwrap();
+        b.programmable_move_call(
+            pkg_id,
+            Identifier::from_static("spending_limit_account"),
+            Identifier::from_static("deposit_to_balance_reserve"),
+            vec![],
+            vec![account, coin],
+        );
+        b.finish()
+    };
+    if let Err(e) = execute_owner_pt(env, deposit_pt).await {
+        return fail_all(format!("deposit: {e:?}"), "create");
+    }
+
+    let aa_sender: Address = account_ref.object_id.into();
+    let rgp = env.test_cluster.get_reference_gas_price().await;
+    let mut results = Vec::with_capacity(counts.len());
+    for &count in counts {
+        let mut r = PackageResult::new(make_label(count));
+        r.publish_ok = true;
+        r.create_outcome = Outcome::Pass;
+
+        let pt = {
+            let mut b = ProgrammableTransactionBuilder::new();
+            let account = b.obj(account_arg.clone()).unwrap();
+            let amount = b.pure(1u64).unwrap();
+            let coins: Vec<Argument> = (0..count)
+                .map(|_| {
+                    b.programmable_move_call(
+                        pkg_id,
+                        Identifier::from_static("spending_limit_account"),
+                        Identifier::from_static("withdraw_from_balance_reserve"),
+                        vec![],
+                        vec![account, amount],
+                    )
+                })
+                .collect();
+            if coins.len() > 1 {
+                b.command(Command::new_merge_coins(coins[0], coins[1..].to_vec()));
+            }
+            b.transfer_arg(aa_sender, coins[0]);
+            b.finish()
+        };
+        let gas = env
+            .test_cluster
+            .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+            .await;
+        let tx_data = tx_data_from_pt(env, pt, aa_sender, gas).await;
+        let signature = env.sign_digest_raw(&tx_data.digest().into_bytes());
+
+        let auth = match make_move_authenticator(
+            account_ref,
+            vec![CallArg::Pure(bcs::to_bytes(&signature).unwrap())],
+        ) {
+            Ok(v) => v,
+            Err(e) => {
+                r.authenticate_outcome = Outcome::Fail;
+                r.authenticate_err = Some(format!("{e:?}"));
+                results.push(r);
+                continue;
+            }
+        };
+        let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![auth]);
+        let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
+        r.authenticate_outcome = outcome;
+        r.authenticate_err = err;
+        results.push(r);
+    }
+    results
 }
 
 /// `lean_imt_account` — account guarded by a Groth16 (BN254) proof that
@@ -1752,6 +2029,28 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
     r
 }
 
+/// A result row for a scenario that stopped at `slot` (`"publish"`,
+/// `"create"` or `"auth"`) with `error`, the steps before it passed.
+fn placeholder_result(label: String, error: String, slot: &str) -> PackageResult {
+    let mut r = PackageResult::new(label);
+    match slot {
+        "publish" => r.publish_err = Some(error),
+        "create" => {
+            r.publish_ok = true;
+            r.create_outcome = Outcome::Fail;
+            r.create_err = Some(error);
+        }
+        "auth" => {
+            r.publish_ok = true;
+            r.create_outcome = Outcome::Pass;
+            r.authenticate_outcome = Outcome::Fail;
+            r.authenticate_err = Some(error);
+        }
+        _ => unreachable!("unknown placeholder slot"),
+    }
+    r
+}
+
 /// `account_for_benchmarks` — variable-cost authenticator used to probe
 /// where each `max_auth_gas` budget runs out of gas.
 ///
@@ -1767,24 +2066,8 @@ async fn run_account_for_benchmarks(
 ) -> Vec<PackageResult> {
     let make_label = |cycles: u64| format!("account_for_benchmarks#cycles={cycles}");
 
-    let placeholder = |cycles: u64, error: String, where_: &str| -> PackageResult {
-        let mut r = PackageResult::new(make_label(cycles));
-        match where_ {
-            "publish" => r.publish_err = Some(error),
-            "create" => {
-                r.publish_ok = true;
-                r.create_outcome = Outcome::Fail;
-                r.create_err = Some(error);
-            }
-            "auth" => {
-                r.publish_ok = true;
-                r.create_outcome = Outcome::Pass;
-                r.authenticate_outcome = Outcome::Fail;
-                r.authenticate_err = Some(error);
-            }
-            _ => unreachable!("unknown placeholder slot"),
-        }
-        r
+    let placeholder = |cycles: u64, error: String, where_: &str| {
+        placeholder_result(make_label(cycles), error, where_)
     };
 
     // 1. Publish the package and capture the metadata ref.
@@ -2163,6 +2446,18 @@ async fn create_account_with_pt(
     env: &TestEnvironment,
     pt: ProgrammableTransaction,
 ) -> anyhow::Result<ObjectReference> {
+    let effects = execute_owner_pt(env, pt)
+        .await
+        .map_err(|e| e.context("create account tx failed"))?;
+    first_created_shared(&effects)
+}
+
+/// Build a `Transaction` from `pt` (sender = owner), execute it, and return
+/// its effects if it succeeded.
+async fn execute_owner_pt(
+    env: &TestEnvironment,
+    pt: ProgrammableTransaction,
+) -> anyhow::Result<TransactionEffects> {
     let tx_data = env
         .test_cluster
         .test_transaction_builder()
@@ -2175,9 +2470,9 @@ async fn create_account_with_pt(
         .execute_transaction_return_raw_effects(tx)
         .await?;
     if !effects.status().is_success() {
-        anyhow::bail!("create account tx failed: {:?}", effects.status());
+        anyhow::bail!("transaction failed: {:?}", effects.status());
     }
-    first_created_shared(&effects)
+    Ok(effects)
 }
 
 /// Variants of the per-authenticator extra `CallArg` list (before signature).
@@ -2264,6 +2559,26 @@ fn simple_sender_clock_ptb() -> ProgrammableTransaction {
     b.finish()
 }
 
+fn keccak256(bytes: &[u8]) -> Vec<u8> {
+    let mut h = Keccak256::default();
+    h.update(bytes);
+    h.finalize().to_vec()
+}
+
+/// `keccak256(min(left, right) || max(left, right))`, a node of a sorted-pair
+/// keccak Merkle tree.
+fn hash_pair_sorted(left: &[u8], right: &[u8]) -> Vec<u8> {
+    let mut h = Keccak256::default();
+    if left < right {
+        h.update(left);
+        h.update(right);
+    } else {
+        h.update(right);
+        h.update(left);
+    }
+    h.finalize().to_vec()
+}
+
 /// Rust mirror of `onesig::merkle::build_merkle_tree_with_proofs` — a
 /// sorted-pair keccak Merkle tree. Each leaf is `keccak256(leaf_bytes)`,
 /// internal nodes are `keccak256(min(l,r) || max(l,r))`, and odd unpaired
@@ -2272,28 +2587,10 @@ fn simple_sender_clock_ptb() -> ProgrammableTransaction {
 /// Returns `(root, proofs)` where `proofs[i]` is the list of sibling hashes
 /// for the i-th input leaf, walking bottom-up.
 fn build_sorted_keccak_merkle_tree(leaves: &[Vec<u8>]) -> (Vec<u8>, Vec<Vec<Vec<u8>>>) {
-    fn keccak(bytes: &[u8]) -> Vec<u8> {
-        let mut h = Keccak256::default();
-        h.update(bytes);
-        h.finalize().to_vec()
-    }
-
-    fn hash_pair_sorted(left: &[u8], right: &[u8]) -> Vec<u8> {
-        let mut h = Keccak256::default();
-        if left < right {
-            h.update(left);
-            h.update(right);
-        } else {
-            h.update(right);
-            h.update(left);
-        }
-        h.finalize().to_vec()
-    }
-
     let n = leaves.len();
     assert!(n > 0, "merkle tree needs at least one leaf");
 
-    let mut current_level: Vec<Vec<u8>> = leaves.iter().map(|l| keccak(l)).collect();
+    let mut current_level: Vec<Vec<u8>> = leaves.iter().map(|l| keccak256(l)).collect();
     let mut proofs: Vec<Vec<Vec<u8>>> = vec![Vec::new(); n];
     let mut leaf_pos: Vec<usize> = (0..n).collect();
 
