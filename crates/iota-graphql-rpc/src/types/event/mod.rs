@@ -27,7 +27,7 @@ use crate::{
     types::{
         address::Address,
         base64::Base64,
-        cursor::{Page, Target},
+        cursor::{Page, Target, check_cursor_not_pruned},
         date_time::DateTime,
         digest::Digest,
         move_module::MoveModule,
@@ -169,6 +169,9 @@ impl Event {
         checkpoint_viewed_at: u64,
     ) -> Result<Connection<String, Event>, Error> {
         let cursor_viewed_at = page.validate_cursor_consistency()?;
+        if let Some(cursor_viewed_at) = cursor_viewed_at {
+            check_cursor_not_pruned(db, cursor_viewed_at)?;
+        }
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
         use checkpoints::dsl;

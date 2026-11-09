@@ -907,6 +907,7 @@ where
                 Some(request.transaction.clone()),
                 SubmitTransactionOptions {
                     forwarded_client_addr: client_addr,
+                    cut_off_validators: validator_state.cut_off_validators(),
                     ..Default::default()
                 },
                 Some(WAIT_FOR_FINALITY_TIMEOUT),
@@ -1497,7 +1498,8 @@ fn convert_td_to_qd_effects(td: TdFinalizedEffects) -> FinalizedEffects {
 /// and `TimeoutBeforeFinality`, but treat `InvalidTransaction`,
 /// `InvalidUserSignature`, and `RejectedByValidators` as terminal.
 /// An overload-dominated timeout maps to the retriable `SystemOverload` or
-/// `SystemOverloadRetryAfter` instead of `TimeoutBeforeFinality`.
+/// `SystemOverloadRetryAfter` instead of `TimeoutBeforeFinality`. Any other
+/// timeout after a failed attempt carries that attempt's error.
 /// Submission-time rejections that cannot succeed on resubmission must
 /// therefore not be reported as internal.
 fn map_td_error_to_qd(e: TransactionDriverError) -> QuorumDriverError {
@@ -1506,29 +1508,32 @@ fn map_td_error_to_qd(e: TransactionDriverError) -> QuorumDriverError {
         ValidationFailed { error } => {
             QuorumDriverError::InvalidUserSignature(IotaError::InvalidSignature { error })
         }
-        TimeoutWithLastRetriableError { last_error, .. } => last_error
-            .and_then(|e| map_overload_to_qd(&e))
-            .unwrap_or(QuorumDriverError::TimeoutBeforeFinality),
+        TimeoutWithLastRetriableError { last_error, .. } => match last_error {
+            Some(last_error) => map_overload_to_qd(&last_error).unwrap_or_else(|| {
+                QuorumDriverError::TimeoutBeforeFinalityWithErrors {
+                    last_error: last_error.to_string(),
+                }
+            }),
+            None => QuorumDriverError::TimeoutBeforeFinality,
+        },
         RejectedByValidators {
             submission_non_retriable_errors,
             ..
         } => {
             // f+1 stake of validators returned non-retriable errors during
-            // submission (bad signature, malformed tx, lock conflict, ...).
+            // submission (bad signature, malformed tx, lock conflict, ...),
+            // or a quorum rejected it for an input object they do not have.
             // Some verdicts depend on validator-local state, so this does not
             // prove the transaction can never execute; the variant is kept
             // distinct from `InvalidTransaction` so clients can tell the two
-            // apart.
-            let representative = submission_non_retriable_errors
-                .errors
-                .into_iter()
-                .next()
-                .map(|(msg, _, _, _)| msg)
-                .unwrap_or_else(|| "transaction rejected as invalid during submission".to_string());
-            QuorumDriverError::RejectedByValidators(IotaError::Unknown(format!(
-                "Transaction was rejected as invalid by more than 1/3 of validator stake \
-                 during submission (non-retriable): {representative}"
-            )))
+            // apart. The driver sorts the messages by stake.
+            QuorumDriverError::RejectedByValidators {
+                errors: submission_non_retriable_errors
+                    .errors
+                    .into_iter()
+                    .map(|(msg, _, _, _)| msg)
+                    .collect(),
+            }
         }
         Aborted {
             submission_retriable_errors,
@@ -2238,7 +2243,8 @@ mod tests {
     /// Validator rejections must map to `RejectedByValidators`, not
     /// `InvalidTransaction`: the verdicts can be validator-local, so clients
     /// must be able to tell them apart from a locally proven invalid
-    /// transaction.
+    /// transaction. Every grouped reason reaches the client in the driver's
+    /// stake order.
     #[test]
     fn map_validator_rejections_to_distinct_variant() {
         use iota_types::error::ErrorCategory;
@@ -2247,12 +2253,20 @@ mod tests {
 
         let td_error = TransactionDriverError::RejectedByValidators {
             submission_non_retriable_errors: AggregatedRequestErrors {
-                errors: vec![(
-                    "Object lock conflict".to_string(),
-                    vec![],
-                    3334,
-                    ErrorCategory::LockConflict,
-                )],
+                errors: vec![
+                    (
+                        "Object lock conflict".to_string(),
+                        vec![],
+                        2500,
+                        ErrorCategory::LockConflict,
+                    ),
+                    (
+                        "Gas budget: 10 is lower than min: 1000000".to_string(),
+                        vec![],
+                        834,
+                        ErrorCategory::InvalidTransaction,
+                    ),
+                ],
                 total_stake: 3334,
                 stake_requested_retry_after: Default::default(),
             },
@@ -2260,10 +2274,16 @@ mod tests {
         };
 
         let qd_error = map_td_error_to_qd(td_error);
-        let QuorumDriverError::RejectedByValidators(inner) = &qd_error else {
+        let QuorumDriverError::RejectedByValidators { errors } = &qd_error else {
             panic!("expected RejectedByValidators, got {qd_error:?}");
         };
-        assert!(inner.to_string().contains("Object lock conflict"));
+        assert_eq!(
+            errors,
+            &[
+                "Object lock conflict".to_string(),
+                "Gas budget: 10 is lower than min: 1000000".to_string(),
+            ]
+        );
         assert_eq!(qd_error.reason(), "rejected_by_validators");
     }
 
@@ -2410,7 +2430,10 @@ mod tests {
                 total_stake: 9000,
                 stake_requested_retry_after: Default::default(),
             })));
-        assert!(matches!(qd_error, QuorumDriverError::TimeoutBeforeFinality));
+        assert!(matches!(
+            qd_error,
+            QuorumDriverError::TimeoutBeforeFinalityWithErrors { .. }
+        ));
 
         let qd_error =
             timeout_with_last_error(Some(aborted_with_retriable(AggregatedRequestErrors {
@@ -2422,9 +2445,41 @@ mod tests {
                 total_stake: 5000,
                 stake_requested_retry_after: Default::default(),
             })));
-        assert!(matches!(qd_error, QuorumDriverError::TimeoutBeforeFinality));
+        assert!(matches!(
+            qd_error,
+            QuorumDriverError::TimeoutBeforeFinalityWithErrors { .. }
+        ));
 
         let qd_error = timeout_with_last_error(None);
         assert!(matches!(qd_error, QuorumDriverError::TimeoutBeforeFinality));
+    }
+
+    /// A timeout after a failed attempt reports that attempt's errors, so
+    /// the client learns what kept the transaction from finalizing.
+    #[test]
+    fn map_timeout_to_last_attempt_errors() {
+        use iota_types::error::ErrorCategory;
+
+        let qd_error =
+            timeout_with_last_error(Some(aborted_with_retriable(AggregatedRequestErrors {
+                errors: vec![
+                    bucket(
+                        "Could not find the referenced object 0x1 at version 5",
+                        5000,
+                        ErrorCategory::Aborted,
+                    ),
+                    bucket("validator unavailable", 5000, ErrorCategory::Unavailable),
+                ],
+                total_stake: 10000,
+                stake_requested_retry_after: Default::default(),
+            })));
+        let QuorumDriverError::TimeoutBeforeFinalityWithErrors { last_error } = &qd_error else {
+            panic!("expected TimeoutBeforeFinalityWithErrors, got {qd_error:?}");
+        };
+        assert!(
+            last_error.contains("Could not find the referenced object 0x1 at version 5"),
+            "{last_error}"
+        );
+        assert_eq!(qd_error.reason(), "timeout_before_finality");
     }
 }

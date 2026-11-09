@@ -164,6 +164,13 @@ impl Committee {
         (expanded_keys, index_map)
     }
 
+    /// The authority index of `author`: its position in the committee sorted
+    /// by authority public key. Its position in the committee of the Move
+    /// validator set, [`ValidatorSetV2::committee_members`], may differ; for
+    /// that, see [`EpochStartSystemState::committee_member_indices()`].
+    ///
+    /// [`ValidatorSetV2::committee_members`]: crate::iota_system_state::iota_system_state_inner_v2::ValidatorSetV2::committee_members
+    /// [`EpochStartSystemState::committee_member_indices()`]: crate::iota_system_state::epoch_start_iota_system_state::EpochStartSystemState::committee_member_indices
     pub fn authority_index(&self, author: &AuthorityName) -> Option<u32> {
         self.index_map.get(author).map(|i| *i as u32)
     }

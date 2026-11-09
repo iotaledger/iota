@@ -98,6 +98,7 @@ mod checked {
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_limits_source: VerifierLimitsSource<'_>,
         authentication_gas_budget: u64,
+        is_execute_transaction_to_effects: bool,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let gas_status = check_transaction_input_inner(
             protocol_config,
@@ -106,7 +107,7 @@ mod checked {
             &input_objects,
             &[],
             authentication_gas_budget,
-            false,
+            is_execute_transaction_to_effects,
         )?;
         check_receiving_objects(&input_objects, receiving_objects)?;
         // Runs verifier, which could be expensive.
@@ -258,33 +259,29 @@ mod checked {
         Ok(aggregated_authenticator_input_objects)
     }
 
-    /// A function to check the `MoveAuthenticator` inputs for execution and
-    /// then for certificate execution.
-    /// To be used instead of check_certificate_input when there is a Move
-    /// authenticator present.
-    ///
-    /// Checks that there is enough gas to pay for the authenticator and
-    /// transaction execution in the transaction inputs. And that the
-    /// authenticator inputs meet the requirements.
-    /// It returns the gas status, the checked authenticator input objects, and
-    /// the union of the checked authenticator input objects and transaction
-    /// input objects.
+    /// Checks the inputs of a transaction bound for execution: the Move
+    /// authenticator inputs, gas, the transaction's own inputs and their
+    /// union, and the receiving objects when given. Returns an execution-mode
+    /// gas status plus the checked input objects. Post-consensus validation of
+    /// an attested transaction runs this same function, with the receiving
+    /// objects it loaded, so the two cannot drift; execution gives none, since
+    /// the Move runtime resolves receives.
     #[instrument(level = "trace", skip_all)]
     pub fn check_certificate_and_move_authenticator_input(
-        cert: &VerifiedExecutableTransaction,
+        transaction: &Transaction,
         tx_input_objects: InputObjects,
         per_authenticator_input_objects: Vec<InputObjects>,
+        receiving_objects: Option<&ReceivingObjects>,
         authenticator_gas_budget: u64,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
     ) -> IotaResult<(IotaGasStatus, Vec<CheckedInputObjects>, CheckedInputObjects)> {
-        // Check Move authenticator inputs first
+        // Check Move authenticator inputs first.
         per_authenticator_input_objects
             .iter()
             .try_for_each(check_move_authenticator_objects)?;
 
-        // Check certificate inputs next
-        let transaction = cert.data().transaction();
+        // Check transaction inputs next.
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
@@ -292,15 +289,18 @@ mod checked {
             &tx_input_objects,
             &[],
             authenticator_gas_budget,
-            true,
+            true, // execution mode — full transaction_gas_budget
         )?;
+        if let Some(receiving_objects) = receiving_objects {
+            check_receiving_objects(&tx_input_objects, receiving_objects)?;
+        }
 
         let per_authenticator_checked_input_objects = per_authenticator_input_objects
             .into_iter()
             .map(|objects| objects.into_checked())
             .collect::<Vec<_>>();
 
-        // Create a checked union of input objects
+        // Create a checked union of input objects.
         let mut input_objects_union = tx_input_objects.into_checked();
         for objects in per_authenticator_checked_input_objects.iter() {
             input_objects_union = checked_input_objects_union(input_objects_union, objects)?;
@@ -828,7 +828,12 @@ mod checked {
     ) -> UserInputResult {
         match object_kind {
             InputObjectKind::MovePackage(package_id) => {
-                return Err(UserInputError::PackageIsInMoveAuthenticatorInput { package_id });
+                fp_ensure!(
+                    object.data.as_opt_package().is_some(),
+                    UserInputError::MoveObjectAsPackage {
+                        object_id: package_id
+                    }
+                );
             }
             InputObjectKind::ImmOrOwnedMoveObject(object_ref) => {
                 fp_ensure!(
@@ -1042,5 +1047,52 @@ mod checked {
         };
 
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use iota_sdk_types::{MovePackage, TransactionDigest};
+
+        use super::*;
+
+        fn package(id: ObjectId) -> Object {
+            Object::new_from_package(
+                MovePackage::new(
+                    id,
+                    Version::OBJECT_START,
+                    BTreeMap::new(),
+                    vec![],
+                    BTreeMap::new(),
+                ),
+                TransactionDigest::genesis_marker(),
+            )
+        }
+
+        /// `object`, read for the kind `MovePackage(id)`.
+        fn read_as_package(id: ObjectId, object: Object) -> InputObjects {
+            InputObjects::new(vec![ObjectReadResult::new(
+                InputObjectKind::MovePackage(id),
+                object.into(),
+            )])
+        }
+
+        #[test]
+        fn authenticator_check_accepts_its_type_arg_package() {
+            let id = ObjectId::random();
+            check_move_authenticator_objects(&read_as_package(id, package(id))).unwrap();
+        }
+
+        #[test]
+        fn authenticator_check_rejects_an_object_named_as_a_type_arg_package() {
+            let id = ObjectId::random();
+            assert_eq!(
+                check_move_authenticator_objects(&read_as_package(
+                    id,
+                    Object::immutable_with_id_for_testing(id)
+                ))
+                .unwrap_err(),
+                UserInputError::MoveObjectAsPackage { object_id: id }
+            );
+        }
     }
 }

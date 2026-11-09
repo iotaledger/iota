@@ -4,12 +4,15 @@
 
 use std::str::FromStr;
 
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Command, ExecutionError, ExecutionStatus, ObjectId, TypeArgumentError, TypeTag,
+    Command, ExecutionError, ExecutionStatus, ObjectId, TransactionEffects, TypeArgumentError,
+    TypeTag,
 };
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
+    error::{IotaError, IotaResult, UserInputError},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::TEST_ONLY_GAS_UNIT_FOR_GENERIC,
 };
@@ -423,11 +426,50 @@ async fn test_nested_type_param_different_package() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_self_type_name_in_move_call_type_argument() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_disallow_self_identifier_in_transactions_for_testing(false);
+        config
+    });
+    let effects = call_move_with_self_type_argument().await.unwrap();
+
+    assert_eq!(effects.status(), &type_not_found_failure());
+}
+
+#[tokio::test]
+#[cfg_attr(msim, ignore)]
+async fn test_self_type_name_in_move_call_type_argument_rejected_at_signing() {
+    let error = call_move_with_self_type_argument().await.unwrap_err();
+
+    assert_self_identifier_rejected(error);
+}
+
+#[tokio::test]
+#[cfg_attr(msim, ignore)]
+async fn test_self_type_name_in_make_move_vec_type() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_disallow_self_identifier_in_transactions_for_testing(false);
+        config
+    });
+    let effects = make_move_vec_with_self_type().await.unwrap();
+
+    assert_eq!(effects.status(), &type_not_found_failure());
+}
+
+#[tokio::test]
+#[cfg_attr(msim, ignore)]
+async fn test_self_type_name_in_make_move_vec_type_rejected_at_signing() {
+    let error = make_move_vec_with_self_type().await.unwrap_err();
+
+    assert_self_identifier_rejected(error);
+}
+
+/// Calls `0x2::coin::zero` with `self_type_tag()` as its type argument.
+async fn call_move_with_self_type_argument() -> IotaResult<TransactionEffects> {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
-    let effects = call_move(
+    call_move(
         &authority,
         &gas,
         &sender,
@@ -439,14 +481,10 @@ async fn test_self_type_name_in_move_call_type_argument() {
         vec![],
     )
     .await
-    .unwrap();
-
-    assert_eq!(effects.status(), &type_not_found_failure());
 }
 
-#[tokio::test]
-#[cfg_attr(msim, ignore)]
-async fn test_self_type_name_in_make_move_vec_type() {
+/// Runs a `MakeMoveVector` command whose element type is `self_type_tag()`.
+async fn make_move_vec_with_self_type() -> IotaResult<TransactionEffects> {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -455,7 +493,7 @@ async fn test_self_type_name_in_make_move_vec_type() {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder.command(Command::new_make_move_vector(Some(self_type_tag()), vec![]));
 
-    let effects = execute_programmable_transaction(
+    execute_programmable_transaction(
         &authority,
         &gas,
         &sender,
@@ -464,9 +502,17 @@ async fn test_self_type_name_in_make_move_vec_type() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_GENERIC,
     )
     .await
-    .unwrap();
+}
 
-    assert_eq!(effects.status(), &type_not_found_failure());
+fn assert_self_identifier_rejected(error: IotaError) {
+    assert_eq!(
+        error,
+        IotaError::UserInput {
+            error: UserInputError::InvalidIdentifier {
+                error: "<SELF>".to_string()
+            }
+        }
+    );
 }
 
 /// `0x2::iota::<SELF>`: the SDK accepts `<SELF>` as an identifier, move-core

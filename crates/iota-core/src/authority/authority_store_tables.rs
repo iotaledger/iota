@@ -457,13 +457,12 @@ impl AuthorityPerpetualTables {
         object_id: ObjectId,
     ) -> Result<Option<ObjectReference>, IotaError> {
         let mut iterator = self.objects.safe_iter_with_prefix_reversed(&object_id);
-
-        if let Some(Ok((object_key, value))) = iterator.next() {
-            if object_key.0 == object_id {
-                return Ok(Some(self.object_reference(&object_key, value)?));
+        match iterator.next().transpose()? {
+            Some((object_key, value)) if object_key.0 == object_id => {
+                Ok(Some(self.object_reference(&object_key, value)?))
             }
+            _ => Ok(None),
         }
-        Ok(None)
     }
 
     pub fn get_latest_object_or_tombstone(
@@ -471,15 +470,14 @@ impl AuthorityPerpetualTables {
         object_id: ObjectId,
     ) -> Result<Option<(ObjectKey, StoreObjectWrapper)>, IotaError> {
         let mut iterator = self.objects.safe_iter_with_prefix_reversed(&object_id);
-
-        if let Some(Ok((object_key, value))) = iterator.next() {
-            if object_key.0 == object_id {
-                // Migrate legacy V1 rows before returning; callers inspect the
-                // wrapper via `inner()`, which panics on an un-migrated V1.
-                return Ok(Some((object_key, value.migrate())));
+        match iterator.next().transpose()? {
+            // Migrate legacy V1 rows before returning; callers inspect the
+            // wrapper via `inner()`, which panics on an un-migrated V1.
+            Some((object_key, value)) if object_key.0 == object_id => {
+                Ok(Some((object_key, value.migrate())))
             }
+            _ => Ok(None),
         }
-        Ok(None)
     }
 
     pub fn get_recovery_epoch_at_restart(&self) -> IotaResult<EpochId> {
@@ -1279,6 +1277,42 @@ mod tests {
             .unwrap()
             .expect("value must reconstruct");
         assert_eq!(reconstructed.object_ref(), object_ref);
+    }
+
+    /// A newest row that does not decode is a storage error, not a missing
+    /// object and not the older version below it.
+    #[tokio::test]
+    async fn latest_object_lookups_return_the_row_decode_error() {
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+
+        let object_id = ObjectId::random();
+        let older = Object::immutable_with_id_for_testing(object_id);
+        let corrupt_version = Version::from_u64(7);
+        assert!(older.version() < corrupt_version);
+        perpetual_db
+            .insert_store_object_v2_test_only(older, Some(0))
+            .unwrap();
+        // The objects table's own keys, with bytes that are no
+        // `StoreObjectWrapper`.
+        DBMap::<ObjectKey, Vec<u8>>::reopen(
+            &perpetual_db.objects.db,
+            Some(perpetual_db.objects.cf_name()),
+            &ReadWriteOptions::default(),
+            true,
+        )
+        .unwrap()
+        .insert(&ObjectKey(object_id, corrupt_version), &vec![u8::MAX; 8])
+        .unwrap();
+
+        let error = perpetual_db
+            .get_latest_object_ref_or_tombstone(object_id)
+            .expect_err("a newest row that does not decode must not read as missing or older");
+        assert!(matches!(error, IotaError::Storage(_)), "{error:?}");
+        let error = perpetual_db
+            .get_latest_object_or_tombstone(object_id)
+            .expect_err("a newest row that does not decode must not read as missing or older");
+        assert!(matches!(error, IotaError::Storage(_)), "{error:?}");
     }
 
     /// An older release's database with the objects pruner's watermark.

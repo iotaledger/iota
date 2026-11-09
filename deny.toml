@@ -101,6 +101,11 @@ ignore = [
   # `clear_on_drop` is unmaintained. Only reachable through `bulletproofs`,
   # pinned by `fastcrypto`; neither has a newer release that drops it.
   "RUSTSEC-2026-0283",
+  # `pin-utils` is unmaintained. Newer `hyper` and `aws-smithy-*` releases
+  # drop it, but `wasm-timer` (final release) still needs it, via
+  # `snowflake-api` -> `reqwest-retry` 0.7 in `iota-analytics-indexer`. The
+  # latest `snowflake-api` still requires `reqwest-retry` 0.7.
+  "RUSTSEC-2026-0441",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories

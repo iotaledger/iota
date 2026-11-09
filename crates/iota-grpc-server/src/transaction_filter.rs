@@ -12,10 +12,7 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    constants::{MAX_FILTER_DEPTH, MAX_FILTER_NODES},
-    event_filter::EventFilter,
-};
+use crate::{constants::count_filters, event_filter::EventFilter};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum TransactionKind {
@@ -238,8 +235,34 @@ pub enum TransactionFilter {
 impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
     type Error = String;
 
+    /// Fails without converting the rest of the filter as soon as it is
+    /// deeper than [`MAX_FILTER_DEPTH`] or has more than [`MAX_FILTER_NODES`]
+    /// filters.
+    ///
+    /// [`MAX_FILTER_DEPTH`]: crate::constants::MAX_FILTER_DEPTH
+    /// [`MAX_FILTER_NODES`]: crate::constants::MAX_FILTER_NODES
     fn try_from(proto: proto_filter::TransactionFilter) -> Result<Self, Self::Error> {
+        Self::from_proto(proto, 0, &mut 0)
+    }
+}
+
+impl TransactionFilter {
+    /// Converts `proto`, which is nested `depth` levels deep. `nodes` counts
+    /// the filters converted so far, as described for [`MAX_FILTER_NODES`].
+    ///
+    /// [`MAX_FILTER_NODES`]: crate::constants::MAX_FILTER_NODES
+    fn from_proto(
+        proto: proto_filter::TransactionFilter,
+        depth: usize,
+        nodes: &mut usize,
+    ) -> Result<Self, String> {
         use proto_filter::transaction_filter::Filter as ProtoFilter;
+
+        let kinds = match &proto.filter {
+            Some(ProtoFilter::TransactionKinds(kinds_filter)) => kinds_filter.kinds.len(),
+            _ => 0,
+        };
+        count_filters(depth, nodes, 1 + kinds)?;
 
         let filter = proto.filter.ok_or("transaction filter is missing")?;
 
@@ -248,7 +271,7 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
                 let filters = all
                     .filters
                     .into_iter()
-                    .map(TransactionFilter::try_from)
+                    .map(|f| TransactionFilter::from_proto(f, depth + 1, nodes))
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok(TransactionFilter::All(filters))
             }
@@ -256,14 +279,14 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
                 let filters = any
                     .filters
                     .into_iter()
-                    .map(TransactionFilter::try_from)
+                    .map(|f| TransactionFilter::from_proto(f, depth + 1, nodes))
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok(TransactionFilter::Any(filters))
             }
             ProtoFilter::Negation(not) => {
                 let inner = not.filter.ok_or("negation filter is missing")?;
                 Ok(TransactionFilter::Not(Box::new(
-                    TransactionFilter::try_from(*inner)?,
+                    TransactionFilter::from_proto(*inner, depth + 1, nodes)?,
                 )))
             }
             ProtoFilter::TransactionKinds(kinds_filter) => {
@@ -311,7 +334,8 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
                 Ok(TransactionFilter::Command(internal_command_filter))
             }
             ProtoFilter::Event(event_filter) => {
-                let internal_event_filter = EventFilter::try_from(event_filter)?;
+                let internal_event_filter =
+                    EventFilter::from_proto(event_filter, depth + 1, nodes)?;
                 Ok(TransactionFilter::Events(internal_event_filter))
             }
             ProtoFilter::ExecutionStatus(status_filter) => {
@@ -385,205 +409,101 @@ impl TransactionFilter {
             }
         }
     }
-
-    /// Validates that the filter depth doesn't exceed the maximum allowed depth
-    /// to prevent DoS attacks through deeply nested structures.
-    pub fn validate_depth(&self) -> Result<(), String> {
-        self.validate_depth_recursive(0)
-    }
-
-    fn validate_depth_recursive(&self, current_depth: usize) -> Result<(), String> {
-        if current_depth > MAX_FILTER_DEPTH {
-            return Err(format!(
-                "Filter depth exceeds maximum allowed depth of {MAX_FILTER_DEPTH}"
-            ));
-        }
-
-        match self {
-            TransactionFilter::All(filters) => {
-                for filter in filters {
-                    filter.validate_depth_recursive(current_depth + 1)?;
-                }
-            }
-            TransactionFilter::Any(filters) => {
-                for filter in filters {
-                    filter.validate_depth_recursive(current_depth + 1)?;
-                }
-            }
-            TransactionFilter::Not(filter) => {
-                filter.validate_depth_recursive(current_depth + 1)?;
-            }
-            TransactionFilter::Events(event_filter) => {
-                // Also validate the event filter depth
-                event_filter.validate_depth_recursive(current_depth + 1)?;
-            }
-            // Atomic filters don't add to depth
-            _ => {}
-        }
-
-        Ok(())
-    }
-
-    /// Returns the maximum depth of this filter tree
-    pub fn max_depth(&self) -> usize {
-        self.max_depth_recursive(0)
-    }
-
-    fn max_depth_recursive(&self, current_depth: usize) -> usize {
-        match self {
-            TransactionFilter::All(filters) | TransactionFilter::Any(filters) => filters
-                .iter()
-                .map(|f| f.max_depth_recursive(current_depth + 1))
-                .max()
-                .unwrap_or(current_depth),
-            TransactionFilter::Not(filter) => filter.max_depth_recursive(current_depth + 1),
-            TransactionFilter::Events(event_filter) => {
-                event_filter.max_depth_recursive(current_depth + 1)
-            }
-            // Atomic filters
-            _ => current_depth,
-        }
-    }
-
-    /// Create a new filter with validation. This should be used when creating
-    /// filters from external input (e.g., gRPC requests) to ensure safety.
-    pub fn new_validated(filter: TransactionFilter) -> Result<Self, String> {
-        filter.validate_depth()?;
-        Ok(filter)
-    }
-
-    /// Validates the total complexity of the filter including counting the
-    /// number of total filter nodes to prevent resource exhaustion.
-    pub fn validate_complexity(&self) -> Result<(), String> {
-        let node_count = self.count_nodes();
-        if node_count > MAX_FILTER_NODES {
-            return Err(format!(
-                "Filter complexity exceeds maximum allowed nodes: {node_count} > {MAX_FILTER_NODES}"
-            ));
-        }
-
-        self.validate_depth()
-    }
-
-    fn count_nodes(&self) -> usize {
-        match self {
-            TransactionFilter::All(filters) | TransactionFilter::Any(filters) => {
-                1 + filters.iter().map(|f| f.count_nodes()).sum::<usize>()
-            }
-            TransactionFilter::Not(filter) => 1 + filter.count_nodes(),
-            TransactionFilter::Events(event_filter) => 1 + event_filter.count_nodes(),
-            // Matching compares the transaction against every kind.
-            TransactionFilter::TransactionKind(kinds) => 1 + kinds.len(),
-            // Atomic filters count as 1 node
-            _ => 1,
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use iota_sdk_types::{Argument, Command, Identifier};
+    use proto_filter::transaction_filter::Filter as ProtoFilter;
 
     use super::*;
+    use crate::constants::{MAX_FILTER_DEPTH, MAX_FILTER_NODES};
+
+    fn proto(filter: ProtoFilter) -> proto_filter::TransactionFilter {
+        let mut proto = proto_filter::TransactionFilter::default();
+        proto.filter = Some(filter);
+        proto
+    }
+
+    fn proto_kinds(n: usize) -> proto_filter::TransactionFilter {
+        let mut kinds = proto_filter::TransactionKindsFilter::default();
+        kinds.kinds = vec![proto_filter::TransactionKind::Programmable as i32; n];
+        proto(ProtoFilter::TransactionKinds(kinds))
+    }
+
+    fn proto_events() -> proto_filter::TransactionFilter {
+        let mut event_type = proto_filter::MoveEventTypeFilter::default();
+        event_type.struct_tag = "0x2::module::Event".to_string();
+        let mut events = proto_filter::EventFilter::default();
+        events.filter = Some(proto_filter::event_filter::Filter::MoveEventType(
+            event_type,
+        ));
+        proto(ProtoFilter::Event(events))
+    }
+
+    fn proto_not(
+        inner: proto_filter::TransactionFilter,
+        levels: usize,
+    ) -> proto_filter::TransactionFilter {
+        (0..levels).fold(inner, |inner, _| {
+            let mut not = proto_filter::NotTransactionFilter::default();
+            not.filter = Some(Box::new(inner));
+            proto(ProtoFilter::Negation(Box::new(not)))
+        })
+    }
 
     #[test]
-    fn test_filter_depth_validation() {
-        // Simple atomic filter should pass
-        let simple_filter = TransactionFilter::Sender(Address::random());
-        assert!(simple_filter.validate_depth().is_ok());
-        assert_eq!(simple_filter.max_depth(), 0);
+    fn proto_conversion_rejects_filters_deeper_than_the_limit() {
+        assert!(TransactionFilter::try_from(proto_not(proto_kinds(1), MAX_FILTER_DEPTH)).is_ok());
+        assert!(
+            TransactionFilter::try_from(proto_not(proto_kinds(1), MAX_FILTER_DEPTH + 1)).is_err()
+        );
 
-        // Nested filter within limits should pass
-        let nested_filter = TransactionFilter::All(vec![
-            TransactionFilter::Sender(Address::random()),
-            TransactionFilter::Any(vec![
-                TransactionFilter::AffectedObject(ObjectId::random()),
-                TransactionFilter::Not(Box::new(TransactionFilter::AffectedObject(
-                    ObjectId::random(),
-                ))),
-            ]),
-        ]);
-        assert!(nested_filter.validate_depth().is_ok());
-        assert_eq!(nested_filter.max_depth(), 3); // All -> Any -> Not = 3 levels
+        // The event filter of a transaction filter adds one level.
+        assert!(
+            TransactionFilter::try_from(proto_not(proto_events(), MAX_FILTER_DEPTH - 1)).is_ok()
+        );
+        assert!(TransactionFilter::try_from(proto_not(proto_events(), MAX_FILTER_DEPTH)).is_err());
 
-        // Deeply nested filter should fail
-        let mut deep_filter = TransactionFilter::Sender(Address::random());
-        for _ in 0..=MAX_FILTER_DEPTH {
-            deep_filter = TransactionFilter::Not(Box::new(deep_filter));
+        assert!(TransactionFilter::try_from(proto_not(proto_kinds(1), 1_000)).is_err());
+    }
+
+    fn proto_all(filters: Vec<proto_filter::TransactionFilter>) -> proto_filter::TransactionFilter {
+        let mut all = proto_filter::AllTransactionFilter::default();
+        all.filters = filters;
+        proto(ProtoFilter::All(all))
+    }
+
+    fn proto_any(filters: Vec<proto_filter::TransactionFilter>) -> proto_filter::TransactionFilter {
+        let mut any = proto_filter::AnyTransactionFilter::default();
+        any.filters = filters;
+        proto(ProtoFilter::Any(any))
+    }
+
+    #[test]
+    fn proto_conversion_counts_all_and_any_as_levels() {
+        let wraps: [fn(Vec<proto_filter::TransactionFilter>) -> proto_filter::TransactionFilter;
+            2] = [proto_all, proto_any];
+        for wrap in wraps {
+            let nested = |levels| (0..levels).fold(proto_kinds(1), |f, _| wrap(vec![f]));
+            assert!(TransactionFilter::try_from(nested(MAX_FILTER_DEPTH)).is_ok());
+            assert!(TransactionFilter::try_from(nested(MAX_FILTER_DEPTH + 1)).is_err());
         }
-        assert!(deep_filter.validate_depth().is_err());
-        assert!(deep_filter.max_depth() > MAX_FILTER_DEPTH);
+        assert!(TransactionFilter::try_from(proto_all(vec![])).is_ok());
+        assert!(TransactionFilter::try_from(proto_any(vec![])).is_ok());
     }
 
     #[test]
-    fn test_filter_complexity_validation() {
-        // Simple filter should pass complexity validation
-        let simple_filter = TransactionFilter::Sender(Address::random());
-        assert!(simple_filter.validate_complexity().is_ok());
-        assert_eq!(simple_filter.count_nodes(), 1);
+    fn proto_conversion_rejects_filters_with_too_many_nodes() {
+        // Every transaction kind counts as a filter.
+        assert!(TransactionFilter::try_from(proto_kinds(MAX_FILTER_NODES - 1)).is_ok());
+        assert!(TransactionFilter::try_from(proto_kinds(MAX_FILTER_NODES)).is_err());
 
-        // Moderately complex filter should pass
-        let complex_filter = TransactionFilter::All(vec![
-            TransactionFilter::Sender(Address::random()),
-            TransactionFilter::Any(vec![
-                TransactionFilter::Receiver(Address::random()),
-                TransactionFilter::AffectedObject(ObjectId::random()),
-            ]),
-        ]);
-        assert!(complex_filter.validate_complexity().is_ok());
-        assert_eq!(complex_filter.count_nodes(), 5); // All + Sender + Any + Receiver + AffectedObject = 5 nodes
-    }
-
-    #[test]
-    fn filter_complexity_counts_transaction_kinds() {
-        let kinds = |n| TransactionFilter::TransactionKind(vec![TransactionKind::Programmable; n]);
-        assert_eq!(kinds(3).count_nodes(), 4);
-        assert!(kinds(MAX_FILTER_NODES - 1).validate_complexity().is_ok());
-        assert!(kinds(MAX_FILTER_NODES).validate_complexity().is_err());
-    }
-
-    #[test]
-    fn test_new_validated() {
-        let valid_filter = TransactionFilter::Sender(Address::random());
-        assert!(TransactionFilter::new_validated(valid_filter).is_ok());
-
-        // Create an invalid deeply nested filter
-        let mut invalid_filter = TransactionFilter::Sender(Address::random());
-        for _ in 0..=MAX_FILTER_DEPTH {
-            invalid_filter = TransactionFilter::Not(Box::new(invalid_filter));
-        }
-        assert!(TransactionFilter::new_validated(invalid_filter).is_err());
-    }
-
-    #[test]
-    fn test_empty_logical_filters() {
-        // Empty All filter should pass validation
-        let empty_all = TransactionFilter::All(vec![]);
-        assert!(empty_all.validate_depth().is_ok());
-        assert_eq!(empty_all.max_depth(), 0);
-
-        // Empty Any filter should pass validation
-        let empty_any = TransactionFilter::Any(vec![]);
-        assert!(empty_any.validate_depth().is_ok());
-        assert_eq!(empty_any.max_depth(), 0);
-    }
-
-    #[test]
-    fn test_complex_nested_structure() {
-        // Create a complex but valid nested structure
-        let complex_filter = TransactionFilter::All(vec![
-            TransactionFilter::Any(vec![
-                TransactionFilter::Sender(Address::random()),
-                TransactionFilter::Receiver(Address::random()),
-            ]),
-            TransactionFilter::Not(Box::new(TransactionFilter::All(vec![
-                TransactionFilter::Sender(Address::random()),
-                TransactionFilter::AffectedObject(ObjectId::random()),
-            ]))),
-        ]);
-
-        assert!(complex_filter.validate_depth().is_ok());
-        assert_eq!(complex_filter.max_depth(), 3);
+        // The filter count covers the event filters inside the transaction filter.
+        let err =
+            TransactionFilter::try_from(proto_any(vec![proto_events(); MAX_FILTER_NODES / 2]))
+                .unwrap_err();
+        assert!(err.contains("nodes"), "{err}");
     }
 
     // --- CommandFilter matching tests ---
@@ -786,41 +706,6 @@ mod tests {
 
         // But Publish doesn't
         assert!(!CommandFilter::Publish.matches_commands(&commands));
-    }
-
-    // --- Depth/complexity for new filter types ---
-
-    #[test]
-    fn test_command_filter_depth_and_complexity() {
-        let filter = TransactionFilter::Command(CommandFilter::Publish);
-        assert!(filter.validate_depth().is_ok());
-        assert_eq!(filter.max_depth(), 0);
-        assert_eq!(filter.count_nodes(), 1);
-    }
-
-    #[test]
-    fn test_execution_status_depth_and_complexity() {
-        let filter = TransactionFilter::ExecutionStatus(ExecutionStatusFilter::Success);
-        assert!(filter.validate_depth().is_ok());
-        assert_eq!(filter.max_depth(), 0);
-        assert_eq!(filter.count_nodes(), 1);
-
-        let filter = TransactionFilter::ExecutionStatus(ExecutionStatusFilter::Failure);
-        assert!(filter.validate_depth().is_ok());
-        assert_eq!(filter.max_depth(), 0);
-        assert_eq!(filter.count_nodes(), 1);
-    }
-
-    #[test]
-    fn test_combined_new_filters_in_any() {
-        let filter = TransactionFilter::Any(vec![
-            TransactionFilter::Command(CommandFilter::Publish),
-            TransactionFilter::Command(CommandFilter::Upgrade { package: None }),
-            TransactionFilter::ExecutionStatus(ExecutionStatusFilter::Failure),
-        ]);
-        assert!(filter.validate_depth().is_ok());
-        assert_eq!(filter.max_depth(), 1);
-        assert_eq!(filter.count_nodes(), 4); // Any + 3 children
     }
 
     // --- ExecutionStatusFilter matching tests ---

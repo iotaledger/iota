@@ -13,12 +13,13 @@ use diesel::{
     query_dsl::LoadQuery, sql_types::Untyped,
 };
 use fastcrypto::encoding::{Base64, Encoding};
+use iota_indexer::pruning::CommitterTables;
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
     config::ServiceConfig,
     consistency::{Checkpointed, ConsistentIndexCursor},
-    data::{Conn, DbConnection, DieselBackend, DieselConn, Query},
+    data::{Conn, Db, DbConnection, DieselBackend, DieselConn, Query},
     error::Error,
     raw_query::RawQuery,
     types::uint53::UInt53,
@@ -241,6 +242,23 @@ where
             (None, None) => Ok(None),
         }
     }
+}
+
+/// Fails with `DATA_PRUNED` when `cursor_viewed_at` (from
+/// [`Page::validate_cursor_consistency`]) is a checkpoint that has been pruned
+/// from the `checkpoints` table.
+pub(crate) fn check_cursor_not_pruned(db: &Db, cursor_viewed_at: u64) -> Result<(), Error> {
+    let lowest_available_cp = db
+        .inner
+        .watermark_cache()
+        .get_lowest_available_cp_for_tables(&[CommitterTables::Checkpoints]);
+    if lowest_available_cp.is_some_and(|cp| cursor_viewed_at < cp as u64) {
+        return Err(Error::DataPruned(format!(
+            "the cursor has expired: checkpoint {cursor_viewed_at} it was issued at has been \
+             pruned"
+        )));
+    }
+    Ok(())
 }
 
 pub(crate) type ConsistentPageCursor = JsonCursor<ConsistentIndexCursor>;

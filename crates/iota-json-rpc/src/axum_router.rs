@@ -8,8 +8,8 @@ use std::{
 };
 
 use axum::{
-    extract::{ConnectInfo, Json, State},
-    response::Response,
+    extract::{ConnectInfo, FromRequest, Json, Request as HttpRequest, State},
+    response::{IntoResponse, Response},
 };
 use hyper::HeaderMap;
 use iota_json_rpc_api::{
@@ -108,49 +108,76 @@ pub(crate) fn ok_response(body: String) -> Response {
 pub async fn json_rpc_handler<L: Logger>(
     ConnectInfo(client_addr): ConnectInfo<SocketAddr>,
     State(service): State<JsonRpcService<L>>,
-    headers: HeaderMap,
-    Json(raw_request): Json<Box<RawValue>>,
-) -> impl axum::response::IntoResponse {
-    let headers_clone = headers.clone();
+    request: HttpRequest,
+) -> Response {
+    let headers = request.headers().clone();
+    let client = match client_ip(&service, &headers, client_addr) {
+        Ok(client) => client,
+        Err(refused_response) => return ok_response(refused_response.into_result()),
+    };
+    // Check whether the client may be served before reading the body, so a
+    // refused client's body is neither read nor parsed.
+    if let Some(traffic_controller) = &service.traffic_controller {
+        if let Err(blocked_response) = handle_traffic_req(traffic_controller.clone(), &client) {
+            return ok_response(blocked_response.into_result());
+        }
+    }
+    let raw_request = match Json::<Box<RawValue>>::from_request(request, &()).await {
+        Ok(Json(raw_request)) => raw_request,
+        Err(rejection) => {
+            // Any body the `Json` extractor rejects (not JSON, no JSON content
+            // type, too large, or not fully received) is tallied like a request
+            // the node cannot parse.
+            if let Some(traffic_controller) = &service.traffic_controller {
+                let parse_error =
+                    MethodResponse::error(Id::Null, ErrorObject::from(ErrorCode::ParseError));
+                handle_traffic_resp(traffic_controller.clone(), client, &parse_error);
+            }
+            return rejection.into_response();
+        }
+    };
     // Get version from header.
     let api_version = headers
         .get(CLIENT_TARGET_API_VERSION_HEADER)
         .and_then(|h| h.to_str().ok());
-    let response = process_raw_request(
-        &service,
-        api_version,
-        raw_request.get(),
-        client_addr,
-        headers_clone,
-    )
-    .await;
+    let response = process_raw_request(&service, api_version, raw_request.get(), client).await;
 
     ok_response(response.into_result())
+}
+
+/// Resolves the client IP used for traffic control. Returns the response to
+/// send instead of serving the request when the request must be refused.
+fn client_ip<L>(
+    service: &JsonRpcService<L>,
+    headers: &HeaderMap,
+    client_addr: SocketAddr,
+) -> Result<Option<IpAddr>, MethodResponse> {
+    let Some(source) = service.client_id_source.as_ref() else {
+        return Ok(None);
+    };
+    match get_client_ip(headers, Some(client_addr), source) {
+        ClientIpStatus::Ok(client) => Ok(Some(client)),
+        status => {
+            error!("{status}");
+            if status.should_refuse_request() {
+                let err_obj = ErrorObject::owned(
+                    ErrorCode::InvalidRequest.code(),
+                    status.to_string(),
+                    None::<()>,
+                );
+                return Err(MethodResponse::error(Id::Null, err_obj));
+            }
+            Ok(None)
+        }
+    }
 }
 
 async fn process_raw_request<L: Logger>(
     service: &JsonRpcService<L>,
     api_version: Option<&str>,
     raw_request: &str,
-    client_addr: SocketAddr,
-    headers: HeaderMap,
+    client: Option<IpAddr>,
 ) -> MethodResponse {
-    let client = match service.client_id_source.as_ref() {
-        Some(source) => match get_client_ip(&headers, Some(client_addr), source) {
-            ClientIpStatus::Ok(client) => Some(client),
-            status => {
-                error!("{status}");
-                None
-            }
-        },
-        None => None,
-    };
-    // check if either IP is blocked, in which case return early
-    if let Some(traffic_controller) = &service.traffic_controller {
-        if let Err(blocked_response) = handle_traffic_req(traffic_controller.clone(), &client) {
-            return blocked_response;
-        }
-    }
     let response = if let Ok(request) = serde_json::from_str::<Request>(raw_request) {
         process_request(request, api_version, service.call_data()).await
     } else if let Ok(_batch) = serde_json::from_str::<Vec<&RawValue>>(raw_request) {
@@ -224,13 +251,135 @@ fn normalize(err: ErrorCode) -> Weight {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        collections::HashMap,
+        net::{IpAddr, Ipv4Addr, SocketAddr},
+        sync::Arc,
+    };
+
+    use axum::{body::Body, extract::ConnectInfo, http::Request, routing::post};
+    use hyper::StatusCode;
     use iota_json_rpc_api::{
         TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSACTION_NOT_FOUND_ERROR_CODE,
     };
-    use iota_types::traffic_control::Weight;
-    use jsonrpsee::types::ErrorCode;
+    use iota_traffic_controller::TrafficController;
+    use iota_types::traffic_control::{ClientIdSource, PolicyConfig, PolicyType, Weight};
+    use jsonrpsee::{Extensions, core::server::Methods, types::ErrorCode};
+    use tower::ServiceExt;
 
-    use super::normalize;
+    use super::{JsonRpcService, TOO_MANY_REQUESTS_MSG, json_rpc_handler, normalize};
+    use crate::routing_layer::RpcRouter;
+
+    const CLIENT: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9000);
+
+    /// A JSON-RPC router whose traffic controller runs the given spam and error
+    /// policies.
+    fn router(
+        spam_policy_type: PolicyType,
+        error_policy_type: PolicyType,
+    ) -> (axum::Router, Arc<TrafficController>) {
+        let policy_config = PolicyConfig {
+            client_id_source: ClientIdSource::SocketAddr,
+            connection_blocklist_ttl_sec: 120,
+            spam_policy_type,
+            error_policy_type,
+            spam_sample_rate: Weight::one(),
+            dry_run: false,
+            ..Default::default()
+        };
+        let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config.clone()));
+        let service = JsonRpcService::new(
+            Methods::new(),
+            RpcRouter::new(HashMap::new(), false),
+            (),
+            Some(traffic_controller.clone()),
+            Some(policy_config),
+            Extensions::new(),
+        );
+        let router = axum::Router::new()
+            .route("/", post(json_rpc_handler::<()>))
+            .with_state(service);
+        (router, traffic_controller)
+    }
+
+    async fn send(
+        router: &axum::Router,
+        content_type: Option<&str>,
+        body: impl Into<Body>,
+    ) -> (StatusCode, String) {
+        let mut request = Request::post("/").extension(ConnectInfo(CLIENT));
+        if let Some(content_type) = content_type {
+            request = request.header("content-type", content_type);
+        }
+        let response = router
+            .clone()
+            .oneshot(request.body(body.into()).unwrap())
+            .await
+            .unwrap();
+        let status = response.status();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        (status, String::from_utf8_lossy(&body).into_owned())
+    }
+
+    /// A request with a JSON body still reaches the method dispatch and is
+    /// tallied.
+    #[tokio::test]
+    async fn parsed_requests_are_served_and_tallied() {
+        let (router, traffic_controller) = router(PolicyType::TestNConnIP(1), PolicyType::NoOp);
+        let request = r#"{"jsonrpc":"2.0","id":1,"method":"unknown_method"}"#;
+
+        let (status, body) = send(&router, Some("application/json"), request).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.contains("Method not found"), "{body}");
+        assert!(!traffic_controller.check(&Some(CLIENT.ip()), &None));
+    }
+
+    /// A body the `Json` extractor rejects keeps its status and is tallied, and
+    /// the same request is refused once the client is blocked.
+    #[tokio::test]
+    async fn rejected_bodies_are_tallied_and_checked() {
+        let json = Some("application/json");
+        let request = r#"{"jsonrpc":"2.0","id":1,"method":"rpc.discover"}"#;
+        let too_large = vec![b' '; 3 * 1024 * 1024];
+        for (content_type, body, status) in [
+            (json, b"not-json".to_vec(), StatusCode::BAD_REQUEST),
+            (
+                None,
+                request.as_bytes().to_vec(),
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            ),
+            (json, too_large, StatusCode::PAYLOAD_TOO_LARGE),
+        ] {
+            let (router, traffic_controller) = router(PolicyType::TestNConnIP(1), PolicyType::NoOp);
+
+            assert_eq!(send(&router, content_type, body.clone()).await.0, status);
+            assert!(
+                !traffic_controller.check(&Some(CLIENT.ip()), &None),
+                "{status}: the rejected request must be tallied"
+            );
+
+            let (blocked_status, blocked_body) = send(&router, content_type, body).await;
+            assert_eq!(blocked_status, StatusCode::OK, "{status}");
+            assert!(
+                blocked_body.contains(TOO_MANY_REQUESTS_MSG),
+                "{blocked_body}"
+            );
+        }
+    }
+
+    /// A body the `Json` extractor rejects is tallied as a client error.
+    #[tokio::test]
+    async fn rejected_bodies_feed_the_error_policy() {
+        let (router, traffic_controller) = router(PolicyType::NoOp, PolicyType::TestNConnIP(1));
+
+        let (status, _) = send(&router, Some("application/json"), "not-json").await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(!traffic_controller.check(&Some(CLIENT.ip()), &None));
+    }
 
     #[test]
     fn transaction_not_found_has_zero_error_weight() {

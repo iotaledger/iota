@@ -4,12 +4,6 @@ AccountAddress:
     TUPLEARRAY:
       CONTENT: U8
       SIZE: 32
-AccountClaimKind:
-  ENUM:
-    0:
-      SmartAccount:
-        NEWTYPE:
-          TYPENAME: SmartAccountClaim
 Address:
   NEWTYPESTRUCT:
     TUPLEARRAY:
@@ -30,6 +24,34 @@ Argument:
         TUPLE:
           - U16
           - U16
+AttestationEntry:
+  STRUCT:
+    - position: U32
+    - record:
+        TYPENAME: AttestationRecord
+AttestationRecord:
+  STRUCT:
+    - attestor: U8
+    - verdict:
+        TYPENAME: AttestationVerdict
+AttestationTotals:
+  STRUCT:
+    - refuted_units_squared:
+        MAP:
+          KEY: U8
+          VALUE: U64
+AttestationVerdict:
+  ENUM:
+    0:
+      Valid: UNIT
+    1:
+      Inaccurate: UNIT
+    2:
+      Refuted:
+        STRUCT:
+          - units: U64
+    3:
+      Undecided: UNIT
 AuthorityPublicKeyBytes:
   NEWTYPESTRUCT: BYTES
 AuthorityQuorumSignInfo:
@@ -191,10 +213,29 @@ CheckpointTransaction:
     - output_objects:
         SEQ:
           TYPENAME: Object
-ClaimAccountTransaction:
+CheckpointVersionSpecificData:
+  ENUM:
+    0:
+      V1:
+        NEWTYPE:
+          TYPENAME: CheckpointVersionSpecificDataV1
+    1:
+      V2:
+        NEWTYPE:
+          TYPENAME: CheckpointVersionSpecificDataV2
+CheckpointVersionSpecificDataV1:
   STRUCT:
-    - kind:
-        TYPENAME: AccountClaimKind
+    - randomness_rounds:
+        SEQ: U64
+CheckpointVersionSpecificDataV2:
+  STRUCT:
+    - randomness_rounds:
+        SEQ: U64
+    - attestation_entries:
+        SEQ:
+          TYPENAME: AttestationEntry
+    - attestation_totals:
+        TYPENAME: AttestationTotals
 Command:
   ENUM:
     0:
@@ -819,10 +860,6 @@ SignedTransaction:
         TYPENAME: Transaction
     - signatures:
         SEQ: BYTES
-SmartAccountClaim:
-  STRUCT:
-    - public_key_scheme: U8
-    - public_key_raw_bytes: BYTES
 SplitCoins:
   STRUCT:
     - coin:
@@ -964,10 +1001,6 @@ TransactionKind:
       TransactionDenyRulesUpdate:
         NEWTYPE:
           TYPENAME: TransactionDenyRulesUpdate
-    7:
-      ClaimAccount:
-        NEWTYPE:
-          TYPENAME: ClaimAccountTransaction
 TransactionV1:
   STRUCT:
     - kind:

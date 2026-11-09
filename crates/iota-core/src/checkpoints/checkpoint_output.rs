@@ -31,7 +31,7 @@ const MAX_CHECKPOINT_LAG_FOR_REPORT: u64 = 100;
 pub trait CheckpointOutput: Sync + Send + 'static {
     /// Handles a checkpoint this validator has just built. If the
     /// implementation signs the checkpoint, it gives the signature to
-    /// `checkpoint_service` as well under deterministic validation.
+    /// `checkpoint_service` as well under the P-COOL flow.
     async fn checkpoint_created(
         &self,
         summary: &CheckpointSummary,

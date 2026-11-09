@@ -105,6 +105,7 @@ use iota_network::{
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_node_transaction_builder::NodeTransactionBuilderLedgerClient;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_crypto::ToFromBytes as _;
 use iota_sdk_types::{
     RandomnessRound,
     crypto::{Intent, IntentMessage, IntentScope},
@@ -661,10 +662,7 @@ impl IotaNode {
         )
         .map_err(|e| anyhow!("refusing to start: {e}"))?;
 
-        // The first one-way step: an older release reads the column family
-        // this drops.
-        store.retire_objects_pruner_watermark()?;
-
+        // The first one-way step: an older release reads these databases.
         // Frees disk space ahead of the one-time migration passes below. The
         // check above counted that space as free, so a failed removal must
         // stop the start before the migration fills the disk.
@@ -681,6 +679,10 @@ impl IotaNode {
                 warn!("failed to remove a legacy index database: {e}");
             }
         }
+
+        // After the last refusal above: an older release reads the column
+        // family this drops.
+        store.retire_objects_pruner_watermark()?;
 
         // Before any service starts, since nothing reads the flat tables.
         // TODO(https://github.com/iotaledger/iota/issues/12763): remove this call.
@@ -1293,7 +1295,7 @@ impl IotaNode {
             let server_name = format!("iota-{chain_identifier}");
             let network = Network::bind(config.p2p_config.listen_address)
                 .server_name(&server_name)
-                .private_key(config.network_key_pair().copy().private().0.to_bytes())
+                .private_key(config.network_key_pair().to_bytes())
                 .config(anemo_config)
                 .outbound_request_layer(outbound_layer)
                 .start(service)?;
@@ -1306,8 +1308,7 @@ impl IotaNode {
             network
         };
 
-        let discovery_handle =
-            discovery.start(p2p_network.clone(), config.network_key_pair().copy());
+        let discovery_handle = discovery.start(p2p_network.clone(), config.network_key_pair());
         let state_sync_handle = state_sync.start(p2p_network.clone());
         let randomness_handle = randomness.start(p2p_network.clone());
 
@@ -1579,12 +1580,12 @@ impl IotaNode {
             }
         });
         info!("Spawning checkpoint service");
-        // With deterministic validation, a checkpoint built before a restart
-        // has to be rebuilt from the replayed commits before it is executed.
+        // With the P-COOL flow, a checkpoint built before a restart has to be
+        // rebuilt from the replayed commits before it is executed.
         let replay_waiter = if std::env::var("DISABLE_REPLAY_WAITER").is_err() {
             Some(replay_waiter)
         } else if epoch_store.protocol_config().enable_pcool_flow() {
-            warn!("DISABLE_REPLAY_WAITER is ignored with deterministic validation");
+            warn!("DISABLE_REPLAY_WAITER is ignored with the P-COOL flow");
             Some(replay_waiter)
         } else {
             None
@@ -1760,7 +1761,7 @@ impl IotaNode {
                 );
 
         let tls_config = iota_tls::create_rustls_server_config(
-            config.network_key_pair().copy().private(),
+            config.network_key_pair(),
             IOTA_TLS_SERVER_NAME.to_string(),
         );
 
@@ -3147,7 +3148,7 @@ mod listener_metrics_tests {
 
     use iota_metrics::{MetricGroups, MetricLevel, test_utils::MetricsReader};
     use iota_network_stack::config::Config;
-    use iota_types::crypto::{KeypairTraits, NetworkKeyPair, get_key_pair};
+    use iota_types::crypto::{NetworkKeyPair, get_key_pair};
     use prometheus_filtered::Registry;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
@@ -3204,12 +3205,9 @@ mod listener_metrics_tests {
 
         let key_pair = get_key_pair::<NetworkKeyPair>().1;
         let tls_config =
-            iota_tls::create_rustls_server_config(key_pair.copy().private(), "test".to_string());
-        let client_config = iota_tls::create_rustls_client_config(
-            key_pair.public().to_owned(),
-            "test".to_string(),
-            None,
-        );
+            iota_tls::create_rustls_server_config(key_pair.clone(), "test".to_string());
+        let client_config =
+            iota_tls::create_rustls_client_config(key_pair.public_key(), "test".to_string(), None);
         let config = Config::new();
         let validator = ServerBuilder::from_config(&config, GrpcMetrics::new(&registry))
             .listener_metrics(validator_server_listener_metrics(&registry))
@@ -3251,6 +3249,14 @@ mod listener_metrics_tests {
         "connection_lifetime_seconds",
     ];
     const TLS_FAMILIES: &[&str] = &["handshake_latency", "pending_handshakes_peak"];
+    const CLIENT_FAMILIES: &[&str] = &["clients", "client_connections", "client_connections_peak"];
+    const REQUEST_FAMILIES: &[&str] = &[
+        "connection_idle_seconds",
+        "connection_inflight_requests",
+        "connection_inflight_requests_peak",
+        "request_completion_latency",
+        "response_delivery_latency",
+    ];
 
     /// `node_grpc_response_message_bytes` is not listed: it has a series per
     /// method, so it shows only once the gRPC API has sent a response.
@@ -3264,7 +3270,10 @@ mod listener_metrics_tests {
     /// Every family the listener of `prefix` registers, but not its TLS
     /// families.
     fn listener_families(prefix: &str) -> BTreeSet<String> {
-        prefix_names(prefix, CONNECTION_FAMILIES).collect()
+        prefix_names(prefix, CONNECTION_FAMILIES)
+            .chain(prefix_names(prefix, REQUEST_FAMILIES))
+            .chain(prefix_names(prefix, CLIENT_FAMILIES))
+            .collect()
     }
 
     /// Every family the three listeners register. Only the validator listener

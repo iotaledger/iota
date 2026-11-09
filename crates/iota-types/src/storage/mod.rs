@@ -531,7 +531,7 @@ pub fn transaction_non_shared_input_object_keys(
 ) -> IotaResult<Vec<ObjectKey>> {
     use crate::transaction::InputObjectKind as I;
     Ok(tx
-        .input_objects()?
+        .input_objects(false)?
         .into_iter()
         .filter_map(|object| match object {
             I::MovePackage(_) | I::SharedMoveObject { .. } => None,

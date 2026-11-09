@@ -8,7 +8,8 @@ use async_trait::async_trait;
 use cached::{SizedCache, proc_macro::cached};
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{
-    GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics, error_object_from_rpc,
+    GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics, QUERY_MAX_RESULT_LIMIT,
+    error_object_from_rpc,
 };
 use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, IotaCommittee,
@@ -30,7 +31,9 @@ use iota_types::{
     iota_serde::BigInt,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate,
-        iota_system_state_summary::{IotaSystemStateSummaryV1, IotaSystemStateSummaryV2},
+        iota_system_state_summary::{
+            IotaSystemStateSummary, IotaSystemStateSummaryV1, IotaSystemStateSummaryV2,
+        },
         validator_summary_from_wrapper,
     },
     object::{Object, ObjectRead},
@@ -70,6 +73,18 @@ impl GovernanceReadApi {
             metrics,
             stake_read_permits: Arc::new(Semaphore::new(MAX_CONCURRENT_STAKE_READS)),
         }
+    }
+
+    /// The latest system state summary, reporting the validator count limits
+    /// and stake thresholds that the protocol config enforces.
+    fn latest_system_state_summary(&self) -> Result<IotaSystemStateSummary, Error> {
+        let mut summary = self
+            .state
+            .get_system_state()?
+            .into_iota_system_state_summary();
+        summary
+            .apply_protocol_config_validator_parameters(self.state.get_chain_identifier()?.chain());
+        Ok(summary)
     }
 
     /// Waits until fewer than [`MAX_CONCURRENT_STAKE_READS`] stake reads run.
@@ -124,6 +139,11 @@ impl GovernanceReadApi {
         &self,
         staked_iota_ids: Vec<ObjectId>,
     ) -> Result<Vec<DelegatedStake>, Error> {
+        if staked_iota_ids.len() > *QUERY_MAX_RESULT_LIMIT {
+            Err(IotaRpcInputError::SizeLimitExceeded(
+                QUERY_MAX_RESULT_LIMIT.to_string(),
+            ))?
+        }
         let state = self.state.clone();
         let stakes_read = spawn_monitored_task!(async move {
             staked_iota_ids
@@ -168,6 +188,11 @@ impl GovernanceReadApi {
         &self,
         timelocked_staked_iota_ids: Vec<ObjectId>,
     ) -> Result<Vec<DelegatedTimelockedStake>, Error> {
+        if timelocked_staked_iota_ids.len() > *QUERY_MAX_RESULT_LIMIT {
+            Err(IotaRpcInputError::SizeLimitExceeded(
+                QUERY_MAX_RESULT_LIMIT.to_string(),
+            ))?
+        }
         let state = self.state.clone();
         let stakes_read = spawn_monitored_task!(async move {
             timelocked_staked_iota_ids
@@ -441,26 +466,15 @@ impl GovernanceReadApiServer for GovernanceReadApi {
 
     #[instrument(skip(self))]
     async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummarySchema> {
-        async move {
-            Ok(self
-                .state
-                .get_system_state()?
-                .into_iota_system_state_summary()
-                .try_into()?)
-        }
-        .trace()
-        .await
+        async move { Ok(self.latest_system_state_summary()?.try_into()?) }
+            .trace()
+            .await
     }
 
     #[instrument(skip(self))]
     async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1Schema> {
         async move {
-            Ok(IotaSystemStateSummaryV1::try_from(
-                self.state
-                    .get_system_state()?
-                    .into_iota_system_state_summary(),
-            )?
-            .into())
+            Ok(IotaSystemStateSummaryV1::try_from(self.latest_system_state_summary()?)?.into())
         }
         .trace()
         .await
@@ -932,9 +946,98 @@ impl IotaRpcModule for GovernanceReadApi {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     use iota_types::iota_system_state::PoolTokenExchangeRate;
+    use jsonrpsee::types::error::INVALID_PARAMS_CODE;
 
     use super::*;
+    use crate::authority_state::MockStateRead;
+
+    /// An API whose state answers every object read with `NotExists` and
+    /// counts the reads in `reads`.
+    fn api_counting_object_reads(reads: Arc<AtomicUsize>) -> GovernanceReadApi {
+        let mut state = MockStateRead::new();
+        state.expect_get_object_read().returning(move |id| {
+            reads.fetch_add(1, Ordering::Relaxed);
+            Ok(ObjectRead::NotExists(*id))
+        });
+        GovernanceReadApi {
+            state: Arc::new(state),
+            metrics: Arc::new(JsonRpcMetrics::new_for_tests()),
+            stake_read_permits: Arc::new(Semaphore::new(MAX_CONCURRENT_STAKE_READS)),
+        }
+    }
+
+    fn random_ids(count: usize) -> Vec<ObjectId> {
+        std::iter::repeat_with(ObjectId::random)
+            .take(count)
+            .collect()
+    }
+
+    fn size_limit_exceeded_msg() -> String {
+        IotaRpcInputError::SizeLimitExceeded(QUERY_MAX_RESULT_LIMIT.to_string()).to_string()
+    }
+
+    fn object_not_found_msg(id: ObjectId) -> String {
+        IotaRpcInputError::UserInput(UserInputError::ObjectNotFound {
+            object_id: id,
+            version: None,
+        })
+        .to_string()
+    }
+
+    #[tokio::test]
+    async fn stakes_by_ids_rejects_more_ids_than_the_limit_before_reading() {
+        let reads = Arc::new(AtomicUsize::new(0));
+        let api = api_counting_object_reads(reads.clone());
+
+        let err = GovernanceReadApiServer::get_stakes_by_ids(
+            &api,
+            random_ids(*QUERY_MAX_RESULT_LIMIT + 1),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code(), INVALID_PARAMS_CODE);
+        assert_eq!(err.message(), size_limit_exceeded_msg());
+        assert_eq!(reads.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn timelocked_stakes_by_ids_rejects_more_ids_than_the_limit_before_reading() {
+        let reads = Arc::new(AtomicUsize::new(0));
+        let api = api_counting_object_reads(reads.clone());
+
+        let err = GovernanceReadApiServer::get_timelocked_stakes_by_ids(
+            &api,
+            random_ids(*QUERY_MAX_RESULT_LIMIT + 1),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code(), INVALID_PARAMS_CODE);
+        assert_eq!(err.message(), size_limit_exceeded_msg());
+        assert_eq!(reads.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn stakes_and_timelocked_stakes_by_ids_read_every_id_at_the_limit() {
+        let reads = Arc::new(AtomicUsize::new(0));
+        let api = api_counting_object_reads(reads.clone());
+
+        let ids = random_ids(*QUERY_MAX_RESULT_LIMIT);
+        let err = GovernanceReadApiServer::get_stakes_by_ids(&api, ids.clone())
+            .await
+            .unwrap_err();
+        assert_eq!(err.message(), object_not_found_msg(ids[0]));
+        assert_eq!(reads.load(Ordering::Relaxed), *QUERY_MAX_RESULT_LIMIT);
+
+        let ids = random_ids(*QUERY_MAX_RESULT_LIMIT);
+        let err = GovernanceReadApiServer::get_timelocked_stakes_by_ids(&api, ids.clone())
+            .await
+            .unwrap_err();
+        assert_eq!(err.message(), object_not_found_msg(ids[0]));
+        assert_eq!(reads.load(Ordering::Relaxed), 2 * *QUERY_MAX_RESULT_LIMIT);
+    }
 
     #[test]
     fn calculate_apys_with_outliers() {

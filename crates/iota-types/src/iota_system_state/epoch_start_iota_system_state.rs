@@ -33,9 +33,13 @@ pub trait EpochStartSystemStateTrait {
     fn get_validator_addresses(&self) -> Vec<Address>;
     fn get_iota_committee(&self) -> Committee;
     fn get_iota_committee_with_network_metadata(&self) -> CommitteeWithNetworkMetadata;
-    /// The validators forming the committee for this epoch, in the order they
-    /// are stored. Callers that need them ordered by authority key, such as
-    /// when building a consensus committee, must sort them.
+    /// The validators forming the committee for this epoch, in the order of
+    /// the committee of the Move validator set,
+    /// [`ValidatorSetV2::committee_members`]. Callers that need them ordered
+    /// by authority key, such as when building a consensus committee, must
+    /// sort them.
+    ///
+    /// [`ValidatorSetV2::committee_members`]: crate::iota_system_state::iota_system_state_inner_v2::ValidatorSetV2::committee_members
     fn committee_validators(&self) -> &[EpochStartValidatorInfoV1];
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo>;
     fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId>;
@@ -102,6 +106,58 @@ impl EpochStartSystemState {
             },
             active_validators,
         })
+    }
+
+    /// The committee member index of each committee validator, by authority
+    /// name: its position in the committee of the Move validator set,
+    /// [`ValidatorSetV2::committee_members`], which is the order of
+    /// [`EpochStartSystemStateTrait::committee_validators()`]. Move's
+    /// `validator_set::advance_epoch()` reads the `scores` vector of the
+    /// change-epoch transaction by this index. The authority index, which
+    /// may differ, is [`Committee::authority_index()`].
+    ///
+    /// [`ValidatorSetV2::committee_members`]: crate::iota_system_state::iota_system_state_inner_v2::ValidatorSetV2::committee_members
+    pub fn committee_member_indices(&self) -> HashMap<AuthorityName, usize> {
+        self.committee_validators()
+            .iter()
+            .enumerate()
+            .map(|(committee_member_index, validator)| {
+                (validator.authority_name(), committee_member_index)
+            })
+            .collect()
+    }
+
+    /// Converts authority indices to committee member indices: entry `i` of
+    /// the result is the committee member index of the member of `committee`
+    /// with authority index `i`. `committee` names the member at each
+    /// authority index, as [`Committee::authority_index()`] assigns them,
+    /// and must be this epoch's committee. The result is a permutation of
+    /// `0..committee.num_members()`.
+    ///
+    /// # Panics
+    ///
+    /// If the committee validators of this state do not cover the members of
+    /// `committee` exactly once.
+    pub fn authority_indices_to_committee_member_indices(
+        &self,
+        committee: &Committee,
+    ) -> Vec<usize> {
+        let committee_member_indices = self.committee_member_indices();
+        assert_eq!(
+            committee_member_indices.len(),
+            committee.num_members(),
+            "there should be one committee member index per committee member"
+        );
+
+        // `names()` lists the members in authority index order.
+        committee
+            .names()
+            .map(|name| {
+                *committee_member_indices
+                    .get(name)
+                    .expect("committee member should have a committee member index")
+            })
+            .collect()
     }
 
     pub fn new_for_testing_with_epoch(epoch: EpochId) -> Self {
@@ -208,7 +264,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
                         NetworkMetadata {
                             network_address: validator.iota_net_address.clone(),
                             primary_address: validator.primary_address.clone(),
-                            network_public_key: Some(validator.network_pubkey.clone()),
+                            network_public_key: Some(validator.network_pubkey),
                         },
                     ),
                 )
@@ -241,7 +297,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
                     .to_anemo_address()
                     .into_iter()
                     .collect::<Vec<_>>();
-                let peer_id = PeerId(validator.network_pubkey.0.to_bytes());
+                let peer_id = PeerId(validator.network_pubkey.into_bytes());
                 if address.is_empty() {
                     warn!(
                         ?peer_id,
@@ -262,7 +318,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
             .iter()
             .map(|validator| {
                 let name = validator.authority_name();
-                let peer_id = PeerId(validator.network_pubkey.0.to_bytes());
+                let peer_id = PeerId(validator.network_pubkey.into_bytes());
 
                 (name, peer_id)
             })
@@ -396,8 +452,8 @@ pub fn convert_validator_to_epoch_start_info(validator: &ValidatorV1) -> EpochSt
     EpochStartValidatorInfoV1 {
         iota_address: metadata.iota_address,
         authority_pubkey: metadata.authority_pubkey.clone(),
-        network_pubkey: metadata.network_pubkey.clone(),
-        protocol_pubkey: metadata.protocol_pubkey.clone(),
+        network_pubkey: metadata.network_pubkey,
+        protocol_pubkey: metadata.protocol_pubkey,
         iota_net_address: metadata.net_address.clone(),
         p2p_address: metadata.p2p_address.clone(),
         primary_address: metadata.primary_address.clone(),
@@ -413,7 +469,6 @@ mod test {
     use iota_multiaddr::Multiaddr;
     use iota_protocol_config::ProtocolVersion;
     use iota_sdk_types::Address;
-    use rand08::thread_rng;
 
     use crate::{
         crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair},
@@ -426,7 +481,7 @@ mod test {
     fn test_epoch_start_system_state_versioning() {
         // Create test validators
         let (iota_address1, authority_key1): (Address, AuthorityKeyPair) = get_key_pair();
-        let protocol_network_key1 = NetworkKeyPair::generate(&mut thread_rng());
+        let protocol_network_key1 = NetworkKeyPair::random();
         let net_address1 = "/ip4/127.0.0.1/tcp/1337".parse().unwrap();
         let p2p_address1 = "/ip4/127.0.0.1/tcp/1338".parse().unwrap();
         let primary_address1 = "/ip4/127.0.0.1/tcp/1339".parse().unwrap();
@@ -434,8 +489,8 @@ mod test {
         let committee_validator = EpochStartValidatorInfoV1 {
             iota_address: iota_address1,
             authority_pubkey: authority_key1.public().clone(),
-            network_pubkey: protocol_network_key1.public().clone(),
-            protocol_pubkey: protocol_network_key1.public().clone(),
+            network_pubkey: protocol_network_key1.public_key(),
+            protocol_pubkey: protocol_network_key1.public_key(),
             iota_net_address: net_address1,
             p2p_address: p2p_address1,
             primary_address: primary_address1,
@@ -444,7 +499,7 @@ mod test {
         };
 
         let (iota_address2, authority_key2): (Address, AuthorityKeyPair) = get_key_pair();
-        let protocol_network_key2 = NetworkKeyPair::generate(&mut thread_rng());
+        let protocol_network_key2 = NetworkKeyPair::random();
         let net_address2: Multiaddr = "/ip4/127.0.0.1/tcp/2337".parse().unwrap();
         let p2p_address2: Multiaddr = "/ip4/127.0.0.1/tcp/2338".parse().unwrap();
         let primary_address2: Multiaddr = "/ip4/127.0.0.1/tcp/2339".parse().unwrap();
@@ -452,8 +507,8 @@ mod test {
         let non_committee_validator = EpochStartValidatorInfoV1 {
             iota_address: iota_address2,
             authority_pubkey: authority_key2.public().clone(),
-            network_pubkey: protocol_network_key2.public().clone(),
-            protocol_pubkey: protocol_network_key2.public().clone(),
+            network_pubkey: protocol_network_key2.public_key(),
+            protocol_pubkey: protocol_network_key2.public_key(),
             iota_net_address: net_address2,
             p2p_address: p2p_address2,
             primary_address: primary_address2,
@@ -548,5 +603,103 @@ mod test {
             committee_validator_pubkey.as_bytes(),
             committee_validator.authority_pubkey.as_bytes()
         );
+    }
+
+    /// Committee validators for a test, `count` of them with equal voting
+    /// power, sorted by authority name, which is their authority index order.
+    fn committee_validators_in_authority_index_order(
+        count: usize,
+    ) -> Vec<EpochStartValidatorInfoV1> {
+        let mut validators: Vec<EpochStartValidatorInfoV1> = (0..count)
+            .map(|i| {
+                let (iota_address, authority_key): (Address, AuthorityKeyPair) = get_key_pair();
+                let network_key = NetworkKeyPair::random();
+                EpochStartValidatorInfoV1 {
+                    iota_address,
+                    authority_pubkey: authority_key.public().clone(),
+                    network_pubkey: network_key.public_key(),
+                    protocol_pubkey: network_key.public_key(),
+                    iota_net_address: Multiaddr::empty(),
+                    p2p_address: Multiaddr::empty(),
+                    primary_address: Multiaddr::empty(),
+                    voting_power: 10_000 / count as u64,
+                    hostname: format!("validator-{i}"),
+                }
+            })
+            .collect();
+        validators.sort_by_key(|validator| validator.authority_name());
+
+        validators
+    }
+
+    /// An epoch start state whose committee is `committee_validators`, stored
+    /// in that order.
+    fn epoch_start_state_with_committee(
+        committee_validators: Vec<EpochStartValidatorInfoV1>,
+    ) -> EpochStartSystemState {
+        EpochStartSystemState::new_v1(
+            1,
+            ProtocolVersion::MAX.as_u64(),
+            0,
+            false,
+            0,
+            0,
+            committee_validators,
+        )
+    }
+
+    /// `authority_indices_to_committee_member_indices()` maps each authority
+    /// index to the committee member index of the same validator, for the
+    /// three orders `committee_members` can have: the authority index order of
+    /// a genesis committee, the reverse order a seat cap with equal stakes
+    /// produces, and a validator appended after a join.
+    #[test]
+    fn committee_member_indices_follow_the_committee_members_order() {
+        let in_authority_index_order = committee_validators_in_authority_index_order(4);
+        let committee =
+            epoch_start_state_with_committee(in_authority_index_order.clone()).get_iota_committee();
+
+        // A genesis committee with a seat for everyone stores its validators
+        // in authority index order.
+        assert_eq!(
+            epoch_start_state_with_committee(in_authority_index_order.clone())
+                .authority_indices_to_committee_member_indices(&committee),
+            vec![0, 1, 2, 3],
+            "genesis committee"
+        );
+
+        // Equal stakes picked by `take_top_n` store them in the reverse order.
+        let mut reversed = in_authority_index_order.clone();
+        reversed.reverse();
+        assert_eq!(
+            epoch_start_state_with_committee(reversed)
+                .authority_indices_to_committee_member_indices(&committee),
+            vec![3, 2, 1, 0],
+            "capped committee with equal stakes"
+        );
+
+        // A validator that joined after genesis is stored last whatever its
+        // authority index.
+        let mut joined_last = in_authority_index_order;
+        let newcomer = joined_last.remove(0);
+        joined_last.push(newcomer);
+        assert_eq!(
+            epoch_start_state_with_committee(joined_last)
+                .authority_indices_to_committee_member_indices(&committee),
+            vec![3, 0, 1, 2],
+            "validator joined after genesis"
+        );
+    }
+
+    /// `authority_indices_to_committee_member_indices()` panics when a member
+    /// of `committee` has no committee member index in the state: here the
+    /// state lacks the first validator.
+    #[test]
+    #[should_panic(expected = "there should be one committee member index per committee member")]
+    fn committee_member_indices_must_cover_the_committee() {
+        let validators = committee_validators_in_authority_index_order(4);
+        let committee = epoch_start_state_with_committee(validators.clone()).get_iota_committee();
+        epoch_start_state_with_committee(validators[1..].to_vec())
+            .authority_indices_to_committee_member_indices(&committee);
     }
 }

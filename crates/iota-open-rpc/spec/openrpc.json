@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.36.0-alpha"
+    "version": "1.37.0-alpha"
   },
   "methods": [
     {
@@ -1335,13 +1335,13 @@
                 "disallow_new_modules_in_deps_only_packages": true,
                 "disallow_randomness_in_move_authenticator": true,
                 "disallow_self_identifier": true,
-                "enable_builtin_move_authenticators": true,
-                "enable_claim_account_transaction": true,
+                "disallow_self_identifier_in_transactions": true,
                 "enable_group_ops_native_function_msm": true,
                 "enable_move_authentication": true,
                 "enable_move_authentication_for_sponsor": true,
                 "enable_pcool_flow": true,
                 "enable_poseidon": true,
+                "enable_validator_attestation": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
                 "limit_groth16_pvk_inputs": true,
@@ -1349,6 +1349,7 @@
                 "metadata_in_module_bytes": true,
                 "meter_instantiation_loops": true,
                 "minimize_child_object_mutations": true,
+                "move_authenticator_type_arg_packages_as_inputs": true,
                 "move_native_tx_context": true,
                 "native_charging_v2": true,
                 "no_extraneous_module_bytes": true,
@@ -1389,6 +1390,8 @@
                 "address_to_u256_cost_base": {
                   "u64": "52"
                 },
+                "attestation_max_refuted_units_squared": null,
+                "attestor_accuracy_tolerance_percentage": null,
                 "auth_context_authenticator_function_info_v1_cost_base": {
                   "u64": "270"
                 },
@@ -1505,22 +1508,13 @@
                 "buffer_stake_for_protocol_upgrade_bps": {
                   "u64": "5000"
                 },
-                "builtin_move_authenticator_cost_base": {
-                  "u64": "0"
-                },
                 "check_zklogin_id_cost_base": null,
                 "check_zklogin_issuer_cost_base": null,
                 "checkpoint_rate_window_size": {
                   "u64": "20"
                 },
                 "checkpoint_summary_version_specific_data": {
-                  "u64": "1"
-                },
-                "claim_account_max_computation_units": {
-                  "u64": "5000"
-                },
-                "claim_account_storage_bytes_bound": {
-                  "u64": "2000"
+                  "u64": "2"
                 },
                 "config_read_setting_impl_cost_base": {
                   "u64": "100"
@@ -1633,9 +1627,6 @@
                 "ecdsa_k1_ecrecover_sha256_msg_cost_per_byte": {
                   "u64": "2"
                 },
-                "ecdsa_k1_secp256k1_validate_pubkey_cost_base": {
-                  "u64": "52"
-                },
                 "ecdsa_k1_secp256k1_verify_keccak256_cost_base": {
                   "u64": "1470"
                 },
@@ -1672,9 +1663,6 @@
                 "ecdsa_r1_ecrecover_sha256_msg_cost_per_byte": {
                   "u64": "2"
                 },
-                "ecdsa_r1_secp256r1_validate_pubkey_cost_base": {
-                  "u64": "52"
-                },
                 "ecdsa_r1_secp256r1_verify_keccak256_cost_base": {
                   "u64": "4225"
                 },
@@ -1702,9 +1690,6 @@
                 "ecvrf_ecvrf_verify_cost_base": {
                   "u64": "4848"
                 },
-                "ed25519_ed25519_validate_pubkey_cost_base": {
-                  "u64": "52"
-                },
                 "ed25519_ed25519_verify_cost_base": {
                   "u64": "1802"
                 },
@@ -1730,7 +1715,7 @@
                   "u64": "1"
                 },
                 "gas_model_version": {
-                  "u64": "2"
+                  "u64": "3"
                 },
                 "gas_rounding_step": {
                   "u64": "1000"
@@ -1990,6 +1975,12 @@
                 "max_modules_in_publish": {
                   "u32": "64"
                 },
+                "max_move_call_argument_nodes": {
+                  "u64": "2097152"
+                },
+                "max_move_call_argument_nodes_total": {
+                  "u64": "16777216"
+                },
                 "max_move_enum_variants": {
                   "u64": "127"
                 },
@@ -2113,9 +2104,6 @@
                 "move_binary_format_version": {
                   "u32": "7"
                 },
-                "multisig_multisig_validate_pubkey_cost_base": {
-                  "u64": "52"
-                },
                 "obj_access_cost_delete_per_byte": {
                   "u64": "40"
                 },
@@ -2169,9 +2157,6 @@
                 },
                 "poseidon_bn254_cost_per_block": {
                   "u64": "388"
-                },
-                "public_key_to_iota_address_impl_cost_base": {
-                  "u64": "52"
                 },
                 "random_beacon_dkg_timeout_round": {
                   "u32": "3000"
@@ -7613,42 +7598,6 @@
           }
         ]
       },
-      "IotaAccountClaimKind": {
-        "description": "The type of account created by an `IotaClaimAccountTransaction`.",
-        "oneOf": [
-          {
-            "description": "Parameters the claimed `SmartAccount` was created with.",
-            "type": "object",
-            "required": [
-              "public_key_raw_bytes",
-              "public_key_scheme",
-              "type"
-            ],
-            "properties": {
-              "public_key_raw_bytes": {
-                "description": "Raw public key bytes of the claimed address, without the scheme flag prefix. For MultiSig this is a BCS-encoded multisig public key.",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/Base64"
-                  }
-                ]
-              },
-              "public_key_scheme": {
-                "description": "Signature scheme flag of the public key of the claimed address (0=Ed25519, 1=Secp256k1, 2=Secp256r1, 3=MultiSig, 6=Passkey).",
-                "type": "integer",
-                "format": "uint8",
-                "minimum": 0.0
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "smartAccount"
-                ]
-              }
-            }
-          }
-        ]
-      },
       "IotaArgument": {
         "description": "An argument to a transaction in a programmable transaction block",
         "oneOf": [
@@ -9413,7 +9362,7 @@
         ]
       },
       "IotaTransactionKind": {
-        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` and `ClaimAccount` are considered system transactions.",
+        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` are considered system transactions.",
         "oneOf": [
           {
             "type": "string",
@@ -9423,8 +9372,7 @@
               "ConsensusCommitPrologueV1",
               "RandomnessStateUpdate",
               "EndOfEpochTransaction",
-              "TransactionDenyRulesUpdate",
-              "ClaimAccount"
+              "TransactionDenyRulesUpdate"
             ]
           },
           {
@@ -11903,30 +11851,6 @@
                 "items": {
                   "$ref": "#/components/schemas/IotaEndOfEpochTransactionKind"
                 }
-              }
-            }
-          },
-          {
-            "description": "A transaction that claims an on-chain account object",
-            "type": "object",
-            "required": [
-              "account_kind",
-              "kind"
-            ],
-            "properties": {
-              "account_kind": {
-                "description": "The type of account created by the claim.",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/IotaAccountClaimKind"
-                  }
-                ]
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "ClaimAccount"
-                ]
               }
             }
           }

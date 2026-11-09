@@ -64,9 +64,9 @@ impl Metrics {
     }
 }
 
-/// Records the start of a TLS handshake: times it, and counts it as pending
-/// until the guard is dropped.
-pub(super) fn record_handshake_start(metrics: &Arc<Metrics>) -> HandshakeGuard {
+/// Tracks a TLS handshake: times it, and counts it as pending until the guard
+/// is dropped.
+pub(super) fn track_handshake(metrics: &Arc<Metrics>) -> HandshakeGuard {
     let pending = metrics.pending_handshakes.fetch_add(1, Ordering::Relaxed) + 1;
     metrics.pending_handshakes_peak.observe(pending);
     HandshakeGuard {
@@ -78,6 +78,7 @@ pub(super) fn record_handshake_start(metrics: &Arc<Metrics>) -> HandshakeGuard {
 
 /// A TLS handshake in progress. Dropping it records the handshake, as
 /// `dropped` if no result was recorded.
+#[must_use = "dropping the guard records the end of the handshake"]
 pub(crate) struct HandshakeGuard {
     metrics: Arc<Metrics>,
     started_at: Instant,

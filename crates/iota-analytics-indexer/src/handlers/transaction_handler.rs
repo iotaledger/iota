@@ -157,9 +157,11 @@ impl TransactionHandler {
             is_sponsored_tx,
             transaction_count: tx.kind().num_commands() as u64,
             execution_success: effects.status().is_success(),
-            // Calculate all objects(transaction + authenticators) amount.
+            // Calculate all objects(transaction + authenticators) amount, except
+            // the packages named by the authenticators' type arguments. In the context
+            // of ingestion packages are handled as part of the output objects.
             input: transaction
-                .input_objects()
+                .input_objects(false)
                 .expect("input objects must be valid")
                 .len() as u64,
             shared_input: transaction.shared_input_objects().len() as u64,

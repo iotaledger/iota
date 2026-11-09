@@ -2,15 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use iota_config::{
     certificate_deny_config::CertificateDenyConfigBuilder,
     transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder},
 };
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference, Owner,
-    Transaction,
+    Address, ExecutionError, ExecutionStatus, Identifier, MoveAuthenticatorV1, ObjectId,
+    ObjectReference, Owner, SenderSignedTransaction, SharedObjectReference, Transaction, TypeTag,
+    UserSignature,
 };
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT},
@@ -22,12 +24,13 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     messages_grpc::HandleTransactionResponse,
+    object::OBJECT_START_VERSION,
     transaction::{
         CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
-        VerifiedCertificate, VerifiedTransaction,
+        TransactionEnvelope, VerifiedCertificate, VerifiedTransaction,
     },
     utils::{
-        make_move_authenticator_tx, to_sender_signed_transaction,
+        make_move_authenticator_tx, make_transaction_data, to_sender_signed_transaction,
         to_sender_signed_transaction_with_multi_signers,
     },
 };
@@ -540,4 +543,76 @@ async fn test_move_authenticator_input_denied() {
         .await;
 
     assert_denied(&result);
+}
+
+/// A transaction sent by `account`, whose `MoveAuthenticator` names `package`
+/// only in a type argument.
+fn make_move_authenticator_tx_with_type_arg(
+    account: Address,
+    package: ObjectId,
+) -> VerifiedTransaction {
+    let authenticator = MoveAuthenticatorV1::new(
+        vec![],
+        vec![TypeTag::from_str(&format!("{package}::m::S")).unwrap()],
+        SharedObjectReference::new(account.into(), OBJECT_START_VERSION, false),
+    );
+    VerifiedTransaction::new_from_verified(TransactionEnvelope::new(SenderSignedTransaction::new(
+        make_transaction_data(account),
+        vec![UserSignature::MoveAuthenticator(authenticator.into())],
+    )))
+}
+
+/// Handles a transaction whose `MoveAuthenticator` names a package only in a
+/// type argument, on a state whose object deny list holds that package.
+async fn handle_transaction_with_denied_type_arg_package() -> IotaResult<HandleTransactionResponse>
+{
+    let (network_config, state) = setup_test(TransactionDenyConfigBuilder::new().build()).await;
+    let account = get_accounts_and_coins(&network_config)[0].0;
+    let package = ObjectId::random();
+    let state = reload_state_with_new_deny_config(
+        &network_config,
+        state,
+        TransactionDenyConfigBuilder::new()
+            .add_denied_object(package)
+            .build(),
+    )
+    .await;
+
+    state
+        .handle_transaction(
+            &state.epoch_store_for_testing(),
+            make_move_authenticator_tx_with_type_arg(account, package),
+        )
+        .await
+}
+
+/// The packages a `MoveAuthenticator`'s type arguments name are inputs of the
+/// authenticator, so the object deny list rejects them.
+#[tokio::test]
+async fn test_move_authenticator_type_arg_package_denied() {
+    assert_denied(&handle_transaction_with_denied_type_arg_package().await);
+}
+
+/// With `move_authenticator_type_arg_packages_as_inputs` off, the type
+/// argument packages are not inputs, so the deny list does not see them. The
+/// transaction is rejected later, for its account.
+#[tokio::test]
+async fn test_move_authenticator_type_arg_package_not_denied_with_the_flag_off() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_move_authenticator_type_arg_packages_as_inputs_for_testing(false);
+        config
+    });
+    let error = handle_transaction_with_denied_type_arg_package()
+        .await
+        .map(|_| ())
+        .unwrap_err();
+    assert!(
+        !matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::TransactionDenied { .. }
+            }
+        ),
+        "{error:?}"
+    );
 }

@@ -352,6 +352,15 @@ pub struct DiscoveryConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub peers_to_query: Option<usize>,
 
+    /// Maximum number of peers kept in the discovery table of known peers.
+    ///
+    /// When the table grows past this number, the peers with the oldest
+    /// timestamps are removed first.
+    ///
+    /// If unspecified, this will default to `10,000`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_known_peers: Option<usize>,
+
     /// Timeout for individual peer query requests in discovery protocol.
     ///
     /// If unspecified, this will default to `1` second.
@@ -440,6 +449,12 @@ impl DiscoveryConfig {
         const PEERS_TO_QUERY: usize = 1;
 
         self.peers_to_query.unwrap_or(PEERS_TO_QUERY)
+    }
+
+    pub fn max_known_peers(&self) -> usize {
+        const MAX_KNOWN_PEERS: usize = 10_000;
+
+        self.max_known_peers.unwrap_or(MAX_KNOWN_PEERS)
     }
 
     pub fn peer_query_timeout(&self) -> Duration {

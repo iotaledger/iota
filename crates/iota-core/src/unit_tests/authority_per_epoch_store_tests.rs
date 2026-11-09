@@ -9,22 +9,35 @@ use std::{
 };
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
+use iota_protocol_config::PerObjectCongestionControlMode;
 use iota_sdk_types::{Address, DenyRuleSet, ObjectId, TransactionDigest, Version};
 use iota_types::{
-    base_types::AuthorityName, committee::Committee, crypto::KeypairTraits, error::IotaResult,
-    messages_consensus::TransactionDenyRuleProposal, transaction::TransactionKey,
+    attestation::{Attestation, AttestationData},
+    base_types::AuthorityName,
+    committee::Committee,
+    crypto::KeypairTraits,
+    error::IotaResult,
+    messages_consensus::TransactionDenyRuleProposal,
+    transaction::{SenderSignedTransactionAPI, TransactionKey},
 };
 use tokio::time::timeout;
 use typed_store::{Map, rocks::DBBatch};
 
-use crate::authority::{
-    AuthorityState,
-    authority_per_epoch_store::{
-        AuthorityPerEpochStore, compute_deny_rule_update_chunks,
-        consensus_quarantine::ConsensusCommitOutput,
+use crate::{
+    authority::{
+        AuthorityState,
+        authority_per_epoch_store::{
+            AuthorityPerEpochStore, CongestionControlParameters, compute_deny_rule_update_chunks,
+            consensus_quarantine::ConsensusCommitOutput,
+        },
+        epoch_start_configuration::EpochStartConfiguration,
+        shared_object_congestion_tracker::{
+            SequencingResult, SharedObjectCongestionTracker,
+            shared_object_test_utils::{TEST_ONLY_GAS_PRICE, build_transaction},
+        },
+        test_authority_builder::TestAuthorityBuilder,
     },
-    epoch_start_configuration::EpochStartConfiguration,
-    test_authority_builder::TestAuthorityBuilder,
+    execution_scheduler::transaction_manager::VerifiedExecutableAttestedTransaction,
 };
 
 /// Records an overload notification through the same path
@@ -537,15 +550,16 @@ fn wait_for_epoch_db_to_close() {
     }
 }
 
-/// Empties every table a run of P-COOL deterministic validation writes: the
-/// handler object state, the saved validation decisions, the owned-object locks, the
-/// processed consensus messages, the resume point and the commit the node
-/// switched to synced checkpoints after. A [`reopen`] after it
-/// starts from an empty epoch.
+/// Empties every table a run of P-COOL post-consensus validation writes: the
+/// handler object state and its attestation totals, the saved validation
+/// decisions, the owned-object locks, the processed consensus messages, the
+/// resume point and the commit the node switched to synced checkpoints after.
+/// A [`reopen`] after it starts from an empty epoch.
 #[cfg(not(msim))]
 pub(crate) fn clear_pcool_validation_tables(store: &AuthorityPerEpochStore) -> IotaResult {
     let tables = store.tables()?;
     tables.handler_processed_objects.schedule_delete_all()?;
+    tables.attestation_totals_by_commit.schedule_delete_all()?;
     tables.post_consensus_decisions.schedule_delete_all()?;
     tables
         .post_consensus_decision_candidates
@@ -948,6 +962,146 @@ async fn restart_seed_restores_persisted_deny_rules() {
     assert!(active.user_transaction_disabled);
 }
 
+/// Under `TotalComputationUnits`, the estimated execution duration is the
+/// attested computation units when present, and `gas_budget / gas_price`
+/// otherwise.
+#[test]
+fn test_get_estimated_execution_duration_total_computation_units_mode() {
+    let params = CongestionControlParameters::new_for_test(
+        PerObjectCongestionControlMode::TotalComputationUnits,
+        false,           // congestion_control_min_free_execution_slot
+        Some(1_000_000), // max_execution_duration_per_commit
+        Some(0),         // max_congestion_limit_overshoot_per_commit
+        0,               // max_gas_price (irrelevant here)
+        false,           // use_congestion_limit_overshoot_in_gas_price_feedback_mechanism
+        true,            // use_separate_gas_price_feedback_mechanism_for_randomness
+    );
+
+    let gas_budget = 12_345;
+    let attested_units = 9_876;
+
+    // Attested transaction returns its attested computation units.
+    let attested_tx = attest(
+        build_transaction(&[], gas_budget, TEST_ONLY_GAS_PRICE),
+        attested_units,
+    );
+    assert_eq!(
+        params.get_estimated_execution_duration(&attested_tx),
+        attested_units,
+    );
+
+    // Unattested transaction falls back to gas_budget converted to gas units.
+    let unattested_tx = build_transaction(&[], gas_budget, TEST_ONLY_GAS_PRICE);
+    assert_eq!(
+        params.get_estimated_execution_duration(&unattested_tx),
+        gas_budget / TEST_ONLY_GAS_PRICE,
+    );
+
+    // Unattested transaction with a zero gas price: the `gas_budget / gas_price`
+    // fallback must not divide by zero.
+    let zero_gas_price_tx = build_transaction(&[], gas_budget, 0);
+    assert_eq!(
+        params.get_estimated_execution_duration(&zero_gas_price_tx),
+        0,
+    );
+
+    // An attestation with zero computation units should not use the gas-budget
+    // fallback.
+    let zero_cost_attested_tx = attest(build_transaction(&[], gas_budget, TEST_ONLY_GAS_PRICE), 0);
+    assert_eq!(
+        params.get_estimated_execution_duration(&zero_cost_attested_tx),
+        0,
+    );
+}
+
+/// Attaches a validator attestation with the given `computation_units`
+/// to a transaction produced by `build_transaction`.
+fn attest(
+    tx: VerifiedExecutableAttestedTransaction,
+    computation_units: u64,
+) -> VerifiedExecutableAttestedTransaction {
+    let (inner, _) = tx.into_parts();
+    VerifiedExecutableAttestedTransaction::new(
+        inner,
+        Some(Attestation::Authority {
+            payload: AttestationData::V1 {
+                computation_units,
+                object_versions: vec![],
+            },
+            authority_index: 0,
+        }),
+    )
+}
+
+/// Within `TotalComputationUnits` mode, a commit of attested transactions is
+/// scheduled differently from a commit of the same transactions without an
+/// attestation: attested txs use the (cheap) attested computation units, while
+/// unattested txs fall back to the (much larger) gas budget per the documented
+/// fallback in `get_estimated_execution_duration`.
+///
+/// Note this is an in-mode contrast, not a production comparison: under
+/// `TotalTxCount` (the production default for chains without validator
+/// attestation), unattested txs are billed at one unit each.
+#[test]
+fn test_total_computation_units_attested_vs_unattested_commit_scheduling() {
+    // Per-commit limit is large enough to schedule three attested transactions
+    // (30 units each → cumulative 90) but too small to schedule even a single
+    // unattested transaction whose gas budget converts to 200 gas units
+    // (`gas_budget / gas_price`) > limit 100.
+    const MAX_EXECUTION_DURATION_PER_COMMIT: u64 = 100;
+    const TX_GAS_BUDGET: u64 = 200 * TEST_ONLY_GAS_PRICE;
+    const TX_ATTESTED_UNITS: u64 = 30;
+
+    let params = CongestionControlParameters::new_for_test(
+        PerObjectCongestionControlMode::TotalComputationUnits,
+        false,                                   // min_free_execution_slot
+        Some(MAX_EXECUTION_DURATION_PER_COMMIT), // max_execution_duration_per_commit
+        Some(0),                                 // overshoot
+        0,                                       // max_gas_price (irrelevant)
+        false,
+        true,
+    );
+
+    let shared_obj = ObjectId::random();
+
+    // --- Attested commit: three transactions all schedule, end-to-end. ---
+    let mut tracker =
+        SharedObjectCongestionTracker::new(std::iter::empty(), Vec::new(), params.clone());
+    for i in 0..3 {
+        let tx = attest(
+            build_transaction(&[(shared_obj, true)], TX_GAS_BUDGET, TEST_ONLY_GAS_PRICE),
+            TX_ATTESTED_UNITS,
+        );
+        let shared_input_objects = tx.shared_input_objects();
+        tracker.initialize_object_execution_slots(&shared_input_objects);
+        match tracker.try_schedule(&tx, &HashMap::new(), 0) {
+            SequencingResult::Schedule(start_time) => {
+                assert_eq!(
+                    start_time,
+                    i * TX_ATTESTED_UNITS,
+                    "attested tx #{i} should be scheduled back-to-back",
+                );
+                tracker.bump_object_execution_slots(&tx, start_time);
+            }
+            SequencingResult::Defer(_, congested) => {
+                panic!("attested tx #{i} should schedule, got defer on {congested:?}")
+            }
+        }
+    }
+
+    // --- Unattested commit: the very first transaction defers. ---
+    let mut tracker = SharedObjectCongestionTracker::new(std::iter::empty(), Vec::new(), params);
+    let tx = build_transaction(&[(shared_obj, true)], TX_GAS_BUDGET, TEST_ONLY_GAS_PRICE);
+    tracker.initialize_object_execution_slots(&tx.shared_input_objects());
+    match tracker.try_schedule(&tx, &HashMap::new(), 0) {
+        SequencingResult::Defer(_, congested) => {
+            assert_eq!(congested, vec![shared_obj]);
+        }
+        SequencingResult::Schedule(start_time) => {
+            panic!("unattested tx should defer, got schedule at {start_time}");
+        }
+    }
+}
 /// `compute_removable_transaction_deny_rules` releases a mirrored entry only
 /// once 2f+1 stake has announced without it and a mirrored switch only once
 /// f+1 has; stake that has not announced counts neither way, non-members
@@ -2624,7 +2778,7 @@ async fn start_executing_synced_checkpoints_saves_the_last_handled_commit() {
     assert!(reopened.is_executing_synced_checkpoints());
 }
 
-// === P-COOL deterministic validation: the handler object state ===
+// === P-COOL post-consensus validation: the handler object state ===
 //
 // A row is one entry of the handler object state. It records that a
 // transaction in some commit produced version `V` of object `id`: the commit,
@@ -2633,12 +2787,16 @@ async fn start_executing_synced_checkpoints_saves_the_last_handled_commit() {
 // table are held in memory.
 
 mod handler_object_state_storage {
+    use std::collections::BTreeSet;
+
     use futures::FutureExt;
+    use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
         Address, ObjectDigest, ObjectReference, Owner, SenderSignedTransaction, TransactionEffects,
     };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
+        attestation::AttestationTotals,
         effects::{TestEffectsBuilder, TransactionEffectsAPI},
         storage::ObjectKey,
     };
@@ -2704,7 +2862,7 @@ mod handler_object_state_storage {
         let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
             epoch_store.assign_commit_to_transactions(index, vec![]);
             epoch_store
-                .record_commit_fully_executed(index, rows)
+                .record_commit_fully_executed(index, rows, Default::default())
                 .unwrap();
         };
 
@@ -2770,11 +2928,11 @@ mod handler_object_state_storage {
         let v5 = generate_live_entry(2);
         epoch_store.assign_commit_to_transactions(1, vec![]);
         epoch_store
-            .record_commit_fully_executed(1, &[(key(3), v3)])
+            .record_commit_fully_executed(1, &[(key(3), v3)], Default::default())
             .unwrap();
         epoch_store.assign_commit_to_transactions(2, vec![]);
         epoch_store
-            .record_commit_fully_executed(2, &[(key(5), v5)])
+            .record_commit_fully_executed(2, &[(key(5), v5)], Default::default())
             .unwrap();
 
         // Commit 2's row for the same id lands beside commit 1's rather than
@@ -2821,7 +2979,7 @@ mod handler_object_state_storage {
         let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
             epoch_store.assign_commit_to_transactions(index, vec![]);
             epoch_store
-                .record_commit_fully_executed(index, rows)
+                .record_commit_fully_executed(index, rows, Default::default())
                 .unwrap();
         };
 
@@ -2880,7 +3038,7 @@ mod handler_object_state_storage {
         let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
             epoch_store.assign_commit_to_transactions(index, vec![]);
             epoch_store
-                .record_commit_fully_executed(index, rows)
+                .record_commit_fully_executed(index, rows, Default::default())
                 .unwrap();
         };
 
@@ -3035,9 +3193,73 @@ mod handler_object_state_storage {
         // the earlier completion arriving afterwards does not lower it.
         reopened.assign_commit_to_transactions(3, vec![]);
         reopened.assign_commit_to_transactions(4, vec![]);
-        reopened.record_commit_fully_executed(4, &[]).unwrap();
-        reopened.record_commit_fully_executed(3, &[]).unwrap();
+        reopened
+            .record_commit_fully_executed(4, &[], Default::default())
+            .unwrap();
+        reopened
+            .record_commit_fully_executed(3, &[], Default::default())
+            .unwrap();
         assert_highest(&reopened, 4);
+    }
+
+    /// The attestors cut off as of a horizon count only the commits through
+    /// it, and a reopened epoch store reads the same from the flushed totals.
+    #[tokio::test]
+    async fn attestors_cut_off_count_only_commits_through_the_horizon() {
+        const MAX_REFUTED_UNITS_SQUARED: u64 = 100;
+        let authority = TestAuthorityBuilder::new().build().await;
+        let store = authority.epoch_store_for_testing().clone();
+        let totals = |entries: &[(u8, u64)]| AttestationTotals {
+            refuted_units_squared: entries.iter().copied().collect(),
+        };
+        // Enough empty commits for the resume point's horizon to reach 5.
+        let distance = store
+            .protocol_config()
+            .pcool_deterministic_validation_horizon_distance();
+        for index in 1..=5 + distance {
+            let commit_totals = match index {
+                // Attestor 0 reaches the whole cut at commit 2, attestor 1
+                // only with commit 5.
+                2 => totals(&[(0, 100), (1, 64)]),
+                5 => totals(&[(1, 36)]),
+                _ => AttestationTotals::default(),
+            };
+            store.assign_commit_to_transactions(index, vec![]);
+            store
+                .record_commit_fully_executed(index, &[], commit_totals)
+                .unwrap();
+        }
+        let cut_off = |store: &AuthorityPerEpochStore, horizon| {
+            store
+                .handler_object_state_for_testing()
+                .attestors_cut_off_as_of(horizon, MAX_REFUTED_UNITS_SQUARED)
+        };
+        assert_eq!(cut_off(&store, 1), BTreeSet::new());
+        assert_eq!(cut_off(&store, 4), BTreeSet::from([0]));
+        assert_eq!(cut_off(&store, 5), BTreeSet::from([0, 1]));
+        // A lower horizon read after a higher one still stops at it.
+        assert_eq!(cut_off(&store, 4), BTreeSet::from([0]));
+
+        for index in 1..=5 + distance {
+            store
+                .flush_commit_through_quarantine_for_testing(index, vec![])
+                .unwrap();
+        }
+        // The reopened store seeds its sum only with the cutoff on, which the
+        // config asserts tie to attestation.
+        let _cutoff = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_validator_attestation_for_testing(true);
+            config.set_checkpoint_summary_version_specific_data_for_testing(2);
+            config.set_attestation_max_refuted_units_squared_for_testing(MAX_REFUTED_UNITS_SQUARED);
+            config
+        });
+        let reopened = reopen(&authority, &store);
+        // Seeded as of the resume point's horizon, before validation reads any.
+        let state = reopened.handler_object_state_for_testing();
+        assert!(state.is_cut_off_as_of_highest_horizon(0, MAX_REFUTED_UNITS_SQUARED));
+        assert!(state.is_cut_off_as_of_highest_horizon(1, MAX_REFUTED_UNITS_SQUARED));
+        assert_eq!(cut_off(&reopened, 4), BTreeSet::from([0]));
+        assert_eq!(cut_off(&reopened, 5), BTreeSet::from([0, 1]));
     }
 }
 

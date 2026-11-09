@@ -10,6 +10,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{CheckpointCommitment, EndOfEpochData, GasCostSummary};
 use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
+    attestation::AttestationVerdict,
     committee::ProtocolVersion,
     crypto::{AuthorityKeyPair, get_key_pair},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
@@ -25,6 +26,7 @@ use super::*;
 use crate::{
     authority::{
         AuthorityState,
+        authority_per_epoch_store::scorer::MAX_SCORE,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
         test_authority_builder::TestAuthorityBuilder,
     },
@@ -295,7 +297,7 @@ pub async fn test_switched_validator_executes_synced_data_of_locally_built_check
     executor_handle.abort();
 }
 
-/// With deterministic validation, a committee validator does not finish a
+/// With the P-COOL flow, a committee validator does not finish a
 /// checkpoint it built before a restart while the transactions in it have not
 /// executed again. Their outputs were only in memory, so the consensus handler
 /// has to replay their commit and execute them first.
@@ -815,6 +817,28 @@ pub async fn test_reconfig_crash_recovery() {
     );
 }
 
+/// Only records other than `Valid` are certified, so a valid local record
+/// matches an absent certified one.
+#[test]
+fn attestation_record_differs_ignores_a_valid_local_record() {
+    use AttestationVerdict::{Inaccurate, Refuted, Undecided, Valid};
+    let record = |verdict| {
+        Some(AttestationRecord {
+            attestor: 1,
+            verdict,
+        })
+    };
+    assert!(!attestation_record_differs(record(Valid), None));
+    assert!(!attestation_record_differs(None, None));
+    assert!(attestation_record_differs(record(Inaccurate), None));
+    assert!(attestation_record_differs(None, record(Inaccurate)));
+    let refuted = record(Refuted { units: 7 });
+    assert!(!attestation_record_differs(refuted, refuted));
+    let undecided = record(Undecided);
+    assert!(!attestation_record_differs(undecided, undecided));
+    assert!(attestation_record_differs(undecided, None));
+}
+
 /// Builds the executor for a committee validator when `in_committee`, or for a
 /// node outside the committee, which executes synced checkpoints the way a
 /// fullnode does.
@@ -890,13 +914,14 @@ async fn sync_end_of_epoch_checkpoint(
 ) -> (VerifiedCheckpoint, CommitteeFixture) {
     let new_committee = next_committee(committee);
     let checkpoint = make_end_of_epoch_checkpoint(previous_checkpoint, committee, &new_committee);
+    let epoch_store = authority_state.epoch_store_for_testing().clone();
     authority_state
         .create_and_execute_advance_epoch_tx(
-            &authority_state.epoch_store_for_testing().clone(),
+            &epoch_store,
             &GasCostSummary::new(0, 0, 0, 0, 0),
             checkpoint.sequence_number(),
-            0,      // epoch_start_timestamp_ms
-            vec![], // scores
+            0, // epoch_start_timestamp_ms
+            vec![MAX_SCORE; epoch_store.committee().num_members()],
         )
         .await
         .expect("Failed to create and execute advance epoch tx");

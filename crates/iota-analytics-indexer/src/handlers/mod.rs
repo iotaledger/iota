@@ -93,9 +93,11 @@ impl InputObjectTracker {
         let tx = txn.transaction();
         let coins: BTreeSet<ObjectId> = tx.gas().iter().map(|obj_ref| obj_ref.object_id).collect();
         // All input objects (transaction + authenticators) are collected here, just
-        // like the shared objects previously.
+        // like the shared objects previously, except the packages named by the
+        // authenticators' type arguments. In the context of ingestion packages are
+        // handled as part of the output objects.
         let input: BTreeSet<ObjectId> = txn
-            .input_objects()
+            .input_objects(false)
             .expect("input objects must be valid")
             .into_iter()
             .map(|io_kind| io_kind.object_id())
