@@ -949,13 +949,15 @@ mod faulty_attestor {
         expected_verdict: ExpectedVerdict,
     }
 
-    /// Runs an honest attestation and six attestations of the faulty attestor
-    /// in one epoch. Move authentication of the six fails at execution, and
-    /// the account version the attestor records decides the verdict:
+    /// Runs an honest attestation and seven attestations of the faulty
+    /// attestor in one epoch. Move authentication of the seven fails at
+    /// execution, and the account version the attestor records decides the
+    /// verdict:
     /// - the version the attestor read: [`Refuted`], no re-run;
     /// - a version superseded in the previous epoch: [`Refuted`], no re-run;
     /// - a version ahead of the executed one: [`Refuted`], no re-run;
     /// - a version superseded this epoch, holding the signer's key: [`Valid`];
+    /// - the same version with a wrong digest, signer's key: [`Valid`];
     /// - the same version, with a wrong signature: [`Refuted`] by the re-run;
     /// - the same version, signer's key, internal re-run error: [`Undecided`].
     ///
@@ -963,10 +965,11 @@ mod faulty_attestor {
     /// superseded in the previous epoch. The judge re-runs authentication only
     /// at versions superseded this epoch, so that validator refutes like the
     /// others. The judge reads only the current epoch's versions, so that
-    /// validator is there to catch a judge that reads older ones. The last
-    /// re-run ends in an internal error through the
-    /// `judge-rerun-internal-error` fail point, which no transaction can
-    /// cause.
+    /// validator is there to catch a judge that reads older ones. The judge
+    /// compares only the ids and versions a record names, so a wrong digest
+    /// leaves the verdict unchanged. The last re-run ends in an internal error
+    /// through the `judge-rerun-internal-error` fail point, which no
+    /// transaction can cause.
     ///
     /// Every node must execute each transaction with the same effects, which
     /// charge the gas owner for a valid attestation and nobody for a refuted
@@ -1095,6 +1098,27 @@ mod faulty_attestor {
                     &attestor,
                     attestor_sim_id,
                     Some(vec![account_with_second_key]),
+                )
+                .await,
+            attestor,
+            authenticates: false,
+            expected_verdict: ExpectedVerdict::Valid,
+        });
+
+        let account_with_a_wrong_digest = ObjectReference::new(
+            account_with_second_key.object_id,
+            account_with_second_key.version,
+            account_with_first_key.digest,
+        );
+        let tx = env.craft_account_transaction_signed_by(&second_key).await?;
+        scenarios.push(Scenario {
+            name: "recorded version superseded this epoch, with a wrong digest",
+            digest: env
+                .submit_to_faulty_attestor(
+                    tx,
+                    &attestor,
+                    attestor_sim_id,
+                    Some(vec![account_with_a_wrong_digest]),
                 )
                 .await,
             attestor,
