@@ -1065,8 +1065,12 @@ fn test_total_computation_units_attested_vs_unattested_commit_scheduling() {
     let shared_obj = ObjectId::random();
 
     // --- Attested commit: three transactions all schedule, end-to-end. ---
-    let mut tracker =
-        SharedObjectCongestionTracker::new(std::iter::empty(), Vec::new(), params.clone());
+    let mut tracker = SharedObjectCongestionTracker::new(
+        std::iter::empty(),
+        Vec::new(),
+        std::iter::empty(),
+        params.clone(),
+    );
     for i in 0..3 {
         let tx = attest(
             build_transaction(&[(shared_obj, true)], TX_GAS_BUDGET, TEST_ONLY_GAS_PRICE),
@@ -1086,11 +1090,19 @@ fn test_total_computation_units_attested_vs_unattested_commit_scheduling() {
             SequencingResult::Defer(_, congested) => {
                 panic!("attested tx #{i} should schedule, got defer on {congested:?}")
             }
+            SequencingResult::DeferForDependency(..) => {
+                panic!("attested tx #{i} has no dependency to defer for")
+            }
         }
     }
 
     // --- Unattested commit: the very first transaction defers. ---
-    let mut tracker = SharedObjectCongestionTracker::new(std::iter::empty(), Vec::new(), params);
+    let mut tracker = SharedObjectCongestionTracker::new(
+        std::iter::empty(),
+        Vec::new(),
+        std::iter::empty(),
+        params,
+    );
     let tx = build_transaction(&[(shared_obj, true)], TX_GAS_BUDGET, TEST_ONLY_GAS_PRICE);
     tracker.initialize_object_execution_slots(&tx.shared_input_objects());
     match tracker.try_schedule(&tx, &HashMap::new(), 0) {
@@ -1099,6 +1111,9 @@ fn test_total_computation_units_attested_vs_unattested_commit_scheduling() {
         }
         SequencingResult::Schedule(start_time) => {
             panic!("unattested tx should defer, got schedule at {start_time}");
+        }
+        SequencingResult::DeferForDependency(..) => {
+            panic!("unattested tx has no dependency to defer for");
         }
     }
 }
