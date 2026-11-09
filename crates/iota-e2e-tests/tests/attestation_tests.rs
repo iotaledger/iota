@@ -962,7 +962,9 @@ mod faulty_attestor {
     /// Only the validator that keeps earlier epochs still holds the version
     /// superseded in the previous epoch. The judge re-runs authentication only
     /// at versions superseded this epoch, so that validator refutes like the
-    /// others. The last re-run ends in an internal error through the
+    /// others. The judge reads only the current epoch's versions, so that
+    /// validator is there to catch a judge that reads older ones. The last
+    /// re-run ends in an internal error through the
     /// `judge-rerun-internal-error` fail point, which no transaction can
     /// cause.
     ///
@@ -1282,7 +1284,8 @@ mod faulty_attestor {
     /// and totals stay those of the refutations. Another validator's
     /// attestation must still go through. At the epoch end the attestor's
     /// whole score must be cut and the others left whole, and no node may
-    /// count a verdict mismatch.
+    /// count a verdict mismatch. The dropped transaction must not execute in
+    /// the next epoch either, when the cutoff no longer applies.
     ///
     /// The faulty attestor joins after genesis with an authority key that
     /// sorts first. Move appends it to the end of the committee, while its
@@ -1462,6 +1465,25 @@ mod faulty_attestor {
                 0.0,
                 "no node may record a verdict that differs from the certified one"
             );
+        }
+
+        // The cutoff lasts only the epoch, so the dropped transaction must not
+        // execute after the epoch change either. A transaction that executes
+        // in the new epoch shows that it has committed and executed
+        // transactions since the change.
+        let tx = env.craft_account_transaction_signed_by(&owner).await?;
+        let in_new_epoch = env.submit_to(tx, &honest).await;
+        env.wait_for_transaction_checkpoint(&in_new_epoch).await;
+        for handle in env.test_cluster.all_node_handles() {
+            handle.with(|node| {
+                assert!(
+                    !node
+                        .state()
+                        .get_transaction_cache_reader()
+                        .is_tx_already_executed(&dropped),
+                    "no node executes the dropped transaction after the epoch change"
+                );
+            });
         }
 
         Ok(())
