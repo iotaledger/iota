@@ -34,7 +34,7 @@ use crate::{
         digest::Digest,
         dry_run_result::DryRunResult,
         epoch::Epoch,
-        event::{self, Event, EventFilter},
+        event::{self, Event, EventConnection, EventFilter},
         iota_address::IotaAddress,
         iota_names_registration::{IotaNames, Name},
         move_package::{self, MovePackage, MovePackageCheckpointFilter, MovePackageVersionFilter},
@@ -550,7 +550,7 @@ impl Query {
         last: Option<u64>,
         before: Option<event::Cursor>,
         filter: Option<EventFilter>,
-    ) -> Result<Connection<String, Event>> {
+    ) -> Result<EventConnection> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
 
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;

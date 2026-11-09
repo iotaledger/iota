@@ -5,14 +5,37 @@
 use std::{borrow::Cow, marker::PhantomData};
 
 use async_graphql::{
-    Object, ObjectType, OutputType, TypeName,
+    Object, ObjectType, OutputType, SimpleObject, TypeName,
     connection::{
         ConnectionNameType, CursorType, DefaultConnectionName, DefaultEdgeName, Edge, EdgeNameType,
         EmptyFields, EnableNodesField, NodesFieldSwitcherSealed, PageInfo,
     },
 };
+use iota_indexer::pruning::oldest_available_checkpoint::OldestAvailableCheckpoint;
 
 use crate::types::uint53::UInt53;
+
+/// The `oldestAvailableCheckpoint` field, to be added to a `Connection`
+/// through `Connection::with_additional_fields`.
+#[derive(SimpleObject, Default)]
+pub(crate) struct OldestAvailableCheckpointField {
+    /// The oldest checkpoint this page can contain data from. Anything before
+    /// it has been pruned and is not listed. Zero when nothing has been
+    /// pruned, or when the historical fallback serves the whole history. Null
+    /// when pruning cannot affect the page, such as the events of one
+    /// transaction block.
+    pub oldest_available_checkpoint: Option<UInt53>,
+}
+
+impl From<OldestAvailableCheckpoint> for OldestAvailableCheckpointField {
+    fn from(oldest_available_checkpoint: OldestAvailableCheckpoint) -> Self {
+        Self {
+            oldest_available_checkpoint: Some(UInt53::new_unchecked(u64::from(
+                oldest_available_checkpoint,
+            ))),
+        }
+    }
+}
 
 /// Mirrors the `Connection` type from async-graphql, with the exception that if
 /// `start_cursor` and/ or `end_cursor` is set on the struct, then when

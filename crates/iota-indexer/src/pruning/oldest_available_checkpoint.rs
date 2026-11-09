@@ -20,6 +20,7 @@ use crate::{
 /// Two values are kept: the checkpoint the database alone has data from, and the checkpoint the
 /// indexer as a whole has data from (db + fallback). The former can be used internally to e.g.
 /// decide whether fallback needs to be consulted, the latter is the value reported to the user.
+/// Each comes with the transaction it starts at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OldestAvailableCheckpoint {
     /// The oldest checkpoint the database alone has data for.
@@ -29,6 +30,8 @@ pub struct OldestAvailableCheckpoint {
     /// Zero when the fallback serves the lookup and is configured, otherwise
     /// `db_checkpoint`.
     served_checkpoint: CheckpointSequenceNumber,
+    /// The transaction `served_checkpoint` starts at.
+    served_tx: i64,
 }
 
 impl OldestAvailableCheckpoint {
@@ -235,15 +238,16 @@ impl OldestAvailableCheckpoint {
             .get_lowest_available_cp_and_tx_for_tables(tables)
             .unwrap_or((0, 0));
         let db_checkpoint = db_checkpoint as CheckpointSequenceNumber;
-        let served_checkpoint = if served_by_fallback && reader.is_fallback_enabled() {
-            0
+        let (served_checkpoint, served_tx) = if served_by_fallback && reader.is_fallback_enabled() {
+            (0, 0)
         } else {
-            db_checkpoint
+            (db_checkpoint, db_tx)
         };
         Self {
             db_checkpoint,
             db_tx,
             served_checkpoint,
+            served_tx,
         }
     }
 
@@ -255,6 +259,11 @@ impl OldestAvailableCheckpoint {
     /// The oldest transaction the database serves the lookup from.
     pub fn db_tx(self) -> i64 {
         self.db_tx
+    }
+
+    /// The oldest transaction the indexer serves the lookup from.
+    pub fn served_tx(self) -> i64 {
+        self.served_tx
     }
 
     /// Whether the indexer serves the lookup from genesis on.
@@ -273,6 +282,7 @@ impl OldestAvailableCheckpoint {
             db_checkpoint: self.db_checkpoint.max(other.db_checkpoint),
             db_tx: self.db_tx.max(other.db_tx),
             served_checkpoint: self.served_checkpoint.max(other.served_checkpoint),
+            served_tx: self.served_tx.max(other.served_tx),
         }
     }
 

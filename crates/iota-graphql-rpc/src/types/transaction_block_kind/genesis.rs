@@ -10,10 +10,11 @@ use iota_sdk_types::{GenesisTransaction as NativeGenesisTransaction, Transaction
 use iota_types::object::Object as NativeObject;
 
 use crate::{
+    connection::OldestAvailableCheckpointField,
     consistency::ConsistentIndexCursor,
     types::{
         cursor::{JsonCursor, Page},
-        event::Event,
+        event::{Event, EventConnection},
         iota_address::IotaAddress,
         object::Object,
     },
@@ -84,10 +85,14 @@ impl GenesisTransaction {
         after: Option<CEvent>,
         last: Option<u64>,
         before: Option<CEvent>,
-    ) -> Result<Connection<String, Event>> {
+    ) -> Result<EventConnection> {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
-        let mut connection = Connection::new(false, false);
+        let mut connection = Connection::with_additional_fields(
+            false,
+            false,
+            OldestAvailableCheckpointField::default(),
+        );
         let Some(consistent_page) =
             page.paginate_consistent_indices(self.native.events.len(), self.checkpoint_viewed_at)?
         else {

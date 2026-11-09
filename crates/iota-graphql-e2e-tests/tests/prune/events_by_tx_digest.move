@@ -99,9 +99,9 @@ module Test::M {
 }
 
 //# run-graphql --cursors {"tx":5,"e":0,"c":10}
-# E: `after` cursor from a different transaction. No event of this
-# transaction sits at the cursor, so the bound is invalid and the connection
-# comes back empty, as for other event queries.
+# E: `after` cursor pointing at a pruned transaction. Without a fallback the
+# cursor is below the oldest available transaction, so the request errors
+# with DATA_PRUNED, as for other event queries.
 {
   events(filter: { transactionDigest: "@{digest_11}" }, after: "@{cursor_0}") {
     pageInfo { hasPreviousPage hasNextPage }

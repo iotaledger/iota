@@ -13,6 +13,7 @@ use iota_indexer::{
         events::StoredEvent,
         transactions::{OptimisticTransaction, StoredTransaction},
     },
+    pruning::oldest_available_checkpoint::OldestAvailableCheckpoint,
     schema::{checkpoints, events},
 };
 use iota_sdk_types::{Address as NativeAddress, Event as NativeEvent, Identifier, ObjectId};
@@ -21,13 +22,14 @@ use lookups::{add_bounds, select_emit_module, select_event_type, select_sender};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
+    connection::OldestAvailableCheckpointField,
     data::{self, Db, DbConnection, QueryExecutor},
     error::Error,
     query,
     types::{
         address::Address,
         base64::Base64,
-        cursor::{Page, Target, check_cursor_not_expired},
+        cursor::{Page, Target, check_cursor_not_expired, check_cursors_not_pruned},
         date_time::DateTime,
         digest::Digest,
         move_module::MoveModule,
@@ -80,6 +82,8 @@ pub(crate) struct Event {
 }
 
 type Query<ST, GB> = data::Query<ST, events::table, GB>;
+
+pub(crate) type EventConnection = Connection<String, Event, OldestAvailableCheckpointField>;
 
 #[Object]
 impl Event {
@@ -162,16 +166,26 @@ impl Event {
     /// The cursors in `page` might also include checkpoint viewed at fields. If
     /// these are set, they take precedence over the checkpoint that
     /// pagination is being conducted in.
+    ///
+    /// The connection reports the oldest checkpoint the query (with given
+    /// `filter`) has data from. A query viewed at a checkpoint below it, or a
+    /// cursor below it, fails with `DATA_PRUNED`.
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<Cursor>,
         filter: EventFilter,
         checkpoint_viewed_at: u64,
-    ) -> Result<Connection<String, Event>, Error> {
+    ) -> Result<EventConnection, Error> {
+        let oldest_available_checkpoint = filter.oldest_available_checkpoint(db);
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         if let Some(cursor_viewed_at) = cursor_viewed_at {
-            check_cursor_not_expired(db, cursor_viewed_at, filter.oldest_available_checkpoint(db))?;
+            check_cursor_not_expired(db, cursor_viewed_at, oldest_available_checkpoint)?;
         }
+        check_cursors_not_pruned(
+            &page,
+            |cursor| u64::from(cursor.tx),
+            oldest_available_checkpoint,
+        )?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
         use checkpoints::dsl;
@@ -194,6 +208,7 @@ impl Event {
                 tx_digest,
                 checkpoint_viewed_at,
                 tx_hi,
+                oldest_available_checkpoint,
             )
             .await;
         }
@@ -271,7 +286,8 @@ impl Event {
             })
             .await?;
 
-        let mut conn = Connection::new(prev, next);
+        let mut conn =
+            Connection::with_additional_fields(prev, next, oldest_available_checkpoint.into());
 
         // The "checkpoint viewed at" sets a consistent upper bound for the nested
         // queries.
@@ -288,14 +304,16 @@ impl Event {
 
     /// Paginates events of a single transaction with fallback support.
     ///
-    /// `tx_hi` is the exclusive upperbound on transaction sequence numbers
+    /// `tx_hi` is the exclusive upperbound on transaction sequence numbers,
+    /// `oldest_available_checkpoint` is reported on the connection.
     async fn paginate_by_tx_digest_with_fallback(
         db: &Db,
         page: Page<Cursor>,
         tx_digest: Digest,
         checkpoint_viewed_at: u64,
         tx_hi: i64,
-    ) -> Result<Connection<String, Event>, Error> {
+        oldest_available_checkpoint: OldestAvailableCheckpoint,
+    ) -> Result<EventConnection, Error> {
         // Page cursors are inclusive, we need to convert them to exclusive
         let cursor = if page.is_from_front() {
             // Cannot do -1 when cursor=0
@@ -352,7 +370,8 @@ impl Event {
             results,
         );
 
-        let mut conn = Connection::new(prev, next);
+        let mut conn =
+            Connection::with_additional_fields(prev, next, oldest_available_checkpoint.into());
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             conn.edges.push(Edge::new(
