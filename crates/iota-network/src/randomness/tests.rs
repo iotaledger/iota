@@ -643,6 +643,71 @@ async fn test_full_peer_mailbox_rejects_requests() {
     .expect("request should be accepted once the mailbox drains");
 }
 
+#[tokio::test]
+async fn test_queued_requests_per_peer_are_limited() {
+    telemetry_subscribers::init_for_testing();
+    let committee_fixture =
+        CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
+    let committee = committee_fixture.committee();
+    let (authority, _) = committee.members().next().unwrap();
+
+    let config = RandomnessConfig {
+        max_queued_requests_per_peer: Some(2),
+        ..Default::default()
+    };
+    let (tx, _rx) = mpsc::channel(3);
+    let (unstarted, router) = Builder::new(*authority, tx).config(config).build();
+    let network = utils::build_network(|r| r.merge(router));
+    let flooding_network = utils::build_network(|r| r);
+    let honest_network = utils::build_network(|r| r);
+    flooding_network
+        .connect(network.local_addr())
+        .await
+        .unwrap();
+    honest_network.connect(network.local_addr()).await.unwrap();
+
+    // The event loop is not started yet, so nothing drains its mailboxes.
+    let (event_loop, _handle) = unstarted.build(network.clone());
+    event_loop.allowed_peers.update(Arc::new(HashSet::from([
+        flooding_network.peer_id(),
+        honest_network.peer_id(),
+    ])));
+
+    let mut flooding_client =
+        RandomnessClient::new(flooding_network.peer(network.peer_id()).unwrap());
+    let mut honest_client = RandomnessClient::new(honest_network.peer(network.peer_id()).unwrap());
+    let request = || {
+        anemo::Request::new(SendSignaturesRequest {
+            epoch: 0,
+            round: RandomnessRound::new(0),
+            partial_sigs: Vec::new(),
+            sig: None,
+        })
+        .with_timeout(Duration::from_secs(5))
+    };
+    for _ in 0..2 {
+        flooding_client.send_signatures(request()).await.unwrap();
+    }
+    let status = flooding_client
+        .send_signatures(request())
+        .await
+        .unwrap_err();
+    assert_eq!(status.status(), StatusCode::TooManyRequests);
+
+    // Another peer's requests are still accepted.
+    honest_client.send_signatures(request()).await.unwrap();
+
+    // Once the event loop handles the queued requests, the peer may send again.
+    tokio::spawn(event_loop.start());
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while flooding_client.send_signatures(request()).await.is_err() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("request should be accepted once the queued requests are handled");
+}
+
 /// Builds the event loop of the first member of a 4-member committee, in
 /// epoch 0 with round 0 requested, and returns it with the mocked DKG output of
 /// the second member and that member's peer ID.

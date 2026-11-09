@@ -29,7 +29,7 @@ use iota_types::{
     crypto::{RandomnessPartialSignature, RandomnessSignature},
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::{OnceCell, mpsc, oneshot};
+use tokio::sync::{OnceCell, OwnedSemaphorePermit, mpsc, oneshot};
 use tracing::{debug, error, info, instrument, warn};
 
 use self::{auth::AllowedPeersUpdatable, metrics::Metrics};
@@ -233,7 +233,7 @@ struct RandomnessEventLoop {
     name: AuthorityName,
     config: RandomnessConfig,
     mailbox: mpsc::Receiver<RandomnessMessage>,
-    peer_mailbox: mpsc::Receiver<RandomnessMessage>,
+    peer_mailbox: mpsc::Receiver<(RandomnessMessage, OwnedSemaphorePermit)>,
     network: anemo::Network,
     allowed_peers: AllowedPeersUpdatable,
     allowed_peers_set: HashSet<PeerId>,
@@ -279,7 +279,7 @@ impl RandomnessEventLoop {
                         break;
                     }
                 },
-                Some(message) = self.peer_mailbox.recv() => self.handle_message(message),
+                Some((message, _permit)) = self.peer_mailbox.recv() => self.handle_message(message),
             }
         }
 

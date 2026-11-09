@@ -9,10 +9,11 @@ use std::{
 
 use anemo::codegen::InboundRequestLayer;
 use anemo_tower::{auth::RequireAuthorizationLayer, inflight_limit};
+use dashmap::DashMap;
 use iota_config::p2p::RandomnessConfig;
 use iota_sdk_types::RandomnessRound;
 use iota_types::{base_types::AuthorityName, committee::EpochId};
-use tokio::sync::mpsc;
+use tokio::sync::{OwnedSemaphorePermit, mpsc};
 
 use super::{
     Handle, RandomnessEventLoop, RandomnessMessage, RandomnessServer, auth::AllowedPeersUpdatable,
@@ -64,6 +65,8 @@ impl Builder {
         let (peer_sender, peer_mailbox) = mpsc::channel(config.peer_mailbox_capacity());
         let server = Server {
             sender: peer_sender,
+            queued_per_peer: DashMap::new(),
+            max_queued_requests_per_peer: config.max_queued_requests_per_peer(),
         };
         let randomness_server = RandomnessServer::new(server).add_layer_for_send_signatures(
             InboundRequestLayer::new(inflight_limit::InflightLimitLayer::new(
@@ -99,7 +102,7 @@ pub struct UnstartedRandomness {
     pub(super) config: RandomnessConfig,
     pub(super) handle: Handle,
     pub(super) mailbox: mpsc::Receiver<RandomnessMessage>,
-    pub(super) peer_mailbox: mpsc::Receiver<RandomnessMessage>,
+    pub(super) peer_mailbox: mpsc::Receiver<(RandomnessMessage, OwnedSemaphorePermit)>,
     pub(super) allowed_peers: AllowedPeersUpdatable,
     pub(super) metrics: Metrics,
     pub(super) randomness_tx: mpsc::Sender<(EpochId, RandomnessRound, Vec<u8>)>,

@@ -568,6 +568,14 @@ pub struct RandomnessConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub peer_mailbox_capacity: Option<usize>,
 
+    /// Maximum number of requests from one peer that may wait in the peer
+    /// mailbox. Further requests from that peer are rejected, and the peer
+    /// retries them.
+    ///
+    /// If unspecified, this will default to 40.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_queued_requests_per_peer: Option<usize>,
+
     /// Per-peer inflight limit for the SendPartialSignatures RPC.
     ///
     /// If unspecified, this will default to 20.
@@ -615,6 +623,13 @@ impl RandomnessConfig {
         const PEER_MAILBOX_CAPACITY: usize = 10_000;
 
         self.peer_mailbox_capacity.unwrap_or(PEER_MAILBOX_CAPACITY)
+    }
+
+    pub fn max_queued_requests_per_peer(&self) -> usize {
+        const MAX_QUEUED_REQUESTS_PER_PEER: usize = 40;
+
+        self.max_queued_requests_per_peer
+            .unwrap_or(MAX_QUEUED_REQUESTS_PER_PEER)
     }
 
     pub fn send_partial_signatures_inflight_limit(&self) -> usize {
