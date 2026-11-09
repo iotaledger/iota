@@ -16,13 +16,11 @@ mkdir -p sweeps/latest/data sweeps/latest/logs
 OUT_CSV="sweeps/latest/data/burst-sweep.csv"
 OUT_LOG="sweeps/latest/logs/burst-sweep.log"
 
-# CRITICAL: the validator-side white-flag override needs these env vars at
-# `docker compose up` time, otherwise iota-node boots in QD/cert mode and
-# rejects all submit_tx_v2 calls with "White flag flow is not enabled in
-# this protocol version" — every iter fails with 0 inflight. These must
-# match the client-side overrides exported by stress-load-shedding.sh.
+# CRITICAL: the validators need these env vars at `docker compose up` time,
+# otherwise iota-node boots with the P-COOL flow off and rejects every
+# submit_tx call as unsupported, so every iter fails with 0 inflight.
 export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1
-export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW=true
+export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW=true
 
 # Graduated-shedding A/B baseline arm: the canonical config that reliably
 # triggers the race-up-to-max_pending pathology (~21% hit rate for ≥50×

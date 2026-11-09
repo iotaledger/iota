@@ -13,10 +13,9 @@ cd "$ROOT/dev-tools/iota-private-network"
 sudo ./cleanup.sh
 sudo ./bootstrap.sh -b -n 4
 
-# 3. Start validators + fullnode + faucet. Protocol config env vars enable the
-#    white-flag flow so iota-spammer's TransactionDriver path (`-V`) works.
+# 3. Start validators + fullnode + faucet with the P-COOL flow on.
 IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1 \
-IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW=true \
+IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW=true \
   ./run.sh -n 4 faucet
 
 # 4. Bring grafana-local back up.
