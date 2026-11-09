@@ -24,8 +24,8 @@ use iota_types::{
 };
 
 use super::{
-    AccountVerdict, DropKind, DropReason, DynamicFieldAtHorizon, KeptObject, MissingKind,
-    MissingReason, OwnedVerdict, PackageVerdict, SharedVerdict,
+    AccountVerdict, ClaimedAddressAtHorizon, DropKind, DropReason, DynamicFieldAtHorizon,
+    KeptObject, MissingKind, MissingReason, OwnedVerdict, PackageVerdict, SharedVerdict,
     dynamic_field::{DynamicFieldReader, HighestRowLookup, RowLookup},
     owned::{
         LiveAtVersion, NeedBytes, NotAtVersion, OwnedReader, RowsAboveLookup, SharedNamedAsOwned,
@@ -320,6 +320,26 @@ impl CommitIndexedReader {
             DynamicFieldAtHorizon::Absent => {
                 AccountVerdict::Missing(MissingReason(MissingKind::AuthenticatorFunctionNotFound))
             }
+        })
+    }
+
+    /// Whether `address` was claimed as of the horizon: whether the
+    /// authenticator function field that a `ClaimAccount` attaches to the
+    /// account at that address was live at the horizon. Storage errors
+    /// propagate.
+    ///
+    /// The field, not the account object, records the claim, because it
+    /// outlives the object. Only `iota::account` can build the field's key,
+    /// and it removes the field only to add it back in the same rotation. The
+    /// field stays attached when the account's `UID` moves to another type,
+    /// and stays behind, orphaned, when that `UID` is deleted. A field created
+    /// above the horizon reads as absent, as on a validator that has not
+    /// executed that commit; the claim that created it holds the address's
+    /// lock, which post-consensus validation checks first.
+    pub fn read_claimed_address(&self, address: Address) -> IotaResult<ClaimedAddressAtHorizon> {
+        Ok(match self.read_account(ObjectId::from(address))? {
+            AccountVerdict::Account(_) => ClaimedAddressAtHorizon::Claimed,
+            AccountVerdict::Missing(_) => ClaimedAddressAtHorizon::NotClaimed,
         })
     }
 

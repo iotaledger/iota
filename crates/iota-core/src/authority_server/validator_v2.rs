@@ -479,6 +479,12 @@ impl ValidatorService {
         }
 
         // Build the consensus transaction.
+        // A claim also soft-locks the address it claims, so this validator
+        // does not forward two claims of one address at once.
+        let claim_lock = crate::post_consensus_validation::claimed_address_lock(
+            verified_tx.data().transaction(),
+        );
+
         let consensus_tx = if let Some(attestation_data) = attestation_data {
             // submit_single_tx runs on a validator, so it must be present in its
             // own committee. Treat absence as a fatal bug, not a user error.
@@ -518,7 +524,8 @@ impl ValidatorService {
         // Different-digest conflict on same objects → rejected.
         // Placed after the reconfig and size checks so we never acquire locks
         // that would need releasing on their rejection paths.
-        if let Err(error) = soft_locks.try_acquire(tx_digest, &owned_objects) {
+        let soft_locked: Vec<_> = owned_objects.iter().copied().chain(claim_lock).collect();
+        if let Err(error) = soft_locks.try_acquire(tx_digest, &soft_locked) {
             if matches!(error, IotaError::RecentlyResubmitted { .. }) {
                 metrics.num_rejected_tx_recently_resubmitted.inc();
             } else {

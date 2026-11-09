@@ -44,6 +44,10 @@
 //!    later copy of the digest is validated.
 //! 6. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop with error, except a
 //!    lock held by the same transaction, which is exempt. Cheap; performed before expensive checks.
+//!    A `ClaimAccount` also probes the lock on the address it claims (see
+//!    [`claimed_address_lock`]); a lock held by another claim drops it with
+//!    `AccountAlreadyExplicit`. Every address that signs with a plain signature is probed the same
+//!    way; a held lock drops the copy with `PlainSignatureForExplicitAccount`.
 //! 7. `handle_transaction_validation_checks_at_commit()` — drop with error. An attested transaction
 //!    runs the input checks execution runs, gas included, and the checks on receiving objects; the
 //!    publish verifier stays at execution. Only reached when all locks are free.
@@ -56,7 +60,9 @@
 //! Step 6 probes every `ImmOrOwnedMoveObject` reference, but only genuinely
 //! owned references are locked — an immutable input never takes a new
 //! version, so its lock would hold until the epoch ends. Step 8 filters via
-//! the loaded objects, step 3 via the executed transaction's effects.
+//! the loaded objects, step 3 via the executed transaction's effects. A kept
+//! `ClaimAccount` also locks the address it claims, in step 8 and in step 3
+//! alike, whether its execution succeeded or not.
 
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
@@ -66,13 +72,16 @@ use std::{
 use iota_common::fatal;
 use iota_macros::fail_point;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectReference, SenderSignedTransaction, TransactionDigest, UserSignature};
+use iota_sdk_types::{
+    Address, ObjectDigest, ObjectId, ObjectReference, SenderSignedTransaction, Transaction,
+    TransactionDigest, TransactionKind, UserSignature, Version,
+};
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     attestation::Attestation,
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     gas::check_gas_bounds,
     transaction::{
         InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction,
@@ -318,6 +327,7 @@ pub async fn validate_and_resolve_conflicts(
 
         let digest = *transaction.digest();
         let signatures = transaction.data().signatures();
+        let claim_lock = claimed_address_lock(transaction.data().transaction());
 
         // Check #0: Dedup by digest.
         // The same UserTransactionV1 may appear in DAG blocks from multiple
@@ -419,7 +429,11 @@ pub async fn validate_and_resolve_conflicts(
                 &digest,
                 extract_owned_input_objects(tx)?,
             )?;
-            for obj_ref in &owned_inputs {
+            // A claim's lock is no input its effects consume, and it holds
+            // whether the claim succeeded or not, so it comes from the
+            // transaction: a restarted validator then holds the same lock
+            // as its peers.
+            for obj_ref in owned_inputs.iter().chain(claim_lock.as_ref()) {
                 // A winner cannot be out-locked: after the effects filter,
                 // every reference here was consumed by this transaction, so a
                 // lock held by a different tx is a consistency violation, not
@@ -625,6 +639,69 @@ pub async fn validate_and_resolve_conflicts(
             keep[i] = false;
             continue;
         }
+        // A claim of an address that another claim, kept earlier in this
+        // epoch, holds the lock on. The lock follows from the transaction
+        // data alone, so the drop is final for every copy.
+        if let Some(claim_lock) = &claim_lock {
+            if let Some(locked_by) =
+                find_existing_lock(claim_lock, &current_commit_locks, epoch_store)?
+            {
+                if locked_by != digest {
+                    let address = transaction.data().transaction().sender();
+                    debug!(
+                        ?digest,
+                        %address,
+                        ?locked_by,
+                        "ClaimAccount of an address another claim holds the lock on, dropping"
+                    );
+                    decisions.drop_copy(
+                        digest,
+                        UserInputError::AccountAlreadyExplicit { address }.into(),
+                        false,
+                        false,
+                    );
+                    keep[i] = false;
+                    continue;
+                }
+            }
+        }
+        // A plain signature for an address that a claim kept earlier in this
+        // epoch made explicit. The drop comes from this copy's signatures: a
+        // copy where the address signs with a Move authenticator can still be
+        // kept.
+        if epoch_store
+            .protocol_config()
+            .reject_plain_signatures_for_explicit_accounts()
+        {
+            let mut explicit = None;
+            for address in plain_signed_addresses(transaction.data()) {
+                if find_existing_lock(
+                    &claim_lock_reference(address),
+                    &current_commit_locks,
+                    epoch_store,
+                )?
+                .is_some_and(|locked_by| locked_by != digest)
+                {
+                    explicit = Some(address);
+                    break;
+                }
+            }
+            if let Some(address) = explicit {
+                debug!(
+                    ?digest,
+                    %address,
+                    "Plain signature for an address a claim made explicit, dropping"
+                );
+                decisions.drop_copy(
+                    digest,
+                    UserInputError::PlainSignatureForExplicitAccount { address }.into(),
+                    false,
+                    from_signatures(FailedCheck::PlainSignature),
+                );
+                keep[i] = false;
+                continue;
+            }
+        }
 
         // Check #6: Validation and deny checks. Only reached when all locks are
         // free, so the expensive object loading is skipped for transactions the
@@ -722,10 +799,22 @@ pub async fn validate_and_resolve_conflicts(
                     error = ?e,
                     "UserTransactionV1 failed post-consensus deny checks, dropping"
                 );
-                let (missing, check) = match &input_verdict {
-                    Some((kind, missing)) => (*missing, FailedCheck::Input(kind)),
-                    None if denied_for_every_copy => (false, FailedCheck::Data),
-                    None => (false, FailedCheck::Other),
+                let (missing, check) = match (&input_verdict, &e) {
+                    (Some((kind, missing)), _) => (*missing, FailedCheck::Input(kind)),
+                    (
+                        None,
+                        IotaError::UserInput {
+                            error: UserInputError::AccountAlreadyExplicit { .. },
+                        },
+                    ) => (false, FailedCheck::Data),
+                    (
+                        None,
+                        IotaError::UserInput {
+                            error: UserInputError::PlainSignatureForExplicitAccount { .. },
+                        },
+                    ) => (false, FailedCheck::PlainSignature),
+                    (None, _) if denied_for_every_copy => (false, FailedCheck::Data),
+                    (None, _) => (false, FailedCheck::Other),
                 };
                 let from_signatures = from_signatures(check);
                 decisions.drop_copy(digest, e, missing, from_signatures);
@@ -738,8 +827,9 @@ pub async fn validate_and_resolve_conflicts(
         // The validated set comes from loaded objects, so unlike the
         // byte-derived `owned_inputs` it excludes immutable inputs, which must
         // never be locked (see the module docs). It is a subset of `owned_inputs`,
-        // so every reference locked here was probed by Check #4 first.
-        for obj_ref in &validated_owned_objects {
+        // so every reference locked here was probed by Check #4 first, as was
+        // a claim's lock.
+        for obj_ref in validated_owned_objects.iter().chain(claim_lock.as_ref()) {
             current_commit_locks.insert(*obj_ref, digest);
         }
         // Log the acquired refs, not just their count, so the winner's locks
@@ -909,6 +999,9 @@ enum FailedCheck<'a> {
     Input(&'a InputObjectKind),
     /// A check whose outcome is the same for every copy.
     Data,
+    /// An address signs with a plain signature although a claim made it
+    /// explicit.
+    PlainSignature,
     /// Any other check of the inputs, deny rules and gas.
     Other,
 }
@@ -929,6 +1022,12 @@ enum FailedCheck<'a> {
 /// a copy, including the other checks of the inputs, deny rules and gas, may
 /// come from the authenticator. A failed attestation is the copy's own
 /// whatever its signatures: a later copy may carry a valid one.
+///
+/// A plain signature for an explicit address comes from the copy's
+/// signatures whether or not the copy has a Move authenticator: another copy
+/// can sign for that address with one. A claim cannot carry a Move
+/// authenticator, so no other copy of a claim can be kept, and its drop
+/// counts as the data's.
 fn drop_may_come_from_signatures(
     transaction: &SenderSignedTransaction,
     check: FailedCheck<'_>,
@@ -936,6 +1035,14 @@ fn drop_may_come_from_signatures(
 ) -> bool {
     if matches!(check, FailedCheck::Attestation) {
         return true;
+    }
+    // Another copy can sign for the same address with a Move authenticator,
+    // whether or not this copy carries one.
+    if matches!(check, FailedCheck::PlainSignature) {
+        return !matches!(
+            transaction.transaction().kind(),
+            TransactionKind::ClaimAccount(_)
+        );
     }
     if transaction.move_authenticators().is_empty() {
         return false;
@@ -965,6 +1072,7 @@ fn drop_may_come_from_signatures(
                 )
         }
         FailedCheck::Data => false,
+        FailedCheck::PlainSignature => true,
         FailedCheck::Other => true,
     }
 }
@@ -1002,6 +1110,48 @@ fn filter_locked_inputs_by_effects(
         .into_iter()
         .filter(|obj_ref| consumed.contains(obj_ref))
         .collect())
+}
+
+/// The lock a `ClaimAccount` takes on the address it claims; `None` for any
+/// other transaction.
+///
+/// It is the account object's id at version 0 with the zero digest. No object
+/// has that reference: objects start at version 1, and the only object with
+/// that id is the shared account the claim creates. So a transaction naming
+/// it as an owned input never loads it and never takes the lock. Taken with
+/// the owned-object locks at the commit that keeps the claim, it holds until
+/// the epoch ends, so no later claim of the address is kept in that epoch.
+pub(crate) fn claimed_address_lock(transaction: &Transaction) -> Option<ObjectReference> {
+    matches!(transaction.kind(), TransactionKind::ClaimAccount(_))
+        .then(|| claim_lock_reference(transaction.sender()))
+}
+
+/// The reference a kept claim of `address` locks; see
+/// [`claimed_address_lock`].
+pub(crate) fn claim_lock_reference(address: Address) -> ObjectReference {
+    ObjectReference::new(
+        ObjectId::from(address),
+        Version::from_u64(0),
+        ObjectDigest::MIN,
+    )
+}
+
+/// The signers of `transaction` that sign with a plain signature, rather than
+/// a Move authenticator, other than the sender of a `ClaimAccount`, whose
+/// claim is checked on its own. Once a claim has made such an address
+/// explicit, the transaction is dropped.
+pub(crate) fn plain_signed_addresses(transaction: &SenderSignedTransaction) -> Vec<Address> {
+    let data = transaction.transaction();
+    let move_authenticated: HashSet<Address> = transaction
+        .move_authenticators()
+        .into_iter()
+        .map(|authenticator| authenticator.address())
+        .collect();
+    let claimed = matches!(data.kind(), TransactionKind::ClaimAccount(_)).then(|| data.sender());
+    data.signers()
+        .into_iter()
+        .filter(|signer| !move_authenticated.contains(signer) && Some(*signer) != claimed)
+        .collect()
 }
 
 /// Finds an existing owned-object lock on `obj_ref`, walking three tiers in
