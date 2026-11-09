@@ -199,12 +199,6 @@ struct PeerStateSyncInfo {
 }
 
 impl PeerHeights {
-    pub fn highest_known_checkpoint(&self) -> Option<&Checkpoint> {
-        self.highest_known_checkpoint_sequence_number()
-            .and_then(|s| self.sequence_number_to_digest.get(&s))
-            .and_then(|digest| self.unprocessed_checkpoints.get(digest))
-    }
-
     pub fn highest_known_checkpoint_sequence_number(&self) -> Option<CheckpointSequenceNumber> {
         self.peers
             .values()
@@ -1377,23 +1371,22 @@ async fn query_peers_for_their_latest_checkpoint(
 
     let checkpoints = futures::future::join_all(futs).await.into_iter().flatten();
 
-    let highest_checkpoint = checkpoints.max_by_key(|checkpoint| checkpoint.sequence_number());
+    let highest_checkpoint_seq = checkpoints
+        .map(|checkpoint| checkpoint.sequence_number())
+        .max();
 
-    let our_highest_checkpoint = peer_heights
+    let our_highest_seq = peer_heights
         .read()
         .unwrap()
-        .highest_known_checkpoint()
-        .cloned();
+        .highest_known_checkpoint_sequence_number();
 
     debug!(
-        "Our highest checkpoint {:?}, peers highest checkpoint {:?}",
-        our_highest_checkpoint.as_ref().map(|c| c.sequence_number()),
-        highest_checkpoint.as_ref().map(|c| c.sequence_number())
+        "Our highest checkpoint {our_highest_seq:?}, peers' highest checkpoint {highest_checkpoint_seq:?}"
     );
 
-    let _new_checkpoint = match (highest_checkpoint, our_highest_checkpoint) {
+    let _new_checkpoint = match (highest_checkpoint_seq, our_highest_seq) {
         (Some(theirs), None) => theirs,
-        (Some(theirs), Some(ours)) if theirs.sequence_number() > ours.sequence_number() => theirs,
+        (Some(theirs), Some(ours)) if theirs > ours => theirs,
         _ => return,
     };
 

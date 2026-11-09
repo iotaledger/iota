@@ -145,10 +145,8 @@ async fn server_push_checkpoint() {
         peer_heights
             .read()
             .unwrap()
-            .highest_known_checkpoint()
-            .unwrap()
-            .data(),
-        checkpoint.data(),
+            .highest_known_checkpoint_sequence_number(),
+        Some(checkpoint.sequence_number()),
     );
     assert!(matches!(
         mailbox.try_recv().unwrap(),
