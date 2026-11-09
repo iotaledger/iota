@@ -2657,7 +2657,7 @@ impl CheckpointBuilder {
                     .into_iter()
                     .zip(effects.iter().cloned())
                     .map(|(transaction, effects)| ExecutionData::new(transaction, effects));
-                FullCheckpointContents::from_contents_and_execution_data(
+                FullCheckpointContents::from_contents_and_local_execution_data(
                     contents.clone(),
                     execution_data,
                 )
