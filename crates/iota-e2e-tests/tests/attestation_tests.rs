@@ -821,6 +821,7 @@ fn abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
 mod faulty_attestor {
     use std::collections::{BTreeMap, BTreeSet};
 
+    use fastcrypto::traits::KeyPair;
     use iota_macros::{clear_fail_point, register_fail_point_arg, register_fail_point_if};
     use iota_node::IotaNodeHandle;
     use iota_protocol_config::{OverrideGuard, ProtocolConfig};
@@ -829,23 +830,31 @@ mod faulty_attestor {
         SignatureScheme, TransactionEffects, TransactionKind,
     };
     use iota_simulator::task::NodeId;
+    use iota_swarm_config::genesis_config::{
+        ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
+    };
+    use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
         attestation::AttestationRecord,
         base_types::{ConciseableName, EpochId},
-        crypto::PublicKey,
+        crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, PublicKey, get_key_pair_from_rng},
         error::IotaError,
-        iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
+        iota_system_state::{
+            IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
+            iota_system_state_summary::IotaSystemStateSummary,
+        },
         messages_checkpoint::CheckpointSequenceNumber,
         object::Object,
         storage::ObjectKey,
     };
+    use rand::{rand_core::UnwrapErr, rngs::SysRng};
     use tokio::time::{sleep, timeout};
 
     use super::*;
 
     const NUM_VALIDATORS: usize = 4;
-    /// The validator that attests through the fail points, by its position in
-    /// the network config.
+    /// The validator that attests through the fail points in the first test,
+    /// by its position in the network config.
     const ATTESTOR: usize = 0;
     /// The validator the honest transactions go to.
     const HONEST: usize = 1;
@@ -1274,29 +1283,48 @@ mod faulty_attestor {
     /// attestation must still go through. At the epoch end the attestor's
     /// whole score must be cut and the others left whole, and no node may
     /// count a verdict mismatch.
+    ///
+    /// The faulty attestor joins after genesis with an authority key that
+    /// sorts first. Move appends it to the end of the committee, while its
+    /// authority index follows its key, so the two differ: the cutoff must
+    /// name the attestor by its authority index, and the cut must land at its
+    /// committee member index, where the change epoch transaction carries its
+    /// score.
     #[sim_test]
     async fn every_validator_drops_the_attestations_of_a_cut_off_attestor()
     -> Result<(), anyhow::Error> {
         telemetry_subscribers::init_for_testing();
         let _config = enable_attestation_with_fault_penalty(CUTOFF_UNITS_SQUARED);
 
-        let mut env = TestEnvironment::with_validators().await;
+        let mut rng = UnwrapErr(SysRng);
+        let joining = ValidatorGenesisConfigBuilder::new()
+            .with_authority_key_pair(authority_key_pair_sorting_first(&mut rng))
+            .build(&mut rng);
+        let attestor: AuthorityName = joining.authority_key_pair.public().into();
+        let mut env = TestEnvironment::with_a_validator_candidate(
+            joining.account_key_pair.public_key().derive_address(),
+        )
+        .await;
         env.setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
             .await?;
+        env.join_as_committee_member(joining).await;
         let owner = env.owner.expect("the account is set up");
-        let attestor = env.validator_at(ATTESTOR);
         let honest = env.validator_at(HONEST);
         let attestor_sim_id = env
             .node(&attestor)
             .with(|_| iota_simulator::current_simnode_id());
         let attestor_index = env.authority_index(&attestor);
         let attestor_position = env.position_in_committee_validators(&attestor);
+        assert_ne!(
+            usize::from(attestor_index),
+            attestor_position,
+            "the attestor's authority index and committee member index must differ, or a mix-up \
+             of the two goes unnoticed"
+        );
         let fullnode = &env.test_cluster.fullnode_handle.iota_node;
-
-        // Epoch 1, as in the first test, so that every checkpoint the test
-        // reads was built by the validators.
-        env.test_cluster.force_new_epoch().await;
-        let epoch = 1;
+        // The join ended two epochs, so every checkpoint of this one was built
+        // by the validators.
+        let epoch = fullnode.with(|node| node.state().epoch_store_for_testing().epoch());
 
         // Refute attestations until the certified sum reaches the cutoff.
         let mut scenarios = Vec::new();
@@ -1420,7 +1448,8 @@ mod faulty_attestor {
             totals.refuted_units_squared, totals_at_cutoff.refuted_units_squared,
             "the totals stay those of the refutations"
         );
-        let mut expected_scores = vec![MAX_SCORE; NUM_VALIDATORS];
+        // The genesis validators and the one that joined.
+        let mut expected_scores = vec![MAX_SCORE; NUM_VALIDATORS + 1];
         expected_scores[attestor_position] = 0;
         assert_eq!(
             read_change_epoch_scores(&env.test_cluster, epoch),
@@ -1484,15 +1513,54 @@ mod faulty_attestor {
         }
 
         /// Builds an environment on [`NUM_VALIDATORS`] validators that keep
-        /// only the current epoch's object versions.
-        async fn with_validators() -> Self {
+        /// only the current epoch's object versions, and gives `candidate` the
+        /// coins a validator candidate needs to stake and join.
+        async fn with_a_validator_candidate(candidate: Address) -> Self {
             Self::from_cluster(
                 TestClusterBuilder::new()
                     .with_num_validators(NUM_VALIDATORS)
                     .with_epoch_duration_ms(EPOCH_DURATION_MS)
+                    .with_validator_candidates([candidate])
                     .build()
                     .await,
             )
+        }
+
+        /// Makes `validator` a committee member: adds it as a validator, starts
+        /// its node and ends two epochs, the first to activate it and the
+        /// second to seat it once it has announced its capabilities. Then waits
+        /// until the fullnode can submit to it. `validator`'s account must hold
+        /// the coins [`Self::with_a_validator_candidate()`] gives a candidate.
+        /// Panics if a transaction of the join fails, or if the fullnode cannot
+        /// submit to `validator` within 60 seconds.
+        async fn join_as_committee_member(&mut self, validator: ValidatorGenesisConfig) {
+            let name: AuthorityName = validator.authority_key_pair.public().into();
+            let epoch = self
+                .test_cluster
+                .fullnode_handle
+                .iota_node
+                .with(|node| node.state().epoch_store_for_testing().epoch());
+            execute_add_validator_transactions(&self.test_cluster, &validator).await;
+            self.test_cluster.spawn_new_validator(validator).await;
+            for target_epoch in [epoch + 1, epoch + 2] {
+                self.test_cluster.force_new_epoch().await;
+                self.test_cluster
+                    .wait_for_epoch_all_nodes(target_epoch)
+                    .await;
+            }
+            timeout(Duration::from_secs(60), async {
+                while !self.test_cluster.fullnode_handle.iota_node.with(|node| {
+                    node.transaction_orchestrator()
+                        .expect("the fullnode runs a transaction orchestrator")
+                        .clone_authority_aggregator()
+                        .authority_clients
+                        .contains_key(&name)
+                }) {
+                    sleep(Duration::from_millis(500)).await;
+                }
+            })
+            .await
+            .expect("the fullnode can submit to the joined validator within 60s");
         }
 
         /// An environment on `test_cluster`, without an account.
@@ -1696,15 +1764,22 @@ mod faulty_attestor {
         }
 
         /// Sends the account a new gas coin of [`GAS_COIN_BALANCE`] from the
-        /// faucet and returns the coin's reference.
+        /// faucet and returns the coin's reference once every node has
+        /// executed the transfer. Panics if a node does not execute it within
+        /// 60 seconds.
         async fn fund_account(&self) -> anyhow::Result<ObjectReference> {
             let account = self.account_address()?;
             let rgp = self.test_cluster.get_reference_gas_price().await;
-
-            Ok(self
+            let (gas, transfer) = self
                 .test_cluster
-                .fund_address_and_return_gas(rgp, Some(GAS_COIN_BALANCE), account)
-                .await)
+                .fund_address_and_return_gas_and_tx(rgp, Some(GAS_COIN_BALANCE), account)
+                .await;
+            // A validator rejects a transaction whose gas coin it has not seen
+            // yet, and the next transaction may go to a validator that lags
+            // behind the ones that finalized the transfer.
+            wait_for_effects_on_every_node(&self.test_cluster, transfer).await;
+
+            Ok(gas)
         }
 
         /// Crafts a transaction of the account whose body only moves
@@ -2290,5 +2365,148 @@ mod faulty_attestor {
                 "a validator counts more dropped transactions than expected"
             );
         }
+    }
+
+    /// Generates an authority key pair whose public key sorts below almost
+    /// every other one: the first byte of a compressed BLS12-381 public key is
+    /// `0x80` only for about the lowest two percent of the key space.
+    fn authority_key_pair_sorting_first<R: rand::CryptoRng>(rng: &mut R) -> AuthorityKeyPair {
+        loop {
+            let (_, key_pair): (_, AuthorityKeyPair) = get_key_pair_from_rng(rng);
+            let name = AuthorityPublicKeyBytes::from(key_pair.public());
+            let bytes: &[u8] = name.as_ref();
+            if bytes[0] == 0x80 && bytes[1] < 0x40 {
+                return key_pair;
+            }
+        }
+    }
+
+    /// Registers `new_validator` as a validator candidate, paying the gas from
+    /// its account. Panics unless the candidate count then goes up by one.
+    async fn add_validator_candidate(
+        test_cluster: &TestCluster,
+        new_validator: &ValidatorGenesisConfig,
+    ) {
+        let cur_validator_candidate_count = test_cluster.fullnode_handle.iota_node.with(|node| {
+            match node
+                .state()
+                .get_iota_system_state_object_for_testing()
+                .unwrap()
+                .into_iota_system_state_summary()
+            {
+                IotaSystemStateSummary::V1(v1) => v1.validator_candidates_size,
+                IotaSystemStateSummary::V2(v2) => v2.validator_candidates_size,
+                _ => unimplemented!(
+                    "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+                ),
+            }
+        });
+        let address = new_validator.account_key_pair.public_key().derive_address();
+        let gas = test_cluster
+            .wallet
+            .get_one_gas_object_owned_by_address(address)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let tx =
+            TestTransactionBuilder::new(address, gas, test_cluster.get_reference_gas_price().await)
+                .call_request_add_validator_candidate(
+                    &new_validator.to_validator_info_with_random_name().into(),
+                )
+                .build_and_sign(&new_validator.account_key_pair);
+        test_cluster.execute_transaction(tx).await;
+
+        // Check that the candidate can be found in the candidate table now.
+        test_cluster.fullnode_handle.iota_node.with(|node| {
+            let system_state = node
+                .state()
+                .get_iota_system_state_object_for_testing()
+                .unwrap();
+            let system_state_summary = system_state.into_iota_system_state_summary();
+            let validator_candidates_size = match system_state_summary {
+                IotaSystemStateSummary::V1(v1) => v1.validator_candidates_size,
+                IotaSystemStateSummary::V2(v2) => v2.validator_candidates_size,
+                _ => unimplemented!(
+                    "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+                ),
+            };
+            assert_eq!(validator_candidates_size, cur_validator_candidate_count + 1);
+        });
+    }
+
+    /// Makes `new_validator` a pending active validator: registers it as a
+    /// candidate, stakes the joining stake from its account and requests to
+    /// add it. Does not end the epoch. Panics unless `new_validator` is then
+    /// the last pending active validator.
+    async fn execute_add_validator_transactions(
+        test_cluster: &TestCluster,
+        new_validator: &ValidatorGenesisConfig,
+    ) {
+        let pending_active_count = test_cluster.fullnode_handle.iota_node.with(|node| {
+            let system_state = node
+                .state()
+                .get_iota_system_state_object_for_testing()
+                .unwrap();
+
+            system_state
+                .get_pending_active_validators(node.state().get_object_store().as_ref())
+                .unwrap()
+                .len()
+        });
+        add_validator_candidate(test_cluster, new_validator).await;
+
+        let address = new_validator.account_key_pair.public_key().derive_address();
+        let min_validator_joining_stake =
+            test_cluster.protocol_config().min_validator_joining_stake();
+        // Pick coins by balance, not page order, so the coins a later join
+        // needs to stake are neither staked early nor spent on gas.
+        let coins = test_cluster.wallet.gas_objects(address).await.unwrap();
+        let stake_coin = coins
+            .iter()
+            .filter(|(balance, _)| *balance >= min_validator_joining_stake)
+            .min_by_key(|(balance, _)| *balance)
+            .expect("the validator address must own a coin covering the joining stake")
+            .1
+            .object_ref();
+        let gas = coins
+            .iter()
+            .filter(|(_, coin)| coin.object_id != stake_coin.object_id)
+            .max_by_key(|(balance, _)| *balance)
+            .expect("the validator address must own a coin to pay for gas")
+            .1
+            .object_ref();
+
+        let rgp = test_cluster.get_reference_gas_price().await;
+        let stake_tx = TestTransactionBuilder::new(address, gas, rgp)
+            .call_staking(stake_coin, address)
+            .build_and_sign(&new_validator.account_key_pair);
+        test_cluster.execute_transaction(stake_tx).await;
+
+        let gas = test_cluster
+            .wallet
+            .get_object_ref(gas.object_id)
+            .await
+            .unwrap();
+        let tx = TestTransactionBuilder::new(address, gas, rgp)
+            .call_request_add_validator()
+            .build_and_sign(&new_validator.account_key_pair);
+        test_cluster.execute_transaction(tx).await;
+
+        // Check that we can get the pending validator from 0x5.
+        test_cluster.fullnode_handle.iota_node.with(|node| {
+            let system_state = node
+                .state()
+                .get_iota_system_state_object_for_testing()
+                .unwrap();
+            let pending_active_validators = system_state
+                .get_pending_active_validators(node.state().get_object_store().as_ref())
+                .unwrap();
+            assert_eq!(pending_active_validators.len(), pending_active_count + 1);
+            assert_eq!(
+                pending_active_validators[pending_active_validators.len() - 1].iota_address,
+                address
+            );
+        });
     }
 }
