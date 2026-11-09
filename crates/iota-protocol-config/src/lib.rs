@@ -2568,6 +2568,14 @@ impl ProtocolConfig {
                 ret.checkpoint_summary_version_specific_data == Some(2),
                 "enable_validator_attestation requires checkpoint_summary_version_specific_data = 2"
             );
+            // From version 41 the attestation dry run limits the authenticators
+            // to `max_auth_gas` itself; only earlier versions run them on their
+            // own first.
+            assert!(
+                ret.version < ProtocolVersion::new(41)
+                    || ret.limit_move_authentication_gas_at_execution(),
+                "enable_validator_attestation requires limit_move_authentication_gas_at_execution from protocol version 41"
+            );
         }
         if ret.attestation_max_refuted_units_squared.is_some() {
             assert!(

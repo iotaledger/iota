@@ -12,11 +12,13 @@ use std::{
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    MoveAuthenticator, ObjectId, ObjectReference, Owner, Transaction, TransactionEffects,
+    Address, GasPayment, MoveAuthenticator, ObjectId, ObjectReference, Owner, Transaction,
+    TransactionEffects,
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
-        MoveAuthenticatorForExecution, MoveAuthenticatorsForExecution, extract_auth_fun_refs,
+        AuthenticatorFunctionRef, MoveAuthenticatorForExecution, MoveAuthenticatorsForExecution,
+        extract_auth_fun_refs,
     },
     attestation::{
         self, AttestationData, AttestationRecord, AttestationTotals, AttestationVerdict,
@@ -88,46 +90,16 @@ impl AuthorityState {
         let (kind, signer, gas_data) = tx.execution_parts();
         let tx_digest = *transaction.digest();
 
-        // The dry run meters authentication and body against the whole budget,
-        // as execution does (the authenticators at most `max_auth_gas` of it
-        // under `limit_move_authentication_gas_at_execution`), and a failed
-        // authentication is refused unpaid. So the authenticators first run on
-        // their own at the signing cap, as at admission: one that fails or
-        // exceeds `max_auth_gas` is refused before budget-sized work is done on
-        // it.
-        if !move_authenticators.is_empty() {
-            let function_refs = extract_auth_fun_refs(signer, gas_data.owner, |address| {
-                move_authenticators
-                    .iter()
-                    .zip(per_authenticator_checked_inputs.iter())
-                    .find(|(move_authenticator, _)| move_authenticator.address() == address)
-                    .map(|(_, (_, auth_fun_ref))| auth_fun_ref.clone())
-            });
-            let authenticators = move_authenticators
-                .iter()
-                .zip(per_authenticator_checked_inputs.iter())
-                .map(|(move_authenticator, (input_objects, function_ref))| {
-                    (
-                        (*move_authenticator).to_owned(),
-                        function_ref.clone(),
-                        CheckedInputObjects::new_with_checked_transaction_inputs(
-                            input_objects.inner().clone(),
-                        ),
-                    )
-                })
-                .collect();
-            let capped_gas_status = IotaGasStatus::new(
-                protocol_config.max_auth_gas(),
-                gas_data.price,
-                epoch_store.reference_gas_price(),
-                protocol_config,
-            )?;
-            self.authenticate_before_consensus(
+        if !move_authenticators.is_empty()
+            && !protocol_config.limit_move_authentication_gas_at_execution()
+        {
+            self.authenticate_at_max_auth_gas(
                 epoch_store,
                 transaction,
-                capped_gas_status,
-                authenticators,
-                function_refs,
+                signer,
+                &gas_data,
+                &move_authenticators,
+                &per_authenticator_checked_inputs,
             )?;
         }
 
@@ -135,7 +107,7 @@ impl AuthorityState {
         // source of truth for the input versions the attestor observed. The account
         // objects are read outside the store, so their observed versions are captured
         // separately.
-        let (inner_temp_store, effects, authentication_failed, account_object_refs) =
+        let (inner_temp_store, effects, authentication_error, account_object_refs) =
             if move_authenticators.is_empty() {
                 // No Move authentication, execute directly.
                 let (inner_temp_store, _, effects, _, _) =
@@ -156,7 +128,7 @@ impl AuthorityState {
                         &mut None,
                     );
                 // This branch has no Move authentication, so it can never fail auth.
-                (inner_temp_store, effects, false, Vec::new())
+                (inner_temp_store, effects, None, Vec::new())
             } else {
                 // Recover the `AuthenticatorFunctionRefForExecution` for each authenticator and
                 // run auth + execution in one pass.
@@ -260,20 +232,20 @@ impl AuthorityState {
                 (
                     inner_temp_store,
                     effects,
-                    authentication_error.is_some(),
+                    authentication_error,
                     account_object_refs,
                 )
             };
 
-        // Refuse to attest a transaction when its Move authentication did not succeed.
-        // Any other failure (out-of-gas or a Move abort in the transaction body) is the
-        // issuer's responsibility and is still attested, sequenced and charged as a
-        // failed transaction under the normal flow.
-        if authentication_failed {
-            return Err(IotaError::Execution(format!(
-                "refusing to attest transaction with failed Move authentication: {:?}",
-                effects.status()
-            )));
+        // Refuse to attest a transaction when its Move authentication did not succeed,
+        // with the error admission reports for it. Any other failure (out-of-gas or a
+        // Move abort in the transaction body) is the issuer's responsibility and is
+        // still attested, sequenced and charged as a failed transaction under the
+        // normal flow.
+        if let Some(error) = authentication_error {
+            return Err(IotaError::MoveAuthenticatorExecutionFailure {
+                error: error.to_string(),
+            });
         }
 
         // Build `AttestationData`. The claim is in gas units, independent
@@ -291,6 +263,60 @@ impl AuthorityState {
             },
             owned_objects,
         ))
+    }
+
+    /// Runs the authenticators of `transaction` on their own at
+    /// `max_auth_gas`, as admission does, and fails as admission does when one
+    /// rejects the transaction or runs out of gas.
+    ///
+    /// Without `limit_move_authentication_gas_at_execution`, the attestation
+    /// dry run meters the authenticators against the whole budget and a failed
+    /// authentication is refused unpaid, so running them here first bounds
+    /// that unpaid work by `max_auth_gas`. With it, the dry run limits them
+    /// itself.
+    fn authenticate_at_max_auth_gas(
+        &self,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        transaction: &VerifiedTransaction,
+        signer: Address,
+        gas_data: &GasPayment,
+        move_authenticators: &[&MoveAuthenticator],
+        per_authenticator_checked_inputs: &[(CheckedInputObjects, AuthenticatorFunctionRef)],
+    ) -> IotaResult<()> {
+        let protocol_config = epoch_store.protocol_config();
+        let function_refs = extract_auth_fun_refs(signer, gas_data.owner, |address| {
+            move_authenticators
+                .iter()
+                .zip(per_authenticator_checked_inputs)
+                .find(|(move_authenticator, _)| move_authenticator.address() == address)
+                .map(|(_, (_, auth_fun_ref))| auth_fun_ref.clone())
+        });
+        let authenticators = move_authenticators
+            .iter()
+            .zip(per_authenticator_checked_inputs)
+            .map(|(move_authenticator, (input_objects, function_ref))| {
+                (
+                    (*move_authenticator).to_owned(),
+                    function_ref.clone(),
+                    CheckedInputObjects::new_with_checked_transaction_inputs(
+                        input_objects.inner().clone(),
+                    ),
+                )
+            })
+            .collect();
+        let capped_gas_status = IotaGasStatus::new(
+            protocol_config.max_auth_gas(),
+            gas_data.price,
+            epoch_store.reference_gas_price(),
+            protocol_config,
+        )?;
+        self.authenticate_before_consensus(
+            epoch_store,
+            transaction,
+            capped_gas_status,
+            authenticators,
+            function_refs,
+        )
     }
 
     /// Like [`AuthorityState::check_transaction_inputs_at_commit`], for an

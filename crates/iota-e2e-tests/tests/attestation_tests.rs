@@ -28,6 +28,7 @@ use fastcrypto::{
 use iota_core::authority_client::validator_v2::ValidatorV2API;
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
+use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{
     Address, Argument, Identifier, MoveAuthenticator, MoveAuthenticatorV1, ObjectId,
     ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, Transaction,
@@ -168,14 +169,32 @@ async fn test_aa_tx_with_failed_authentication_is_dropped() -> Result<(), anyhow
 }
 
 /// A valid AA transaction whose Move authentication needs more gas than
-/// `max_auth_gas` must be refused by the attestor. Without
-/// `limit_move_authentication_gas_at_execution`, the dry run meters
-/// authentication against the whole budget, as execution does, so without the
-/// capped pre-run the attestor would do budget-sized work on a transaction it
-/// then drops unpaid.
+/// `max_auth_gas` must be refused by the attestor. Under
+/// `limit_move_authentication_gas_at_execution` the dry run limits the
+/// authenticators to `max_auth_gas`, so the attestor does no more unpaid work
+/// on it than that.
 #[sim_test]
 async fn test_aa_tx_with_authentication_over_max_auth_gas_is_refused() -> Result<(), anyhow::Error>
 {
+    check_authentication_over_max_auth_gas_is_refused(TestClusterBuilder::new()).await
+}
+
+/// As [`test_aa_tx_with_authentication_over_max_auth_gas_is_refused`], at
+/// protocol version 40, before `limit_move_authentication_gas_at_execution`:
+/// there the dry run meters the authenticators against the whole budget, and
+/// they first run on their own at `max_auth_gas`.
+#[sim_test]
+async fn test_aa_tx_with_authentication_over_max_auth_gas_is_refused_without_the_execution_limit()
+-> Result<(), anyhow::Error> {
+    check_authentication_over_max_auth_gas_is_refused(
+        TestClusterBuilder::new().with_protocol_version(ProtocolVersion::new(40)),
+    )
+    .await
+}
+
+async fn check_authentication_over_max_auth_gas_is_refused(
+    cluster_builder: TestClusterBuilder,
+) -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
     // Ten gas units at the cluster's gas price, far below what the ed25519
     // verification in `authenticate_ed25519` costs.
@@ -196,7 +215,7 @@ async fn test_aa_tx_with_authentication_over_max_auth_gas_is_refused() -> Result
         ("IOTA_PROTOCOL_CONFIG_OVERRIDE_MAX_AUTH_GAS", "10000"),
     ]);
 
-    let mut test_env = TestEnvironment::new().await;
+    let mut test_env = TestEnvironment::with_cluster(cluster_builder).await;
     test_env
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
         .await?;
@@ -482,7 +501,11 @@ struct TestEnvironment {
 
 impl TestEnvironment {
     async fn new() -> Self {
-        let test_cluster = TestClusterBuilder::new().build().await;
+        Self::with_cluster(TestClusterBuilder::new()).await
+    }
+
+    async fn with_cluster(cluster_builder: TestClusterBuilder) -> Self {
+        let test_cluster = cluster_builder.build().await;
         Self {
             test_cluster,
             owner: None,
