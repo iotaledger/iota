@@ -64,10 +64,10 @@ differ only in the mock-gas rule and whether effects are committed.
 ### Authenticator outcome
 
 The authenticator path runs the authenticators and body together to effects.
-The engine returns the authentication error separately from the effects, so a
-rejection and a body abort are told apart without another run: the error is
-`SignatureStatus::Failed`, a body abort stays `Verified`. The error carries only
-the `ExecutionErrorKind` the node reports, without a source or command index.
+The engine returns the authentication error separately from the effects: an
+authenticator rejection is `SignatureStatus::Failed`, a body abort stays
+`Verified`. The error carries only the `ExecutionErrorKind` the node reports,
+without a source or command index.
 
 A protocol version that predates Move authentication (no `max_auth_gas`) is
 rejected up front with `UnsupportedProtocolVersion` rather than reaching the
