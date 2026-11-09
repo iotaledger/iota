@@ -97,19 +97,11 @@ async fn test_claim_account_succeeds() {
     );
 }
 
-/// Pins the current, incorrect behaviour of claiming an address twice: the
-/// second `ClaimAccount` succeeds and re-creates the account object under the
-/// same id with a bumped version, even though that object was never a
-/// transaction input.
-///
-/// `claim::claim_address` leaves double-claim prevention to its caller
-/// and `smart_account_builtin_auth::claim_account_v1` does not implement it, so
-/// nothing rejects the second claim. Once prevention lands, both pins below
-/// have to flip: the second claim must fail, and the account object must keep
-/// the version the first claim gave it.
+/// A second `ClaimAccount` of an address is rejected, and the account object
+/// keeps the version the first claim gave it.
 #[cfg(msim)]
 #[sim_test]
-async fn test_claim_account_twice_is_not_yet_prevented() {
+async fn test_claim_account_twice_is_rejected() {
     use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
     use iota_keys::keystore::AccountKeystore;
     use iota_sdk_crypto::simple::SimpleKeypair;
@@ -147,68 +139,60 @@ async fn test_claim_account_twice_is_not_yet_prevented() {
         .clone();
 
     let rgp = test_cluster.get_reference_gas_price().await;
-    // Both claims pay with the same coin, so the second claim has a higher
-    // lamport version than the first; a second claim at the same version is a
-    // different case.
-    let gas_coin_id = *first_gas_coin(&test_cluster.wallet, owner)
-        .await
-        .object_id();
-    let mut claimed = Vec::new();
-
-    for attempt in 1..=2 {
+    let claim_tx = |gas| {
         let (public_key_scheme, public_key_raw_bytes) = claim_public_key(&keypair);
-        let claim = SmartAccountClaim {
-            public_key_scheme,
-            public_key_raw_bytes,
-        };
-        let tx_data = Transaction::new(
-            TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim)),
+        Transaction::new(
+            TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(
+                SmartAccountClaim {
+                    public_key_scheme,
+                    public_key_raw_bytes,
+                },
+            )),
             owner,
-            test_cluster.get_latest_object_ref(&gas_coin_id).await,
+            gas,
             rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
             rgp,
-        );
-        let response = test_cluster
-            .wallet
-            .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&tx_data))
-            .await
-            .expect("ClaimAccount transaction must execute");
-        let effects = response.effects.expect("response must include effects");
+        )
+    };
 
-        assert!(
-            effects.status().is_ok(),
-            "claim attempt {attempt} was expected to be accepted today; got {:?}",
-            effects.status(),
-        );
-
-        let object_changes = response
+    let first = claim_tx(first_gas_coin(&test_cluster.wallet, owner).await);
+    let response = test_cluster
+        .wallet
+        .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&first))
+        .await
+        .expect("the first claim must execute");
+    let effects = response.effects.expect("response must include effects");
+    assert!(effects.status().is_ok(), "{:?}", effects.status());
+    let (account_id, _) = created_smart_accounts(
+        &response
             .object_changes
-            .expect("response must include object changes");
-        let (account_id, _) = created_smart_accounts(&object_changes)
-            .into_iter()
-            .next()
-            .expect("the claim must create a SmartAccount");
-        let version = effects
-            .created()
-            .iter()
-            .find(|o| o.reference.object_id == account_id)
-            .map(|o| o.reference.version)
-            .expect("the SmartAccount must be reported as created");
-        claimed.push((account_id, version));
-    }
+            .expect("response must include object changes"),
+    )
+    .into_iter()
+    .next()
+    .expect("the claim must create a SmartAccount");
+    let first_version = effects
+        .created()
+        .iter()
+        .find(|o| o.reference.object_id == account_id)
+        .map(|o| o.reference.version)
+        .expect("the SmartAccount must be reported as created");
 
-    let (first_id, first_version) = claimed[0];
-    let (second_id, second_version) = claimed[1];
-
-    assert_eq!(
-        first_id, second_id,
-        "both claims derive the account id from the sender address",
-    );
+    let second = claim_tx(first_gas_coin(&test_cluster.wallet, owner).await);
+    let error = test_cluster
+        .wallet
+        .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&second))
+        .await
+        .expect_err("the second claim must be rejected");
     assert!(
-        second_version > first_version,
-        "the account object was expected to be overwritten today; got \
-         {second_version:?} after {first_version:?}",
+        error.to_string().contains("already explicit"),
+        "unexpected error: {error}"
     );
+    let account = test_cluster
+        .get_object_from_fullnode_store(&account_id)
+        .await
+        .expect("the account must exist");
+    assert_eq!(account.version(), first_version);
 }
 
 /// Verify that a `ClaimAccountTransaction` is rejected at validity-check time
@@ -645,9 +629,546 @@ async fn test_claim_account_rejected_when_key_does_not_derive_sender() {
     );
 }
 
+/// A second claim paid with a gas coin older than the account. Without the
+/// check it would re-create the account object below the version the account
+/// has reached, which stops the nodes that execute it.
+#[cfg(msim)]
+#[sim_test]
+async fn test_second_claim_with_an_older_gas_coin_leaves_the_account_unchanged() {
+    run_second_claim_after_account_mutations(false).await;
+}
+
+/// A second claim paid with a gas coin newer than the account. Without the
+/// check it would re-create the account object with a new initial shared
+/// version, so transactions naming the old one would be rejected.
+#[cfg(msim)]
+#[sim_test]
+async fn test_second_claim_with_a_newer_gas_coin_leaves_the_account_unchanged() {
+    run_second_claim_after_account_mutations(true).await;
+}
+
+/// Claims the wallet's first address, raises the account's version with
+/// `smart_account::add_field` calls the account signs, claims again with a
+/// gas coin older or newer than the account, and checks that the second claim
+/// is rejected, every node still holds the account as it was, and the
+/// account still takes transactions.
+#[cfg(msim)]
+async fn run_second_claim_after_account_mutations(second_claim_with_newer_gas: bool) {
+    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+    use iota_keys::keystore::AccountKeystore;
+    use iota_sdk_crypto::simple::SimpleKeypair;
+    use iota_sdk_types::{
+        Address, ClaimAccountTransaction, Identifier, ObjectId, ObjectReference,
+        SharedObjectReference, SmartAccountClaim, Transaction, TransactionKind, TypeTag,
+    };
+    use iota_types::{
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
+    };
+
+    telemetry_subscribers::init_for_testing();
+
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(600_000)
+        .build()
+        .await;
+    let owner: Address = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .addresses()
+        .into_iter()
+        .next()
+        .expect("wallet must have at least one account");
+    let keypair: SimpleKeypair = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&owner)
+        .expect("keypair must exist for owner")
+        .as_keypair()
+        .expect("stored key must be a keypair")
+        .clone();
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let budget = rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE;
+    let coins = test_cluster
+        .wallet
+        .get_gas_objects_owned_by_address(owner, None)
+        .await
+        .expect("gas lookup must succeed");
+    assert!(coins.len() >= 4, "the owner needs four gas coins");
+    let (claim_coin, mut mutation_coin, old_coin) = (coins[0], coins[1], coins[2]);
+
+    let claim_tx = |gas: ObjectReference| {
+        let (public_key_scheme, public_key_raw_bytes) = claim_public_key(&keypair);
+        Transaction::new(
+            TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(
+                SmartAccountClaim {
+                    public_key_scheme,
+                    public_key_raw_bytes,
+                },
+            )),
+            owner,
+            gas,
+            budget,
+            rgp,
+        )
+    };
+    let account_id = ObjectId::from(owner);
+
+    let first = test_cluster
+        .wallet
+        .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&claim_tx(claim_coin)))
+        .await
+        .expect("the first claim must execute");
+    let first_effects = first.effects.expect("response must include effects");
+    assert!(
+        first_effects.status().is_ok(),
+        "{:?}",
+        first_effects.status()
+    );
+    let first_created = first_effects
+        .created()
+        .iter()
+        .find(|o| o.reference.object_id == account_id)
+        .expect("the first claim must create the account")
+        .clone();
+    let Owner::Shared(initial_shared_version) = first_created.owner else {
+        panic!("the account must be shared, got {:?}", first_created.owner);
+    };
+
+    for i in 0..5u64 {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let account = builder
+            .obj(CallArg::Shared(SharedObjectReference::new(
+                account_id,
+                initial_shared_version,
+                true,
+            )))
+            .unwrap();
+        let name = builder.pure(i).unwrap();
+        let value = builder.pure(i).unwrap();
+        builder.programmable_move_call(
+            ObjectId::FRAMEWORK,
+            Identifier::from_static("smart_account"),
+            Identifier::from_static("add_field"),
+            vec![TypeTag::U64, TypeTag::U64],
+            vec![account, name, value],
+        );
+        let tx = Transaction::new_programmable(
+            owner,
+            vec![mutation_coin],
+            builder.finish(),
+            budget,
+            rgp,
+        );
+        let response =
+            execute_as_claimed_account(&test_cluster, &keypair, tx, initial_shared_version).await;
+        let effects = response.effects.expect("response must include effects");
+        assert!(effects.status().is_ok(), "{:?}", effects.status());
+        mutation_coin = effects.gas_object().reference;
+    }
+    let account_before = test_cluster
+        .get_object_from_fullnode_store(&account_id)
+        .await
+        .expect("the account must exist");
+
+    let second_gas = if second_claim_with_newer_gas {
+        mutation_coin
+    } else {
+        old_coin
+    };
+    let second = test_cluster
+        .wallet
+        .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&claim_tx(second_gas)))
+        .await;
+    let error = second.expect_err("the second claim must be rejected");
+    assert!(
+        error.to_string().contains("already explicit"),
+        "unexpected error: {error}"
+    );
+
+    let expected = (
+        account_before.version(),
+        account_before.digest(),
+        Owner::Shared(initial_shared_version),
+    );
+    for handle in test_cluster.swarm.validator_node_handles() {
+        let latest = handle.with(|node| {
+            node.state()
+                .get_object(&account_id)
+                .map(|o| (o.version(), o.digest(), o.owner().clone()))
+        });
+        assert_eq!(latest, Some(expected.clone()));
+    }
+    let fullnode_latest = test_cluster
+        .get_object_from_fullnode_store(&account_id)
+        .await
+        .map(|o| (o.version(), o.digest(), o.owner().clone()));
+    assert_eq!(fullnode_latest, Some(expected));
+
+    // Whether the network still runs transactions on the account.
+    let mut builder = ProgrammableTransactionBuilder::new();
+    let account = builder
+        .obj(CallArg::Shared(SharedObjectReference::new(
+            account_id,
+            initial_shared_version,
+            true,
+        )))
+        .unwrap();
+    let name = builder.pure(100u64).unwrap();
+    let value = builder.pure(100u64).unwrap();
+    builder.programmable_move_call(
+        ObjectId::FRAMEWORK,
+        Identifier::from_static("smart_account"),
+        Identifier::from_static("add_field"),
+        vec![TypeTag::U64, TypeTag::U64],
+        vec![account, name, value],
+    );
+    let gas = test_cluster
+        .wallet
+        .get_gas_objects_owned_by_address(owner, None)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|c| c.object_id == coins[3].object_id)
+        .unwrap_or(coins[3]);
+    let tx = Transaction::new_programmable(owner, vec![gas], builder.finish(), budget, rgp);
+    let response =
+        execute_as_claimed_account(&test_cluster, &keypair, tx, initial_shared_version).await;
+    let effects = response.effects.expect("response must include effects");
+    assert!(effects.status().is_ok(), "{:?}", effects.status());
+}
+
+/// Two claims of one address sent at the same time: exactly one is kept.
+#[cfg(msim)]
+#[sim_test]
+async fn test_concurrent_claims_of_one_address_keep_one() {
+    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+    use iota_keys::keystore::AccountKeystore;
+    use iota_sdk_crypto::simple::SimpleKeypair;
+    use iota_sdk_types::{
+        Address, ClaimAccountTransaction, ObjectId, ObjectReference, SmartAccountClaim,
+        Transaction, TransactionKind,
+    };
+    use iota_types::transaction::{
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
+    };
+
+    telemetry_subscribers::init_for_testing();
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let owner: Address = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .addresses()
+        .into_iter()
+        .next()
+        .expect("wallet must have at least one account");
+    let keypair: SimpleKeypair = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&owner)
+        .expect("keypair must exist for owner")
+        .as_keypair()
+        .expect("stored key must be a keypair")
+        .clone();
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let coins = test_cluster
+        .wallet
+        .get_gas_objects_owned_by_address(owner, None)
+        .await
+        .expect("gas lookup must succeed");
+    let claim_tx = |gas: ObjectReference| {
+        let (public_key_scheme, public_key_raw_bytes) = claim_public_key(&keypair);
+        test_cluster.wallet.sign_transaction(&Transaction::new(
+            TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(
+                SmartAccountClaim {
+                    public_key_scheme,
+                    public_key_raw_bytes,
+                },
+            )),
+            owner,
+            gas,
+            rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+            rgp,
+        ))
+    };
+    let (first, second) = (claim_tx(coins[0]), claim_tx(coins[1]));
+
+    let (first, second) = tokio::join!(
+        test_cluster.wallet.execute_transaction_may_fail(first),
+        test_cluster.wallet.execute_transaction_may_fail(second),
+    );
+    let succeeded = [&first, &second]
+        .into_iter()
+        .filter(|result| {
+            result.as_ref().is_ok_and(|response| {
+                response
+                    .effects
+                    .as_ref()
+                    .is_some_and(|effects| effects.status().is_ok())
+            })
+        })
+        .count();
+    assert_eq!(
+        succeeded, 1,
+        "exactly one claim must succeed; got {first:?} and {second:?}"
+    );
+    assert!(
+        test_cluster
+            .get_object_from_fullnode_store(&ObjectId::from(owner))
+            .await
+            .is_some()
+    );
+}
+
+/// An address claimed in an earlier epoch cannot be claimed again.
+#[cfg(msim)]
+#[sim_test]
+async fn test_claim_in_a_later_epoch_is_rejected() {
+    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+    use iota_keys::keystore::AccountKeystore;
+    use iota_sdk_crypto::simple::SimpleKeypair;
+    use iota_sdk_types::{
+        Address, ClaimAccountTransaction, ObjectReference, SmartAccountClaim, Transaction,
+        TransactionKind,
+    };
+    use iota_types::transaction::{
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
+    };
+
+    telemetry_subscribers::init_for_testing();
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let owner: Address = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .addresses()
+        .into_iter()
+        .next()
+        .expect("wallet must have at least one account");
+    let keypair: SimpleKeypair = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&owner)
+        .expect("keypair must exist for owner")
+        .as_keypair()
+        .expect("stored key must be a keypair")
+        .clone();
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let claim_tx = |gas: ObjectReference| {
+        let (public_key_scheme, public_key_raw_bytes) = claim_public_key(&keypair);
+        test_cluster.wallet.sign_transaction(&Transaction::new(
+            TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(
+                SmartAccountClaim {
+                    public_key_scheme,
+                    public_key_raw_bytes,
+                },
+            )),
+            owner,
+            gas,
+            rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+            rgp,
+        ))
+    };
+
+    let response = test_cluster
+        .wallet
+        .execute_transaction_may_fail(claim_tx(first_gas_coin(&test_cluster.wallet, owner).await))
+        .await
+        .expect("the first claim must execute");
+    let effects = response.effects.expect("response must include effects");
+    assert!(effects.status().is_ok(), "{:?}", effects.status());
+
+    test_cluster.force_new_epoch().await;
+
+    let error = test_cluster
+        .wallet
+        .execute_transaction_may_fail(claim_tx(first_gas_coin(&test_cluster.wallet, owner).await))
+        .await
+        .expect_err("a claim in a later epoch must be rejected");
+    assert!(
+        error.to_string().contains("already explicit"),
+        "unexpected error: {error}"
+    );
+}
+
+/// Once an address is claimed, a transaction where it signs with a plain
+/// signature is rejected; the same transaction signed by the account's
+/// built-in authenticator executes.
+#[cfg(msim)]
+#[sim_test]
+async fn test_plain_signature_for_a_claimed_address_is_rejected() {
+    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+    use iota_keys::keystore::AccountKeystore;
+    use iota_sdk_crypto::simple::SimpleKeypair;
+    use iota_sdk_types::{
+        Address, ClaimAccountTransaction, Identifier, ObjectId, SharedObjectReference,
+        SmartAccountClaim, Transaction, TransactionKind, TypeTag,
+    };
+    use iota_types::{
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
+    };
+
+    telemetry_subscribers::init_for_testing();
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let owner: Address = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .addresses()
+        .into_iter()
+        .next()
+        .expect("wallet must have at least one account");
+    let keypair: SimpleKeypair = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&owner)
+        .expect("keypair must exist for owner")
+        .as_keypair()
+        .expect("stored key must be a keypair")
+        .clone();
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let budget = rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE;
+
+    let (public_key_scheme, public_key_raw_bytes) = claim_public_key(&keypair);
+    let claim = Transaction::new(
+        TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(
+            SmartAccountClaim {
+                public_key_scheme,
+                public_key_raw_bytes,
+            },
+        )),
+        owner,
+        first_gas_coin(&test_cluster.wallet, owner).await,
+        budget,
+        rgp,
+    );
+    let response = test_cluster
+        .wallet
+        .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&claim))
+        .await
+        .expect("the claim must execute");
+    let effects = response.effects.expect("response must include effects");
+    assert!(effects.status().is_ok(), "{:?}", effects.status());
+    let account_id = ObjectId::from(owner);
+    let Owner::Shared(initial_shared_version) = effects
+        .created()
+        .iter()
+        .find(|o| o.reference.object_id == account_id)
+        .expect("the claim must create the account")
+        .owner
+        .clone()
+    else {
+        panic!("the account must be shared");
+    };
+
+    let mut builder = ProgrammableTransactionBuilder::new();
+    let account = builder
+        .obj(CallArg::Shared(SharedObjectReference::new(
+            account_id,
+            initial_shared_version,
+            true,
+        )))
+        .unwrap();
+    let name = builder.pure(1u64).unwrap();
+    let value = builder.pure(1u64).unwrap();
+    builder.programmable_move_call(
+        ObjectId::FRAMEWORK,
+        Identifier::from_static("smart_account"),
+        Identifier::from_static("add_field"),
+        vec![TypeTag::U64, TypeTag::U64],
+        vec![account, name, value],
+    );
+    let tx = Transaction::new_programmable(
+        owner,
+        vec![first_gas_coin(&test_cluster.wallet, owner).await],
+        builder.finish(),
+        budget,
+        rgp,
+    );
+
+    let error = test_cluster
+        .wallet
+        .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&tx))
+        .await
+        .expect_err("a plain signature for the claimed address must be rejected");
+    assert!(
+        error
+            .to_string()
+            .contains("must sign with a MoveAuthenticator"),
+        "unexpected error: {error}"
+    );
+
+    let response =
+        execute_as_claimed_account(&test_cluster, &keypair, tx, initial_shared_version).await;
+    let effects = response.effects.expect("response must include effects");
+    assert!(effects.status().is_ok(), "{:?}", effects.status());
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/// Executes `tx`, sent by a claimed account, signed by the account's built-in
+/// authenticator with `keypair`, as an explicit account must sign. A
+/// just-claimed account is not visible at the commit until its claim is a
+/// few commits old, so a rejection is retried for a while.
+#[cfg(msim)]
+async fn execute_as_claimed_account(
+    test_cluster: &test_cluster::TestCluster,
+    keypair: &iota_sdk_crypto::simple::SimpleKeypair,
+    tx: iota_sdk_types::Transaction,
+    initial_shared_version: iota_sdk_types::Version,
+) -> iota_json_rpc_types::IotaTransactionBlockResponse {
+    use iota_sdk_crypto::Signer;
+    use iota_sdk_types::{
+        MoveAuthenticatorV1, ObjectId, SenderSignedTransaction, SharedObjectReference,
+        UserSignature,
+        crypto::{Intent, IntentMessage, SimpleSignature},
+    };
+    use iota_types::transaction::{CallArg, TransactionAPI, TransactionEnvelope};
+
+    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx.clone());
+    let signature: SimpleSignature = keypair.sign(&intent_msg.signing_digest());
+    let signature_bytes = UserSignature::Simple(signature).to_bytes();
+    let authenticator = MoveAuthenticatorV1::new(
+        vec![CallArg::Pure(
+            bcs::to_bytes(&signature_bytes).expect("signature bytes encode"),
+        )],
+        vec![],
+        SharedObjectReference::new(ObjectId::from(tx.sender()), initial_shared_version, false),
+    );
+    let mut last_error = None;
+    for _ in 0..30 {
+        let signed = TransactionEnvelope::new(SenderSignedTransaction::new(
+            tx.clone(),
+            vec![UserSignature::MoveAuthenticator(
+                authenticator.clone().into(),
+            )],
+        ));
+        match test_cluster
+            .wallet
+            .execute_transaction_may_fail(signed)
+            .await
+        {
+            Ok(response) => return response,
+            Err(error) => {
+                last_error = Some(error);
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+        }
+    }
+    panic!("the account's transaction must execute: {last_error:?}");
+}
 
 /// Fetch the first gas coin `ObjectRef` owned by a wallet address.
 #[cfg(msim)]
