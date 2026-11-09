@@ -75,3 +75,5 @@
 73: RandomnessStateIsInMoveAuthenticatorInput
 74: InvalidArgumentIndex
 75: InputObjectNotAvailableAtCommit
+76: AccountAlreadyExplicit
+77: PlainSignatureForExplicitAccount

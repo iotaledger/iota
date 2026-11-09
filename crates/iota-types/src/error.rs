@@ -393,6 +393,14 @@ pub enum UserInputError {
         object_id: ObjectId,
         version: Option<Version>,
     },
+    #[error(
+        "Account {address} is already explicit: its account object exists, or another claim of it was sequenced in this epoch"
+    )]
+    AccountAlreadyExplicit { address: Address },
+    #[error(
+        "Account {address} is explicit, so it must sign with a MoveAuthenticator, not a plain signature"
+    )]
+    PlainSignatureForExplicitAccount { address: Address },
 }
 
 /// Formats `version` as " at version {version}", or as nothing when it is

@@ -286,6 +286,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 41: Enable built-in Move authenticators in devnet.
 //             Accept the `ClaimAccount` transaction kind in devnet, which
 //             creates an account object at the sender's address.
+//             Reject plain signatures for the addresses claims make explicit,
+//             in devnet.
 //             Introduce Move native functions for validating public keys for
 //             Ed25519, Secp256k1, Secp256r1, and MultiSig signature schemes,
 //             and deriving IOTA addresses from public keys.
@@ -861,6 +863,14 @@ struct FeatureFlags {
     // shared-object scheduling.
     #[serde(skip_serializing_if = "is_false")]
     enable_validator_attestation: bool,
+
+    // If true, post-consensus validation and admission reject a transaction in
+    // which an address that a `ClaimAccount` made explicit signs with a plain
+    // signature rather than a `MoveAuthenticator`. Once on, it stays on in every
+    // later version, also if claims are turned off, so that a claimed address
+    // never accepts plain signatures again.
+    #[serde(skip_serializing_if = "is_false")]
+    reject_plain_signatures_for_explicit_accounts: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2453,6 +2463,11 @@ impl ProtocolConfig {
         self.feature_flags.disallow_self_identifier_in_transactions
     }
 
+    pub fn reject_plain_signatures_for_explicit_accounts(&self) -> bool {
+        self.feature_flags
+            .reject_plain_signatures_for_explicit_accounts
+    }
+
     pub fn consensus_dedup_only_recorded_messages(&self) -> bool {
         self.feature_flags.consensus_dedup_only_recorded_messages
     }
@@ -4040,6 +4055,10 @@ impl ProtocolConfig {
                         // Enable claiming an account for the sender's address in
                         // devnet only.
                         cfg.feature_flags.enable_claim_account_transaction = true;
+                        // Reject plain signatures for the addresses claims make
+                        // explicit.
+                        cfg.feature_flags
+                            .reject_plain_signatures_for_explicit_accounts = true;
 
                         // Bounds on a ClaimAccount's cost, so a claim cannot run
                         // out of gas at any admissible gas price or key size.
@@ -4257,6 +4276,11 @@ impl ProtocolConfig {
 
     pub fn set_enable_claim_account_transaction_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_claim_account_transaction = val;
+    }
+
+    pub fn set_reject_plain_signatures_for_explicit_accounts_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .reject_plain_signatures_for_explicit_accounts = val;
     }
 
     pub fn set_disallow_new_modules_in_deps_only_packages_for_testing(&mut self, val: bool) {
@@ -4987,6 +5011,52 @@ mod test {
                         "version {version} on {chain:?} runs the P-COOL flow without the \
                          regex reference safety budget"
                     );
+                }
+            }
+        }
+    }
+
+    /// Every version and chain that accepts `ClaimAccount` runs the P-COOL
+    /// flow, whose post-consensus validation is what keeps a second claim of
+    /// an address from being kept.
+    #[test]
+    fn every_version_with_claim_account_runs_the_pcool_flow() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                assert!(
+                    !config.enable_claim_account_transaction() || config.enable_pcool_flow(),
+                    "version {version} on {chain:?} accepts ClaimAccount without the P-COOL flow"
+                );
+            }
+        }
+    }
+
+    /// Every version and chain that accepts `ClaimAccount` rejects plain
+    /// signatures for the addresses claims make explicit, and once a version
+    /// rejects them, every later version does too, whether or not it still
+    /// accepts claims. Otherwise a claimed address would accept plain
+    /// signatures again.
+    #[test]
+    fn plain_signatures_for_explicit_accounts_stay_rejected() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            let mut rejected_since = None;
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                let rejects = config.reject_plain_signatures_for_explicit_accounts();
+                assert!(
+                    !config.enable_claim_account_transaction() || rejects,
+                    "version {version} on {chain:?} accepts ClaimAccount but not the rule \
+                     that rejects plain signatures for claimed addresses"
+                );
+                if let Some(since) = rejected_since {
+                    assert!(
+                        rejects,
+                        "version {version} on {chain:?} accepts plain signatures for claimed \
+                         addresses again, although version {since} rejected them"
+                    );
+                } else if rejects {
+                    rejected_since = Some(version);
                 }
             }
         }
