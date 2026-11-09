@@ -45,8 +45,8 @@ impl NetworkPublicKey {
 }
 
 impl NetworkKeyPair {
-    pub fn new(keypair: iota_sdk_crypto::ed25519::Ed25519PrivateKey) -> Self {
-        Self(keypair)
+    pub fn new(private_key: iota_sdk_crypto::ed25519::Ed25519PrivateKey) -> Self {
+        Self(private_key)
     }
 
     pub fn generate<R: rand08::RngCore + rand08::CryptoRng>(rng: &mut R) -> Self {

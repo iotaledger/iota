@@ -52,8 +52,8 @@ pub struct StarfishManager {
 
 impl StarfishManager {
     /// NOTE: Starfish protocol key uses Ed25519 instead of BLS.
-    /// But for security, the protocol keypair must be different from the
-    /// network keypair.
+    /// But for security, the protocol private key must be different from the
+    /// network private key.
     pub fn new(
         protocol_private_key: iota_types::crypto::NetworkPrivateKey,
         network_private_key: iota_types::crypto::NetworkPrivateKey,
