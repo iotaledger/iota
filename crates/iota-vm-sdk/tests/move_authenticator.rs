@@ -179,8 +179,7 @@ fn move_authenticator_accepts() {
 
 /// An accepting `MoveAuthenticator` paired with a transaction body that aborts
 /// must still report `SignatureStatus::Verified` — a body failure is not an
-/// authentication failure. This exercises the re-run in
-/// `execute_with_move_authenticators`: run the free-access fixture once (the
+/// authentication failure. Run the free-access fixture once (the
 /// `add_field` body succeeds), seed the created dynamic field back into the
 /// store, then replay the identical transaction so `add_field` aborts on the
 /// now-existing field while the free-access authenticator still accepts.
@@ -221,16 +220,14 @@ fn move_authenticator_accepts_but_aborting_body_stays_verified() {
     );
 }
 
-/// The re-run must meter at the same budget the combined run used.
 /// In dev-inspect the declared budget is often still `0` (not yet settled) and
-/// the combined run meters at the dev-inspect budget instead; a re-run metered
-/// at the declared `0` would run the authenticator out of gas and misreport a
-/// body abort as `SignatureStatus::Failed`. Same flow as
+/// the run meters at the dev-inspect budget instead, so a body abort must not
+/// be misreported as `SignatureStatus::Failed`. Same flow as
 /// [`move_authenticator_accepts_but_aborting_body_stays_verified`], with the
 /// declared budget zeroed (the free-access authenticator ignores the message,
 /// so the mutated transaction still authenticates).
 #[test]
-fn move_authenticator_dev_inspect_rerun_ignores_zero_declared_budget() {
+fn move_authenticator_dev_inspect_zero_declared_budget_body_abort_stays_verified() {
     let f = load("move_auth_free_access_valid.json");
     let mut tx = f.transaction();
     tx.gas_data_mut().budget = 0;
@@ -261,9 +258,8 @@ fn move_authenticator_dev_inspect_rerun_ignores_zero_declared_budget() {
         vm.store_mut().insert(obj);
     }
 
-    // Second run: the body aborts, triggering the re-run. Metered at
-    // the combined run's budget the free-access authenticator still accepts;
-    // metered at the declared `0` it would run out of gas and misreport.
+    // Second run: the body aborts while the free-access authenticator still
+    // accepts.
     let second = vm
         .execute_signed(
             SenderSignedTransaction::new(tx, f.decoded_signatures()),

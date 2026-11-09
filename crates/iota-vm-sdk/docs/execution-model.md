@@ -63,16 +63,11 @@ differ only in the mock-gas rule and whether effects are committed.
 
 ### Authenticator outcome
 
-The authenticator path runs the authenticators and body together to effects. On
-failure the cause is ambiguous, so:
-
-- Failure in a command **after** the authenticators' fake command 0 → a body
-  abort, never a rejection. The authenticators passed; no re-run.
-- Failure in command 0 or unattributed → re-run the authenticators alone (via
-  `authenticate_transaction`) to tell a rejection from a body abort. The re-run
-  meters at the same budget the combined run used (the full tx budget outside
-  `DevInspect`, matching post-consensus), so it never reports a rejection for a
-  run the combined execution had enough gas for.
+The authenticator path runs the authenticators and body together to effects.
+The engine returns the authentication error separately from the effects, so a
+rejection and a body abort are told apart without another run: the error is
+`SignatureStatus::Failed`, a body abort stays `Verified`. The error carries only
+the `ExecutionErrorKind` the node reports, without a source or command index.
 
 A protocol version that predates Move authentication (no `max_auth_gas`) is
 rejected up front with `UnsupportedProtocolVersion` rather than reaching the
