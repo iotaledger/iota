@@ -26,6 +26,16 @@ parse_ms() {
   fi
 }
 INTERVAL=$(parse_ms "$INTERVAL") || exit 1
+# The metrics read from Prometheus, the measured pool shares and the
+# consensus figures cover the spam window from MEASURE_FROM_SECS after its
+# start, so the queue filling up at the start is left out. 0 covers the
+# whole window. The time series always cover the whole window.
+MEASURE_FROM_SECS="${MEASURE_FROM_SECS:-0}"
+if ! [[ "$MEASURE_FROM_SECS" =~ ^[0-9]+$ ]] \
+  || [ $(( ${DURATION%s} - MEASURE_FROM_SECS )) -lt 10 ]; then
+  echo "Error: MEASURE_FROM_SECS=$MEASURE_FROM_SECS must be whole seconds that leave at least 10 s of DURATION=$DURATION to measure" >&2
+  exit 1
+fi
 GAS_CHUNK_SIZE="${GAS_CHUNK_SIZE:-500}"
 NUM_TRANSFER_ACCOUNTS="${NUM_TRANSFER_ACCOUNTS:-2}"
 # Persistent gas-pool cache dir (survives across runs). Each subprocess gets
@@ -140,15 +150,20 @@ SM_T0=$(date +%s)
 mark() { echo "  [T+$(($(date +%s) - SM_T0))s] [sm] $*"; }
 mark "stress-multi start"
 
-# Build stress.rs once before forking subprocesses. Each subprocess uses
-# `cargo run --release` which will auto-rebuild if needed, but doing it serially
-# here avoids 8 parallel cargo invocations racing on the build directory.
-echo "=> Pre-building iota-benchmark (cargo build --release -p iota-benchmark)..."
-cargo build --release -p iota-benchmark --bin stress || {
-  echo "Error: build failed" >&2
+# The stress client is a prebuilt binary from the network-benchmark repo
+# (see STRESS_BIN in stress-load-shedding.sh). Check it once here, so a
+# missing or outdated binary fails before any gas setup.
+STRESS_BIN="${STRESS_BIN:-$SCRIPT_DIR/../network-benchmark/target/release/stress}"
+if [ ! -x "$STRESS_BIN" ]; then
+  echo "Error: stress client not found at STRESS_BIN=$STRESS_BIN" >&2
   exit 1
-}
-mark "cargo build done"
+fi
+stress_help=$("$STRESS_BIN" --help 2>/dev/null || true)
+if ! grep -q -- '--submit-once' <<<"$stress_help"; then
+  echo "Error: $STRESS_BIN has no --submit-once option; it predates the load shedding client" >&2
+  exit 1
+fi
+mark "stress client checked: $STRESS_BIN"
 
 # Master timestamp + parent dir under sweeps/latest/logs/ so each
 # invocation is preserved.
@@ -254,7 +269,21 @@ for ((i=0; i<N; i++)); do
     proc_open_loop="${OPEN_LOOP:-false}"
   fi
   pool_labels+=("$pool")
-  echo "   process $i [$pool] → $fn  (qps=$proc_qps burst=$proc_burst open_loop=$proc_open_loop, log: $log, cache: ${proc_cache:-disabled})"
+  # Spikes come from the first spammer process only, so that each spike has
+  # the configured size.
+  if [ "$i" -eq 0 ]; then
+    proc_spike_size="${SPIKE_SIZE:-0}"
+  else
+    proc_spike_size=0
+  fi
+  echo "   process $i [$pool] → $fn  (qps=$proc_qps burst=$proc_burst open_loop=$proc_open_loop submit_once=${SUBMIT_ONCE:-true} spike_size=$proc_spike_size, log: $log, cache: ${proc_cache:-disabled})"
+  STRESS_BIN="$STRESS_BIN" \
+  SUBMIT_ONCE="${SUBMIT_ONCE:-true}" \
+  MAX_OUTSTANDING_PER_WORKER="${MAX_OUTSTANDING_PER_WORKER:-}" \
+  SPIKE_SIZE="$proc_spike_size" \
+  SPIKE_AT="${SPIKE_AT:-0}" \
+  SPIKE_REPEAT="${SPIKE_REPEAT:-1}" \
+  SPIKE_INTERVAL="${SPIKE_INTERVAL:-0}" \
   QPS="$proc_qps" \
   DURATION="$DURATION" \
   WORKERS="$proc_workers" \
@@ -380,6 +409,9 @@ SPAM_START_EPOCH=$(date +%s)
 SPAM_DURATION_SECS=$(echo "$DURATION" | sed 's/s$//')
 SPAM_END_EPOCH=$((SPAM_START_EPOCH + SPAM_DURATION_SECS))
 echo "=> Spam phase running (DURATION=$DURATION, INTERVAL=$INTERVAL)..."
+if [ "$MEASURE_FROM_SECS" -gt 0 ]; then
+  echo "=> Metrics cover the spam window from ${MEASURE_FROM_SECS}s on."
+fi
 mark "spam start"
 
 echo "=> Waiting for all $N processes to finish (pids: ${pids[*]})"
@@ -489,7 +521,15 @@ else
 fi
 
 # Window: spam start → end + a small grace to capture the last scrape.
-WINDOW=$(( SPAM_END_EPOCH - SPAM_START_EPOCH + 5 ))
+# With MEASURE_FROM_SECS, it starts that many seconds after the spam start
+# instead, without the grace, which would reach back before that point:
+# the queries end at SPAM_END_EPOCH.
+MEASURE_START_EPOCH=$((SPAM_START_EPOCH + MEASURE_FROM_SECS))
+if [ "$MEASURE_FROM_SECS" -gt 0 ]; then
+  WINDOW=$(( SPAM_END_EPOCH - MEASURE_START_EPOCH ))
+else
+  WINDOW=$(( SPAM_END_EPOCH - SPAM_START_EPOCH + 5 ))
+fi
 if [ "$WINDOW" -lt 10 ]; then WINDOW=10; fi
 
 # Helper: run an instant PromQL query and print the first sample's value
@@ -557,7 +597,8 @@ REJECT[consensus_semaphore_no_permits]=0
 if command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
   prom_query="sum by (source) (increase(transaction_overload_sources{host=~\"validator.*\"}[${WINDOW}s]))"
   prom_resp=$(curl -sfG --max-time 5 "$PROM_URL/api/v1/query" \
-    --data-urlencode "query=$prom_query" 2>/dev/null || echo "")
+    --data-urlencode "query=$prom_query" \
+    --data-urlencode "time=$SPAM_END_EPOCH" 2>/dev/null || echo "")
   if [ -n "$prom_resp" ]; then
     while IFS=$'\t' read -r src val; do
       [ -z "$src" ] && continue
@@ -704,6 +745,192 @@ VALIDATOR_MEM_PEAK=$(prom_scalar "max(max_over_time(container_memory_usage_bytes
 [ -z "$VALIDATOR_CPU_SECONDS" ] && VALIDATOR_CPU_SECONDS=0
 [ -z "$VALIDATOR_MEM_PEAK" ] && VALIDATOR_MEM_PEAK=0
 
+# The node's admission metrics. Only the target validator admits client
+# transactions, so summing over hosts reads that validator. Empty when the
+# node predates these metrics.
+#   fill:     consensus queue length at each admission decision, as a
+#             percentage of max_pending_transactions, by outcome.
+#   stretch:  consecutive decisions with the same outcome; mean length, and
+#             p99 of how long such a stretch lasted.
+#   wait:     how long a user transaction admitted on the P-COOL path held
+#             its slot in the consensus queue, until processed via consensus.
+#   settings: the load shedding settings the node was built with.
+adm_quantile() {
+  prom_scalar "histogram_quantile($1, sum by (le) (rate(${2}_bucket{host=~\"validator.*\"${3:+,$3}}[${WINDOW}s])))"
+}
+adm_mean() {
+  prom_scalar "sum(increase(${1}_sum{host=~\"validator.*\"${2:+,$2}}[${WINDOW}s])) / sum(increase(${1}_count{host=~\"validator.*\"${2:+,$2}}[${WINDOW}s]))"
+}
+adm_count() {
+  prom_scalar "sum(increase(${1}_count{host=~\"validator.*\"${2:+,$2}}[${WINDOW}s]))"
+}
+FILL_ACC_P50=$(adm_quantile 0.50 consensus_queue_fill_at_admission 'outcome="accepted"')
+FILL_ACC_P90=$(adm_quantile 0.90 consensus_queue_fill_at_admission 'outcome="accepted"')
+FILL_ACC_P99=$(adm_quantile 0.99 consensus_queue_fill_at_admission 'outcome="accepted"')
+FILL_ACC_MEAN=$(adm_mean consensus_queue_fill_at_admission 'outcome="accepted"')
+FILL_ACC_COUNT=$(adm_count consensus_queue_fill_at_admission 'outcome="accepted"')
+FILL_REJ_P50=$(adm_quantile 0.50 consensus_queue_fill_at_admission 'outcome="rejected"')
+FILL_REJ_P99=$(adm_quantile 0.99 consensus_queue_fill_at_admission 'outcome="rejected"')
+FILL_REJ_MEAN=$(adm_mean consensus_queue_fill_at_admission 'outcome="rejected"')
+FILL_REJ_COUNT=$(adm_count consensus_queue_fill_at_admission 'outcome="rejected"')
+STRETCH_LEN_ACC_MEAN=$(adm_mean consensus_queue_admission_stretch_length 'outcome="accepted"')
+STRETCH_LEN_REJ_MEAN=$(adm_mean consensus_queue_admission_stretch_length 'outcome="rejected"')
+STRETCH_LEN_REJ_P99=$(adm_quantile 0.99 consensus_queue_admission_stretch_length 'outcome="rejected"')
+STRETCH_DUR_ACC_P99=$(adm_quantile 0.99 consensus_queue_admission_stretch_duration 'outcome="accepted"')
+STRETCH_DUR_REJ_P99=$(adm_quantile 0.99 consensus_queue_admission_stretch_duration 'outcome="rejected"')
+WAIT_FILTER='tx_type=~".*user_transaction",processed_method="processed_via_consensus"'
+WAIT_ADM_P50=$(adm_quantile 0.50 consensus_queue_wait_since_admission "$WAIT_FILTER")
+WAIT_ADM_P90=$(adm_quantile 0.90 consensus_queue_wait_since_admission "$WAIT_FILTER")
+WAIT_ADM_P99=$(adm_quantile 0.99 consensus_queue_wait_since_admission "$WAIT_FILTER")
+WAIT_ADM_MEAN=$(adm_mean consensus_queue_wait_since_admission "$WAIT_FILTER")
+node_setting() {
+  prom_scalar "max(consensus_queue_settings{host=~\"validator.*\",setting=\"$1\"})"
+}
+SET_MAX_PENDING=$(node_setting max_pending_transactions)
+SET_SOFT_PCT=$(node_setting soft_limit_pct)
+SET_SAT_PCT=$(node_setting saturation_pct)
+SET_PERMITS=$(node_setting submit_permits)
+SET_SEM_SHEDDING=$(node_setting semaphore_shedding_enabled)
+
+# Consensus over the same window, written to consensus.json for sweep.sh:
+# how often it commits and how fast rounds advance, what a commit carries,
+# what each validator proposes and why, how leaders were decided, how long
+# transactions take to be sequenced, and what the nodes dropped after
+# consensus. Gauges that only grow (commit index, rounds) count as their
+# rise over the window. Means come from the _sum and _count pairs that
+# Starfish exports. Figures every validator sees alike take the max over
+# validators; figures about a validator's own blocks are kept per host.
+PROM_URL="$PROM_URL" WINDOW="$WINDOW" END_EPOCH="$SPAM_END_EPOCH" python3 - <<'PY' > "$PARENT_DIR/consensus.json" 2>/dev/null || echo '{}' > "$PARENT_DIR/consensus.json"
+import json, math, os, urllib.parse, urllib.request
+
+prom = os.environ["PROM_URL"]
+window = int(os.environ["WINDOW"])
+end = os.environ["END_EPOCH"]
+V = '{host=~"validator.*"}'
+W = f"[{window}s]"
+
+
+def query(expr):
+    url = f"{prom}/api/v1/query?" + urllib.parse.urlencode({"query": expr, "time": end})
+    try:
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            return json.load(resp).get("data", {}).get("result", [])
+    except (OSError, ValueError):
+        return []
+
+
+def number(raw):
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return round(value, 4) if math.isfinite(value) else None
+
+
+def scalar(expr):
+    rows = query(expr)
+    return number(rows[0]["value"][1]) if rows else None
+
+
+def by(expr, *labels):
+    return {
+        "/".join(row["metric"].get(label, "?") for label in labels): number(row["value"][1])
+        for row in query(expr)
+    }
+
+
+def rise_per_sec(gauge):
+    return scalar(f"max(max_over_time({gauge}{V}{W}) - min_over_time({gauge}{V}{W})) / {window}")
+
+
+def mean_by_host(pair):
+    return by(f"sum by (host) (increase({pair}_sum{V}{W})) / sum by (host) (increase({pair}_count{V}{W}))", "host")
+
+
+def max_mean(pair):
+    values = [value for value in mean_by_host(pair).values() if value is not None]
+    return max(values) if values else None
+
+
+def quantiles(hist):
+    return {
+        f"p{int(q * 100)}": scalar(f"histogram_quantile({q}, sum by (le) (rate({hist}_bucket{V}{W})))")
+        for q in (0.5, 0.99)
+    }
+
+
+by_host = {}
+
+
+def put(field, values):
+    for host, value in values.items():
+        by_host.setdefault(host, {})[field] = value
+
+
+put("blocks_per_sec", by(f"sum by (host) (rate(consensus_proposed_blocks{V}{W}))", "host"))
+put("block_transactions_mean", mean_by_host("consensus_proposed_block_transactions"))
+put("block_bytes_mean", mean_by_host("consensus_proposed_block_size"))
+put("proposal_interval_secs_mean", mean_by_host("consensus_block_proposal_interval"))
+put("leader_wait_ms_mean", by(f"sum by (host) (increase(consensus_block_proposal_leader_wait_ms{V}{W})) / sum by (host) (increase(consensus_block_proposal_leader_wait_count{V}{W}))", "host"))
+put("leader_waits_per_sec", by(f"sum by (host) (rate(consensus_block_proposal_leader_wait_count{V}{W}))", "host"))
+for field, metric in (("proposals_by_reason", "consensus_proposed_blocks"),
+                      ("skipped_proposals_by_reason", "consensus_core_skipped_proposals")):
+    for key, value in by(f"sum by (host, reason) (increase({metric}{V}{W}))", "host", "reason").items():
+        host, reason = key.split("/", 1)
+        by_host.setdefault(host, {}).setdefault(field, {})[reason] = value
+
+print(json.dumps({
+    "window_secs": window,
+    "commits_per_sec": rise_per_sec("consensus_last_commit_index"),
+    "committed_leader_rounds_per_sec": rise_per_sec("consensus_last_committed_leader_round"),
+    "rounds_per_sec": rise_per_sec("consensus_threshold_clock_round"),
+    "commit_interval_secs_mean": max_mean("consensus_commit_round_advancement_interval"),
+    "commit_timestamp_gap_ms_mean": max_mean("consensus_last_commit_time_diff"),
+    "per_commit_mean": {
+        "transactions": max_mean("consensus_transactions_per_commit_count"),
+        "blocks": max_mean("consensus_blocks_per_commit_count"),
+        "non_empty_blocks": max_mean("consensus_non_empty_blocks_per_commit_count"),
+        "sub_dags": max_mean("consensus_sub_dags_per_commit_count"),
+    },
+    "decided_leaders": by(f"max by (commit_type) (sum by (host, commit_type) (increase(consensus_decided_leaders_total{V}{W})))", "commit_type"),
+    "committed_user_transactions_per_sec": by(f"max by (authority) (increase(consensus_committed_user_transactions{V}{W})) / {window}", "authority"),
+    "transaction_commit_latency_secs": quantiles("consensus_transaction_commit_latency"),
+    "block_header_commit_latency_secs": quantiles("consensus_block_header_commit_latency"),
+    "dropped_after_consensus": {
+        "transactions": scalar(f"max(increase(consensus_handler_load_shedding_dropped_transactions{V}{W}))"),
+        "shedding_pct_avg": scalar(f"max(avg_over_time(consensus_handler_load_shedding_percentage{V}{W}))"),
+        "shedding_pct_max": scalar(f"max(max_over_time(consensus_handler_load_shedding_percentage{V}{W}))"),
+    },
+    "commit_execution_lag_max": scalar(f"max(max_over_time(consensus_handler_commit_execution_lag{V}{W}))"),
+    "calculated_throughput_avg": scalar(f"max(avg_over_time(consensus_calculated_throughput{V}{W}))"),
+    "by_host": by_host,
+}))
+PY
+
+# One line for summary.txt and the sweep log.
+CONSENSUS_LINE=$(python3 - "$PARENT_DIR/consensus.json" <<'PY' 2>/dev/null
+import json, sys
+
+try:
+    c = json.load(open(sys.argv[1]))
+except (OSError, ValueError):
+    c = {}
+
+
+def fmt(value, spec):
+    return format(value, spec) if isinstance(value, (int, float)) else "n/a"
+
+
+block_txs = [h.get("block_transactions_mean") for h in (c.get("by_host") or {}).values()]
+block_txs = max((v for v in block_txs if v is not None), default=None)
+print(f"consensus: commits_per_sec={fmt(c.get('commits_per_sec'), '.2f')} "
+      f"rounds_per_sec={fmt(c.get('rounds_per_sec'), '.2f')} "
+      f"txs_per_commit={fmt((c.get('per_commit_mean') or {}).get('transactions'), '.1f')} "
+      f"max_block_txs_mean={fmt(block_txs, '.1f')} "
+      f"dropped_after_consensus={fmt((c.get('dropped_after_consensus') or {}).get('transactions'), '.0f')}")
+PY
+)
+
 # Time-series captures for post-hoc analysis (e.g. plotting cliff vs ramp,
 # inspecting queue-depth shape during a burst). One JSON per metric, saved
 # alongside summary.txt under the run directory. We aggregate across hosts
@@ -753,12 +980,12 @@ except Exception:
       ;;
   esac
 done
-# Derive per-pool TPS and accept-rate. Uses DURATION-seconds field from the
-# stats file via Prometheus WINDOW (close enough; the stress.rs duration
-# field is the same span).
-SPAMMER_TPS=$(awk -v s=$SPAMMER_SUCCESS -v w=$WINDOW 'BEGIN{if(w>0) printf "%.2f", s/w; else print 0}')
-HONEST_TPS=$(awk -v s=$HONEST_SUCCESS -v w=$WINDOW 'BEGIN{if(w>0) printf "%.2f", s/w; else print 0}')
-HONEST_CL_TPS=$(awk -v s=$HONEST_CL_SUCCESS -v w=$WINDOW 'BEGIN{if(w>0) printf "%.2f", s/w; else print 0}')
+# Derive per-pool TPS and accept-rate over the whole spam window, which the
+# success counts from the stats files cover, whatever MEASURE_FROM_SECS is.
+SPAM_SECS=$(( SPAM_END_EPOCH - SPAM_START_EPOCH ))
+SPAMMER_TPS=$(awk -v s=$SPAMMER_SUCCESS -v w=$SPAM_SECS 'BEGIN{if(w>0) printf "%.2f", s/w; else print 0}')
+HONEST_TPS=$(awk -v s=$HONEST_SUCCESS -v w=$SPAM_SECS 'BEGIN{if(w>0) printf "%.2f", s/w; else print 0}')
+HONEST_CL_TPS=$(awk -v s=$HONEST_CL_SUCCESS -v w=$SPAM_SECS 'BEGIN{if(w>0) printf "%.2f", s/w; else print 0}')
 SPAMMER_TOTAL=$((SPAMMER_SUCCESS + SPAMMER_ERROR))
 HONEST_TOTAL=$((HONEST_SUCCESS + HONEST_ERROR))
 HONEST_CL_TOTAL=$((HONEST_CL_SUCCESS + HONEST_CL_ERROR))
@@ -766,12 +993,126 @@ SPAMMER_ACCEPT_PCT=$(awk -v s=$SPAMMER_SUCCESS -v t=$SPAMMER_TOTAL 'BEGIN{if(t>0
 HONEST_ACCEPT_PCT=$(awk -v s=$HONEST_SUCCESS -v t=$HONEST_TOTAL 'BEGIN{if(t>0) printf "%.2f", 100.0*s/t; else print 0}')
 HONEST_CL_ACCEPT_PCT=$(awk -v s=$HONEST_CL_SUCCESS -v t=$HONEST_CL_TOTAL 'BEGIN{if(t>0) printf "%.2f", 100.0*s/t; else print 0}')
 
-# Extract the targeted-validators line that stress.rs's TD prints at startup.
-# All processes select identically (deterministic via sorted display names
-# from genesis), so process-0 is representative. Strip tracing's ANSI color
-# codes first so the summary line is greppable downstream.
-TARGET_VALIDATOR=$(grep "Targeting [0-9]\+ of [0-9]\+ validators" "$PARENT_DIR/process-0.log" 2>/dev/null \
-  | tail -1 | sed -r 's/\x1B\[[0-9;]*[mGKHF]//g' | grep -oE '\[[^]]*\]' | tail -1 || echo "?")
+# Per-pool totals from each process's `send_report` (written with
+# SUBMIT_ONCE=true): attempts by outcome, first attempts accepted, whether
+# every process held its send rate, and the spikes. "measured" counts the
+# steady sends from MEASURE_FROM_SECS on, and how many of them were
+# accepted, from the client's counts for each second. Written to pools.json
+# for sweep.sh; a pool without send reports gets null.
+POOL_LABELS="${pool_labels[*]}" PARENT_DIR="$PARENT_DIR" MEASURE_FROM_SECS="$MEASURE_FROM_SECS" python3 - <<'PY' > "$PARENT_DIR/pools.json" 2>/dev/null || echo '{}' > "$PARENT_DIR/pools.json"
+import glob, json, os
+
+parent = os.environ["PARENT_DIR"]
+labels = os.environ["POOL_LABELS"].split()
+measure_from = int(os.environ.get("MEASURE_FROM_SECS") or 0)
+counts = ["sent", "answered", "accepted", "already_executed",
+          "rejected_overload_retry_after", "rejected_overload_no_hint",
+          "rejected_other", "transport_errors", "no_answer_at_end",
+          "first_attempts", "first_attempts_accepted"]
+pools = {}
+for i, label in enumerate(labels):
+    files = glob.glob(f"{parent}/process-{i}/*/benchmark_stats.json")
+    if not files:
+        continue
+    try:
+        with open(files[0]) as f:
+            stats = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        continue
+    report = stats.get("send_report")
+    if not report:
+        continue
+    pool = pools.setdefault(label, {
+        **{name: 0 for name in counts},
+        "rejected_other_by_error": {},
+        "processes": 0,
+        "invalid_processes": 0,
+        "invalid_reasons": [],
+        "target_per_sec": 0.0,
+        "achieved_per_sec": 0.0,
+        "per_process": [],
+        "spikes": [],
+        "measured": {"from_secs": measure_from, "sent": 0, "accepted": 0},
+    })
+    attempts = report["attempts"]
+    for name in counts:
+        pool[name] += attempts.get(name) or 0
+    for error, n in (attempts.get("rejected_other_by_error") or {}).items():
+        pool["rejected_other_by_error"][error] = pool["rejected_other_by_error"].get(error, 0) + n
+    pool["processes"] += 1
+    if not report.get("valid", False):
+        pool["invalid_processes"] += 1
+        pool["invalid_reasons"] += [f"process {i}: {r}" for r in report.get("invalid_reasons", [])]
+    rate = report.get("send_rate") or {}
+    pool["target_per_sec"] += rate.get("target_per_sec") or 0
+    pool["achieved_per_sec"] += rate.get("achieved_per_sec") or 0
+    measured = {
+        "sent": sum((rate.get("sent_per_second") or [])[measure_from:]),
+        "accepted": sum((rate.get("accepted_per_second") or [])[measure_from:]),
+    }
+    pool["measured"]["sent"] += measured["sent"]
+    pool["measured"]["accepted"] += measured["accepted"]
+    pool["per_process"].append({
+        "process": i,
+        "valid": report.get("valid"),
+        "send_rate": {k: rate.get(k) for k in ("target_per_sec", "achieved_per_sec", "max_deviation_pct")},
+        "measured": measured,
+        "latency_ms": report.get("latency_ms"),
+        "effects": report.get("effects"),
+        "payloads_retired": (report.get("payloads") or {}).get("retired"),
+        "run_config": stats.get("run_config"),
+        "spam_window": stats.get("spam_window"),
+    })
+    pool["spikes"] += report.get("spikes") or []
+
+for pool in pools.values():
+    first = pool["first_attempts"]
+    pool["first_attempt_accept_share"] = (
+        pool["first_attempts_accepted"] / first if first else None
+    )
+    # Every send of the fixed rate sender is a first attempt; for the
+    # closed loop sender this share also counts resends.
+    measured = pool["measured"]
+    measured["accept_share"] = (
+        measured["accepted"] / measured["sent"] if measured["sent"] else None
+    )
+print(json.dumps(pools))
+PY
+
+# One line per pool in summary.txt; sweep.sh reads pools.json for the rest.
+POOL_LINES=$(python3 - "$PARENT_DIR/pools.json" <<'PY' 2>/dev/null
+import json, sys
+try:
+    pools = json.load(open(sys.argv[1]))
+except (OSError, json.JSONDecodeError):
+    pools = {}
+for label, p in sorted(pools.items()):
+    share = p.get("first_attempt_accept_share")
+    share = f"{100 * share:.2f}" if share is not None else "n/a"
+    m = p.get("measured") or {}
+    measured = ""
+    if m.get("from_secs") and m.get("accept_share") is not None:
+        measured = (f" measured_from={m['from_secs']}s measured_sent={m['sent']} "
+                    f"measured_accept_pct={100 * m['accept_share']:.2f}")
+    print(f"{label}_send_report: sent={p['sent']} accepted={p['accepted']} "
+          f"first_attempts={p['first_attempts']} first_accept_pct={share} "
+          f"overload_hint={p['rejected_overload_retry_after']} "
+          f"overload_no_hint={p['rejected_overload_no_hint']} "
+          f"other={p['rejected_other']} transport={p['transport_errors']} "
+          f"invalid_processes={p['invalid_processes']}{measured}")
+PY
+)
+
+# Which validators the client sent to. With SUBMIT_ONCE=true the client
+# prints them on one line; the transaction driver path prints its own.
+# Strip tracing's ANSI color codes first so the line is greppable.
+TARGET_VALIDATOR=$(sed -r 's/\x1B\[[0-9;]*[mGKHF]//g' "$PARENT_DIR/process-0.log" 2>/dev/null \
+  | grep -oE "Submit once: each worker sends to one of .*" | tail -1 \
+  | sed 's/^Submit once: each worker sends to one of //')
+if [ -z "$TARGET_VALIDATOR" ]; then
+  TARGET_VALIDATOR=$(grep "Targeting [0-9]\+ of [0-9]\+ validators" "$PARENT_DIR/process-0.log" 2>/dev/null \
+    | tail -1 | sed -r 's/\x1B\[[0-9;]*[mGKHF]//g' | grep -oE '\[[^]]*\]' | tail -1 || echo "?")
+fi
 
 # Save a top-level summary so this run is self-contained
 {
@@ -823,9 +1164,37 @@ TARGET_VALIDATOR=$(grep "Targeting [0-9]\+ of [0-9]\+ validators" "$PARENT_DIR/p
   echo "consensus_lat_p999:     $CONSENSUS_LAT_P999"
   echo "validator_cpu_seconds:  $VALIDATOR_CPU_SECONDS"
   echo "validator_mem_peak:     $VALIDATOR_MEM_PEAK"
+  echo "fill_accepted_p50:      $FILL_ACC_P50"
+  echo "fill_accepted_p90:      $FILL_ACC_P90"
+  echo "fill_accepted_p99:      $FILL_ACC_P99"
+  echo "fill_accepted_mean:     $FILL_ACC_MEAN"
+  echo "fill_accepted_count:    $FILL_ACC_COUNT"
+  echo "fill_rejected_p50:      $FILL_REJ_P50"
+  echo "fill_rejected_p99:      $FILL_REJ_P99"
+  echo "fill_rejected_mean:     $FILL_REJ_MEAN"
+  echo "fill_rejected_count:    $FILL_REJ_COUNT"
+  echo "stretch_len_accepted_mean: $STRETCH_LEN_ACC_MEAN"
+  echo "stretch_len_rejected_mean: $STRETCH_LEN_REJ_MEAN"
+  echo "stretch_len_rejected_p99:  $STRETCH_LEN_REJ_P99"
+  echo "stretch_dur_accepted_p99:  $STRETCH_DUR_ACC_P99"
+  echo "stretch_dur_rejected_p99:  $STRETCH_DUR_REJ_P99"
+  echo "wait_admitted_p50:      $WAIT_ADM_P50"
+  echo "wait_admitted_p90:      $WAIT_ADM_P90"
+  echo "wait_admitted_p99:      $WAIT_ADM_P99"
+  echo "wait_admitted_mean:     $WAIT_ADM_MEAN"
+  echo "setting_max_pending:    $SET_MAX_PENDING"
+  echo "setting_soft_pct:       $SET_SOFT_PCT"
+  echo "setting_sat_pct:        $SET_SAT_PCT"
+  echo "setting_permits:        $SET_PERMITS"
+  echo "setting_sem_shedding:   $SET_SEM_SHEDDING"
+  [ -n "$POOL_LINES" ] && echo "$POOL_LINES"
+  [ -n "$CONSENSUS_LINE" ] && echo "$CONSENSUS_LINE"
   echo "spam_start_epoch:       $SPAM_START_EPOCH"
   echo "spam_end_epoch:         $SPAM_END_EPOCH"
   echo "spam_duration_secs:     $SPAM_DURATION_SECS"
+  echo "measure_from_secs:      $MEASURE_FROM_SECS"
+  echo "measure_start_epoch:    $MEASURE_START_EPOCH"
+  echo "window_secs:            $WINDOW"
   echo "spammer_proc_count:     $N_SPAMMER"
   echo "honest_proc_count:      $HONEST_PROC_COUNT"
   echo "honest_cl_proc_count:   $HONEST_CL_PROC_COUNT"

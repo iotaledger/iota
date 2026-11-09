@@ -23,13 +23,10 @@ DURATION="${DURATION:-120s}"
 WORKERS="${WORKERS:-12}"
 IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-5}"
 BURST="${BURST:-0}"
-# OPEN_LOOP=true makes stress.rs recycle each payload back into its free
-# pool immediately after submission, instead of waiting for the response.
-# Per-worker fire rate then matches `target_qps` even when validator
-# round-trip latency is high. Used for cap-safety / goodput stress tests
-# where sustained validator-gate pressure matters more than per-tx
-# correctness (duplicate digests will appear but the load-shedding gate
-# runs before deduplication).
+# OPEN_LOOP=true with SUBMIT_ONCE=true is the fixed rate sender: a fresh
+# transaction at every send slot, whatever the validator answers. With
+# OPEN_LOOP=false the sender is closed loop: it resends a rejected
+# transaction unchanged, after the validator's retry hint when it gives one.
 OPEN_LOOP="${OPEN_LOOP:-false}"
 NUM_TRANSFER_ACCOUNTS="${NUM_TRANSFER_ACCOUNTS:-10}"
 NUM_CLIENT_THREADS="${NUM_CLIENT_THREADS:-4}"
@@ -46,6 +43,25 @@ FULLNODE_RPC="${FULLNODE_RPC:-http://127.0.0.1:9000}"
 # the primary FULLNODE_RPC if unset.
 FULLNODE_RPC_ALL="${FULLNODE_RPC_ALL:-$FULLNODE_RPC}"
 CLIENT_METRIC_PORT="${CLIENT_METRIC_PORT:-8081}"
+# The stress client now lives in the network-benchmark repo. STRESS_BIN is
+# its binary: built there with `cargo build --release --bin stress`, or
+# copied out of the iotaledger/stress image.
+STRESS_BIN="${STRESS_BIN:-$REPO_ROOT/../network-benchmark/target/release/stress}"
+# SUBMIT_ONCE=true sends every attempt once, straight to the target
+# validator, and records its outcome in `send_report` of the benchmark stats
+# JSON. With OPEN_LOOP=true the client is then a fixed rate sender that
+# builds a fresh transaction for every send slot.
+SUBMIT_ONCE="${SUBMIT_ONCE:-true}"
+MAX_OUTSTANDING_PER_WORKER="${MAX_OUTSTANDING_PER_WORKER:-}"
+# Spikes on top of the steady load, from a gas pool of their own. SPIKE_AT
+# counts from the start file. 0 disables them.
+SPIKE_SIZE="${SPIKE_SIZE:-0}"
+SPIKE_AT="${SPIKE_AT:-0}"
+SPIKE_REPEAT="${SPIKE_REPEAT:-1}"
+SPIKE_INTERVAL="${SPIKE_INTERVAL:-0}"
+# CPUs the client may run on (taskset list, e.g. 10-15,26-31), so that it
+# never competes with validators pinned to other CPUs. Empty: not pinned.
+CLIENT_CPUS="${CLIENT_CPUS:-}"
 READY_FILE="${READY_FILE:-}"
 START_FILE="${START_FILE:-}"
 INTERVAL="${INTERVAL:-0}"
@@ -77,6 +93,18 @@ if [[ ! -f "$GENESIS_BLOB" || ! -f "$KEYSTORE" ]]; then
     exit 1
 fi
 
+# An older build of the client lacks --submit-once and would run the
+# retrying senders instead, so refuse it.
+if [[ ! -x "$STRESS_BIN" ]]; then
+    echo "Error: stress client not found at STRESS_BIN=$STRESS_BIN" >&2
+    exit 1
+fi
+stress_help=$("$STRESS_BIN" --help 2>/dev/null || true)
+if ! grep -q -- '--submit-once' <<<"$stress_help"; then
+    echo "Error: $STRESS_BIN has no --submit-once option; it predates the load shedding client" >&2
+    exit 1
+fi
+
 start_epoch=$(date +%s)
 ts=$(date -u -d "@$start_epoch" +%Y-%m-%dT%H-%M-%SZ)
 out="$RUNS_DIR/$ts"
@@ -91,10 +119,12 @@ if [[ -f "$VALIDATOR_CFG" ]]; then
     start_pct=$(awk '/graduated-load-shedding-soft-limit-pct:/{print $2; exit}' "$VALIDATOR_CFG" || echo "?")
 fi
 
-# Detect white-flag flow (env on the running validator container).
-white_flag="?"
+# Record the protocol overrides the running validator container got.
+pcool_flow="?"
+attestation="?"
 if command -v docker >/dev/null 2>&1; then
-    white_flag=$(docker exec validator-1 sh -c 'echo "${IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW:-unset}"' 2>/dev/null || echo "?")
+    pcool_flow=$(docker exec validator-1 sh -c 'echo "${IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW:-unset}"' 2>/dev/null || echo "?")
+    attestation=$(docker exec validator-1 sh -c 'echo "${IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION:-unset}"' 2>/dev/null || echo "?")
 fi
 
 cat > "$out/params.txt" <<EOF
@@ -116,7 +146,16 @@ FULLNODE_RPC_ALL=$FULLNODE_RPC_ALL
 PROM_URL=$PROM_URL
 max_pending_transactions=$max_pending
 graduated_load_shed_start_pct=$start_pct
-white_flag_flow=$white_flag
+pcool_flow_override=$pcool_flow
+validator_attestation_override=$attestation
+STRESS_BIN=$STRESS_BIN
+SUBMIT_ONCE=$SUBMIT_ONCE
+OPEN_LOOP=$OPEN_LOOP
+SPIKE_SIZE=$SPIKE_SIZE
+SPIKE_AT=$SPIKE_AT
+SPIKE_REPEAT=$SPIKE_REPEAT
+SPIKE_INTERVAL=$SPIKE_INTERVAL
+CLIENT_CPUS=$CLIENT_CPUS
 extra_args="$*"
 EOF
 
@@ -133,24 +172,17 @@ echo
 # (LocalValidatorAggregatorProxy → validators directly via gRPC), not the
 # legacy JSON-RPC-through-fullnode path. Required setup:
 #   1. docker-compose binds each validator's 8080 to 127.0.0.{11..14}:8080
-#   2. /etc/hosts maps validator-N → 127.0.0.{1N} so the address
-#      `/dns/validator-N/tcp/8080/http` from genesis resolves on the host
+#   2. /etc/hosts maps validator-N to 127.0.0.1N, or to its docker network
+#      address 10.0.0.1N, so `/dns/validator-N/tcp/8080/http` from genesis
+#      resolves on the host
 # This eliminates HTTP/1.1 EADDRNOTAVAIL port exhaustion (HTTP/2 multiplexes)
 # and engages the white-flag pipeline at the validator. Set
 # USE_FULLNODE_FOR_EXECUTION=true to compare against the old JSON-RPC path.
 USE_FULLNODE_FOR_EXECUTION="${USE_FULLNODE_FOR_EXECUTION:-false}"
 USE_FULLNODE_FOR_RECONFIG="${USE_FULLNODE_FOR_RECONFIG:-false}"
 
-# Mirror the validator-side white-flag override on the client so
-# LocalValidatorAggregatorProxy's auto-detect (which reads
-# ProtocolConfig::get_for_version → checks `IOTA_PROTOCOL_CONFIG_*` env vars
-# at iota-protocol-config/src/lib.rs:1733) picks TD instead of QD. Without
-# these, the client's get_for_version returns the protocol-25 default
-# (white_flag=false), stress dispatches to QD's handle_transaction, and
-# validators reject with "handle_transaction is disabled when white flag
-# flow is enabled. Use submit_tx (ValidatorV2 service) instead."
-export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE="${IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE:-1}"
-export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW="${IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW:-true}"
+# The client learns whether the P-COOL flow is on from the fullnode's
+# protocol config, so it needs no protocol override of its own.
 stress_args=(
     --local false
     --fullnode-rpc-addresses "$FULLNODE_RPC_ALL"
@@ -178,6 +210,18 @@ fi
 if [ -n "$GAS_POOL_CACHE_PATH" ]; then
     stress_args+=(--gas-pool-cache-path "$GAS_POOL_CACHE_PATH")
 fi
+stress_args+=(--submit-once "$SUBMIT_ONCE")
+if [ -n "$MAX_OUTSTANDING_PER_WORKER" ]; then
+    stress_args+=(--max-outstanding-per-worker "$MAX_OUTSTANDING_PER_WORKER")
+fi
+if [ "$SPIKE_SIZE" -gt 0 ] 2>/dev/null; then
+    stress_args+=(
+        --spike-size "$SPIKE_SIZE"
+        --spike-at "$SPIKE_AT"
+        --spike-repeat "$SPIKE_REPEAT"
+        --spike-interval "$SPIKE_INTERVAL"
+    )
+fi
 # Point per-process benchmark stats at our per-run dir so the default
 # /tmp/bench_result (one global path) doesn't collide across processes /
 # UIDs. A root-owned /tmp/bench_result from a prior sudo'd run would
@@ -194,9 +238,13 @@ stress_args+=(
     --shared-counter "$SHARED_COUNTER_PCT"
 )
 
+client_prefix=""
+if [ -n "$CLIENT_CPUS" ]; then
+    client_prefix="taskset -c ${CLIENT_CPUS@Q} "
+fi
 set +e
 RUST_LOG="$LOG_LEVEL" script -qe -c \
-    "cargo run --release -p iota-benchmark --bin stress -- ${stress_args[*]@Q} ${*@Q}" \
+    "${client_prefix}${STRESS_BIN@Q} ${stress_args[*]@Q} ${*@Q}" \
     "$out/stress-stdout.log"
 stress_rc=$?
 set -e
@@ -317,7 +365,7 @@ summarize_total() {
     echo "=== Load Shedding Stress Run summary ==="
     echo "ts_utc:        $ts"
     echo "params:        QPS=$QPS  DURATION=$DURATION  WORKERS=$WORKERS  IN_FLIGHT_RATIO=$IN_FLIGHT_RATIO"
-    echo "validator:     max_pending=$max_pending  start_pct=$start_pct  white_flag=$white_flag"
+    echo "validator:     max_pending=$max_pending  start_pct=$start_pct  pcool_flow=$pcool_flow  attestation=$attestation"
     echo "wall:          ${run_seconds}s (spam window: ${spam_seconds}s)   stress_rc=$stress_rc"
     echo
     echo "[gauge] sum(sequencing_certificate_inflight) — total in-flight per validator (shedding-input)"

@@ -21,6 +21,9 @@
 #   - permit_wait/hold p50/p99         (stage B / C latency)
 #   - reject counters by category      (preventive / saturated / reactive)
 #   - spammer/honest first-pass rate   (fairness)
+#   - consensus pace and contents      (commits and rounds per second,
+#     transactions per commit and per block, leader decisions, drops
+#     after consensus), as the record's "consensus"
 #   - inflight, shed_pct, rejection rate TIME-SERIES at 100ms / 1s grid
 #     (enables sawtooth viz + degradation curves without re-running)
 #
@@ -44,10 +47,11 @@
 # `sudo ./tune-sysctl.sh` once per boot session.
 set -uo pipefail
 
-# CRITICAL: the validator-side white-flag override needs these env vars at
-# `docker compose up` time. They must be set before run.sh starts validators.
+# CRITICAL: the validators need these env vars at `docker compose up` time
+# to run the P-COOL flow. They must be set before run.sh starts validators.
+# Validator attestation stays off through the compose file's defaults.
 export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1
-export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW=true
+export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW=true
 
 ITERS="${ITERS:-1}"
 
@@ -145,6 +149,35 @@ HONEST_INTERVAL=$(parse_ms "$HONEST_INTERVAL") || exit 1
 GAS_CHUNK_SIZE="${GAS_CHUNK_SIZE:-500}"
 NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-1}"
 
+# The stress client from the network-benchmark repo, and how it sends.
+# SUBMIT_ONCE=true sends each attempt once, straight to the target
+# validator, and reports every outcome; with OPEN_LOOP=true the spammer is
+# then a fixed rate sender with a fresh transaction for every send slot.
+# SPIKE_* add one shot bursts from the first spammer process, counted from
+# the start of the spam window; SPIKE_SIZE=0 turns them off.
+STRESS_BIN="${STRESS_BIN:-/home/roman/IOTA/iotaledger/network-benchmark/target/release/stress}"
+SUBMIT_ONCE="${SUBMIT_ONCE:-true}"
+MAX_OUTSTANDING_PER_WORKER="${MAX_OUTSTANDING_PER_WORKER:-}"
+SPIKE_SIZE="${SPIKE_SIZE:-0}"
+SPIKE_AT="${SPIKE_AT:-0}"
+SPIKE_REPEAT="${SPIKE_REPEAT:-1}"
+SPIKE_INTERVAL="${SPIKE_INTERVAL:-0}"
+# MEASURE_FROM_SECS: the node metrics, the measured pool shares and the
+# consensus figures of each record cover the spam window from that many
+# seconds after its start, so the queue filling up at the start is left
+# out. 0 covers the whole window. The time series always cover all of it.
+MEASURE_FROM_SECS="${MEASURE_FROM_SECS:-0}"
+
+# Optional CPU pinning, so the client never competes with the validators
+# for CPU: the *_CPUSET values reach the compose file through the
+# environment, CLIENT_CPUS reaches the client. Empty leaves them unpinned.
+export VALIDATOR_1_CPUSET="${VALIDATOR_1_CPUSET:-}"
+export VALIDATOR_2_CPUSET="${VALIDATOR_2_CPUSET:-}"
+export VALIDATOR_3_CPUSET="${VALIDATOR_3_CPUSET:-}"
+export VALIDATOR_4_CPUSET="${VALIDATOR_4_CPUSET:-}"
+export FULLNODE_1_CPUSET="${FULLNODE_1_CPUSET:-}"
+export CLIENT_CPUS="${CLIENT_CPUS:-}"
+
 # Time-series capture via Prometheus query_range. Disable with
 # CAPTURE_TIMESERIES=false if you want smaller JSONL records.
 CAPTURE_TIMESERIES="${CAPTURE_TIMESERIES:-true}"
@@ -189,6 +222,11 @@ mkdir -p "$DATA_DIR" "$LOGS_DIR" "$PLOTS_DIR"
 
 # Derived
 DURATION_SECS=$(echo "$DURATION" | sed 's/s$//')
+if ! [[ "$MEASURE_FROM_SECS" =~ ^[0-9]+$ ]] \
+  || [ $((DURATION_SECS - MEASURE_FROM_SECS)) -lt 10 ]; then
+  echo "Error: MEASURE_FROM_SECS=$MEASURE_FROM_SECS must be whole seconds that leave at least 10 s of DURATION=$DURATION to measure" >&2
+  exit 1
+fi
 N_SPAMMER=$((NUM_PROCS - HONEST_PROC_COUNT - HONEST_CL_PROC_COUNT))
 
 # bench_driver.rs:407 splits target_qps across num_workers and requires
@@ -245,6 +283,8 @@ if [ "$HONEST_CL_PROC_COUNT" -gt 0 ]; then
 fi
 echo "        offered per iter: spammer=$SPAMMER_OFFERED  honest=$HONEST_OFFERED  honest_cl=$HONEST_CL_OFFERED"
 echo "        capture_timeseries=$CAPTURE_TIMESERIES  prom=$PROM_URL"
+echo "        measured: from ${MEASURE_FROM_SECS}s to ${DURATION_SECS}s of each spam window"
+echo "        cpu pinning: validators=[${VALIDATOR_1_CPUSET:-all}] [${VALIDATOR_2_CPUSET:-all}] [${VALIDATOR_3_CPUSET:-all}] [${VALIDATOR_4_CPUSET:-all}]  fullnode=[${FULLNODE_1_CPUSET:-all}]  client=[${CLIENT_CPUS:-all}]"
 echo
 
 # Patch a `key: int_value` line in validator-common.yaml. Used to set
@@ -390,25 +430,30 @@ else
   echo "  sudo cache  ⚠ — not primed; if sudo prompts later the iter will hang. To prime: run \`sudo -v\` before invoking, or use a keep-alive loop."
 fi
 
-if [ "$EUID" -eq 0 ]; then
-  echo "  target/ own ✓ skipped (running as root)"
+# The client is a prebuilt binary; an older build lacks --submit-once and
+# would run the retrying senders instead.
+if [ ! -x "$STRESS_BIN" ]; then
+  echo "  stress bin  ✗ not found at STRESS_BIN=$STRESS_BIN"
+  PREFLIGHT_OK=0
+elif ! grep -q -- '--submit-once' <<<"$("$STRESS_BIN" --help 2>/dev/null || true)"; then
+  echo "  stress bin  ✗ $STRESS_BIN has no --submit-once option; it predates the load shedding client"
+  PREFLIGHT_OK=0
 else
-  FOREIGN=$(find "$REPO/target" ! -uid "$(id -u)" 2>/dev/null | head -1)
-  if [ -z "$FOREIGN" ]; then
-    echo "  target/ own ✓ user-owned"
-  else
-    echo "  target/ own ✗ found foreign-owned file: $FOREIGN"
-    echo "    fix: sudo chown -R \$USER:\$USER $REPO/target"
-    PREFLIGHT_OK=0
-  fi
+  echo "  stress bin  ✓ $STRESS_BIN"
 fi
 
-if grep -q '^127\.0\.0\.11.*validator-1' /etc/hosts; then
-  echo "  /etc/hosts  ✓ validator-1..4 aliased"
-else
-  echo "  /etc/hosts  ✗ missing validator-N → 127.0.0.{11..14} entries"
-  PREFLIGHT_OK=0
-fi
+# The host reaches validator-N either through the loopback alias the compose
+# file publishes (127.0.0.1N) or directly on the docker network (10.0.0.1N).
+VALIDATOR1_ADDR=$(getent hosts validator-1 | awk '{print $1; exit}')
+case "$VALIDATOR1_ADDR" in
+  127.0.0.11|10.0.0.11)
+    echo "  /etc/hosts  ✓ validator-1 → $VALIDATOR1_ADDR"
+    ;;
+  *)
+    echo "  /etc/hosts  ✗ validator-1 resolves to '${VALIDATOR1_ADDR:-nothing}', expected 127.0.0.11 or 10.0.0.11"
+    PREFLIGHT_OK=0
+    ;;
+esac
 
 if [ "$PREFLIGHT_OK" -eq 0 ]; then
   echo
@@ -500,7 +545,7 @@ for i in $(seq 1 $ITERS); do
   # port yet — stress-multi.sh waits on the bash wrapper PID, but
   # setsid puts the stress.rs grandchild in its own process group, so
   # `wait` may return before the grandchild fully cleans up.
-  pkill -9 -f "target/release/stress " 2>/dev/null || true
+  pkill -9 -f -- "$STRESS_BIN " 2>/dev/null || true
   sleep 1
   mark "stress pkill done"
 
@@ -548,8 +593,9 @@ for i in $(seq 1 $ITERS); do
   # If a prior iter forked (panic at checkpoints/mod.rs:545 or :1299),
   # the broken checkpoint state replays deterministically on the next
   # `compose up`, looking like a "new" failure but with identical digests.
-  # Wipe the data dirs before bootstrap regenerates genesis.
-  sudo rm -rf data/validator-* data/fullnode-* data/faucet-* data/primary data/replica 2>/dev/null || true
+  # Wipe the data dirs before bootstrap regenerates genesis. cleanup.sh
+  # removes the whole data folder, which the containers write as root.
+  sudo ./cleanup.sh -f 2>&1 | tail -1 || true
   mark "data wiped"
   sudo ./bootstrap.sh -b -n 4 2>&1 | tail -3
   mark "bootstrap done"
@@ -566,13 +612,12 @@ for i in $(seq 1 $ITERS); do
     sleep 1
   done
   mark "prometheus ready"
-  # Wait for ALL 4 validators to expose the consensus inflight metric —
-  # signal that they've finished startup and are ready to accept txs.
-  # Replaces the legacy "sleep 20" which over-waited unnecessarily.
-  # Cap at 30s as a safety fallback; typical wait is 3-8s.
+  # Wait for ALL 4 validators to expose the consensus adapter's settings
+  # gauge, which is set when the adapter is built: they have finished
+  # startup and are ready to accept txs. Cap at 30s as a safety fallback.
   for attempt in $(seq 1 30); do
     ready_count=$(curl -sG --max-time 2 'http://localhost:9090/api/v1/query' \
-      --data-urlencode 'query=count(consensus_max_pending_inflight_txs{host=~"validator.*"})' \
+      --data-urlencode 'query=count(consensus_queue_settings{host=~"validator.*",setting="max_pending_transactions"})' \
       2>/dev/null | jq -r '.data.result[0].value[1] // "0"')
     if [ "${ready_count:-0}" -ge 4 ] 2>/dev/null; then
       echo "  validators ready after ${attempt}s"
@@ -602,6 +647,14 @@ for i in $(seq 1 $ITERS); do
   # CRITICAL: env-var prefix below must be on one continuous line (chain
   # of backslashes with NO comments interrupting), otherwise bash treats
   # the env vars as orphaned and runs ./stress-multi.sh with empty env.
+  STRESS_BIN="$STRESS_BIN" \
+  SUBMIT_ONCE="$SUBMIT_ONCE" \
+  MAX_OUTSTANDING_PER_WORKER="$MAX_OUTSTANDING_PER_WORKER" \
+  SPIKE_SIZE="$SPIKE_SIZE" \
+  SPIKE_AT="$SPIKE_AT" \
+  SPIKE_REPEAT="$SPIKE_REPEAT" \
+  SPIKE_INTERVAL="$SPIKE_INTERVAL" \
+  MEASURE_FROM_SECS="$MEASURE_FROM_SECS" \
   NUM_PROCS="$NUM_PROCS" \
   HONEST_PROC_COUNT="$HONEST_PROC_COUNT" \
   HONEST_CL_PROC_COUNT="$HONEST_CL_PROC_COUNT" \
@@ -717,6 +770,27 @@ for i in $(seq 1 $ITERS); do
       'BEGIN{if(o>0) printf "%.4f", 100.0*s/o; else print 0}')
     honest_cl_fp=$(awk -v s="$honest_cl_success" -v o="$HONEST_CL_OFFERED" \
       'BEGIN{if(o>0) printf "%.4f", 100.0*s/o; else print 0}')
+    # With send reports (SUBMIT_ONCE=true), each pool's first attempt
+    # accept share replaces the success / offered estimate above.
+    pool_share() {
+      python3 - "$latest/pools.json" "$1" <<'PY' 2>/dev/null
+import json, sys
+try:
+    share = (json.load(open(sys.argv[1])).get(sys.argv[2]) or {}).get("first_attempt_accept_share")
+    print(f"{100 * share:.4f}" if share is not None else "")
+except (OSError, ValueError):
+    print("")
+PY
+    }
+    share=$(pool_share spammer); [ -n "$share" ] && spammer_fp=$share
+    share=$(pool_share honest); [ -n "$share" ] && honest_fp=$share
+    share=$(pool_share honest_cl); [ -n "$share" ] && honest_cl_fp=$share
+    fill_acc_p50=$(grep '^fill_accepted_p50:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    fill_acc_p99=$(grep '^fill_accepted_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    wait_adm_p50=$(grep '^wait_admitted_p50:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    wait_adm_p99=$(grep '^wait_admitted_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    stretch_acc_mean=$(grep '^stretch_len_accepted_mean:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    stretch_rej_mean=$(grep '^stretch_len_rejected_mean:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     iso=$(basename "$latest" | sed 's/multi-//')
     failed=0
     silent_collapse=0
@@ -787,7 +861,10 @@ def collect(indices):
                 d = json.load(f)
         except (OSError, json.JSONDecodeError):
             continue
-        lats.extend(d.get("latency_ms", []))
+        # With a send report, latency_ms holds the serialized histogram,
+        # not a list of latencies; its percentiles are in pools.json.
+        if not d.get("send_report"):
+            lats.extend(d.get("latency_ms", []))
         success += d.get("num_success_txes", 0) or 0
         errors += d.get("num_error_txes", 0) or 0
     return lats, success, errors
@@ -844,6 +921,11 @@ print(json.dumps({
   TS_PRE_ACQUIRE_P99="null"
   TS_CONSENSUS_LAT_P99="null"
   TS_TPS="null"
+  TS_COMMITS_PER_SEC="null"
+  TS_ROUNDS_PER_SEC="null"
+  TS_COMMITTED_USER_TPS="null"
+  TS_BLOCK_TXS_MEAN="null"
+  TS_SHED_AFTER_CONSENSUS_PCT="null"
   if [ "$CAPTURE_TIMESERIES" = "true" ] && [ "$failed" -eq 0 ]; then
     scrape_range() {
       local query="$1" step="${2:-0.1}"
@@ -874,12 +956,24 @@ print(json.dumps({
     TS_CONSENSUS_LAT_P99=$(scrape_range 'histogram_quantile(0.99, sum by (le) (rate(sequencing_certificate_latency_bucket{host=~"validator.*"}[5s])))' 1)
     # TPS = total_transaction_effects counter (matches stress-multi.sh useful_tps).
     TS_TPS=$(scrape_range 'sum(rate(total_transaction_effects{host=~"validator.*"}[5s]))' 1)
+    # Consensus pace: commits and rounds per second, user transactions
+    # committed per second, mean transactions in the proposed blocks of the
+    # validator that carries the most (the target), and the shedding
+    # percentage the nodes applied after consensus.
+    TS_COMMITS_PER_SEC=$(scrape_range 'max(deriv(consensus_last_commit_index{host=~"validator.*"}[5s]))' 1)
+    TS_ROUNDS_PER_SEC=$(scrape_range 'max(deriv(consensus_threshold_clock_round{host=~"validator.*"}[5s]))' 1)
+    TS_COMMITTED_USER_TPS=$(scrape_range 'max(sum by (host) (rate(consensus_committed_user_transactions{host=~"validator.*"}[5s])))' 1)
+    TS_BLOCK_TXS_MEAN=$(scrape_range 'max(sum by (host) (rate(consensus_proposed_block_transactions_sum{host=~"validator.*"}[5s])) / sum by (host) (rate(consensus_proposed_block_transactions_count{host=~"validator.*"}[5s])))' 1)
+    TS_SHED_AFTER_CONSENSUS_PCT=$(scrape_range 'max(consensus_handler_load_shedding_percentage{host=~"validator.*"})' 1)
   fi
 
   # Emit one JSONL record. Values passed via env to avoid shell-quoting
   # hell inside the python one-liner. Time-series JSON blobs pass
   # through verbatim and are parsed inside the python helper.
   ISO="$iso" ITER="$i" FAILED="$failed" SILENT_COLLAPSE="$silent_collapse" \
+  LATEST_DIR="${latest:-}" STRESS_BIN="$STRESS_BIN" SUBMIT_ONCE="$SUBMIT_ONCE" \
+  SPIKE_SIZE="$SPIKE_SIZE" SPIKE_AT="$SPIKE_AT" SPIKE_REPEAT="$SPIKE_REPEAT" SPIKE_INTERVAL="$SPIKE_INTERVAL" \
+  MEASURE_FROM_SECS="$MEASURE_FROM_SECS" \
   ITER_START_EPOCH="$ITER_START_EPOCH" ITER_END_EPOCH="$ITER_END_EPOCH" \
   HOST_NAME="$HOST_NAME" HOST_NPROC="$HOST_NPROC" HOST_KERNEL="$HOST_KERNEL" HOST_MEM_GIB="$HOST_MEM_GIB" \
   IOTA_GIT_COMMIT="$IOTA_GIT_COMMIT" \
@@ -917,6 +1011,9 @@ print(json.dumps({
   TS_PERMIT_WAIT_P99="$TS_PERMIT_WAIT_P99" TS_PERMIT_HOLD_P99="$TS_PERMIT_HOLD_P99" \
   TS_PRE_ACQUIRE_P99="$TS_PRE_ACQUIRE_P99" TS_CONSENSUS_LAT_P99="$TS_CONSENSUS_LAT_P99" \
   TS_TPS="$TS_TPS" \
+  TS_COMMITS_PER_SEC="$TS_COMMITS_PER_SEC" TS_ROUNDS_PER_SEC="$TS_ROUNDS_PER_SEC" \
+  TS_COMMITTED_USER_TPS="$TS_COMMITTED_USER_TPS" TS_BLOCK_TXS_MEAN="$TS_BLOCK_TXS_MEAN" \
+  TS_SHED_AFTER_CONSENSUS_PCT="$TS_SHED_AFTER_CONSENSUS_PCT" \
   PER_POOL_STATS="$PER_POOL_STATS" \
   python3 -c '
 import json, os
@@ -1172,6 +1269,15 @@ rec = {
     "permit_hold_p99": ts("TS_PERMIT_HOLD_P99"),
     "consensus_lat_p99": ts("TS_CONSENSUS_LAT_P99"),
     "tps": ts("TS_TPS"),
+    # Consensus pace at 1s step: commits and rounds per second, user
+    # transactions committed per second, mean transactions per proposed
+    # block of the validator carrying the most, and the shedding
+    # percentage applied after consensus.
+    "commits_per_sec": ts("TS_COMMITS_PER_SEC"),
+    "rounds_per_sec": ts("TS_ROUNDS_PER_SEC"),
+    "committed_user_tps": ts("TS_COMMITTED_USER_TPS"),
+    "block_transactions_mean": ts("TS_BLOCK_TXS_MEAN"),
+    "shed_after_consensus_pct": ts("TS_SHED_AFTER_CONSENSUS_PCT"),
   },
 }
 # Derived convenience field: ratio_peak_over_max_pending — the
@@ -1200,6 +1306,86 @@ _drops = (_r.get("reject_grad_preventive") or 0) \
 _commits = (_r.get("useful_tps") or 0) * _spam_dur if _spam_dur > 0 else 0
 _decisions = _drops + _commits
 _r["validator_drop_prob"] = round(_drops / _decisions, 4) if _decisions > 0 else None
+
+# What the client recorded for each pool (send reports, aggregated by
+# stress-multi.sh into pools.json) and the admission metrics of the node
+# (read back from summary.txt). Missing pieces stay null.
+_latest = s("LATEST_DIR").rstrip("/")
+_summary = {}
+if _latest:
+    try:
+        with open(f"{_latest}/summary.txt") as _f:
+            for _line in _f:
+                if ":" in _line:
+                    _k, _v = _line.split(":", 1)
+                    _summary[_k.strip()] = _v.strip()
+    except OSError:
+        pass
+    try:
+        with open(f"{_latest}/pools.json") as _f:
+            rec["send_reports"] = json.load(_f) or None
+    except (OSError, json.JSONDecodeError):
+        rec["send_reports"] = None
+    # Commit pace, block contents, leader decisions, sequencing latency and
+    # drops after consensus, from stress-multi.sh.
+    try:
+        with open(f"{_latest}/consensus.json") as _f:
+            rec["consensus"] = json.load(_f) or None
+    except (OSError, json.JSONDecodeError):
+        rec["consensus"] = None
+def sm(k):
+    try: return float(_summary.get(k, ""))
+    except ValueError: return None
+_pools = rec.get("send_reports") or {}
+rec["send_reports_valid"] = (
+    all(p.get("invalid_processes", 1) == 0 for p in _pools.values()) if _pools else None
+)
+rec["admission"] = {
+    # Consensus queue length at each admission decision, as a percentage
+    # of max_pending_transactions, by outcome.
+    "fill_pct": {
+        "accepted": {"p50": sm("fill_accepted_p50"), "p90": sm("fill_accepted_p90"),
+                     "p99": sm("fill_accepted_p99"), "mean": sm("fill_accepted_mean"),
+                     "count": sm("fill_accepted_count")},
+        "rejected": {"p50": sm("fill_rejected_p50"), "p99": sm("fill_rejected_p99"),
+                     "mean": sm("fill_rejected_mean"), "count": sm("fill_rejected_count")},
+    },
+    # Consecutive decisions with the same outcome.
+    "stretch_length_mean": {"accepted": sm("stretch_len_accepted_mean"),
+                            "rejected": sm("stretch_len_rejected_mean")},
+    "stretch_length_rejected_p99": sm("stretch_len_rejected_p99"),
+    "stretch_duration_p99_secs": {"accepted": sm("stretch_dur_accepted_p99"),
+                                  "rejected": sm("stretch_dur_rejected_p99")},
+    # How long an admitted user transaction held its queue slot until
+    # processed via consensus.
+    "wait_since_admission_secs": {"p50": sm("wait_admitted_p50"), "p90": sm("wait_admitted_p90"),
+                                  "p99": sm("wait_admitted_p99"), "mean": sm("wait_admitted_mean")},
+    # The settings the target validator reported.
+    "node_settings": {"max_pending_transactions": sm("setting_max_pending"),
+                      "soft_limit_pct": sm("setting_soft_pct"),
+                      "saturation_pct": sm("setting_sat_pct"),
+                      "submit_permits": sm("setting_permits"),
+                      "semaphore_shedding_enabled": sm("setting_sem_shedding")},
+}
+# The part of the spam window covered by results, admission, consensus and
+# the measured pool shares; the time series cover the whole window.
+rec["measure_window"] = {
+    "from_secs": i("MEASURE_FROM_SECS"),
+    "start_epoch": sm("measure_start_epoch"),
+    "secs": sm("window_secs"),
+}
+# CPUs each container and the client were pinned to; empty means not pinned.
+rec["cpu_pinning"] = {
+    "validator-1": s("VALIDATOR_1_CPUSET"), "validator-2": s("VALIDATOR_2_CPUSET"),
+    "validator-3": s("VALIDATOR_3_CPUSET"), "validator-4": s("VALIDATOR_4_CPUSET"),
+    "fullnode-1": s("FULLNODE_1_CPUSET"), "client": s("CLIENT_CPUS"),
+}
+rec["client"] = {
+    "stress_bin": s("STRESS_BIN"),
+    "submit_once": b("SUBMIT_ONCE"),
+    "spike": {"size": i("SPIKE_SIZE"), "at_secs": f("SPIKE_AT"),
+              "repeat": i("SPIKE_REPEAT"), "interval_secs": f("SPIKE_INTERVAL")},
+}
 print(json.dumps(rec))
 ' >> "$OUT_JSONL"
 
@@ -1215,6 +1401,12 @@ print(json.dumps(rec))
       echo "    honest_cl: offered=$HONEST_CL_OFFERED success=$honest_cl_success first_pass=${honest_cl_fp}% (closed-loop)"
     fi
     echo "    peak=$peak  ratio=${ratio}×  tps=$useful_tps  rej[prev=$r_prev,sat=$r_grad_sat,react=$r_grad_react,max=$r_max,sem=$r_sem]  hold[p50=$permit_hold_p50,p99=$permit_hold_p99]  wait[p50=$permit_wait_p50,p99=$permit_wait_p99]  pre_acq[p50=$pre_acquire_p50,p99=$pre_acquire_p99]  shed[avg=$shed_pct_avg,max=$shed_pct_max]"
+    echo "    admission: fill_accepted[p50=${fill_acc_p50:-?}%,p99=${fill_acc_p99:-?}%]  wait_since_admission[p50=${wait_adm_p50:-?}s,p99=${wait_adm_p99:-?}s]  stretch_mean[accepted=${stretch_acc_mean:-?},rejected=${stretch_rej_mean:-?}]"
+    grep '_send_report:' "$latest/summary.txt" 2>/dev/null | sed 's/^/    /'
+    grep '^consensus:' "$latest/summary.txt" 2>/dev/null | sed 's/^/    /'
+    if [ "$MEASURE_FROM_SECS" -gt 0 ]; then
+      echo "    measured from ${MEASURE_FROM_SECS}s to the end of the spam window"
+    fi
   fi
 
   # Snapshot validator state at iter end (BEFORE the next iter's teardown
