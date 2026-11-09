@@ -1174,13 +1174,16 @@ where
 
 /// Serves the headers of `block_refs` to commit sync in their order, reading
 /// them as the transport asks for each chunk while holding `admission_guard`.
+/// A ref listed more than once is served once.
 fn header_fetch_response(
     context: &Context,
     store: Arc<dyn Store>,
     dag_state: Arc<RwLock<DagState>>,
-    block_refs: Vec<BlockRef>,
+    mut block_refs: Vec<BlockRef>,
     admission_guard: Option<Arc<AdmissionGuard>>,
 ) -> ChunkStream {
+    let mut listed = BTreeSet::new();
+    block_refs.retain(|block_ref| listed.insert(*block_ref));
     let max_header_bytes = max_signed_block_header_bytes(context.committee.size());
     let mut cursor = RefCursor::new(
         block_refs,
@@ -5056,6 +5059,17 @@ mod tests {
                 VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
             assert_eq!(verified_block_header.reference(), block_refs_to_request[i],);
         }
+
+        // A repeated ref is served once, in the order of its first occurrence.
+        let (first, second) = (block_refs_to_request[0], block_refs_to_request[1]);
+        let headers = authority_service
+            .handle_fetch_headers(peer, vec![second, first, second, second], vec![], None)
+            .await
+            .unwrap()
+            .try_concat()
+            .await
+            .unwrap();
+        assert_eq!(header_refs(&headers), vec![second, first]);
     }
 
     #[tokio::test]
@@ -6273,6 +6287,16 @@ mod tests {
             .collect()
     }
 
+    fn header_refs(headers: &[Bytes]) -> Vec<BlockRef> {
+        headers
+            .iter()
+            .map(|serialized| {
+                let signed: SignedBlockHeader = bcs::from_bytes(serialized).unwrap();
+                VerifiedBlockHeader::new_verified(signed, serialized.clone()).reference()
+            })
+            .collect()
+    }
+
     /// Two rounds of four blocks, each carrying a payload of the same size.
     fn two_rounds_of_payloads() -> Vec<VerifiedBlock> {
         (1..=2)
@@ -6908,6 +6932,45 @@ mod tests {
             .collect();
         assert_eq!(served, block_refs);
         assert!(response.next().await.is_none());
+    }
+
+    /// Headers read from the store and listed twice are served once, also when
+    /// a repeat would fall in a later message of the response than the first
+    /// listing.
+    #[tokio::test]
+    async fn requested_headers_listed_twice_are_served_once_across_messages() {
+        let context = context_with_budget(usize::MAX);
+        let store = Arc::new(MemStore::new());
+        let dag_state = dag_state_reading_from_the_store(&context, store.clone());
+        // Distinct headers at an evicted round, so they are read from the
+        // store, filling more than one message.
+        let mut headers = Vec::new();
+        let mut header_bytes = 0;
+        while header_bytes <= MAX_FETCH_RESPONSE_BYTES {
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(1, (headers.len() % 4) as u8)
+                    .set_timestamp_ms(headers.len() as u64)
+                    .build(),
+            );
+            header_bytes += header.serialized().len();
+            headers.push(header);
+        }
+        let block_refs: Vec<BlockRef> = headers.iter().map(|header| header.reference()).collect();
+        store
+            .write(WriteBatch::default().block_headers(headers))
+            .unwrap();
+        let requested_refs = [block_refs.clone(), block_refs.clone()].concat();
+
+        let messages: Vec<Vec<Bytes>> =
+            header_fetch_response(&context, store, dag_state, requested_refs, None)
+                .try_collect()
+                .await
+                .unwrap();
+
+        let served = header_refs(&messages.concat());
+        assert!(messages.len() > 1);
+        assert_eq!(served.len(), block_refs.len());
+        assert_eq!(served, block_refs);
     }
 
     /// The payloads a transaction fetch asks for are read when the transport
