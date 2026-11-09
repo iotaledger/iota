@@ -299,10 +299,10 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
             );
         }
 
-        // Read only the declaration, so validation at a commit decides them
-        // the same way on every validator, with or without the object there
-        // to read. Without deterministic validation the checks on the loaded
-        // objects apply these rules.
+        // Read only the declaration, so validation at a commit decides them the
+        // same way on every validator, with or without the object there to
+        // read. Without the P-COOL flow the checks on the loaded objects apply
+        // these rules.
         if config.enable_pcool_flow() {
             for kind in &input_objects {
                 match *kind {
@@ -355,6 +355,9 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
         self.type_args().iter().try_for_each(|type_arg| {
             crate::transaction::type_tag_validity_check(type_arg, config, &mut type_arguments_count)
         })?;
+        if config.disallow_self_identifier_in_transactions() {
+            crate::transaction::move_authenticator_identifiers_validity_check(self)?;
+        }
 
         Ok(())
     }

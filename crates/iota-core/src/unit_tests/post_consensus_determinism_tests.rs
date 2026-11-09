@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Property-based check of P-COOL deterministic validation against the
+//! Property-based check of P-COOL post-consensus validation against the
 //! oracle in `post_consensus_determinism_oracle.rs`.
 //!
 //! Terms used here:
@@ -1128,6 +1128,12 @@ impl StoreState {
         }
     }
 
+    /// Whether `version` was moved into `epoch`'s bucket, which is not expired
+    /// while the epoch runs.
+    fn superseded_in_epoch(&self, id: &ObjectId, version: Version, epoch: EpochId) -> bool {
+        epoch == self.epoch && self.moved.contains(&ObjectKey(*id, version))
+    }
+
     /// [`Self::by_key`], or else the version moved into `epoch`'s bucket,
     /// which is not expired while the epoch runs.
     fn by_key_with_history(
@@ -1384,6 +1390,15 @@ impl ObjectCacheRead for FakeStore {
         epoch: EpochId,
     ) -> IotaResult<Option<Object>> {
         Ok(self.lock().by_key_with_history(object_id, version, epoch))
+    }
+
+    fn try_object_superseded_in_epoch(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> IotaResult<bool> {
+        Ok(self.lock().superseded_in_epoch(object_id, version, epoch))
     }
 
     fn try_multi_get_objects_by_key(
@@ -2262,8 +2277,9 @@ impl<'a> Validator<'a> {
     /// upserts.
     fn complete_by_watcher(&mut self, commit: CommitIndex) -> Outcome<()> {
         let rows = self.commit_rows(commit);
-        let result = self
-            .against_staged_flush(move |store| store.record_commit_fully_executed(commit, &rows))?;
+        let result = self.against_staged_flush(move |store| {
+            store.record_commit_fully_executed(commit, &rows, Default::default())
+        })?;
         self.storage(result)?;
         self.assigned.remove(&commit);
         Ok(())
@@ -2426,11 +2442,11 @@ impl<'a> Validator<'a> {
                 Some(rows) => (rows, "watcher"),
                 None => {
                     let rows = self.commit_rows(commit);
-                    state.complete_commit_at_flush(commit, &rows);
+                    state.complete_commit_at_flush(commit, &rows, Default::default());
                     (rows, "flush")
                 }
             };
-            self.storage(state.write_commit_rows_to_batch(&tables, &mut batch, &rows))?;
+            self.storage(state.write_commit_rows_to_batch(&tables, &mut batch, commit, &rows))?;
             let quarantined = self
                 .quarantine
                 .get(&commit)

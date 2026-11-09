@@ -164,6 +164,7 @@ impl EpochState {
             &self.bytecode_verifier_metrics,
             VerifierLimitsSource::NodeConfig(verifier_signing_config),
             authenticator_gas_budget,
+            false,
         )?;
 
         let transaction = transaction.data().transaction();

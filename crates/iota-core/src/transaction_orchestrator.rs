@@ -907,6 +907,7 @@ where
                 Some(request.transaction.clone()),
                 SubmitTransactionOptions {
                     forwarded_client_addr: client_addr,
+                    cut_off_validators: validator_state.cut_off_validators(),
                     ..Default::default()
                 },
                 Some(WAIT_FOR_FINALITY_TIMEOUT),
@@ -1525,17 +1526,14 @@ fn map_td_error_to_qd(e: TransactionDriverError) -> QuorumDriverError {
             // Some verdicts depend on validator-local state, so this does not
             // prove the transaction can never execute; the variant is kept
             // distinct from `InvalidTransaction` so clients can tell the two
-            // apart.
-            let representative = submission_non_retriable_errors
-                .errors
-                .into_iter()
-                .next()
-                .map(|(msg, _, _, _)| msg)
-                .unwrap_or_else(|| "transaction rejected during submission".to_string());
-            QuorumDriverError::RejectedByValidators(IotaError::Unknown(format!(
-                "Transaction was rejected by more than 1/3 of validator stake during \
-                 submission (non-retriable): {representative}"
-            )))
+            // apart. The driver sorts the messages by stake.
+            QuorumDriverError::RejectedByValidators {
+                errors: submission_non_retriable_errors
+                    .errors
+                    .into_iter()
+                    .map(|(msg, _, _, _)| msg)
+                    .collect(),
+            }
         }
         Aborted {
             submission_retriable_errors,
@@ -2245,7 +2243,8 @@ mod tests {
     /// Validator rejections must map to `RejectedByValidators`, not
     /// `InvalidTransaction`: the verdicts can be validator-local, so clients
     /// must be able to tell them apart from a locally proven invalid
-    /// transaction.
+    /// transaction. Every grouped reason reaches the client in the driver's
+    /// stake order.
     #[test]
     fn map_validator_rejections_to_distinct_variant() {
         use iota_types::error::ErrorCategory;
@@ -2254,12 +2253,20 @@ mod tests {
 
         let td_error = TransactionDriverError::RejectedByValidators {
             submission_non_retriable_errors: AggregatedRequestErrors {
-                errors: vec![(
-                    "Object lock conflict".to_string(),
-                    vec![],
-                    3334,
-                    ErrorCategory::LockConflict,
-                )],
+                errors: vec![
+                    (
+                        "Object lock conflict".to_string(),
+                        vec![],
+                        2500,
+                        ErrorCategory::LockConflict,
+                    ),
+                    (
+                        "Gas budget: 10 is lower than min: 1000000".to_string(),
+                        vec![],
+                        834,
+                        ErrorCategory::InvalidTransaction,
+                    ),
+                ],
                 total_stake: 3334,
                 stake_requested_retry_after: Default::default(),
             },
@@ -2267,10 +2274,16 @@ mod tests {
         };
 
         let qd_error = map_td_error_to_qd(td_error);
-        let QuorumDriverError::RejectedByValidators(inner) = &qd_error else {
+        let QuorumDriverError::RejectedByValidators { errors } = &qd_error else {
             panic!("expected RejectedByValidators, got {qd_error:?}");
         };
-        assert!(inner.to_string().contains("Object lock conflict"));
+        assert_eq!(
+            errors,
+            &[
+                "Object lock conflict".to_string(),
+                "Gas budget: 10 is lower than min: 1000000".to_string(),
+            ]
+        );
         assert_eq!(qd_error.reason(), "rejected_by_validators");
     }
 

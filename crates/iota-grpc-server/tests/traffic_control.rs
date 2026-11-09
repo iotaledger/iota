@@ -17,8 +17,8 @@ use std::{collections::HashMap, future::Future, net::IpAddr, sync::Arc, time::Du
 
 use common::{
     MockGrpcStateReader, PendingExecutor, TestCertificate, UnreachableExecutor,
-    call_execute_transactions_with_grpc_timeout, create_large_object, start_test_server,
-    start_test_server_with, start_test_server_with_traffic_controller,
+    call_execute_transactions_with_grpc_timeout, create_large_object, execute_transactions_request,
+    start_test_server, start_test_server_with, start_test_server_with_traffic_controller,
 };
 use futures::StreamExt;
 use iota_grpc_server::GrpcServerHandle;
@@ -284,6 +284,55 @@ async fn a_call_past_its_grpc_timeout_accrues_spam() {
         }
     })
     .await;
+}
+
+/// A unary call the client resets while its handler awaits counts as a request
+/// for the spam policy, although the handler never answers.
+#[tokio::test]
+async fn a_unary_call_reset_while_its_handler_awaits_accrues_spam() {
+    let policy_config = PolicyConfig {
+        connection_blocklist_ttl_sec: 120,
+        spam_policy_type: PolicyType::TestNConnIP(1),
+        // Error policy off, so any block is attributable to the spam policy.
+        error_policy_type: PolicyType::NoOp,
+        // Count every tally deterministically.
+        spam_sample_rate: Weight::one(),
+        dry_run: false,
+        ..Default::default()
+    };
+    let client_id_source = policy_config.client_id_source.clone();
+    let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config));
+    let executor = Arc::new(PendingExecutor::default());
+    let (handle, _reader) = start_test_server_with_traffic_controller(
+        Arc::new(MockGrpcStateReader::default()),
+        traffic_controller.clone(),
+        Some(executor.clone()),
+        client_id_source,
+    )
+    .await;
+    // Kept open, so the call's stream is reset while the connection stays up.
+    let channel = connect(&handle).await;
+    let mut client = TransactionExecutionServiceClient::new(channel.clone());
+    let call = tokio::spawn(async move {
+        client
+            .execute_transactions(execute_transactions_request())
+            .await
+    });
+    tokio::time::timeout(Duration::from_secs(10), executor.started.notified())
+        .await
+        .expect("the handler must reach the executor");
+
+    call.abort();
+
+    let client = Some(IpAddr::from([127, 0, 0, 1]));
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while traffic_controller.check(&client, &None) {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the reset call must be tallied");
+    drop(channel);
 }
 
 /// A call that the server ends at its `grpc-timeout` is not a client error, so

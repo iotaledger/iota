@@ -38,6 +38,7 @@ use iota_sdk_types::{
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
+    attestation::AttestationTotals,
     base_types::{AuthorityName, CommitRound, ConciseableName, EpochId},
     committee::{Committee, CommitteeTrait, StakeUnit},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
@@ -130,6 +131,9 @@ use crate::{
         reconfiguration::ReconfigState,
     },
     execution_cache::{ObjectCacheRead, TransactionCacheRead, cache_types::CacheResult},
+    execution_scheduler::transaction_manager::{
+        SchedulableAttestedTransaction, VerifiedExecutableAttestedTransaction,
+    },
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
     overload_monitor::should_reject_tx,
@@ -326,12 +330,20 @@ impl CongestionControlParameters {
     /// from a given consensus commit.
     pub(super) fn get_estimated_execution_duration(
         &self,
-        transaction: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableAttestedTransaction,
     ) -> ExecutionTime {
         match self.per_object_congestion_control_mode {
             PerObjectCongestionControlMode::None => 0,
             PerObjectCongestionControlMode::TotalGasBudget => transaction.gas_budget(),
             PerObjectCongestionControlMode::TotalTxCount => 1,
+            PerObjectCongestionControlMode::TotalComputationUnits => {
+                transaction.attested_computation_units().unwrap_or_else(|| {
+                    transaction
+                        .gas_budget()
+                        .checked_div(transaction.transaction().gas_price())
+                        .unwrap_or(0)
+                })
+            }
         }
     }
 
@@ -512,7 +524,7 @@ pub enum ConsensusTransactionResult {
     /// start_time 0, meaning they are not dependent on another transaction
     /// and they will not wait for another transaction.
     Scheduled {
-        transaction: VerifiedExecutableTransaction,
+        transaction: VerifiedExecutableAttestedTransaction,
         start_time: ExecutionTime,
     },
 
@@ -544,7 +556,7 @@ pub enum ConsensusTransactionResult {
     /// `CancelConsensusTransactionReason`.
     Cancelled(
         (
-            VerifiedExecutableTransaction,
+            VerifiedExecutableAttestedTransaction,
             CancelConsensusTransactionReason,
         ),
     ),
@@ -697,9 +709,9 @@ pub struct AuthorityPerEpochStore {
     /// Holds various data from consensus_quarantine in a more easily
     /// accessible form.
     consensus_output_cache: ConsensusOutputCache,
-    /// The handler object state for P-COOL deterministic validation: the map
-    /// from transaction key to assigned commit, and the rows not yet written
-    /// to the table. `None` without deterministic validation.
+    /// The handler object state for the P-COOL flow: the map from transaction
+    /// key to assigned commit, and the rows not yet written to the table.
+    /// `None` without the flow.
     handler_object_state: Option<HandlerObjectState>,
     /// See [`Self::pcool_bookkeeping_enabled`].
     pcool_bookkeeping_enabled: bool,
@@ -876,6 +888,11 @@ pub struct AuthorityEpochTables {
     /// per commit, one point lookup per validated input.
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
     handler_processed_objects: DBMap<ObjectKey, HandlerProcessedObject>,
+
+    /// The `Refuted` attestation totals of each commit that has any (see
+    /// [`handler_object_state`]). Written by the commit's quarantine flush in
+    /// the same batch as `last_consensus_stats`; read when the store opens.
+    attestation_totals_by_commit: DBMap<CommitIndex, AttestationTotals>,
 
     /// Signatures over transaction effects that we have signed and returned to
     /// users. We store this to avoid re-signing the same effects twice.
@@ -1347,8 +1364,26 @@ impl AuthorityPerEpochStore {
                 .unwrap_or_default()
                 .sub_dag_index
         });
-        let handler_object_state =
-            resume_point.map(|resume_point| HandlerObjectState::new(resume_point, metrics.clone()));
+        let handler_object_state = resume_point
+            .map(|resume_point| -> IotaResult<_> {
+                let attestation_totals = tables
+                    .attestation_totals_by_commit
+                    .safe_iter()
+                    .collect::<Result<BTreeMap<_, _>, _>>()?;
+                let state =
+                    HandlerObjectState::new(resume_point, attestation_totals, metrics.clone());
+                // Seeds the sum, so a restart does not forget who is cut off.
+                if let Some(max_refuted_units_squared) =
+                    protocol_config.attestation_max_refuted_units_squared_as_option()
+                {
+                    state.attestors_cut_off_as_of(
+                        horizon(&protocol_config, resume_point),
+                        max_refuted_units_squared,
+                    );
+                }
+                Ok(state)
+            })
+            .transpose()?;
         let pcool_bookkeeping_enabled =
             committee.authority_exists(&name) && protocol_config.enable_pcool_flow();
 
@@ -1941,11 +1976,11 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// Whether this node keeps the handler object state: the P-COOL
-    /// deterministic-validation flag is on and this node is in the epoch's
+    /// Whether this node keeps the handler object state: the
+    /// `enable_pcool_flow` flag is on and this node is in the epoch's
     /// committee. Every write to the handler object state, the execution
-    /// watcher and the commit assignment check this rather than the flag
-    /// alone. A node outside the committee runs no consensus handler, so no
+    /// watcher and the commit assignment check this rather than the flag alone.
+    /// A node outside the committee runs no consensus handler, so no
     /// transaction it executes would have its commit assigned.
     pub fn pcool_bookkeeping_enabled(&self) -> bool {
         self.pcool_bookkeeping_enabled
@@ -1995,8 +2030,8 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// The execution watcher's end of the assigned-commit channel; `None`
-    /// once a watcher has taken it, or without deterministic validation. See
+    /// The execution watcher's end of the assigned-commit channel; `None` once
+    /// a watcher has taken it, or without the P-COOL flow. See
     /// [`HandlerObjectState::take_assigned_commits_receiver`].
     pub fn take_assigned_commits_receiver(&self) -> Option<UnboundedReceiver<AssignedCommit>> {
         let Some(handler_object_state) = &self.handler_object_state else {
@@ -2005,8 +2040,8 @@ impl AuthorityPerEpochStore {
         handler_object_state.take_assigned_commits_receiver()
     }
 
-    /// Receiver of the highest fully executed commit, or `None` without
-    /// deterministic validation; see
+    /// Receiver of the highest fully executed commit, or `None` without the
+    /// P-COOL flow; see
     /// [`HandlerObjectState::subscribe_highest_fully_executed_commit`].
     pub fn subscribe_highest_fully_executed_commit(&self) -> Option<watch::Receiver<CommitIndex>> {
         let Some(handler_object_state) = &self.handler_object_state else {
@@ -2144,6 +2179,7 @@ impl AuthorityPerEpochStore {
         &self,
         index: CommitIndex,
         upserts: &[(ObjectKey, HandlerProcessedObject)],
+        attestation_totals: AttestationTotals,
     ) -> IotaResult {
         let Some(handler_object_state) = &self.handler_object_state else {
             return Ok(());
@@ -2157,8 +2193,66 @@ impl AuthorityPerEpochStore {
         // Held so a flush cannot complete this commit between the guard inside
         // and the upserts: the flush runs under the write lock throughout.
         let _quarantine = self.consensus_quarantine.read();
-        handler_object_state.record_commit_fully_executed(index, upserts, &inserts);
+        handler_object_state.record_commit_fully_executed(
+            index,
+            upserts,
+            &inserts,
+            attestation_totals,
+        );
         Ok(())
+    }
+
+    /// The `Refuted` attestation totals of `roots`, one commit's transactions;
+    /// empty when this node does not cut off attestors.
+    pub fn commit_attestation_totals(
+        &self,
+        roots: &[TransactionDigest],
+    ) -> IotaResult<AttestationTotals> {
+        if self.cutoff_max_refuted_units_squared().is_none() {
+            return Ok(AttestationTotals::default());
+        }
+        let records = self
+            .effects_store()
+            .try_multi_get_attestation_records_in_epoch(self.epoch(), roots)?;
+        Ok(AttestationTotals::default().with_records(&records))
+    }
+
+    /// The attestors whose squared refuted units in the commits through
+    /// `horizon` reached `attestation_max_refuted_units_squared`; empty when
+    /// this node does not cut off attestors.
+    pub fn attestors_cut_off_as_of(&self, horizon: CommitIndex) -> BTreeSet<u8> {
+        match (
+            &self.handler_object_state,
+            self.cutoff_max_refuted_units_squared(),
+        ) {
+            (Some(state), Some(max_refuted_units_squared)) => {
+                state.attestors_cut_off_as_of(horizon, max_refuted_units_squared)
+            }
+            _ => BTreeSet::new(),
+        }
+    }
+
+    /// This validator's committee index if it is cut off as of the highest
+    /// horizon read so far, the resume point's at open or validation's since;
+    /// `None` otherwise, or when this node does not cut off attestors.
+    pub fn own_index_if_cut_off(&self) -> Option<u8> {
+        let max_refuted_units_squared = self.cutoff_max_refuted_units_squared()?;
+        let state = self.handler_object_state.as_ref()?;
+        let index = u8::try_from(self.committee().authority_index(&self.name)?).ok()?;
+        state
+            .is_cut_off_as_of_highest_horizon(index, max_refuted_units_squared)
+            .then_some(index)
+    }
+
+    /// `attestation_max_refuted_units_squared`, when set and this node keeps
+    /// the P-COOL bookkeeping.
+    fn cutoff_max_refuted_units_squared(&self) -> Option<u64> {
+        self.pcool_bookkeeping_enabled
+            .then(|| {
+                self.protocol_config()
+                    .attestation_max_refuted_units_squared_as_option()
+            })
+            .flatten()
     }
 
     /// Stages the rows of a commit flushing out of the quarantine into
@@ -2188,27 +2282,31 @@ impl AuthorityPerEpochStore {
         let rows = match handler_object_state.take_completed_commit_rows(index) {
             Some(rows) => rows,
             None => {
-                let rows = self.handler_rows_from_effects(&tables, index, pending_checkpoints)?;
-                handler_object_state.complete_commit_at_flush(index, &rows);
+                let roots = self.commit_root_digests(&tables, index, pending_checkpoints)?;
+                let rows = self.handler_rows_from_effects(index, &roots)?;
+                handler_object_state.complete_commit_at_flush(
+                    index,
+                    &rows,
+                    self.commit_attestation_totals(&roots)?,
+                );
                 rows
             }
         };
-        handler_object_state.write_commit_rows_to_batch(&tables, batch, &rows)?;
+        handler_object_state.write_commit_rows_to_batch(&tables, batch, index, &rows)?;
         Ok(Some(FlushedCommitRows { index, rows }))
     }
 
-    /// The rows of commit `index`, derived from the effects of the
-    /// transactions its pending checkpoints hold.
+    /// The digests of the roots of commit `index`, the transactions its
+    /// pending checkpoints hold.
     ///
     /// Every root of a flushing commit is in a checkpoint that has been built
-    /// and executed, so it has a digest and effects. A root missing either is
-    /// an error, so the flush batch is never written without its rows.
-    fn handler_rows_from_effects(
+    /// and executed, so a root without a digest is an error.
+    fn commit_root_digests(
         &self,
         tables: &AuthorityEpochTables,
         index: CommitIndex,
         pending_checkpoints: &[PendingCheckpoint],
-    ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
+    ) -> IotaResult<Vec<TransactionDigest>> {
         let mut digests = Vec::new();
         for key in pending_checkpoints
             .iter()
@@ -2224,12 +2322,22 @@ impl AuthorityPerEpochStore {
             };
             digests.push(digest);
         }
+        Ok(digests)
+    }
 
+    /// The rows of commit `index`, derived from the effects of its `roots`. A
+    /// root without effects is an error, so the flush batch is never written
+    /// without its rows.
+    fn handler_rows_from_effects(
+        &self,
+        index: CommitIndex,
+        roots: &[TransactionDigest],
+    ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
         let effects = self
             .effects_store()
-            .multi_get_executed_effects(&digests)
+            .multi_get_executed_effects(roots)
             .into_iter()
-            .zip(&digests)
+            .zip(roots)
             .map(|(effects, digest)| {
                 effects.ok_or(IotaError::TransactionEffectsNotFound { digest: *digest })
             })
@@ -2344,7 +2452,7 @@ impl AuthorityPerEpochStore {
     pub fn handler_object_state_for_testing(&self) -> &HandlerObjectState {
         self.handler_object_state
             .as_ref()
-            .expect("tests of the handler object state turn deterministic validation on")
+            .expect("tests of the handler object state turn the P-COOL flow on")
     }
 
     /// Writes `handler_rows` to the table, then removes them from memory, with
@@ -2377,7 +2485,7 @@ impl AuthorityPerEpochStore {
         let _quarantine = self.consensus_quarantine.write();
         let mut batch = tables.handler_processed_objects.batch();
         self.handler_object_state_for_testing()
-            .write_commit_rows_to_batch(&tables, &mut batch, &handler_rows)?;
+            .write_commit_rows_to_batch(&tables, &mut batch, commit_index, &handler_rows)?;
         let resume_point = tables
             .get_last_consensus_index()?
             .map_or(0, |index| index.sub_dag_index);
@@ -2540,6 +2648,8 @@ impl AuthorityPerEpochStore {
             None,
             0,
             Vec::new(),
+            Vec::new(),
+            iota_types::attestation::AttestationTotals::default(),
         );
         self.process_constructed_checkpoint(height, NonEmpty::new((summary.clone(), contents)));
         summary
@@ -2802,8 +2912,8 @@ impl AuthorityPerEpochStore {
     }
 
     /// The effects reader of the quarantine flush and the execution watcher,
-    /// both of which run only with the P-COOL deterministic-validation flag
-    /// on, by which point `AuthorityState` has wired it.
+    /// both of which run only with the P-COOL flow on, by which point
+    /// `AuthorityState` has wired it.
     pub(crate) fn effects_store(&self) -> &Arc<dyn TransactionCacheRead> {
         self.effects_store
             .get()
@@ -3256,7 +3366,7 @@ impl AuthorityPerEpochStore {
     #[instrument("transactions_sequencing", level = "trace", skip_all, fields(tx_digest = ?transaction.digest(), scheduling_result = tracing::field::Empty))]
     fn try_schedule(
         &self,
-        transaction: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableAttestedTransaction,
         commit_round: CommitRound,
         dkg_failed: bool,
         generating_randomness: bool,
@@ -3357,11 +3467,11 @@ impl AuthorityPerEpochStore {
             .pending_consensus_transactions
             .multi_insert(key_value_pairs)?;
 
-        // NOTE: If the P-COOL flow is enabled, we do not
-        // insert `UserTransactionV1` into the pending set because there is no
-        // pre-consensus "promise" (a certificate) that `UserTransactionV1` will be
-        // executed before the end of epoch. Thus, the below insertion is only for
-        // certificates, i.e., when the P-COOL flow is disabled.
+        // NOTE: If the P-COOL flow is enabled, we do not insert user
+        // transactions (`UserTransactionV1`) into the pending set because
+        // there is no pre-consensus "promise" (a certificate) that they will
+        // be executed before the end of epoch. Thus, the below insertion is
+        // only for certificates, i.e., when the P-COOL flow is disabled.
         if !self.protocol_config.enable_pcool_flow() {
             // TODO: lock once for all insert() calls.
             for transaction in transactions {
@@ -4300,7 +4410,10 @@ impl AuthorityPerEpochStore {
             .apply_cached_deny_rule_proposal_for_test(proposal);
     }
 
-    fn process_user_signatures<'a>(&self, transactions: impl Iterator<Item = &'a Schedulable>) {
+    fn process_user_signatures<'a>(
+        &self,
+        transactions: impl Iterator<Item = &'a SchedulableAttestedTransaction>,
+    ) {
         let sigs: Vec<_> = transactions
             .filter_map(|schedulable| match schedulable {
                 Schedulable::Transaction(transaction) => {
@@ -4462,13 +4575,13 @@ impl AuthorityPerEpochStore {
                     transaction.certificate_author.concise(),
                     digest,
                 );
-                // The copy is not recorded as processed, so the consensus adapter
-                // that submitted it would hold its submit permit, which checkpoint
-                // signatures also need, until the epoch ends. Only this
-                // validator's adapter is told: another author's copy can still be
-                // kept. Without deterministic validation the adapter waits until
-                // the epoch ends, as for the other copies ignored at the end of
-                // the epoch.
+                // The copy is not recorded as processed, so the consensus
+                // adapter that submitted it would hold its submit permit, which
+                // checkpoint signatures also need, until the epoch ends. Only
+                // this validator's adapter is told: another author's copy can
+                // still be kept. Without the P-COOL flow the adapter waits
+                // until the epoch ends, as for the other copies ignored at the
+                // end of the epoch.
                 if self.protocol_config().enable_pcool_flow()
                     && transaction.certificate_author == self.name
                 {
@@ -4498,13 +4611,13 @@ impl AuthorityPerEpochStore {
                 }
                 // Once the epoch no longer accepts consensus transactions, such
                 // a transaction is ignored when scheduled, so it never
-                // executes. Under deterministic validation it is skipped here
-                // instead: kept at validation, it would hold its owned-object
-                // locks until the epoch ends, and it would hide a later copy of
-                // the same transaction in this commit. A transaction from an
-                // author that sent EndOfPublish was already dropped above. A
-                // deferred transaction is reloaded without passing through
-                // here, so it stays eligible.
+                // executes. Under the P-COOL flow it is skipped here instead:
+                // kept at validation, it would hold its owned-object locks
+                // until the epoch ends, and it would hide a later copy of the
+                // same transaction in this commit. A transaction from an author
+                // that sent EndOfPublish was already dropped above. A deferred
+                // transaction is reloaded without passing through here, so it
+                // stays eligible.
                 if self.protocol_config().enable_pcool_flow()
                     && !self
                         .get_reconfig_state_read_lock_guard()
@@ -4727,18 +4840,18 @@ impl AuthorityPerEpochStore {
         authority_state: &AuthorityState,
     ) -> Result<
         (
-            Vec<Schedulable>,
+            Vec<SchedulableAttestedTransaction>,
             AssignedTxAndVersions,
             Vec<SequencedConsensusTransactionKey>,
         ),
         AdvanceDkgError,
     > {
-        let deterministic_validation = self.protocol_config.enable_pcool_flow();
-        // Only `process_consensus_transactions` below moves the reconfig
-        // state to `RejectAllTx`, so this value holds until it runs. Only
-        // deterministic validation reads it.
-        let accepts_tx = deterministic_validation
-            && self.get_reconfig_state_read_lock_guard().should_accept_tx();
+        let enable_pcool = self.protocol_config.enable_pcool_flow();
+        // Only `process_consensus_transactions` below moves the reconfig state
+        // to `RejectAllTx`, so this value holds until it runs. Only the P-COOL
+        // flow reads it.
+        let accepts_tx =
+            enable_pcool && self.get_reconfig_state_read_lock_guard().should_accept_tx();
 
         // Validation reads rows produced at or below the horizon, so every
         // commit up to it must be fully executed before any input is read.
@@ -4767,7 +4880,6 @@ impl AuthorityPerEpochStore {
         let mut current_commit_sequenced_randomness_transactions =
             Vec::with_capacity(verified_transactions.len());
         let mut end_of_publish_transactions = Vec::with_capacity(verified_transactions.len());
-        let enable_pcool = self.protocol_config.enable_pcool_flow();
 
         // Post-consensus load shedding: compute the drop percentage once before
         // the loop so user transactions can be dropped inline during categorization.
@@ -4805,9 +4917,11 @@ impl AuthorityPerEpochStore {
         let drop_seed = consensus_commit_info.round;
 
         // Transactions dropped by post-consensus load shedding in this commit.
-        // Fed to `dropped_tx_status_cache.insert_and_notify` after the loop so
-        // the submitter's `await_consensus_or_checkpoint` wait is woken and its
-        // consensus-submission semaphore slot is released.
+        // Waiters are notified after the loop so the submitter's
+        // `await_consensus_or_checkpoint` wait is woken and its
+        // consensus-submission semaphore slot is released. The drops are not
+        // recorded so a retry goes through consensus again; a status request
+        // that arrives after this commit waits for the retry or its timeout.
         let mut load_shedding_dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
         for tx in verified_transactions {
             if tx.0.is_end_of_publish() {
@@ -4845,8 +4959,18 @@ impl AuthorityPerEpochStore {
             }
         }
         if !load_shedding_dropped.is_empty() {
-            self.dropped_tx_status_cache
-                .insert_and_notify(&load_shedding_dropped);
+            if self
+                .protocol_config
+                .consensus_dedup_only_recorded_messages()
+            {
+                self.dropped_tx_status_cache
+                    .notify_without_recording(&load_shedding_dropped);
+            } else {
+                // Recorded so a retry is not submitted: the handler's cache
+                // would skip it without notifying its submitter.
+                self.dropped_tx_status_cache
+                    .insert_and_notify(&load_shedding_dropped);
+            }
         }
 
         let mut output =
@@ -4970,9 +5094,9 @@ impl AuthorityPerEpochStore {
         // single pass: validates UserTransactionV1 transactions and resolves
         // lock conflicts before reordering. Deferred txs from previous commits
         // still hold the locks they took there, giving them natural precedence;
-        // with deterministic validation they are kept without being validated
-        // again. Also collects all UserTransactionV1 digests for soft lock release
-        // after the consensus output is quarantined.
+        // they are kept without being validated again. Also collects all
+        // UserTransactionV1 digests for soft lock release after the consensus
+        // output is quarantined.
         let congestion_control_parameters = CongestionControlParameters::new(&self.protocol_config);
 
         // When execution-worker congestion control is active, one combined
@@ -4982,7 +5106,13 @@ impl AuthorityPerEpochStore {
             .max_concurrent_execution_workers()
             .is_some();
 
-        let mut soft_lock_release_tx_digests = Vec::new();
+        // Transactions dropped by load shedding never reach conflict
+        // resolution, so they are added here and released with the others
+        // after the consensus output is quarantined.
+        let mut soft_lock_release_tx_digests: Vec<TransactionDigest> = load_shedding_dropped
+            .iter()
+            .map(|(digest, _)| *digest)
+            .collect();
         if enable_pcool {
             // Invariant: P-COOL flow categorization funnels all user transactions
             // (regular + randomness) into `sequenced_transactions`, leaving
@@ -5001,19 +5131,19 @@ impl AuthorityPerEpochStore {
                 );
             }
 
-            // With deterministic validation, a commit's rows are written
-            // before the highest fully executed commit advances past it, so
-            // after the wait above every row produced at or below the horizon
-            // is readable before validation of `C` starts, and does not change
-            // during it. Rows produced above the horizon can still appear, but
-            // they answer missing. Validating before that wait would make the
-            // result depend on how far this validator's execution has got.
+            // With the P-COOL flow, a commit's rows are written before the
+            // highest fully executed commit advances past it, so after the wait
+            // above every row produced at or below the horizon is readable
+            // before validation of `C` starts, and does not change during it.
+            // Rows produced above the horizon can still appear, but they answer
+            // missing. Validating before that wait would make the result depend
+            // on how far this validator's execution has got.
             //
             // After the final round no user transaction executes or reaches a
             // checkpoint, so they are all ignored here. Validating them
             // without the wait would save decisions that no checkpoint retires
             // and that a replay after a restart could contradict.
-            if deterministic_validation && !accepts_tx {
+            if !accepts_tx {
                 sequenced_transactions.retain(|tx| {
                     let user_transaction = match &tx.0.transaction {
                         SequencedConsensusTransactionKind::External(ext) => {
@@ -5035,7 +5165,6 @@ impl AuthorityPerEpochStore {
                     authority_state,
                     self,
                     consensus_commit_info.index,
-                    deterministic_validation,
                     &previously_deferred_tx_digests,
                     &mut sequenced_transactions,
                 )
@@ -5433,7 +5562,7 @@ impl AuthorityPerEpochStore {
     pub(crate) fn add_deny_rule_update_transactions(
         &self,
         output: &mut ConsensusCommitOutput,
-        transactions: &mut VecDeque<Schedulable>,
+        transactions: &mut VecDeque<SchedulableAttestedTransaction>,
         roots: &mut BTreeSet<TransactionKey>,
         consensus_commit_info: &ConsensusCommitInfo,
     ) -> IotaResult<()> {
@@ -5536,7 +5665,7 @@ impl AuthorityPerEpochStore {
     fn add_consensus_commit_prologue_transaction(
         &self,
         output: &mut ConsensusCommitOutput,
-        transactions: &mut VecDeque<Schedulable>,
+        transactions: &mut VecDeque<SchedulableAttestedTransaction>,
         consensus_commit_info: &ConsensusCommitInfo,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
     ) -> IotaResult<Option<TransactionKey>> {
@@ -5609,8 +5738,8 @@ impl AuthorityPerEpochStore {
     fn process_consensus_transaction_shared_object_versions(
         &self,
         cache_reader: &dyn ObjectCacheRead,
-        non_randomness_transactions: &[Schedulable],
-        randomness_transactions: &[Schedulable],
+        non_randomness_transactions: &[SchedulableAttestedTransaction],
+        randomness_transactions: &[SchedulableAttestedTransaction],
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
         output: &mut ConsensusCommitOutput,
     ) -> IotaResult<AssignedTxAndVersions> {
@@ -5654,7 +5783,7 @@ impl AuthorityPerEpochStore {
         authority_metrics: &Arc<AuthorityMetrics>,
         skip_consensus_commit_prologue_in_test: bool,
         authority_state: &AuthorityState,
-    ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
+    ) -> IotaResult<(Vec<SchedulableAttestedTransaction>, AssignedTxAndVersions)> {
         let round = self.get_highest_pending_checkpoint_height() / 2 + 1;
         // With the handler object state, each commit takes a new index, and
         // the earlier ones count as fully executed: no execution watcher runs
@@ -5707,7 +5836,9 @@ impl AuthorityPerEpochStore {
         let transactions: Vec<_> = transactions
             .iter()
             .cloned()
-            .map(Schedulable::Transaction)
+            .map(|tx| {
+                Schedulable::Transaction(VerifiedExecutableAttestedTransaction::new(tx, None))
+            })
             .collect();
         let assigned_versions = self.process_consensus_transaction_shared_object_versions(
             cache_reader,
@@ -5771,8 +5902,10 @@ impl AuthorityPerEpochStore {
         >,
     ) -> Result<
         (
-            Vec<Schedulable>,                      // non-randomness transactions to schedule
-            Vec<Schedulable>,                      // randomness transactions to schedule
+            // non-randomness transactions to schedule
+            Vec<SchedulableAttestedTransaction>,
+            // randomness transactions to schedule
+            Vec<SchedulableAttestedTransaction>,
             Vec<SequencedConsensusTransactionKey>, // keys to notify as complete
             Option<RwLockWriteGuard<'_, ReconfigState>>,
             bool,                   // true if final round
@@ -6329,8 +6462,11 @@ impl AuthorityPerEpochStore {
                     return Ok(ConsensusTransactionResult::Ignored);
                 }
 
+                let attested_transaction =
+                    VerifiedExecutableAttestedTransaction::new(transaction, None);
+
                 let scheduling_result = self.try_schedule(
-                    &transaction,
+                    &attested_transaction,
                     commit_round,
                     dkg_failed,
                     generating_randomness,
@@ -6340,7 +6476,7 @@ impl AuthorityPerEpochStore {
 
                 self.handle_scheduling_result(
                     scheduling_result,
-                    transaction,
+                    attested_transaction,
                     previously_deferred_tx_digests,
                     dkg_failed,
                     shared_object_congestion_tracker,
@@ -6574,11 +6710,14 @@ impl AuthorityPerEpochStore {
                 // In contrast to `new_from_certificate` (the proof was authorized by 2f+1
                 // pre-consensus signatures), the `ConsensusOrdered` certificate proof
                 // is authorized by consensus ordering post owned-object conflict resolution.
-                let executable_tx = VerifiedExecutableTransaction::new_unchecked(
-                    ExecutableTransaction::new_from_data_and_sig(
-                        transaction.data().clone(),
-                        CertificateProof::ConsensusOrdered(self.epoch()),
+                let executable_tx = VerifiedExecutableAttestedTransaction::new(
+                    VerifiedExecutableTransaction::new_unchecked(
+                        ExecutableTransaction::new_from_data_and_sig(
+                            transaction.data().clone(),
+                            CertificateProof::ConsensusOrdered(self.epoch()),
+                        ),
                     ),
+                    attested_tx.attestation.clone(),
                 );
 
                 let scheduling_result = self.try_schedule(
@@ -6665,7 +6804,7 @@ impl AuthorityPerEpochStore {
     fn handle_scheduling_result(
         &self,
         scheduling_result: SchedulingResult,
-        verified_executable_tx: VerifiedExecutableTransaction,
+        verified_executable_tx: VerifiedExecutableAttestedTransaction,
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         dkg_failed: bool,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
@@ -6836,7 +6975,10 @@ impl AuthorityPerEpochStore {
         // If needed we can support owned object system transactions as well...
         assert!(system_transaction.contains_shared_object());
         ConsensusTransactionResult::Scheduled {
-            transaction: system_transaction.clone(),
+            transaction: VerifiedExecutableAttestedTransaction::new(
+                system_transaction.clone(),
+                None,
+            ),
             start_time: 0,
         }
     }

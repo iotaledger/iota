@@ -59,6 +59,7 @@ feature_flags:
   reject_immutable_account_creation: true
   validate_input_object_versions: true
   disallow_self_identifier: true
+  disallow_self_identifier_in_transactions: true
   check_canonical_module_version_header: true
   disallow_randomness_in_move_authenticator: true
   check_cyclic_dependencies: true
@@ -131,6 +132,8 @@ max_event_emit_size_total: 65536000
 max_move_vector_len: 262144
 max_move_identifier_len: 128
 max_move_value_depth: 128
+max_move_call_argument_nodes: 2097152
+max_move_call_argument_nodes_total: 16777216
 max_move_enum_variants: 127
 max_back_edges_per_function: 10000
 max_back_edges_per_module: 10000
@@ -153,7 +156,7 @@ obj_access_cost_delete_per_byte: 40
 obj_access_cost_verify_per_byte: 200
 max_type_to_layout_nodes: 512
 max_ptb_value_size: 1048576
-gas_model_version: 2
+gas_model_version: 3
 obj_data_cost_refundable: 100
 obj_metadata_cost_non_refundable: 50
 storage_rebate_rate: 10000

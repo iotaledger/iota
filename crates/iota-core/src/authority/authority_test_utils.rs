@@ -37,7 +37,9 @@ use crate::{
     authority::{AuthorityState, ExecutionEnv},
     checkpoints::CheckpointServiceNoop,
     consensus_handler::SequencedConsensusTransaction,
-    execution_scheduler::ExecutionSchedulerAPI,
+    execution_scheduler::{
+        ExecutionSchedulerAPI, transaction_manager::SchedulableAttestedTransaction,
+    },
     global_state_hasher::GlobalStateHasher,
 };
 
@@ -530,7 +532,7 @@ pub async fn send_batch_consensus_no_execution(
     // Call process_consensus_transaction() instead of
     // handle_consensus_transaction(), to avoid actually executing cert.
     // This allows testing cert execution independently.
-    authority
+    let (scheduled, assigned_versions) = authority
         .epoch_store_for_testing()
         .process_consensus_transactions_for_tests(
             transactions,
@@ -541,7 +543,22 @@ pub async fn send_batch_consensus_no_execution(
             authority,
         )
         .await
-        .unwrap()
+        .unwrap();
+    (drop_attestations(scheduled), assigned_versions)
+}
+
+/// The scheduled transactions without their attestations, for tests that
+/// hand them to the scheduler's plain interface.
+pub fn drop_attestations(scheduled: Vec<SchedulableAttestedTransaction>) -> Vec<Schedulable> {
+    scheduled
+        .into_iter()
+        .map(|scheduled| match scheduled {
+            Schedulable::Transaction(attested) => Schedulable::Transaction(attested.into_parts().0),
+            Schedulable::RandomnessStateUpdate(epoch, round) => {
+                Schedulable::RandomnessStateUpdate(epoch, round)
+            }
+        })
+        .collect()
 }
 
 /// Builds the randomness state update for `round`, persists it and records its

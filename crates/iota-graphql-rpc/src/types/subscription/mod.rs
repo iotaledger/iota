@@ -3,8 +3,8 @@
 
 use std::num::NonZeroUsize;
 
-use async_graphql::{Context, OutputType, SimpleObject, Subscription, Union};
-use futures::{Stream, StreamExt, TryStreamExt, future};
+use async_graphql::{Context, ErrorExtensions, OutputType, SimpleObject, Subscription, Union};
+use futures::{FutureExt, Stream, StreamExt, TryStreamExt, future, stream};
 use iota_indexer::read::IndexerReader;
 use iota_indexer_streaming::{
     error::IndexerStreamingError,
@@ -13,10 +13,12 @@ use iota_indexer_streaming::{
 };
 use iota_sdk_types::TransactionDigest;
 use prometheus_filtered::Registry;
+use tokio::sync::{Semaphore, SemaphorePermit};
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tracing::warn;
 
 use crate::{
+    config::Limits,
     error::Error,
     types::{
         digest::Digest,
@@ -72,15 +74,19 @@ impl Subscription {
     /// the client received, the stream resumes from the transaction
     /// immediately after it. The identified transaction itself is not
     /// emitted.
-    async fn transactions(
+    async fn transactions<'ctx>(
         &self,
-        ctx: &Context<'_>,
+        ctx: &Context<'ctx>,
         start_after: Option<Digest>,
         filter: Option<SubscriptionTransactionFilter>,
-    ) -> async_graphql::Result<impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>>>
-    {
+    ) -> async_graphql::Result<
+        impl Stream<Item = async_graphql::Result<SubscriptionItem<TransactionBlock>>> + use<'ctx>,
+    > {
         let stream = ctx.data_unchecked::<GraphQLStream>();
-        Ok(stream.subscribe_transactions(start_after, filter))
+        let permit = stream.acquire_permit().map_err(|e| e.extend())?;
+        Ok(stream
+            .subscribe_transactions(start_after, filter, permit)
+            .map_err(|e| e.extend()))
     }
 
     /// Subscribe to incoming events from the IOTA network.
@@ -105,14 +111,19 @@ impl Subscription {
     /// On reconnect, clients should pass the digest of the last fully
     /// received transaction as `start_after`. The stream resumes from the
     /// next transaction, so no partial transaction is ever observed.
-    async fn events(
+    async fn events<'ctx>(
         &self,
-        ctx: &Context<'_>,
+        ctx: &Context<'ctx>,
         start_after: Option<Digest>,
         filter: Option<SubscriptionEventFilter>,
-    ) -> async_graphql::Result<impl Stream<Item = Result<SubscriptionItem<Event>, Error>>> {
+    ) -> async_graphql::Result<
+        impl Stream<Item = async_graphql::Result<SubscriptionItem<Event>>> + use<'ctx>,
+    > {
         let stream = ctx.data_unchecked::<GraphQLStream>();
-        Ok(stream.subscribe_events(start_after, filter))
+        let permit = stream.acquire_permit().map_err(|e| e.extend())?;
+        Ok(stream
+            .subscribe_events(start_after, filter, permit)
+            .map_err(|e| e.extend()))
     }
 }
 
@@ -126,21 +137,56 @@ impl Subscription {
 /// the resulting stream is gracefully terminated by the server.
 pub(crate) struct GraphQLStream {
     streamer: InMemory,
+    /// Caps the number of subscriptions active at the same time across all
+    /// connections.
+    active_subscriptions: Semaphore,
 }
 
 impl GraphQLStream {
     pub(crate) async fn new(
         indexer_reader: IndexerReader,
         registry: &Registry,
+        limits: &Limits,
     ) -> Result<Self, Error> {
         let config = Config {
             channel_buffer_size: BROKER_CHANNEL_SIZE,
+            max_recovery_checkpoints: Some(limits.max_subscription_recovery_checkpoints.into()),
             ..Default::default()
         };
         let streamer = InMemory::new(config, indexer_reader, InMemoryStreamMetrics::new(registry))
             .await
             .map_err(|e| Error::Internal(format!("failed to connect to postgres: {e}")))?;
-        Ok(Self { streamer })
+        Ok(Self {
+            streamer,
+            active_subscriptions: Semaphore::new(limits.max_active_subscriptions.get() as usize),
+        })
+    }
+
+    /// Reserves a slot for a new subscription, failing with a client error
+    /// when the server-wide cap is reached.
+    fn acquire_permit(&self) -> Result<SemaphorePermit<'_>, Error> {
+        self.active_subscriptions
+            .try_acquire()
+            .map_err(|_| Error::Client("too many active subscriptions, retry later".to_string()))
+    }
+
+    /// Sends the first error to the client and ends the stream right after
+    /// it, without waiting for another item. The permit is released when the
+    /// stream ends or is dropped.
+    fn terminate_on_error<'stream, T: 'stream>(
+        stream: impl Stream<Item = Result<T, Error>> + Unpin + 'stream,
+        permit: SemaphorePermit<'stream>,
+    ) -> impl Stream<Item = Result<T, Error>> + 'stream {
+        stream::unfold((stream, permit, false), |(stream, permit, failed)| {
+            if failed {
+                return future::Either::Left(future::ready(None));
+            }
+            future::Either::Right(stream.into_future().map(|(item, stream)| {
+                let item = item?;
+                let failed = item.is_err();
+                Some((item, (stream, permit, failed)))
+            }))
+        })
     }
 
     /// Checks if the provided filter matches the item.
@@ -155,12 +201,14 @@ impl GraphQLStream {
     }
 
     /// Subscribe to transactions from IOTA Network.
-    pub(crate) fn subscribe_transactions(
-        &self,
+    pub(crate) fn subscribe_transactions<'stream>(
+        &'stream self,
         start_after: Option<Digest>,
         filter: Option<SubscriptionTransactionFilter>,
-    ) -> impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>> {
-        self.streamer
+        permit: SemaphorePermit<'stream>,
+    ) -> impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>> + 'stream {
+        let stream = self
+            .streamer
             .subscribe_transactions(
                 start_after.map(|digest| RecoveryPoint::Exclusive(TransactionDigest::from(digest))),
             )
@@ -183,25 +231,19 @@ impl GraphQLStream {
                     Err(err) => Err(err.into()),
                 };
                 future::ready(subscription_item)
-            })
-            // intercept the error, send it to the client and terminate the stream.
-            .scan(false, |should_terminate_stream, subscription_item| {
-                if *should_terminate_stream {
-                    return future::ready(None);
-                }
-                future::ready(Some(
-                    subscription_item.inspect_err(|_| *should_terminate_stream = true),
-                ))
-            })
+            });
+        Self::terminate_on_error(stream, permit)
     }
 
     /// Subscribe to events from IOTA Network.
-    pub(crate) fn subscribe_events(
-        &self,
+    pub(crate) fn subscribe_events<'stream>(
+        &'stream self,
         start_after: Option<Digest>,
         filter: Option<SubscriptionEventFilter>,
-    ) -> impl Stream<Item = Result<SubscriptionItem<Event>, Error>> {
-        self.streamer
+        permit: SemaphorePermit<'stream>,
+    ) -> impl Stream<Item = Result<SubscriptionItem<Event>, Error>> + 'stream {
+        let stream = self
+            .streamer
             .subscribe_events(
                 start_after.map(|digest| RecoveryPoint::Exclusive(TransactionDigest::from(digest))),
             )
@@ -218,15 +260,93 @@ impl GraphQLStream {
                     Err(err) => Err(err.into()),
                 };
                 future::ready(subscription_item)
-            })
-            // intercept the error, send it to the client and terminate the stream.
-            .scan(false, |should_terminate_stream, subscription_item| {
-                if *should_terminate_stream {
-                    return future::ready(None);
-                }
-                future::ready(Some(
-                    subscription_item.inspect_err(|_| *should_terminate_stream = true),
-                ))
-            })
+            });
+        Self::terminate_on_error(stream, permit)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{num::NonZeroU32, time::Duration};
+
+    use diesel::r2d2::{ConnectionManager, Pool};
+    use futures::FutureExt;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn rejects_subscriptions_beyond_the_cap_until_one_is_dropped() {
+        // The cap never touches the database, so a pool that cannot connect
+        // is enough.
+        let pool = Pool::builder()
+            .connection_timeout(Duration::from_millis(1))
+            .build_unchecked(ConnectionManager::<diesel::PgConnection>::new(
+                "postgres://unused",
+            ));
+        let limits = Limits {
+            max_active_subscriptions: NonZeroU32::new(1).unwrap(),
+            ..Default::default()
+        };
+        let stream = GraphQLStream::new(
+            IndexerReader::new_without_watermark_cache(pool),
+            &Registry::new(),
+            &limits,
+        )
+        .await
+        .unwrap();
+
+        let first = stream.acquire_permit().unwrap();
+        assert!(matches!(
+            stream.acquire_permit(),
+            Err(Error::Client(msg)) if msg == "too many active subscriptions, retry later"
+        ));
+
+        drop(first);
+        let _again = stream.acquire_permit().unwrap();
+    }
+
+    #[tokio::test]
+    async fn live_stream_holds_its_permit_until_dropped() {
+        let active = Semaphore::new(1);
+        let permit = active.try_acquire().unwrap();
+
+        let items = futures::stream::pending::<Result<(), Error>>();
+        let stream = GraphQLStream::terminate_on_error(items, permit);
+        assert_eq!(active.available_permits(), 0);
+
+        drop(stream);
+        assert_eq!(active.available_permits(), 1);
+    }
+
+    #[tokio::test]
+    async fn stream_ends_right_after_an_error_without_waiting_for_another_item() {
+        let active = Semaphore::new(1);
+        let permit = active.try_acquire().unwrap();
+
+        let items = stream::once(future::ready(Err::<(), _>(Error::Internal("boom".into()))))
+            .chain(stream::pending());
+        let mut stream = GraphQLStream::terminate_on_error(items, permit);
+
+        assert!(matches!(stream.next().await, Some(Err(Error::Internal(_)))));
+        // the inner stream would block forever here, the wrapper must not poll it
+        assert!(matches!(stream.next().now_or_never(), Some(None)));
+        assert_eq!(active.available_permits(), 1);
+        drop(stream);
+        assert_eq!(active.available_permits(), 1);
+    }
+
+    #[tokio::test]
+    async fn stream_ends_after_the_first_error_and_releases_its_permit() {
+        let active = Semaphore::new(1);
+        let permit = active.try_acquire().unwrap();
+
+        let items = futures::stream::iter([Ok(1), Err(Error::Internal("boom".into())), Ok(2)]);
+        let mut stream = GraphQLStream::terminate_on_error(items, permit);
+
+        assert!(matches!(stream.next().await, Some(Ok(1))));
+        assert_eq!(active.available_permits(), 0);
+        assert!(matches!(stream.next().await, Some(Err(Error::Internal(_)))));
+        assert!(stream.next().await.is_none());
+        assert_eq!(active.available_permits(), 1);
     }
 }

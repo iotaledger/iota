@@ -51,6 +51,8 @@ class CheckResult:
 # legitimately produces no winner/loser line. Surfaced client-side in the
 # stress log's error and node-side in the fullnode's terminal-failure reason.
 _PRE_CONSENSUS_REJECTION_MARKERS = (
+    "Transaction execution failed due to issues with transaction inputs",
+    # Wording of builds before the markers above, kept for older captures.
     "by more than 1/3 of validator stake during submission",
     "is not available for consumption, current version",
 )

@@ -718,6 +718,7 @@ mod tests {
             .record_commit_fully_executed(
                 PRODUCING_COMMIT,
                 &handler_processed_upserts(&effects, PRODUCING_COMMIT),
+                Default::default(),
             )
             .unwrap();
         authority.insert_genesis_object(shared);
@@ -820,6 +821,7 @@ mod tests {
             .record_commit_fully_executed(
                 PRODUCING_COMMIT,
                 &handler_processed_upserts(&effects, PRODUCING_COMMIT),
+                Default::default(),
             )
             .unwrap();
         authority.insert_genesis_object(Object::with_id_owner_version_for_testing(
@@ -893,6 +895,7 @@ mod tests {
             .record_commit_fully_executed(
                 PRODUCING_COMMIT,
                 &handler_processed_upserts(&effects, PRODUCING_COMMIT),
+                Default::default(),
             )
             .unwrap();
 

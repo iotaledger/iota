@@ -129,6 +129,7 @@ pub fn simulate_transaction(
             env.bytecode_verifier_metrics,
             VerifierLimitsSource::NodeConfig(env.verifier_signing_config),
             authenticator_gas_budget,
+            false,
         )?
     } else {
         // Execution smashes the gas coins and reserves the whole budget from them

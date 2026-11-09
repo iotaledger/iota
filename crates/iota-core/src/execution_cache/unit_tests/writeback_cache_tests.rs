@@ -27,7 +27,10 @@ use iota_types::{
 use prometheus_filtered::default_registry;
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 use tokio::sync::RwLock;
-use typed_store::Map as _;
+use typed_store::{
+    Map as _,
+    rocks::{DBMap, ReadWriteOptions},
+};
 
 use super::*;
 use crate::{
@@ -186,6 +189,8 @@ impl Scenario {
             live_object_markers_to_delete: Default::default(),
             new_live_object_markers_to_init: Default::default(),
             written: Default::default(),
+            record_superseded_versions: true,
+            attestation_record: None,
         }
     }
 
@@ -1911,4 +1916,41 @@ async fn test_executed_effects_digest_miss_in_another_epoch_is_not_cached() {
         );
     })
     .await;
+}
+
+/// A newest row that does not decode is the store's error, not a missing
+/// object, and a later read of the id does not find it remembered as missing.
+#[tokio::test]
+async fn get_object_returns_the_store_error_of_a_corrupt_newest_row() {
+    telemetry_subscribers::init_for_testing();
+    let authority = TestAuthorityBuilder::new().build().await;
+    let store = authority.database_for_testing();
+    let cache = authority.get_object_cache_reader();
+
+    let object_id = ObjectId::random();
+    let older = Object::immutable_with_id_for_testing(object_id);
+    let corrupt_version = Version::from_u64(7);
+    assert!(older.version() < corrupt_version);
+    store
+        .perpetual_tables
+        .insert_store_object_v2_test_only(older, Some(0))
+        .unwrap();
+    // The objects table's own keys, with bytes that are no
+    // `StoreObjectWrapper`.
+    DBMap::<ObjectKey, Vec<u8>>::reopen(
+        &store.perpetual_tables.objects.db,
+        Some(store.perpetual_tables.objects.cf_name()),
+        &ReadWriteOptions::default(),
+        true,
+    )
+    .unwrap()
+    .insert(&ObjectKey(object_id, corrupt_version), &vec![u8::MAX; 8])
+    .unwrap();
+
+    for _ in 0..2 {
+        let error = cache
+            .try_get_object(&object_id)
+            .expect_err("a newest row that does not decode must not read as missing or older");
+        assert!(matches!(error, IotaError::Storage(_)), "{error:?}");
+    }
 }

@@ -31,7 +31,9 @@ use iota_types::{
     iota_serde::BigInt,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate,
-        iota_system_state_summary::{IotaSystemStateSummaryV1, IotaSystemStateSummaryV2},
+        iota_system_state_summary::{
+            IotaSystemStateSummary, IotaSystemStateSummaryV1, IotaSystemStateSummaryV2,
+        },
         validator_summary_from_wrapper,
     },
     object::{Object, ObjectRead},
@@ -71,6 +73,18 @@ impl GovernanceReadApi {
             metrics,
             stake_read_permits: Arc::new(Semaphore::new(MAX_CONCURRENT_STAKE_READS)),
         }
+    }
+
+    /// The latest system state summary, reporting the validator count limits
+    /// and stake thresholds that the protocol config enforces.
+    fn latest_system_state_summary(&self) -> Result<IotaSystemStateSummary, Error> {
+        let mut summary = self
+            .state
+            .get_system_state()?
+            .into_iota_system_state_summary();
+        summary
+            .apply_protocol_config_validator_parameters(self.state.get_chain_identifier()?.chain());
+        Ok(summary)
     }
 
     /// Waits until fewer than [`MAX_CONCURRENT_STAKE_READS`] stake reads run.
@@ -452,26 +466,15 @@ impl GovernanceReadApiServer for GovernanceReadApi {
 
     #[instrument(skip(self))]
     async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummarySchema> {
-        async move {
-            Ok(self
-                .state
-                .get_system_state()?
-                .into_iota_system_state_summary()
-                .try_into()?)
-        }
-        .trace()
-        .await
+        async move { Ok(self.latest_system_state_summary()?.try_into()?) }
+            .trace()
+            .await
     }
 
     #[instrument(skip(self))]
     async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1Schema> {
         async move {
-            Ok(IotaSystemStateSummaryV1::try_from(
-                self.state
-                    .get_system_state()?
-                    .into_iota_system_state_summary(),
-            )?
-            .into())
+            Ok(IotaSystemStateSummaryV1::try_from(self.latest_system_state_summary()?)?.into())
         }
         .trace()
         .await

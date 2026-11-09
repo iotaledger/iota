@@ -630,6 +630,7 @@ mod tests {
             .record_commit_fully_executed(
                 PRODUCING_COMMIT,
                 &handler_processed_upserts(&effects, PRODUCING_COMMIT),
+                Default::default(),
             )
             .unwrap();
         authority.insert_genesis_object(x_after);
@@ -768,6 +769,7 @@ mod tests {
             .record_commit_fully_executed(
                 CONSUMING_COMMIT,
                 &handler_processed_upserts(&effects, CONSUMING_COMMIT),
+                Default::default(),
             )
             .unwrap();
         authority.insert_genesis_object(object(x_id, effects.lamport_version().as_u64()));
@@ -893,6 +895,7 @@ mod tests {
             .record_commit_fully_executed(
                 WRITING_COMMIT,
                 &handler_processed_upserts(&effects, WRITING_COMMIT),
+                Default::default(),
             )
             .unwrap();
         authority.insert_genesis_object(object(x_id, written));
