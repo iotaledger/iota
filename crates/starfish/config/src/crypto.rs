@@ -27,7 +27,6 @@ use tracing::instrument;
 /// Network key is used for TLS and as the network identity of the authority.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct NetworkPublicKey(iota_sdk_types::Ed25519PublicKey);
-pub struct NetworkPrivateKey(iota_sdk_crypto::ed25519::Ed25519PrivateKey);
 #[derive(Clone)]
 pub struct NetworkKeyPair(iota_sdk_crypto::ed25519::Ed25519PrivateKey);
 
@@ -45,15 +44,9 @@ impl NetworkPublicKey {
     }
 }
 
-impl NetworkPrivateKey {
-    pub fn into_inner(self) -> iota_sdk_crypto::ed25519::Ed25519PrivateKey {
-        self.0
-    }
-}
-
 impl NetworkKeyPair {
-    pub fn new(keypair: iota_sdk_crypto::ed25519::Ed25519PrivateKey) -> Self {
-        Self(keypair)
+    pub fn new(private_key: iota_sdk_crypto::ed25519::Ed25519PrivateKey) -> Self {
+        Self(private_key)
     }
 
     pub fn generate<R: rand08::RngCore + rand08::CryptoRng>(rng: &mut R) -> Self {
@@ -66,14 +59,8 @@ impl NetworkKeyPair {
         NetworkPublicKey(self.0.public_key())
     }
 
-    pub fn private_key(self) -> NetworkPrivateKey {
-        NetworkPrivateKey(self.0)
-    }
-
-    pub fn private_key_bytes(self) -> [u8; 32] {
-        use iota_sdk_crypto::ToFromBytes as _;
-
-        self.0.to_bytes()
+    pub fn private_key(self) -> iota_sdk_crypto::ed25519::Ed25519PrivateKey {
+        self.0
     }
 }
 

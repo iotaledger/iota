@@ -111,7 +111,7 @@ impl Node {
                 .clone()
                 .rewrite_http_to_https();
             let tls_config = iota_tls::create_rustls_client_config(
-                self.config().network_key_pair().public_key(),
+                self.config().network_private_key().public_key(),
                 iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
                 None,
             );
