@@ -74,8 +74,6 @@ feature_flags:
   check_cyclic_dependencies: true
   validate_ptb_argument_indices: true
   allow_dkg_completion_after_timeout: true
-  enable_builtin_move_authenticators: true
-  enable_claim_account_transaction: true
   consensus_dedup_only_recorded_messages: true
   reject_partially_signed_mixed_ed25519_multisig: true
   limit_groth16_pvk_inputs: true
@@ -392,11 +390,3 @@ validator_low_stake_threshold: 5500000000000000
 validator_very_low_stake_threshold: 5000000000000000
 validator_low_stake_grace_period: 7
 max_move_system_package_size: 204800
-builtin_move_authenticator_cost_base: 0
-ed25519_ed25519_validate_pubkey_cost_base: 52
-ecdsa_k1_secp256k1_validate_pubkey_cost_base: 52
-ecdsa_r1_secp256r1_validate_pubkey_cost_base: 52
-multisig_multisig_validate_pubkey_cost_base: 52
-public_key_to_iota_address_impl_cost_base: 52
-claim_account_max_computation_units: 5000
-claim_account_storage_bytes_bound: 2000
