@@ -961,6 +961,9 @@ mod faulty_attestor {
     /// - the same version, with a wrong signature: [`Refuted`] by the re-run;
     /// - the same version, signer's key, internal re-run error: [`Undecided`].
     ///
+    /// The judge re-runs at any version superseded this epoch, so the account
+    /// pays for a transaction signed with any key it held earlier in the epoch.
+    ///
     /// Only the validator that keeps earlier epochs still holds the version
     /// superseded in the previous epoch. The judge re-runs authentication only
     /// at versions superseded this epoch, so that validator refutes like the
