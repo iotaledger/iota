@@ -2466,7 +2466,6 @@ impl AuthorityState {
                 authenticator_gas_budget,
                 protocol_config,
                 reference_gas_price,
-                InputCheckRules::STRICT,
             )?;
 
             let owned_object_refs = authenticator_and_tx_checked_input_objects

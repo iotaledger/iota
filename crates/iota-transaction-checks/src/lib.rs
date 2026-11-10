@@ -278,7 +278,6 @@ mod checked {
         authenticator_gas_budget: u64,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        input_checks: InputCheckRules,
     ) -> IotaResult<(IotaGasStatus, Vec<CheckedInputObjects>, CheckedInputObjects)> {
         // Check Move authenticator inputs first.
         per_authenticator_input_objects
@@ -294,10 +293,14 @@ mod checked {
             &[],
             authenticator_gas_budget,
             true, // execution mode — full transaction_gas_budget
-            input_checks,
+            InputCheckRules::STRICT,
         )?;
         if let Some(receiving_objects) = receiving_objects {
-            check_receiving_objects(&tx_input_objects, receiving_objects, input_checks)?;
+            check_receiving_objects(
+                &tx_input_objects,
+                receiving_objects,
+                InputCheckRules::STRICT,
+            )?;
         }
 
         let per_authenticator_checked_input_objects = per_authenticator_input_objects
