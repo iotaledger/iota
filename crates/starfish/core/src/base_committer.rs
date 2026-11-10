@@ -277,7 +277,7 @@ impl BaseCommitter {
             .get_block_headers_at_round_above_last_commit(leader_slot.round + 1);
         let mut certified_leader_blocks: Vec<(
             VerifiedBlockHeader,
-            Option<CommitMetastate>,
+            CommitMetastate,
             Vec<AuthorityIndex>,
         )> = Vec::new();
         for leader_block in leader_blocks {
@@ -309,7 +309,7 @@ impl BaseCommitter {
             } else {
                 (CommitMetastate::Standard, Vec::new())
             };
-            certified_leader_blocks.push((leader_block, Some(metastate), strong_voters));
+            certified_leader_blocks.push((leader_block, metastate, strong_voters));
         }
 
         // There can be at most one certified leader, otherwise it means the BFT
@@ -374,7 +374,7 @@ impl BaseCommitter {
         leader_block: &VerifiedBlockHeader,
         voting_blocks: &[VerifiedBlockHeader],
         decision_blocks: &[VerifiedBlockHeader],
-    ) -> Option<(Option<CommitMetastate>, Vec<AuthorityIndex>)> {
+    ) -> Option<(CommitMetastate, Vec<AuthorityIndex>)> {
         let (vote_refs, strong_vote_refs) =
             self.vote_and_strong_vote_refs_for_leader(leader_block, voting_blocks);
 
@@ -406,12 +406,12 @@ impl BaseCommitter {
         }
         if strong_qc_quorum {
             let strong_voters = strong_vote_refs.iter().map(|r| r.author).collect();
-            return Some((Some(CommitMetastate::Optimistic), strong_voters));
+            return Some((CommitMetastate::Optimistic, strong_voters));
         }
         if self.has_strong_blame_quorum(leader_block, voting_blocks) {
-            return Some((Some(CommitMetastate::Standard), Vec::new()));
+            return Some((CommitMetastate::Standard, Vec::new()));
         }
-        Some((Some(CommitMetastate::Pending), Vec::new()))
+        Some((CommitMetastate::Pending, Vec::new()))
     }
 
     /// `(vote_refs, strong_vote_refs)` for `leader_block` among the given

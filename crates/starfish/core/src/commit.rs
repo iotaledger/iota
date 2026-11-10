@@ -924,17 +924,13 @@ pub(crate) enum Decision {
 ///
 /// `Undecided` is none of these: the slot has no commit-vs-skip decision yet.
 ///
-/// `Commit(_, Some(Optimistic), strong_voters)` carries the r+1 authorities
+/// `Commit(_, Optimistic, strong_voters)` carries the r+1 authorities
 /// whose strong votes attest data availability for the leader and its
 /// acknowledgments; the linearizer feeds them to the per-ref ack tracker.
 /// Empty for every other case.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum LeaderStatus {
-    Commit(
-        VerifiedBlockHeader,
-        Option<CommitMetastate>,
-        Vec<AuthorityIndex>,
-    ),
+    Commit(VerifiedBlockHeader, CommitMetastate, Vec<AuthorityIndex>),
     Skip(Slot),
     Undecided(Slot),
 }
@@ -962,7 +958,7 @@ impl LeaderStatus {
     /// yet resolved; `Undecided` is neither.
     pub(crate) fn is_resolved(&self) -> bool {
         match self {
-            Self::Commit(_, Some(CommitMetastate::Pending), _) => false,
+            Self::Commit(_, CommitMetastate::Pending, _) => false,
             Self::Commit(..) | Self::Skip(_) => true,
             Self::Undecided(_) => false,
         }
@@ -982,8 +978,7 @@ impl LeaderStatus {
 impl Display for LeaderStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Commit(block, None, _) => write!(f, "Commit({})", block.reference()),
-            Self::Commit(block, Some(metastate), _) => {
+            Self::Commit(block, metastate, _) => {
                 write!(f, "Commit({},{metastate})", block.reference())
             }
             Self::Skip(slot) => write!(f, "Skip({slot})"),
@@ -995,11 +990,7 @@ impl Display for LeaderStatus {
 /// Decision of each leader slot.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum DecidedLeader {
-    Commit(
-        VerifiedBlockHeader,
-        Option<CommitMetastate>,
-        Vec<AuthorityIndex>,
-    ),
+    Commit(VerifiedBlockHeader, CommitMetastate, Vec<AuthorityIndex>),
     Skip(Slot),
 }
 
@@ -1016,11 +1007,7 @@ impl DecidedLeader {
     // strong-voter authority set. Returns None for Skip.
     pub(crate) fn into_committed_block(
         self,
-    ) -> Option<(
-        VerifiedBlockHeader,
-        Option<CommitMetastate>,
-        Vec<AuthorityIndex>,
-    )> {
+    ) -> Option<(VerifiedBlockHeader, CommitMetastate, Vec<AuthorityIndex>)> {
         match self {
             Self::Commit(block, metastate, strong_voters) => {
                 Some((block, metastate, strong_voters))
@@ -1049,8 +1036,7 @@ impl DecidedLeader {
 impl Display for DecidedLeader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Commit(block, None, _) => write!(f, "Commit({})", block.reference()),
-            Self::Commit(block, Some(metastate), _) => {
+            Self::Commit(block, metastate, _) => {
                 write!(f, "Commit({},{metastate})", block.reference())
             }
             Self::Skip(slot) => write!(f, "Skip({slot})"),
@@ -1083,17 +1069,16 @@ impl Display for CommitMetastate {
     }
 }
 
-/// Test helper: pair each leader with `None` metastate and an empty
+/// Test helper: pair each leader with `Standard` metastate and an empty
 /// strong-voter set.
 #[cfg(test)]
-pub(crate) fn with_no_metastate(
+pub(crate) fn with_standard_metastate(
     blocks: Vec<VerifiedBlockHeader>,
-) -> Vec<(
-    VerifiedBlockHeader,
-    Option<CommitMetastate>,
-    Vec<AuthorityIndex>,
-)> {
-    blocks.into_iter().map(|b| (b, None, Vec::new())).collect()
+) -> Vec<(VerifiedBlockHeader, CommitMetastate, Vec<AuthorityIndex>)> {
+    blocks
+        .into_iter()
+        .map(|b| (b, CommitMetastate::Standard, Vec::new()))
+        .collect()
 }
 
 /// Per-commit properties that can be regenerated from past values, and do not
