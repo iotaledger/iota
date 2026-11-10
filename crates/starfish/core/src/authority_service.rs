@@ -6677,7 +6677,7 @@ mod tests {
         let late_ref = late.transaction_ref();
         assert!(late_ref.round <= dag_state.read().evicted_transaction_round(late_ref.author));
         dag_state.write().add_transactions(late, DataSource::Test);
-        assert!(!store.contains_transactions(&[late_ref.into()]).unwrap()[0]);
+        assert!(!store.contains_transactions(&[late_ref]).unwrap()[0]);
 
         let payloads = read_transaction_payloads(&dag_state, &[late_ref], |evicted| {
             store.scan_serialized_transactions(&evicted, usize::MAX)
