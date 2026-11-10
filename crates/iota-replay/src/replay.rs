@@ -50,6 +50,7 @@ use iota_types::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
         SenderSignedTransactionAPI, TransactionAPI, TransactionEnvelope, VerifiedTransaction,
     },
+    transaction_executor::InputCheckRules,
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
@@ -1159,6 +1160,7 @@ impl LocalExec {
                     authenticator_gas_budget,
                     &protocol_config,
                     reference_gas_price,
+                    InputCheckRules::STRICT,
                 )
                 .unwrap();
 

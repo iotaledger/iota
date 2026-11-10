@@ -142,8 +142,7 @@ impl VmChecks {
 /// Which input checks a simulation drops relative to a transaction bound for
 /// execution.
 ///
-/// Every field defaults to `false`, so a check added to the shared path applies
-/// to a simulation too until someone names it here and says why.
+/// A rule is enabled when the corresponding field is set to `false`.
 #[derive(Debug, Copy, Clone)]
 pub struct InputCheckRules {
     /// Skip the bounds on the gas budget, so a caller whose gas is not settled
