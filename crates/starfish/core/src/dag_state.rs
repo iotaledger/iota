@@ -1076,7 +1076,9 @@ impl DagState {
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
     }
 
-    /// Returns verified transactions from memory or storage.
+    /// Returns verified transactions held by the DAG state, reading the store
+    /// only for those at or below the evicted transaction round of their
+    /// author.
     ///
     /// # Errors
     /// Returns a storage error when persisted transactions cannot be read.
@@ -1105,7 +1107,11 @@ impl DagState {
                 transactions[index] = Some(empty);
                 continue;
             }
-            missing.push((index, transactions_ref));
+            if transactions_ref.round()
+                <= self.evicted_transaction_rounds[transactions_ref.author()]
+            {
+                missing.push((index, transactions_ref));
+            }
         }
 
         if missing.is_empty() {
@@ -1142,9 +1148,9 @@ impl DagState {
             .expect("Exactly one element should be returned")
     }
 
-    /// Checks if verified block headers exist for the given transaction refs.
-    /// Checks in-memory data (genesis and recent_block_headers) first, then
-    /// falls back to storage for blocks not found in memory.
+    /// Checks if verified block headers exist for the given transaction refs,
+    /// reading the store only for headers the DAG state lacks at or below the
+    /// evicted header round of their author.
     pub(crate) fn contains_verified_block_headers_for_transaction_refs(
         &self,
         tx_refs: &[TransactionRef],
@@ -1170,11 +1176,12 @@ impl DagState {
                 .any(|block_ref| self.recent_block_headers.contains_key(block_ref));
         }
 
-        // Collect refs that weren't found in memory
         let missing: Vec<(usize, TransactionRef)> = tx_refs
             .iter()
             .enumerate()
-            .filter(|(i, _)| !results[*i])
+            .filter(|(i, tx_ref)| {
+                !results[*i] && tx_ref.round <= self.evicted_header_rounds[tx_ref.author]
+            })
             .map(|(i, tx)| (i, *tx))
             .collect();
 
@@ -1212,9 +1219,9 @@ impl DagState {
         results
     }
 
-    /// Gets verified block headers by checking genesis, cached recent block
-    /// headers in memory, then storage. An element is None when the
-    /// corresponding block header is not found.
+    /// Gets verified block headers held by the DAG state, reading the store
+    /// only for those at or below the evicted header round of their author. An
+    /// element is None when the corresponding block header is not found.
     pub(crate) fn get_verified_block_headers(
         &self,
         block_refs: &[BlockRef],
@@ -1233,7 +1240,9 @@ impl DagState {
                 block_headers[index] = Some(block_header.clone());
                 continue;
             }
-            missing_headers.push((index, block_ref));
+            if block_ref.round <= self.evicted_header_rounds[block_ref.author] {
+                missing_headers.push((index, block_ref));
+            }
         }
 
         if missing_headers.is_empty() {
@@ -1263,10 +1272,10 @@ impl DagState {
         block_headers
     }
 
-    /// Gets transaction commitments for a batch of block references by checking
-    /// genesis, cached recent block headers in memory, then storage.
-    /// Returns a vector of tuples (BlockRef, TransactionsCommitment) for blocks
-    /// that were found. Skips blocks that are not found.
+    /// Gets transaction commitments for a batch of block references from the
+    /// headers held by the DAG state, reading the store only for headers at or
+    /// below the evicted header round of their author. An element is None when
+    /// the block header is not found or is a genesis header.
     pub(crate) fn get_transactions_commitments_batch(
         &self,
         block_refs: &[BlockRef],
@@ -1283,7 +1292,9 @@ impl DagState {
                 commitments[index] = Some(block_header.transactions_commitment());
                 continue;
             }
-            missing_headers.push((index, block_ref));
+            if block_ref.round <= self.evicted_header_rounds[block_ref.author] {
+                missing_headers.push((index, block_ref));
+            }
         }
 
         if missing_headers.is_empty() {
@@ -1860,26 +1871,19 @@ impl DagState {
             .and_then(|block_ref| self.recent_block_headers.get(block_ref).cloned())
     }
 
-    /// Checks whether the required block headers are in cache; if not, then
-    /// check in store. The method is not caching back the
-    /// results, so it's expensive to keep asking for cache missing block
-    /// headers.
+    /// Checks whether this node has each block header, reading the store only
+    /// for those the DAG state lacks at or below the evicted header round of
+    /// their author.
     pub(crate) fn contains_block_headers(&self, block_refs: Vec<BlockRef>) -> Vec<bool> {
         let mut exist = vec![false; block_refs.len()];
         let mut missing = Vec::new();
 
         for (index, block_ref) in block_refs.into_iter().enumerate() {
-            let recent_refs = &self.recent_headers_refs_by_authority[block_ref.author];
-            if recent_refs.contains(&block_ref) || self.genesis.contains_key(&block_ref) {
-                exist[index] = true;
-            } else if recent_refs.is_empty() || recent_refs.last().unwrap().round < block_ref.round
+            if self.recent_headers_refs_by_authority[block_ref.author].contains(&block_ref)
+                || self.genesis.contains_key(&block_ref)
             {
-                // Optimization: recent_refs contain the most recent blocks known to this
-                // authority. If a block ref is not found there and has a higher
-                // round, it definitely is missing from this authority and there
-                // is no need to check disk.
-                exist[index] = false;
-            } else {
+                exist[index] = true;
+            } else if block_ref.round <= self.evicted_header_rounds[block_ref.author] {
                 missing.push((index, block_ref));
             }
         }
@@ -1915,10 +1919,9 @@ impl DagState {
         blocks.first().cloned().unwrap()
     }
 
-    /// Checks whether the required transactions are in cache; if not, then
-    /// check in store. The method is not caching back the
-    /// results, so it's expensive to keep asking for cache missing
-    /// transactions.
+    /// Checks whether this node has each payload, reading the store only for
+    /// those the DAG state lacks at or below the evicted transaction round of
+    /// their author.
     pub(crate) fn contains_transactions(
         &self,
         transaction_refs: Vec<GenericTransactionRef>,
@@ -1929,7 +1932,9 @@ impl DagState {
         for (index, tx_ref) in transaction_refs.into_iter().enumerate() {
             if self.contains_cached_transactions(tx_ref) {
                 exist[index] = true;
-            } else if tx_ref.round() != GENESIS_ROUND {
+            } else if tx_ref.round() != GENESIS_ROUND
+                && tx_ref.round() <= self.evicted_transaction_rounds[tx_ref.author()]
+            {
                 missing.push((index, tx_ref));
             }
         }
@@ -2839,7 +2844,7 @@ mod test {
             VerifiedBlockHeader, genesis_block_headers,
         },
         encoder::create_encoder,
-        storage::{WriteBatch, mem_store::MemStore},
+        storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
     };
@@ -3122,105 +3127,46 @@ mod test {
 
     #[tokio::test]
     async fn test_contains_block_headers_in_cache_or_store() {
-        /// Only keep elements up to 2 rounds before the last committed round
-        const CACHED_ROUNDS: Round = 2;
+        let (dag_state, dag_builder) = flushed_dag_state(Arc::new(MemStore::new()));
 
-        let (mut context, _) = Context::new_for_test(4);
-        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
-
-        let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context, store.clone());
-
-        // Create test block headers for round 1 ~ 10
-        let num_rounds: u32 = 10;
-        let num_authorities: u8 = 4;
-        let mut block_headers = Vec::new();
-
-        for round in 1..=num_rounds {
-            for author in 0..num_authorities {
-                let block_header =
-                    VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
-                block_headers.push(block_header);
-            }
-        }
-
-        // Now write in store the block headers from the first 4 rounds and the rest to
-        // the dag state
-        block_headers.clone().into_iter().for_each(|block_header| {
-            if block_header.round() <= 4 {
-                store
-                    .write(WriteBatch::default().block_headers(vec![block_header]))
-                    .unwrap();
-            } else {
-                dag_state.accept_block_headers(vec![block_header], DataSource::Test);
-            }
-        });
-
-        // Now when trying to query whether we have all the block headers, we should
-        // receive a positive answer for all headers. Headers from the first 4 rounds
-        // should be found in store and the rest in DagState.
-        let mut block_refs = block_headers
+        // Headers at or below the evicted round are found in the store, the
+        // rest in the DAG state.
+        let mut block_refs = dag_builder
+            .block_headers(1..=FLUSHED_ROUNDS)
             .iter()
             .map(|header| header.reference())
             .collect::<Vec<_>>();
-        let result = dag_state.contains_block_headers(block_refs.clone());
-
-        // Ensure everything is found
-        let mut expected = vec![true; (num_rounds * num_authorities as u32) as usize];
-        assert_eq!(result, expected);
-
-        // Now try to ask also for one block ref that is neither in cache nor in store
-        block_refs.insert(
-            3,
-            BlockRef::new(
-                11,
-                AuthorityIndex::new_for_test(3),
-                BlockHeaderDigest::default(),
-            ),
+        let mut expected = vec![true; block_refs.len()];
+        assert_eq!(
+            dag_state.contains_block_headers(block_refs.clone()),
+            expected
         );
-        let result = dag_state.contains_block_headers(block_refs.clone());
 
-        // Then all should be found apart from the last one
+        // A header the DAG state lacks above the evicted round is missing
+        // without a store read.
+        let non_existent_ref = BlockRef::new(
+            FLUSHED_ROUNDS - 2,
+            AuthorityIndex::new_for_test(3),
+            BlockHeaderDigest::default(),
+        );
+        let reads = store_reads(&dag_state, "contains_block_headers");
+        assert_eq!(
+            dag_state.contains_block_headers(vec![non_existent_ref]),
+            vec![false]
+        );
+        assert_eq!(store_reads(&dag_state, "contains_block_headers"), reads);
+        block_refs.insert(3, non_existent_ref);
         expected.insert(3, false);
-        assert_eq!(result, expected.clone());
+        assert_eq!(dag_state.contains_block_headers(block_refs), expected);
     }
 
     #[tokio::test]
     async fn test_get_block_headers_in_cache_or_store() {
-        let (context, _) = Context::new_for_test(4);
-        let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context, store.clone());
+        let (dag_state, dag_builder) = flushed_dag_state(Arc::new(MemStore::new()));
+        let block_headers = dag_builder.block_headers(1..=FLUSHED_ROUNDS);
 
-        // Create test block headers for round 1 ~ 10
-        let num_rounds: u32 = 10;
-        let num_authorities: u8 = 4;
-        let mut block_headers = Vec::new();
-
-        for round in 1..=num_rounds {
-            for author in 0..num_authorities {
-                let block_header =
-                    VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
-                block_headers.push(block_header);
-            }
-        }
-
-        // Now write the block headers from the first 4 rounds to the store, and the
-        // rest to the dag state
-        block_headers.clone().into_iter().for_each(|block_header| {
-            if block_header.round() <= 4 {
-                store
-                    .write(WriteBatch::default().block_headers(vec![block_header]))
-                    .unwrap();
-            } else {
-                dag_state.accept_block_headers(vec![block_header], DataSource::Test);
-            }
-        });
-
-        // Now when trying to query whether we have all the block headers, we should
-        // receive all headers. Headers from the first 4 rounds
-        // should be found in store and the rest in DagState.
+        // Headers at or below the evicted round are found in the store, the
+        // rest in the DAG state.
         let mut block_refs = block_headers
             .iter()
             .map(|block_header| block_header.reference())
@@ -3239,7 +3185,6 @@ mod test {
         let result = dag_state.get_verified_block_headers(&block_refs);
 
         let mut expected_headers = block_headers
-            .clone()
             .into_iter()
             .map(Some)
             .collect::<Vec<Option<VerifiedBlockHeader>>>();
@@ -3253,26 +3198,33 @@ mod test {
 
         // Now try to find only cached headers
         let result_cached = dag_state.get_cached_block_headers(&block_refs);
-        // Ensure everything is found in the cache for rounds > 4
+        // Ensure everything is found in the cache above the evicted round
         let expected_cached = expected_headers
             .iter()
             .map(|oh| {
                 oh.as_ref()
-                    .filter(|h| h.round() > 4 || h.round() == 0)
+                    .filter(|h| {
+                        h.round() > dag_state.evicted_header_round(h.author()) || h.round() == 0
+                    })
                     .cloned()
             })
             .collect::<Vec<_>>();
         assert_eq!(result_cached, expected_cached);
 
-        // Now try to ask also for one block ref that is neither in cache nor in store
-        block_refs.insert(
-            3,
-            BlockRef::new(
-                11,
-                AuthorityIndex::new_for_test(3),
-                BlockHeaderDigest::default(),
-            ),
+        // A header the DAG state lacks above the evicted round is missing
+        // without a store read.
+        let non_existent_ref = BlockRef::new(
+            FLUSHED_ROUNDS - 2,
+            AuthorityIndex::new_for_test(3),
+            BlockHeaderDigest::default(),
         );
+        let reads = store_reads(&dag_state, "get_verified_block_headers");
+        assert_eq!(
+            dag_state.get_verified_block_headers(&[non_existent_ref]),
+            vec![None]
+        );
+        assert_eq!(store_reads(&dag_state, "get_verified_block_headers"), reads);
+        block_refs.insert(3, non_existent_ref);
         let result = dag_state.get_verified_block_headers(&block_refs);
 
         // Then all should be found apart from the last one
@@ -3962,79 +3914,66 @@ mod test {
 
     #[tokio::test]
     async fn test_contains_transactions() {
-        let (context, _) = Context::new_for_test(4);
-        let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let (mut dag_state, dag_builder) = flushed_dag_state(store.clone());
 
-        // Create test blocks for round 1 ~ 10
-        let num_rounds: u32 = 10;
-        let num_authorities: u8 = 4;
-        let mut blocks = Vec::new();
-
-        for round in 1..=num_rounds {
-            for author in 0..num_authorities {
-                let block =
-                    VerifiedBlock::new_for_test(TestBlockHeader::new(round, author).build());
-                blocks.push(block);
-            }
-        }
-
-        // Now write the transactions from the first 4 rounds to the store and the rest
-        // to the dag state
-        blocks.clone().into_iter().for_each(|block| {
-            if block.round() <= 4 {
-                store
-                    .write(WriteBatch::default().transactions(vec![block.verified_transactions]))
-                    .unwrap();
-            } else {
-                dag_state.add_transactions(block.verified_transactions, DataSource::Test);
-            }
-        });
-
-        // Now when trying to query whether we have all the transactions, we should
-        // receive all transactions. The first 4 retrieved from the store and the rest
-        // is from DagState.
-        let mut transactions_refs = blocks
+        // Payloads at or below the evicted round are found in the store, the
+        // rest in the DAG state.
+        let mut transactions_refs = dag_builder
+            .block_headers(1..=FLUSHED_ROUNDS)
             .iter()
-            .map(|block| GenericTransactionRef::from(block.transaction_ref()))
+            .map(|header| GenericTransactionRef::from(header.transaction_ref()))
             .collect::<Vec<_>>();
-        let result = dag_state.contains_transactions(transactions_refs.clone());
+        let mut expected = vec![true; transactions_refs.len()];
+        assert_eq!(
+            dag_state.contains_transactions(transactions_refs.clone()),
+            expected
+        );
 
-        // Ensure everything is found
-        let mut expected = vec![true; (num_rounds * num_authorities as u32) as usize];
-        assert_eq!(result, expected);
-
-        // Now try to ask also for one block ref that is neither in cache nor in store
+        // A payload the DAG state lacks above the evicted round is missing
+        // without a store read.
         let non_existent_ref = GenericTransactionRef::from(TransactionRef {
-            round: 11,
+            round: FLUSHED_ROUNDS - 2,
             author: AuthorityIndex::new_for_test(0),
             transactions_commitment: TransactionsCommitment::default(),
         });
+        let reads = store_reads(&dag_state, "contains_transactions");
+        assert_eq!(
+            dag_state.contains_transactions(vec![non_existent_ref]),
+            vec![false]
+        );
+        assert_eq!(store_reads(&dag_state, "contains_transactions"), reads);
+        let reads = store_reads(&dag_state, "get_verified_transactions");
+        assert!(
+            dag_state
+                .try_get_verified_transactions(&[non_existent_ref])
+                .unwrap()[0]
+                .is_none()
+        );
+        assert_eq!(store_reads(&dag_state, "get_verified_transactions"), reads);
         transactions_refs.insert(3, non_existent_ref);
-        let result = dag_state.contains_transactions(transactions_refs);
-
-        // Ensure everything is found except the one we just added
         expected.insert(3, false);
-        assert_eq!(result, expected);
+        assert_eq!(dag_state.contains_transactions(transactions_refs), expected);
 
-        // Destroy the dag state.
+        // A payload not flushed is gone after recovery.
+        let not_flushed =
+            VerifiedBlock::new_for_test(TestBlockHeader::new(FLUSHED_ROUNDS + 1, 0).build())
+                .verified_transactions;
+        let not_flushed_ref = GenericTransactionRef::from(not_flushed.transaction_ref());
+        dag_state.add_transactions(not_flushed, DataSource::Test);
+        let context = dag_state.context.clone();
         drop(dag_state);
-
-        // Recover the state from the store
         let dag_state = DagState::new(context, store);
 
-        let transactions_refs = blocks
+        let transactions_refs = dag_builder
+            .block_headers(1..=FLUSHED_ROUNDS)
             .iter()
-            .map(|block| GenericTransactionRef::from(block.transaction_ref()))
+            .map(|header| GenericTransactionRef::from(header.transaction_ref()))
+            .chain([not_flushed_ref])
             .collect::<Vec<_>>();
-        let result = dag_state.contains_transactions(transactions_refs);
-
-        // Only transactions flushed to the store should be found
-        let expected = (1..=num_rounds)
-            .flat_map(|round| vec![round <= 4; num_authorities as usize])
-            .collect::<Vec<_>>();
-        assert_eq!(result, expected);
+        let mut expected = vec![true; transactions_refs.len()];
+        *expected.last_mut().unwrap() = false;
+        assert_eq!(dag_state.contains_transactions(transactions_refs), expected);
     }
 
     #[tokio::test]
@@ -4851,5 +4790,56 @@ mod test {
         dag_state.flush();
 
         assert_eq!(dag_state.evicted_transaction_rounds, recovered_rounds);
+    }
+
+    /// Rounds of blocks that `flushed_dag_state` accepts and flushes.
+    const FLUSHED_ROUNDS: Round = 20;
+
+    /// A DAG state that accepted rounds 1 to `FLUSHED_ROUNDS`, committed them
+    /// and flushed, which leaves the headers and payloads at or below the
+    /// evicted rounds only in `store`.
+    fn flushed_dag_state(store: Arc<MemStore>) -> (DagState, DagBuilder) {
+        let (mut context, _) = Context::new_for_test(4);
+        context.protocol_config.set_gc_depth_for_testing(5);
+        context.parameters.dag_state_cached_rounds = 5;
+        let context = Arc::new(context);
+        let mut dag_state = DagState::new(context.clone(), store);
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=FLUSHED_ROUNDS).build();
+        dag_state.accept_block_headers(
+            dag_builder.block_headers(1..=FLUSHED_ROUNDS),
+            DataSource::Test,
+        );
+        for verified_transactions in dag_builder.transactions(1..=FLUSHED_ROUNDS) {
+            dag_state.add_transactions(verified_transactions, DataSource::Test);
+        }
+        let subdags_and_commits = dag_builder.get_sub_dag_and_commits(1..=FLUSHED_ROUNDS);
+        for (_, commit) in &subdags_and_commits {
+            dag_state.add_commit(commit.clone());
+        }
+        let (last_subdag, _) = subdags_and_commits.last().unwrap();
+        dag_state.update_last_solid_subdag_base(last_subdag.base.clone());
+        dag_state.flush();
+        // Callers ask for refs on both sides of the evicted round, up to
+        // `FLUSHED_ROUNDS - 2` above it.
+        for (authority, _) in context.committee.authorities() {
+            let evicted_round = dag_state.evicted_header_round(authority);
+            assert!((1..FLUSHED_ROUNDS - 2).contains(&evicted_round));
+            assert_eq!(
+                dag_state.evicted_transaction_round(authority),
+                evicted_round
+            );
+        }
+        (dag_state, dag_builder)
+    }
+
+    fn store_reads(dag_state: &DagState, method: &str) -> u64 {
+        dag_state
+            .context
+            .metrics
+            .node_metrics
+            .dag_state_store_read_count
+            .with_label_values(&[method])
+            .get()
     }
 }
