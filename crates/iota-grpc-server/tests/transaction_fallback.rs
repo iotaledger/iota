@@ -66,6 +66,9 @@ struct MockFallbackStore {
     objects: HashMap<ObjectKey, Object>,
     /// Methods whose reads fail.
     failing: HashSet<&'static str>,
+    /// Digests that fail any checkpoint lookup they are part of, as one failed
+    /// GET fails the whole call of the HTTP store.
+    failing_lookups: HashSet<TransactionDigest>,
     /// Requests made, in call order; `multi_get` also records which keys it
     /// got.
     requests: Arc<Mutex<Vec<&'static str>>>,
@@ -196,6 +199,18 @@ impl TransactionKeyValueStoreTrait for MockFallbackStore {
             .push(digests.to_vec());
         if let Some(delay) = self.lookup_delay {
             tokio::time::sleep(delay).await;
+        }
+        if digests
+            .iter()
+            .any(|digest| self.failing_lookups.contains(digest))
+        {
+            self.requests
+                .lock()
+                .unwrap()
+                .push("multi_get_transactions_perpetual_checkpoints");
+            return Err(IotaError::Storage(format!(
+                "connection refused by http://{STORE_HOST}"
+            )));
         }
         self.serve(
             "multi_get_transactions_perpetual_checkpoints",
@@ -1495,6 +1510,29 @@ async fn each_chunk_of_50_transactions_makes_its_own_calls() {
         *requested_digests.lock().unwrap(),
         [digests[..50].to_vec(), digests[50..].to_vec()]
     );
+}
+
+#[tokio::test]
+async fn a_failed_lookup_of_one_digest_hides_no_other_pruned_transaction() {
+    let pruned = [test_transaction(false), test_transaction(false)];
+    let (state, mut store) = node_and_store(PRUNED, &pruned);
+    let failing = TransactionDigest::random();
+    store.failing_lookups = HashSet::from([failing]);
+    let requested_digests = store.requested_digests.clone();
+    let handle = start(state, Some(store)).await;
+    let digests = [pruned[0].digest(), failing, pruned[1].digest()];
+
+    let results = get_transactions(&handle, &digests, "transaction,effects").await;
+
+    assert_eq!(served_digest(&results[0]), digests[0].bytes().to_vec());
+    assert_eq!(error_code(&results[1]), Some(tonic::Code::NotFound));
+    assert_eq!(served_digest(&results[2]), digests[2].bytes().to_vec());
+    // The failed batch is looked up again one digest at a time.
+    let mut lookups = requested_digests.lock().unwrap()[..4].to_vec();
+    lookups[1..].sort();
+    let mut retried = digests.map(|digest| vec![digest]).to_vec();
+    retried.sort();
+    assert_eq!(lookups, [vec![digests.to_vec()], retried].concat());
 }
 
 #[tokio::test(start_paused = true)]

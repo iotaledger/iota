@@ -1283,22 +1283,32 @@ impl GrpcReader {
         let digests = digests_at(reads, &indexes);
         // A failed lookup counts as a miss: clients polling for a new
         // transaction give up on any per-item error other than `NOT_FOUND`.
-        match store_read(
+        let checkpoints = match store_read(
             store.multi_get_transactions_perpetual_checkpoints(&digests),
             store_budget,
         )
         .await
         {
-            Ok(checkpoints) => {
-                for (&index, checkpoint) in indexes.iter().zip(checkpoints) {
-                    if let Ok(pending) = &mut reads[index] {
-                        pending.pruned =
-                            checkpoint.filter(|&checkpoint| checkpoint < lowest_available);
+            Ok(checkpoints) => checkpoints,
+            Err(error) if store_budget.is_spent() => return fail_reads(reads, &indexes, &error),
+            // One failed key fails the whole call, which would hide every pruned
+            // transaction of the call, so only a digest whose own lookup fails
+            // counts as a miss.
+            Err(_) if digests.len() > 1 => {
+                match store_read(lookup_each(store, &digests), store_budget).await {
+                    Ok(checkpoints) => checkpoints,
+                    Err(error) if store_budget.is_spent() => {
+                        return fail_reads(reads, &indexes, &error);
                     }
+                    Err(_) => return,
                 }
             }
-            Err(error) if store_budget.is_spent() => fail_reads(reads, &indexes, &error),
-            Err(_) => {}
+            Err(_) => return,
+        };
+        for (&index, checkpoint) in indexes.iter().zip(checkpoints) {
+            if let Ok(pending) = &mut reads[index] {
+                pending.pruned = checkpoint.filter(|&checkpoint| checkpoint < lowest_available);
+            }
         }
     }
 
@@ -1607,6 +1617,22 @@ impl GrpcReader {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Some((keys, found)))
     }
+}
+
+/// Looks up the checkpoint of each of `digests` with a call of its own, with
+/// `None` for a digest whose call fails.
+async fn lookup_each(
+    store: &Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>,
+    digests: &[TransactionDigest],
+) -> iota_types::error::IotaResult<Vec<Option<u64>>> {
+    let lookups = digests.iter().map(|digest| async move {
+        store
+            .multi_get_transactions_perpetual_checkpoints(std::slice::from_ref(digest))
+            .await
+            .ok()
+            .and_then(|checkpoints| checkpoints.into_iter().next().flatten())
+    });
+    Ok(futures::future::join_all(lookups).await)
 }
 
 /// Reads the transactions and effects of the pruned reads from `store`.
