@@ -94,6 +94,10 @@ pub(crate) struct CordialKnowledge {
     /// author][block_ref.round][block_ref.digest]`. The provided value is a
     /// tuple of (ancestors, who knows the block header).
     cordial_knowledge: Vec<BTreeMap<Round, AHashMap<BlockHeaderDigest, (Ancestors, AuthoritySet)>>>,
+    /// Own shard chosen for each slot, shared by all connections.
+    chosen_own_shards: Vec<BTreeMap<Round, TransactionRef>>,
+    /// Own shards at or below this round must not be disseminated.
+    own_shard_floor: Round,
     /// Each Connection Knowledge corresponds to one peer. Upon reception of a
     /// message from CordialKnowledge, we propagate the respected
     /// information for each connection.
@@ -282,6 +286,16 @@ impl CordialKnowledge {
         tokio::sync::watch::Sender<EvictionRounds>,
     ) {
         let num_authorities = context.committee.size();
+        // A shard travels in a later-round own-block bundle whose block is flushed
+        // before broadcast, so shards relayed before a restart are at or below the
+        // recovered round.
+        let own_shard_floor = {
+            let dag_state = dag_state.read();
+            max(
+                dag_state.highest_accepted_round(),
+                dag_state.last_commit_round(),
+            )
+        };
 
         // Main bounded channel for high-level DAG updates (monitored for metrics)
         let (cordial_knowledge_sender, cordial_knowledge_receiver): (
@@ -307,6 +321,8 @@ impl CordialKnowledge {
                 cordial_knowledge_receiver,
                 eviction_rounds_receiver,
                 cordial_knowledge: vec![BTreeMap::new(); num_authorities],
+                chosen_own_shards: vec![BTreeMap::new(); num_authorities],
+                own_shard_floor,
                 last_useful_shards_from_peer_round: vec![None; num_authorities],
                 connection_knowledges: connection_knowledges.clone(),
                 missing_authors: vec![None; num_authorities],
@@ -824,11 +840,28 @@ impl CordialKnowledge {
             .set(selection.map_or(0.0, |selection| selection.required_latency_ms));
     }
 
-    /// Called when a new own shard (created locally) is added to dag state.
+    /// Disseminates an own shard only if its round is above the floor and its slot
+    /// has no own shard chosen. Repeated notifications are ignored.
     fn prepare_new_shard_msgs(
         &mut self,
         transaction_ref: TransactionRef,
     ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
+        let author = transaction_ref.author;
+        let round = transaction_ref.round;
+        let chosen_ref = self.chosen_own_shards[author].get(&round);
+        if round <= self.own_shard_floor || chosen_ref == Some(&transaction_ref) {
+            return None;
+        }
+        if chosen_ref.is_some() {
+            self.context
+                .metrics
+                .node_metrics
+                .cordial_knowledge_second_own_shards_for_slot
+                .inc();
+            return None;
+        }
+        self.chosen_own_shards[author].insert(round, transaction_ref);
+
         let mut vec_msgs: Vec<Vec<ConnectionKnowledgeMessage>> =
             Vec::with_capacity(self.cordial_knowledge.len());
         for index in 0..self.cordial_knowledge.len() {
@@ -856,6 +889,10 @@ impl CordialKnowledge {
             let split_round = evicted_rounds.headers[index] + 1;
             // Remove everything strictly below this round
             *btree_map = btree_map.split_off(&split_round);
+        }
+        self.own_shard_floor = max(self.own_shard_floor, evicted_rounds.shards);
+        for chosen_shards in &mut self.chosen_own_shards {
+            *chosen_shards = chosen_shards.split_off(&(self.own_shard_floor + 1));
         }
 
         // Prepare message for per-connection knowledge about eviction
@@ -1599,6 +1636,122 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         CordialKnowledge::new_for_test(context, dag_state)
+    }
+
+    /// Connections bundle the first own shard for a slot only once.
+    #[tokio::test]
+    async fn only_first_own_shard_for_slot_is_bundled() {
+        let (mut cordial_knowledge, connections) = cordial_knowledge_for_test(4);
+        let author = AuthorityIndex::new_for_test(1);
+        let [first, second] = [0, 1].map(|byte| TransactionRef {
+            round: 10,
+            author,
+            transactions_commitment: TransactionsCommitment([byte; 32]),
+        });
+        let dag_state = connections[2].read().dag_state.clone();
+        for (transaction_ref, serialized_shard) in [
+            (first, Bytes::from_static(b"first")),
+            (second, Bytes::from_static(b"second")),
+        ] {
+            dag_state.write().add_shard(VerifiedOwnShard {
+                serialized_shard,
+                transaction_ref,
+            });
+        }
+
+        let batch = cordial_knowledge.prepare_new_shard_msgs(first).unwrap();
+        assert!(cordial_knowledge.prepare_new_shard_msgs(second).is_none());
+        // Only peers other than this node (0) and the shard's author (1) receive the shard.
+        for (connection, messages) in connections.iter().zip(batch).skip(2) {
+            let mut connection = connection.write();
+            connection.process_vec_messages(messages);
+            connection.handle_useful_shards_to(BTreeMap::from([(author, 10)]));
+            let bundle = connection.create_bundle(VerifiedBlock::new_for_test(
+                TestBlockHeader::new(11, 0).build(),
+            ));
+            assert_eq!(bundle.serialized_shards, vec![Bytes::from_static(b"first")]);
+        }
+        for shard_ref in [first, second] {
+            assert!(
+                cordial_knowledge
+                    .prepare_new_shard_msgs(shard_ref)
+                    .is_none()
+            );
+        }
+        let metrics = &cordial_knowledge.context.metrics.node_metrics;
+        assert_eq!(
+            metrics.cordial_knowledge_second_own_shards_for_slot.get(),
+            2
+        );
+    }
+
+    /// Evicted slots stay closed to late own shard notifications.
+    #[tokio::test]
+    async fn own_shards_at_or_below_eviction_floor_are_not_disseminated() {
+        let (mut cordial_knowledge, _) = cordial_knowledge_for_test(4);
+        let shard_ref = TransactionRef {
+            round: 10,
+            author: AuthorityIndex::new_for_test(1),
+            transactions_commitment: TransactionsCommitment::MIN,
+        };
+        assert!(
+            cordial_knowledge
+                .prepare_new_shard_msgs(shard_ref)
+                .is_some()
+        );
+        for shards in [10, 9] {
+            cordial_knowledge.handle_evict_below(EvictionRounds {
+                headers: vec![GENESIS_ROUND; 4],
+                shards,
+            });
+        }
+        for round in [9, 10, 11] {
+            let messages = cordial_knowledge.prepare_new_shard_msgs(TransactionRef {
+                round,
+                transactions_commitment: TransactionsCommitment([1; 32]),
+                ..shard_ref
+            });
+            assert_eq!(messages.is_some(), round > 10);
+        }
+        let metrics = &cordial_knowledge.context.metrics.node_metrics;
+        assert_eq!(
+            metrics.cordial_knowledge_second_own_shards_for_slot.get(),
+            0
+        );
+    }
+
+    /// Recovery suppresses own shards through the highest recovered round.
+    #[tokio::test]
+    async fn recovered_round_is_own_shard_floor_for_every_author() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let recovered_round = 10;
+        dag_state.accept_block_header(
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(recovered_round, 0).build()),
+            DataSource::Test,
+        );
+        dag_state.flush();
+        let recovered = DagState::new(context.clone(), store);
+        let (mut cordial_knowledge, _) =
+            CordialKnowledge::new_for_test(context, Arc::new(RwLock::new(recovered)));
+
+        for author in (0..4).map(AuthorityIndex::new_for_test) {
+            for round in [recovered_round - 1, recovered_round, recovered_round + 1] {
+                let messages = cordial_knowledge.prepare_new_shard_msgs(TransactionRef {
+                    round,
+                    author,
+                    transactions_commitment: TransactionsCommitment::MIN,
+                });
+                assert_eq!(messages.is_some(), round > recovered_round);
+            }
+        }
+        let metrics = &cordial_knowledge.context.metrics.node_metrics;
+        assert_eq!(
+            metrics.cordial_knowledge_second_own_shards_for_slot.get(),
+            0
+        );
     }
 
     /// A worker with shard peer selection.
