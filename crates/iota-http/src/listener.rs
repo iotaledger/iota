@@ -260,7 +260,7 @@ fn is_connection_error(e: &std::io::Error) -> bool {
 /// How many leading bits of an IPv6 address identify its client when no other
 /// length is configured: the size of the network a single site is usually
 /// given.
-pub(crate) const DEFAULT_IPV6_PREFIX_LEN: u8 = 64;
+pub const DEFAULT_IPV6_PREFIX_LEN: u8 = 64;
 
 /// The shortest IPv6 prefix length accepted. The ranges that
 /// [`ipv6_prefix_len_of`] keeps whole are set by at most the first 32 bits, so

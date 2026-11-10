@@ -11,6 +11,7 @@ use std::{
 };
 
 use anyhow::Result;
+use iota_config::node::ListenerLimitsConfig;
 use iota_grpc_types::v1::{
     ledger_service as grpc_ledger_service, move_package_service as grpc_move_package_service,
     service_methods, state_service as grpc_state_service,
@@ -73,6 +74,7 @@ pub async fn start_grpc_server(
     grpc_reader: Arc<GrpcReader>,
     executor: Option<Arc<dyn TransactionExecutor>>,
     config: iota_config::node::GrpcApiConfig,
+    listener_limits: &ListenerLimitsConfig,
     shutdown_token: CancellationToken,
     chain_id: iota_types::digests::ChainIdentifier,
     metrics: Option<GrpcServerMetrics>,
@@ -140,11 +142,47 @@ pub async fn start_grpc_server(
     let http_config = iota_http::Config::default()
         .accept_http1(false)
         .enable_connect_protocol(false)
-        .max_connections(MAX_CONNECTIONS)
-        .max_connections_per_client_ip(MAX_CONNECTIONS_PER_CLIENT_IP)
-        .max_connection_idle(MAX_CONNECTION_IDLE)
-        .max_concurrent_streams(MAX_CONCURRENT_STREAMS)
-        .http2_keepalive_interval(HTTP2_KEEPALIVE)
+        .handshake_timeout(
+            listener_limits
+                .handshake_timeout
+                .resolve(iota_http::DEFAULT_HANDSHAKE_TIMEOUT),
+        )
+        .max_pending_connections(
+            listener_limits
+                .max_pending_connections
+                .resolve(iota_http::DEFAULT_MAX_PENDING_CONNECTIONS),
+        )
+        .max_connections(listener_limits.max_connections.resolve(MAX_CONNECTIONS))
+        .max_connections_per_client_ip(
+            listener_limits
+                .max_connections_per_client_ip
+                .resolve(MAX_CONNECTIONS_PER_CLIENT_IP),
+        )
+        .ipv6_prefix_len(
+            listener_limits
+                .ipv6_prefix_len
+                .unwrap_or(iota_http::DEFAULT_IPV6_PREFIX_LEN),
+        )
+        .max_connection_idle(
+            listener_limits
+                .max_connection_idle
+                .resolve(MAX_CONNECTION_IDLE),
+        )
+        .max_concurrent_streams(
+            listener_limits
+                .max_concurrent_streams
+                .resolve(MAX_CONCURRENT_STREAMS),
+        )
+        .http2_keepalive_interval(
+            listener_limits
+                .http2_keepalive_interval
+                .resolve(HTTP2_KEEPALIVE),
+        )
+        .http1_header_read_timeout(
+            listener_limits
+                .http1_header_read_timeout
+                .resolve(iota_http::DEFAULT_HTTP1_HEADER_READ_TIMEOUT),
+        )
         .metrics(metrics.as_ref().map(GrpcServerMetrics::listener_metrics));
     let mut http_builder = iota_http::Builder::new().config(http_config);
 
