@@ -420,7 +420,12 @@ fn both_modes_reject_receiving_an_object_that_is_not_address_owned() {
 }
 
 /// A receiving reference with an invalid version is rejected under both
-/// modes.
+/// modes by the validity checks that run before any object is loaded.
+///
+/// With `validate_input_object_versions` on, as it is at
+/// `ProtocolVersion::MAX`, the reference never reaches the input checks' own
+/// version bound; `iota-transaction-checks` covers that bound where it is
+/// reachable.
 #[test]
 fn both_modes_reject_a_receiving_reference_with_an_invalid_version() {
     let sender = Address::ZERO;
@@ -434,6 +439,13 @@ fn both_modes_reject_a_receiving_reference_with_an_invalid_version() {
     let tx = tx_with_receiving_input(sender, &gas, invalid_ref);
 
     for (label, result) in execute_under_both_modes(&mut vm, tx) {
+        let Err(VmSdkError::Validation(validation)) = &result else {
+            panic!("{label} must reject the transaction, got {result:?}");
+        };
+        assert_eq!(
+            validation.context, "transaction validity check",
+            "{label} must reject the reference before loading any object"
+        );
         assert_user_input_error(label, result, |error| {
             matches!(error, UserInputError::InvalidSequenceNumber)
         });

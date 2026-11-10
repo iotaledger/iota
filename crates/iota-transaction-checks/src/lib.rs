@@ -1184,5 +1184,40 @@ mod checked {
                 UserInputError::MoveObjectAsPackage { object_id: id }
             );
         }
+
+        /// `validate_input_object_versions` refuses such a reference from the
+        /// transaction bytes before any object is loaded, so this bound is only
+        /// reached with that flag off. No rule set relaxes it: without it a
+        /// strict check would report a version mismatch and a relaxed one would
+        /// accept the reference.
+        #[test]
+        fn receiving_version_bound_holds_under_every_rule_set() {
+            let object = Object::with_id_owner_for_testing(ObjectId::random(), Address::ZERO);
+            let current = object.object_ref();
+            let invalid_ref =
+                ObjectReference::new(current.object_id, Version::MAX_VALID_EXCL, current.digest);
+            let receiving_objects = ReceivingObjects::from(vec![ReceivingObjectReadResult::new(
+                invalid_ref,
+                object.into(),
+            )]);
+
+            for input_checks in [InputCheckRules::STRICT, InputCheckRules::RELAXED_UNSAFE] {
+                let error = check_receiving_objects(
+                    &InputObjects::new(vec![]),
+                    &receiving_objects,
+                    input_checks,
+                )
+                .unwrap_err();
+                assert!(
+                    matches!(
+                        error,
+                        IotaError::UserInput {
+                            error: UserInputError::InvalidSequenceNumber
+                        }
+                    ),
+                    "{input_checks:?}: {error:?}"
+                );
+            }
+        }
     }
 }
