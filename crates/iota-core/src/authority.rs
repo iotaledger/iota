@@ -370,6 +370,11 @@ pub struct AuthorityMetrics {
     /// result (keep, drop or missing) and the reason that decided it. Only with
     /// the P-COOL flow on.
     pub consensus_handler_validation_reader_verdicts: IntCounterVec,
+    /// Transactions whose inputs post-consensus validation read, by when:
+    /// `ahead` of the validation loop and used by it, `inline` in the loop,
+    /// or `unused`, read ahead for a transaction the loop dropped before
+    /// its inputs mattered. Only with the P-COOL flow on.
+    pub consensus_handler_validation_input_reads: IntCounterVec,
     /// The commit being validated minus the highest fully executed commit, set
     /// once per commit. Only with the P-COOL flow on.
     pub consensus_handler_commit_execution_lag: IntGauge,
@@ -867,6 +872,12 @@ impl AuthorityMetrics {
                 &["verdict", "reason"],
                 registry,
             ).unwrap(),
+            consensus_handler_validation_input_reads: register_int_counter_vec_with_registry!(
+                "consensus_handler_validation_input_reads",
+                "Transactions whose inputs post-consensus validation read, by when: ahead of the validation loop, inline in it, or unused",
+                &["when"],
+                registry,
+            ).unwrap(),
             consensus_handler_commit_execution_lag: register_int_gauge_with_registry!(
                 "consensus_handler_commit_execution_lag",
                 "The consensus commit being validated minus the highest fully executed commit",
@@ -1062,6 +1073,8 @@ impl ObjectStore for ObjectStoreWithHistoricFallback<'_> {
 }
 
 pub struct AuthorityState {
+    /// The `Arc` this state lives in, for [`Self::shared`].
+    this: Weak<AuthorityState>,
     // Fixed size, static, identity of the authority
     /// The name of this authority.
     pub name: AuthorityName,
@@ -1350,6 +1363,13 @@ impl AuthorityState {
         result.map_err(|error| IotaError::MoveAuthenticatorExecutionFailure {
             error: error.to_string(),
         })
+    }
+
+    /// The `Arc` this state lives in, for work handed to another thread.
+    pub(crate) fn shared(&self) -> Arc<AuthorityState> {
+        self.this
+            .upgrade()
+            .expect("a borrowed authority state is alive")
     }
 
     /// Like [`Self::handle_transaction_validation_checks`], but for
@@ -3252,7 +3272,8 @@ impl AuthorityState {
                 traffic_controller_metrics,
             ))
         });
-        let state = Arc::new(AuthorityState {
+        let state = Arc::new_cyclic(|this| AuthorityState {
+            this: this.clone(),
             name,
             secret,
             execution_lock: RwLock::new(epoch),

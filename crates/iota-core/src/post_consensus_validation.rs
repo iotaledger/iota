@@ -60,13 +60,20 @@
 
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
-    sync::Arc,
+    num::NonZeroUsize,
+    sync::{
+        Arc, OnceLock,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 use iota_common::fatal;
 use iota_macros::fail_point;
+use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectReference, SenderSignedTransaction, TransactionDigest, UserSignature};
+use iota_sdk_types::{
+    DenyRuleSet, ObjectReference, SenderSignedTransaction, TransactionDigest, UserSignature,
+};
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     attestation::Attestation,
@@ -292,14 +299,40 @@ pub async fn validate_and_resolve_conflicts(
 
     // One reader for the whole commit, so every transaction in it is read as
     // of the same commit index.
-    let reader = CommitIndexedReader::new(
+    let reader = Arc::new(CommitIndexedReader::new(
         authority_state.get_object_cache_reader().clone(),
         epoch_store.clone(),
         commit_index,
-    );
+    ));
     // The attestors cut off as of this commit's horizon, read at the first
     // attested transaction.
     let mut attestors_cut_off: Option<BTreeSet<u8>> = None;
+
+    // The results of Check #6 read ahead of the loop, by position in
+    // `transactions`. A replayed commit reads nothing ahead: the inputs of
+    // a transaction it repeats a saved decision for may have left the store.
+    let readers = authority_state
+        .config
+        .post_consensus_validation_readers
+        .map_or_else(default_validation_readers, NonZeroUsize::get);
+    let mut read_ahead = if readers > 1 && saved_candidates.is_none() {
+        let _scope = monitored_scope("PostConsensusValidation::ReadAhead");
+        ReadAhead::new(epoch_store, previously_deferred, transactions)
+            .run(
+                authority_state,
+                epoch_store,
+                &reader,
+                &governance_deny_rules,
+                readers,
+            )
+            .await
+    } else {
+        HashMap::new()
+    };
+    let input_reads = &authority_state
+        .metrics
+        .consensus_handler_validation_input_reads;
+    let _scope = monitored_scope("PostConsensusValidation::Decide");
 
     for (i, tx) in transactions.iter().enumerate() {
         // Only validate UserTransactionV1; pass everything else through
@@ -638,7 +671,27 @@ pub async fn validate_and_resolve_conflicts(
         // (2f+1 Byzantine/buggy validators), not something we can recover from
         // by rejecting the transaction post-consensus. Doing so would also risk
         // diverging from other honest validators.
-        let verified_tx = VerifiedTransaction::new_from_verified((*transaction).clone());
+        //
+        // The result depends only on this copy and the state as of the
+        // horizon, never on the transactions before it in the commit, so one
+        // read ahead of the loop is the one a read here would give.
+        let checked = match read_ahead.remove(&i) {
+            Some(checked) => {
+                input_reads.with_label_values(&["ahead"]).inc();
+                checked
+            }
+            None => {
+                input_reads.with_label_values(&["inline"]).inc();
+                authority_state.handle_transaction_validation_checks_at_commit(
+                    &reader,
+                    &VerifiedTransaction::new_from_verified((*transaction).clone()),
+                    epoch_store,
+                    deny_config,
+                    VerifierLimitsSource::ProtocolConfig,
+                    attestation.is_some(),
+                )
+            }
+        };
         // The input the reader dropped or did not see, and whether it did
         // not see it.
         let mut input_verdict: Option<(InputObjectKind, bool)> = None;
@@ -658,58 +711,49 @@ pub async fn validate_and_resolve_conflicts(
         // attested transaction runs the input checks execution runs, gas
         // included, and the checks on receiving objects; the publish
         // verifier stays at execution.
-        let checked = authority_state
-            .handle_transaction_validation_checks_at_commit(
-                &reader,
-                &verified_tx,
-                epoch_store,
-                deny_config,
-                VerifierLimitsSource::ProtocolConfig,
-                attestation.is_some(),
-            )
-            .and_then(|verdict| {
-                let verdicts = &authority_state
-                    .metrics
-                    .consensus_handler_validation_reader_verdicts;
-                match verdict {
-                    ValidationAtCommit::Keep(owned) => {
-                        verdicts.with_label_values(&["keep", "none"]).inc();
-                        Ok(owned)
-                    }
-                    ValidationAtCommit::Drop(kind, reason) => {
-                        verdicts
-                            .with_label_values(&["drop", &format!("{:?}", reason.kind())])
-                            .inc();
-                        warn!(
-                            ?digest,
-                            commit_index,
-                            ?kind,
-                            ?reason,
-                            "input dropped by the commit-indexed reader"
-                        );
-                        input_verdict = Some((kind, false));
-                        Err(kind.not_available_at_commit_error().into())
-                    }
-                    ValidationAtCommit::Missing(kind, reason) => {
-                        verdicts
-                            .with_label_values(&["missing", &format!("{:?}", reason.kind())])
-                            .inc();
-                        warn!(
-                            ?digest,
-                            commit_index,
-                            ?kind,
-                            ?reason,
-                            "input not visible at this commit"
-                        );
-                        input_verdict = Some((kind, true));
-                        Err(kind.object_not_found_error().into())
-                    }
-                    ValidationAtCommit::AuthenticatorPackageDenied(error) => {
-                        denied_for_every_copy = true;
-                        Err(error)
-                    }
+        let checked = checked.and_then(|verdict| {
+            let verdicts = &authority_state
+                .metrics
+                .consensus_handler_validation_reader_verdicts;
+            match verdict {
+                ValidationAtCommit::Keep(owned) => {
+                    verdicts.with_label_values(&["keep", "none"]).inc();
+                    Ok(owned)
                 }
-            });
+                ValidationAtCommit::Drop(kind, reason) => {
+                    verdicts
+                        .with_label_values(&["drop", &format!("{:?}", reason.kind())])
+                        .inc();
+                    warn!(
+                        ?digest,
+                        commit_index,
+                        ?kind,
+                        ?reason,
+                        "input dropped by the commit-indexed reader"
+                    );
+                    input_verdict = Some((kind, false));
+                    Err(kind.not_available_at_commit_error().into())
+                }
+                ValidationAtCommit::Missing(kind, reason) => {
+                    verdicts
+                        .with_label_values(&["missing", &format!("{:?}", reason.kind())])
+                        .inc();
+                    warn!(
+                        ?digest,
+                        commit_index,
+                        ?kind,
+                        ?reason,
+                        "input not visible at this commit"
+                    );
+                    input_verdict = Some((kind, true));
+                    Err(kind.object_not_found_error().into())
+                }
+                ValidationAtCommit::AuthenticatorPackageDenied(error) => {
+                    denied_for_every_copy = true;
+                    Err(error)
+                }
+            }
+        });
         let validated_owned_objects = match checked {
             Ok(owned) => owned,
             Err(e) => {
@@ -759,6 +803,11 @@ pub async fn validate_and_resolve_conflicts(
         }
         decisions.decide(digest, PostConsensusDecision::Kept, None);
     }
+    // A result the loop did not take belongs to a transaction it dropped
+    // before Check #6. Its error, if any, is not this commit's.
+    input_reads
+        .with_label_values(&["unused"])
+        .inc_by(read_ahead.len() as u64);
 
     let dropped: Vec<(TransactionDigest, IotaError, PostConsensusDecision)> = all_user_tx_digests
         .iter()
@@ -830,6 +879,184 @@ pub async fn validate_and_resolve_conflicts(
     transactions.retain(|_| iter.next().unwrap_or(true));
 
     Ok((dropped, current_commit_locks, all_user_tx_digests))
+}
+
+/// How many readers validate a commit when the node config sets no number.
+/// In the simulator the number does not follow the host's cores, so a seed
+/// replays the same on every machine.
+fn default_validation_readers() -> usize {
+    static READERS: OnceLock<usize> = OnceLock::new();
+    *READERS.get_or_init(|| {
+        if cfg!(msim) {
+            4
+        } else {
+            validation_readers_for(
+                std::thread::available_parallelism().map_or(1, NonZeroUsize::get),
+            )
+        }
+    })
+}
+
+/// A quarter of `cores`, at least one and at most eight.
+fn validation_readers_for(cores: usize) -> usize {
+    (cores / 4).clamp(1, 8)
+}
+
+/// The transactions of a commit whose validation and deny checks (Check #6)
+/// run ahead of the validation loop. The readers take them one at a time.
+struct ReadAhead {
+    /// The position in the commit, the copy to check and whether it is
+    /// attested.
+    transactions: Vec<(usize, VerifiedTransaction, bool)>,
+    /// The next of `transactions` no reader has taken.
+    next: AtomicUsize,
+}
+
+impl ReadAhead {
+    /// Picks the transactions the loop is expected to take to Check #6: the
+    /// first copy of a digest, not deferred at an earlier commit, passing
+    /// the checks that read no store, and naming no owned input that an
+    /// earlier one picked names. The loop still runs every check itself, so
+    /// a transaction picked here that it drops earlier costs only the reads.
+    fn new(
+        epoch_store: &AuthorityPerEpochStore,
+        previously_deferred: &PreviouslyDeferredTransactions,
+        transactions: &[VerifiedSequencedConsensusTransaction],
+    ) -> Self {
+        let protocol_config = epoch_store.protocol_config();
+        let mut digests = HashSet::new();
+        let mut named_owned_inputs = HashSet::new();
+        let mut picked = Vec::new();
+        for (i, tx) in transactions.iter().enumerate() {
+            let Some((transaction, attestation)) = (match &tx.0.transaction {
+                SequencedConsensusTransactionKind::External(ext) => {
+                    ext.kind.as_user_transaction_with_attestation()
+                }
+                SequencedConsensusTransactionKind::System(_) => None,
+            }) else {
+                continue;
+            };
+            let digest = *transaction.digest();
+            if !digests.insert(digest) || previously_deferred.contains_key(&digest) {
+                continue;
+            }
+            if transaction
+                .validity_check(&epoch_store.tx_validity_check_context())
+                .is_err()
+            {
+                continue;
+            }
+            if let Some(attestation) = attestation {
+                let Attestation::Authority {
+                    authority_index, ..
+                } = attestation;
+                let data = transaction.data().transaction();
+                if u32::from(*authority_index) != tx.0.certificate_author_index
+                    || check_attested_units(protocol_config, transaction, attestation).is_err()
+                    || check_gas_bounds(
+                        protocol_config,
+                        epoch_store.reference_gas_price(),
+                        data.gas_price(),
+                        data.gas_budget(),
+                    )
+                    .is_err()
+                {
+                    continue;
+                }
+            }
+            let Ok(owned_inputs) = extract_owned_input_objects(tx) else {
+                continue;
+            };
+            if owned_inputs
+                .iter()
+                .any(|input| named_owned_inputs.contains(input))
+            {
+                continue;
+            }
+            named_owned_inputs.extend(owned_inputs);
+            picked.push((
+                i,
+                VerifiedTransaction::new_from_verified((*transaction).clone()),
+                attestation.is_some(),
+            ));
+        }
+        Self {
+            transactions: picked,
+            next: AtomicUsize::new(0),
+        }
+    }
+
+    /// Runs Check #6 for the picked transactions on up to `readers` threads,
+    /// this one included, and returns each result by the transaction's
+    /// position in the commit. A transaction without a result is read by the
+    /// loop.
+    async fn run(
+        self,
+        authority_state: &AuthorityState,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        reader: &Arc<CommitIndexedReader>,
+        deny_rules: &Arc<DenyRuleSet>,
+        readers: usize,
+    ) -> HashMap<usize, IotaResult<ValidationAtCommit>> {
+        let this = Arc::new(self);
+        let others: Vec<_> = (1..readers.min(this.transactions.len()))
+            .map(|_| {
+                let this = this.clone();
+                let authority_state = authority_state.shared();
+                let epoch_store = epoch_store.clone();
+                let reader = reader.clone();
+                let deny_rules = deny_rules.clone();
+                tokio::task::spawn_blocking(move || {
+                    this.read(&authority_state, &epoch_store, &reader, deny_rules.as_ref())
+                })
+            })
+            .collect();
+        let mut results: HashMap<_, _> = this
+            .read(authority_state, epoch_store, reader, deny_rules.as_ref())
+            .into_iter()
+            .collect();
+        for other in others {
+            match other.await {
+                Ok(read) => results.extend(read),
+                Err(error) => {
+                    // A reader cancelled at shutdown never started, so it
+                    // took no transaction.
+                    if let Ok(panic) = error.try_into_panic() {
+                        std::panic::resume_unwind(panic);
+                    }
+                }
+            }
+        }
+        results
+    }
+
+    /// Takes transactions until none is left and runs Check #6 for each.
+    fn read(
+        &self,
+        authority_state: &AuthorityState,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        reader: &CommitIndexedReader,
+        deny_config: &dyn DenyRuleConfig,
+    ) -> Vec<(usize, IotaResult<ValidationAtCommit>)> {
+        let mut results = Vec::new();
+        while let Some((i, transaction, attested)) = self
+            .transactions
+            .get(self.next.fetch_add(1, Ordering::Relaxed))
+        {
+            results.push((
+                *i,
+                authority_state.handle_transaction_validation_checks_at_commit(
+                    reader,
+                    transaction,
+                    epoch_store,
+                    deny_config,
+                    VerifierLimitsSource::ProtocolConfig,
+                    *attested,
+                ),
+            ));
+        }
+        results
+    }
 }
 
 /// The decision so far for each user transaction digest of a commit.
