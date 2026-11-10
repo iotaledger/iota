@@ -638,14 +638,14 @@ fn assert_overload_rejection((update, weight): &(TxStatusUpdate, Weight)) {
     );
     assert_eq!(
         weight.value(),
-        1.0,
-        "an overload rejection weighs one in the traffic tally"
+        0.0,
+        "an overload rejection weighs nothing in the traffic tally"
     );
 }
 
 /// With every dry run taken and no place left to wait, a submission is
 /// refused for overload before its signature is checked, and the refusal
-/// weighs one. Once the dry run frees, the same transaction goes through.
+/// weighs nothing. Once the dry run frees, the same transaction goes through.
 #[tokio::test]
 async fn a_submission_finding_every_dry_run_taken_is_refused_before_its_signature_is_checked() {
     telemetry_subscribers::init_for_testing();
