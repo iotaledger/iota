@@ -11,7 +11,7 @@ use bytes::Bytes;
 use futures::{StreamExt as _, stream::FuturesUnordered};
 use iota_macros::fail_point_async;
 use iota_metrics::{
-    monitored_future,
+    GaugeGuard, monitored_future,
     monitored_mpsc::{Receiver, Sender, channel},
     monitored_scope,
 };
@@ -30,7 +30,7 @@ use tracing::{debug, info, warn};
 use crate::{
     block_header::CommitmentVerifiedTransactions,
     block_verifier::BlockVerifier,
-    commit_syncer::verify_transactions_commitments,
+    commit_syncer::{shortfall_factor, verify_transactions_commitments},
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, DataSource},
@@ -76,13 +76,13 @@ enum SyncMethod {
     Live,
     Periodic,
 }
+
 impl SyncMethod {
-    fn get_string(&self) -> String {
+    fn as_str(self) -> &'static str {
         match self {
             SyncMethod::Live => "live",
             SyncMethod::Periodic => "periodic",
         }
-        .to_string()
     }
 }
 
@@ -93,171 +93,103 @@ struct FetchStats {
     matched_requested: usize,
 }
 
-/// Tracks the number of concurrent transaction fetch requests to each peer.
-/// Counts the number of fetch requests separately for periodic and live
-/// transaction synchronizer as they serve different purposes.
-struct InflightActiveRequests {
-    inner: Mutex<BTreeMap<(AuthorityIndex, SyncMethod), usize>>,
-}
-
-impl InflightActiveRequests {
-    fn new() -> Arc<Self> {
-        Arc::new(Self {
-            inner: Mutex::new(BTreeMap::new()),
-        })
-    }
-    fn unlock_active_request(&self, peer: AuthorityIndex, sync_method: SyncMethod) {
-        let mut inner = self.inner.lock();
-        if let Some(val) = inner.get_mut(&(peer, sync_method)) {
-            *val = val.saturating_sub(1);
-        }
-    }
-}
-
-struct ActiveRequestGuard {
-    peer: AuthorityIndex,
-    sync_method: SyncMethod,
-    active_requests: Arc<InflightActiveRequests>,
-}
-
-impl Drop for ActiveRequestGuard {
-    fn drop(&mut self) {
-        self.active_requests
-            .unlock_active_request(self.peer, self.sync_method);
-    }
-}
-
-struct TransactionsGuard {
-    map: Arc<InflightTransactionsMap>,
-    transactions_refs: BTreeSet<TransactionRef>,
-    peer: AuthorityIndex,
-}
-
-impl Drop for TransactionsGuard {
-    fn drop(&mut self) {
-        self.map
-            .unlock_transactions(&self.transactions_refs, self.peer);
-    }
-}
-
-// Keeps a mapping between the missing transactions that have been instructed to
-// be fetched and the authorities that are currently fetching them. For a
-// transaction ref there is a maximum number of authorities that can
-// concurrently fetch it. The authority ids that are currently fetching a
-// transaction are set on the corresponding `BTreeSet` and basically they act
-// as "locks".
+/// Bounds the concurrent fetches: at most
+/// `MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION` peers fetch the same transaction
+/// at a time, and each peer serves at most
+/// `MAX_CONCURRENT_REQUESTS_PER_AUTHORITY` requests per sync method.
+#[derive(Default)]
 struct InflightTransactionsMap {
-    inner: Mutex<HashMap<TransactionRef, BTreeSet<AuthorityIndex>>>,
+    inner: Mutex<InflightState>,
+}
+
+#[derive(Default)]
+struct InflightState {
+    /// The peers currently fetching each transaction.
+    fetching_peers: HashMap<TransactionRef, BTreeSet<AuthorityIndex>>,
+    /// The number of requests in flight per peer and sync method.
+    active_requests: BTreeMap<(AuthorityIndex, SyncMethod), usize>,
 }
 
 impl InflightTransactionsMap {
-    fn new() -> Arc<Self> {
-        Arc::new(Self {
-            inner: Mutex::new(HashMap::new()),
-        })
-    }
-
-    /// Locks the transactions to be fetched for the assigned `peer`. We
-    /// want to avoid re-fetching the missing transactions from too many
-    /// authorities at the same time, thus we limit the concurrency per
-    /// transaction by attempting to lock per transaction ref. In addition, we
-    /// check whether a given `peer` has many concurrent requests. If so, we
-    /// will not lock transactions. The method return optionally two guards.
-    /// One for the fetched transactions and one for active fetch request.
-    fn lock_transactions_and_active_request(
+    /// Locks up to `max_transactions` of `missing_transaction_refs` for
+    /// `peer`, skipping those that `MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION`
+    /// peers are already fetching. Returns `None` when `peer` has too many
+    /// requests in flight or nothing could be locked.
+    fn lock_transactions(
         self: &Arc<Self>,
         missing_transaction_refs: BTreeSet<TransactionRef>,
         peer: AuthorityIndex,
-        max_number_transactions_per_fetch: usize,
+        max_transactions: usize,
         sync_method: SyncMethod,
-        active_requests: Arc<InflightActiveRequests>,
-    ) -> Option<(TransactionsGuard, ActiveRequestGuard)> {
-        // Lock both maps
-        let mut transaction_map = self.inner.lock();
-        let mut active_requests_locked = active_requests.inner.lock();
-
-        // Ensure we have a counter for this (peer, method)
-        let req_entry = active_requests_locked
+    ) -> Option<TransactionsGuard> {
+        let mut guard = self.inner.lock();
+        let state = &mut *guard;
+        let active_requests = state
+            .active_requests
             .entry((peer, sync_method))
             .or_insert(0);
-
-        // Enforce per-peer concurrent fetch cap
-        if *req_entry >= MAX_CONCURRENT_REQUESTS_PER_AUTHORITY {
+        if *active_requests >= MAX_CONCURRENT_REQUESTS_PER_AUTHORITY {
             return None;
         }
 
-        // Now try to lock transactions
-        let mut selected_transactions_to_fetch = BTreeSet::new();
-        let mut selected_transaction_refs_num = 0;
-
+        let mut transactions_refs = BTreeSet::new();
         for tx_ref in missing_transaction_refs {
-            let authorities = transaction_map.entry(tx_ref).or_default();
-
-            if authorities.len() < MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION
-                && authorities.insert(peer)
-            {
-                selected_transactions_to_fetch.insert(tx_ref);
-                selected_transaction_refs_num += 1;
-
-                if selected_transaction_refs_num >= max_number_transactions_per_fetch {
+            let peers = state.fetching_peers.entry(tx_ref).or_default();
+            if peers.len() < MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION && peers.insert(peer) {
+                transactions_refs.insert(tx_ref);
+                if transactions_refs.len() >= max_transactions {
                     break;
                 }
             }
         }
-
-        // If we couldn’t lock any transactions, don’t bump the request counter
-        if selected_transactions_to_fetch.is_empty() {
+        if transactions_refs.is_empty() {
             return None;
         }
+        *active_requests += 1;
 
-        // We actually got some work → count an active request
-        *req_entry += 1;
-
-        // Drop locks before returning guards
-        drop(transaction_map);
-        drop(active_requests_locked);
-
-        let transactions_guard = TransactionsGuard {
+        Some(TransactionsGuard {
             map: self.clone(),
-            transactions_refs: selected_transactions_to_fetch,
-            peer,
-        };
-
-        let active_request_guard = ActiveRequestGuard {
+            transactions_refs,
             peer,
             sync_method,
-            active_requests: active_requests.clone(),
-        };
-
-        Some((transactions_guard, active_request_guard))
+        })
     }
 
-    /// Unlocks the provided transaction references for the given `peer`. The
-    /// unlocking is strict, meaning that if this method is called for a
-    /// specific transaction ref and peer more times than the corresponding
-    /// lock has been called, it will panic.
-    fn unlock_transactions(
-        self: &Arc<Self>,
-        tx_refs: &BTreeSet<TransactionRef>,
-        peer: AuthorityIndex,
-    ) {
-        // Now mark all the transactions as fetched from the map
-        let mut transactions_to_fetch = self.inner.lock();
-        for tx_ref in tx_refs {
-            let authorities = transactions_to_fetch
+    #[cfg(test)]
+    fn num_of_locked_transactions(&self) -> usize {
+        self.inner.lock().fetching_peers.len()
+    }
+}
+
+/// Holds the transactions locked for one request to `peer`; releases them and
+/// the peer's request slot on drop.
+struct TransactionsGuard {
+    map: Arc<InflightTransactionsMap>,
+    transactions_refs: BTreeSet<TransactionRef>,
+    peer: AuthorityIndex,
+    sync_method: SyncMethod,
+}
+
+impl Drop for TransactionsGuard {
+    fn drop(&mut self) {
+        let mut state = self.map.inner.lock();
+        for tx_ref in &self.transactions_refs {
+            let peers = state
+                .fetching_peers
                 .get_mut(tx_ref)
-                .expect("We should expect a non empty map with at least one peer");
-            assert!(authorities.remove(&peer), "Peer index should be present!");
-            // If the last one then just clean up
-            if authorities.is_empty() {
-                transactions_to_fetch.remove(tx_ref);
+                .expect("a locked transaction is tracked");
+            assert!(
+                peers.remove(&self.peer),
+                "a locked transaction is tracked for its peer"
+            );
+            if peers.is_empty() {
+                state.fetching_peers.remove(tx_ref);
             }
         }
-    }
-    #[cfg(test)]
-    fn num_of_locked_transactions(self: &Arc<Self>) -> usize {
-        let inner = self.inner.lock();
-        inner.len()
+        *state
+            .active_requests
+            .get_mut(&(self.peer, self.sync_method))
+            .expect("a locked request is counted for its peer") -= 1;
     }
 }
 
@@ -312,24 +244,21 @@ impl TransactionsSynchronizerHandle {
 ///    transactions from a limited number of authorities simultaneously, enhancing the chances of
 ///    timely retrieval.
 ///
-/// 2. Periodically requesting missing transactions via a scheduler. This primarily serves to
-///    retrieve missing transactions that were not fetched via the live synchronization. The
-///    scheduler runs on a fixed period, and at half that period after it started a fetch, ensuring
-///    continued transaction retrieval if gaps persist.
+/// 2. Periodically requesting from the core the transactions that are still missing and fetching
+///    them via a scheduler. This retrieves the missing transactions that were not fetched via the
+///    live synchronization.
 pub(crate) struct TransactionsSynchronizer<C: NetworkClient, D: CoreThreadDispatcher> {
     context: Arc<Context>,
+    network_client: Arc<C>,
     core_dispatcher: Arc<D>,
     dag_state: Arc<RwLock<DagState>>,
-    active_requests: Arc<InflightActiveRequests>,
-    fetch_transactions_scheduler_task: JoinSet<()>,
-    network_client: Arc<C>,
-    inflight_transactions_map: Arc<InflightTransactionsMap>,
     /// Applies the same transaction limit and batch verification checks to
     /// fetched payloads as the direct block-bundle route.
     block_verifier: Arc<dyn BlockVerifier>,
     /// Charges faults for fetched payloads that fail verification: the author,
     /// when the payload is provably theirs, and the peer that served it.
     misbehavior_store: Arc<MisbehaviorStore>,
+    inflight_transactions_map: Arc<InflightTransactionsMap>,
 }
 
 impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
@@ -343,45 +272,25 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         dag_state: Arc<RwLock<DagState>>,
         block_verifier: Arc<dyn BlockVerifier>,
     ) -> Arc<TransactionsSynchronizerHandle> {
-        let inflight_transactions_map = InflightTransactionsMap::new();
+        let misbehavior_store = dag_state.read().misbehavior_store().clone();
+        let synchronizer = Arc::new(Self {
+            context,
+            network_client,
+            core_dispatcher,
+            dag_state,
+            block_verifier,
+            misbehavior_store,
+            inflight_transactions_map: Arc::default(),
+        });
 
-        // Create a channel for live fetch requests
         let (live_fetch_sender, live_fetch_receiver) = channel(
             "consensus_transactions_synchronizer_live_fetches",
             LIVE_FETCH_TRANSACTIONS_CONCURRENCY,
         );
-
         let mut tasks = JoinSet::new();
-        let active_requests = InflightActiveRequests::new();
-        let misbehavior_store = dag_state.read().misbehavior_store().clone();
-        // Spawn the live fetcher task
-        let live_fetcher_async = Self::live_fetcher(
-            active_requests.clone(),
-            network_client.clone(),
-            context.clone(),
-            core_dispatcher.clone(),
-            live_fetch_receiver,
-            inflight_transactions_map.clone(),
-            block_verifier.clone(),
-            misbehavior_store.clone(),
-        );
-        tasks.spawn(monitored_future!(live_fetcher_async));
-
-        // Spawn the task for the periodic runs
-        tasks.spawn(monitored_future!(async move {
-            let mut s = Self {
-                context,
-                core_dispatcher,
-                fetch_transactions_scheduler_task: JoinSet::new(),
-                active_requests,
-                network_client,
-                inflight_transactions_map,
-                dag_state,
-                block_verifier,
-                misbehavior_store,
-            };
-            s.run().await;
-        }));
+        let live_fetcher = synchronizer.clone().live_fetcher(live_fetch_receiver);
+        tasks.spawn(monitored_future!(live_fetcher));
+        tasks.spawn(monitored_future!(synchronizer.run()));
 
         Arc::new(TransactionsSynchronizerHandle {
             live_fetch_requests: live_fetch_sender,
@@ -392,222 +301,141 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
     /// Runs the periodic scheduler: on every tick, while fewer than
     /// `PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY` periodic fetches are
     /// running, asks the core for the missing transactions and fetches them.
+    /// Returns when the core shuts down.
     #[cfg_attr(test, tracing::instrument(skip_all, name = "", fields(authority = %self.context.own_index
     )))]
-    async fn run(&mut self) {
-        // We want the transactions synchronizer to run periodically to
-        // fetch any missing transactions.
+    async fn run(self: Arc<Self>) {
+        let mut tasks = JoinSet::new();
         let scheduler_timeout = sleep_until(Instant::now() + TRANSACTIONS_SYNCHRONIZER_TIMEOUT);
-
         tokio::pin!(scheduler_timeout);
 
         loop {
             tokio::select! {
-                Some(result) = self.fetch_transactions_scheduler_task.join_next(), if !self.fetch_transactions_scheduler_task.is_empty() => {
-                    match result {
-                        Ok(()) => {},
-                        Err(e) => {
-                            if e.is_cancelled() {
-                            } else if e.is_panic() {
-                                std::panic::resume_unwind(e.into_panic());
-                            } else {
-                                panic!("fetch transactions scheduler task failed: {e}");
-                            }
-                        },
-                    };
+                Some(result) = tasks.join_next(), if !tasks.is_empty() => {
+                    resume_if_panicked(result);
                 },
                 () = &mut scheduler_timeout => {
-                    // we want to start a new task only if the number of tasks is not too large.
-                    let started = if self.fetch_transactions_scheduler_task.len() < PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY {
-                        match self.start_fetch_missing_transactions_task().await {
-                            Ok(started) => started,
+                    let mut next_tick = TRANSACTIONS_SYNCHRONIZER_TIMEOUT;
+                    if tasks.len() < PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY {
+                        let missing_transactions = match self.missing_transactions().await {
+                            Ok(missing_transactions) => missing_transactions,
                             Err(err) => {
                                 debug!("Core is shutting down, transactions synchronizer is shutting down: {err:?}");
                                 return;
                             }
+                        };
+                        if !missing_transactions.is_empty() {
+                            // Retry sooner while there is something to fetch.
+                            next_tick /= 2;
+                            let fetch = self.clone().periodic_fetch(missing_transactions);
+                            tasks.spawn(monitored_future!(fetch));
                         }
-                    } else {
-                        false
-                    };
-
-                    // Retry sooner while there is something to fetch.
-                    let next_tick = if started {
-                        TRANSACTIONS_SYNCHRONIZER_TIMEOUT / 2
-                    } else {
-                        TRANSACTIONS_SYNCHRONIZER_TIMEOUT
-                    };
+                    }
                     scheduler_timeout.as_mut().reset(Instant::now() + next_tick);
                 }
             }
         }
     }
 
+    /// Fetches the missing transactions found by one periodic tick.
+    async fn periodic_fetch(
+        self: Arc<Self>,
+        missing_transactions: BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
+    ) {
+        let _scope = monitored_scope("FetchMissingTransactionsScheduler");
+        fail_point_async!("consensus-delay");
+        let metrics = &self.context.metrics.node_metrics;
+        let _inflight = GaugeGuard::acquire(&metrics.transactions_synchronizer_periodic_inflight);
+        self.fetch_from_authorities(missing_transactions, SyncMethod::Periodic)
+            .await;
+    }
+
     /// Serves the live fetch requests, at most
     /// `LIVE_FETCH_TRANSACTIONS_CONCURRENCY` at a time. Returns once the
     /// handle is dropped.
     async fn live_fetcher(
-        active_requests: Arc<InflightActiveRequests>,
-        network_client: Arc<C>,
-        context: Arc<Context>,
-        core_dispatcher: Arc<D>,
+        self: Arc<Self>,
         mut receiver: Receiver<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>>,
-        inflight_transactions_map: Arc<InflightTransactionsMap>,
-        block_verifier: Arc<dyn BlockVerifier>,
-        misbehavior_store: Arc<MisbehaviorStore>,
     ) {
         // Dropped with this task on shutdown, which aborts the running fetches.
         let mut tasks = JoinSet::new();
-
         loop {
             tokio::select! {
                 request = receiver.recv(), if tasks.len() < LIVE_FETCH_TRANSACTIONS_CONCURRENCY => {
                     let Some(missing_transactions) = request else {
-                        // Channel closed → shutdown
                         info!("Live fetcher task will now abort.");
-                        break;
+                        return;
                     };
-                    let context = context.clone();
-                    let active_requests = active_requests.clone();
-                    let inflight_transactions_map = inflight_transactions_map.clone();
-                    let network_client = network_client.clone();
-                    let core_dispatcher = core_dispatcher.clone();
-                    let block_verifier = block_verifier.clone();
-                    let misbehavior_store = misbehavior_store.clone();
+                    let synchronizer = self.clone();
                     tasks.spawn(async move {
-                        Self::fetch_and_process_transactions_from_authorities(
-                            context,
-                            active_requests,
-                            inflight_transactions_map,
-                            network_client,
-                            missing_transactions,
-                            core_dispatcher,
-                            SyncMethod::Live,
-                            block_verifier,
-                            misbehavior_store,
-                        )
-                        .await;
+                        synchronizer
+                            .fetch_from_authorities(missing_transactions, SyncMethod::Live)
+                            .await;
                     });
                 },
                 Some(result) = tasks.join_next(), if !tasks.is_empty() => {
-                    match result {
-                        Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
-                        _ => {}
-                    }
+                    resume_if_panicked(result);
                 },
             }
         }
     }
 
-    /// Asks the core for the missing transactions and spawns a periodic fetch
-    /// for them. Returns whether a fetch was spawned; fails only when the
-    /// core is shutting down.
-    async fn start_fetch_missing_transactions_task(&mut self) -> ConsensusResult<bool> {
-        // Get missing transactions from the core
+    /// Asks the core for the missing transactions and publishes the gap to
+    /// the earliest unavailable one and the per-authority counts, so they
+    /// read zero once nothing is missing. Fails only when the core is
+    /// shutting down; a ref of the wrong kind skips this tick.
+    async fn missing_transactions(
+        &self,
+    ) -> ConsensusResult<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>> {
         let missing_transactions = self
             .core_dispatcher
             .get_missing_transaction_data()
             .await
             .map_err(|_err| ConsensusError::Shutdown)?;
 
-        let dag_state = self.dag_state.clone();
-
-        // Compute the gap to unavailable transactions.
-        // If no missing transactions, the gap is zero; Otherwise, it is the difference
-        // between the highest accepted round and the earliest unavailable transaction
-        // round.
-        let accepted_round = dag_state.read().highest_accepted_round();
-        let earliest_unavailable_transaction_round = missing_transactions
+        let metrics = &self.context.metrics.node_metrics;
+        let accepted_round = self.dag_state.read().highest_accepted_round();
+        let earliest_unavailable_round = missing_transactions
             .first_key_value()
             .map(|(tx_ref, _)| tx_ref.round)
             .unwrap_or(accepted_round);
-        let gap_to_unavailable_transactions =
-            accepted_round.saturating_sub(earliest_unavailable_transaction_round);
-        self.context
-            .metrics
-            .node_metrics
+        metrics
             .gap_to_unavailable_transactions
-            .set(gap_to_unavailable_transactions as i64);
+            .set(accepted_round.saturating_sub(earliest_unavailable_round) as i64);
 
-        let context = self.context.clone();
-
-        // Update metrics for missing transactions per authority before fetching,
-        // also when nothing is missing so that they return to zero.
-        let mut missing_transactions_per_authority = vec![0; context.committee.size()];
+        let mut missing_per_authority = vec![0u64; self.context.committee.size()];
         for tx_ref in missing_transactions.keys() {
-            missing_transactions_per_authority[tx_ref.author] += 1;
+            missing_per_authority[tx_ref.author] += 1;
         }
-        for (missing, (_, authority)) in missing_transactions_per_authority
+        for (missing, (_, authority)) in missing_per_authority
             .into_iter()
-            .zip(context.committee.authorities())
+            .zip(self.context.committee.authorities())
         {
-            context
-                .metrics
-                .node_metrics
+            let hostname = authority.hostname.as_str();
+            metrics
                 .transactions_synchronizer_missing_transactions_by_authority
-                .with_label_values(&[&authority.hostname.as_str()])
-                .inc_by(missing as u64);
-            context
-                .metrics
-                .node_metrics
+                .with_label_values(&[hostname])
+                .inc_by(missing);
+            metrics
                 .transactions_synchronizer_current_missing_transactions_by_authority
-                .with_label_values(&[&authority.hostname.as_str()])
+                .with_label_values(&[hostname])
                 .set(missing as i64);
         }
-
-        if missing_transactions.is_empty() {
-            return Ok(false);
-        }
-
-        let network_client = self.network_client.clone();
-        let core_dispatcher = self.core_dispatcher.clone();
-        let inflight_transactions_map = self.inflight_transactions_map.clone();
-        let active_requests = self.active_requests.clone();
-        let block_verifier = self.block_verifier.clone();
-        let misbehavior_store = self.misbehavior_store.clone();
-
-        self.fetch_transactions_scheduler_task
-            .spawn(monitored_future!(async move {
-                let _scope = monitored_scope("FetchMissingTransactionsScheduler");
-                fail_point_async!("consensus-delay");
-                context
-                    .metrics
-                    .node_metrics
-                    .transactions_synchronizer_periodic_inflight
-                    .inc();
-                // Fetch and process missing transactions
-                Self::fetch_and_process_transactions_from_authorities(
-                    context.clone(),
-                    active_requests,
-                    inflight_transactions_map,
-                    network_client,
-                    missing_transactions,
-                    core_dispatcher,
-                    SyncMethod::Periodic,
-                    block_verifier,
-                    misbehavior_store,
-                )
-                .await;
-                context
-                    .metrics
-                    .node_metrics
-                    .transactions_synchronizer_periodic_inflight
-                    .dec();
-            }));
-        Ok(true)
+        Ok(missing_transactions)
     }
 
-    /// Fetches missing transactions from authorities.
-    async fn fetch_and_process_transactions_from_authorities(
-        context: Arc<Context>,
-        active_requests: Arc<InflightActiveRequests>,
-        inflight_transactions_map: Arc<InflightTransactionsMap>,
-        network_client: Arc<C>,
+    /// Fetches the missing transactions from the authorities that acknowledged
+    /// them. Up to `MAX_ASSIGNED_AUTHORITIES_PER_TRANSACTION_FETCH` peers are
+    /// asked concurrently, each for the transactions it could lock; a
+    /// transaction that `MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION` peers are
+    /// already fetching is skipped. Every response feeds the peer's
+    /// responsiveness ranking.
+    async fn fetch_from_authorities(
+        self: &Arc<Self>,
         missing_transactions: BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
-        core_dispatcher: Arc<D>,
         sync_method: SyncMethod,
-        block_verifier: Arc<dyn BlockVerifier>,
-        misbehavior_store: Arc<MisbehaviorStore>,
     ) {
+        let context = &self.context;
         // Build a mapping from authority -> set of transaction refs it has
         // acknowledged. A committed payload was acknowledged by a quorum, so
         // when no acknowledger is known, every peer is asked for it.
@@ -634,22 +462,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             }
         }
 
-        // For each authority, try to lock up the
-        // maximum possible amount of acknowledged transactions and fetch
-        // those transactions. The logic is as follows:
-        // * Iterate, in the order chosen below, over all authorities that have acknowledged missing
-        //   transactions.
-        // * Attempt to lock max_transactions_per_fetch acknowledged transactions using the
-        //   inflight_transactions_map. Some transactions may already be locked by other
-        //   authorities, but continue with the transactions that were successfully locked.
-        // * For each authority, if transactions were successfully locked, then send a request to
-        //   the network client to fetch the transactions from the authority.
-        // * If the transactions were successfully fetched, then process them and send them to the
-        //   core for processing.
-        // Each request is performed individually to avoid blocking the
-        // synchronizer for too long, as certain peers may take a while to respond.
-        // The number of requests to each peer is limited by the parameters.
-
         // Responsive peers are tried first when ranking is enabled. Without
         // ranking the order is uniformly random, or the committee order under
         // test so that scenarios stay deterministic.
@@ -668,349 +480,225 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         }
 
         let mut request_futures = FuturesUnordered::new();
-
-        let mut assigned_authorities_for_transaction_fetch = 0;
-
         for authority in order {
             let authority_transaction_refs = transaction_refs_by_authority
                 .remove(&authority)
                 .expect("order should be a permutation of the candidate set");
-            // * If transactions are successfully locked, and we didn't make too many to this
-            //   authority, then send a request to the network client to fetch the transactions from
-            //   the authority. If the fetch is successful, then process the transactions and send
-            //   them to the core for processing.
-            if let Some((transactions_guard, active_request_guard)) = inflight_transactions_map
-                .lock_transactions_and_active_request(
-                    authority_transaction_refs,
-                    authority,
-                    context
-                        .parameters
-                        .max_transactions_per_transaction_sync_fetch,
-                    sync_method,
-                    active_requests.clone(),
-                )
-            {
-                let context = context.clone();
-                let network_client = network_client.clone();
-                let core_dispatcher = core_dispatcher.clone();
-                let block_verifier = block_verifier.clone();
-                let misbehavior_store = misbehavior_store.clone();
-                request_futures.push(async move {
-                    let result = Self::fetch_and_process_transactions_from_authority(
-                        authority,
-                        context,
-                        transactions_guard,
-                        network_client,
-                        core_dispatcher,
-                        sync_method,
-                        active_request_guard,
-                        block_verifier,
-                        misbehavior_store,
-                    )
-                    .await;
-                    (authority, result)
-                });
-
-                assigned_authorities_for_transaction_fetch += 1;
-                if assigned_authorities_for_transaction_fetch
-                    == MAX_ASSIGNED_AUTHORITIES_PER_TRANSACTION_FETCH
-                {
-                    break;
-                }
+            let Some(transactions_guard) = self.inflight_transactions_map.lock_transactions(
+                authority_transaction_refs,
+                authority,
+                context
+                    .parameters
+                    .max_transactions_per_transaction_sync_fetch,
+                sync_method,
+            ) else {
+                continue;
+            };
+            request_futures.push(async move {
+                let result = self.fetch_from_authority(transactions_guard).await;
+                (authority, result)
+            });
+            if request_futures.len() == MAX_ASSIGNED_AUTHORITIES_PER_TRANSACTION_FETCH {
+                break;
             }
         }
 
-        if request_futures.is_empty() {
-            return;
-        }
-
-        // Await all authority requests to complete, feeding the per-peer
-        // responsiveness signal. The recorded latency spans fetch and
-        // verification. A successful fetch records that latency scaled up by
-        // the fraction of requested transactions it returned, so unrelated or
-        // partial responses cannot improve a peer's rank. An empty response is
-        // a goodput failure; an error or timeout is recorded the same way, so a
-        // failing peer is demoted to a timeout-scale latency and ordered behind
-        // healthy peers in subsequent selections without ever being dropped
-        // from the set.
+        // The recorded latency spans fetch and verification. A successful
+        // fetch records that latency scaled up by the fraction of requested
+        // transactions it returned, so unrelated or partial responses cannot
+        // improve a peer's rank; the scaled sample is capped at the failure
+        // penalty, so a partial delivery never records worse than a failed
+        // fetch. An empty response, an error or a timeout demote the peer to
+        // a timeout-scale latency, ordering it behind healthy peers in later
+        // selections without dropping it from the set.
+        let record_failure = |peer| {
+            context.peer_responsiveness.record_failure_with_timeout(
+                DataSource::TransactionSynchronizer,
+                peer,
+                FETCH_REQUEST_TIMEOUT,
+            )
+        };
         while let Some((peer, result)) = request_futures.next().await {
             match result {
                 Ok(stats) if stats.matched_requested > 0 => {
-                    let shortfall_factor =
-                        (stats.requested as f64 / stats.matched_requested as f64).max(1.0);
-                    // Capped at the failure penalty: a partial delivery never
-                    // records worse than a failed fetch.
+                    let latency = stats
+                        .latency
+                        .mul_f64(shortfall_factor(stats.requested, stats.matched_requested))
+                        .min(FETCH_REQUEST_TIMEOUT);
                     context.peer_responsiveness.record_success(
                         DataSource::TransactionSynchronizer,
                         peer,
-                        stats
-                            .latency
-                            .mul_f64(shortfall_factor)
-                            .min(FETCH_REQUEST_TIMEOUT),
+                        latency,
                     );
                 }
-                Ok(_) => {
-                    context.peer_responsiveness.record_failure_with_timeout(
-                        DataSource::TransactionSynchronizer,
-                        peer,
-                        FETCH_REQUEST_TIMEOUT,
-                    );
-                }
+                Ok(_) => record_failure(peer),
                 Err(err) => {
-                    context.peer_responsiveness.record_failure_with_timeout(
-                        DataSource::TransactionSynchronizer,
-                        peer,
-                        FETCH_REQUEST_TIMEOUT,
-                    );
+                    record_failure(peer);
                     warn!(
                         "[{}] Error when fetching and processing transactions from authority {peer}: {err}",
-                        sync_method.get_string(),
+                        sync_method.as_str(),
                     );
                 }
             }
         }
     }
 
-    /// Fetches and processes transactions from a specific authority peer.
-    async fn fetch_and_process_transactions_from_authority(
-        peer: AuthorityIndex,
-        context: Arc<Context>,
+    /// Fetches the locked transactions from their peer, verifies them and
+    /// hands them to the core. The reported latency spans fetch and
+    /// verification, consistent with the commit syncer.
+    async fn fetch_from_authority(
+        self: &Arc<Self>,
         transactions_guard: TransactionsGuard,
-        network_client: Arc<C>,
-        core_dispatcher: Arc<D>,
-        sync_method: SyncMethod,
-        _active_guard: ActiveRequestGuard,
-        block_verifier: Arc<dyn BlockVerifier>,
-        misbehavior_store: Arc<MisbehaviorStore>,
     ) -> ConsensusResult<FetchStats> {
-        let peer_hostname = &context.committee.authority(peer).hostname;
-        let total_requested = transactions_guard.transactions_refs.len();
-
+        let peer = transactions_guard.peer;
+        let sync_method = transactions_guard.sync_method;
+        let peer_hostname = &self.context.committee.authority(peer).hostname;
+        let requested = transactions_guard.transactions_refs.len();
         debug!(
-            "[{}] Syncing {total_requested} missing committed transactions from authority {peer} {peer_hostname}",
-            sync_method.get_string(),
+            "[{}] Syncing {requested} missing committed transactions from authority {peer} {peer_hostname}",
+            sync_method.as_str(),
         );
 
-        // Span the whole fetch-and-verify so the responsiveness latency includes
-        // verification time, consistent with the commit syncer.
         let started = Instant::now();
-        let (fetched_serialized_transactions, transactions_guard, peer) =
-            Self::fetch_transactions_request(
-                network_client.clone(),
-                peer,
-                transactions_guard,
-                FETCH_REQUEST_TIMEOUT,
-                context.clone(),
-                sync_method,
-                misbehavior_store.clone(),
-            )
+        let serialized_transactions = self
+            .fetch_transactions_request(peer, &transactions_guard.transactions_refs, sync_method)
             .await?;
-
-        let total_fetched = fetched_serialized_transactions.len();
-
         debug!(
-            "Transactions from {total_requested} blocks requested, fetched from {total_fetched} blocks"
+            "Transactions from {requested} blocks requested, fetched from {} blocks",
+            serialized_transactions.len()
         );
-
-        let matched_requested = Self::process_fetched_transactions(
-            fetched_serialized_transactions,
-            peer,
-            transactions_guard,
-            core_dispatcher.clone(),
-            context,
-            sync_method,
-            block_verifier,
-            misbehavior_store,
-        )
-        .await?;
+        let matched_requested = self
+            .process_fetched_transactions(serialized_transactions, transactions_guard)
+            .await?;
 
         Ok(FetchStats {
             latency: started.elapsed(),
-            requested: total_requested,
+            requested,
             matched_requested,
         })
     }
 
-    /// Fetches transactions from a peer authority for the given block
-    /// references. Returns the fetched transactions, the transactions
-    /// guard, and the peer index.
+    /// Requests the transactions from `peer` and records the outcome.
     async fn fetch_transactions_request(
-        network_client: Arc<C>,
+        &self,
         peer: AuthorityIndex,
-        transactions_guard: TransactionsGuard,
-        request_timeout: Duration,
-        context: Arc<Context>,
+        transactions_refs: &BTreeSet<TransactionRef>,
         sync_method: SyncMethod,
-        misbehavior_store: Arc<MisbehaviorStore>,
-    ) -> ConsensusResult<(Vec<Bytes>, TransactionsGuard, AuthorityIndex)> {
-        // Track concurrent inflight requests
-        let inflight_metric = &context
-            .metrics
-            .node_metrics
-            .transactions_synchronizer_inflight_requests;
-        inflight_metric.inc();
-        let _guard = InflightGuard {
-            metric: inflight_metric,
-        };
+    ) -> ConsensusResult<Vec<Bytes>> {
+        let metrics = &self.context.metrics.node_metrics;
+        let _inflight = GaugeGuard::acquire(&metrics.transactions_synchronizer_inflight_requests);
+        let peer_hostname = self.context.committee.authority(peer).hostname.as_str();
 
-        let requested_transactions_refs = transactions_guard
-            .transactions_refs
-            .iter()
-            .cloned()
-            .collect::<Vec<TransactionRef>>();
-
-        let peer_hostname = &context.committee.authority(peer).hostname;
         let start_time = Instant::now();
-        // Fetch the transactions from the peer
         let result = timeout(
-            request_timeout,
-            network_client.fetch_transactions(
+            FETCH_REQUEST_TIMEOUT,
+            self.network_client.fetch_transactions(
                 peer,
-                requested_transactions_refs.clone(),
-                request_timeout,
+                transactions_refs.iter().copied().collect(),
+                FETCH_REQUEST_TIMEOUT,
             ),
         )
         .await;
 
         fail_point_async!("consensus-delay");
 
-        // Record fetch latency
-        let fetch_duration = start_time.elapsed();
-        context
-            .metrics
-            .node_metrics
+        let fetch_duration = start_time.elapsed().as_secs_f64();
+        metrics
             .transactions_synchronizer_fetch_latency
-            .observe(fetch_duration.as_secs_f64());
-        context
-            .metrics
-            .node_metrics
+            .observe(fetch_duration);
+        metrics
             .transactions_synchronizer_fetch_latency_by_peer
-            .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string()])
-            .observe(fetch_duration.as_secs_f64());
+            .with_label_values(&[peer_hostname, sync_method.as_str()])
+            .observe(fetch_duration);
 
-        let resp = match result {
-            Ok(Err(err)) => {
-                misbehavior_store.record_fetch_fault(peer, &err);
-                // Record failure
-                context
-                    .metrics
-                    .node_metrics
-                    .transactions_synchronizer_failure_by_peer
-                    .with_label_values(&[
-                        peer_hostname.as_str(),
-                        &sync_method.get_string(),
-                        err.name(),
-                    ])
-                    .inc();
-
-                Err(err) // network error
-            }
-            Err(err) => {
-                // Record timeout failure
-                context
-                    .metrics
-                    .node_metrics
-                    .transactions_synchronizer_failure_by_peer
-                    .with_label_values(&[
-                        peer_hostname.as_str(),
-                        &sync_method.get_string(),
-                        "timeout",
-                    ])
-                    .inc();
-                // timeout
-                Err(ConsensusError::NetworkRequestTimeout(err.to_string()))
-            }
-            Ok(result) => {
-                // Record success
-                context
-                    .metrics
-                    .node_metrics
-                    .transactions_synchronizer_success_by_peer
-                    .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string()])
-                    .inc();
-
-                result
-            }
+        let record_failure = |reason: &str| {
+            metrics
+                .transactions_synchronizer_failure_by_peer
+                .with_label_values(&[peer_hostname, sync_method.as_str(), reason])
+                .inc();
         };
-        resp.map(|txs| (txs, transactions_guard, peer))
+        match result {
+            Ok(Ok(serialized_transactions)) => {
+                metrics
+                    .transactions_synchronizer_success_by_peer
+                    .with_label_values(&[peer_hostname, sync_method.as_str()])
+                    .inc();
+                Ok(serialized_transactions)
+            }
+            Ok(Err(err)) => {
+                self.misbehavior_store.record_fetch_fault(peer, &err);
+                record_failure(err.name());
+                Err(err)
+            }
+            Err(elapsed) => {
+                record_failure("timeout");
+                Err(ConsensusError::NetworkRequestTimeout(elapsed.to_string()))
+            }
+        }
     }
 
-    /// Processes the requested raw fetched transactions from peer `peer_index`.
-    /// If no error is returned then the verified transactions are
-    /// immediately sent to Core for processing. Returns an error if the
-    /// response contains a transaction that was not requested.
+    /// Verifies the fetched payloads and hands them to the core; the locked
+    /// transactions are released only once the core accepted them. Returns
+    /// how many requested transactions were delivered. Fails if the response
+    /// does not verify or the core is shutting down.
     async fn process_fetched_transactions(
+        self: &Arc<Self>,
         serialized_transactions_vec: Vec<Bytes>,
-        peer_index: AuthorityIndex,
-        requested_transactions_guard: TransactionsGuard,
-        core_dispatcher: Arc<D>,
-        context: Arc<Context>,
-        sync_method: SyncMethod,
-        block_verifier: Arc<dyn BlockVerifier>,
-        misbehavior_store: Arc<MisbehaviorStore>,
+        transactions_guard: TransactionsGuard,
     ) -> ConsensusResult<usize> {
-        let _s = context
-            .metrics
-            .node_metrics
+        let peer = transactions_guard.peer;
+        let sync_method = transactions_guard.sync_method;
+        let metrics = &self.context.metrics.node_metrics;
+        let _timer = metrics
             .scope_processing_time
             .with_label_values(&["Synchronizer::process_fetched_transactions"])
             .start_timer();
         // Ensure that all the returned transactions do not go over the total max
         // allowed returned transactions
-        if serialized_transactions_vec.len() > requested_transactions_guard.transactions_refs.len()
-        {
-            misbehavior_store.record_faulty_transactions(peer_index, false, [peer_index]);
-            return Err(ConsensusError::TooManyFetchedTransactionsReturned(
-                peer_index,
-            ));
+        if serialized_transactions_vec.len() > transactions_guard.transactions_refs.len() {
+            self.misbehavior_store
+                .record_faulty_transactions(peer, false, [peer]);
+            return Err(ConsensusError::TooManyFetchedTransactionsReturned(peer));
         }
-        let metrics = &context.metrics.node_metrics;
-        let peer_hostname = &context.committee.authority(peer_index).hostname;
 
         // Deserialization, commitment checks and the transaction batch
         // verification run on the blocking pool.
         let transactions = spawn_blocking({
-            let context = context.clone();
-            let block_verifier = block_verifier.clone();
-            let misbehavior_store = misbehavior_store.clone();
-            let requested_transactions_refs =
-                requested_transactions_guard.transactions_refs.clone();
+            let synchronizer = self.clone();
+            let requested_transactions_refs = transactions_guard.transactions_refs.clone();
             move || {
-                Self::verify_fetched_transactions(
+                synchronizer.verify_fetched_transactions(
                     serialized_transactions_vec,
                     &requested_transactions_refs,
-                    peer_index,
-                    &context,
-                    block_verifier.as_ref(),
-                    &misbehavior_store,
+                    peer,
                 )
             }
         })
         .await??;
 
+        let peer_hostname = self.context.committee.authority(peer).hostname.as_str();
         metrics
             .transactions_synchronizer_fetched_transactions_by_peer
-            .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string()])
+            .with_label_values(&[peer_hostname, sync_method.as_str()])
             .inc_by(transactions.len() as u64);
         for transactions in &transactions {
-            let block_hostname = &context.committee.authority(transactions.author()).hostname;
+            let block_hostname = &self
+                .context
+                .committee
+                .authority(transactions.author())
+                .hostname;
             metrics
                 .transactions_synchronizer_fetched_transactions_by_authority
-                .with_label_values(&[block_hostname.as_str(), &sync_method.get_string()])
+                .with_label_values(&[block_hostname.as_str(), sync_method.as_str()])
                 .inc();
         }
 
         let matched_requested = transactions.len();
-
-        // Add the transactions to the core
-        core_dispatcher
+        self.core_dispatcher
             .add_transactions(transactions, DataSource::TransactionSynchronizer)
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
-
-        // now release all the locked blocks as they have been fetched, verified &
-        // processed
-        drop(requested_transactions_guard);
+        drop(transactions_guard);
 
         Ok(matched_requested)
     }
@@ -1019,13 +707,13 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
     /// in its transaction reference and runs the same validity checks as the
     /// block-bundle route. Records metrics and misbehavior for a failure.
     fn verify_fetched_transactions(
+        &self,
         serialized_transactions_vec: Vec<Bytes>,
         requested_transactions_refs: &BTreeSet<TransactionRef>,
         peer_index: AuthorityIndex,
-        context: &Arc<Context>,
-        block_verifier: &dyn BlockVerifier,
-        misbehavior_store: &MisbehaviorStore,
     ) -> ConsensusResult<Vec<CommitmentVerifiedTransactions>> {
+        let context = &self.context;
+        let misbehavior_store = &self.misbehavior_store;
         let metrics = &context.metrics.node_metrics;
         let peer_hostname = &context.committee.authority(peer_index).hostname;
 
@@ -1089,7 +777,10 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // Run the same checks here so a payload violating them can't be
         // acknowledged and become committable via this route either.
         for verified_transactions in &transactions {
-            if let Err(err) = block_verifier.verify_transactions_validity(verified_transactions) {
+            if let Err(err) = self
+                .block_verifier
+                .verify_transactions_validity(verified_transactions)
+            {
                 let author = verified_transactions.author();
                 metrics
                     .invalid_transactions
@@ -1112,13 +803,13 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
     }
 }
 
-struct InflightGuard<'a> {
-    metric: &'a prometheus_filtered::IntGauge,
-}
-
-impl<'a> Drop for InflightGuard<'a> {
-    fn drop(&mut self) {
-        self.metric.dec();
+/// Re-raises a panic from a fetch task; a cancelled task is expected on
+/// shutdown.
+fn resume_if_panicked(result: Result<(), JoinError>) {
+    if let Err(err) = result {
+        if err.is_panic() {
+            std::panic::resume_unwind(err.into_panic());
+        }
     }
 }
 
@@ -1439,7 +1130,7 @@ mod tests {
                     .authority(AuthorityIndex::new_for_test(timed_out_peer))
                     .hostname
                     .as_str(),
-                &SyncMethod::Live.get_string(),
+                SyncMethod::Live.as_str(),
                 "timeout",
             ]);
         assert_eq!(timeouts.get(), 1);
@@ -1602,11 +1293,13 @@ mod tests {
         telemetry_subscribers::init_for_testing();
 
         // GIVEN
-        let map = InflightTransactionsMap::new();
-        let active_requests = InflightActiveRequests::new();
+        let map = Arc::new(InflightTransactionsMap::default());
         let sync_method = SyncMethod::Periodic;
 
         let context = Context::new_for_test(10).0;
+        let max_transactions = context
+            .parameters
+            .max_transactions_per_transaction_sync_fetch;
         let missing_transactions_refs = [
             (1, AuthorityIndex::new_for_test(0)),
             (10, AuthorityIndex::new_for_test(0)),
@@ -1620,22 +1313,19 @@ mod tests {
             transactions_commitment: TransactionsCommitment::MIN,
         })
         .collect::<BTreeSet<_>>();
-        // We keep both guards so that drops happen at the end
-        let mut all_guards: Vec<(TransactionsGuard, ActiveRequestGuard)> = Vec::new();
+        // We keep the guards so that drops happen at the end
+        let mut all_guards: Vec<TransactionsGuard> = Vec::new();
 
         // Try to acquire the transaction locks for authorities
         // 0..MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION
         for i in 0..=MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION {
             let authority = AuthorityIndex::new_for_test(i as u8);
 
-            let guard = map.lock_transactions_and_active_request(
+            let guard = map.lock_transactions(
                 missing_transactions_refs.clone(),
                 authority,
-                context
-                    .parameters
-                    .max_transactions_per_transaction_sync_fetch,
+                max_transactions,
                 sync_method,
-                active_requests.clone(),
             );
 
             if i == MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION {
@@ -1645,50 +1335,58 @@ mod tests {
                 assert!(guard.is_none());
                 break;
             }
-            let (tx_guard, ar_guard) = guard.expect("Guard should be created");
-            assert_eq!(tx_guard.transactions_refs.len(), 4);
+            let guard = guard.expect("Guard should be created");
+            assert_eq!(guard.transactions_refs.len(), 4);
 
-            all_guards.push((tx_guard, ar_guard));
+            all_guards.push(guard);
 
             // trying to acquire any of them again for the *same* authority should not
             // succeed
-
-            let guard = map.lock_transactions_and_active_request(
+            let guard = map.lock_transactions(
                 missing_transactions_refs.clone(),
                 authority,
-                context
-                    .parameters
-                    .max_transactions_per_transaction_sync_fetch,
+                max_transactions,
                 sync_method,
-                active_requests.clone(),
             );
             assert!(guard.is_none());
         }
 
-        // Explicitly drop the guard of authority 1 (the first we stored) and try for
-        // authority 3 again - it will now succeed because one slot per-block
-        // got freed
+        // Explicitly drop the guard of authority 0 (the first we stored) and try for
+        // authority MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION again - it will now
+        // succeed because one slot per transaction got freed
         drop(all_guards.remove(0));
 
-        let guard = map.lock_transactions_and_active_request(
+        let guard = map.lock_transactions(
             missing_transactions_refs.clone(),
             AuthorityIndex::new_for_test(MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION as u8),
-            context
-                .parameters
-                .max_transactions_per_transaction_sync_fetch,
+            max_transactions,
             sync_method,
-            active_requests,
         );
-        let (tx_guard, active_request_guard) =
-            guard.expect("Guard should be successfully acquired");
-        assert_eq!(tx_guard.transactions_refs, missing_transactions_refs);
+        let guard = guard.expect("Guard should be successfully acquired");
+        assert_eq!(guard.transactions_refs, missing_transactions_refs);
 
-        // Dropping all guards should unlock all block refs
-        drop(tx_guard);
-        drop(active_request_guard);
+        // Dropping all guards should unlock all transaction refs
+        drop(guard);
         drop(all_guards);
 
         assert_eq!(map.num_of_locked_transactions(), 0);
+        assert!(
+            map.inner
+                .lock()
+                .active_requests
+                .values()
+                .all(|&count| count == 0)
+        );
+
+        // A peer holding `MAX_CONCURRENT_REQUESTS_PER_AUTHORITY` requests for a
+        // sync method gets no more, even for transactions nobody is fetching.
+        let peer = AuthorityIndex::new_for_test(0);
+        let lock_one =
+            || map.lock_transactions(missing_transactions_refs.clone(), peer, 1, sync_method);
+        let _held: Vec<_> = (0..MAX_CONCURRENT_REQUESTS_PER_AUTHORITY)
+            .map(|_| lock_one().expect("the peer has a free request slot"))
+            .collect();
+        assert!(lock_one().is_none());
     }
 
     /// A committed payload with no known acknowledger is fetched from any peer
