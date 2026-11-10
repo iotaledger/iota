@@ -8,8 +8,8 @@ use std::{
 };
 
 use diesel::{
-    QueryableByName, RunQueryDsl,
-    sql_types::{BigInt, VarChar},
+    PgConnection, QueryResult, QueryableByName, RunQueryDsl,
+    sql_types::{BigInt, Text, VarChar},
 };
 use downcast::Any;
 use tracing::{error, info};
@@ -199,19 +199,68 @@ impl PgPartitionManager {
         last_partition_start: u64,
         next_partition_start: u64,
     ) -> Result<(), IndexerError> {
+        let last_partition = last_partition.try_into()?;
+        let next_partition = next_partition.try_into()?;
+        let last_partition_start = last_partition_start.try_into()?;
+        let next_partition_start = next_partition_start.try_into()?;
         transactional_blocking_with_retry!(
             &self.cp,
             |conn| {
-                RunQueryDsl::execute(
-                    diesel::sql_query("CALL advance_partition($1, $2, $3, $4, $5)")
-                        .bind::<diesel::sql_types::Text, _>(table)
-                        .bind::<diesel::sql_types::BigInt, _>(last_partition as i64)
-                        .bind::<diesel::sql_types::BigInt, _>(next_partition as i64)
-                        .bind::<diesel::sql_types::BigInt, _>(last_partition_start as i64)
-                        .bind::<diesel::sql_types::BigInt, _>(next_partition_start as i64),
+                call_alter_partition_range(
                     conn,
-                )
+                    table,
+                    last_partition,
+                    last_partition_start,
+                    next_partition_start,
+                )?;
+                call_create_partition(conn, table, next_partition, next_partition_start)
             },
+            Duration::from_secs(10)
+        )?;
+        Ok(())
+    }
+
+    /// Changes the value range of `<table>_partition_<partition>` to
+    /// `[start, end)`.
+    ///
+    /// The partition must exist, and all of its rows must be in the new range.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database rejects the detach or the attach of the
+    /// partition.
+    pub(crate) fn alter_partition_range(
+        &self,
+        table: &str,
+        partition: i64,
+        start: i64,
+        end: i64,
+    ) -> Result<(), IndexerError> {
+        transactional_blocking_with_retry!(
+            &self.cp,
+            |conn| call_alter_partition_range(conn, table, partition, start, end),
+            Duration::from_secs(10)
+        )?;
+        Ok(())
+    }
+
+    /// Creates `<table>_partition_<partition>` with the value range
+    /// `[start, MAXVALUE)`.
+    ///
+    /// Does nothing if the partition exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database rejects the creation of the partition.
+    pub(crate) fn create_partition(
+        &self,
+        table: &str,
+        partition: i64,
+        start: i64,
+    ) -> Result<(), IndexerError> {
+        transactional_blocking_with_retry!(
+            &self.cp,
+            |conn| call_create_partition(conn, table, partition, start),
             Duration::from_secs(10)
         )?;
         Ok(())
@@ -283,4 +332,32 @@ impl PgPartitionManager {
         )?;
         Ok(())
     }
+}
+
+fn call_alter_partition_range(
+    conn: &mut PgConnection,
+    table: &str,
+    partition: i64,
+    start: i64,
+    end: i64,
+) -> QueryResult<usize> {
+    diesel::sql_query("CALL alter_partition_range($1, $2, $3, $4)")
+        .bind::<Text, _>(table)
+        .bind::<BigInt, _>(partition)
+        .bind::<BigInt, _>(start)
+        .bind::<BigInt, _>(end)
+        .execute(conn)
+}
+
+fn call_create_partition(
+    conn: &mut PgConnection,
+    table: &str,
+    partition: i64,
+    start: i64,
+) -> QueryResult<usize> {
+    diesel::sql_query("CALL create_partition($1, $2, $3)")
+        .bind::<Text, _>(table)
+        .bind::<BigInt, _>(partition)
+        .bind::<BigInt, _>(start)
+        .execute(conn)
 }
