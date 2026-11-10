@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_protocol_config::ProtocolConfig;
@@ -536,6 +536,11 @@ impl TestValidator {
             .build()
             .await;
 
+        Self::from_state(state)
+    }
+
+    /// The submit path of a validator the caller built.
+    fn from_state(state: Arc<AuthorityState>) -> (Self, mpsc::Receiver<ConsensusTransaction>) {
         // Each test submits far fewer messages than this.
         let (sender, submitted) = mpsc::channel(16);
         let mut consensus_client = MockConsensusClient::new();
@@ -790,73 +795,148 @@ async fn a_second_transaction_on_the_same_gas_coin_is_refused() {
     assert!(submitted.try_recv().is_err());
 }
 
-/// For a transaction signed by keys, the attestation offers its owned inputs
-/// to be locked before the dry run, and a refused lock ends the attestation
-/// with the refusal.
+/// A Move account's transaction on a coin that an earlier transaction of the
+/// account holds is refused before its signature is checked and before any dry
+/// run, as a transaction signed with keys is.
 #[tokio::test]
-async fn the_attestation_of_a_signed_transaction_locks_its_owned_inputs_first() {
+async fn a_move_account_transaction_on_a_held_coin_gets_no_dry_run() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = attestation_enabled();
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let (first, second) = env.account_transactions_on_one_coin();
+    let (validator, mut submitted) = TestValidator::from_state(env.authority.clone());
+
+    let (update, _) = validator.submit(first.clone()).await;
+    assert!(
+        matches!(update, TxStatusUpdate::Submitted),
+        "expected Submitted, got {update:?}"
+    );
+    assert_eq!(digest_of(submitted.recv().await.unwrap()), *first.digest());
+
+    let (update, weight) = validator.submit(second).await;
+    assert!(
+        matches!(
+            update,
+            TxStatusUpdate::Rejected {
+                error: IotaError::ObjectLockConflict { .. }
+            }
+        ),
+        "expected a soft lock conflict, got {update:?}"
+    );
+    assert_eq!(
+        weight.value(),
+        0.0,
+        "a refusal before any dry run weighs nothing"
+    );
+    assert_eq!(
+        validator.state.metrics.attestation_dry_runs_total.get(),
+        1,
+        "only the first transaction may get a dry run"
+    );
+    assert!(submitted.try_recv().is_err());
+}
+
+/// A transaction whose inputs another transaction locks while it waits for a
+/// dry run is refused once a dry run frees, before its own dry run.
+#[tokio::test]
+async fn a_lock_taken_while_waiting_for_a_dry_run_refuses_the_transaction_before_it() {
     telemetry_subscribers::init_for_testing();
     let _guard = attestation_enabled();
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let (ids, objects) = owned_by(sender, 2);
-    let state = TestAuthorityBuilder::new()
-        .with_starting_objects(&objects)
-        .build()
-        .await;
-    let expected: HashSet<_> = ids
-        .iter()
-        .map(|id| state.get_object(id).unwrap().object_ref())
-        .collect();
-    let epoch_store = state.load_epoch_store_one_call_per_task();
-    let verified = epoch_store
-        .verify_transaction(transfer(&state, sender, &sender_key, ids[0], ids[1]))
-        .unwrap();
-    let deny_config = &state.config.transaction_deny_config;
+    let (validator, mut submitted) = TestValidator::new(&objects, dry_run_limits(1, 1)).await;
+    let tx = transfer(&validator.state, sender, &sender_key, ids[0], ids[1]);
+    let gas = validator.state.get_object(&ids[1]).unwrap().object_ref();
 
-    let mut offered = HashSet::new();
-    let refused = state.attest_transaction(&verified, &epoch_store, deny_config, |owned_objects| {
-        offered = owned_objects.iter().copied().collect();
-        Err(IotaError::ObjectLockConflict {
-            obj_ref: owned_objects[0],
-            pending_transaction: TransactionDigest::new([7; 32]),
-        })
+    let held = validator.state.acquire_attestation_permit().await.unwrap();
+    let waiting = tokio::spawn({
+        let validator = validator.clone();
+        async move { validator.submit(tx).await }
     });
-    assert!(
-        matches!(refused, Err(IotaError::ObjectLockConflict { .. })),
-        "expected the refusal, got {refused:?}"
-    );
-    assert_eq!(offered, expected);
+    tokio::time::timeout(Duration::from_secs(30), async {
+        while validator.state.metrics.attestations_waiting.get() < 1 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the transaction should wait for a dry run");
 
-    let (_, owned_objects) = state
-        .attest_transaction(&verified, &epoch_store, deny_config, |_| Ok(()))
+    validator
+        .soft_locks
+        .try_acquire(TransactionDigest::new([9; 32]), &[gas])
         .unwrap();
-    assert_eq!(owned_objects.into_iter().collect::<HashSet<_>>(), expected);
+    drop(held);
+
+    let (update, weight) = waiting.await.unwrap();
+    assert!(
+        matches!(
+            update,
+            TxStatusUpdate::Rejected {
+                error: IotaError::ObjectLockConflict { .. }
+            }
+        ),
+        "expected a soft lock conflict, got {update:?}"
+    );
+    assert_eq!(
+        weight.value(),
+        0.0,
+        "a refusal before the dry run weighs nothing"
+    );
+    assert_eq!(validator.state.metrics.attestation_dry_runs_total.get(), 0);
+    assert!(submitted.try_recv().is_err());
 }
 
-/// A Move authenticator proves the signer only when the dry run passes, so
-/// the attestation of a Move account's transaction locks nothing before it.
+/// A transaction whose inputs another transaction locks during its dry run is
+/// refused when it takes its own locks, and the refusal weighs one: the
+/// validator ran the dry run for nothing.
 #[tokio::test]
-async fn the_attestation_of_a_move_account_transaction_locks_nothing_first() {
+async fn a_lock_refused_after_the_dry_run_weighs_one() {
     telemetry_subscribers::init_for_testing();
     let _guard = attestation_enabled();
 
-    let mut env = AbstractAccountTestEnv::new().await;
-    let tx = env.account_transaction();
-    let epoch_store = env.authority.epoch_store_for_testing();
-    let verified = epoch_store.verify_transaction(tx).unwrap();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (ids, objects) = owned_by(sender, 2);
+    let (validator, mut submitted) =
+        TestValidator::new(&objects, AuthorityOverloadConfig::default()).await;
+    let tx = transfer(&validator.state, sender, &sender_key, ids[0], ids[1]);
+    let gas = validator.state.get_object(&ids[1]).unwrap().object_ref();
 
-    let mut asked = false;
-    env.authority
-        .attest_transaction(
-            &verified,
-            &epoch_store,
-            &env.authority.config.transaction_deny_config,
-            |_| {
-                asked = true;
-                Ok(())
-            },
-        )
+    let submission = tokio::spawn({
+        let validator = validator.clone();
+        async move { validator.submit(tx).await }
+    });
+    // The count rises when the dry run starts, after both checks for
+    // conflicts. The test runs on one thread, so the submission cannot take
+    // its locks until the test waits for it below.
+    tokio::time::timeout(Duration::from_secs(30), async {
+        while validator.state.metrics.attestation_dry_runs_total.get() < 1 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the dry run should start");
+    validator
+        .soft_locks
+        .try_acquire(TransactionDigest::new([9; 32]), &[gas])
         .unwrap();
-    assert!(!asked, "no lock may be taken before the dry run");
+
+    let (update, weight) = submission.await.unwrap();
+    assert!(
+        matches!(
+            update,
+            TxStatusUpdate::Rejected {
+                error: IotaError::ObjectLockConflict { .. }
+            }
+        ),
+        "expected a soft lock conflict, got {update:?}"
+    );
+    assert_eq!(
+        weight.value(),
+        1.0,
+        "a refusal after the dry run weighs one"
+    );
+    assert_eq!(validator.soft_locks.lock_count(), 1);
+    assert!(submitted.try_recv().is_err());
 }

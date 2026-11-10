@@ -359,6 +359,8 @@ pub struct AuthorityMetrics {
     /// Submissions rejected because every attestation dry run was taken and
     /// the queue was full.
     pub(crate) attestations_rejected_total: IntCounter,
+    /// Attestation dry runs started.
+    pub(crate) attestation_dry_runs_total: IntCounter,
 
     /// Checkpoint-inclusion waits that timed out before the RPC indexes
     /// caught up.
@@ -773,6 +775,12 @@ impl AuthorityMetrics {
             attestations_rejected_total: register_int_counter_with_registry!(
                 "attestations_rejected_total",
                 "Number of submissions rejected because every attestation dry run was taken and the queue was full",
+                registry,
+            )
+                .unwrap(),
+            attestation_dry_runs_total: register_int_counter_with_registry!(
+                "attestation_dry_runs_total",
+                "Number of attestation dry runs started",
                 registry,
             )
                 .unwrap(),
