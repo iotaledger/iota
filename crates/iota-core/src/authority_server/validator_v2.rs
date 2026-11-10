@@ -175,9 +175,10 @@ fn check_consensus_transaction_size(
     Ok(())
 }
 
-/// Rejects a submission because the validator is overloaded. The rejection
-/// weighs one in the traffic controller's tally, so a client that keeps the
-/// validator overloaded is counted.
+/// Rejects a submission because the validator is overloaded, and counts it in
+/// `num_rejected_tx_during_overload`. The rejection weighs nothing in the
+/// traffic controller's tally: the client turned away is not necessarily the
+/// one keeping the validator busy.
 fn overload_rejection(
     metrics: &ValidatorServiceMetrics,
     error: IotaError,
@@ -186,7 +187,8 @@ fn overload_rejection(
         .num_rejected_tx_during_overload
         .with_label_values(&[error.as_ref()])
         .inc();
-    (TxStatusUpdate::Rejected { error }, Weight::one())
+
+    (TxStatusUpdate::Rejected { error }, Weight::zero())
 }
 
 /// Counts a refused soft lock under its cause.
@@ -284,10 +286,10 @@ impl ValidatorService {
     /// execution, verifies signature, runs deny checks, and submits to
     /// consensus. Returns the terminal status together with the per-item
     /// traffic weight derived from the outcome: `Weight::one()` for an
-    /// already-executed duplicate (spam-like), for an overload rejection and
-    /// for a transaction too large for consensus once attested,
-    /// `normalize(&error)` for any other rejection (signature/epoch errors
-    /// weigh, others don't), and `Weight::zero()` for a successful submission.
+    /// already-executed duplicate (spam-like) and for a transaction too large
+    /// for consensus once attested, `normalize(&error)` for any other rejection
+    /// (signature/epoch errors weigh, others don't), and `Weight::zero()` for a
+    /// successful submission.
     async fn submit_single_tx(
         state: &Arc<AuthorityState>,
         consensus_adapter: &Arc<ConsensusAdapter>,
