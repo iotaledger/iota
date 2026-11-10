@@ -1369,6 +1369,7 @@
                 "relocate_event_module": true,
                 "report_move_authentication_error": true,
                 "rethrow_serialization_type_layout_errors": true,
+                "secp256r1_ecrecover_reject_x_overflow": true,
                 "select_committee_from_eligible_validators": true,
                 "select_committee_supporting_next_epoch_version": true,
                 "separate_gas_price_feedback_mechanism_for_randomness": true,

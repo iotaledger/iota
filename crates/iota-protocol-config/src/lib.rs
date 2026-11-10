@@ -280,6 +280,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             after consensus and in block verification. Block verification
 //             also rejects a block that carries a system transaction kind in
 //             a user transaction or certificate.
+//             `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
+//             restored x-coordinate is not below the field modulus.
 //             Update the gas model version to 3.
 //             Enable validator attestation on devnet, with the checkpoint
 //             summary data version that certifies the verdicts.
@@ -755,6 +757,12 @@ struct FeatureFlags {
     // verification.
     #[serde(skip_serializing_if = "is_false")]
     disallow_self_identifier_in_transactions: bool,
+
+    // If true, `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
+    // restored x-coordinate `r + n` is not below the field modulus, instead
+    // of wrapping it at 2^256.
+    #[serde(skip_serializing_if = "is_false")]
+    secp256r1_ecrecover_reject_x_overflow: bool,
 
     // If true, the version field of a published module header must be the encoding
     // the serializer produces for the version it decodes to. Below binary format
@@ -2374,6 +2382,10 @@ impl ProtocolConfig {
         self.feature_flags.disallow_self_identifier_in_transactions
     }
 
+    pub fn secp256r1_ecrecover_reject_x_overflow(&self) -> bool {
+        self.feature_flags.secp256r1_ecrecover_reject_x_overflow
+    }
+
     pub fn consensus_dedup_only_recorded_messages(&self) -> bool {
         self.feature_flags.consensus_dedup_only_recorded_messages
     }
@@ -3929,6 +3941,11 @@ impl ProtocolConfig {
                     // Reject `<SELF>` as an identifier in transactions, at
                     // signing, after consensus and in block verification.
                     cfg.feature_flags.disallow_self_identifier_in_transactions = true;
+
+                    // `ecdsa_r1::secp256r1_ecrecover` rejects a signature
+                    // whose restored x-coordinate is not below the field
+                    // modulus.
+                    cfg.feature_flags.secp256r1_ecrecover_reject_x_overflow = true;
 
                     // Update the gas model version.
                     cfg.gas_model_version = Some(3);

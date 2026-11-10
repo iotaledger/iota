@@ -23,7 +23,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 
-use crate::NativesCostTable;
+use crate::{NativesCostTable, get_extension, object_runtime::ObjectRuntime};
 
 pub const FAIL_TO_RECOVER_PUBKEY: u64 = 0;
 pub const INVALID_SIGNATURE: u64 = 1;
@@ -137,9 +137,15 @@ pub fn ecrecover(
         return Ok(NativeResult::err(cost, INVALID_SIGNATURE));
     };
 
-    let pk = match hash {
-        KECCAK256 => sig.recover_with_hash::<Keccak256>(&msg_ref),
-        SHA256 => sig.recover_with_hash::<Sha256>(&msg_ref),
+    let reject_x_overflow = get_extension!(context, ObjectRuntime)?
+        .protocol_config
+        .secp256r1_ecrecover_reject_x_overflow();
+
+    let pk = match (hash, reject_x_overflow) {
+        (KECCAK256, true) => sig.recover_with_hash::<Keccak256>(&msg_ref),
+        (KECCAK256, false) => sig.recover_with_hash_legacy::<Keccak256>(&msg_ref),
+        (SHA256, true) => sig.recover_with_hash::<Sha256>(&msg_ref),
+        (SHA256, false) => sig.recover_with_hash_legacy::<Sha256>(&msg_ref),
         _ => Err(FastCryptoError::InvalidInput),
     };
 

@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 # external dependencies
 anyhow = "1.0"
-fastcrypto = "=0.1.11"
+fastcrypto = "=0.1.12"
 hex = "0.4.3"
 reqwest = { version = "0.13.1", features = ["json"] }
 serde = "1.0.228"
@@ -101,4 +101,14 @@ ignored = [
 # fastcrypto through an in-repo path dep. Redirect it to the crates.io release
 # so this workspace shares a single fastcrypto instead of two conflicting copies.
 [patch."https://github.com/MystenLabs/fastcrypto"]
-fastcrypto = "=0.1.11"
+fastcrypto = "=0.1.12"
+
+[patch.crates-io]
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9228910c470c6f9d088f319ee379cda6bf5b62ce" }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9228910c470c6f9d088f319ee379cda6bf5b62ce" }
+iota-sdk-graphql-client-build = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9228910c470c6f9d088f319ee379cda6bf5b62ce" }
+iota-sdk-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9228910c470c6f9d088f319ee379cda6bf5b62ce" }
+iota-sdk-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9228910c470c6f9d088f319ee379cda6bf5b62ce" }
+iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9228910c470c6f9d088f319ee379cda6bf5b62ce" }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9228910c470c6f9d088f319ee379cda6bf5b62ce" }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9228910c470c6f9d088f319ee379cda6bf5b62ce" }

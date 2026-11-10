@@ -61,6 +61,7 @@ feature_flags:
   validate_input_object_versions: true
   disallow_self_identifier: true
   disallow_self_identifier_in_transactions: true
+  secp256r1_ecrecover_reject_x_overflow: true
   check_canonical_module_version_header: true
   disallow_randomness_in_move_authenticator: true
   check_cyclic_dependencies: true
