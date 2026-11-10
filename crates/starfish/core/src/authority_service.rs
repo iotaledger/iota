@@ -1297,7 +1297,7 @@ fn read_transactions_up_to_budget(
 
 /// Wraps a payload and its ref into the entry a transaction-fetch response
 /// carries.
-fn serialize_transactions_entry(
+pub(crate) fn serialize_transactions_entry(
     transaction_ref: TransactionRef,
     serialized_transactions: Bytes,
 ) -> ConsensusResult<Bytes> {
