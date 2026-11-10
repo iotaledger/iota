@@ -1500,12 +1500,19 @@ pub struct AuthorityOverloadConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_concurrent_attestations: Option<usize>,
 
-    /// Maximum number of submissions that wait for a free attestation dry run.
-    /// A submission that finds them all taken and this many waiting is
-    /// rejected with `ValidatorOverloadedRetryAfter`. Unset means twice the
-    /// effective `max_concurrent_attestations`.
+    /// Maximum number of submissions that wait for a free attestation dry run,
+    /// a bound on the memory they hold. A submission that finds every dry run
+    /// taken and this many waiting is rejected with
+    /// `ValidatorOverloadedRetryAfter`. Unset means 1,024.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_queued_attestations: Option<usize>,
+
+    /// Longest a submission waits for a free attestation dry run. A submission
+    /// that has waited this long, or whose expected wait is longer when it
+    /// arrives, is rejected with `ValidatorOverloadedRetryAfter`. Unset means
+    /// 500 ms.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_attestation_wait: Option<Duration>,
 }
 
 impl AuthorityOverloadConfig {
@@ -1581,6 +1588,7 @@ impl Default for AuthorityOverloadConfig {
                 default_max_transaction_manager_per_object_queue_length(),
             max_concurrent_attestations: None,
             max_queued_attestations: None,
+            max_attestation_wait: None,
         }
     }
 }
