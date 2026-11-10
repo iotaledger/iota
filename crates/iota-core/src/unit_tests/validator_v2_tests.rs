@@ -740,7 +740,8 @@ async fn a_submission_waits_for_a_free_dry_run_while_the_queue_has_room() {
 }
 
 /// Once a transaction holds its soft locks, a second transaction on the same
-/// gas coin is refused, and so is a resubmission of the first.
+/// gas coin is refused, and so is a resubmission of the first, both before a
+/// dry run of their own.
 #[tokio::test]
 async fn a_second_transaction_on_the_same_gas_coin_is_refused() {
     telemetry_subscribers::init_for_testing();
@@ -792,6 +793,11 @@ async fn a_second_transaction_on_the_same_gas_coin_is_refused() {
     );
     // The first transaction's object and gas coin; the refused one left none.
     assert_eq!(validator.soft_locks.lock_count(), 2);
+    assert_eq!(
+        validator.state.metrics.attestation_dry_runs_total.get(),
+        1,
+        "only the first transaction may get a dry run"
+    );
     assert!(submitted.try_recv().is_err());
 }
 
