@@ -16,7 +16,7 @@ use iota_sdk_crypto::{Signer, ed25519::Ed25519PrivateKey};
 use iota_sdk_types::{
     Address, Argument, Ed25519Signature, Identifier, MoveAuthenticator, MoveAuthenticatorV1,
     ObjectId, ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, Transaction,
-    TransactionEffects, TypeTag, UserSignature,
+    TransactionDigest, TransactionEffects, TransactionExpiration, TypeTag, UserSignature,
 };
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
@@ -331,7 +331,9 @@ impl AbstractAccountTestEnv {
             .await
     }
 
-    async fn confirm(&self, tx: TransactionEnvelope) -> TransactionEffects {
+    /// Executes `tx`, which touches only owned objects, where consensus is not
+    /// involved.
+    pub(crate) async fn confirm(&self, tx: TransactionEnvelope) -> TransactionEffects {
         send_and_confirm_transaction(&self.authority, tx)
             .await
             .unwrap()
@@ -383,6 +385,59 @@ impl AbstractAccountTestEnv {
             authenticator,
             Some(&self.funder_key),
         )
+    }
+
+    /// A transaction from the funder that fails at execution: it transfers
+    /// more than its gas coin holds. Signed, not executed.
+    pub fn failing_funder_transaction(&self) -> TransactionEnvelope {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(self.funder, Some(u64::MAX));
+        let tx_data = Transaction::new_programmable(
+            self.funder,
+            vec![self.gas_ref(0)],
+            builder.finish(),
+            self.budget(),
+            self.rgp(),
+        );
+
+        to_sender_signed_transaction(tx_data, &self.funder_key)
+    }
+
+    /// Like [`Self::account_transaction()`], with a transaction dependency
+    /// input naming `dependency`.
+    pub fn dependent_account_transaction(
+        &mut self,
+        dependency: TransactionDigest,
+    ) -> TransactionEnvelope {
+        let owner_key = self.owner_key.clone();
+        self.dependent_account_transaction_signed_with(dependency, &owner_key)
+    }
+
+    /// Like [`Self::account_transaction_signed_with()`], with a transaction
+    /// dependency input naming `dependency` and the epoch expiration it
+    /// requires.
+    pub fn dependent_account_transaction_signed_with(
+        &mut self,
+        dependency: TransactionDigest,
+        signing_key: &Ed25519PrivateKey,
+    ) -> TransactionEnvelope {
+        let mut pt = self.add_field_transaction();
+        pt.inputs.push(CallArg::TransactionDependency(dependency));
+        let gas = self.take_account_gas();
+        let mut tx_data = Transaction::new_programmable(
+            self.account_address,
+            vec![gas],
+            pt,
+            self.budget(),
+            self.rgp(),
+        );
+        if let Transaction::V1(v1) = &mut tx_data {
+            v1.expiration =
+                TransactionExpiration::Epoch(self.authority.epoch_store_for_testing().epoch());
+        }
+        let authenticator = self.move_authenticator(&tx_data, signing_key);
+
+        TransactionEnvelope::from_user_sig_data(tx_data, vec![authenticator])
     }
 
     /// The body of an account transaction: it writes a fresh dynamic field, so

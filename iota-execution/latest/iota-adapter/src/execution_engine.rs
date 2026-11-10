@@ -305,6 +305,10 @@ mod checked {
     ///     moves to its next version.
     ///   - Else, if the authentication is successful, it continues with the normal transaction
     ///     execution.
+    /// Unlike a transaction cancelled at sequencing, one whose transaction
+    /// dependency did not succeed is authenticated, and its effects carry
+    /// `TransactionDependencyFailed` from the checks on its inputs, as for a
+    /// deleted input.
     /// It combines the input objects from both the authentication and
     /// transaction.
     #[instrument(
@@ -361,7 +365,7 @@ mod checked {
         // inputs
         let contains_deleted_input = input_objects.contains_deleted_objects();
         let mut cancelled_objects = input_objects.get_cancelled_objects();
-        let mut failed_dependency = input_objects.failed_transaction_dependency();
+        let failed_dependency = input_objects.failed_transaction_dependency();
 
         // Prepare the temporary store.
         let mut temporary_store = TemporaryStore::new(
@@ -428,17 +432,20 @@ mod checked {
                 }
             };
 
-        // A cancelled transaction, or one whose transaction dependency did not
-        // succeed, fails with that status: its authenticators are not run, and
-        // a failure to resolve them is not reported. The status is reported as
-        // is, not as an authentication failure, and only once: the transaction
-        // execution gets no cancelled objects or failed dependency to check.
+        // A cancelled transaction fails with its cancellation: its
+        // authenticators are not run, and a failure to resolve them is not
+        // reported. The cancellation is reported as is, not as an
+        // authentication failure, and only once: the transaction execution
+        // gets no cancelled objects to check. A failed transaction dependency
+        // is left to the input checks after authentication: only an
+        // authenticator that ran shows whether a Move account authorized
+        // paying for the transaction.
         let cancellation_check = run_inputs_checks(
             protocol_config,
             false,
             false,
             cancelled_objects.take(),
-            failed_dependency.take(),
+            None,
         );
 
         // Next to the result, whether the gas owner authorized the transaction.
@@ -720,8 +727,8 @@ mod checked {
     /// object, with a zero gas cost; no other gas coin is merged into it.
     ///
     /// The checks every transaction runs on its inputs come first, as when gas
-    /// is charged, so a deleted or cancelled input is reported the same way
-    /// whoever pays.
+    /// is charged, so a deleted or cancelled input, or a transaction
+    /// dependency that did not succeed, is reported the same way whoever pays.
     fn execute_without_gas_charge_to_effects<Mode: ExecutionMode>(
         mut temporary_store: TemporaryStore,
         mut gas_charger: GasCharger,
@@ -1022,8 +1029,8 @@ mod checked {
         // It must NOT charge gas for reading the Move authenticator input objects from
         // the storage. It will be done later during the transaction execution.
         // Then execute the authentication.
-        // A failed transaction dependency is reported before any authenticator
-        // runs, so none is checked here.
+        // A failed transaction dependency is checked with the transaction's
+        // inputs after authentication, so none is checked here.
         run_inputs_checks(
             protocol_config,
             deny_cert,
