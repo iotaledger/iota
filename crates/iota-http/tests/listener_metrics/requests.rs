@@ -588,6 +588,8 @@ async fn a_shutdown_while_a_request_is_in_flight_ends_the_request_and_records_on
     tokio::time::timeout(Duration::from_secs(10), handle.wait_for_shutdown())
         .await
         .expect("the server did not shut down");
+    // The simulator's tokio has no `resume`; it skips this test anyway.
+    #[cfg(not(msim))]
     tokio::time::resume();
 
     assert_request_ended(&reader).await;
