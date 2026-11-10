@@ -13,6 +13,7 @@
 //! executing from a checkpoint charges nobody as well.
 
 use std::{
+    cell::Cell,
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
@@ -450,7 +451,21 @@ impl AttestationVerdictContext<'_> {
             &mut None,
         );
 
-        match result {
+        // Tests register the `judge-rerun-internal-error` fail point with a
+        // transaction digest to make the re-run of that transaction end in an
+        // internal error, which no transaction can cause. A `Cell` keeps the
+        // binding immutable in builds where the fail point compiles to
+        // nothing.
+        let result = Cell::new(result);
+        iota_macros::fail_point_arg!("judge-rerun-internal-error", |digest: TransactionDigest| {
+            if digest == self.transaction_digest {
+                result.set(Err(ExecutionError::invariant_violation(
+                    "the judge-rerun-internal-error fail point",
+                )));
+            }
+        });
+
+        match result.into_inner() {
             Ok(()) => AuthenticationFailureBlame::Account,
             Err(error) => {
                 // The re-run carries no cancelled input, so a cancellation
