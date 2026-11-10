@@ -262,6 +262,42 @@ impl PreConsensusSoftLocks {
         })
     }
 
+    /// Fails as [`Self::try_acquire`] would fail at this moment for
+    /// `tx_digest` and `objects`, but takes and changes no lock, so a
+    /// submission can be refused before any work is done for it: with
+    /// `RecentlyResubmitted` while `tx_digest` is in flight, and with
+    /// `ObjectLockConflict` while another transaction holds an unexpired lock
+    /// on one of `objects`. Always `Ok` when disabled.
+    pub fn check_conflicts(
+        &self,
+        tx_digest: &TransactionDigest,
+        objects: &[ObjectReference],
+    ) -> Result<(), IotaError> {
+        if !self.enabled || objects.is_empty() {
+            return Ok(());
+        }
+
+        let now = Instant::now();
+        let inner = self.inner.lock();
+        if Self::is_in_flight(&inner, tx_digest, now, self.lock_ttl) {
+            return Err(IotaError::RecentlyResubmitted { digest: *tx_digest });
+        }
+        for obj_ref in objects {
+            let held_by_another = inner.locks.get(obj_ref).filter(|record| {
+                record.digest != *tx_digest
+                    && now.duration_since(record.acquired_at) < self.lock_ttl
+            });
+            if let Some(record) = held_by_another {
+                return Err(IotaError::ObjectLockConflict {
+                    obj_ref: *obj_ref,
+                    pending_transaction: record.digest,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
     /// Releases all soft locks held by `tx_digest`.
     ///
     /// Called by active GC hooks (consensus processed / tx dropped) and on
@@ -595,6 +631,31 @@ mod tests {
         table.try_acquire(tx, &[obj_ref(1, 1)]).unwrap();
         table.try_acquire(tx, &[obj_ref(1, 1)]).unwrap();
         assert!(!table.check_in_flight(&tx));
+    }
+
+    #[test]
+    fn test_check_conflicts_takes_no_lock() {
+        let table = PreConsensusSoftLocks::with_ttl(Duration::from_secs(60));
+        let held = obj_ref(1, 1);
+        let free = obj_ref(2, 1);
+        let tx_a = digest(1);
+        let tx_b = digest(2);
+
+        table.check_conflicts(&tx_a, &[held, free]).unwrap();
+        assert_eq!(table.lock_count(), 0);
+
+        table.try_acquire(tx_a, &[held]).unwrap();
+        let err = table.check_conflicts(&tx_b, &[free, held]).unwrap_err();
+        assert!(matches!(err, IotaError::ObjectLockConflict { .. }));
+        let err = table.check_conflicts(&tx_a, &[held]).unwrap_err();
+        assert!(matches!(err, IotaError::RecentlyResubmitted { .. }));
+        table.check_conflicts(&tx_b, &[free]).unwrap();
+        assert_eq!(table.lock_count(), 1);
+
+        // An expired lock is no conflict, as for `try_acquire`.
+        let expiring = PreConsensusSoftLocks::with_ttl(Duration::ZERO);
+        expiring.try_acquire(tx_a, &[held]).unwrap();
+        expiring.check_conflicts(&tx_b, &[held]).unwrap();
     }
 
     #[test]
