@@ -312,7 +312,7 @@ where
     fn accepts_more_connections(&self) -> bool {
         self.config
             .max_pending_connections
-            .is_none_or(|max| self.pending_connections.len() < max)
+            .is_none_or(|max| self.pending_connections.len() < max.get())
     }
 
     fn handle_incoming(&mut self, io: L::Io, remote_addr: L::Addr) {
@@ -358,7 +358,7 @@ where
     /// handshake have reached `max_connections`.
     fn is_full(&self) -> bool {
         self.config.max_connections.is_some_and(|max| {
-            self.connection_handlers.len() + self.pending_connections.len() >= max
+            self.connection_handlers.len() + self.pending_connections.len() >= max.get()
         })
     }
 
@@ -367,7 +367,7 @@ where
         if let (Some(max), Some(peer)) =
             (self.config.max_connections_per_peer, peer_public_key(&io))
         {
-            let Some(guard) = self.peer_connection_counts.register(&peer, max) else {
+            let Some(guard) = self.peer_connection_counts.register(&peer, max.get()) else {
                 // Dropping the connection closes it, releasing its file descriptor.
                 trace!("peer already holds {max} connections, closing the new one");
                 return;
@@ -510,7 +510,10 @@ fn peer_public_key<Io>(io: &ServerIo<Io>) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{
+        num::{NonZeroU32, NonZeroUsize},
+        time::Duration,
+    };
 
     use axum::Router;
 
@@ -976,7 +979,7 @@ mod tests {
                     // Long enough that the stalled peer below is released by the test
                     // rather than by the deadline.
                     .handshake_timeout(Some(Duration::from_secs(60)))
-                    .max_pending_connections(Some(1)),
+                    .max_pending_connections(Some(NonZeroUsize::MIN)),
             )
             .tls_config(server_tls_config)
             .serve(("localhost", 0), Router::new())
@@ -1038,7 +1041,7 @@ mod tests {
         let handle = Builder::new()
             .config(
                 Config::default()
-                    .max_connections_per_peer(Some(MAX_PER_PEER))
+                    .max_connections_per_peer(NonZeroUsize::new(MAX_PER_PEER))
                     .on_peer_connection_event({
                         let events = events.clone();
                         move |peer, event| events.lock().unwrap().push((peer.to_vec(), event))
@@ -1162,7 +1165,7 @@ mod tests {
             iota_tls::AllowPublicKeys::new([client_public_key].into()),
         );
         let handle = Builder::new()
-            .config(Config::default().max_connections_per_peer(Some(1)))
+            .config(Config::default().max_connections_per_peer(Some(NonZeroUsize::MIN)))
             .tls_config(server_config)
             .serve(("localhost", 0), Router::new())
             .unwrap();
@@ -1202,8 +1205,9 @@ mod tests {
         assert_eq!(handle.number_of_connections(), 0);
     }
 
-    /// A limit the accept loop can never fall below, and a limit whose slots
-    /// nothing releases, both leave the server unable to accept.
+    /// A zero deadline or interval, an HTTP/2 size outside what the protocol
+    /// allows, or a limit whose slots nothing releases would leave the server
+    /// unable to serve, so it refuses to start and names the setting.
     #[tokio::test]
     async fn unrecoverable_limits_are_rejected() {
         let served = |config| {
@@ -1212,29 +1216,81 @@ mod tests {
                 .tls_config(test_tls_configs().0)
                 .serve(("localhost", 0), Router::new())
         };
+        let zero = Some(Duration::ZERO);
+        let size = |size| NonZeroU32::new(size);
 
-        assert!(
-            served(Config::default().max_pending_connections(Some(0))).is_err(),
-            "a zero limit must be rejected"
-        );
-        assert!(
-            served(
+        for (setting, config) in [
+            ("tcp_keepalive", Config::default().tcp_keepalive(zero)),
+            (
+                "http2_keepalive_interval",
+                Config::default().http2_keepalive_interval(zero),
+            ),
+            (
+                "http2_keepalive_timeout",
+                Config::default().http2_keepalive_timeout(zero),
+            ),
+            (
+                "http1_header_read_timeout",
+                Config::default().http1_header_read_timeout(zero),
+            ),
+            (
+                "max_connection_age",
+                Config::default().max_connection_age(Duration::ZERO),
+            ),
+            (
+                "handshake_timeout",
+                Config::default().handshake_timeout(zero),
+            ),
+            (
+                "max_connection_idle",
+                Config::default().max_connection_idle(zero),
+            ),
+            (
+                "initial_stream_window_size",
+                Config::default().initial_stream_window_size(size(1 << 31)),
+            ),
+            (
+                "initial_connection_window_size",
+                Config::default().initial_connection_window_size(size(1 << 31)),
+            ),
+            (
+                "max_frame_size",
+                Config::default().max_frame_size(size((1 << 14) - 1)),
+            ),
+            (
+                "max_frame_size",
+                Config::default().max_frame_size(size(1 << 24)),
+            ),
+            (
+                "max_pending_connections",
                 Config::default()
                     .handshake_timeout(None)
-                    .max_pending_connections(Some(8))
-            )
-            .is_err(),
-            "a limit without a handshake deadline must be rejected"
-        );
-        assert!(
-            served(
-                Config::default()
-                    .handshake_timeout(None)
-                    .max_pending_connections(None)
-            )
-            .is_ok(),
-            "removing both bounds stays allowed"
-        );
+                    .max_pending_connections(NonZeroUsize::new(8)),
+            ),
+        ] {
+            let error = served(config).err().map(|error| error.to_string());
+            assert!(
+                error.as_ref().is_some_and(|error| error.contains(setting)),
+                "'{setting}' must be rejected naming it, got {error:?}"
+            );
+        }
+
+        for config in [
+            Config::default()
+                .initial_stream_window_size(size((1 << 31) - 1))
+                .initial_connection_window_size(size((1 << 31) - 1)),
+            Config::default().max_frame_size(size(1 << 14)),
+            Config::default().max_frame_size(size((1 << 24) - 1)),
+            Config::default()
+                .handshake_timeout(None)
+                .max_pending_connections(None),
+        ] {
+            assert!(
+                served(config.clone()).is_ok(),
+                "the largest and smallest allowed values, and removing both \
+                 handshake bounds, must be accepted: {config:?}"
+            );
+        }
     }
 
     /// An id derived from the connection's address in memory comes back as
@@ -1399,21 +1455,6 @@ mod tests {
         assert!(
             tokio::time::timeout(IDLE * 10, &mut wait).await.is_ok(),
             "the connection must go idle once the body ends"
-        );
-    }
-
-    /// A deadline of zero would close every connection the moment it was
-    /// established.
-    #[tokio::test]
-    async fn an_idle_deadline_of_zero_is_rejected() {
-        let served = Builder::new()
-            .config(Config::default().max_connection_idle(Some(Duration::ZERO)))
-            .serve(("localhost", 0), Router::new());
-
-        let error = served.expect_err("a zero deadline must be rejected");
-        assert!(
-            error.to_string().contains("max_connection_idle"),
-            "the error should name the setting, got: {error}"
         );
     }
 
@@ -1669,7 +1710,7 @@ mod tests {
         const ATTEMPTS: usize = MAX_CONNECTIONS * 4;
 
         let handle = Builder::new()
-            .config(Config::default().max_connections(Some(MAX_CONNECTIONS)))
+            .config(Config::default().max_connections(NonZeroUsize::new(MAX_CONNECTIONS)))
             .serve(("localhost", 0), Router::new())
             .unwrap();
 
@@ -1707,7 +1748,7 @@ mod tests {
     async fn a_full_listener_refuses_before_the_tls_handshake() {
         let (server_tls_config, client_tls_config) = test_tls_configs();
         let handle = Builder::new()
-            .config(Config::default().max_connections(Some(1)))
+            .config(Config::default().max_connections(Some(NonZeroUsize::MIN)))
             .tls_config(server_tls_config)
             .serve(("localhost", 0), Router::new())
             .unwrap();
@@ -1753,7 +1794,7 @@ mod tests {
         let handle = Builder::new()
             .config(
                 Config::default()
-                    .max_connections(Some(1))
+                    .max_connections(Some(NonZeroUsize::MIN))
                     // Long enough that the stalled peer below keeps its slot
                     // for the whole test.
                     .handshake_timeout(Some(Duration::from_secs(60))),
