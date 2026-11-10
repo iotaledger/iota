@@ -1754,7 +1754,7 @@ async fn sync_checkpoint_contents<S>(
     let mut highest_started_network_total_transactions = highest_synced.network_total_transactions;
     let mut checkpoint_contents_tasks = FuturesOrdered::new();
 
-    let mut tx_concurrency_remaining = checkpoint_content_download_tx_concurrency;
+    let mut tx_in_flight: u64 = 0;
 
     // Batched logging state for pruned checkpoint failures.
     // (lowest_failed_seq, highest_failed_seq) range of checkpoint sequence
@@ -1793,7 +1793,7 @@ async fn sync_checkpoint_contents<S>(
                         }
                         // We don't care if no one is listening as this is a broadcast channel
                         let _ = checkpoint_event_sender.send(checkpoint.clone());
-                        tx_concurrency_remaining += checkpoint.network_total_transactions - highest_synced.network_total_transactions;
+                        tx_in_flight -= checkpoint.network_total_transactions - highest_synced.network_total_transactions;
                         highest_synced = checkpoint;
 
                     }
@@ -1893,13 +1893,17 @@ async fn sync_checkpoint_contents<S>(
                     "BUG: store should have all checkpoints older than highest_verified_checkpoint",
                 );
 
-            // Enforce transaction count concurrency limit.
+            // Enforce transaction count concurrency limit. A checkpoint is always admitted when
+            // nothing is in flight, so a checkpoint with more transactions than the limit is still
+            // downloaded.
             let tx_count = next_checkpoint.network_total_transactions
                 - highest_started_network_total_transactions;
-            if tx_count > tx_concurrency_remaining {
+            if !checkpoint_contents_tasks.is_empty()
+                && tx_in_flight + tx_count > checkpoint_content_download_tx_concurrency
+            {
                 break;
             }
-            tx_concurrency_remaining -= tx_count;
+            tx_in_flight += tx_count;
 
             highest_started_network_total_transactions = next_checkpoint.network_total_transactions;
             current_sequence += 1;

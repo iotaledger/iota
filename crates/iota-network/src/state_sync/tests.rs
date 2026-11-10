@@ -29,7 +29,8 @@ use iota_types::{
     committee::{Committee, EpochId},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{
-        CheckpointSequenceNumber, VerifiedCheckpoint, VerifiedCheckpointContents,
+        CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
+        VerifiedCheckpointContents,
     },
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };
@@ -1089,6 +1090,77 @@ async fn sync_with_checkpoints_gap() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// Checkpoints with more transactions than
+/// `checkpoint_content_download_tx_concurrency` are still synced, one at a
+/// time.
+#[tokio::test]
+async fn checkpoints_exceeding_transaction_budget_keep_syncing() {
+    telemetry_subscribers::init_for_testing();
+
+    let (committee, (ordered_checkpoints, contents, _, _)) =
+        make_committee_and_checkpoints(0, 4, 4, None, || {
+            VerifiedCheckpointContents::new_unchecked(
+                FullCheckpointContents::new_with_causally_ordered_transactions(
+                    FullCheckpointContents::random_for_testing()
+                        .into_iter()
+                        .chain(FullCheckpointContents::random_for_testing()),
+                ),
+            )
+        });
+
+    let store_1 = store_with_genesis_state(
+        ordered_checkpoints[0].clone(),
+        contents[0].clone(),
+        committee.committee().to_owned(),
+    );
+    let store_2 = store_with_genesis_state(
+        ordered_checkpoints[0].clone(),
+        contents[0].clone(),
+        committee.committee().to_owned(),
+    );
+    {
+        let mut store_1 = store_1.inner_mut();
+        for (checkpoint, content) in ordered_checkpoints.iter().zip(contents.iter()) {
+            store_1.insert_checkpoint(checkpoint);
+            store_1.insert_checkpoint_contents(checkpoint, content.clone());
+            store_1.update_highest_synced_checkpoint(checkpoint);
+        }
+    }
+
+    let (builder_1, server_1) = Builder::new().store(store_1).build();
+    let network_1 = build_network(|router| router.add_rpc_service(server_1));
+    let (event_loop_1, _handle_1) = builder_1.build(network_1.clone());
+
+    let config_2 = StateSyncConfig {
+        checkpoint_content_download_tx_concurrency: Some(1),
+        ..Default::default()
+    };
+    let (builder_2, server_2) = Builder::new()
+        .config(config_2)
+        .store(store_2.clone())
+        .build();
+    let network_2 = build_network(|router| router.add_rpc_service(server_2));
+    let (event_loop_2, handle_2) = builder_2.build(network_2.clone());
+    let mut synced = handle_2.subscribe_to_synced_checkpoints();
+
+    tokio::spawn(event_loop_1.start());
+    tokio::spawn(event_loop_2.start());
+    network_2.connect(network_1.local_addr()).await.unwrap();
+
+    for checkpoint in &ordered_checkpoints[1..] {
+        let actual = timeout(Duration::from_secs(10), synced.recv())
+            .await
+            .expect("checkpoints exceeding the transaction budget must keep syncing")
+            .unwrap();
+        assert_eq!(actual.digest(), checkpoint.digest());
+        assert!(
+            store_2
+                .get_full_checkpoint_contents_by_sequence_number(checkpoint.sequence_number())
+                .is_some()
+        );
+    }
 }
 
 #[test]
