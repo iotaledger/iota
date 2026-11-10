@@ -3536,7 +3536,7 @@ mod tests {
             .returning(move |_, _| {
                 submitted_tx.try_send(()).unwrap();
                 Ok(with_block_status(starfish_core::BlockStatus::Sequenced(
-                    starfish_core::GenericTransactionRef::BlockRef(starfish_core::BlockRef::MIN),
+                    starfish_core::TransactionRef::default(),
                 )))
             });
         let adapter = Arc::new(ConsensusAdapter::new(

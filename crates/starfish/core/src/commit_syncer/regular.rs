@@ -41,7 +41,7 @@ use crate::{
     misbehavior_store::MisbehaviorStore,
     network::{NetworkClient, SerializedTransactionsV2},
     task::spawn_blocking,
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 pub(crate) struct RegularCommitSyncer<C: NetworkClient> {
@@ -342,15 +342,13 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
 
             for certified_commit in commits.commits() {
                 // Collect committed_transactions from the TrustedCommit
-                for gen_tx_ref in certified_commit.committed_transactions() {
-                    expected_transactions.insert(gen_tx_ref);
+                for tx_ref in certified_commit.committed_transactions() {
+                    expected_transactions.insert(*tx_ref);
                 }
 
                 // Collect available transactions from CommitmentVerifiedTransactions
                 for verified_txns in certified_commit.transactions() {
-                    let gen_tx_ref =
-                        GenericTransactionRef::TransactionRef(verified_txns.transaction_ref());
-                    available_transactions.insert(gen_tx_ref);
+                    available_transactions.insert(verified_txns.transaction_ref());
                 }
             }
 
@@ -410,12 +408,12 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                                 .map(|b| b.to_string())
                                 .join(","),
                         );
-                        for (gen_tran_ref, _ack_authorities) in missing_committed_txns {
+                        for (tx_ref, _ack_authorities) in missing_committed_txns {
                             let hostname = &self
                                 .inner
                                 .context
                                 .committee
-                                .authority(gen_tran_ref.author())
+                                .authority(tx_ref.author)
                                 .hostname;
                             metrics
                                 .commit_sync_fetch_missing_transactions
@@ -558,18 +556,11 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             .cloned()
             .collect();
 
-        // 3a. Collect the committed transaction refs of each commit. Commits
-        //     passing verify_commits are V2/V3, which only carry
-        //     `TransactionRef`s, so the legacy `BlockRef` variant is an error.
+        // 3a. Collect the committed transaction refs of each commit.
         let commits_tx_refs: Vec<Vec<TransactionRef>> = commits
             .iter()
-            .map(|c| {
-                c.committed_transactions()
-                    .into_iter()
-                    .map(GenericTransactionRef::expect_transaction_ref)
-                    .collect()
-            })
-            .collect::<ConsensusResult<_>>()?;
+            .map(|c| c.committed_transactions().to_vec())
+            .collect();
         let committed_tx_refs: Vec<TransactionRef> =
             commits_tx_refs.iter().flatten().copied().collect();
 
@@ -1094,7 +1085,7 @@ mod tests {
             misbehavior_store::MisbehaviorStore,
             network::SerializedTransactionsV2,
             storage::{Store, mem_store::MemStore},
-            transaction_ref::{GenericTransactionRef, TransactionRef},
+            transaction_ref::TransactionRef,
             transactions_synchronizer::TransactionsSynchronizer,
         };
 
@@ -1180,7 +1171,7 @@ mod tests {
                 0,
                 leader_header_1.reference(),
                 vec![leader_header_1.reference()],
-                vec![GenericTransactionRef::TransactionRef(transaction_refs[0])],
+                vec![transaction_refs[0]],
             );
             let commit_2 = TrustedCommit::new_for_test(
                 2,
@@ -1188,7 +1179,7 @@ mod tests {
                 0,
                 leader_header_2.reference(),
                 vec![leader_header_2.reference()],
-                vec![GenericTransactionRef::TransactionRef(transaction_refs[1])],
+                vec![transaction_refs[1]],
             );
 
             let vote_headers: Vec<Bytes> = (0..3)
