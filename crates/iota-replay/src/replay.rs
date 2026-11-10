@@ -985,6 +985,7 @@ impl LocalExec {
                             tx_info.sender,
                             tx_info.sender_signed_data.digest(),
                             skip_checks,
+                            &mut None,
                         )
                         .3
                         .unwrap_or_default(),

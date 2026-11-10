@@ -314,6 +314,7 @@ impl EpochState {
                 signer,
                 transaction.digest(),
                 checks.disabled(),
+                &mut None,
             );
 
         let mut input_objects = inner_temp_store.input_objects;

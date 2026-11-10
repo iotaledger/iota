@@ -21,6 +21,8 @@ use iota_vm_sdk::{
     Address, Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion, Store,
     TransactionDenyConfigBuilder, VmSdkError,
 };
+#[cfg(feature = "tracing")]
+use iota_vm_sdk::{DebugConfig, ExecutionMode, TraceEvent};
 
 const GAS_PRICE: u64 = 1000;
 /// Mirrors `ProtocolConfig::base_tx_cost_fixed`, the floor an unset budget is
@@ -189,6 +191,60 @@ fn execute_commits_deletions_to_store() {
             .is_none(),
         "deleted coin must be removed from the store"
     );
+}
+
+/// A plain PTB — no `MoveAuthenticator` — is traced in every mode, and tracing
+/// changes neither the commit behaviour nor the per-command results.
+#[cfg(feature = "tracing")]
+#[test]
+fn plain_ptb_is_traced_in_every_mode() {
+    let sender = Address::ZERO;
+    let recipient = Address::from(ObjectId::random());
+
+    for opts in [
+        ExecuteOptions::dev_inspect(),
+        ExecuteOptions::dry_run(),
+        ExecuteOptions::execute(),
+    ] {
+        let mode = opts.mode;
+        let opts = opts.with_debug(DebugConfig::default().with_tracing());
+
+        let gas = gas_coin(sender);
+        let mut store = InMemoryStore::with_framework();
+        store.insert(gas.clone());
+        let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+        let result = vm
+            .execute(transfer_tx(sender, &gas, recipient, TRANSFER_AMOUNT), opts)
+            .unwrap_or_else(|e| panic!("{mode:?} must succeed: {e}"));
+        assert!(result.status.is_success(), "{mode:?} run must succeed");
+        assert_eq!(
+            result.committed,
+            mode == ExecutionMode::Execute,
+            "{mode:?}: commit behaviour must not depend on tracing"
+        );
+        assert!(
+            !result.command_results.is_empty(),
+            "{mode:?}: a traced run must still report per-command results"
+        );
+
+        let trace = result
+            .debug
+            .expect("debug artifacts present when capture was requested")
+            .trace
+            .unwrap_or_else(|| panic!("{mode:?} must capture a trace"));
+        assert!(
+            trace.event_count() > 0,
+            "{mode:?}: a captured trace must hold the events the VM emitted"
+        );
+        assert!(
+            trace
+                .events()
+                .expect("trace events should be readable")
+                .any(|event| matches!(event, Ok(TraceEvent::External(_)))),
+            "{mode:?}: a PTB trace must carry the PTB-level events"
+        );
+    }
 }
 
 #[test]
