@@ -292,6 +292,9 @@ pub enum Command {
     /// backfill if needed, which then can be processed and written back to
     /// the DB. To add a new backfill, add a new module and implement the
     /// `BackfillTask` trait.
+    ///
+    /// NOTE: On success, the watermarks table has to be updated manually with the correct lower
+    /// bounds in order for the pruner to work correctly.
     RunBackfill {
         /// Start of the range to backfill, inclusive.
         /// It can be a checkpoint number or an epoch or any other identifier
