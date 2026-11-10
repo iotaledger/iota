@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Execution of a transaction with a transaction dependency input, once the
-//! transaction it depends on has executed. The dependents here are certified
-//! by the authority key alone, so the check before signing does not reject
-//! them and execution decides.
+//! transaction it depends on has executed. The dependents of key accounts here
+//! are certified by the authority key alone, so the check before signing does
+//! not reject them and execution decides. The dependents of a Move account go
+//! through consensus, as under the P-COOL flow.
 
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, SharedObjectReference,
-    TransactionDigest, TransactionEffects,
+    Address, ExecutionError, ExecutionStatus, GasCostSummary, ObjectId, ObjectReference,
+    SharedObjectReference, TransactionDigest, TransactionEffects,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -25,6 +26,7 @@ use iota_types::{
 
 use crate::authority::{
     AuthorityState, ExecutionEnv,
+    abstract_account_test_utils::AbstractAccountTestEnv,
     authority_test_utils::{init_certified_transaction, init_state_with_objects},
 };
 
@@ -230,4 +232,78 @@ async fn attestor_dry_runs_a_dependent_of_a_transaction_not_executed_yet() {
             .iter()
             .any(|object| object.object_id == setup.gas[1].id())
     );
+}
+
+/// The P-COOL flow with transaction dependencies, and validator attestation
+/// when `attestation` is set. Every submission is a commit of its own, so the
+/// previous commit's writes must already be visible to the next one.
+fn move_account_config(attestation: bool) -> OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        config.set_enable_transaction_dependencies_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(attestation);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config.set_pcool_deterministic_validation_horizon_distance_for_testing(1);
+        config
+    })
+}
+
+fn assert_dependency_failed(effects: &TransactionEffects, dependency: TransactionDigest) {
+    let ExecutionStatus::Failure { error, command } = effects.status() else {
+        panic!("the dependent of a failed transaction succeeded: {effects:?}");
+    };
+    assert_eq!(
+        *error,
+        ExecutionError::TransactionDependencyFailed { dependency }
+    );
+    assert_eq!(*command, None);
+    // No command ran: the account got no new field.
+    assert!(effects.created().is_empty());
+}
+
+/// A Move account that pays for its own dependent of a failed transaction
+/// authorizes it through its authenticator, which runs before the failed
+/// dependency is reported, so the account pays like a gas owner that signs
+/// with a key. The dependent is attested before its dependency executes, as
+/// when the two are submitted back to back.
+#[tokio::test]
+async fn move_account_pays_for_its_dependent_of_a_failed_transaction() {
+    let _guard = move_account_config(true);
+    let mut env = AbstractAccountTestEnv::new().await;
+    let failing = env.failing_funder_transaction();
+    let failing_digest = *failing.digest();
+    let dependent = env.dependent_account_transaction(failing_digest);
+    let attestation = env.attest(&dependent);
+    assert!(!env.confirm(failing).await.status().is_success());
+
+    let effects = env.submit(dependent, Some(attestation)).await;
+
+    assert_dependency_failed(&effects, failing_digest);
+    assert!(
+        effects.gas_cost_summary().computation_cost > 0,
+        "the account authorized the transaction and must pay for it, got {:?}",
+        effects.gas_cost_summary()
+    );
+}
+
+/// A dependent of a failed transaction that the paying Move account did not
+/// authorize, its authenticator failing, charges nobody, as for any
+/// transaction such an account did not authorize. The effects report the
+/// failed dependency rather than the authentication failure, since the checks
+/// on the inputs come first.
+#[tokio::test]
+async fn move_account_pays_nothing_for_a_dependent_it_did_not_authorize() {
+    let _guard = move_account_config(false);
+    let mut env = AbstractAccountTestEnv::new().await;
+    let failing = env.failing_funder_transaction();
+    let failing_digest = *failing.digest();
+    // Signed with a key the account has never held.
+    let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
+    let dependent = env.dependent_account_transaction_signed_with(failing_digest, &unrelated_key);
+    assert!(!env.confirm(failing).await.status().is_success());
+
+    let effects = env.submit(dependent, None).await;
+
+    assert_dependency_failed(&effects, failing_digest);
+    assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
 }
