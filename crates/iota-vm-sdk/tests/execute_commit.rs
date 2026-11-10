@@ -194,13 +194,37 @@ fn execute_commits_deletions_to_store() {
 }
 
 /// A plain PTB — no `MoveAuthenticator` — is traced in every mode, and tracing
-/// changes neither the commit behaviour nor the per-command results.
+/// changes neither the commit behaviour nor the per-command results. The same
+/// transaction yields the same trace in every mode.
 #[cfg(feature = "tracing")]
 #[test]
 fn plain_ptb_is_traced_in_every_mode() {
+    use iota_types::IOTA_FRAMEWORK_PACKAGE_ID;
+
     let sender = Address::ZERO;
     let recipient = Address::from(ObjectId::random());
+    let gas = gas_coin(sender);
 
+    // A Move call for frame and instruction events, then a split and a
+    // transfer for PTB-level events.
+    let mut b = ProgrammableTransactionBuilder::new();
+    b.programmable_move_call(
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        Identifier::from_static("address"),
+        Identifier::from_static("length"),
+        vec![],
+        vec![],
+    );
+    b.transfer_iota(recipient, Some(TRANSFER_AMOUNT));
+    let tx = Transaction::new_programmable(
+        sender,
+        vec![gas.object_ref()],
+        b.finish(),
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
+        GAS_PRICE,
+    );
+
+    let mut traces = Vec::new();
     for opts in [
         ExecuteOptions::dev_inspect(),
         ExecuteOptions::dry_run(),
@@ -209,13 +233,12 @@ fn plain_ptb_is_traced_in_every_mode() {
         let mode = opts.mode;
         let opts = opts.with_debug(DebugConfig::default().with_tracing());
 
-        let gas = gas_coin(sender);
         let mut store = InMemoryStore::with_framework();
         store.insert(gas.clone());
         let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
 
         let result = vm
-            .execute(transfer_tx(sender, &gas, recipient, TRANSFER_AMOUNT), opts)
+            .execute(tx.clone(), opts)
             .unwrap_or_else(|e| panic!("{mode:?} must succeed: {e}"));
         assert!(result.status.is_success(), "{mode:?} run must succeed");
         assert_eq!(
@@ -233,16 +256,31 @@ fn plain_ptb_is_traced_in_every_mode() {
             .expect("debug artifacts present when capture was requested")
             .trace
             .unwrap_or_else(|| panic!("{mode:?} must capture a trace"));
+        let events: Vec<TraceEvent> = trace
+            .events()
+            .expect("trace events should be readable")
+            .collect::<Result<_, _>>()
+            .expect("trace events should decode");
         assert!(
-            trace.event_count() > 0,
-            "{mode:?}: a captured trace must hold the events the VM emitted"
+            events
+                .iter()
+                .any(|event| matches!(event, TraceEvent::Instruction { .. })),
+            "{mode:?}: the trace must carry the Move call's instructions"
         );
         assert!(
-            trace
-                .events()
-                .expect("trace events should be readable")
-                .any(|event| matches!(event, Ok(TraceEvent::External(_)))),
-            "{mode:?}: a PTB trace must carry the PTB-level events"
+            events
+                .iter()
+                .any(|event| matches!(event, TraceEvent::External(_))),
+            "{mode:?}: the trace must carry the PTB-level events"
+        );
+        traces.push((mode, events));
+    }
+
+    let (_, dev_inspect_events) = &traces[0];
+    for (mode, events) in &traces[1..] {
+        assert_eq!(
+            events, dev_inspect_events,
+            "{mode:?}: the trace must match the DevInspect trace"
         );
     }
 }
