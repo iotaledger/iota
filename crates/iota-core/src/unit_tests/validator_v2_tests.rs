@@ -505,11 +505,12 @@ fn attestation_enabled() -> impl Drop {
 }
 
 /// At most `max_concurrent` attestation dry runs at once, and `max_queued`
-/// submissions waiting for one.
+/// submissions waiting for one, for longer than any test waits.
 fn dry_run_limits(max_concurrent: usize, max_queued: usize) -> AuthorityOverloadConfig {
     AuthorityOverloadConfig {
         max_concurrent_attestations: Some(max_concurrent),
         max_queued_attestations: Some(max_queued),
+        max_attestation_wait: Some(Duration::from_secs(30)),
         ..Default::default()
     }
 }

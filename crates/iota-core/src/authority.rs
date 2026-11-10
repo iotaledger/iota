@@ -357,8 +357,10 @@ pub struct AuthorityMetrics {
     /// Submissions waiting for a free attestation dry run.
     pub(crate) attestations_waiting: IntGauge,
     /// Submissions rejected because every attestation dry run was taken and
-    /// the queue was full.
+    /// the queue was full or the wait for one too long.
     pub(crate) attestations_rejected_total: IntCounter,
+    /// How long submissions waited for a free attestation dry run.
+    pub(crate) attestation_permit_wait: Histogram,
     /// Attestation dry runs started.
     pub(crate) attestation_dry_runs_total: IntCounter,
 
@@ -774,8 +776,16 @@ impl AuthorityMetrics {
                 .unwrap(),
             attestations_rejected_total: register_int_counter_with_registry!(
                 "attestations_rejected_total",
-                "Number of submissions rejected because every attestation dry run was taken and the queue was full",
+                "Number of submissions rejected because every attestation dry run was taken and the queue was full or the wait for one too long",
                 registry,
+            )
+                .unwrap(),
+            attestation_permit_wait: register_histogram_with_registry!(
+                "attestation_permit_wait",
+                "Time submissions waited for a free attestation dry run",
+                LOW_LATENCY_SEC_BUCKETS.to_vec(),
+                registry;
+                MetricLevel::Info,
             )
                 .unwrap(),
             attestation_dry_runs_total: register_int_counter_with_registry!(
@@ -1786,7 +1796,8 @@ impl AuthorityState {
     ///
     /// [`IotaError::ValidatorOverloadedRetryAfter`] when graduated shedding
     /// rejects the transaction between the soft and hard limits, or when every
-    /// attestation dry run is taken and the queue for them is full, and
+    /// attestation dry run is taken and the queue for them is full or the
+    /// expected wait for one too long, and
     /// [`IotaError::TooManyTransactionsPendingConsensus`] when the queue has
     /// reached `max_pending_transactions` or `submit_semaphore` has no
     /// permits left.
@@ -1826,13 +1837,14 @@ impl AuthorityState {
     }
 
     /// Waits for a free attestation dry run, within the limits of
-    /// `max_concurrent_attestations` and `max_queued_attestations`. The dry
-    /// run must hold the permit until it ends.
+    /// `max_concurrent_attestations`, `max_queued_attestations` and
+    /// `max_attestation_wait`. The dry run must hold the permit until it ends.
     ///
     /// # Errors
     ///
     /// [`IotaError::ValidatorOverloadedRetryAfter`] when every dry run is
-    /// taken and the queue for them is full.
+    /// taken and the queue for them is full, or when none frees within
+    /// `max_attestation_wait`.
     pub(crate) async fn acquire_attestation_permit(&self) -> IotaResult<AttestationPermit> {
         self.attestation_semaphore.acquire().await
     }
