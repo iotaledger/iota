@@ -8,6 +8,7 @@
 use std::{
     cell::RefCell,
     collections::{BTreeSet, HashMap},
+    hash::Hash,
     sync::Arc,
 };
 
@@ -26,6 +27,7 @@ use iota_types::{
         error::{Error as StorageError, Result as StorageResult},
     },
 };
+use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 
 use super::{
@@ -65,8 +67,32 @@ pub struct CommitIndexedReader {
     pub(super) epoch_store: Arc<AuthorityPerEpochStore>,
     /// The horizon, `C - K`.
     horizon: CommitIndex,
-    shared_verdicts: Mutex<HashMap<(ObjectId, Version), SharedVerdict>>,
-    package_verdicts: Mutex<HashMap<ObjectId, PackageVerdict>>,
+    shared_verdicts: Verdicts<(ObjectId, Version), SharedVerdict>,
+    package_verdicts: Verdicts<ObjectId, PackageVerdict>,
+}
+
+/// The verdict of each input read so far at a commit. One caller reads an
+/// input and every other caller of it, on any thread, waits for that read
+/// and gets its verdict. A read that fails is not kept, so a later caller
+/// reads again.
+struct Verdicts<K, V>(Mutex<HashMap<K, Arc<OnceCell<V>>>>);
+
+impl<K: Eq + Hash, V: Clone> Verdicts<K, V> {
+    fn new() -> Self {
+        Self(Mutex::new(HashMap::new()))
+    }
+
+    /// The verdict of `key`, from `read` when no caller has read it yet, and
+    /// whether this call got it without reading.
+    fn get_or_read(&self, key: K, read: impl FnOnce() -> IotaResult<V>) -> IotaResult<(V, bool)> {
+        let verdict = self.0.lock().entry(key).or_default().clone();
+        let mut reused = true;
+        let verdict = verdict.get_or_try_init(|| {
+            reused = false;
+            read()
+        })?;
+        Ok((verdict.clone(), reused))
+    }
 }
 
 impl CommitIndexedReader {
@@ -80,8 +106,8 @@ impl CommitIndexedReader {
             cache,
             epoch_store,
             horizon,
-            shared_verdicts: Mutex::new(HashMap::new()),
-            package_verdicts: Mutex::new(HashMap::new()),
+            shared_verdicts: Verdicts::new(),
+            package_verdicts: Verdicts::new(),
         }
     }
 
@@ -153,22 +179,18 @@ impl CommitIndexedReader {
         id: ObjectId,
         initial_shared_version: Version,
     ) -> IotaResult<SharedVerdict> {
-        if let Some(verdict) = self
+        let (verdict, reused) = self
             .shared_verdicts
-            .lock()
-            .get(&(id, initial_shared_version))
-        {
+            .get_or_read((id, initial_shared_version), || {
+                self.read_shared_once(id, initial_shared_version)
+            })?;
+        if reused {
             self.epoch_store
                 .metrics
                 .consensus_handler_validation_reader_reused_verdicts
                 .with_label_values(&["shared"])
                 .inc();
-            return Ok(*verdict);
         }
-        let verdict = self.read_shared_once(id, initial_shared_version)?;
-        self.shared_verdicts
-            .lock()
-            .insert((id, initial_shared_version), verdict);
         Ok(verdict)
     }
 
@@ -257,16 +279,16 @@ impl CommitIndexedReader {
     /// object (`UserInputError::MoveObjectAsPackage`). The same package read
     /// again at this commit gets the same verdict without another read.
     pub fn read_package(&self, id: ObjectId) -> IotaResult<PackageVerdict> {
-        if let Some(verdict) = self.package_verdicts.lock().get(&id) {
+        let (verdict, reused) = self
+            .package_verdicts
+            .get_or_read(id, || self.read_package_once(id))?;
+        if reused {
             self.epoch_store
                 .metrics
                 .consensus_handler_validation_reader_reused_verdicts
                 .with_label_values(&["package"])
                 .inc();
-            return Ok(verdict.clone());
         }
-        let verdict = self.read_package_once(id)?;
-        self.package_verdicts.lock().insert(id, verdict.clone());
         Ok(verdict)
     }
 

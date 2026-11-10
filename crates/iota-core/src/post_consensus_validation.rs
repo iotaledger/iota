@@ -882,11 +882,11 @@ pub async fn validate_and_resolve_conflicts(
 }
 
 /// How many readers validate a commit when the node config sets no number.
-/// In the simulator the number does not follow the host's cores, so a seed
-/// replays the same on every machine.
 fn default_validation_readers() -> usize {
     static READERS: OnceLock<usize> = OnceLock::new();
     *READERS.get_or_init(|| {
+        // Not from the host's cores, so a seed replays the same on every
+        // machine.
         if cfg!(msim) {
             4
         } else {
@@ -902,8 +902,8 @@ fn validation_readers_for(cores: usize) -> usize {
     (cores / 4).clamp(1, 8)
 }
 
-/// The transactions of a commit whose validation and deny checks (Check #6)
-/// run ahead of the validation loop. The readers take them one at a time.
+/// The transactions of a commit whose Check #6 runs ahead of the validation
+/// loop. The readers take them one at a time.
 struct ReadAhead {
     /// The position in the commit, the copy to check and whether it is
     /// attested.
@@ -915,9 +915,9 @@ struct ReadAhead {
 impl ReadAhead {
     /// Picks the transactions the loop is expected to take to Check #6: the
     /// first copy of a digest, not deferred at an earlier commit, passing
-    /// the checks that read no store, and naming no owned input that an
-    /// earlier one picked names. The loop still runs every check itself, so
-    /// a transaction picked here that it drops earlier costs only the reads.
+    /// the checks that read no store. The loop still runs every check
+    /// itself, so a transaction picked here that it drops earlier, as the
+    /// loser of an owned input is, costs only the reads.
     fn new(
         epoch_store: &AuthorityPerEpochStore,
         previously_deferred: &PreviouslyDeferredTransactions,
@@ -925,7 +925,6 @@ impl ReadAhead {
     ) -> Self {
         let protocol_config = epoch_store.protocol_config();
         let mut digests = HashSet::new();
-        let mut named_owned_inputs = HashSet::new();
         let mut picked = Vec::new();
         for (i, tx) in transactions.iter().enumerate() {
             let Some((transaction, attestation)) = (match &tx.0.transaction {
@@ -964,16 +963,9 @@ impl ReadAhead {
                     continue;
                 }
             }
-            let Ok(owned_inputs) = extract_owned_input_objects(tx) else {
-                continue;
-            };
-            if owned_inputs
-                .iter()
-                .any(|input| named_owned_inputs.contains(input))
-            {
+            if extract_owned_input_objects(tx).is_err() {
                 continue;
             }
-            named_owned_inputs.extend(owned_inputs);
             picked.push((
                 i,
                 VerifiedTransaction::new_from_verified((*transaction).clone()),

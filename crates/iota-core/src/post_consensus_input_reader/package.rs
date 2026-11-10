@@ -275,7 +275,8 @@ mod tests {
     }
 
     /// A package read again through the same reader is answered from the
-    /// first read, visible or missing. Another commit's reader reads afresh.
+    /// first read, visible or missing. Another commit's reader reads afresh,
+    /// and so does a caller after a read that failed.
     #[tokio::test]
     async fn a_package_read_again_at_the_commit_reuses_the_first_verdict() {
         use iota_sdk_types::{Address, Owner, Version};
@@ -298,6 +299,7 @@ mod tests {
             Version::from_u64(0),
             Owner::Address(Address::ZERO),
         );
+        let move_object_id = gas.id();
         let (authority, package_ref) = init_state_with_objects_and_object_basics([gas]).await;
         let epoch_store = authority.epoch_store_for_testing().clone();
         let reused = || {
@@ -344,6 +346,13 @@ mod tests {
             other.read_package(package_id).unwrap(),
             PackageVerdict::Visible(_)
         ));
+        assert_eq!(reused(), 2);
+
+        // A read that fails is not kept: the next caller reads again and
+        // gets its own error.
+        for _ in 0..2 {
+            assert!(ctx.read_package(move_object_id).is_err());
+        }
         assert_eq!(reused(), 2);
     }
 }

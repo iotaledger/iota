@@ -1365,7 +1365,12 @@ impl AuthorityState {
         })
     }
 
-    /// The `Arc` this state lives in, for work handed to another thread.
+    /// The `Arc` this state lives in.
+    ///
+    /// # Panics
+    ///
+    /// Never while the caller holds the reference: a state is only ever
+    /// built inside its `Arc`.
     pub(crate) fn shared(&self) -> Arc<AuthorityState> {
         self.this
             .upgrade()

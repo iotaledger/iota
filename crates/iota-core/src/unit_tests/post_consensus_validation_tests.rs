@@ -12997,12 +12997,11 @@ async fn reading_inputs_ahead_gives_the_decisions_of_reading_them_inline() {
     assert_eq!(dropped.len(), 3);
     assert_eq!(kept.len(), 8);
 
-    // Nine first copies name inputs no earlier one names. The loser of object
-    // 0 is not read at all, and the transfer on the dropped one's gas coin
-    // is read by the loop.
-    assert_eq!(input_reads(&ahead, "ahead"), 9);
-    assert_eq!(input_reads(&ahead, "inline"), 1);
-    assert_eq!(input_reads(&ahead, "unused"), 0);
+    // Every first copy is read ahead. The loop takes all but the read of the
+    // loser of object 0, which it drops at the lock check.
+    assert_eq!(input_reads(&ahead, "ahead"), 10);
+    assert_eq!(input_reads(&ahead, "inline"), 0);
+    assert_eq!(input_reads(&ahead, "unused"), 1);
     assert_eq!(input_reads(&inline, "ahead"), 0);
     assert_eq!(input_reads(&inline, "inline"), 10);
 }
@@ -13108,6 +13107,7 @@ async fn a_replayed_commit_and_a_deferred_transaction_read_nothing_ahead() {
     assert_eq!(transactions.len(), 1);
     assert_eq!(input_reads(&authority, "ahead"), 1);
     assert_eq!(input_reads(&authority, "inline"), inline_before);
+    assert_eq!(input_reads(&authority, "unused"), 0);
 }
 
 #[test]
