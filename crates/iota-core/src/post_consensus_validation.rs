@@ -12,9 +12,10 @@
 //! 2. **Owned-object conflict resolution** (white-flag) — three-tier lock check and lock
 //!    acquisition.
 //!
-//! Processing both in one loop avoids iterating over every transaction twice
-//! and skips expensive validation for transactions that can't acquire object
-//! locks anyway.
+//! Processing both in one loop avoids iterating over every transaction twice.
+//! A transaction that can't acquire its object locks is dropped before the
+//! expensive validation. With more than one reader its inputs may have been
+//! read ahead of the loop, and that result is then left unused.
 //!
 //! # Per-transaction order within the loop
 //!
@@ -46,7 +47,8 @@
 //!    lock held by the same transaction, which is exempt. Cheap; performed before expensive checks.
 //! 7. `handle_transaction_validation_checks_at_commit()` — drop with error. An attested transaction
 //!    runs the input checks execution runs, gas included, and the checks on receiving objects; the
-//!    publish verifier stays at execution. Only reached when all locks are free.
+//!    publish verifier stays at execution. Only reached when all locks are free. Its result may
+//!    have been computed ahead of the loop, see `ReadAhead`.
 //! 8. All passed — acquire locks in the local tracking map, keep transaction.
 //!
 //! Non-`UserTransactionV1` transactions pass through unchanged.
@@ -317,15 +319,21 @@ pub async fn validate_and_resolve_conflicts(
         .map_or_else(default_validation_readers, NonZeroUsize::get);
     let mut read_ahead = if readers > 1 && saved_candidates.is_none() {
         let _scope = monitored_scope("PostConsensusValidation::ReadAhead");
-        ReadAhead::new(epoch_store, previously_deferred, transactions)
-            .run(
-                authority_state,
-                epoch_store,
-                &reader,
-                &governance_deny_rules,
-                readers,
-            )
-            .await
+        ReadAhead::new(
+            epoch_store,
+            commit_index,
+            previously_deferred,
+            transactions,
+            &mut attestors_cut_off,
+        )
+        .run(
+            authority_state,
+            epoch_store,
+            &reader,
+            &governance_deny_rules,
+            readers,
+        )
+        .await
     } else {
         HashMap::new()
     };
@@ -483,6 +491,9 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
+        // Checks #2 to #4 read no store. `ReadAhead::new` repeats them to pick
+        // the transactions to read ahead, so a change here goes there too.
+        //
         // Check #2: Structural validity.
         if let Err(e) = transaction.validity_check(&epoch_store.tx_validity_check_context()) {
             warn!(
@@ -602,7 +613,8 @@ pub async fn validate_and_resolve_conflicts(
 
         // Check #5: Three-tier lock conflict check.
         // Cheap (HashMap + quarantine + DB lookups); performed before the
-        // expensive deny checks so conflicting transactions are filtered first.
+        // deny checks so a conflicting transaction is dropped without them.
+        // Its inputs may have been read ahead all the same.
         //
         // Locks are keyed by full ObjectReference (id + version + digest), not just
         // ObjectID. Two transactions referencing the same object at different
@@ -660,8 +672,9 @@ pub async fn validate_and_resolve_conflicts(
         }
 
         // Check #6: Validation and deny checks. Only reached when all locks are
-        // free, so the expensive object loading is skipped for transactions the
-        // lock conflict check would drop.
+        // free. With one reader that skips the object loading for a
+        // transaction the lock conflict check drops. With more, its inputs
+        // were read ahead and the result is left unused.
         //
         // Safe to skip signature re-verification: the consensus block verifier
         // (`IotaTxValidator::validate_transactions`) already called
@@ -914,14 +927,17 @@ struct ReadAhead {
 
 impl ReadAhead {
     /// Picks the transactions the loop is expected to take to Check #6: the
-    /// first copy of a digest, not deferred at an earlier commit, passing
-    /// the checks that read no store. The loop still runs every check
-    /// itself, so a transaction picked here that it drops earlier, as the
-    /// loser of an owned input is, costs only the reads.
+    /// first copy of a digest that passes Checks #2 to #4, not deferred at an
+    /// earlier commit. The loop still runs every check itself, so a
+    /// transaction picked here that it drops earlier, as the loser of an
+    /// owned input is, costs only the reads. `attestors_cut_off` is the
+    /// loop's, filled here when an attested copy gets that far.
     fn new(
         epoch_store: &AuthorityPerEpochStore,
+        commit_index: CommitIndex,
         previously_deferred: &PreviouslyDeferredTransactions,
         transactions: &[VerifiedSequencedConsensusTransaction],
+        attestors_cut_off: &mut Option<BTreeSet<u8>>,
     ) -> Self {
         let protocol_config = epoch_store.protocol_config();
         let mut digests = HashSet::new();
@@ -936,9 +952,10 @@ impl ReadAhead {
                 continue;
             };
             let digest = *transaction.digest();
-            if !digests.insert(digest) || previously_deferred.contains_key(&digest) {
+            if digests.contains(&digest) || previously_deferred.contains_key(&digest) {
                 continue;
             }
+            // Checks #2 to #4 of the loop, in its order.
             if transaction
                 .validity_check(&epoch_store.tx_validity_check_context())
                 .is_err()
@@ -946,12 +963,20 @@ impl ReadAhead {
                 continue;
             }
             if let Some(attestation) = attestation {
+                let block_author = u8::try_from(tx.0.certificate_author_index)
+                    .expect("consensus committee indices should fit in a u8");
                 let Attestation::Authority {
                     authority_index, ..
                 } = attestation;
                 let data = transaction.data().transaction();
-                if u32::from(*authority_index) != tx.0.certificate_author_index
+                if *authority_index != block_author
                     || check_attested_units(protocol_config, transaction, attestation).is_err()
+                    || attestors_cut_off
+                        .get_or_insert_with(|| {
+                            epoch_store
+                                .attestors_cut_off_as_of(horizon(protocol_config, commit_index))
+                        })
+                        .contains(authority_index)
                     || check_gas_bounds(
                         protocol_config,
                         epoch_store.reference_gas_price(),
@@ -966,6 +991,8 @@ impl ReadAhead {
             if extract_owned_input_objects(tx).is_err() {
                 continue;
             }
+            // Only now, so a later copy is picked when this one failed.
+            digests.insert(digest);
             picked.push((
                 i,
                 VerifiedTransaction::new_from_verified((*transaction).clone()),

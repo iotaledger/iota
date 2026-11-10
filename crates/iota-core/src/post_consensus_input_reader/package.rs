@@ -348,8 +348,8 @@ mod tests {
         ));
         assert_eq!(reused(), 2);
 
-        // A read that fails is not kept: the next caller reads again and
-        // gets its own error.
+        // An id that names a Move object fails on every read, and a failure
+        // is not counted as a reuse.
         for _ in 0..2 {
             assert!(ctx.read_package(move_object_id).is_err());
         }

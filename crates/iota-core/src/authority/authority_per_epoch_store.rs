@@ -4881,7 +4881,7 @@ impl AuthorityPerEpochStore {
             )))
             .await?;
         }
-        let mut prepare_scope = monitored_scope("ProcessConsensusCommit::Prepare");
+        let mut phase_scope = monitored_scope("ProcessConsensusCommit::Prepare");
 
         // Split transactions into different types for processing.
         let mut system_transactions = Vec::with_capacity(verified_transactions.len());
@@ -5170,7 +5170,7 @@ impl AuthorityPerEpochStore {
                     }
                 });
             }
-            drop(prepare_scope.take());
+            drop(phase_scope.take());
             let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
@@ -5180,6 +5180,7 @@ impl AuthorityPerEpochStore {
                     &mut sequenced_transactions,
                 )
                 .await?;
+            phase_scope = monitored_scope("ProcessConsensusCommit::AfterValidation");
             output.set_owned_object_locks(owned_object_locks);
             soft_lock_release_tx_digests.extend(soft_lock_digests);
             let kept: Vec<_> = sequenced_transactions
@@ -5274,7 +5275,7 @@ impl AuthorityPerEpochStore {
             })
             .collect();
 
-        drop(prepare_scope.take());
+        drop(phase_scope.take());
         let assign_versions_scope = monitored_scope("ProcessConsensusCommit::AssignVersions");
         // Order transactions by gas price. With the combined congestion
         // tracker this is one order across regular and randomness-using

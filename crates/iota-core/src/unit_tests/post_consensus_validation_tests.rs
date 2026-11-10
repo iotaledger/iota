@@ -4794,7 +4794,10 @@ async fn cut_off_attestor_copies_drop_once_the_horizon_reaches_its_refuted_total
             PostConsensusDecision::DroppedCopy,
         )],
     };
+    let unused_before = input_reads(&s.authority, "unused");
     assert_eq!(s.validate_copies_at(k + 1, copies(&s)).await, cut_off);
+    // The cut-off attestor's copy is not read ahead.
+    assert_eq!(input_reads(&s.authority, "unused"), unused_before);
     assert_eq!(
         s.authority
             .metrics
@@ -7884,6 +7887,11 @@ async fn later_copy_is_validated_after_a_copy_fails_on_its_authenticator() {
             Some(vec![digest, digest])
         );
     }
+    // On the first run the honest copy was read ahead although a copy of its
+    // digest came before it. The replay read it in the loop.
+    assert_eq!(input_reads(&s.authority, "ahead"), 1);
+    assert_eq!(input_reads(&s.authority, "inline"), 1);
+    assert_eq!(input_reads(&s.authority, "unused"), 0);
 
     let error: IotaError = UserInputError::Unsupported("saved drop".to_string()).into();
     s.epoch_store

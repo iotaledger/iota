@@ -516,3 +516,31 @@ impl BackingPackageStore for CommitIndexedReader {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+
+    use super::*;
+
+    /// A read that fails is not kept, so the next caller reads again. A read
+    /// that succeeds is the last one for its input.
+    #[test]
+    fn a_failed_read_is_read_again_and_a_verdict_is_read_once() {
+        let verdicts = Verdicts::<u8, u8>::new();
+        let reads = Cell::new(0);
+        let read = |result: IotaResult<u8>| {
+            verdicts.get_or_read(7, || {
+                reads.set(reads.get() + 1);
+                result
+            })
+        };
+
+        assert!(read(Err(IotaError::Storage("failed".to_string()))).is_err());
+        assert_eq!(reads.get(), 1);
+        assert_eq!(read(Ok(3)).unwrap(), (3, false));
+        assert_eq!(reads.get(), 2);
+        assert_eq!(read(Ok(9)).unwrap(), (3, true));
+        assert_eq!(reads.get(), 2);
+    }
+}
