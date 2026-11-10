@@ -17,6 +17,7 @@ use std::{
 };
 
 use eyre::{Context, Result, eyre};
+use hyper_timeout::TimeoutConnector;
 use hyper_util::client::legacy::connect::{HttpConnector, dns::Name};
 use once_cell::sync::OnceCell;
 use tokio::task::JoinHandle;
@@ -125,12 +126,15 @@ impl MyEndpoint {
             disable_caching_resolver
         });
 
-        // Propagate the endpoint's configured connect timeout (Config::connect_timeout
-        // applied in apply_config_to_endpoint) down to the HTTP connector. tonic's
-        // Channel::new path does not forward Endpoint::connect_timeout to a provided
-        // connector, so without this the lazy channel can sit in State::Connecting
-        // forever when a peer is unreachable (msim with dropped SYNs, real network
-        // partitions, etc), blocking every gRPC call on that channel.
+        // Apply the endpoint's configured connect timeout (Config::connect_timeout
+        // applied in apply_config_to_endpoint) to the connectors, as tonic's own lazy
+        // connect does. tonic's Channel::new path does not apply
+        // Endpoint::connect_timeout to a provided connector, so without this the lazy
+        // channel can sit in State::Connecting forever when a peer is unreachable (msim
+        // with dropped SYNs, real network partitions, etc) or accepts TCP and never
+        // completes the TLS handshake, blocking every gRPC call on that channel. The
+        // HTTP connector's timeout bounds each TCP connect attempt; the
+        // TimeoutConnector bounds the whole attempt, TLS handshake included.
         let connect_timeout = self.endpoint.get_connect_timeout();
 
         if disable_caching_resolver {
@@ -140,14 +144,15 @@ impl MyEndpoint {
             http.set_keepalive(None);
             http.set_connect_timeout(connect_timeout);
 
-            Channel::new(
+            let mut connector = TimeoutConnector::new(
                 hyper_rustls::HttpsConnectorBuilder::new()
                     .with_tls_config(self.tls_config)
                     .https_only()
                     .enable_http2()
                     .wrap_connector(http),
-                self.endpoint,
-            )
+            );
+            connector.set_connect_timeout(connect_timeout);
+            Channel::new(connector, self.endpoint)
         } else {
             let mut http = HttpConnector::new_with_resolver(CachingResolver::new());
             http.enforce_http(false);
@@ -160,7 +165,9 @@ impl MyEndpoint {
                 .https_only()
                 .enable_http2()
                 .wrap_connector(http);
-            Channel::new(https, self.endpoint)
+            let mut connector = TimeoutConnector::new(https);
+            connector.set_connect_timeout(connect_timeout);
+            Channel::new(connector, self.endpoint)
         }
     }
 
@@ -324,5 +331,137 @@ impl fmt::Debug for CachingFuture {
 impl Drop for CachingFuture {
     fn drop(&mut self) {
         self.inner.abort();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+        time::Duration,
+    };
+
+    use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
+    use tokio::net::TcpListener;
+    use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
+
+    use crate::{Multiaddr, config::Config};
+
+    const CONNECT_TIMEOUT: Duration = Duration::from_millis(300);
+    /// How long a test waits for a call before deciding that no deadline
+    /// ended it. Far longer than `CONNECT_TIMEOUT`, so a slow machine does not
+    /// fail the tests.
+    const GIVE_UP: Duration = Duration::from_secs(10);
+
+    fn config() -> Config {
+        let mut config = Config::new();
+        config.connect_timeout = Some(CONNECT_TIMEOUT);
+        config
+    }
+
+    /// Starts a peer that accepts every TCP connection, keeps it open and never
+    /// sends a byte, so no TLS handshake with it finishes. Returns its address
+    /// and the number of connections it has accepted.
+    async fn peer_that_never_answers_tls() -> (Multiaddr, Arc<AtomicUsize>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let accepted = Arc::new(AtomicUsize::new(0));
+        tokio::spawn({
+            let accepted = accepted.clone();
+            async move {
+                let mut open = Vec::new();
+                while let Ok((stream, _)) = listener.accept().await {
+                    accepted.fetch_add(1, Ordering::SeqCst);
+                    open.push(stream);
+                }
+            }
+        });
+        let address = format!("/ip4/127.0.0.1/tcp/{port}/https").parse().unwrap();
+        (address, accepted)
+    }
+
+    async fn check(client: &mut HealthClient<tonic::transport::Channel>) -> Result<(), String> {
+        tokio::time::timeout(GIVE_UP, client.check(HealthCheckRequest::default()))
+            .await
+            .map_err(|_| format!("the call was still pending after {GIVE_UP:?}"))?
+            .map(drop)
+            .map_err(|status| status.to_string())
+    }
+
+    /// A lazy channel to a peer that accepts TCP but never answers the TLS
+    /// handshake fails each call once the connect timeout passes, and dials
+    /// again for the next call.
+    #[tokio::test]
+    async fn lazy_channel_gives_up_on_a_peer_that_stalls_the_tls_handshake() {
+        let (address, accepted) = peer_that_never_answers_tls().await;
+        let channel = config()
+            .connect_lazy(
+                &address,
+                iota_tls::create_rustls_client_config(
+                    Ed25519PrivateKey::random().public_key(),
+                    "test".to_string(),
+                    None,
+                ),
+            )
+            .unwrap();
+        let mut client = HealthClient::new(channel);
+
+        for call in 1..=2 {
+            let started = tokio::time::Instant::now();
+            let result = check(&mut client).await;
+            assert!(
+                result
+                    .as_ref()
+                    .is_err_and(|err| !err.starts_with("the call was still pending")),
+                "call {call} must fail at the connect timeout, got {result:?}"
+            );
+            assert!(
+                started.elapsed() >= CONNECT_TIMEOUT,
+                "call {call} failed after {:?}, before the connect timeout: {result:?}",
+                started.elapsed()
+            );
+        }
+        assert_eq!(
+            accepted.load(Ordering::SeqCst),
+            2,
+            "the channel must dial again after a stalled handshake"
+        );
+    }
+
+    /// A lazy channel with a connect timeout still completes calls to a TLS
+    /// server.
+    #[tokio::test]
+    async fn lazy_channel_with_a_connect_timeout_reaches_a_tls_server() {
+        let private_key = Ed25519PrivateKey::random();
+        let config = config();
+        let server = config
+            .server_builder()
+            .bind(
+                &"/ip4/127.0.0.1/tcp/0/http".parse().unwrap(),
+                Some(iota_tls::create_rustls_server_config(
+                    private_key.clone(),
+                    "test".to_string(),
+                )),
+            )
+            .await
+            .unwrap();
+
+        let channel = config
+            .connect_lazy(
+                server.local_addr(),
+                iota_tls::create_rustls_client_config(
+                    private_key.public_key(),
+                    "test".to_string(),
+                    None,
+                ),
+            )
+            .unwrap();
+        let mut client = HealthClient::new(channel);
+        check(&mut client).await.unwrap();
+
+        server.trigger_shutdown();
     }
 }
