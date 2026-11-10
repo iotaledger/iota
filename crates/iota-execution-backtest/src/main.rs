@@ -270,6 +270,9 @@ async fn main() -> Result<()> {
             }
         }
     }
+    let vm_telemetry = &ctx.metrics.vm_telemetry_metrics;
+    summary.candidate_cached_packages = vm_telemetry.move_vm_package_cache_count.get();
+    summary.candidate_cache_arena_bytes = vm_telemetry.move_vm_total_arena_size_bytes.get();
     println!("{}", serde_json::to_string_pretty(&summary)?);
     Ok(())
 }
@@ -398,6 +401,12 @@ struct Summary {
     /// Control does not match the chain: the replay itself is off for this transaction.
     control_diverged: usize,
     with_move_authenticators: usize,
+    /// Packages in the candidate VM's cache, as of its last report. The execution engine reports
+    /// after the first transaction and then at most every 30 seconds, so the figure can lag the
+    /// end of the run.
+    candidate_cached_packages: i64,
+    /// Arena bytes of the packages in the candidate VM's cache, as of the same report.
+    candidate_cache_arena_bytes: i64,
 }
 
 impl Summary {

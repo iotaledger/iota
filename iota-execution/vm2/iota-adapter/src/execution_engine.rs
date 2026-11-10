@@ -209,7 +209,7 @@ pub(crate) mod checked {
             tx_ctx,
             move_vm,
             protocol_config,
-            metrics,
+            metrics.clone(),
             execution_params,
             trace_builder_opt,
             pre_execution_result,
@@ -264,6 +264,12 @@ pub(crate) mod checked {
             *epoch_id,
         );
 
+        // Dev-inspect runs on a runtime built for that one call, so its cache figures would
+        // overwrite those of the runtime that executes transactions for the epoch.
+        if !Mode::TRACK_EXECUTION {
+            update_vm_telemetry_metrics(&metrics, move_vm);
+        }
+
         ExecutionOutput {
             inner_store: inner,
             gas_status: gas_charger.into_gas_status(),
@@ -271,6 +277,65 @@ pub(crate) mod checked {
             timings,
             execution_result,
         }
+    }
+
+    fn update_vm_telemetry_metrics(metrics: &LimitsMetrics, move_vm: &MoveRuntime) {
+        metrics.vm_telemetry_metrics.try_update(|vm_metrics| {
+            let t = move_vm.get_telemetry_report();
+            vm_metrics
+                .move_vm_package_cache_count
+                .set(t.package_cache_count as i64);
+            vm_metrics
+                .move_vm_total_arena_size_bytes
+                .set(t.total_arena_size as i64);
+            vm_metrics.move_vm_module_count.set(t.module_count as i64);
+            vm_metrics
+                .move_vm_function_count
+                .set(t.function_count as i64);
+            vm_metrics.move_vm_type_count.set(t.type_count as i64);
+            vm_metrics.move_vm_interner_size.set(t.interner_size as i64);
+            vm_metrics
+                .move_vm_vtable_cache_count
+                .set(t.vtable_cache_count as i64);
+            vm_metrics
+                .move_vm_vtable_cache_hits
+                .set(t.vtable_cache_hits as i64);
+            vm_metrics
+                .move_vm_vtable_cache_misses
+                .set(t.vtable_cache_misses as i64);
+            vm_metrics
+                .move_vm_load_time_ms
+                .set(t.total_load_time as i64);
+            vm_metrics.move_vm_load_count.set(t.load_count as i64);
+            vm_metrics
+                .move_vm_validation_time_ms
+                .set(t.total_validation_time as i64);
+            vm_metrics
+                .move_vm_validation_count
+                .set(t.validation_count as i64);
+            vm_metrics.move_vm_jit_time_ms.set(t.total_jit_time as i64);
+            vm_metrics.move_vm_jit_count.set(t.jit_count as i64);
+            vm_metrics
+                .move_vm_execution_time_ms
+                .set(t.total_execution_time as i64);
+            vm_metrics
+                .move_vm_execution_count
+                .set(t.execution_count as i64);
+            vm_metrics
+                .move_vm_interpreter_time_ms
+                .set(t.total_interpreter_time as i64);
+            vm_metrics
+                .move_vm_interpreter_count
+                .set(t.interpreter_count as i64);
+            vm_metrics
+                .move_vm_max_callstack_size
+                .set(t.max_callstack_size as i64);
+            vm_metrics
+                .move_vm_max_valuestack_size
+                .set(t.max_valuestack_size as i64);
+            vm_metrics.move_vm_total_time_ms.set(t.total_time as i64);
+            vm_metrics.move_vm_total_count.set(t.total_count as i64);
+        });
     }
 
     /// Produces the effects of a transaction that requires Move authentication. The temporary

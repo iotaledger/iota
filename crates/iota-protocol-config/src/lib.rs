@@ -4041,8 +4041,8 @@ impl ProtocolConfig {
             meter_instantiation_loops,
             max_instantiation_loop_graph_edges,
             deprecate_global_storage_ops,
-            // The fields below are only read by the `vm2` execution cut (Sui's rewritten VM and
-            // verifier); execution version 1 ignores them. Knobs that change which modules are
+            // The fields below are only read by the `vm2` execution cut
+            // execution version 1 ignores them. Knobs that change which modules are
             // accepted keep IOTA's behaviour (the checks IOTA has always run stay on, the ones it
             // never had stay off); the rest take Sui's current values.
             better_loader_errors: true,

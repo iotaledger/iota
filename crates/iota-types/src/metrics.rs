@@ -3,9 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(not(target_arch = "wasm32"))]
+use std::{
+    sync::atomic::{AtomicU64, Ordering},
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+#[cfg(not(target_arch = "wasm32"))]
 use prometheus_filtered::{
-    Histogram, IntCounterVec, register_histogram_with_registry,
-    register_int_counter_vec_with_registry,
+    Histogram, IntCounterVec, IntGauge, register_histogram_with_registry,
+    register_int_counter_vec_with_registry, register_int_gauge_with_registry,
 };
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -20,6 +26,9 @@ pub struct LimitsMetrics {
     pub excessive_object_runtime_store_entries: IntCounterVec,
     pub excessive_move_call_argument_nodes: IntCounterVec,
     pub move_call_argument_nodes: Histogram,
+    /// Package cache and runtime figures of the Move VM. Only the vm2 execution cut reports
+    /// them.
+    pub vm_telemetry_metrics: MoveVMTelemetryMetrics,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -94,7 +103,203 @@ impl LimitsMetrics {
                 registry,
             )
             .unwrap(),
+            vm_telemetry_metrics: MoveVMTelemetryMetrics::new(registry),
         }
+    }
+}
+
+/// Gauges for the package cache and runtime figures of the Move VM, set from the runtime's
+/// telemetry report at most once per reporting interval.
+#[cfg(not(target_arch = "wasm32"))]
+pub struct MoveVMTelemetryMetrics {
+    pub move_vm_package_cache_count: IntGauge,
+    pub move_vm_total_arena_size_bytes: IntGauge,
+    pub move_vm_module_count: IntGauge,
+    pub move_vm_function_count: IntGauge,
+    pub move_vm_type_count: IntGauge,
+    pub move_vm_interner_size: IntGauge,
+    pub move_vm_vtable_cache_count: IntGauge,
+    pub move_vm_vtable_cache_hits: IntGauge,
+    pub move_vm_vtable_cache_misses: IntGauge,
+    pub move_vm_load_time_ms: IntGauge,
+    pub move_vm_load_count: IntGauge,
+    pub move_vm_validation_time_ms: IntGauge,
+    pub move_vm_validation_count: IntGauge,
+    pub move_vm_jit_time_ms: IntGauge,
+    pub move_vm_jit_count: IntGauge,
+    pub move_vm_execution_time_ms: IntGauge,
+    pub move_vm_execution_count: IntGauge,
+    pub move_vm_interpreter_time_ms: IntGauge,
+    pub move_vm_interpreter_count: IntGauge,
+    pub move_vm_max_callstack_size: IntGauge,
+    pub move_vm_max_valuestack_size: IntGauge,
+    pub move_vm_total_time_ms: IntGauge,
+    pub move_vm_total_count: IntGauge,
+    last_report_ms: AtomicU64,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl MoveVMTelemetryMetrics {
+    const REPORT_INTERVAL_MS: u64 = 30_000;
+
+    pub fn new(registry: &prometheus_filtered::Registry) -> Self {
+        Self {
+            move_vm_package_cache_count: register_int_gauge_with_registry!(
+                "move_vm_package_cache_count",
+                "Number of packages in the Move VM cache",
+                registry,
+            )
+            .unwrap(),
+            move_vm_total_arena_size_bytes: register_int_gauge_with_registry!(
+                "move_vm_total_arena_size_bytes",
+                "Total arena memory of cached Move VM packages in bytes",
+                registry,
+            )
+            .unwrap(),
+            move_vm_module_count: register_int_gauge_with_registry!(
+                "move_vm_module_count",
+                "Total modules across cached Move VM packages",
+                registry,
+            )
+            .unwrap(),
+            move_vm_function_count: register_int_gauge_with_registry!(
+                "move_vm_function_count",
+                "Total functions across cached Move VM packages",
+                registry,
+            )
+            .unwrap(),
+            move_vm_type_count: register_int_gauge_with_registry!(
+                "move_vm_type_count",
+                "Total types across cached Move VM packages",
+                registry,
+            )
+            .unwrap(),
+            move_vm_interner_size: register_int_gauge_with_registry!(
+                "move_vm_interner_size",
+                "Number of entries in the Move VM string interner",
+                registry,
+            )
+            .unwrap(),
+            move_vm_vtable_cache_count: register_int_gauge_with_registry!(
+                "move_vm_vtable_cache_count",
+                "Number of entries in the Move VM VTable cache",
+                registry,
+            )
+            .unwrap(),
+            move_vm_vtable_cache_hits: register_int_gauge_with_registry!(
+                "move_vm_vtable_cache_hits",
+                "Cumulative VTable cache hits in the Move VM",
+                registry,
+            )
+            .unwrap(),
+            move_vm_vtable_cache_misses: register_int_gauge_with_registry!(
+                "move_vm_vtable_cache_misses",
+                "Cumulative VTable cache misses in the Move VM",
+                registry,
+            )
+            .unwrap(),
+            move_vm_load_time_ms: register_int_gauge_with_registry!(
+                "move_vm_load_time_ms",
+                "Cumulative package load time in the Move VM (ms)",
+                registry,
+            )
+            .unwrap(),
+            move_vm_load_count: register_int_gauge_with_registry!(
+                "move_vm_load_count",
+                "Cumulative number of packages loaded by the Move VM",
+                registry,
+            )
+            .unwrap(),
+            move_vm_validation_time_ms: register_int_gauge_with_registry!(
+                "move_vm_validation_time_ms",
+                "Cumulative validation time in the Move VM (ms)",
+                registry,
+            )
+            .unwrap(),
+            move_vm_validation_count: register_int_gauge_with_registry!(
+                "move_vm_validation_count",
+                "Cumulative number of validations in the Move VM",
+                registry,
+            )
+            .unwrap(),
+            move_vm_jit_time_ms: register_int_gauge_with_registry!(
+                "move_vm_jit_time_ms",
+                "Cumulative JIT compilation time in the Move VM (ms)",
+                registry,
+            )
+            .unwrap(),
+            move_vm_jit_count: register_int_gauge_with_registry!(
+                "move_vm_jit_count",
+                "Cumulative number of JIT compilations in the Move VM",
+                registry,
+            )
+            .unwrap(),
+            move_vm_execution_time_ms: register_int_gauge_with_registry!(
+                "move_vm_execution_time_ms",
+                "Cumulative execution time in the Move VM (ms)",
+                registry,
+            )
+            .unwrap(),
+            move_vm_execution_count: register_int_gauge_with_registry!(
+                "move_vm_execution_count",
+                "Cumulative number of execution calls in the Move VM",
+                registry,
+            )
+            .unwrap(),
+            move_vm_interpreter_time_ms: register_int_gauge_with_registry!(
+                "move_vm_interpreter_time_ms",
+                "Cumulative interpreter time in the Move VM (ms)",
+                registry,
+            )
+            .unwrap(),
+            move_vm_interpreter_count: register_int_gauge_with_registry!(
+                "move_vm_interpreter_count",
+                "Cumulative number of interpreter calls in the Move VM",
+                registry,
+            )
+            .unwrap(),
+            move_vm_max_callstack_size: register_int_gauge_with_registry!(
+                "move_vm_max_callstack_size",
+                "Maximum observed callstack depth in the Move VM",
+                registry,
+            )
+            .unwrap(),
+            move_vm_max_valuestack_size: register_int_gauge_with_registry!(
+                "move_vm_max_valuestack_size",
+                "Maximum observed value stack size in the Move VM",
+                registry,
+            )
+            .unwrap(),
+            move_vm_total_time_ms: register_int_gauge_with_registry!(
+                "move_vm_total_time_ms",
+                "Cumulative total time spent in the Move VM (ms)",
+                registry,
+            )
+            .unwrap(),
+            move_vm_total_count: register_int_gauge_with_registry!(
+                "move_vm_total_count",
+                "Cumulative total number of Move VM interactions",
+                registry,
+            )
+            .unwrap(),
+            last_report_ms: AtomicU64::new(0),
+        }
+    }
+
+    /// Calls `f` to set the gauges when the reporting interval has elapsed since the last
+    /// update, and does nothing otherwise. Building the runtime's telemetry report scans the
+    /// whole package cache, so it belongs inside `f`.
+    pub fn try_update(&self, f: impl FnOnce(&Self)) {
+        let now_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
+            .unwrap_or_default();
+        let last = self.last_report_ms.load(Ordering::Relaxed);
+        if now_ms.saturating_sub(last) < Self::REPORT_INTERVAL_MS {
+            return;
+        }
+        self.last_report_ms.store(now_ms, Ordering::Relaxed);
+        f(self);
     }
 }
 
@@ -203,6 +408,12 @@ mod wasm_stubs {
         }
     }
 
+    #[derive(Default, Clone)]
+    pub struct StubGauge;
+    impl StubGauge {
+        pub fn set(&self, _v: i64) {}
+    }
+
     pub struct LimitsMetrics {
         pub excessive_estimated_effects_size: StubCounterVec,
         pub excessive_written_objects_size: StubCounterVec,
@@ -213,6 +424,7 @@ mod wasm_stubs {
         pub excessive_object_runtime_store_entries: StubCounterVec,
         pub excessive_move_call_argument_nodes: StubCounterVec,
         pub move_call_argument_nodes: StubHistogram,
+        pub vm_telemetry_metrics: MoveVMTelemetryMetrics,
     }
 
     impl LimitsMetrics {
@@ -227,8 +439,41 @@ mod wasm_stubs {
                 excessive_object_runtime_store_entries: StubCounterVec,
                 excessive_move_call_argument_nodes: StubCounterVec,
                 move_call_argument_nodes: StubHistogram,
+                vm_telemetry_metrics: MoveVMTelemetryMetrics::default(),
             }
         }
+    }
+
+    #[derive(Default)]
+    pub struct MoveVMTelemetryMetrics {
+        pub move_vm_package_cache_count: StubGauge,
+        pub move_vm_total_arena_size_bytes: StubGauge,
+        pub move_vm_module_count: StubGauge,
+        pub move_vm_function_count: StubGauge,
+        pub move_vm_type_count: StubGauge,
+        pub move_vm_interner_size: StubGauge,
+        pub move_vm_vtable_cache_count: StubGauge,
+        pub move_vm_vtable_cache_hits: StubGauge,
+        pub move_vm_vtable_cache_misses: StubGauge,
+        pub move_vm_load_time_ms: StubGauge,
+        pub move_vm_load_count: StubGauge,
+        pub move_vm_validation_time_ms: StubGauge,
+        pub move_vm_validation_count: StubGauge,
+        pub move_vm_jit_time_ms: StubGauge,
+        pub move_vm_jit_count: StubGauge,
+        pub move_vm_execution_time_ms: StubGauge,
+        pub move_vm_execution_count: StubGauge,
+        pub move_vm_interpreter_time_ms: StubGauge,
+        pub move_vm_interpreter_count: StubGauge,
+        pub move_vm_max_callstack_size: StubGauge,
+        pub move_vm_max_valuestack_size: StubGauge,
+        pub move_vm_total_time_ms: StubGauge,
+        pub move_vm_total_count: StubGauge,
+    }
+
+    impl MoveVMTelemetryMetrics {
+        /// Never calls `f`: there is nothing to report to on wasm32.
+        pub fn try_update(&self, _f: impl FnOnce(&Self)) {}
     }
 
     pub struct BytecodeVerifierMetrics {
@@ -258,3 +503,26 @@ mod wasm_stubs {
 
 #[cfg(target_arch = "wasm32")]
 pub use wasm_stubs::*;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn telemetry_updates_at_most_once_per_interval() {
+        let metrics = MoveVMTelemetryMetrics::new(&prometheus_filtered::Registry::new());
+
+        let mut calls = 0;
+        metrics.try_update(|m| {
+            calls += 1;
+            m.move_vm_package_cache_count.set(3);
+        });
+        metrics.try_update(|m| {
+            calls += 1;
+            m.move_vm_package_cache_count.set(5);
+        });
+
+        assert_eq!(calls, 1);
+        assert_eq!(metrics.move_vm_package_cache_count.get(), 3);
+    }
+}
