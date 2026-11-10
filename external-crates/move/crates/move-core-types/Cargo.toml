@@ -14,9 +14,9 @@ arbitrary = { workspace = true, optional = true }
 bcs.workspace = true
 ethnum.workspace = true
 hex.workspace = true
+indexmap.workspace = true
 leb128.workspace = true
 num.workspace = true
-once_cell.workspace = true
 primitive-types.workspace = true
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
@@ -32,7 +32,9 @@ enum-compat-util.workspace = true
 move-proc-macros.workspace = true
 
 [dev-dependencies]
+# external dependencies
 arbitrary = { workspace = true, features = ["derive_arbitrary"] }
+insta.workspace = true
 proptest.workspace = true
 proptest-derive.workspace = true
 regex.workspace = true

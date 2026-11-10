@@ -96,8 +96,8 @@ impl BinaryConstants {
     /// type and 4 bytes for the offset/count.
     pub const TABLE_HEADER_SIZE: u8 = size_of::<u32>() as u8 * 2 + 1;
 
-    /// Given a potentail magic number, either decode it into a valid one or
-    /// return an error code to explain what went wrong.
+    /// Given a potential magic number, either decode it into a valid one or return an error
+    /// code to explain what went wrong.
     pub fn decode_magic(magic: [u8; 4], count: usize) -> Result<MagicKind, MagicError> {
         if count != BinaryConstants::MOVE_MAGIC_SIZE {
             return Err(MagicError::BadSize);

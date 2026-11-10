@@ -16,10 +16,12 @@ pub mod executor;
 pub mod verifier;
 
 mod latest;
+mod vm2;
 
 #[cfg(test)]
 mod tests;
 
+pub const VM2: u64 = u64::MAX;
 pub fn executor(
     protocol_config: &ProtocolConfig,
     silent: bool,
@@ -28,6 +30,12 @@ pub fn executor(
     let version = protocol_config.execution_version_as_option().unwrap_or(1);
     Ok(match version {
         1 => Arc::new(latest::Executor::new(
+            protocol_config,
+            silent,
+            enable_profiler,
+        )?),
+
+        VM2 => Arc::new(vm2::Executor::new(
             protocol_config,
             silent,
             enable_profiler,
@@ -45,6 +53,7 @@ pub fn verifier<'m>(
     let version = protocol_config.execution_version_as_option().unwrap_or(1);
     match version {
         1 => Box::new(latest::Verifier::new(config, metrics)),
+        VM2 => Box::new(vm2::Verifier::new(config, metrics)),
         v => panic!("Unsupported execution version {v}"),
     }
 }

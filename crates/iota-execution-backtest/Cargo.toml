@@ -1,0 +1,31 @@
+[package]
+name = "iota-execution-backtest"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+description = "Re-executes historical user transactions with two execution versions and compares the effects with the chain"
+
+[dependencies]
+# external dependencies
+anyhow.workspace = true
+bcs.workspace = true
+clap.workspace = true
+futures.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "sync"] }
+tracing.workspace = true
+
+# internal dependencies
+iota-config.workspace = true
+iota-data-ingestion-core.workspace = true
+iota-execution.workspace = true
+iota-json-rpc-types.workspace = true
+iota-protocol-config.workspace = true
+iota-sdk.workspace = true
+iota-sdk-types.workspace = true
+iota-types.workspace = true
+prometheus-filtered.workspace = true
+telemetry-subscribers.workspace = true

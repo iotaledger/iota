@@ -1,3 +1,4 @@
+use anyhow::Result as AResult;
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
 // Modifications Copyright (c) 2025 IOTA Stiftung
@@ -9,13 +10,13 @@ use std::{
     io::Cursor,
 };
 
-use anyhow::Result as AResult;
 use serde::{
     Deserialize, Serialize,
     de::Error as DeError,
     ser::{SerializeMap, SerializeSeq, SerializeStruct},
 };
 
+pub use crate::compressed::annotated as compressed_layouts;
 use crate::{
     VARIANT_TAG_MAX_VALUE,
     account_address::AccountAddress,
@@ -196,9 +197,9 @@ impl MoveValue {
         Ok(bcs::from_bytes_seed(ty, blob)?)
     }
 
-    /// Deserialize `blob` as a Move value with the given `ty`-pe layout, and
-    /// visit its sub-structure with the given `visitor`. The visitor
-    /// dictates the return value that is built up during deserialization.
+    /// Deserialize `blob` as a Move value with the given `ty`-pe layout, and visit its
+    /// sub-structure with the given `visitor`. The visitor dictates the return value that is built
+    /// up during deserialization.
     ///
     /// # Nested deserialization
     ///
@@ -222,10 +223,11 @@ impl MoveValue {
         blob: &'b [u8],
         ty: &'l MoveTypeLayout,
         visitor: &mut V,
-    ) -> AResult<V::Value>
+    ) -> Result<V::Value, V::Error>
     where
         V::Error: std::error::Error + Send + Sync + 'static,
     {
+        // TODO: Don't simplify error to anyhow::Error
         let mut bytes = Cursor::new(blob);
         let res = visit_value(&mut bytes, ty, visitor)?;
         if bytes.position() as usize == blob.len() {
@@ -273,24 +275,24 @@ where
 }
 
 impl MoveStruct {
-    pub fn new(type_: StructTag, fields: Vec<(Identifier, MoveValue)>) -> Self {
-        Self { type_, fields }
-    }
-
     /// TODO (annotated-visitor): Port legacy uses of this method to
     /// `BoundedVisitor`.
     pub fn simple_deserialize(blob: &[u8], ty: &MoveStructLayout) -> AResult<Self> {
         Ok(bcs::from_bytes_seed(ty, blob)?)
     }
 
-    /// Like `MoveValue::visit_deserialize` (see for details), but specialized
-    /// to visiting a struct (the `blob` is known to be a serialized Move
-    /// struct, and the layout is a `MoveStructLayout`).
+    pub fn new(type_: StructTag, fields: Vec<(Identifier, MoveValue)>) -> Self {
+        Self { type_, fields }
+    }
+
+    /// Like `MoveValue::visit_deserialize` (see for details), but specialized to visiting a struct
+    /// (the `blob` is known to be a serialized Move struct, and the layout is a
+    /// `MoveStructLayout`).
     pub fn visit_deserialize<'b, 'l, V: Visitor<'b, 'l>>(
         blob: &'b [u8],
         ty: &'l MoveStructLayout,
         visitor: &mut V,
-    ) -> AResult<V::Value>
+    ) -> Result<V::Value, V::Error>
     where
         V::Error: std::error::Error + Send + Sync + 'static,
     {
@@ -332,10 +334,6 @@ impl MoveVariant {
             tag,
             fields,
         }
-    }
-
-    pub fn simple_deserialize(blob: &[u8], ty: &MoveEnumLayout) -> AResult<Self> {
-        Ok(bcs::from_bytes_seed(ty, blob)?)
     }
 
     pub fn into_fields(self) -> Vec<MoveValue> {

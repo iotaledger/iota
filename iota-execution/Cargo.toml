@@ -10,20 +10,25 @@ description = "Multiplexer to choose between multiple versions of iota and move 
 [dependencies]
 iota-adapter-latest = { path = "latest/iota-adapter" }
 # iota-adapter-$CUT = { path = "$CUT/iota-adapter" }
+iota-adapter-vm2 = { path = "vm2/iota-adapter" }
 iota-move-natives-latest = { path = "latest/iota-move-natives" }
 iota-protocol-config.workspace = true
 iota-sdk-types.workspace = true
 iota-types.workspace = true
 # iota-move-natives-$CUT = { path = "$CUT/iota-move-natives" }
+iota-move-natives-vm2 = { path = "vm2/iota-move-natives" }
 iota-verifier-latest = { path = "latest/iota-verifier" }
 move-binary-format.workspace = true
 # iota-verifier-$CUT = { path = "$CUT/iota-verifier" }
+iota-verifier-vm2 = { path = "vm2/iota-verifier" }
 move-bytecode-verifier-meter.workspace = true
 move-trace-format.workspace = true
 move-vm-config.workspace = true
 # move-bytecode-verifier-$CUT = { path = "../external-crates/move/move-execution/$CUT/crates/move-bytecode-verifier" }
+move-bytecode-verifier-vm2 = { path = "../external-crates/move/move-execution/vm2/crates/move-bytecode-verifier" }
 move-vm-runtime-latest = { path = "../external-crates/move/crates/move-vm-runtime", package = "move-vm-runtime" }
 # move-vm-runtime-$CUT = { path = "../external-crates/move/move-execution/$CUT/crates/move-vm-runtime" }
+move-vm-runtime-vm2 = { path = "../external-crates/move/move-execution/vm2/crates/move-vm-runtime" }
 move-vm-types-latest = { path = "../external-crates/move/crates/move-vm-types", package = "move-vm-types" }
 # move-vm-types-$CUT = { path = "../external-crates/move/move-execution/$CUT/crates/move-vm-types" }
 
@@ -39,6 +44,8 @@ tracing = [
   "move-vm-runtime-latest/tracing",
   # "iota-adapter-$CUT/tracing",
   # "move-vm-runtime-$CUT/tracing",
+  "iota-adapter-vm2/tracing",
+  "move-vm-runtime-vm2/tracing",
 ]
 
 [lints]
@@ -47,4 +54,5 @@ workspace = true
 [package.metadata.cargo-machete]
 ignored = [
   "move-vm-types-latest", # kept to be part of the cut
+  "move-bytecode-verifier-vm2", # kept to be part of the cut
 ]

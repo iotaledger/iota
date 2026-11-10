@@ -14,17 +14,15 @@
 //! time to check evolutions.*)
 //!
 //! Overall the binary format is structured in a number of sections:
-//! - **Header**: this must start at offset 0 in the binary. It contains a blob
-//!   that starts every Diem binary, followed by the version of the VM used to
-//!   compile the code, and last is the number of tables present in this binary.
-//! - **Table Specification**: it's a number of tuple of the form `(table type,
-//!   starting_offset, byte_count)`. The number of entries is specified in the
-//!   header (last entry in header). There can only be a single entry per table
-//!   type. The `starting offset` is from the beginning of the binary. Tables
-//!   must cover the entire size of the binary blob and cannot overlap.
-//! - **Table Content**: the serialized form of the specific entries in the
-//!   table. Those roughly map to the structs defined in this module. Entries in
-//!   each table must be unique.
+//! - **Header**: this must start at offset 0 in the binary. It contains a blob that starts every
+//!   Diem binary, followed by the version of the VM used to compile the code, and last is the
+//!   number of tables present in this binary.
+//! - **Table Specification**: it's a number of tuple of the form `(table type, starting_offset,
+//!   byte_count)`. The number of entries is specified in the header (last entry in header). There
+//!   can only be a single entry per table type. The `starting offset` is from the beginning of the
+//!   binary. Tables must cover the entire size of the binary blob and cannot overlap.
+//! - **Table Content**: the serialized form of the specific entries in the table. Those roughly map
+//!   to the structs defined in this module. Entries in each table must be unique.
 //!
 //! We have two formats: one for modules here represented by `CompiledModule`,
 //! another for transaction scripts which is `CompiledScript`. Building those
@@ -50,7 +48,7 @@ use serde::{Deserialize, Serialize};
 use variant_count::VariantCount;
 
 use crate::{
-    IndexKind, SignatureTokenKind,
+    IndexKind,
     errors::{PartialVMError, PartialVMResult},
     file_format_common,
     internals::ModuleIndex,
@@ -237,7 +235,7 @@ pub type MemberCount = u16;
 /// beginning of the instruction stream.
 pub type CodeOffset = u16;
 
-/// Tag reperesenting the variant of an enum.
+/// Tag representing the variant of an enum.
 pub type VariantTag = MemberCount;
 
 /// The pool of identifiers.
@@ -455,10 +453,8 @@ pub struct StructDefinition {
     /// the abilities for the type.
     pub struct_handle: DatatypeHandleIndex,
     /// Contains either
-    /// - Information indicating the struct is native and has no accessible
-    ///   fields
-    /// - Information indicating the number of fields and the start
-    ///   `FieldDefinition`s
+    /// - Information indicating the struct is native and has no accessible fields
+    /// - Information indicating the number of fields and the start `FieldDefinition`s
     pub field_information: StructFieldInformation,
 }
 
@@ -502,8 +498,7 @@ pub struct FieldDefinition {
 }
 
 /// `Visibility` restricts the accessibility of the associated entity.
-/// - For function visibility, it restricts who may call into the associated
-///   function.
+/// - For function visibility, it restricts who may call into the associated function.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
 #[cfg_attr(any(test, feature = "fuzzing"), derive(proptest_derive::Arbitrary))]
 #[cfg_attr(any(test, feature = "fuzzing"), proptest(no_params))]
@@ -858,53 +853,53 @@ impl AbilitySet {
             | (Ability::Key as u8),
     );
 
-    pub fn singleton(ability: Ability) -> Self {
+    pub const fn singleton(ability: Ability) -> Self {
         Self(ability as u8)
     }
 
-    pub fn has_ability(self, ability: Ability) -> bool {
+    pub const fn has_ability(self, ability: Ability) -> bool {
         let a = ability as u8;
         (a & self.0) == a
     }
 
-    pub fn has_copy(self) -> bool {
+    pub const fn has_copy(self) -> bool {
         self.has_ability(Ability::Copy)
     }
 
-    pub fn has_drop(self) -> bool {
+    pub const fn has_drop(self) -> bool {
         self.has_ability(Ability::Drop)
     }
 
-    pub fn has_store(self) -> bool {
+    pub const fn has_store(self) -> bool {
         self.has_ability(Ability::Store)
     }
 
-    pub fn has_key(self) -> bool {
+    pub const fn has_key(self) -> bool {
         self.has_ability(Ability::Key)
     }
 
-    pub fn remove(self, ability: Ability) -> Self {
+    pub const fn remove(self, ability: Ability) -> Self {
         self.difference(Self::singleton(ability))
     }
 
-    pub fn intersect(self, other: Self) -> Self {
+    pub const fn intersect(self, other: Self) -> Self {
         Self(self.0 & other.0)
     }
 
-    pub fn union(self, other: Self) -> Self {
+    pub const fn union(self, other: Self) -> Self {
         Self(self.0 | other.0)
     }
 
-    pub fn difference(self, other: Self) -> Self {
+    pub const fn difference(self, other: Self) -> Self {
         Self(self.0 & !other.0)
     }
 
     #[inline]
-    fn is_subset_bits(sub: u8, sup: u8) -> bool {
+    const fn is_subset_bits(sub: u8, sup: u8) -> bool {
         (sub & sup) == sub
     }
 
-    pub fn is_subset(self, other: Self) -> bool {
+    pub const fn is_subset(self, other: Self) -> bool {
         Self::is_subset_bits(self.0, other.0)
     }
 
@@ -958,7 +953,7 @@ impl AbilitySet {
         Ok(abs)
     }
 
-    pub fn from_u8(byte: u8) -> Option<Self> {
+    pub const fn from_u8(byte: u8) -> Option<Self> {
         // If there is a bit set in the read `byte`, that bit must be set in the
         // `AbilitySet` containing all `Ability`s
         // This corresponds the byte being a bit set subset of ALL
@@ -971,7 +966,7 @@ impl AbilitySet {
         }
     }
 
-    pub fn into_u8(self) -> u8 {
+    pub const fn into_u8(self) -> u8 {
         self.0
     }
 }
@@ -1234,34 +1229,6 @@ impl std::fmt::Debug for SignatureToken {
 }
 
 impl SignatureToken {
-    /// Returns the "value kind" for the `SignatureToken`
-    #[inline]
-    pub fn signature_token_kind(&self) -> SignatureTokenKind {
-        // TODO: SignatureTokenKind is out-dated. fix/update/remove SignatureTokenKind
-        // and see if this function needs to be cleaned up
-        use SignatureToken::*;
-
-        match self {
-            Reference(_) => SignatureTokenKind::Reference,
-            MutableReference(_) => SignatureTokenKind::MutableReference,
-            Bool
-            | U8
-            | U16
-            | U32
-            | U64
-            | U128
-            | U256
-            | Address
-            | Signer
-            | Datatype(_)
-            | DatatypeInstantiation(_)
-            | Vector(_) => SignatureTokenKind::Value,
-            // TODO: This is a temporary hack to please the verifier. SignatureTokenKind will soon
-            // be completely removed. `SignatureTokenView::kind()` should be used instead.
-            TypeParameter(_) => SignatureTokenKind::Value,
-        }
-    }
-
     // Returns `true` if the `SignatureToken` is an integer type.
     pub fn is_integer(&self) -> bool {
         use SignatureToken::*;

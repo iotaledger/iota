@@ -1816,8 +1816,7 @@ impl<'a> Resolver<'a> {
 // structure so that any data needed for execution is immediately available
 #[derive(Debug)]
 pub(crate) struct LoadedModule {
-    #[allow(dead_code)]
-    id: ModuleId,
+    pub(crate) id: ModuleId,
 
     // types as indexes into the Loader type list
     #[allow(dead_code)]

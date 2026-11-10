@@ -238,6 +238,7 @@ impl MoveTestAdapter<'_> for SimpleVMTestAdapter {
 pub fn format_vm_error(e: &VMError) -> String {
     let location_string = match e.location() {
         Location::Undefined => "undefined".to_owned(),
+        Location::Package(pkg_id) => format!("package {}", pkg_id),
         Location::Module(id) => format!("0x{}::{}", id.address().short_str_lossless(), id.name()),
     };
     format!(

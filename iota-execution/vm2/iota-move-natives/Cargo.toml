@@ -1,0 +1,37 @@
+[package]
+name = "iota-move-natives-vm2"
+version = "0.1.0"
+authors = ["IOTA Foundation <info@iota.org>"]
+description = "Move framework for iota platform"
+license = "Apache-2.0"
+publish = false
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+# external dependencies
+bcs.workspace = true
+better_any.workspace = true
+fastcrypto.workspace = true
+fastcrypto-vdf.workspace = true
+fastcrypto-zkp.workspace = true
+indexmap.workspace = true
+rand.workspace = true
+rand08.workspace = true
+serde.workspace = true
+smallvec.workspace = true
+tracing.workspace = true
+
+# internal dependencies
+iota-protocol-config.workspace = true
+iota-sdk-move-types.workspace = true
+iota-sdk-types.workspace = true
+iota-types.workspace = true
+move-binary-format.workspace = true
+move-core-types.workspace = true
+move-vm-runtime = { path = "../../../external-crates/move/move-execution/vm2/crates/move-vm-runtime", package = "move-vm-runtime-vm2" }
+
+[features]
+tracing = ["move-vm-runtime/tracing"]

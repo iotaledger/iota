@@ -233,6 +233,7 @@ impl ExecutionResultsV1 {
     }
 }
 
+#[derive(Clone, Debug)]
 pub enum ExecutionTiming {
     Success(Duration),
     Abort(Duration),

@@ -528,12 +528,9 @@ fn serialize_byte_blob(
 /// Serializes a `StructDefinition`.
 ///
 /// A `StructDefinition` gets serialized as follows:
-/// - `StructDefinition.handle` as a ULEB128 (index into the `ModuleHandle`
-///   table)
-/// - `StructDefinition.field_count` as a ULEB128 (number of fields defined in
-///   the type)
-/// - `StructDefinition.fields` as a ULEB128 (index into the `FieldDefinition`
-///   table)
+/// - `StructDefinition.handle` as a ULEB128 (index into the `ModuleHandle` table)
+/// - `StructDefinition.field_count` as a ULEB128 (number of fields defined in the type)
+/// - `StructDefinition.fields` as a ULEB128 (index into the `FieldDefinition` table)
 fn serialize_struct_definition(
     binary: &mut BinaryData,
     struct_definition: &StructDefinition,
@@ -552,10 +549,8 @@ fn serialize_struct_definition(
 ///
 /// A `EnumDefinition` gets serialized as follows:
 /// - `EnumDefinition.handle` as a ULEB128 (index into the `ModuleHandle` table)
-/// - Enum flag bit to specify type of declaration (only non-native enums are
-///   supported right now)
-/// - `EnumDefinition.variant_count` as a ULEB128 (number of variants defined in
-///   the enum)
+/// - Enum flag bit to specify type of declaration (only non-native enums are supported right now)
+/// - `EnumDefinition.variant_count` as a ULEB128 (number of variants defined in the enum)
 /// - `EnumDefinition.variants` are then each serialized out.
 fn serialize_enum_definition(
     binary: &mut BinaryData,
@@ -608,11 +603,9 @@ fn serialize_field_definitions(binary: &mut BinaryData, fields: &[FieldDefinitio
 /// Serializes a `FieldDefinition`.
 ///
 /// A `FieldDefinition` gets serialized as follows:
-/// - `FieldDefinition.struct_` as a ULEB128 (index into the `DatatypeHandle`
-///   table)
-/// - `StructDefinition.name` as a ULEB128 (index into the `IdentifierPool`
-///   table)
-/// - `StructDefinition.signature` a serialized `TypeSignatureToekn`)
+/// - `FieldDefinition.struct_` as a ULEB128 (index into the `DatatypeHandle` table)
+/// - `StructDefinition.name` as a ULEB128 (index into the `IdentifierPool` table)
+/// - `StructDefinition.signature` a serialized `TypeSignatureToken`)
 fn serialize_field_definition(
     binary: &mut BinaryData,
     field_definition: &FieldDefinition,
@@ -766,8 +759,7 @@ fn serialize_ability_sets(binary: &mut BinaryData, sets: &[AbilitySet]) -> Resul
 /// - `CodeUnit.max_stack_size` as a ULEB128
 /// - `CodeUnit.locals` as a ULEB128 (index into the `LocalSignaturePool`)
 /// - `CodeUnit.code` as variable size byte stream for the bytecode
-/// - `CodeUnit.jump_tables` as variable size table of jump targets used by
-///   switch operations.
+/// - `CodeUnit.jump_tables` as variable size table of jump targets used by switch operations.
 fn serialize_code_unit(major_version: u32, binary: &mut BinaryData, code: &CodeUnit) -> Result<()> {
     serialize_signature_index(binary, &code.locals)?;
     serialize_code(major_version, binary, &code.code)?;
@@ -1201,6 +1193,8 @@ impl CommonSerializer {
             self.constant_pool.0,
             self.constant_pool.1,
         )?;
+        // TODO: Should this be disabled? We do not support it on-chain, and perhaps should also
+        // disallow it after a certain version.
         if self.major_version >= VERSION_5 {
             // Metadata was not introduced before v5, so do not generate it for lower
             // versions.
@@ -1688,14 +1682,11 @@ impl ModuleSerializer {
     /// Serializes a `FunctionDefinition`.
     ///
     /// A `FunctionDefinition` gets serialized as follows:
-    /// - `FunctionDefinition.function` as a ULEB128 (index into the
-    ///   `FunctionHandle` table)
-    /// - `FunctionDefinition.visibility` 1 byte for the visibility modifier of
-    ///   the function
-    /// - `FunctionDefinition.flags` 1 byte for the flags of the function The
-    ///   flags now has only one bit used:
-    ///   - bit 0x2: native indicator, indicates whether the function is a
-    ///     native function.
+    /// - `FunctionDefinition.function` as a ULEB128 (index into the `FunctionHandle` table)
+    /// - `FunctionDefinition.visibility` 1 byte for the visibility modifier of the function
+    /// - `FunctionDefinition.flags` 1 byte for the flags of the function The flags now has only one
+    ///   bit used:
+    ///   - bit 0x2: native indicator, indicates whether the function is a native function.
     /// - `FunctionDefinition.code` a variable size stream for the `CodeUnit`
     fn serialize_function_definition(
         &mut self,

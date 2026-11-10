@@ -223,7 +223,7 @@ impl<'env> CodeUnitVerifier<'env, '_> {
                             .unwrap_err()
                             .finish(Location::Undefined)
                             .message()
-                            .cloned()
+                            .map(str::to_string)
                             .unwrap_or_default(),
                     ),
                 );

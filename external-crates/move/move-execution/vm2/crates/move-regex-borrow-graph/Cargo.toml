@@ -1,0 +1,22 @@
+[package]
+name = "move-regex-borrow-graph-vm2"
+version = "0.0.1"
+authors = ["The Move Contributors"]
+publish = false
+edition = "2024"
+license = "Apache-2.0"
+
+[dependencies]
+proptest.workspace = true
+
+move-binary-format.workspace = true
+move-core-types.workspace = true
+move-command-line-common.workspace = true
+indexmap.workspace = true
+
+[dev-dependencies]
+datatest-stable.workspace = true
+
+[[test]]
+name = "borrow_graph_tests"
+harness = false

@@ -1,6 +1,10 @@
 [workspace]
 resolver = "2"
 exclude = [
+  "external-crates/move/move-execution/vm2/crates/move-vm-runtime",
+  "external-crates/move/move-execution/vm2/crates/move-regex-borrow-graph",
+  "external-crates/move/move-execution/vm2/crates/move-bytecode-verifier",
+  "external-crates/move/move-execution/vm2/crates/bytecode-verifier-tests",
   "docs/examples/rust",
   "examples/custom-indexer/rust",
   "examples/tic-tac-toe/cli",
@@ -75,6 +79,7 @@ members = [
   "crates/iota-data-ingestion",
   "crates/iota-data-ingestion-core",
   "crates/iota-e2e-tests",
+  "crates/iota-execution-backtest",
   "crates/iota-enum-compat-util",
   "crates/iota-faucet",
   "crates/iota-framework",
@@ -173,6 +178,9 @@ members = [
   "iota-execution/latest/iota-adapter",
   "iota-execution/latest/iota-move-natives",
   "iota-execution/latest/iota-verifier",
+  "iota-execution/vm2/iota-verifier",
+  "iota-execution/vm2/iota-move-natives",
+  "iota-execution/vm2/iota-adapter",
 ]
 
 [workspace.package]
@@ -312,6 +320,10 @@ object_store = { version = "0.13", features = ["aws", "gcp", "azure", "http"] }
 once_cell = "1.18.0"
 p256 = { version = "0.13.2", features = ["ecdsa"] }
 packable = { version = "0.8.3", features = ["io"], default-features = false }
+quick_cache = { version = "0.6.18", features = ["stats"] }
+leb128 = "0.2.5"
+prometheus = { version = "0.14", features = ["protobuf"] }
+smallvec = "1.10.0"
 parking_lot = { version = "0.12.3", features = ["arc_lock"] }
 passkey-authenticator = "0.4.0"
 passkey-client = "0.4.0"
@@ -517,5 +529,8 @@ typed-store-error = { path = "crates/typed-store-error" }
 # fastcrypto-tbls/-vdf/-zkp are only on git (vdf unpublished, tbls stale) and
 # pull fastcrypto via an in-repo path dep. Redirect it to the crates.io release
 # so the workspace shares a single fastcrypto instead of two conflicting copies.
+[patch.crates-io]
+iota-sdk-types = { path = "../iota-rust-sdk/crates/iota-sdk-types" }
+
 [patch."https://github.com/MystenLabs/fastcrypto"]
 fastcrypto = "=0.1.11"

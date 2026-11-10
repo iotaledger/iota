@@ -73,6 +73,7 @@ mod checked {
                     vector_len_max: protocol_config.max_move_vector_len(),
                     max_value_nest_depth: protocol_config.max_move_value_depth_as_option(),
                     hardened_otw_check: protocol_config.hardened_otw_check(),
+                    package_arena_size: None,
                 },
                 enable_invariant_violation_check_in_swap_loc: !protocol_config
                     .disable_invariant_violation_check_in_swap_loc(),
@@ -86,6 +87,10 @@ mod checked {
                     .rethrow_serialization_type_layout_errors(),
                 max_type_to_layout_nodes: protocol_config.max_type_to_layout_nodes_as_option(),
                 variant_nodes: protocol_config.variant_nodes(),
+                // Read only by the rewritten VM (execution cut `vm2`); execution version 1 ignores them.
+                deprecate_global_storage_ops_during_deserialization: false,
+                normalize_depth_formula: false,
+                charge_ld_const_abstract_size: false,
             },
         )
         .map_err(|_| IotaError::ExecutionInvariantViolation)

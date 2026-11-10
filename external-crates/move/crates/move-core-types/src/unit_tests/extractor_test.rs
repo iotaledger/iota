@@ -9,7 +9,7 @@ use crate::{
     annotated_extractor::{Element as E, Extractor},
     annotated_value::{MoveTypeLayout, MoveValue},
     language_storage::TypeTag,
-    unit_tests::visitor_test::{
+    unit_tests::annotated_visitor_test::{
         PrintVisitor, enum_layout_, serialize, struct_layout_, struct_value_, variant_value_,
     },
 };
@@ -694,8 +694,8 @@ fn variant_not_found() {
 /// options for the element that goes in the same position in the generated
 /// path.
 enum C<'p> {
-    /// This element is optional -- paths are geneated with and without this
-    /// element at the component's position.
+    /// This element is optional -- paths are generated with and without this element at the
+    /// component's position.
     Opt(E<'p>),
 
     /// This element is required, and is picked from the provided list.

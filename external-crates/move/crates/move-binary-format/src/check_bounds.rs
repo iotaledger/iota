@@ -20,7 +20,7 @@ use crate::{
         VariantInstantiationHandle, VariantJumpTable,
     },
     internals::ModuleIndex,
-    safe_assert,
+    partial_vm_error_with_debug_message, safe_assert, safe_unwrap,
 };
 
 enum BoundsCheckingContext {
@@ -76,9 +76,8 @@ impl<'a> BoundsChecker<'a> {
         Ok(())
     }
 
-    // Checks all signatures and populates the `signature_max_type_params` memo
-    // with the maximum type parameter index used in each signature (`None` if
-    // none).
+    // Checks all signatures and populates the `signature_max_type_params` memo with the maximum
+    // type parameter index used in each signature (`None` if none).
     fn check_signatures(&mut self) -> PartialVMResult<()> {
         debug_assert!(self.signature_max_type_params.is_empty());
         self.signature_max_type_params = self
@@ -218,8 +217,7 @@ impl<'a> BoundsChecker<'a> {
         check_bounds_impl(self.module.identifiers(), function_handle.name)?;
         check_bounds_impl(self.module.signatures(), function_handle.parameters)?;
         check_bounds_impl(self.module.signatures(), function_handle.return_)?;
-        // function signature type paramters must be in bounds to the function type
-        // parameters
+        // function signature type parameters must be in bounds to the function type parameters
         let type_param_count = function_handle.type_parameters.len();
         self.check_signature_type_parameters(function_handle.parameters, type_param_count)?;
         self.check_signature_type_parameters(function_handle.return_, type_param_count)?;
@@ -337,9 +335,8 @@ impl<'a> BoundsChecker<'a> {
         )
     }
 
-    /// Validates every token in `signature` and returns the maximum
-    /// `TypeParameter` index it contains (`None` if no type parameters
-    /// present).
+    /// Validates every token in `signature` and returns the maximum `TypeParameter` index it
+    /// contains (`None` if no type parameters present).
     fn check_signature(&self, signature: &Signature) -> PartialVMResult<Option<u16>> {
         signature.0.iter().try_fold(None, |max_type_param, ty| {
             self.check_type(ty).map(|ty_max| max_type_param.max(ty_max))
@@ -695,9 +692,9 @@ impl<'a> BoundsChecker<'a> {
         Ok(())
     }
 
-    /// Validates `ty` (datatype-handle bounds and type-argument arity) and
-    /// returns the maximum `TypeParameter` index it contains (`None` if none),
-    /// for the `signature_max_type_params` memo.
+    /// Validates `ty` (datatype-handle bounds and type-argument arity) and returns the maximum
+    /// `TypeParameter` index it contains (`None` if none), for the `signature_max_type_params`
+    /// memo.
     fn check_type(&self, ty: &SignatureToken) -> PartialVMResult<Option<u16>> {
         use self::SignatureToken::*;
 
@@ -748,18 +745,13 @@ impl<'a> BoundsChecker<'a> {
         type_param_count: usize,
     ) -> PartialVMResult<()> {
         let index = sig_idx.into_index();
-        // The signature index is checked before this is called, so a missing
-        // entry is an invariant violation. `Some(max)` means the signature has
-        // type parameters and the largest index must be in bounds; `None`
-        // means it has none, so it is always in bounds.
-        let Some(max_type_param) = self.signature_max_type_params.get(index) else {
-            return Err(
-                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
-                    format!("no entry for signature {index} in signature_max_type_params"),
-                ),
-            );
-        };
-        match max_type_param {
+        // None => means the signature index is out of bounds, which is caught higher up.
+        //      - Raise an invariant violation via `safe_unwrap!`.
+        // Some(Some(max)) => means the signature has type parameters.
+        //      - the max index must be in bounds.
+        // Some(None) => means the signature has no type parameters.
+        //      - So it's always (vacuously) in bounds.
+        match safe_unwrap!(self.signature_max_type_params.get(index)) {
             Some(max) if (*max as usize) < type_param_count => Ok(()),
             None => Ok(()),
             Some(_) => {
@@ -769,14 +761,10 @@ impl<'a> BoundsChecker<'a> {
                         self.check_type_parameter(ty, type_param_count)?;
                     }
                 }
-                Err(
-                    PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                        .with_message(
-                            "type parameter memo reported an out-of-bounds index that \
-                             re-traversal did not find"
-                                .to_string(),
-                        ),
-                )
+                Err(partial_vm_error_with_debug_message!(
+                    UNKNOWN_INVARIANT_VIOLATION_ERROR,
+                    "type parameter memo reported an out-of-bounds index that re-traversal did not find"
+                ))
             }
         }
     }

@@ -3,10 +3,9 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::borrow::Borrow;
+use std::{borrow::Borrow, sync::LazyLock};
 
 use bcs::test_helpers::assert_canonical_encode_decode;
-use once_cell::sync::Lazy;
 use proptest::prelude::*;
 use regex::Regex;
 
@@ -141,7 +140,7 @@ proptest! {
 }
 
 fn invalid_identifier_strategy() -> impl Strategy<Value = String> {
-    static ALLOWED_IDENTIFIERS_REGEX: Lazy<Regex> = Lazy::new(|| {
+    static ALLOWED_IDENTIFIERS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
         // Need to add anchors to ensure the entire string is matched.
         Regex::new(&format!("^(?:{})$", ALLOWED_IDENTIFIERS)).unwrap()
     });

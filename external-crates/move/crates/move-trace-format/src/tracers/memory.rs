@@ -1,25 +1,25 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2025 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains the implementation of the memory tracer. The memory
-//! tracer is a tracer that takes a stream of trace events, and uses these
-//! events to create a snapshot of the memory state (operand stack, locals, and
-//! globals) at each point in time during execution.
+//! This module contains the implementation of the memory tracer. The memory tracer is a tracer
+//! that takes a stream of trace events, and uses these events to create a snapshot of the memory
+//! state (operand stack, locals, and globals) at each point in time during execution.
 //!
-//! The memory tracer then emits `External` events with the current VM state for
-//! every instruction, and open/close frame event that is has built up.
+//! The memory tracer then emits `External` events with the current VM state for every instruction,
+//! and open/close frame event that is has built up.
 //!
-//! The memory tracer is useful for debugging, and  as an example of how to
-//! build up this state for more advanced analysis and also using the custom
-//! tracing trait.
+//! The memory tracer is useful for debugging, and  as an example of how to build up this
+//! state for more advanced analysis and also using the custom tracing trait.
 
 use core::fmt;
 use std::collections::BTreeMap;
 
+use move_binary_format::file_format_common::Opcodes;
+
 use crate::{
     format::{DataLoad, Effect, Location, Read, TraceEvent, TraceIndex, TraceValue, Write},
-    interface::{Tracer, Writer},
+    interface::{EventFilter, Tracer, Writer},
     value::SerializableMoveValue,
 };
 
@@ -44,8 +44,7 @@ impl TraceState {
         }
     }
 
-    /// Apply an event to the state machine and update the locals state
-    /// accordingly.
+    /// Apply an event to the state machine and update the locals state accordingly.
     fn apply_event(&mut self, event: &TraceEvent) {
         match event {
             TraceEvent::OpenFrame { frame, .. } => {
@@ -130,8 +129,8 @@ impl TraceState {
         }
     }
 
-    /// Given a reference "location" return a mutable reference to the value it
-    /// points to so that it can be updated.
+    /// Given a reference "location" return a mutable reference to the value it points to so that
+    /// it can be updated.
     fn get_mut_location(&mut self, location: &Location) -> &mut SerializableMoveValue {
         match location {
             Location::Local(frame_idx, idx) => {
@@ -151,11 +150,10 @@ impl Default for TraceState {
 }
 
 impl Tracer for TraceState {
-    fn notify(&mut self, event: &TraceEvent, mut write: Writer<'_>) {
+    fn notify(&mut self, event: &TraceEvent, mut write: Writer<'_>) -> bool {
         self.apply_event(event);
-        // We only emit the state when we hit a non-effect internal event. This
-        // coincides with emitting the current state of the VM before each
-        // instruction/function call.
+        // We only emit the state when we hit a non-effect internal event. This coincides with
+        // emitting the current state of the VM before each instruction/function call.
         match event {
             TraceEvent::Instruction { .. }
             | TraceEvent::OpenFrame { .. }
@@ -164,6 +162,11 @@ impl Tracer for TraceState {
             }
             _ => (),
         }
+        true
+    }
+
+    fn instruction_filter(&self, _instruction: &Opcodes, _pc: u16) -> Option<EventFilter> {
+        Some(|_event_index| true)
     }
 }
 

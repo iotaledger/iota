@@ -1,0 +1,28 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+use std::collections::VecDeque;
+
+use move_binary_format::errors::PartialVMResult;
+use move_vm_runtime::{
+    execution::{Type, values::Value},
+    natives::functions::{NativeContext, NativeResult},
+};
+use rand::Rng;
+use smallvec::smallvec;
+
+use crate::legacy_test_cost;
+
+pub fn generate_rand_seed_for_testing(
+    _context: &mut NativeContext,
+    _ty_args: Vec<Type>,
+    _args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    let mut seed = [0u8; 32];
+    rand::rng().fill_bytes(&mut seed);
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![Value::vector_u8(seed)],
+    ))
+}

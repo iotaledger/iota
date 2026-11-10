@@ -11,8 +11,7 @@ use crate::{
 /// of other values. They are split into two categories:
 ///
 /// - Selectors, which recurse into the sub-structure.
-/// - Filters, which check properties of the value at that position in the
-///   sub-structure.
+/// - Filters, which check properties of the value at that position in the sub-structure.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Element<'e> {
     // Selectors
@@ -49,16 +48,14 @@ pub enum Element<'e> {
 /// which restricts the type of the top-level value being deserialized. From
 /// there, the elements expected are driven by the layout being deserialized:
 ///
-/// - When deserializing a vector, the next element must be an
-///   [`Element::Index`] which selects the offset into the vector that the
-///   extractor recurses into.
-/// - When deserializing a struct, the next element may be an [`Element::Field`]
-///   which selects the field of the struct that the extractor recurses into by
-///   name, or an [`Element::Index`] which selects the field by its offset.
-/// - When deserializing a variant, the next elements may optionally be an
-///   [`Element::Variant`] which expects a particular variant of the enum,
-///   followed by either an [`Element::Field`] or an [`Element::Index`], similar
-///   to a struct.
+/// - When deserializing a vector, the next element must be an [`Element::Index`] which selects the
+///   offset into the vector that the extractor recurses into.
+/// - When deserializing a struct, the next element may be an [`Element::Field`] which selects the
+///   field of the struct that the extractor recurses into by name, or an [`Element::Index`] which
+///   selects the field by its offset.
+/// - When deserializing a variant, the next elements may optionally be an [`Element::Variant`]
+///   which expects a particular variant of the enum, followed by either an [`Element::Field`] or an
+///   [`Element::Index`], similar to a struct.
 pub struct Extractor<'p, 'v, V> {
     inner: &'v mut V,
     path: &'p [Element<'p>],
@@ -77,7 +74,7 @@ where
         layout: &'l A::MoveTypeLayout,
         inner: &'v mut V,
         path: Vec<Element<'p>>,
-    ) -> anyhow::Result<Option<V::Value>> {
+    ) -> Result<Option<V::Value>, V::Error> {
         let mut extractor = Extractor::new(inner, &path);
         A::MoveValue::visit_deserialize(bytes, layout, &mut extractor)
     }
@@ -87,7 +84,7 @@ where
         layout: &'l A::MoveStructLayout,
         inner: &'v mut V,
         path: Vec<Element<'p>>,
-    ) -> anyhow::Result<Option<V::Value>> {
+    ) -> Result<Option<V::Value>, V::Error> {
         let mut extractor = Extractor::new(inner, &path);
         A::MoveStruct::visit_deserialize(bytes, layout, &mut extractor)
     }

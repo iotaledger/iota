@@ -249,13 +249,21 @@ fn deserialize_trailing_bytes() {
         // ok with flag false
         CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::legacy_with_flags(false, false),
+            &BinaryConfig::legacy_with_flags(
+                // check_no_extraneous_bytes
+                false, // deprecate_global_storage_ops
+                false,
+            ),
         )
         .unwrap();
         // error with flag true
         let status_code = CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::legacy_with_flags(true, false),
+            &BinaryConfig::legacy_with_flags(
+                // check_no_extraneous_bytes
+                true, // deprecate_global_storage_ops
+                false,
+            ),
         )
         .unwrap_err()
         .major_status();
@@ -295,13 +303,21 @@ fn no_metadata() {
         // ok with flag false
         CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::legacy_with_flags(false, false),
+            &BinaryConfig::legacy_with_flags(
+                // check_no_extraneous_bytes
+                false, // deprecate_global_storage_ops
+                false,
+            ),
         )
         .unwrap();
         // error with flag true
         let status_code = CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::legacy_with_flags(true, false),
+            &BinaryConfig::legacy_with_flags(
+                // check_no_extraneous_bytes
+                true, // deprecate_global_storage_ops
+                false,
+            ),
         )
         .unwrap_err()
         .major_status();
@@ -436,7 +452,11 @@ fn enum_version_lie() {
     let test = |bytes, expected_status| {
         let status_code = CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::legacy_with_flags(true, false),
+            &BinaryConfig::legacy_with_flags(
+                // check_no_extraneous_bytes
+                true, // deprecate_global_storage_ops
+                false,
+            ),
         )
         .unwrap_err()
         .major_status();
@@ -483,8 +503,15 @@ fn deserialize_empty_enum_fails() {
     module.enum_defs[0].variants = vec![];
     let mut bin = vec![];
     module.serialize(&mut bin).unwrap();
-    CompiledModule::deserialize_with_config(&bin, &BinaryConfig::legacy_with_flags(true, false))
-        .unwrap_err();
+    CompiledModule::deserialize_with_config(
+        &bin,
+        &BinaryConfig::legacy_with_flags(
+            // check_no_extraneous_bytes
+            true, // deprecate_global_storage_ops
+            false,
+        ),
+    )
+    .unwrap_err();
 }
 
 #[test]
@@ -582,13 +609,21 @@ fn deserialize_deprecated_global_storage() {
         // ok with flag false
         CompiledModule::deserialize_with_config(
             &bytes,
-            &BinaryConfig::legacy_with_flags(false, false),
+            &BinaryConfig::legacy_with_flags(
+                // check_no_extraneous_bytes
+                false, // deprecate_global_storage_ops
+                false,
+            ),
         )
         .unwrap();
         // error with flag true
         let status_code = CompiledModule::deserialize_with_config(
             &bytes,
-            &BinaryConfig::legacy_with_flags(false, true),
+            &BinaryConfig::legacy_with_flags(
+                // check_no_extraneous_bytes
+                false, // deprecate_global_storage_ops
+                true,
+            ),
         )
         .unwrap_err()
         .major_status();

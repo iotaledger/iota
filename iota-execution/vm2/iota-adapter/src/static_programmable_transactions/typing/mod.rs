@@ -1,0 +1,26 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+use crate::{
+    execution_mode::ExecutionMode,
+    static_programmable_transactions::{
+        env, loading::ast as L, metering, metering::translation_meter::TranslationMeter,
+    },
+};
+pub mod ast;
+pub mod invariant_checks;
+pub mod translate;
+pub mod verify;
+
+pub fn translate_and_verify<Mode: ExecutionMode>(
+    meter: &mut TranslationMeter<'_>,
+    env: &env::Env<Mode>,
+    lt: L::Transaction,
+) -> Result<ast::Transaction, Mode::Error> {
+    let mut ast = translate::transaction::<Mode>(env, lt)?;
+    metering::typing::meter::<Mode>(meter, &ast)?;
+    verify::transaction::<Mode>(env, &mut ast)?;
+    invariant_checks::transaction::<Mode>(env, &ast, ast.unified_linkage.as_ref())?;
+    Ok(ast)
+}

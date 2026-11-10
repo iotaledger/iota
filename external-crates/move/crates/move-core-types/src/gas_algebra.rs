@@ -213,6 +213,11 @@ impl<U> GasQuantity<U> {
         self.val.checked_sub(other.val).map(Self::new)
     }
 
+    /// Multiply a per-unit rate by a unitless count (bytes, args, elements, size units).
+    pub fn saturating_mul(self, count: u64) -> Self {
+        Self::new(self.val.saturating_mul(count))
+    }
+
     pub fn saturating_sub(self, other: Self) -> Self {
         self.val.saturating_sub(other.val).into()
     }

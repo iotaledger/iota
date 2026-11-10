@@ -290,17 +290,17 @@ impl CompatibilityMode for ExecutionCompatibilityMode {
     }
 
     /// Finish by comparing against the compatibility flags.
-    fn finish(self, compatability: &Compatibility) -> Result<(), ()> {
+    fn finish(self, compatibility: &Compatibility) -> Result<(), ()> {
         if !self.datatype_and_function_linking {
             return Err(());
         }
-        if compatability.check_datatype_layout && !self.datatype_layout {
+        if compatibility.check_datatype_layout && !self.datatype_layout {
             return Err(());
         }
-        if compatability.check_private_entry_linking && !self.entry_linking {
+        if compatibility.check_private_entry_linking && !self.entry_linking {
             return Err(());
         }
-        if compatability.check_datatype_layout && !self.no_new_variants {
+        if compatibility.check_datatype_layout && !self.no_new_variants {
             return Err(());
         }
 

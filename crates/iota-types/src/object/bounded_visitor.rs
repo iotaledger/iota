@@ -87,7 +87,7 @@ impl BoundedVisitor {
         layout: &A::MoveTypeLayout,
     ) -> anyhow::Result<A::MoveValue> {
         let mut visitor = Self::default();
-        A::MoveValue::visit_deserialize(bytes, layout, &mut visitor)
+        Ok(A::MoveValue::visit_deserialize(bytes, layout, &mut visitor)?)
     }
 
     /// Deserialize `bytes` as a `MoveStruct` with layout `layout`. Can fail if

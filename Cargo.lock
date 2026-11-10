@@ -224,7 +224,7 @@ dependencies = [
  "anemo-tower",
  "bytes",
  "clap",
- "dashmap",
+ "dashmap 5.5.3",
  "rand 0.8.6",
  "tokio",
  "tower 0.4.13",
@@ -238,7 +238,7 @@ source = "git+https://github.com/mystenlabs/anemo.git?rev=68adc31d4ea1f4573f08c2
 dependencies = [
  "anemo",
  "bytes",
- "dashmap",
+ "dashmap 5.5.3",
  "futures",
  "governor",
  "nonzero_ext",
@@ -2200,9 +2200,9 @@ dependencies = [
 
 [[package]]
 name = "bumpalo"
-version = "3.16.0"
+version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
+checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
 name = "byte-slice-cast"
@@ -2411,9 +2411,9 @@ dependencies = [
 
 [[package]]
 name = "cfg-if"
-version = "1.0.0"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
 name = "cfg_aliases"
@@ -3391,7 +3391,21 @@ dependencies = [
  "hashbrown 0.14.5",
  "lock_api",
  "once_cell",
- "parking_lot_core 0.9.10",
+ "parking_lot_core 0.9.12",
+]
+
+[[package]]
+name = "dashmap"
+version = "6.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6361d5c062261c78a176addb82d4c821ae42bed6089de0e12603cd25de2059c"
+dependencies = [
+ "cfg-if",
+ "crossbeam-utils",
+ "hashbrown 0.14.5",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core 0.9.12",
 ]
 
 [[package]]
@@ -4858,7 +4872,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68a7f542ee6b35af73b06abc0dad1c1bae89964e4e253bc4b587b91c9637867b"
 dependencies = [
  "cfg-if",
- "dashmap",
+ "dashmap 5.5.3",
  "futures",
  "futures-timer",
  "no-std-compat",
@@ -5861,6 +5875,46 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-adapter-vm2"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bcs 0.2.1",
+ "either",
+ "fastcrypto",
+ "indexmap 2.11.0",
+ "iota-common",
+ "iota-framework",
+ "iota-macros",
+ "iota-metrics",
+ "iota-move-natives-vm2",
+ "iota-protocol-config",
+ "iota-sdk-move-types",
+ "iota-sdk-types",
+ "iota-types",
+ "iota-verifier-vm2",
+ "leb128",
+ "move-binary-format",
+ "move-bytecode-utils",
+ "move-bytecode-verifier-meter",
+ "move-bytecode-verifier-vm2",
+ "move-core-types",
+ "move-regex-borrow-graph-vm2",
+ "move-trace-format",
+ "move-vm-config",
+ "move-vm-profiler",
+ "move-vm-runtime-vm2",
+ "nonempty",
+ "parking_lot 0.12.3",
+ "prometheus",
+ "quick_cache",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "iota-analytics-indexer"
 version = "1.36.0-alpha"
 dependencies = [
@@ -6041,7 +6095,7 @@ dependencies = [
  "bytes",
  "clap",
  "criterion",
- "dashmap",
+ "dashmap 5.5.3",
  "diffy",
  "either",
  "enum_dispatch",
@@ -6305,18 +6359,47 @@ version = "0.1.0"
 dependencies = [
  "cargo_metadata",
  "iota-adapter-latest",
+ "iota-adapter-vm2",
  "iota-move-natives-latest",
+ "iota-move-natives-vm2",
  "iota-protocol-config",
  "iota-sdk-types",
  "iota-types",
  "iota-verifier-latest",
+ "iota-verifier-vm2",
  "move-binary-format",
  "move-bytecode-verifier-meter",
+ "move-bytecode-verifier-vm2",
  "move-trace-format",
  "move-vm-config",
  "move-vm-runtime",
+ "move-vm-runtime-vm2",
  "move-vm-types",
  "petgraph 0.6.5",
+]
+
+[[package]]
+name = "iota-execution-backtest"
+version = "1.36.0-alpha"
+dependencies = [
+ "anyhow",
+ "bcs 0.2.1",
+ "clap",
+ "futures",
+ "iota-config",
+ "iota-data-ingestion-core",
+ "iota-execution",
+ "iota-json-rpc-types",
+ "iota-protocol-config",
+ "iota-sdk",
+ "iota-sdk-types",
+ "iota-types",
+ "prometheus-filtered",
+ "serde",
+ "serde_json",
+ "telemetry-subscribers",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -6710,7 +6793,7 @@ dependencies = [
  "cached",
  "chrono",
  "clap",
- "dashmap",
+ "dashmap 5.5.3",
  "derive_more 1.0.0",
  "diesel",
  "diesel_migrations",
@@ -7189,7 +7272,7 @@ dependencies = [
  "async-trait",
  "axum 0.8.8",
  "bytes",
- "dashmap",
+ "dashmap 5.5.3",
  "futures",
  "hdrhistogram",
  "http 1.5.0",
@@ -7323,6 +7406,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-move-natives-vm2"
+version = "0.1.0"
+dependencies = [
+ "bcs 0.2.1",
+ "better_any",
+ "fastcrypto",
+ "fastcrypto-vdf",
+ "fastcrypto-zkp",
+ "indexmap 2.11.0",
+ "iota-protocol-config",
+ "iota-sdk-move-types",
+ "iota-sdk-types",
+ "iota-types",
+ "move-binary-format",
+ "move-core-types",
+ "move-vm-runtime-vm2",
+ "rand 0.10.3",
+ "rand 0.8.6",
+ "serde",
+ "smallvec",
+ "tracing",
+]
+
+[[package]]
 name = "iota-multiaddr"
 version = "1.36.0-alpha"
 dependencies = [
@@ -7358,7 +7465,7 @@ dependencies = [
  "arc-swap",
  "bcs 0.2.1",
  "bytes",
- "dashmap",
+ "dashmap 5.5.3",
  "fastcrypto",
  "fastcrypto-tbls",
  "futures",
@@ -7784,7 +7891,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap",
- "dashmap",
+ "dashmap 5.5.3",
  "dirs",
  "futures",
  "iota-json-rpc-types",
@@ -8001,8 +8108,6 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "1.0.0-rc.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7be7c68f7361494137105993c41b732f17760707699dd31ef2cac3528d2d719"
 dependencies = [
  "base64ct",
  "bcs 0.2.1",
@@ -8413,7 +8518,7 @@ name = "iota-traffic-controller"
 version = "1.36.0-alpha"
 dependencies = [
  "arc-swap",
- "dashmap",
+ "dashmap 5.5.3",
  "futures",
  "governor",
  "http 1.5.0",
@@ -8616,6 +8721,24 @@ version = "1.36.0-alpha"
 dependencies = [
  "datatest-stable",
  "iota-transactional-test-runner",
+]
+
+[[package]]
+name = "iota-verifier-vm2"
+version = "0.1.0"
+dependencies = [
+ "bcs 0.2.1",
+ "iota-common",
+ "iota-protocol-config",
+ "iota-sdk-types",
+ "iota-types",
+ "move-abstract-stack",
+ "move-binary-format",
+ "move-bytecode-utils",
+ "move-bytecode-verifier-meter",
+ "move-bytecode-verifier-vm2",
+ "move-core-types",
+ "move-vm-config",
 ]
 
 [[package]]
@@ -9132,6 +9255,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "lasso"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e14eda50a3494b3bf7b9ce51c52434a761e383d7238ce1dd5dcec2fbc13e9fb"
+dependencies = [
+ "dashmap 6.2.1",
+ "hashbrown 0.14.5",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9376,11 +9509,10 @@ checksum = "4ee93343901ab17bd981295f2cf0026d4ad018c7c31ba84549a4ddbb47a45104"
 
 [[package]]
 name = "lock_api"
-version = "0.4.12"
+version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07af8b9cdd281b7915f413fa73f29ebd5d55d0d3f0155584dade1ff18cea1b17"
+checksum = "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965"
 dependencies = [
- "autocfg",
  "scopeguard",
 ]
 
@@ -9841,6 +9973,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "move-bytecode-verifier-vm2"
+version = "0.1.0"
+dependencies = [
+ "move-abstract-interpreter",
+ "move-abstract-stack",
+ "move-binary-format",
+ "move-borrow-graph",
+ "move-bytecode-verifier-meter",
+ "move-core-types",
+ "move-regex-borrow-graph-vm2",
+ "move-vm-config",
+ "petgraph 0.8.3",
+ "serde",
+]
+
+[[package]]
 name = "move-bytecode-viewer"
 version = "0.1.0"
 dependencies = [
@@ -9952,10 +10100,10 @@ dependencies = [
  "enum-compat-util",
  "ethnum",
  "hex",
+ "indexmap 2.11.0",
  "leb128",
  "move-proc-macros",
  "num",
- "once_cell",
  "primitive-types 0.10.1",
  "proptest",
  "proptest-derive",
@@ -10183,6 +10331,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "move-regex-borrow-graph-vm2"
+version = "0.0.1"
+dependencies = [
+ "indexmap 2.11.0",
+ "move-binary-format",
+ "move-command-line-common",
+ "move-core-types",
+ "proptest",
+]
+
+[[package]]
 name = "move-stdlib"
 version = "0.1.1"
 dependencies = [
@@ -10318,6 +10477,34 @@ dependencies = [
  "move-vm-types",
  "once_cell",
  "parking_lot 0.11.2",
+ "smallvec",
+ "tracing",
+]
+
+[[package]]
+name = "move-vm-runtime-vm2"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bcs 0.1.6",
+ "better_any",
+ "bumpalo",
+ "dashmap 6.2.1",
+ "fail",
+ "hex",
+ "indexmap 2.11.0",
+ "lasso",
+ "move-abstract-interpreter",
+ "move-binary-format",
+ "move-bytecode-verifier-vm2",
+ "move-core-types",
+ "move-trace-format",
+ "move-vm-config",
+ "parking_lot 0.11.2",
+ "quick_cache",
+ "serde",
+ "sha2 0.10.9",
+ "sha3 0.11.0",
  "smallvec",
  "tracing",
 ]
@@ -10973,9 +11160,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.21.3"
+version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
+checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "oorandom"
@@ -11293,7 +11480,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bf18183cf54e8d6059647fc3063646a1801cf30896933ec2311622cc4b9a27"
 dependencies = [
  "lock_api",
- "parking_lot_core 0.9.10",
+ "parking_lot_core 0.9.12",
 ]
 
 [[package]]
@@ -11312,15 +11499,15 @@ dependencies = [
 
 [[package]]
 name = "parking_lot_core"
-version = "0.9.10"
+version = "0.9.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e401f977ab385c9e4e3ab30627d6f26d00e2c73eef317493c4ec6d468726cf8"
+checksum = "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1"
 dependencies = [
  "cfg-if",
  "libc",
  "redox_syscall 0.5.6",
  "smallvec",
- "windows-targets 0.52.6",
+ "windows-link 0.2.1",
 ]
 
 [[package]]
@@ -12236,6 +12423,18 @@ checksum = "b66c2058c55a409d601666cffe35f04333cf1013010882cec174a7467cd4e21c"
 dependencies = [
  "memchr",
  "serde",
+]
+
+[[package]]
+name = "quick_cache"
+version = "0.6.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9c6658afe513a3b484e3abfdaa0d03ef3c0bbf017542c178dd55f94eb3051f9"
+dependencies = [
+ "ahash 0.8.11",
+ "equivalent",
+ "hashbrown 0.16.1",
+ "parking_lot 0.12.3",
 ]
 
 [[package]]
@@ -13614,7 +13813,7 @@ version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e56dd856803e253c8f298af3f4d7eb0ae5e23a737252cd90bb4f3b435033b2d"
 dependencies = [
- "dashmap",
+ "dashmap 5.5.3",
  "futures",
  "lazy_static",
  "log",
@@ -14140,7 +14339,7 @@ dependencies = [
  "bytes",
  "cfg-if",
  "dag-visualizer-proto",
- "dashmap",
+ "dashmap 5.5.3",
  "enum_dispatch",
  "eyre",
  "fastcrypto",

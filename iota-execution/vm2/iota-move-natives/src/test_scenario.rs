@@ -1,0 +1,1037 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+use std::{
+    borrow::Borrow,
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet, VecDeque},
+};
+
+use better_any::{Tid, TidAble};
+use indexmap::{IndexMap, IndexSet};
+use iota_sdk_move_types::iota_framework::object::UID;
+use iota_sdk_types::{
+    Address, MoveObjectType, MoveStruct, ObjectDigest, ObjectId, Owner, TransactionDigest, Version,
+};
+use iota_types::{
+    dynamic_field::DynamicFieldInfo,
+    execution::DynamicallyLoadedObjectMetadata,
+    in_memory_storage::InMemoryStorage,
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
+    move_layout::MoveLayout,
+    object::{MoveStructExt, Object},
+    storage::{BackingPackageStore, ChildObjectResolver, PackageObject},
+};
+use move_binary_format::{
+    errors::{PartialVMError, PartialVMResult},
+    safe_assert, safe_unwrap,
+};
+use move_core_types::{
+    account_address::AccountAddress,
+    annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout, MoveValue},
+    annotated_visitor as AV,
+    language_storage::TypeTag,
+    vm_status::StatusCode,
+};
+use move_vm_runtime::{
+    execution::{
+        Type, values,
+        values::{StructRef, Value, Vector, VectorSpecialization},
+    },
+    natives::{
+        extensions::NativeExtensionMarker,
+        functions::{NativeContext, NativeResult},
+    },
+    pop_arg,
+};
+use smallvec::smallvec;
+
+use crate::{
+    get_extension, get_extension_mut, get_nth_struct_field, get_tag_and_layouts, legacy_test_cost,
+    object_runtime::{ObjectRuntime, RuntimeResults, object_store::ChildObjectEffects},
+    sdk_conv::{AccountAddressExt, ToAccountAddress, core_struct_tag, move_object_type},
+};
+
+const E_COULD_NOT_GENERATE_EFFECTS: u64 = 0;
+const E_INVALID_SHARED_OR_IMMUTABLE_USAGE: u64 = 1;
+const E_OBJECT_NOT_FOUND_CODE: u64 = 4;
+const E_UNABLE_TO_ALLOCATE_RECEIVING_TICKET: u64 = 5;
+const E_RECEIVING_TICKET_ALREADY_ALLOCATED: u64 = 6;
+const E_UNABLE_TO_DEALLOCATE_RECEIVING_TICKET: u64 = 7;
+
+type Set<K> = IndexSet<K>;
+
+/// An in-memory test store is a thin wrapper around the in-memory storage and funds in a mutex.
+/// The mutex allows this to be used by both the object runtime (for reading) and the test
+/// scenario (for writing) while hiding mutability.
+#[derive(Tid, Default)]
+pub struct InMemoryTestStore {
+    /// Objects and packages visible to the object runtime.
+    storage: RefCell<InMemoryStorage>,
+}
+impl<'a> NativeExtensionMarker<'a> for &'a InMemoryTestStore {}
+
+impl BackingPackageStore for InMemoryTestStore {
+    fn get_package_object(
+        &self,
+        package_id: &ObjectId,
+    ) -> iota_types::error::IotaResult<Option<PackageObject>> {
+        self.storage.borrow().get_package_object(package_id)
+    }
+}
+
+impl ChildObjectResolver for InMemoryTestStore {
+    fn read_child_object(
+        &self,
+        parent: &ObjectId,
+        child: &ObjectId,
+        child_version_upper_bound: Version,
+    ) -> iota_types::error::IotaResult<Option<Object>> {
+        self.storage
+            .borrow()
+            .read_child_object(parent, child, child_version_upper_bound)
+    }
+
+    fn get_object_received_at_version(
+        &self,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
+        receive_object_at_version: Version,
+        epoch_id: iota_types::committee::EpochId,
+    ) -> iota_types::error::IotaResult<Option<Object>> {
+        self.storage.borrow().get_object_received_at_version(
+            owner,
+            receiving_object_id,
+            receive_object_at_version,
+            epoch_id,
+        )
+    }
+}
+
+// This function updates the inventories based on the transfers and deletes that
+// occurred in the transaction
+// native fun end_transaction(): TransactionResult;
+pub fn end_transaction(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    safe_assert!(ty_args.is_empty());
+    safe_assert!(args.is_empty());
+    let object_runtime_ref: &mut ObjectRuntime = get_extension_mut!(context)?;
+    let taken_shared_or_imm: BTreeMap<_, _> = object_runtime_ref
+        .test_inventories
+        .taken
+        .iter()
+        .filter(|(_id, owner)| matches!(owner, Owner::Shared(_) | Owner::Immutable))
+        .map(|(id, owner)| (*id, *owner))
+        .collect();
+    // set to true if a shared or imm object was:
+    // - transferred in a way that changes it from its original shared/imm state
+    // - wraps the object
+    // if true, we will "abort"
+    let mut incorrect_shared_or_imm_handling = false;
+
+    // Handle the allocated tickets:
+    // * Remove all allocated_tickets in the test inventories.
+    // * For each allocated ticket, if the ticket's object ID is loaded, move it to `received`.
+    // * Otherwise re-insert the allocated ticket into the objects inventory, and mark it to be
+    //   removed from the backing storage (deferred due to needing to have access to `context` which
+    //   has outstanding references at this point).
+    let allocated_tickets =
+        std::mem::take(&mut object_runtime_ref.test_inventories.allocated_tickets);
+    let mut received = BTreeMap::new();
+    let mut unreceived = BTreeSet::new();
+    let loaded_runtime_objects = object_runtime_ref.loaded_runtime_objects();
+    for (id, (metadata, value)) in allocated_tickets {
+        if loaded_runtime_objects.contains_key(&id) {
+            received.insert(id, metadata);
+        } else {
+            unreceived.insert(id);
+            // This must be untouched since the allocated ticket is still live, so ok to
+            // re-insert.
+            object_runtime_ref
+                .test_inventories
+                .objects
+                .insert(id, value);
+        }
+    }
+
+    let object_runtime_state = object_runtime_ref.take_state();
+    // Determine writes and deletes
+    // We pass the received objects since they should be viewed as "loaded" for the purposes of
+    // calculating the effects of the transaction.
+    let results = object_runtime_state.finish(received, ChildObjectEffects::new());
+    let RuntimeResults {
+        writes,
+        user_events,
+        loaded_child_objects: _,
+        created_object_ids,
+        deleted_object_ids,
+        received_coin_types: _,
+    } = match results {
+        Ok(res) => res,
+        Err(_) => {
+            return Ok(NativeResult::err(
+                legacy_test_cost(),
+                E_COULD_NOT_GENERATE_EFFECTS,
+            ));
+        }
+    };
+    let object_runtime_ref: &mut ObjectRuntime = get_extension_mut!(context)?;
+    let all_active_child_objects_with_values = object_runtime_ref
+        .all_active_child_objects()
+        .filter(|child| child.copied_value.is_some())
+        .map(|child| *child.id)
+        .collect::<BTreeSet<_>>();
+    let inventories = &mut object_runtime_ref.test_inventories;
+    let mut new_object_values = IndexMap::new();
+    let mut transferred = vec![];
+    // cleanup inventories
+    // we will remove all changed objects
+    // - deleted objects need to be removed to mark deletions
+    // - written objects are removed and later replaced to mark new values and new owners
+    // - child objects will not be reflected in transfers, but need to be no longer retrievable
+    for id in deleted_object_ids
+        .iter()
+        .chain(writes.keys())
+        .chain(&all_active_child_objects_with_values)
+    {
+        for addr_inventory in inventories.address_inventories.values_mut() {
+            for s in addr_inventory.values_mut() {
+                s.shift_remove(id);
+            }
+        }
+        for s in &mut inventories.shared_inventory.values_mut() {
+            s.shift_remove(id);
+        }
+        for s in &mut inventories.immutable_inventory.values_mut() {
+            s.shift_remove(id);
+        }
+        inventories.taken.remove(id);
+    }
+
+    // handle transfers, inserting transferred/written objects into their respective
+    // inventory
+    let mut created = vec![];
+    let mut written = vec![];
+    for (id, (owner, ty, value)) in writes {
+        // write configs to cache
+        new_object_values.insert(id, (ty.clone(), value.copy_value()));
+        transferred.push((id, owner));
+        incorrect_shared_or_imm_handling = incorrect_shared_or_imm_handling
+            || taken_shared_or_imm
+                .get(&id)
+                .map(|shared_or_imm_owner| shared_or_imm_owner != &owner)
+                .unwrap_or(/* not incorrect */ false);
+        if created_object_ids.contains(&id) {
+            created.push(id);
+        } else {
+            written.push(id);
+        }
+        match owner {
+            Owner::Address(a) => {
+                inventories
+                    .address_inventories
+                    .entry(a)
+                    .or_default()
+                    .entry(ty)
+                    .or_default()
+                    .insert(id);
+            }
+            Owner::Object(_) => (),
+            Owner::Shared(_) => {
+                inventories
+                    .shared_inventory
+                    .entry(ty)
+                    .or_default()
+                    .insert(id);
+            }
+            Owner::Immutable => {
+                inventories
+                    .immutable_inventory
+                    .entry(ty)
+                    .or_default()
+                    .insert(id);
+            }
+            _ => (),
+        }
+    }
+
+    // For any unused allocated tickets, remove them from the store.
+    let store: &&InMemoryTestStore = get_extension!(context)?;
+    for id in unreceived {
+        if store.storage.borrow_mut().remove_object(id).is_none() {
+            return Ok(NativeResult::err(
+                context.gas_used(),
+                E_UNABLE_TO_DEALLOCATE_RECEIVING_TICKET,
+            ));
+        }
+    }
+
+    // deletions already handled above, but we drop the delete kind for the effects
+    let mut deleted = vec![];
+    for id in deleted_object_ids {
+        // Mark as "incorrect" if a imm object was deleted. Allow shared objects to be
+        // deleted though.
+        incorrect_shared_or_imm_handling = incorrect_shared_or_imm_handling
+            || taken_shared_or_imm
+                .get(&id)
+                .is_some_and(|owner| matches!(owner, Owner::Immutable));
+        deleted.push(id);
+    }
+    // find all wrapped objects
+    let mut all_wrapped = BTreeSet::new();
+    let object_runtime_ref: &ObjectRuntime = get_extension!(context)?;
+    find_all_wrapped_objects(
+        context,
+        &mut all_wrapped,
+        new_object_values
+            .iter()
+            .map(|(id, (ty, value))| (id, ty, value)),
+    )?;
+    find_all_wrapped_objects(
+        context,
+        &mut all_wrapped,
+        object_runtime_ref
+            .all_active_child_objects()
+            .filter_map(|child| Some((child.id, child.ty, child.copied_value?))),
+    )?;
+    // mark as "incorrect" if a shared/imm object was wrapped or is a child object
+    incorrect_shared_or_imm_handling = incorrect_shared_or_imm_handling
+        || taken_shared_or_imm.keys().any(|id| {
+            all_wrapped.contains(id) || all_active_child_objects_with_values.contains(id)
+        });
+    // if incorrect handling, return with an 'abort'
+    if incorrect_shared_or_imm_handling {
+        return Ok(NativeResult::err(
+            legacy_test_cost(),
+            E_INVALID_SHARED_OR_IMMUTABLE_USAGE,
+        ));
+    }
+
+    // mark all wrapped as deleted
+    for wrapped in all_wrapped {
+        deleted.push(wrapped)
+    }
+
+    // new input objects are remaining taken objects not written/deleted
+    let object_runtime_ref: &mut ObjectRuntime = get_extension_mut!(context)?;
+    let mut config_settings = vec![];
+    for child in object_runtime_ref.all_active_child_objects() {
+        let s: iota_sdk_types::StructTag = child.ty.struct_tag().clone();
+        let is_setting = DynamicFieldInfo::is_dynamic_field(&s)
+            && matches!(&s.type_params()[1], iota_sdk_types::TypeTag::Struct(s) if s.is_config_setting());
+        if is_setting {
+            config_settings.push((
+                *child.owner,
+                *child.id,
+                child.ty.clone(),
+                child.copied_value,
+            ));
+        }
+    }
+    for (config, setting, ty, value) in config_settings {
+        object_runtime_ref.config_setting_cache_update(config, setting, ty, value)
+    }
+    object_runtime_ref.state.input_objects = object_runtime_ref
+        .test_inventories
+        .taken
+        .iter()
+        .map(|(id, owner)| (*id, *owner))
+        .collect::<BTreeMap<_, _>>();
+    // update inventories
+    // check for bad updates to immutable values
+    for (id, (ty, value)) in new_object_values {
+        debug_assert!(!all_active_child_objects_with_values.contains(&id));
+        if let Some(prev_value) = object_runtime_ref
+            .test_inventories
+            .taken_immutable_values
+            .get(&ty)
+            .and_then(|values| values.get(&id))
+            && !value.equals(prev_value)?
+        {
+            return Ok(NativeResult::err(
+                legacy_test_cost(),
+                E_INVALID_SHARED_OR_IMMUTABLE_USAGE,
+            ));
+        }
+        object_runtime_ref
+            .test_inventories
+            .objects
+            .insert(id, value);
+    }
+    // remove deleted
+    for id in &deleted {
+        object_runtime_ref.test_inventories.objects.remove(id);
+    }
+    // remove active child objects
+    for id in all_active_child_objects_with_values {
+        object_runtime_ref.test_inventories.objects.remove(&id);
+    }
+
+    let effects = transaction_effects(
+        created
+            .into_iter()
+            .map(|id| AccountAddress::new(id.into_bytes())),
+        written
+            .into_iter()
+            .map(|id| AccountAddress::new(id.into_bytes())),
+        deleted
+            .into_iter()
+            .map(|id| AccountAddress::new(id.into_bytes())),
+        transferred,
+        user_events.len() as u64,
+    )?;
+    Ok(NativeResult::ok(legacy_test_cost(), smallvec![effects]))
+}
+
+// native fun take_from_address_by_id<T: key>(account: address, id: ID): T;
+pub fn take_from_address_by_id(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    let specified_ty = get_specified_ty(ty_args)?;
+    let id = pop_id(&mut args)?;
+    let account = Address::new(pop_arg!(args, AccountAddress).into_bytes());
+    pop_arg!(args, StructRef);
+    safe_assert!(args.is_empty());
+    let specified_obj_ty = object_type_of_type(context, &specified_ty)?;
+    let object_runtime: &mut ObjectRuntime = get_extension_mut!(context)?;
+    let inventories = &mut object_runtime.test_inventories;
+    let res = take_from_inventory(
+        |x| {
+            inventories
+                .address_inventories
+                .get(&account)
+                .and_then(|inv| inv.get(&specified_obj_ty))
+                .map(|s| s.contains(x))
+                .unwrap_or(false)
+        },
+        &inventories.objects,
+        &mut inventories.taken,
+        &mut object_runtime.state.input_objects,
+        id,
+        Owner::Address(account),
+    );
+    Ok(match res {
+        Ok(value) => NativeResult::ok(legacy_test_cost(), smallvec![value]),
+        Err(native_err) => native_err,
+    })
+}
+
+// native fun ids_for_address<T: key>(account: address): vector<ID>;
+pub fn ids_for_address(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    let specified_ty = get_specified_ty(ty_args)?;
+    let account: Address = pop_arg!(args, AccountAddress).to_sdk_address();
+    safe_assert!(args.is_empty());
+    let specified_obj_ty = object_type_of_type(context, &specified_ty)?;
+    let object_runtime: &mut ObjectRuntime = get_extension_mut!(context)?;
+    let inventories = &mut object_runtime.test_inventories;
+    let ids = inventories
+        .address_inventories
+        .get(&account)
+        .and_then(|inv| inv.get(&specified_obj_ty))
+        .map(|s| s.iter().map(|id| pack_id(*id)).collect::<Vec<Value>>())
+        .unwrap_or_default();
+    let ids_vector = safe_unwrap!(Vector::pack(VectorSpecialization::Container, ids));
+    Ok(NativeResult::ok(legacy_test_cost(), smallvec![ids_vector]))
+}
+
+// native fun most_recent_id_for_address<T: key>(account: address): Option<ID>;
+pub fn most_recent_id_for_address(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    let specified_ty = get_specified_ty(ty_args)?;
+    let account: Address = pop_arg!(args, AccountAddress).to_sdk_address();
+    safe_assert!(args.is_empty());
+    let specified_obj_ty = object_type_of_type(context, &specified_ty)?;
+    let object_runtime: &mut ObjectRuntime = get_extension_mut!(context)?;
+    let inventories = &mut object_runtime.test_inventories;
+    let most_recent_id = match inventories.address_inventories.get(&account) {
+        None => pack_option(vector_specialization(&specified_ty), None)?,
+        Some(inv) => most_recent_at_ty(&inventories.taken, inv, &specified_ty, specified_obj_ty)?,
+    };
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![most_recent_id],
+    ))
+}
+
+// native fun was_taken_from_address(account: address, id: ID): bool;
+pub fn was_taken_from_address(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    safe_assert!(ty_args.is_empty());
+    let id = pop_id(&mut args)?;
+    let account: Address = pop_arg!(args, AccountAddress).to_sdk_address();
+    safe_assert!(args.is_empty());
+    let object_runtime: &mut ObjectRuntime = get_extension_mut!(context)?;
+    let inventories = &mut object_runtime.test_inventories;
+    let was_taken = inventories
+        .taken
+        .get(&id)
+        .map(|owner| owner == &Owner::Address(account))
+        .unwrap_or(false);
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![Value::bool(was_taken)],
+    ))
+}
+
+// native fun take_immutable_by_id<T: key>(id: ID): T;
+pub fn take_immutable_by_id(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    let specified_ty = get_specified_ty(ty_args)?;
+    let id = pop_id(&mut args)?;
+    pop_arg!(args, StructRef);
+    safe_assert!(args.is_empty());
+    let specified_obj_ty = object_type_of_type(context, &specified_ty)?;
+    let object_runtime: &mut ObjectRuntime = get_extension_mut!(context)?;
+    let inventories = &mut object_runtime.test_inventories;
+    let res = take_from_inventory(
+        |x| {
+            inventories
+                .immutable_inventory
+                .get(&specified_obj_ty)
+                .map(|s| s.contains(x))
+                .unwrap_or(false)
+        },
+        &inventories.objects,
+        &mut inventories.taken,
+        &mut object_runtime.state.input_objects,
+        id,
+        Owner::Immutable,
+    );
+    Ok(match res {
+        Ok(value) => {
+            inventories
+                .taken_immutable_values
+                .entry(specified_obj_ty)
+                .or_default()
+                .insert(id, value.copy_value());
+            NativeResult::ok(legacy_test_cost(), smallvec![value])
+        }
+        Err(native_err) => native_err,
+    })
+}
+
+// native fun most_recent_immutable_id<T: key>(): Option<ID>;
+pub fn most_recent_immutable_id(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    let specified_ty = get_specified_ty(ty_args)?;
+    safe_assert!(args.is_empty());
+    let specified_obj_ty = object_type_of_type(context, &specified_ty)?;
+    let object_runtime: &mut ObjectRuntime = get_extension_mut!(context)?;
+    let inventories = &mut object_runtime.test_inventories;
+    let most_recent_id = most_recent_at_ty(
+        &inventories.taken,
+        &inventories.immutable_inventory,
+        &specified_ty,
+        specified_obj_ty,
+    )?;
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![most_recent_id],
+    ))
+}
+
+// native fun was_taken_immutable(id: ID): bool;
+pub fn was_taken_immutable(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    safe_assert!(ty_args.is_empty());
+    let id = pop_id(&mut args)?;
+    safe_assert!(args.is_empty());
+    let object_runtime: &mut ObjectRuntime = get_extension_mut!(context)?;
+    let inventories = &mut object_runtime.test_inventories;
+    let was_taken = inventories
+        .taken
+        .get(&id)
+        .map(|owner| owner == &Owner::Immutable)
+        .unwrap_or(false);
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![Value::bool(was_taken)],
+    ))
+}
+
+// native fun take_shared_by_id<T: key>(id: ID): T;
+pub fn take_shared_by_id(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    let specified_ty = get_specified_ty(ty_args)?;
+    let id = pop_id(&mut args)?;
+    pop_arg!(args, StructRef);
+    safe_assert!(args.is_empty());
+    let specified_obj_ty = object_type_of_type(context, &specified_ty)?;
+    let object_runtime: &mut ObjectRuntime = get_extension_mut!(context)?;
+    let inventories = &mut object_runtime.test_inventories;
+    let res = take_from_inventory(
+        |x| {
+            inventories
+                .shared_inventory
+                .get(&specified_obj_ty)
+                .map(|s| s.contains(x))
+                .unwrap_or(false)
+        },
+        &inventories.objects,
+        &mut inventories.taken,
+        &mut object_runtime.state.input_objects,
+        id,
+        Owner::Shared(Default::default()),
+    );
+    Ok(match res {
+        Ok(value) => NativeResult::ok(legacy_test_cost(), smallvec![value]),
+        Err(native_err) => native_err,
+    })
+}
+
+// native fun most_recent_id_shared<T: key>(): Option<ID>;
+pub fn most_recent_id_shared(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    let specified_ty = get_specified_ty(ty_args)?;
+    safe_assert!(args.is_empty());
+    let specified_obj_ty = object_type_of_type(context, &specified_ty)?;
+    let object_runtime: &mut ObjectRuntime = get_extension_mut!(context)?;
+    let inventories = &mut object_runtime.test_inventories;
+    let most_recent_id = most_recent_at_ty(
+        &inventories.taken,
+        &inventories.shared_inventory,
+        &specified_ty,
+        specified_obj_ty,
+    )?;
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![most_recent_id],
+    ))
+}
+
+// native fun was_taken_shared(id: ID): bool;
+pub fn was_taken_shared(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    safe_assert!(ty_args.is_empty());
+    let id = pop_id(&mut args)?;
+    safe_assert!(args.is_empty());
+    let object_runtime: &mut ObjectRuntime = get_extension_mut!(context)?;
+    let inventories = &mut object_runtime.test_inventories;
+    let was_taken = inventories
+        .taken
+        .get(&id)
+        .map(|owner| matches!(owner, Owner::Shared(_)))
+        .unwrap_or(false);
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![Value::bool(was_taken)],
+    ))
+}
+
+pub fn allocate_receiving_ticket_for_object(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    let ty = get_specified_ty(ty_args)?;
+    let id = pop_id(&mut args)?;
+
+    let Some((tag, layout, _)) = get_tag_and_layouts(context, &ty)? else {
+        return Ok(NativeResult::err(
+            context.gas_used(),
+            E_UNABLE_TO_ALLOCATE_RECEIVING_TICKET,
+        ));
+    };
+    let object_runtime: &mut ObjectRuntime = get_extension_mut!(context)?;
+    let object_version = Version::from_u64(0);
+    let inventories = &mut object_runtime.test_inventories;
+    if inventories.allocated_tickets.contains_key(&id) {
+        return Ok(NativeResult::err(
+            context.gas_used(),
+            E_RECEIVING_TICKET_ALREADY_ALLOCATED,
+        ));
+    }
+
+    let obj_value = safe_unwrap!(inventories.objects.remove(&id));
+    let Some(bytes) = obj_value.typed_serialize(&layout) else {
+        return Ok(NativeResult::err(
+            context.gas_used(),
+            E_UNABLE_TO_ALLOCATE_RECEIVING_TICKET,
+        ));
+    };
+    let move_struct = safe_unwrap!(MoveStruct::new_from_execution_with_limit(
+        struct_tag_core_to_sdk(&tag),
+        object_version,
+        bytes,
+        250 * 1024,
+    ));
+
+    let Some((owner, _)) = inventories
+        .address_inventories
+        .iter()
+        .find(|(_addr, objs)| objs.iter().any(|(_, ids)| ids.contains(&id)))
+    else {
+        return Ok(NativeResult::err(
+            context.gas_used(),
+            E_OBJECT_NOT_FOUND_CODE,
+        ));
+    };
+
+    inventories.allocated_tickets.insert(
+        id,
+        (
+            DynamicallyLoadedObjectMetadata {
+                version: Version::default(),
+                digest: ObjectDigest::MIN,
+                owner: Owner::Address(*owner),
+                storage_rebate: 0,
+                previous_transaction: TransactionDigest::default(),
+            },
+            obj_value,
+        ),
+    );
+
+    let object = Object::new_move(
+        move_struct,
+        Owner::Address(*owner),
+        TransactionDigest::default(),
+    );
+
+    // NB: Must be a `&&` reference since the extension stores a static ref to the object storage.
+    let store: &&InMemoryTestStore = get_extension!(context)?;
+    store.storage.borrow_mut().insert_object(object);
+
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![Value::u64(object_version.as_u64())],
+    ))
+}
+
+pub fn deallocate_receiving_ticket_for_object(
+    context: &mut NativeContext,
+    _ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    let id = pop_id(&mut args)?;
+
+    let object_runtime: &mut ObjectRuntime = get_extension_mut!(context)?;
+    let inventories = &mut object_runtime.test_inventories;
+    // Deallocate the ticket -- we should never hit this scenario
+    let Some((_, value)) = inventories.allocated_tickets.remove(&id) else {
+        return Ok(NativeResult::err(
+            context.gas_used(),
+            E_UNABLE_TO_DEALLOCATE_RECEIVING_TICKET,
+        ));
+    };
+
+    // Insert the object value that we saved from earlier and put it back into the
+    // object set. This is fine since it can't have been touched.
+    inventories.objects.insert(id, value);
+
+    // Remove the object from storage. We should never hit this scenario either.
+    let store: &&InMemoryTestStore = get_extension!(context)?;
+    if store.storage.borrow_mut().remove_object(id).is_none() {
+        return Ok(NativeResult::err(
+            context.gas_used(),
+            E_UNABLE_TO_DEALLOCATE_RECEIVING_TICKET,
+        ));
+    };
+
+    Ok(NativeResult::ok(legacy_test_cost(), smallvec![]))
+}
+
+// impls
+
+fn take_from_inventory(
+    is_in_inventory: impl FnOnce(&ObjectId) -> bool,
+    objects: &BTreeMap<ObjectId, Value>,
+    taken: &mut BTreeMap<ObjectId, Owner>,
+    input_objects: &mut BTreeMap<ObjectId, Owner>,
+    id: ObjectId,
+    owner: Owner,
+) -> Result<Value, NativeResult> {
+    let is_taken = taken.contains_key(&id);
+    let obj = match objects.get(&id) {
+        Some(obj) if !is_taken && is_in_inventory(&id) => obj,
+        _ => {
+            return Err(NativeResult::err(
+                legacy_test_cost(),
+                E_OBJECT_NOT_FOUND_CODE,
+            ));
+        }
+    };
+    taken.insert(id, owner);
+    input_objects.insert(id, owner);
+    Ok(obj.copy_value())
+}
+
+fn vector_specialization(ty: &Type) -> VectorSpecialization {
+    match ty.try_into() {
+        Ok(s) => s,
+        Err(_) => {
+            debug_assert!(false, "Invalid vector specialization");
+            VectorSpecialization::Container
+        }
+    }
+}
+
+fn most_recent_at_ty(
+    taken: &BTreeMap<ObjectId, Owner>,
+    inv: &BTreeMap<MoveObjectType, Set<ObjectId>>,
+    runtime_ty: &Type,
+    ty: MoveObjectType,
+) -> PartialVMResult<Value> {
+    pack_option(
+        vector_specialization(runtime_ty),
+        most_recent_at_ty_opt(taken, inv, ty),
+    )
+}
+
+fn most_recent_at_ty_opt(
+    taken: &BTreeMap<ObjectId, Owner>,
+    inv: &BTreeMap<MoveObjectType, Set<ObjectId>>,
+    ty: MoveObjectType,
+) -> Option<Value> {
+    let s = inv.get(&ty)?;
+    let most_recent_id = s.iter().rfind(|id| !taken.contains_key(id))?;
+    Some(pack_id(*most_recent_id))
+}
+
+fn get_specified_ty(mut ty_args: Vec<Type>) -> PartialVMResult<Type> {
+    safe_assert!(ty_args.len() == 1);
+    Ok(safe_unwrap!(ty_args.pop()))
+}
+
+// helpers
+fn pop_id(args: &mut VecDeque<Value>) -> PartialVMResult<ObjectId> {
+    let v = match args.pop_back() {
+        None => {
+            return Err(PartialVMError::new(
+                StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR,
+            ));
+        }
+        Some(v) => v,
+    };
+    Ok(ObjectId::new(
+        get_nth_struct_field(v, 0)?
+            .value_as::<AccountAddress>()?
+            .into_bytes(),
+    ))
+}
+
+fn pack_id(a: impl ToAccountAddress) -> Value {
+    Value::struct_(values::Struct::pack(vec![Value::address(
+        a.to_account_address(),
+    )]))
+}
+
+fn pack_ids(items: impl IntoIterator<Item = impl ToAccountAddress>) -> PartialVMResult<Value> {
+    Vector::pack(
+        VectorSpecialization::Container,
+        items.into_iter().map(pack_id),
+    )
+}
+
+fn pack_vec_map(items: impl IntoIterator<Item = (Value, Value)>) -> PartialVMResult<Value> {
+    Ok(Value::struct_(values::Struct::pack(vec![Vector::pack(
+        VectorSpecialization::Container,
+        items
+            .into_iter()
+            .map(|(k, v)| Value::struct_(values::Struct::pack(vec![k, v]))),
+    )?])))
+}
+
+fn transaction_effects(
+    created: impl IntoIterator<Item = impl ToAccountAddress>,
+    written: impl IntoIterator<Item = impl ToAccountAddress>,
+    deleted: impl IntoIterator<Item = impl ToAccountAddress>,
+    transferred: impl IntoIterator<Item = (ObjectId, Owner)>,
+    num_events: u64,
+) -> PartialVMResult<Value> {
+    let mut transferred_to_account = vec![];
+    let mut transferred_to_object = vec![];
+    let mut shared = vec![];
+    let mut frozen = vec![];
+    for (id, owner) in transferred {
+        match owner {
+            Owner::Address(a) => {
+                transferred_to_account.push((pack_id(id), Value::address(a.to_account_address())))
+            }
+            Owner::Object(o) => transferred_to_object.push((pack_id(id), pack_id(o))),
+            Owner::Shared(_) => shared.push(id),
+            Owner::Immutable => frozen.push(id),
+            _ => (),
+        }
+    }
+
+    let created_field = pack_ids(created)?;
+    let written_field = pack_ids(written)?;
+    let deleted_field = pack_ids(deleted)?;
+    let transferred_to_account_field = pack_vec_map(transferred_to_account)?;
+    let transferred_to_object_field = pack_vec_map(transferred_to_object)?;
+    let shared_field = pack_ids(shared)?;
+    let frozen_field = pack_ids(frozen)?;
+    let num_events_field = Value::u64(num_events);
+    Ok(Value::struct_(values::Struct::pack(vec![
+        created_field,
+        written_field,
+        deleted_field,
+        transferred_to_account_field,
+        transferred_to_object_field,
+        shared_field,
+        frozen_field,
+        num_events_field,
+    ])))
+}
+
+fn object_type_of_type(context: &NativeContext, ty: &Type) -> PartialVMResult<MoveObjectType> {
+    let TypeTag::Struct(s_tag) = context.type_to_type_tag(ty)? else {
+        return Err(PartialVMError::new(
+            StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR,
+        ));
+    };
+    Ok(move_object_type(*s_tag))
+}
+
+fn pack_option(specialization: VectorSpecialization, opt: Option<Value>) -> PartialVMResult<Value> {
+    let item = match opt {
+        Some(v) => vec![v],
+        None => vec![],
+    };
+    Ok(Value::struct_(values::Struct::pack(vec![Vector::pack(
+        specialization,
+        item,
+    )?])))
+}
+
+fn find_all_wrapped_objects<'a, 'i>(
+    context: &NativeContext,
+    ids: &'i mut BTreeSet<ObjectId>,
+    new_object_values: impl IntoIterator<Item = (&'a ObjectId, &'a MoveObjectType, impl Borrow<Value>)>,
+) -> PartialVMResult<()> {
+    #[derive(Copy, Clone)]
+    enum LookingFor {
+        Wrapped,
+        Uid,
+        Address,
+    }
+
+    struct Traversal<'i, 'u> {
+        state: LookingFor,
+        ids: &'i mut BTreeSet<ObjectId>,
+        uid: &'u MoveStructLayout,
+    }
+
+    impl<'b, 'l> AV::Traversal<'b, 'l> for Traversal<'_, '_> {
+        type Error = AV::Error;
+
+        fn traverse_struct(
+            &mut self,
+            driver: &mut AV::StructDriver<'_, 'b, 'l>,
+        ) -> Result<(), Self::Error> {
+            match self.state {
+                // We're at the top-level of the traversal, looking for an object to recurse into.
+                // We can unconditionally switch to looking for UID fields at the level below,
+                // because we know that all the top-level values are objects.
+                LookingFor::Wrapped => {
+                    while driver
+                        .next_field(&mut Traversal {
+                            state: LookingFor::Uid,
+                            ids: self.ids,
+                            uid: self.uid,
+                        })?
+                        .is_some()
+                    {}
+                }
+
+                // We are looking for UID fields. If we find one (which we confirm by checking its
+                // layout), switch to looking for addresses in its sub-structure.
+                LookingFor::Uid => {
+                    while let Some(MoveFieldLayout { name: _, layout }) = driver.peek_field() {
+                        if matches!(layout, MoveTypeLayout::Struct(s) if s.as_ref() == self.uid) {
+                            driver.next_field(&mut Traversal {
+                                state: LookingFor::Address,
+                                ids: self.ids,
+                                uid: self.uid,
+                            })?;
+                        } else {
+                            driver.next_field(self)?;
+                        }
+                    }
+                }
+
+                // When looking for addresses, recurse through structs, as the address is nested
+                // within the UID.
+                LookingFor::Address => while driver.next_field(self)?.is_some() {},
+            }
+
+            Ok(())
+        }
+
+        fn traverse_address(
+            &mut self,
+            _: &AV::ValueDriver<'_, 'b, 'l>,
+            address: AccountAddress,
+        ) -> Result<(), Self::Error> {
+            // If we're looking for addresses, and we found one, then save it.
+            if matches!(self.state, LookingFor::Address) {
+                self.ids.insert(ObjectId::new(address.into_bytes()));
+            }
+            Ok(())
+        }
+    }
+
+    let uid = UID::layout();
+    for (_id, ty, value) in new_object_values {
+        let type_tag = TypeTag::Struct(Box::new(core_struct_tag(ty)));
+        // NB: We can get the layout from the VM's cache since the types and modules
+        // associated with all of these types must be in the type/module cache in the VM -- THIS IS
+        // BECAUSE WE ARE IN TEST SCENARIO ONLY AND THIS MAY NOT GENERALLY HOLD IN A
+        // MULTI-TRANSACTION SETTING.
+        let Some(layout) = context.type_tag_to_type_layout(&type_tag) else {
+            debug_assert!(false);
+            continue;
+        };
+
+        let Some(annotated_layout) = context.type_tag_to_annotated_type_layout(&type_tag) else {
+            debug_assert!(false);
+            continue;
+        };
+
+        let blob = safe_unwrap!(value.borrow().typed_serialize(&layout));
+        safe_unwrap!(MoveValue::visit_deserialize(
+            &blob,
+            &annotated_layout,
+            &mut Traversal {
+                state: LookingFor::Wrapped,
+                ids,
+                uid: &uid,
+            },
+        ));
+    }
+    Ok(())
+}

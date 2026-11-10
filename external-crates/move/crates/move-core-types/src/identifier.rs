@@ -9,10 +9,10 @@
 //! A valid identifier consists of an ASCII string which satisfies any of the
 //! conditions:
 //!
-//! * The first character is a letter and the remaining characters are letters,
-//!   digits or underscores.
-//! * The first character is an underscore, and there is at least one further
-//!   letter, digit or underscore.
+//! * The first character is a letter and the remaining characters are letters, digits or
+//!   underscores.
+//! * The first character is an underscore, and there is at least one further letter, digit or
+//!   underscore.
 //!
 //! The spec for allowed identifiers is similar to Rust's spec
 //! ([as of version 1.38](https://doc.rust-lang.org/1.38.0/reference/identifiers.html)).
@@ -67,8 +67,7 @@ const fn all_bytes_valid(b: &[u8], start_offset: usize) -> bool {
 
 /// Describes what identifiers are allowed.
 ///
-/// For now this is deliberately restrictive -- we would like to evolve this in
-/// the future.
+/// For now this is deliberately restrictive -- we would like to evolve this in the future.
 // Note: needs to be pub as it's used in the `ident_str!` macro.
 pub const fn is_valid(s: &str) -> bool {
     // Rust const fn's don't currently support slicing or indexing &str's, so we
@@ -164,6 +163,11 @@ impl Identifier {
     pub fn into_bytes(self) -> Vec<u8> {
         self.into_string().into_bytes()
     }
+
+    /// Returns a borrow of the underlying string.
+    pub fn borrow_str(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for Identifier {
@@ -198,7 +202,7 @@ impl Deref for Identifier {
 
 impl fmt::Display for Identifier {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", &self.0)
+        write!(f, "{}", self.0)
     }
 }
 
@@ -235,8 +239,8 @@ impl IdentStr {
 
     /// Converts `self` to a `&str`.
     ///
-    /// This is not implemented as a `From` trait to discourage automatic
-    /// conversions -- these conversions should not typically happen.
+    /// This is not implemented as a `From` trait to discourage automatic conversions -- these
+    /// conversions should not typically happen.
     pub const fn as_str(&self) -> &str {
         &self.0
     }
@@ -247,9 +251,14 @@ impl IdentStr {
     }
 
     /// Returns the abstract size of the struct
-    /// TODO (ade): use macro to enfornce determinism
-    pub fn abstract_size_for_gas_metering(&self) -> AbstractMemorySize {
+    /// TODO (ade): use macro to enforce determinism
+    pub const fn abstract_size_for_gas_metering(&self) -> AbstractMemorySize {
         AbstractMemorySize::new((self.len()) as u64)
+    }
+
+    /// Returns a borrow of the underlying string.
+    pub const fn borrow_str(&self) -> &str {
+        &self.0
     }
 }
 

@@ -487,7 +487,7 @@ impl fmt::Display for TyDisplay<'_> {
             Bool => write!(f, "bool"),
             Signer => write!(f, "signer"),
             Vector(ty) => write!(f, "vector<{}>", TyDisplay(ty)),
-            Struct(ParsedStructType {
+            Datatype(ParsedStructType {
                 fq_name:
                     ParsedFqName {
                         module: ParsedModuleId { address, name },

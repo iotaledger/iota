@@ -340,6 +340,7 @@ pub(crate) fn explain_execution_error(
                     )
                 }
                 Location::Undefined => "UNDEFINED".to_owned(),
+                Location::Package(pkg_id) => format!("package {}", pkg_id),
             };
             println!(
                 "Execution failed because of {} in {} at code offset {}",

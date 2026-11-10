@@ -205,6 +205,9 @@ impl fmt::Display for ExpectedMoveErrorDisplay<'_> {
                     };
                 write!(f, " in the module {}", module_id)
             }
+            Location::Package(pkg_id) => {
+                write!(f, " in the package with address {}", pkg_id)
+            }
         }
     }
 }

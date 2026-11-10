@@ -2,6 +2,10 @@
 resolver = "2"
 members = [
   "crates/*",
+  "move-execution/vm2/crates/move-vm-runtime",
+  "move-execution/vm2/crates/move-regex-borrow-graph",
+  "move-execution/vm2/crates/move-bytecode-verifier",
+  "move-execution/vm2/crates/bytecode-verifier-tests",
   # "move-execution/$CUT/crates/bytecode-verifier-tests",
   # "move-execution/$CUT/crates/move-abstract-interpreter",
   # "move-execution/$CUT/crates/move-bytecode-verifier",
@@ -14,6 +18,10 @@ members = [
 [workspace.dependencies]
 # external dependencies
 aes-gcm = "0.8.0"
+bumpalo = "3.17.0"
+lasso = { version = "0.7.3", features = ["multi-threaded", "inline-more"] }
+quick_cache = { version = "0.6.18", features = ["stats"] }
+dashmap = "6.1.0"
 anyhow = "1.0.103"
 append-only-vec = "0.1.7"
 arbitrary = { version = "1.1.7", features = ["derive", "derive_arbitrary"] }

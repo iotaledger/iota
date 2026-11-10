@@ -64,13 +64,11 @@ impl AccountAddress {
     }
 
     /// Return a canonical string representation of the address
-    /// Addresses are hex-encoded lowercase values of length ADDRESS_LENGTH (16,
-    /// 20, or 32 depending on the Move platform)
-    /// e.g., 0000000000000000000000000000000a, *not*
-    /// 0x0000000000000000000000000000000a, 0xa, or 0xA Note: this function
-    /// is guaranteed to be stable, and this is suitable for use inside Move
-    /// native functions or the VM. However, one can pass with_prefix=true
-    /// to get its representation with the 0x prefix.
+    /// Addresses are hex-encoded lowercase values of length ADDRESS_LENGTH (16, 20, or 32 depending
+    /// on the Move platform) e.g., 0000000000000000000000000000000a, *not*
+    /// 0x0000000000000000000000000000000a, 0xa, or 0xA Note: this function is guaranteed to be
+    /// stable, and this is suitable for use inside Move native functions or the VM.
+    /// However, one can pass with_prefix=true to get its representation with the 0x prefix.
     pub fn to_canonical_string(&self, with_prefix: bool) -> String {
         self.to_canonical_display(with_prefix).to_string()
     }
@@ -155,7 +153,7 @@ impl AccountAddress {
             .map(Self)
     }
 
-    /// TODO (ade): use macro to enfornce determinism
+    /// TODO (ade): use macro to enforce determinism
     pub fn abstract_size_for_gas_metering(&self) -> AbstractMemorySize {
         AbstractMemorySize::new(Self::LENGTH as u64)
     }

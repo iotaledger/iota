@@ -70,7 +70,7 @@ impl ProtoVisitorBuilder {
         layout: &A::MoveTypeLayout,
     ) -> anyhow::Result<Value> {
         let mut visitor = self.new_visitor()?;
-        A::MoveValue::visit_deserialize(bytes, layout, &mut visitor)
+        Ok(A::MoveValue::visit_deserialize(bytes, layout, &mut visitor)?)
     }
 }
 

@@ -14,9 +14,9 @@ use crate::{
     language_storage::{ModuleId, StructTag, TypeTag},
     parsing::{
         address::{NumericalAddress, ParsedAddress},
-        parser::parse,
+        parser::{Token, parse},
         types::{ParsedFqName, ParsedType, TypeToken},
-        values::ParsedValue,
+        values::{ParsedValue, ValueToken},
     },
     u256::U256,
 };
@@ -450,6 +450,28 @@ fn parse_type_tags(s: &str, allow_trailing_delim: bool) -> anyhow::Result<Vec<Pa
 }
 
 #[test]
+fn type_argument_parsing() {
+    let args = ParsedType::parse_type_args("<u8, vector<0x2::m::T>,>").unwrap();
+    assert_eq!(args.len(), 2);
+    assert_eq!(args[0], ParsedType::U8);
+    assert!(matches!(args[1], ParsedType::Vector(_)));
+
+    assert!(ParsedType::parse_type_args("<>").is_err());
+    assert!(ParsedType::parse_type_args("<u8> trailing").is_err());
+}
+
+#[test]
+fn type_argument_parsing_from_value_tokens() {
+    let tokens = ValueToken::tokenize("<0x2::balance::Balance<vector<u8>>>(7)").unwrap();
+    let mut parser = crate::parsing::parser::Parser::new(tokens);
+    let args = parser.parse_type_args().unwrap();
+
+    assert_eq!(args.len(), 1);
+    assert!(matches!(args[0], ParsedType::Datatype(_)));
+    assert_eq!(parser.advance(ValueToken::LParen).unwrap(), "(");
+}
+
+#[test]
 fn address_parsing() {
     for valid_addr in VALID_ADDRS {
         assert!(
@@ -617,7 +639,7 @@ proptest! {
     #[test]
     fn hex_parse_parity(s in "0x[0-9a-fA-F]{1,64}") {
         let bigint_parsed = {
-            let bytes = BigUint::parse_bytes(s[2..].as_bytes(), 16).unwrap().to_bytes_be();
+            let bytes = BigUint::parse_bytes(&s.as_bytes()[2..], 16).unwrap().to_bytes_be();
             let mut result = [0u8; AccountAddress::LENGTH];
             result[(AccountAddress::LENGTH - bytes.len())..].clone_from_slice(&bytes);
             result

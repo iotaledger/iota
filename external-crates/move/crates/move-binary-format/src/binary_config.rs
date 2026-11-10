@@ -51,8 +51,8 @@ impl TableConfig {
             // These can be any number
             enum_defs: u16::MAX,
             enum_def_instantiations: u16::MAX,
-            variant_handles: 1024,
-            variant_instantiation_handles: 1024,
+            variant_handles: u16::MAX,
+            variant_instantiation_handles: u16::MAX,
         }
     }
 }
@@ -109,8 +109,8 @@ impl BinaryConfig {
         }
     }
 
-    /// Run always with the max version but with controllable "extraneous bytes
-    /// check" and `deprecate_global_storage_ops`
+    /// Creates a configuration with max version, legacy table config,
+    /// and controllable extraneous bytes check and deprecate_global_storage_ops flag.
     pub fn legacy_with_flags(
         check_no_extraneous_bytes: bool,
         deprecate_global_storage_ops: bool,
@@ -126,7 +126,11 @@ impl BinaryConfig {
     /// VERSION_MAX and check_no_extraneous_bytes = true
     /// common "standard/default" in code base now
     pub fn standard() -> Self {
-        Self::legacy_with_flags(true, true)
+        Self::legacy_with_flags(
+            // check_no_extraneous_bytes
+            true, // deprecate_global_storage_ops
+            true,
+        )
     }
 
     pub fn new_unpublishable() -> Self {
@@ -143,5 +147,12 @@ impl BinaryConfig {
 
     pub fn allow_unpublishable(&self) -> bool {
         self.allow_unpublishable
+    }
+
+    /// This function exists solely for propagating a VMConfig down into the unit testing
+    /// environment. It should never be called anywhere else.
+    #[cfg(feature = "testing")]
+    pub fn allow_unpublishable_for_move_unit_testing(&mut self) {
+        self.allow_unpublishable = true;
     }
 }

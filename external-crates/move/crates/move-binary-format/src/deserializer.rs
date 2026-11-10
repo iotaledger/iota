@@ -25,7 +25,14 @@ use crate::{
 impl CompiledModule {
     /// Deserialize a &[u8] slice into a `CompiledModule` instance.
     pub fn deserialize_with_defaults(binary: &[u8]) -> BinaryLoaderResult<Self> {
-        Self::deserialize_with_config(binary, &BinaryConfig::legacy_with_flags(false, true))
+        Self::deserialize_with_config(
+            binary,
+            &BinaryConfig::legacy_with_flags(
+                // check_no_extraneous_bytes
+                true, // deprecate_global_storage_ops
+                true,
+            ),
+        )
     }
 
     /// Deserialize a &[u8] slice into a `CompiledModule` instance with settings
@@ -43,7 +50,14 @@ impl CompiledModule {
     // exposed as a public function to enable testing the deserializer
     #[doc(hidden)]
     pub fn deserialize_no_check_bounds(binary: &[u8]) -> BinaryLoaderResult<Self> {
-        deserialize_compiled_module(binary, &BinaryConfig::legacy_with_flags(false, false))
+        deserialize_compiled_module(
+            binary,
+            &BinaryConfig::legacy_with_flags(
+                // check_no_extraneous_bytes
+                false, // deprecate_global_storage_ops
+                false,
+            ),
+        )
     }
 }
 
@@ -405,9 +419,8 @@ fn read_table(cursor: &mut VersionedCursor) -> BinaryLoaderResult<Table> {
 /// Tables cannot have duplicates, must cover the entire blob and must be
 /// disjoint.
 fn check_tables(tables: &mut Vec<Table>, binary_len: usize) -> BinaryLoaderResult<u32> {
-    // there is no real reason to pass a mutable reference but we are sorting next
-    // line
-    tables.sort_by(|t1, t2| t1.offset.cmp(&t2.offset));
+    // there is no real reason to pass a mutable reference but we are sorting next line
+    tables.sort_by_key(|t1| t1.offset);
 
     let mut current_offset: u32 = 0;
     let mut table_types = HashSet::new();
@@ -920,7 +933,7 @@ fn load_address_identifiers(
     addresses: &mut AddressIdentifierPool,
 ) -> BinaryLoaderResult<()> {
     let mut start = table.offset as usize;
-    if table.count as usize % AccountAddress::LENGTH != 0 {
+    if !(table.count as usize).is_multiple_of(AccountAddress::LENGTH) {
         return Err(PartialVMError::new(StatusCode::MALFORMED)
             .with_message("Bad Address Identifier pool size".to_string()));
     }
@@ -1515,12 +1528,11 @@ fn load_function_def(cursor: &mut VersionedCursor) -> BinaryLoaderResult<Functio
     })?;
 
     // NOTE: changes compared with VERSION_1
-    // - in VERSION_1: the flags is a byte compositing both the visibility info and
-    //   whether the function is a native function
-    // - in VERSION_2 onwards: the flags only represent the visibility info and we
-    //   need to advance the cursor to read up the next byte as flags
-    // - in VERSION_5 onwards: script visibility has been deprecated for an entry
-    //   function flag
+    // - in VERSION_1: the flags is a byte compositing both the visibility info and whether the
+    //   function is a native function
+    // - in VERSION_2 onwards: the flags only represent the visibility info and we need to advance
+    //   the cursor to read up the next byte as flags
+    // - in VERSION_5 onwards: script visibility has been deprecated for an entry function flag
     let (visibility, is_entry, mut extra_flags) = if cursor.version() == VERSION_1 {
         let vis = if (flags & FunctionDefinition::DEPRECATED_PUBLIC_BIT) != 0 {
             flags ^= FunctionDefinition::DEPRECATED_PUBLIC_BIT;

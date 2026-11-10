@@ -33,12 +33,8 @@ move-core-types = { workspace = true, features = ["fuzzing"] }
 
 [features]
 default = []
-fuzzing = [
-  "arbitrary",
-  "move-core-types/fuzzing",
-  "proptest",
-  "proptest-derive",
-]
+testing = []
+fuzzing = ["proptest", "proptest-derive", "arbitrary", "move-core-types/fuzzing"]
 wasm = ["getrandom"]
 
 [package.metadata.cargo-machete]

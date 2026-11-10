@@ -562,7 +562,7 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
 
                 let sp!(_, L(T::LAngle, _)) = self.peek() else {
                     let sp = sp.widen(fun_sp);
-                    break 'fq sp.wrap(ParsedType::Struct(ParsedStructType {
+                    break 'fq sp.wrap(ParsedType::Datatype(ParsedStructType {
                         fq_name,
                         type_args: vec![],
                     }));
@@ -571,7 +571,7 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
                 let sp!(tys_sp, type_args) = self.parse_type_args()?;
 
                 let sp = sp.widen(tys_sp);
-                sp.wrap(ParsedType::Struct(ParsedStructType { fq_name, type_args }))
+                sp.wrap(ParsedType::Datatype(ParsedStructType { fq_name, type_args }))
             }
 
             unexpected => error!(

@@ -10,7 +10,7 @@ description = "Move Trace Format"
 [dependencies]
 # external dependencies
 serde.workspace = true
-serde_json = { workspace = true, features = ["arbitrary_precision"] }
+serde_json = { workspace = true, features = ["arbitrary_precision", "raw_value"] }
 zstd.workspace = true
 
 # internal dependencies

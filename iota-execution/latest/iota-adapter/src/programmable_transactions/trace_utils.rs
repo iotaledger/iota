@@ -38,9 +38,9 @@ use crate::{
 /// statement checking if tracing is enabled.
 pub fn trace_move_call_start(trace_builder_opt: &mut Option<MoveTraceBuilder>) {
     if let Some(trace_builder) = trace_builder_opt {
-        trace_builder.push_event(TraceEvent::External(Box::new(serde_json::json!(
+        trace_builder.push_event(TraceEvent::External(serde_json::value::to_raw_value(&
             PTBEvent::MoveCallStart
-        ))));
+        ).unwrap()));
     }
 }
 
@@ -49,9 +49,9 @@ pub fn trace_move_call_start(trace_builder_opt: &mut Option<MoveTraceBuilder>) {
 /// statement checking if tracing is enabled.
 pub fn trace_move_call_end(trace_builder_opt: &mut Option<MoveTraceBuilder>) {
     if let Some(trace_builder) = trace_builder_opt {
-        trace_builder.push_event(TraceEvent::External(Box::new(serde_json::json!(
+        trace_builder.push_event(TraceEvent::External(serde_json::value::to_raw_value(&
             PTBEvent::MoveCallEnd
-        ))));
+        ).unwrap()));
     }
 }
 
@@ -72,13 +72,13 @@ pub fn trace_transfer(
                 info: obj_info,
             });
         }
-        trace_builder.push_event(TraceEvent::External(Box::new(serde_json::json!(
+        trace_builder.push_event(TraceEvent::External(serde_json::value::to_raw_value(&
             PTBEvent::ExternalEvent(ExternalEvent {
                 description: "TransferObjects: obj0...objN => ()".to_string(),
                 name: "Transfer".to_string(),
                 values: to_transfer,
             })
-        ))));
+        ).unwrap()));
     }
     Ok(())
 }
@@ -117,12 +117,12 @@ pub fn trace_ptb_summary(
                 _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
             })
             .collect();
-        trace_builder.push_event(TraceEvent::External(Box::new(serde_json::json!(
+        trace_builder.push_event(TraceEvent::External(serde_json::value::to_raw_value(&
             PTBEvent::Summary(SummaryEvent {
                 name: "PTBSummary".to_string(),
                 events,
             })
-        ))));
+        ).unwrap()));
     }
 
     Ok(())
@@ -164,7 +164,7 @@ pub fn trace_split_coins(
             *input_coin.id.object_id(),
             input_coin.value(),
         )?;
-        trace_builder.push_event(TraceEvent::External(Box::new(serde_json::json!(
+        trace_builder.push_event(TraceEvent::External(serde_json::value::to_raw_value(&
             PTBEvent::ExternalEvent(ExternalEvent {
                 description: "SplitCoins: input => result".to_string(),
                 name: "SplitCoins".to_string(),
@@ -180,7 +180,7 @@ pub fn trace_split_coins(
                     },
                 ],
             })
-        ))));
+        ).unwrap()));
     }
     Ok(())
 }

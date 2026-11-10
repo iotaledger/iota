@@ -333,6 +333,14 @@ impl GasStatus {
         self.stack_height_high_water_mark
     }
 
+    pub fn stack_height_current(&self) -> u64 {
+        self.stack_height_current
+    }
+
+    pub fn stack_size_current(&self) -> u64 {
+        self.stack_size_current
+    }
+
     pub fn stack_size_high_water_mark(&self) -> u64 {
         self.stack_size_high_water_mark
     }

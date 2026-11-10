@@ -19,16 +19,16 @@ use crate::{
 // ******************* IMPORTANT NOTE ON COMPATIBILITY ***********************
 // ***************************************************************************
 //
-// If `check_datatype_layout` is false, type safety over a series of upgrades
-// cannot be guaranteed for either structs or enums.
-// This is because the type could first be removed, and then re-introduced with
-// a diferent layout and/or additional variants in a later upgrade. E.g.,
-// * For enums you could add a new variant even if `disallow_new_variants` is
-//   true, by first removing the enum in an upgrade, and then reintroducing it
-//   with a new variant in a later upgrade.
-// * For structs you could remove a field from a struct and/or add another field
-//   by first removing removing the struct in an upgrade and then reintroducing
-//   it with a different layout in a later upgrade.
+// If `check_datatype_layout` is false, type safety over a series of upgrades cannot be guaranteed
+// for either structs or enums.
+// This is because the type could first be removed, and then re-introduced with a different layout
+// and/or additional variants in a later upgrade. E.g.,
+// * For enums you could add a new variant even if `disallow_new_variants` is true, by first
+//   removing the enum in an upgrade, and then reintroducing it with a new variant in a later
+//   upgrade.
+// * For structs you could remove a field from a struct and/or add another field by first removing
+//   removing the struct in an upgrade and then reintroducing it with a different layout in a later
+//   upgrade.
 
 /// The result of a linking and layout compatibility check.
 ///
@@ -48,7 +48,7 @@ pub struct Compatibility {
     pub check_datatype_layout: bool,
     /// if false, treat `entry` as `private`
     pub check_private_entry_linking: bool,
-    /// The set of abilities that cannot be added to an already exisiting type.
+    /// The set of abilities that cannot be added to an already existing type.
     pub disallowed_new_abilities: AbilitySet,
 }
 
@@ -238,10 +238,10 @@ impl Compatibility {
         // The modules are considered as compatible function-wise when all the
         // conditions are met:
         //
-        // - old module's public functions are a subset of the new module's public
-        //   functions (i.e. we cannot remove or change public functions)
-        // - old module's script functions are a subset of the new module's script
-        //   functions (i.e. we cannot remove or change script functions)
+        // - old module's public functions are a subset of the new module's public functions (i.e.
+        //   we cannot remove or change public functions)
+        // - old module's script functions are a subset of the new module's script functions (i.e.
+        //   we cannot remove or change script functions)
         for (name, old_func) in &old_module.functions {
             // Check for removed public functions
             let Some(new_func) = new_module.functions.get(name) else {
