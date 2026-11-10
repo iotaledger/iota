@@ -1007,12 +1007,19 @@ impl ReadAhead {
             .read(authority_state, epoch_store, reader, deny_rules.as_ref())
             .into_iter()
             .collect();
+        // Every transaction is taken by now. A reader that has not started
+        // would find none, so the commit does not wait for a free thread of
+        // the blocking pool to start it. A reader that is running is not
+        // affected and returns what it read.
+        for other in &others {
+            other.abort();
+        }
         for other in others {
             match other.await {
                 Ok(read) => results.extend(read),
                 Err(error) => {
-                    // A reader cancelled at shutdown never started, so it
-                    // took no transaction.
+                    // A cancelled reader never started, so it took no
+                    // transaction.
                     if let Ok(panic) = error.try_into_panic() {
                         std::panic::resume_unwind(panic);
                     }
