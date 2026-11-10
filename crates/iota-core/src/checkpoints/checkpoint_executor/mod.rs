@@ -1153,7 +1153,7 @@ impl CheckpointExecutor {
                     .iter()
                     .zip(effects.iter())
                     .map(|(tx, fx)| ExecutionData::new(tx.clone().into_inner(), fx.clone()));
-                let full_contents = FullCheckpointContents::from_contents_and_execution_data(
+                let full_contents = FullCheckpointContents::from_contents_and_local_execution_data(
                     checkpoint_contents.clone(),
                     execution_data,
                 )

@@ -10207,3 +10207,235 @@ async fn closed_bucket_compaction_compacts_until_stopped() {
     compact(false).await;
     assert_eq!(flat.db.sorted_runs(&cf_name).unwrap(), 1);
 }
+
+/// The checkpoint contents a validator serves to state-sync peers carry the
+/// signatures consensus pinned, also when the validator executed another copy
+/// of the transaction with other signatures. Each replica executes one
+/// certificate of T1 on arrival, the way `handle_certificates` does for an
+/// owned-object-only certificate, then processes a consensus commit carrying
+/// the pinned copy, and a real checkpoint builder builds checkpoint 0. The
+/// served contents are checked with `FullCheckpointContents::verify`, the
+/// check a state-sync receiver applies before accepting them. Each replica is
+/// checked with the full-contents cache on (served from the builder's cache)
+/// and off (rebuilt by `RocksDbStore` from the stored transactions).
+#[tokio::test]
+async fn served_checkpoint_contents_carry_the_pinned_signatures() {
+    use std::time::Duration;
+
+    use fastcrypto::{
+        hash::{HashFunction, Sha256},
+        rsa::{Base64UrlUnpadded, Encoding as _},
+    };
+    use iota_sdk_crypto::{Signer, secp256r1::Secp256r1PrivateKey};
+    use iota_sdk_types::{
+        CheckpointContents as SdkCheckpointContents, CheckpointSummary, PasskeyPublicKey,
+        SimpleSignature, UserSignature, crypto::PasskeyAuthenticator,
+    };
+    use iota_types::{
+        messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContentsExt as _},
+        storage::ReadStore as _,
+    };
+    use tokio::sync::mpsc;
+
+    use crate::{
+        checkpoints::{
+            CheckpointMetrics, CheckpointService, CheckpointStore, FullCheckpointContentsCache,
+            FullCheckpointContentsCacheMetrics,
+        },
+        consensus_handler::SequencedConsensusTransaction,
+        execution_scheduler::ExecutionSchedulerAPI as _,
+        global_state_hasher::GlobalStateHasher,
+        storage::RocksDbStore,
+    };
+
+    let network =
+        iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_enable_pcool_flow_for_testing(false);
+
+    let passkey_key = Secp256r1PrivateKey::random();
+    let sender = PasskeyPublicKey::new(passkey_key.public_key()).derive_address();
+    let ids: Vec<ObjectId> = (1u8..=2)
+        .map(|i| {
+            let mut id = [0u8; 32];
+            id[0] = i;
+            ObjectId::new(id)
+        })
+        .collect();
+
+    let replica = || async {
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network, 0)
+            .with_protocol_config(protocol_config.clone())
+            .build()
+            .await;
+        for id in &ids {
+            state.insert_genesis_object(Object::with_id_owner_for_testing(*id, sender));
+        }
+        state
+    };
+
+    let sign = |tx: &Transaction, origin: &str| {
+        let client_data_json = format!(
+            r#"{{"type":"webauthn.get","challenge":"{}","origin":"{origin}"}}"#,
+            Base64UrlUnpadded::encode_string(&tx.signing_digest())
+        );
+        let authenticator_data = vec![0u8; 37];
+        let mut message = authenticator_data.clone();
+        message.extend_from_slice(&Sha256::digest(client_data_json.as_bytes()).digest);
+        let signature: SimpleSignature = passkey_key.sign(&message);
+        let passkey =
+            PasskeyAuthenticator::new(authenticator_data, client_data_json, signature).unwrap();
+        TransactionEnvelope::from_user_sig_data(
+            tx.clone(),
+            vec![UserSignature::PasskeyAuthenticator(passkey)],
+        )
+    };
+
+    let first = replica().await;
+    let rgp = first.reference_gas_price_for_testing().unwrap();
+    let t1 = Transaction::new_transfer(
+        Address::random(),
+        first.get_object(&ids[0]).unwrap().object_ref(),
+        sender,
+        first.get_object(&ids[1]).unwrap().object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    // Two certificates of one transaction: same digest, different user
+    // signatures. The first is the copy consensus sequences.
+    let pinned = init_certified_transaction(sign(&t1, "https://a.io"), &first);
+    let other = init_certified_transaction(sign(&t1, "https://b.io"), &first);
+    assert_eq!(pinned.digest(), other.digest());
+    assert_ne!(pinned.data().signatures(), other.data().signatures());
+    let digest = *pinned.digest();
+    let pinned_sigs = pinned.data().signatures().to_vec();
+
+    // (executed certificate, full-contents cache on) for each replica.
+    let cases = [
+        (pinned.clone(), true),
+        (pinned.clone(), false),
+        (other.clone(), true),
+        (other.clone(), false),
+    ];
+    for (index, (executed, cache_on)) in cases.into_iter().enumerate() {
+        let state = if index == 0 {
+            first.clone()
+        } else {
+            replica().await
+        };
+        let epoch_store = state.epoch_store_for_testing().clone();
+        for cert in [&pinned, &other] {
+            cert.validity_check(&epoch_store.tx_validity_check_context())
+                .unwrap();
+            epoch_store
+                .signature_verifier
+                .multi_verify_certs(vec![cert.clone().into_inner()])
+                .await
+                .into_iter()
+                .for_each(|r| {
+                    r.unwrap();
+                });
+        }
+
+        // Executed on arrival, before any consensus copy is sequenced.
+        state
+            .wait_for_certificate_execution(&executed, &epoch_store)
+            .await
+            .unwrap();
+
+        let tmp_dir = iota_common::tempdir();
+        let contents_cache = if cache_on {
+            FullCheckpointContentsCache::default()
+        } else {
+            FullCheckpointContentsCache::new(0, FullCheckpointContentsCacheMetrics::new_for_tests())
+        };
+        let checkpoint_store =
+            CheckpointStore::new_with_contents_cache(tmp_dir.path(), None, contents_cache);
+        let (output, mut result) = mpsc::channel::<(SdkCheckpointContents, CheckpointSummary)>(10);
+        let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
+        let hasher = Arc::new(GlobalStateHasher::new_for_tests(
+            state.get_global_state_hash_store().clone(),
+        ));
+        let checkpoint_service = CheckpointService::build(
+            state.clone(),
+            checkpoint_store.clone(),
+            epoch_store.clone(),
+            state.get_transaction_cache_reader().clone(),
+            Arc::downgrade(&hasher),
+            Box::new(output),
+            Box::new(certified_output),
+            CheckpointMetrics::new_for_tests(),
+            100,
+            30 * 1024 * 1024,
+        );
+        let _tasks = checkpoint_service.spawn(None).await;
+
+        // One commit carrying the pinned copy of T1.
+        let sequenced = vec![SequencedConsensusTransaction::new_test(
+            ConsensusTransaction::new_certificate_message(&state.name, pinned.clone().into_inner()),
+        )];
+        let (schedulables, _) = epoch_store
+            .process_consensus_transactions_for_tests(
+                sequenced,
+                &checkpoint_service,
+                state.get_object_cache_reader().as_ref(),
+                &state.metrics,
+                true,
+                &state,
+            )
+            .await
+            .unwrap();
+        // As the consensus handler does; T1 is already executed.
+        state.execution_scheduler().enqueue(
+            drop_attestations(schedulables)
+                .into_iter()
+                .map(|s| (s, ExecutionEnv::new()))
+                .collect(),
+            &epoch_store,
+        );
+
+        let (contents, summary) = tokio::time::timeout(Duration::from_secs(60), result.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        // The contents pin the sequenced copy's signatures.
+        let (_, sigs) = contents
+            .clone()
+            .into_iter_with_signatures()
+            .find(|(digests, _)| digests.transaction == digest)
+            .expect("checkpoint 0 holds T1");
+        assert_eq!(sigs, pinned_sigs);
+        // The later consensus copy did not replace the stored envelope.
+        let stored = state
+            .get_transaction_cache_reader()
+            .get_transaction_block(&digest)
+            .unwrap();
+        assert_eq!(stored.data().signatures(), executed.data().signatures());
+
+        // What this node serves to a state-sync peer.
+        let rocks = RocksDbStore::new(
+            state.execution_cache_trait_pointers.clone(),
+            state.committee_store().clone(),
+            checkpoint_store.clone(),
+        );
+        assert_eq!(
+            checkpoint_store
+                .get_full_checkpoint_contents_by_digest(&summary.contents_digest)
+                .is_some(),
+            cache_on,
+            "served from the builder's cache only when the cache is on"
+        );
+        let served = rocks
+            .try_get_full_checkpoint_contents(&summary.contents_digest)
+            .unwrap()
+            .expect("the node serves the contents of a checkpoint it built");
+        let executed_pinned = executed.data().signatures() == pinned_sigs.as_slice();
+        served
+            .verify(summary.contents_digest)
+            .unwrap_or_else(|err| {
+                panic!("executed pinned copy: {executed_pinned}, cache on: {cache_on}: {err}")
+            });
+    }
+}

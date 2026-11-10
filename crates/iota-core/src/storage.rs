@@ -241,7 +241,7 @@ impl ReadStore for RocksDbStore {
                 effects,
             ));
         }
-        FullCheckpointContents::from_contents_and_execution_data(
+        FullCheckpointContents::from_contents_and_local_execution_data(
             contents,
             execution_data.into_iter(),
         )
