@@ -2442,6 +2442,7 @@ mod tests {
     use futures::{StreamExt, TryStreamExt};
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
+    use rstest::rstest;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::{
         sync::{broadcast, mpsc},
@@ -5514,14 +5515,10 @@ mod tests {
     async fn commit_fetch_terminates_at_an_uncertifiable_vote(
         #[case] vote: CommitIndex,
         #[case] ranges: Vec<CommitRange>,
-        #[values(false, true)] starfish_speed: bool,
     ) {
         use crate::block_verifier::BlockVerifier as _;
 
-        let (mut context, keys) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        let (context, keys) = Context::new_for_test(4);
         let context = Arc::new(context);
         let directory = tempfile::TempDir::new().unwrap();
         let store = Arc::new(crate::storage::rocksdb_store::RocksDBStore::new(
@@ -5529,7 +5526,7 @@ mod tests {
         ));
         let fixture = stream_fixture_with_store(context.clone(), store.clone());
         let header = TestBlockHeader::new(10, 2)
-            .set_version(TestBlockHeaderVersion::from_context(&context))
+            .set_version(TestBlockHeaderVersion::V2)
             .set_ancestors(vec![
                 BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
                 BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
