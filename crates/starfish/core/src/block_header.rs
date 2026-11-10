@@ -358,24 +358,6 @@ impl BlockHeaderV2 {
             strong_vote,
         }
     }
-
-    // Will be used when genesis block construction is gated on
-    // consensus_starfish_speed.
-    #[expect(dead_code)]
-    fn genesis_block_header(context: &Context, author: AuthorityIndex) -> Self {
-        Self {
-            epoch: context.committee.epoch(),
-            round: GENESIS_ROUND,
-            author,
-            timestamp_ms: context.epoch_start_timestamp_ms,
-            references: vec![],
-            overlap_start_index: 0,
-            overlap_end_index: 0,
-            commit_votes: vec![],
-            transactions_commitment: TransactionsCommitment::default(),
-            strong_vote: None,
-        }
-    }
 }
 
 impl BlockHeaderAPI for BlockHeaderV2 {
@@ -1561,19 +1543,6 @@ pub(crate) fn genesis_block_headers(context: &Context) -> Vec<VerifiedBlockHeade
 pub enum TestBlockHeaderVersion {
     V1,
     V2,
-}
-
-impl TestBlockHeaderVersion {
-    /// The version `Core` proposes under this context's
-    /// `consensus_starfish_speed` setting.
-    #[cfg(test)]
-    pub(crate) fn from_context(context: &Context) -> Self {
-        if context.protocol_config.consensus_starfish_speed() {
-            Self::V2
-        } else {
-            Self::V1
-        }
-    }
 }
 
 /// This struct is public for testing in other crates.

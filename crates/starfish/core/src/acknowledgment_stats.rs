@@ -261,9 +261,6 @@ mod test {
     /// acknowledgments are on by default.
     fn adaptive_ack_context() -> Arc<Context> {
         let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(true);
         context.protocol_config.set_gc_depth_for_testing(20);
         Arc::new(context)
     }
@@ -275,9 +272,6 @@ mod test {
         let (context, _) = Context::new_for_test(4);
         let mut context =
             context.with_committee(starfish_config::local_committee_and_keys(0, stakes).0);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(true);
         context.protocol_config.set_gc_depth_for_testing(20);
         Arc::new(context)
     }

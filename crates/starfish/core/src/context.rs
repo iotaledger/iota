@@ -99,10 +99,8 @@ impl Context {
     /// Whether leader blocks choose their acknowledgments by what the voters
     /// are expected to hold.
     pub(crate) fn adaptive_acknowledgments_enabled(&self) -> bool {
-        self.protocol_config.consensus_starfish_speed()
-            && self
-                .parameters
-                .enable_starfish_speed_adaptive_acknowledgments
+        self.parameters
+            .enable_starfish_speed_adaptive_acknowledgments
     }
 
     /// Create a test context with a committee of given size and even stake
