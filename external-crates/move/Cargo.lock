@@ -2546,7 +2546,6 @@ dependencies = [
  "move-vm-config",
  "move-vm-profiler",
  "move-vm-types",
- "once_cell",
  "parking_lot 0.11.2",
  "proptest",
  "smallvec",
