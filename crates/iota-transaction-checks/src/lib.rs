@@ -152,15 +152,13 @@ mod checked {
             input_checks,
         )?;
         check_receiving_objects(&input_objects, receiving_objects, input_checks)?;
-        if !input_checks.skip_package_verification {
-            // Runs verifier, which could be expensive.
-            check_non_system_packages_to_be_published(
-                transaction,
-                protocol_config,
-                metrics,
-                verifier_limits_source,
-            )?;
-        }
+        // Runs verifier, which could be expensive.
+        check_non_system_packages_to_be_published(
+            transaction,
+            protocol_config,
+            metrics,
+            verifier_limits_source,
+        )?;
 
         Ok((gas_status, input_objects.into_checked()))
     }

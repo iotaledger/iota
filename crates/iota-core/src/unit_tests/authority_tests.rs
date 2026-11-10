@@ -8,7 +8,7 @@ use std::{collections::HashSet, convert::TryInto, path::PathBuf, str::FromStr, s
 use bcs;
 use fastcrypto::traits::KeyPair;
 use futures::{StreamExt, stream::FuturesUnordered};
-use iota_config::{genesis::Genesis, verifier_signing_config::VerifierSigningConfig};
+use iota_config::genesis::Genesis;
 use iota_framework::BuiltInFramework;
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
@@ -29,7 +29,6 @@ use iota_sdk_types::{
     TransactionExpiration, TransactionKind, TransactionV1, TypeTag, Version, VersionAssignment,
     crypto::{Intent, IntentScope},
 };
-use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     attestation::AttestedTransaction,
     base_types::{
@@ -38,7 +37,7 @@ use iota_types::{
     committee::Committee,
     crypto::{
         AccountPrivateKey, AggregateAuthorityPublicKey, AuthorityKeyPair, AuthoritySignInfo,
-        get_authority_key_pair, get_key_pair, random_committee_key_pairs_of_size,
+        get_key_pair, random_committee_key_pairs_of_size,
     },
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExt},
@@ -60,12 +59,12 @@ use iota_types::{
     signature::VerifyParams,
     supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
     transaction::{
-        CallArg, CancelledObjects, InputObjects, MAX_PROGRAMMABLE_TX_INPUTS, ObjectReadResult,
-        ReceivingObjects, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
-        TransactionEnvelope, TransactionKey, VerifiedCertificate, VerifiedTransaction,
+        CallArg, CancelledObjects, MAX_PROGRAMMABLE_TX_INPUTS, SenderSignedTransactionAPI,
+        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope, TransactionKey,
+        VerifiedCertificate, VerifiedTransaction,
     },
-    transaction_executor::{InputCheckRules, SimulateTransactionResult, VmChecks},
+    transaction_executor::{SimulateTransactionResult, VmChecks},
     utils::{
         assert_size_limit_err, ptb_above_max_tx_size, ptb_with_pure_inputs,
         to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
@@ -1918,80 +1917,6 @@ async fn test_simulate_rejects_a_system_object_misuse() {
             );
         }
     }
-}
-
-/// The signing-time bytecode verifier meters a published package unless the
-/// caller sets `InputCheckRules::skip_package_verification`, which neither
-/// `STRICT` nor `RELAXED_UNSAFE` does — so both simulation modes meter it, as
-/// `simulate_meters_published_packages_with_the_node_signing_limits` asserts.
-#[tokio::test]
-async fn test_skip_package_verification_drops_the_package_meter() {
-    // A one-tick meter limit fails the first function it meters, as an operator
-    // could configure in the node YAML.
-    let node_limits: VerifierSigningConfig = serde_yaml::from_str(concat!(
-        "max-per-fun-meter-units: 1\n",
-        "max-per-mod-meter-units: 1\n",
-        "max-per-pkg-meter-units: 1\n",
-    ))
-    .unwrap();
-    // A key pair outside the committee makes this node a fullnode, which is
-    // where a simulation runs.
-    let fullnode_key_pair = get_authority_key_pair().1;
-    let fullnode = TestAuthorityBuilder::new()
-        .with_keypair(&fullnode_key_pair)
-        .with_verifier_signing_config(node_limits.clone())
-        .build()
-        .await;
-
-    let sender = Address::random();
-    let epoch_store = fullnode.epoch_store_for_testing();
-    let max_tx_gas = epoch_store.protocol_config().max_tx_gas();
-    let gas_coin = Object::new_gas_with_balance_and_owner_for_testing(max_tx_gas * 4, sender);
-    fullnode.insert_genesis_object(gas_coin.clone());
-
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/unit_tests/data/object_basics");
-    let reference_gas_price = fullnode.reference_gas_price_for_testing().unwrap();
-    let publish = TestTransactionBuilder::new(sender, gas_coin.object_ref(), reference_gas_price)
-        .publish(path)
-        .build();
-
-    let receiving_objects = ReceivingObjects::from(vec![]);
-    let verdict = |input_checks| {
-        iota_transaction_checks::check_transaction_input(
-            epoch_store.protocol_config(),
-            reference_gas_price,
-            &publish,
-            InputObjects::new(vec![ObjectReadResult::new_from_gas_object(&gas_coin)]),
-            &receiving_objects,
-            &fullnode.metrics.bytecode_verifier_metrics,
-            iota_transaction_checks::VerifierLimitsSource::NodeConfig(&node_limits),
-            // No Move authenticator runs here, so it gets no gas budget.
-            0,
-            false,
-            input_checks,
-        )
-        .err()
-    };
-
-    let metered = verdict(InputCheckRules::STRICT);
-    assert!(
-        matches!(
-            metered,
-            Some(IotaError::UserInput {
-                error: UserInputError::PackageVerificationTimedout { .. }
-            })
-        ),
-        "the node's limits should meter the published package: {metered:?}"
-    );
-
-    let skipped = verdict(InputCheckRules {
-        skip_package_verification: true,
-        ..InputCheckRules::STRICT
-    });
-    assert!(
-        skipped.is_none(),
-        "the relaxation should drop the meter: {skipped:?}"
-    );
 }
 
 /// A mismatched input object digest is rejected by a dry run and accepted by a

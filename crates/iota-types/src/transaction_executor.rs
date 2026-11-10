@@ -177,12 +177,6 @@ pub struct InputCheckRules {
     /// object it names. Receiving does not read the digest; the effects leave
     /// the received object out of their dependencies when it does not match.
     pub any_receiving_object_digest: bool,
-    /// Skip the metered bytecode verifier on the packages the transaction
-    /// publishes. Execution verifies them again with neither a limit nor a
-    /// meter, so these checks are the only bound on that work, and a caller
-    /// that sets this accepts a publish that signing would reject. Both
-    /// [`Self::STRICT`] and [`Self::RELAXED_UNSAFE`] leave it off.
-    pub skip_package_verification: bool,
 }
 
 impl InputCheckRules {
@@ -195,7 +189,6 @@ impl InputCheckRules {
         any_initial_shared_version: false,
         any_receiving_object_version: false,
         any_receiving_object_digest: false,
-        skip_package_verification: false,
     };
 
     /// What a simulation with [`VmChecks::Disabled`] drops.
@@ -207,10 +200,6 @@ impl InputCheckRules {
         any_initial_shared_version: true,
         any_receiving_object_version: true,
         any_receiving_object_digest: true,
-        // Execution verifies a published package unmetered, so dropping this
-        // would leave nothing bounding that work on an endpoint that needs no
-        // signature.
-        skip_package_verification: false,
     };
 }
 
