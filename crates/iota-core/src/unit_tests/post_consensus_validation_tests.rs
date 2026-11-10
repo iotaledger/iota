@@ -5449,10 +5449,6 @@ async fn reader_keeps_a_shared_deletion_from_its_tombstone_row_before_the_marker
 /// kept inputs, so the commit's decisions are the same either way.
 #[tokio::test]
 async fn reader_keeps_its_first_shared_verdict_through_a_deletion_above_the_horizon() {
-    use iota_types::effects::TestEffectsBuilder;
-
-    use crate::transaction_outputs::TransactionOutputs;
-
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let deleter_gas_id = ObjectId::random();
@@ -5484,36 +5480,13 @@ async fn reader_keeps_its_first_shared_verdict_through_a_deletion_above_the_hori
         SharedVerdict::Exists
     );
 
-    let deletion = s.build_move_call(
-        "object_basics",
+    let deletion_effects = s.assigned_commit_shared_object_basics_call(
         "delete",
         vec![s.shared_arg(&shared_id)],
         &deleter_gas_id,
         sender,
         &sender_key,
-    );
-    let deletion_effects = TestEffectsBuilder::new(deletion.data())
-        .with_shared_input_versions([(shared_id, shared_ref.version)].into())
-        .with_deleted_objects_owned_by([(shared_id, shared_ref.version, Owner::Shared(initial))])
-        .build();
-    let key = TransactionKey::Digest(*deletion.digest());
-    s.epoch_store.assign_commit_to_transactions(11, vec![key]);
-    s.epoch_store
-        .record_executed_transaction(&key, &deletion_effects);
-    s.authority.get_cache_writer().write_transaction_outputs(
-        s.epoch_store.epoch(),
-        Arc::new(TransactionOutputs {
-            transaction: Arc::new(deletion),
-            effects: deletion_effects.clone(),
-            events: Default::default(),
-            superseded: vec![],
-            markers: vec![],
-            wrapped: vec![],
-            deleted: vec![ObjectKey(shared_id, deletion_effects.lamport_version())],
-            live_object_markers_to_delete: vec![],
-            new_live_object_markers_to_init: vec![],
-            written: Default::default(),
-        }),
+        11,
     );
 
     assert_eq!(reused(), 0);
