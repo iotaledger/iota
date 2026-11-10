@@ -19,8 +19,9 @@ does not cap the budget there.
 | Post-consensus cert exec (no authenticators)   | `check_certificate_input`                        | `0`            | `true`           | **full tx budget**               | `execute_transaction_to_effects`                   | body only                                                                                                 |
 
 The gas-coin **balance** is always checked against the full transaction budget,
-in every phase. Every phase passes `InputCheckRules::STRICT`; only a dev inspect
-relaxes any check.
+in every phase. Every phase applies `InputCheckRules::STRICT`: `check_transaction_input`
+takes it as an argument and the two certificate functions apply it themselves;
+only a dev inspect relaxes any check.
 
 ## SDK modes
 

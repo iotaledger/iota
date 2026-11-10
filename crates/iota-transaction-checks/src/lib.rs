@@ -119,7 +119,9 @@ mod checked {
     }
 
     /// Checks whether a transaction may be signed or simulated. Certificates go
-    /// through [`check_certificate_input`] instead.
+    /// through [`check_certificate_input`] or
+    /// [`check_certificate_and_move_authenticator_input`] instead, which apply
+    /// [`InputCheckRules::STRICT`] themselves.
     ///
     /// `input_checks` names the checks the caller drops: a simulation with
     /// [`VmChecks::Disabled`](iota_types::transaction_executor::VmChecks::Disabled)
