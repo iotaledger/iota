@@ -1076,6 +1076,17 @@ mod tests {
 
     use super::*;
 
+    /// The table's prefix extractor indexes rows by object id, so the id must
+    /// be the leading `ObjectId::LENGTH` bytes of every serialized key.
+    #[test]
+    fn an_object_key_serializes_with_its_id_as_the_prefix() {
+        let id = ObjectId::random();
+        let key = typed_store::be_fix_int_ser(&ObjectKey(id, Version::from_u64(7)));
+        assert_eq!(key.len(), ObjectId::LENGTH + size_of::<u64>());
+        assert_eq!(&key[..ObjectId::LENGTH], id.as_bytes());
+        assert_eq!(key[..ObjectId::LENGTH], typed_store::be_fix_int_ser(&id));
+    }
+
     fn owned_inputs_tx(gas_version: u64) -> SenderSignedTransaction {
         let tx_data = TestTransactionBuilder::new(
             Address::ZERO,

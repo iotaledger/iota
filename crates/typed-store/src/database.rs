@@ -1000,7 +1000,7 @@ impl<K, V> DBMap<K, V> {
         match &self.db.storage {
             Storage::Rocks(db) => {
                 let readopts =
-                    rocks_util::apply_range_bounds(self.opts.readopts(), lower_bound, upper_bound);
+                    rocks_util::iterator_read_options(&self.opts, lower_bound, upper_bound, false);
                 match self.rocks_safe_iter(db, readopts) {
                     Ok(iter) => Box::new(iter),
                     Err(e) => error_iterator(e),
@@ -1029,8 +1029,12 @@ impl<K, V> DBMap<K, V> {
     {
         match &self.db.storage {
             Storage::Rocks(db) => {
-                let readopts =
-                    rocks_util::apply_range_bounds(self.opts.readopts(), lower_bound, None);
+                let readopts = rocks_util::iterator_read_options(
+                    &self.opts,
+                    lower_bound,
+                    upper_bound.clone(),
+                    true,
+                );
                 match self.rocks_safe_iter(db, readopts) {
                     Ok(iter) => Box::new(SafeRevIter::new(iter, upper_bound)),
                     Err(e) => error_iterator(e),

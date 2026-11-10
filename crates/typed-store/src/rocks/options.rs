@@ -9,7 +9,7 @@ use std::{
 };
 
 use iota_macros::nondeterministic;
-use rocksdb::{BlockBasedOptions, Cache, ReadOptions};
+use rocksdb::{BlockBasedOptions, Cache, ReadOptions, SliceTransform};
 use sysinfo::{MemoryRefreshKind, RefreshKind, System};
 use tap::TapFallible;
 use tracing::{debug, info, warn};
@@ -70,11 +70,24 @@ pub struct ReadWriteOptions {
     /// When set, debug log the hash of the key and value bytes when inserting
     /// to this table.
     pub log_value_hash: bool,
+    /// The length of the fixed prefix extractor installed by
+    /// [`DBOptions::with_fixed_prefix_extractor`], if any. Iterators then
+    /// seek in total order unless their bounds stay within one prefix.
+    pub prefix_len: Option<usize>,
 }
 
 impl ReadWriteOptions {
+    /// Read options for point reads and for iterators whose bounds are not
+    /// known to stay within one prefix. With a prefix extractor installed,
+    /// a seek outside total order may skip memtables and files whose prefix
+    /// bloom filter rejects the seek key's prefix, which is wrong for a scan
+    /// that crosses prefixes. Bounded iterators decide per scan.
     pub fn readopts(&self) -> ReadOptions {
-        ReadOptions::default()
+        let mut read_options = ReadOptions::default();
+        if self.prefix_len.is_some() {
+            read_options.set_total_order_seek(true);
+        }
+        read_options
     }
 
     pub fn set_log_value_hash(mut self, log_value_hash: bool) -> Self {
@@ -442,6 +455,25 @@ impl DBOptions {
         self.options.set_hard_pending_compaction_bytes_limit(0);
         self.options.set_level_zero_slowdown_writes_trigger(512);
         self.options.set_level_zero_stop_writes_trigger(1024);
+        self
+    }
+
+    /// Indexes the table by the first `prefix_len` bytes of each key, for
+    /// tables scanned by a leading key field of fixed size, such as the
+    /// object id of an `(ObjectId, Version)` key.
+    ///
+    /// A prefix scan skips the memtables and files that hold no key of that
+    /// prefix instead of seeking in each of them. Point reads keep using the
+    /// whole-key filter.
+    ///
+    /// `prefix_len` must be the serialized size of the leading field, under
+    /// [`crate::be_fix_int_ser`]. The table's iterators use the extractor
+    /// only when their bounds stay within one prefix, and seek in total
+    /// order otherwise, so scans that cross prefixes stay correct.
+    pub fn with_fixed_prefix_extractor(mut self, prefix_len: usize) -> DBOptions {
+        self.options
+            .set_prefix_extractor(SliceTransform::create_fixed_prefix(prefix_len));
+        self.rw_options.prefix_len = Some(prefix_len);
         self
     }
 }
