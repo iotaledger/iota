@@ -5,7 +5,11 @@
 //! and the store handles, and takes each input through its read steps, from
 //! the first read to a result.
 
-use std::{cell::RefCell, collections::BTreeSet, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, Version};
@@ -22,6 +26,7 @@ use iota_types::{
         error::{Error as StorageError, Result as StorageResult},
     },
 };
+use parking_lot::Mutex;
 
 use super::{
     AccountVerdict, DropKind, DropReason, DynamicFieldAtHorizon, KeptObject, MissingKind,
@@ -53,12 +58,15 @@ pub fn horizon(protocol_config: &ProtocolConfig, commit_index: CommitIndex) -> C
 }
 
 /// Reads inputs as of one consensus commit. Built once per commit and passed
-/// to every transition that touches a store.
+/// to every transition that touches a store. A shared or package input read
+/// a second time at the commit gets the first read's verdict.
 pub struct CommitIndexedReader {
     pub(super) cache: Arc<dyn ObjectCacheRead>,
     pub(super) epoch_store: Arc<AuthorityPerEpochStore>,
     /// The horizon, `C - K`.
     horizon: CommitIndex,
+    shared_verdicts: Mutex<HashMap<(ObjectId, Version), SharedVerdict>>,
+    package_verdicts: Mutex<HashMap<ObjectId, PackageVerdict>>,
 }
 
 impl CommitIndexedReader {
@@ -72,6 +80,8 @@ impl CommitIndexedReader {
             cache,
             epoch_store,
             horizon,
+            shared_verdicts: Mutex::new(HashMap::new()),
+            package_verdicts: Mutex::new(HashMap::new()),
         }
     }
 
@@ -136,8 +146,33 @@ impl CommitIndexedReader {
     /// read. A drop is checked against the lowest row of `id`, so that a
     /// validator that executed the creation of `id` above the horizon answers
     /// as one that did not. A storage error is returned as `Err`, never as a
-    /// result.
+    /// result. The same input read again at this commit gets the same
+    /// verdict without another read.
     pub fn read_shared(
+        &self,
+        id: ObjectId,
+        initial_shared_version: Version,
+    ) -> IotaResult<SharedVerdict> {
+        if let Some(verdict) = self
+            .shared_verdicts
+            .lock()
+            .get(&(id, initial_shared_version))
+        {
+            self.epoch_store
+                .metrics
+                .consensus_handler_validation_reader_reused_verdicts
+                .with_label_values(&["shared"])
+                .inc();
+            return Ok(*verdict);
+        }
+        let verdict = self.read_shared_once(id, initial_shared_version)?;
+        self.shared_verdicts
+            .lock()
+            .insert((id, initial_shared_version), verdict);
+        Ok(verdict)
+    }
+
+    fn read_shared_once(
         &self,
         id: ObjectId,
         initial_shared_version: Version,
@@ -219,8 +254,23 @@ impl CommitIndexedReader {
     /// store is read first, because a package input names no version, then
     /// the row. The package module doc explains the order. A storage error is
     /// returned as `Err`, never as a result, and so is an id that names a Move
-    /// object (`UserInputError::MoveObjectAsPackage`).
+    /// object (`UserInputError::MoveObjectAsPackage`). The same package read
+    /// again at this commit gets the same verdict without another read.
     pub fn read_package(&self, id: ObjectId) -> IotaResult<PackageVerdict> {
+        if let Some(verdict) = self.package_verdicts.lock().get(&id) {
+            self.epoch_store
+                .metrics
+                .consensus_handler_validation_reader_reused_verdicts
+                .with_label_values(&["package"])
+                .inc();
+            return Ok(verdict.clone());
+        }
+        let verdict = self.read_package_once(id)?;
+        self.package_verdicts.lock().insert(id, verdict.clone());
+        Ok(verdict)
+    }
+
+    fn read_package_once(&self, id: ObjectId) -> IotaResult<PackageVerdict> {
         let loaded = match PackageReader::start(id, self.horizon).read_package(self)? {
             PackageLookup::Loaded(loaded) => loaded,
             PackageLookup::Missing(reason) => return Ok(PackageVerdict::Missing(reason)),
