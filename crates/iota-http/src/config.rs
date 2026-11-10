@@ -39,6 +39,7 @@ pub struct Config {
     pub(crate) handshake_timeout: Option<Duration>,
     pub(crate) max_pending_connections: Option<usize>,
     pub(crate) max_connections_per_peer: Option<usize>,
+    pub(crate) max_connections: Option<usize>,
     pub(crate) max_connection_idle: Option<Duration>,
     pub(crate) on_peer_connection_event: Option<OnPeerConnectionEvent>,
     pub(crate) metrics: Option<ListenerMetrics>,
@@ -95,6 +96,7 @@ impl Default for Config {
             handshake_timeout: Some(DEFAULT_HANDSHAKE_TIMEOUT),
             max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
             max_connections_per_peer: None,
+            max_connections: None,
             max_connection_idle: None,
             on_peer_connection_event: None,
             metrics: None,
@@ -318,6 +320,22 @@ impl Config {
         }
     }
 
+    /// Sets how many connections this listener may hold at once, counting
+    /// those still in their TLS handshake. Further connections are closed as
+    /// soon as they are accepted, before any handshake, so a full listener
+    /// still answers a new peer rather than leaving it in the kernel backlog.
+    ///
+    /// A peer that never finishes its handshake holds a slot until
+    /// [`handshake_timeout`](Self::handshake_timeout).
+    ///
+    /// Default is no limit (`None`).
+    pub fn max_connections(self, max_connections: Option<usize>) -> Self {
+        Self {
+            max_connections,
+            ..self
+        }
+    }
+
     /// Sets how long a connection may serve no request before it is closed.
     ///
     /// Keepalive closes a connection whose peer has gone; this closes one
@@ -363,6 +381,12 @@ impl Config {
 
     /// Rejects settings the accept loop cannot recover from.
     pub(crate) fn validate(&self) -> Result<(), crate::BoxError> {
+        if self.max_connections == Some(0) {
+            return Err("'max_connections' must be greater than zero, \
+                        a listener that serves no connection is never useful"
+                .into());
+        }
+
         if self.max_connection_idle == Some(Duration::ZERO) {
             return Err("'max_connection_idle' must be greater than zero, \
                         a connection closed the moment it goes idle can never serve anything"
