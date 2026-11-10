@@ -4576,12 +4576,11 @@ impl AuthorityPerEpochStore {
                     digest,
                 );
                 // The copy is not recorded as processed, so the consensus
-                // adapter that submitted it would hold its submit permit, which
-                // checkpoint signatures also need, until the epoch ends. Only
-                // this validator's adapter is told: another author's copy can
-                // still be kept. Without the P-COOL flow the adapter waits
-                // until the epoch ends, as for the other copies ignored at the
-                // end of the epoch.
+                // adapter that submitted it would hold its submit permit until
+                // the epoch ends. Only this validator's adapter is told: another
+                // author's copy can still be kept. Without the P-COOL flow the
+                // adapter waits until the epoch ends, as for the other copies
+                // ignored at the end of the epoch.
                 if self.protocol_config().enable_pcool_flow()
                     && transaction.certificate_author == self.name
                 {
@@ -4630,9 +4629,8 @@ impl AuthorityPerEpochStore {
                     );
                     // An ignored copy is not recorded as processed, so the
                     // consensus adapter that submitted it would hold its submit
-                    // permit, which checkpoint signatures also need, until the
-                    // epoch ends. Only the adapter is told: another copy may
-                    // still be kept.
+                    // permit until the epoch ends. Only the adapter is told:
+                    // another copy may still be kept.
                     self.dropped_tx_status_cache.notify_dropped_copies(&[(
                         *user_transaction.digest(),
                         IotaError::ValidatorHaltedAtEpochEnd,

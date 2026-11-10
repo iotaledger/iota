@@ -9,7 +9,7 @@ use iota_types::{
     error::{IotaError, IotaResult},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
 };
-use starfish_core::{ClientError, TransactionClient};
+use starfish_core::{ClientError, Priority, TransactionClient};
 use tap::prelude::*;
 use tokio::time::{Instant, sleep};
 use tracing::{error, info, warn};
@@ -17,7 +17,7 @@ use tracing::{error, info, warn};
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
     consensus_adapter,
-    consensus_adapter::{BlockStatusReceiver, ConsensusClient},
+    consensus_adapter::{BlockStatusReceiver, ConsensusClient, is_high_priority},
     consensus_handler::SequencedConsensusTransactionKey,
 };
 
@@ -93,10 +93,14 @@ impl ConsensusClient for LazyStarfishClient {
             .map(|t| bcs::to_bytes(t).expect("Serializing consensus transaction cannot fail"))
             .collect::<Vec<_>>();
 
+        let priority = match transactions {
+            [transaction] if is_high_priority(transaction) => Priority::High,
+            _ => Priority::Normal,
+        };
         let (block_ref, status_waiter) = client
             .as_ref()
             .expect("Client should always be returned")
-            .submit(transactions_bytes)
+            .submit(transactions_bytes, priority)
             .await
             .tap_err(|err| {
                 // Will be logged by caller as well.
