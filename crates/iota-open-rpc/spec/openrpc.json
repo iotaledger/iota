@@ -1288,15 +1288,15 @@
           "params": [
             {
               "name": "version",
-              "value": 40
+              "value": 41
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "40",
-              "protocolVersion": "40",
+              "maxSupportedProtocolVersion": "41",
+              "protocolVersion": "41",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -1345,6 +1345,7 @@
                 "enable_vdf": true,
                 "hardened_otw_check": true,
                 "limit_groth16_pvk_inputs": true,
+                "limit_move_authentication_gas_at_execution": true,
                 "max_ptb_value_size_v2": true,
                 "metadata_in_module_bytes": true,
                 "meter_instantiation_loops": true,

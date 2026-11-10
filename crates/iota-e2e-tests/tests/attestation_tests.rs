@@ -168,7 +168,8 @@ async fn test_aa_tx_with_failed_authentication_is_dropped() -> Result<(), anyhow
 }
 
 /// A valid AA transaction whose Move authentication needs more gas than
-/// `max_auth_gas` must be refused by the attestor. The dry run meters
+/// `max_auth_gas` must be refused by the attestor. Without
+/// `limit_move_authentication_gas_at_execution`, the dry run meters
 /// authentication against the whole budget, as execution does, so without the
 /// capped pre-run the attestor would do budget-sized work on a transaction it
 /// then drops unpaid.

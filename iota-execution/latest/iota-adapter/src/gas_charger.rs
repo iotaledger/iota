@@ -112,6 +112,23 @@ pub mod checked {
             self.gas_status
         }
 
+        /// Runs `f` with the gas left lowered to what `gas_budget` buys, when
+        /// given and that is less, and gives the rest back once `f` returns.
+        /// Gas `f` uses stays used.
+        pub fn with_gas_limit<T>(
+            &mut self,
+            gas_budget: Option<u64>,
+            f: impl FnOnce(&mut Self) -> T,
+        ) -> T {
+            let Some(gas_budget) = gas_budget else {
+                return f(self);
+            };
+            let taken = self.move_gas_status_mut().limit_gas_left(gas_budget);
+            let result = f(self);
+            self.move_gas_status_mut().add_gas_left(taken);
+            result
+        }
+
         pub fn summary(&self) -> GasCostSummary {
             self.gas_status.summary()
         }

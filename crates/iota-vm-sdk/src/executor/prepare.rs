@@ -227,8 +227,8 @@ pub(super) fn prepare_transaction(
         // Pass `0` for the authenticator gas budget: this crate runs the
         // authenticator and body together to effects, which is the node's
         // post-consensus path, where they share the full transaction budget
-        // (`max_auth_gas` caps only the separate pre-consensus signing check,
-        // which this crate does not model). A `0` budget makes
+        // (the execution engine itself holds the authenticators to
+        // `max_auth_gas` when the protocol limits them there). A `0` budget makes
         // `check_transaction_input` meter at the full transaction budget, as
         // `check_certificate_input` does. (Move-authentication support is
         // verified before preparation, so the precondition a non-zero budget
@@ -382,7 +382,7 @@ pub(super) fn execute_with_move_authenticators(
         mock_gas_id,
     } = prepared;
     // Captured before `gas_status` is consumed so the re-run below can meter at
-    // the same budget as the combined run.
+    // the budget the authenticators had in the combined run.
     let run_gas_budget = gas_status.gas_budget();
 
     // Resolve every authenticator, then union each one's inputs into the
@@ -468,13 +468,22 @@ pub(super) fn execute_with_move_authenticators(
     } else {
         // The failure is in command 0 or unattributed, so it may be an
         // authentication rejection or a body abort. Re-run the authenticators
-        // alone to tell them apart. Meter at the same budget the combined run
-        // shared between the authenticators and body (the full transaction
-        // budget outside `DevInspect`, matching the node's post-consensus
-        // execution), so the re-run never reports a rejection for a run the
-        // combined execution had enough gas for.
+        // alone to tell them apart. Meter at the budget the authenticators had
+        // in the combined run (the full transaction budget outside
+        // `DevInspect`, matching the node's post-consensus execution, at most
+        // `max_auth_gas` when the protocol limits them to it there), so the
+        // re-run neither reports a rejection for a run the combined execution
+        // had enough gas for, nor a pass for one where it ran out.
+        let rerun_gas_budget = if env
+            .protocol_config
+            .limit_move_authentication_gas_at_execution()
+        {
+            run_gas_budget.min(env.protocol_config.max_auth_gas())
+        } else {
+            run_gas_budget
+        };
         let rerun_gas_status = IotaGasStatus::new(
-            run_gas_budget,
+            rerun_gas_budget,
             transaction.gas_price(),
             env.reference_gas_price,
             &env.protocol_config,

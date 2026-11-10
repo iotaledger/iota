@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 40;
+pub const MAX_PROTOCOL_VERSION: u64 = 41;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -283,6 +283,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Update the gas model version to 3.
 //             Enable validator attestation on devnet, with the checkpoint
 //             summary data version that certifies the verdicts.
+// Version 41: The Move authenticators run at execution get at most
+//             `max_auth_gas`, as before consensus, on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -843,6 +845,12 @@ struct FeatureFlags {
     // shared-object scheduling.
     #[serde(skip_serializing_if = "is_false")]
     enable_validator_attestation: bool,
+
+    // If true, the Move authenticators run at execution share at most
+    // `max_auth_gas`, as before consensus; the transaction body gets the rest
+    // of the budget.
+    #[serde(skip_serializing_if = "is_false")]
+    limit_move_authentication_gas_at_execution: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2408,6 +2416,11 @@ impl ProtocolConfig {
     pub fn enable_validator_attestation(&self) -> bool {
         self.feature_flags.enable_validator_attestation
     }
+
+    pub fn limit_move_authentication_gas_at_execution(&self) -> bool {
+        self.feature_flags
+            .limit_move_authentication_gas_at_execution
+    }
 }
 
 #[cfg(not(msim))]
@@ -3938,6 +3951,13 @@ impl ProtocolConfig {
                         // and the checkpoint summary certifies the verdicts.
                         cfg.feature_flags.enable_validator_attestation = true;
                         cfg.checkpoint_summary_version_specific_data = Some(2);
+                    }
+                }
+                41 => {
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // The Move authenticators run at execution get at most
+                        // `max_auth_gas`, as before consensus, on devnet.
+                        cfg.feature_flags.limit_move_authentication_gas_at_execution = true;
                     }
                 }
                 // Use this template when making changes:

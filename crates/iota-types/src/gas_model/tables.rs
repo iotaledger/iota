@@ -276,6 +276,25 @@ impl GasStatus {
         self.gas_left.to_unit_round_down()
     }
 
+    /// Lowers the gas left to what `budget` buys at this gas price, when that
+    /// is less, and returns the gas taken off, for [`Self::add_gas_left`] to
+    /// give back. Leaves an unmetered status as it is.
+    pub fn limit_gas_left(&mut self, budget: u64) -> InternalGas {
+        if !self.charge {
+            return InternalGas::new(0);
+        }
+        let limit = Self::to_internal_units(budget / self.gas_price);
+        let taken = self.gas_left.saturating_sub(limit);
+        self.gas_left = self.gas_left.saturating_sub(taken);
+        taken
+    }
+
+    /// Adds `gas` to the gas left, such as the gas
+    /// [`Self::limit_gas_left`] took off.
+    pub fn add_gas_left(&mut self, gas: InternalGas) {
+        self.gas_left += gas;
+    }
+
     /// Charge a given amount of gas and fail if not enough gas units are left.
     pub fn deduct_gas(&mut self, amount: InternalGas) -> PartialVMResult<()> {
         if !self.charge {

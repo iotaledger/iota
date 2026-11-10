@@ -8,15 +8,17 @@ same way. This document maps the two together.
 
 The node runs a transaction in two phases, and the gas budget depends on whether
 `MoveAuthenticator`s are present. `max_auth_gas` is a protocol-config value; it
-**caps** the budget only in the pre-consensus signing phase. Post-consensus it
-is passed only to enforce the "Move authentication is enabled" precondition — it
-does not cap the budget there.
+**caps** the budget in the pre-consensus signing phase. Post-consensus the
+check function gets it only to enforce the "Move authentication is enabled"
+precondition and meters at the full budget; from the protocol version with
+`limit_move_authentication_gas_at_execution`, the execution engine itself holds
+the authenticators to `max_auth_gas` of that budget, and the body gets the rest.
 
-| Node phase                                     | Check function                                   | budget arg     | `is_execute_...` | resulting `IotaGasStatus` budget | engine call                                        | who runs                                                                                                  |
-| ---------------------------------------------- | ------------------------------------------------ | -------------- | ---------------- | -------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Pre-consensus signing (with authenticators)    | `check_transaction_input`                        | `max_auth_gas` | `false`          | **`max_auth_gas`** (capped)      | `authenticate_transaction`                         | filtered set — sponsor-only if sponsored and the flag is on, else all — sharing one `max_auth_gas` budget |
-| Post-consensus cert exec (with authenticators) | `check_certificate_and_move_authenticator_input` | `max_auth_gas` | `true`           | **full tx budget**               | `authenticate_then_execute_transaction_to_effects` | all authenticators + body share the full tx budget                                                        |
-| Post-consensus cert exec (no authenticators)   | `check_certificate_input`                        | `0`            | `true`           | **full tx budget**               | `execute_transaction_to_effects`                   | body only                                                                                                 |
+| Node phase                                     | Check function                                   | budget arg     | `is_execute_...` | resulting `IotaGasStatus` budget | engine call                                        | who runs                                                                                                                |
+| ---------------------------------------------- | ------------------------------------------------ | -------------- | ---------------- | -------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Pre-consensus signing (with authenticators)    | `check_transaction_input`                        | `max_auth_gas` | `false`          | **`max_auth_gas`** (capped)      | `authenticate_transaction`                         | filtered set — sponsor-only if sponsored and the flag is on, else all — sharing one `max_auth_gas` budget               |
+| Post-consensus cert exec (with authenticators) | `check_certificate_and_move_authenticator_input` | `max_auth_gas` | `true`           | **full tx budget**               | `authenticate_then_execute_transaction_to_effects` | all authenticators + body share the full tx budget, the authenticators at most `max_auth_gas` of it when the flag is on |
+| Post-consensus cert exec (no authenticators)   | `check_certificate_input`                        | `0`            | `true`           | **full tx budget**               | `execute_transaction_to_effects`                   | body only                                                                                                               |
 
 The gas-coin **balance** is always checked against the full transaction budget,
 in every phase.
@@ -70,9 +72,11 @@ failure the cause is ambiguous, so:
   abort, never a rejection. The authenticators passed; no re-run.
 - Failure in command 0 or unattributed → re-run the authenticators alone (via
   `authenticate_transaction`) to tell a rejection from a body abort. The re-run
-  meters at the same budget the combined run used (the full tx budget outside
-  `DevInspect`, matching post-consensus), so it never reports a rejection for a
-  run the combined execution had enough gas for.
+  meters at the budget the authenticators had in the combined run (the full tx
+  budget outside `DevInspect`, matching post-consensus, at most `max_auth_gas`
+  when `limit_move_authentication_gas_at_execution` is on), so it neither
+  reports a rejection for a run the combined execution had enough gas for, nor a
+  pass for one where it ran out.
 
 A protocol version that predates Move authentication (no `max_auth_gas`) is
 rejected up front with `UnsupportedProtocolVersion` rather than reaching the
@@ -84,9 +88,10 @@ engine.
 separately:
 
 - `execute_signed` runs the authenticators and body to effects under the
-  per-mode budget, never capped at `max_auth_gas` — the **post-consensus**
-  path. On its own it accepts an authenticator that would exceed `max_auth_gas`
-  at signing.
+  per-mode budget — the **post-consensus** path. The authenticators are held
+  to `max_auth_gas` of it only when `limit_move_authentication_gas_at_execution`
+  is on; without it, `execute_signed` on its own accepts an authenticator that
+  would exceed `max_auth_gas` at signing.
 - `check_signing_authentication` runs only the pre-consensus authenticator set
   under `max_auth_gas` — the **pre-consensus** signing check. It produces no
   effects; use it to tell whether a validator would admit the transaction for
