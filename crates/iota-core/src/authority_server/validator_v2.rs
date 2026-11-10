@@ -500,10 +500,12 @@ impl ValidatorService {
             let (result, verified_tx) = match join_result {
                 Ok(pair) => pair,
                 Err(join_err) => {
-                    // A panic inside `attest_transaction` (e.g., an
-                    // arithmetic panic in Move VM dry-run) surfaces here
-                    // as a `JoinError`. Convert to a rejection rather
-                    // than re-panicking on the per-tx task.
+                    // A panic in the dry run reaches this point only where
+                    // panics unwind, as in tests: release builds set
+                    // `panic = 'abort'`, so there it stops the validator. A
+                    // `JoinError` also comes when the runtime shuts down
+                    // before the dry run starts. The transaction is rejected
+                    // rather than panicking again on this submission's task.
                     tracing::error!(?tx_digest, "attest_transaction task failed: {join_err}");
                     let err = IotaError::GenericAuthority {
                         error: format!("attest_transaction task failed: {join_err}"),
