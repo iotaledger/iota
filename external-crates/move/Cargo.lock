@@ -2001,6 +2001,7 @@ dependencies = [
  "move-vm-types",
  "serde_json",
  "serde_yaml",
+ "sha3",
  "similar",
  "tempfile",
  "walkdir",

@@ -13,8 +13,11 @@ use move_core_types::{
     runtime_value::MoveValue,
 };
 use move_package::compilation::compiled_package::CompiledPackage;
+use move_trace_format::format::{MoveTraceBuilder, TRACE_FILE_EXTENSION};
+use move_unit_test::TRACE_DIR;
 use move_vm_runtime::move_vm::MoveVM;
 use move_vm_test_utils::gas_schedule::CostTable;
+use sha3::{Digest, Sha3_256};
 
 use crate::{
     NativeFunctionRecord,
@@ -37,7 +40,16 @@ pub fn run(
     gas_budget: Option<u64>,
     _dry_run: bool,
     _verbose: bool,
+    trace: bool,
 ) -> Result<()> {
+    move_vm_profiler::tracing_feature_disabled! {
+        if trace {
+            return Err(anyhow!(
+                "Tracing is enabled but the binary was not compiled with the `tracing` \
+                 feature flag set. Rebuild binary with `--features tracing`"
+            ));
+        }
+    };
     if !try_exists(module_file)? {
         bail!("Module file {:?} does not exist", module_file)
     };
@@ -75,7 +87,7 @@ pub fn run(
         .collect::<Result<Vec<_>, _>>()?;
 
     // TODO rethink move-cli arguments for executing functions
-    let vm_args = signer_addresses
+    let vm_args: Vec<Vec<u8>> = signer_addresses
         .iter()
         .map(|a| {
             MoveValue::Signer(*a)
@@ -84,30 +96,62 @@ pub fn run(
         })
         .chain(vm_args)
         .collect();
-    let res = {
-        // script fun. parse module, extract script ID to pass to VM
-        let module = CompiledModule::deserialize_with_defaults(&bytecode)
-            .map_err(|e| anyhow!("Error deserializing module: {:?}", e))?;
-        move_vm_profiler::tracing_feature_enabled! {
-            use move_vm_profiler::GasProfiler;
-            use move_vm_types::gas::GasMeter;
-
-            let gas_rem: u64 = gas_status.remaining_gas().into();
-            gas_status.set_profiler(GasProfiler::init(
-                &session.vm_config().profiler_config,
-                function_name.to_owned(),
-                gas_rem,
-            ));
+    let args_hash = {
+        let mut hasher = Sha3_256::new();
+        for arg in &vm_args {
+            hasher.update(arg);
         }
-
-        session.execute_entry_function(
-            &module.self_id(),
-            IdentStr::new(function_name)?,
-            script_type_arguments,
-            vm_args,
-            &mut gas_status,
-        )
+        for tag in &vm_type_tags {
+            hasher.update(tag.to_string().as_bytes());
+        }
+        let result = hasher.finalize();
+        result[..8]
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect::<String>()
     };
+    let mut move_tracer = MoveTraceBuilder::new();
+    let tracer = if trace { Some(&mut move_tracer) } else { None };
+    let module = CompiledModule::deserialize_with_defaults(&bytecode)
+        .map_err(|e| anyhow!("Error deserializing module: {:?}", e))?;
+    let module_id = module.self_id();
+
+    move_vm_profiler::tracing_feature_enabled! {
+        use move_vm_profiler::GasProfiler;
+        use move_vm_types::gas::GasMeter;
+
+        let gas_rem: u64 = gas_status.remaining_gas().into();
+        gas_status.set_profiler(GasProfiler::init(
+            &session.vm_config().profiler_config,
+            function_name.to_owned(),
+            gas_rem,
+        ));
+    }
+
+    let res = session.execute_function_bypass_visibility(
+        &module_id,
+        IdentStr::new(function_name)?,
+        script_type_arguments,
+        vm_args,
+        &mut gas_status,
+        tracer,
+    );
+
+    if trace {
+        let trace_file_name = format!(
+            "{}__{}__{}_{}.{}",
+            module_id.address().short_str_lossless(),
+            module_id.name(),
+            function_name,
+            args_hash,
+            TRACE_FILE_EXTENSION
+        );
+        let trace_dir = Path::new(TRACE_DIR);
+        fs::create_dir_all(trace_dir)?;
+        let trace_path = trace_dir.join(trace_file_name);
+        let trace_bytes = move_tracer.into_trace().into_compressed_json_bytes();
+        fs::write(&trace_path, trace_bytes)?;
+    }
 
     if let Err(err) = res {
         explain_execution_error(
