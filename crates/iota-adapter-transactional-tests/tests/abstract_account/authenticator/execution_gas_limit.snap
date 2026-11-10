@@ -42,17 +42,17 @@ gas summary:
 └── Non-Refundable Storage Fee: 0
 
 task 4, lines 37-38:
-//# abstract --account immshared(4,2) --sponsor A --auth-inputs 1 --ptb-inputs 10000
+//# abstract --account immshared(4,2) --sponsor A --auth-inputs 1 --ptb-inputs 30000
 mutated: object(0,0)
 unchanged_shared: object(4,2)
 gas summary:
-├── Computation Cost: 2000000
-├── Computation Cost Burned: 2000000
+├── Computation Cost: 73000000
+├── Computation Cost Burned: 73000000
 ├── Storage Cost: 980400
 ├── Storage Rebate: 980400
 └── Non-Refundable Storage Fee: 0
 
-task 5, lines 40-43:
+task 5, lines 40-44:
 //# view-object 0,0
 Owner: Address(A)
 Version: 4
@@ -63,16 +63,16 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
         },
     },
     balance: iota::balance::Balance<iota::iota::IOTA> {
-        value: 289999970600800u64,
+        value: 289999899600800u64,
     },
 }
 
-task 6, lines 44-45:
-//# abstract --account immshared(4,2) --sponsor A --auth-inputs 10000 --ptb-inputs 1
+task 6, lines 45-46:
+//# abstract --account immshared(4,2) --sponsor A --auth-inputs 30000 --ptb-inputs 1
 Error: Transaction Effects Status: Move authentication failed: Insufficient Gas
 Debug of error: MoveAuthentication { error: InsufficientGas } at command None
 
-task 7, line 47:
+task 7, line 48:
 //# view-object 0,0
 Owner: Address(A)
 Version: 5
@@ -83,6 +83,6 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
         },
     },
     balance: iota::balance::Balance<iota::iota::IOTA> {
-        value: 289999969600800u64,
+        value: 289999897600800u64,
     },
 }
