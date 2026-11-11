@@ -1197,7 +1197,8 @@ impl FromStr for PublicKey {
 #[cfg(not(target_arch = "wasm32"))]
 pub type RandomnessSignature = fastcrypto_threshold::types::Signature;
 #[cfg(not(target_arch = "wasm32"))]
-pub type RandomnessPartialSignature = fastcrypto_threshold::tbls::PartialSignature<RandomnessSignature>;
+pub type RandomnessPartialSignature =
+    fastcrypto_threshold::tbls::PartialSignature<RandomnessSignature>;
 #[cfg(not(target_arch = "wasm32"))]
 pub type RandomnessPrivateKey =
     fastcrypto_threshold::ecies_v1::PrivateKey<fastcrypto::groups::bls12381::G2Element>;
