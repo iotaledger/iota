@@ -1178,7 +1178,6 @@ pub fn generate_genesis_system_object(
 
 #[cfg(test)]
 mod test {
-
     use iota_config::{
         genesis::*,
         local_ip_utils,

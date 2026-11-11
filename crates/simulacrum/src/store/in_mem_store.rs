@@ -501,27 +501,10 @@ impl ReadStore for InMemoryStore {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct KeyStore {
     validator_keys: BTreeMap<AuthorityName, AuthorityKeyPair>,
     account_keys: BTreeMap<Address, AccountPrivateKey>,
-}
-
-impl Clone for KeyStore {
-    fn clone(&self) -> Self {
-        Self {
-            validator_keys: self
-                .validator_keys
-                .iter()
-                .map(|(k, v)| (*k, v.clone()))
-                .collect(),
-            account_keys: self
-                .account_keys
-                .iter()
-                .map(|(k, v)| (*k, v.clone()))
-                .collect(),
-        }
-    }
 }
 
 impl KeyStore {

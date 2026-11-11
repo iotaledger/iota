@@ -491,7 +491,7 @@ impl<R: rand::CryptoRng> ConfigBuilder<R> {
         genesis_config.validator_config_info = Some(
             validators
                 .iter()
-                .map(ValidatorGenesisConfig::copy_with_private_keys)
+                .map(ValidatorGenesisConfig::clone)
                 .collect(),
         );
 
