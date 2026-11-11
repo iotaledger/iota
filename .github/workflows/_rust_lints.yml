@@ -121,6 +121,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+  min-sdk-version:
+    if: (!cancelled() && inputs.isRust)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Check the minimum SDK version covers the BCS schema of iota-sdk-types
+        run: ./scripts/check_min_sdk_version.py
+
+  min-sdk-version-cancel:
+    needs: [min-sdk-version]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   examples:
     if: (!cancelled() && inputs.isRustExample)
     uses: ./.github/workflows/_rust_examples.yml
