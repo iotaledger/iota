@@ -452,6 +452,7 @@ pub fn print_all_entries(
 /// checkpoints, so a watermark naming a checkpoint the store no longer holds
 /// still shows.
 pub fn print_checkpoint_watermarks(path: &Path) -> anyhow::Result<()> {
+    AuthorityPerpetualTables::ensure_per_epoch_layout(&path.join("store"))?;
     let checkpoint_db = CheckpointStore::new_with_historic_db_path(
         &path.join("checkpoints"),
         &historic_db_path(path),
