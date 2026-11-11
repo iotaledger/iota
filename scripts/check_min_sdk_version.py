@@ -9,8 +9,8 @@ the SDK client crate they support:
 
 - `MIN_IOTA_SDK_GRPC_CLIENT_VERSION` in
   crates/iota-grpc-server/src/constants.rs, for `iota-sdk-grpc-client`;
-- `MIN_SDK_VERSION` in crates/iota-graphql-rpc/src/server/version.rs, for
-  `iota-sdk-graphql-client`.
+- `MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION` in
+  crates/iota-graphql-rpc/src/server/version.rs, for `iota-sdk-graphql-client`.
 
 A client at that version must be able to decode every BCS value the node
 sends, so the value has to be raised when the `iota-sdk-types` the node is
@@ -69,7 +69,7 @@ MINIMUMS = [
         "iota-sdk-grpc-client",
     ),
     Minimum(
-        "MIN_SDK_VERSION",
+        "MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION",
         "crates/iota-graphql-rpc/src/server/version.rs",
         "iota-sdk-graphql-client",
     ),

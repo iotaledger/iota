@@ -144,8 +144,8 @@ Headers: {
     "content-length": "157",
     "content-type": "application/graphql-response+json",
     "vary": "origin, access-control-request-method, access-control-request-headers",
-    "x-iota-min-sdk-version": "1.0.0-rc.1",
     "x-iota-rpc-version": "1.37.0-testing-no-sha",
+    "x-min-iota-sdk-graphql-client-version": "1.0.0-rc.1",
 }
 Service version: 1.37.0-testing-no-sha
 Response: {
