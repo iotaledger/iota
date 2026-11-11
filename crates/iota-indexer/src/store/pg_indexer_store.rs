@@ -7,7 +7,7 @@ use std::{any::Any as StdAny, collections::HashMap, time::Duration};
 
 use async_trait::async_trait;
 use diesel::{
-    ExpressionMethods, OptionalExtension, PgConnection, QueryDsl, RunQueryDsl,
+    ExpressionMethods, OptionalExtension, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper,
     dsl::{max, min, sql},
     sql_types::{Array, BigInt, Bytea, Nullable, SmallInt, Text},
     upsert::excluded,
@@ -40,8 +40,8 @@ use crate::{
         checkpoints::{StoredChainIdentifier, StoredCheckpoint, StoredCpTx},
         display::StoredDisplay,
         epoch::{
-            EndOfEpochUpdate, StartOfEpochUpdate, StoredEpochInfo, StoredFeatureFlag,
-            StoredProtocolConfig,
+            EndOfEpochUpdate, EpochLowerBounds, StartOfEpochUpdate, StoredEpochInfo,
+            StoredFeatureFlag, StoredProtocolConfig,
         },
         events::StoredEvent,
         obj_indices::StoredObjectVersion,
@@ -75,11 +75,22 @@ use crate::{
     },
 };
 
-/// Lower bounds of one epoch
-struct EpochLowerBounds {
-    first_checkpoint_id: u64,
-    first_tx_sequence_number: u64,
-    first_optimistic_sequence_number: u64,
+/// Lower bounds of epochs, by epoch number.
+struct EpochLowerBoundsMap(HashMap<u64, EpochLowerBounds>);
+
+impl EpochLowerBoundsMap {
+    /// Returns the lower bounds of `epoch`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the `epochs` table has no row for `epoch`.
+    fn get(&self, epoch: u64) -> Result<&EpochLowerBounds, IndexerError> {
+        self.0.get(&epoch).ok_or_else(|| {
+            IndexerError::PersistentStorageDataCorruption(format!(
+                "epoch {epoch} not found in epoch mapping",
+            ))
+        })
+    }
 }
 
 #[macro_export]
@@ -1545,34 +1556,24 @@ impl PgIndexerStore {
     fn map_epochs_to_low_bounds(
         &self,
         epochs: &[u64],
-    ) -> Result<HashMap<u64, EpochLowerBounds>, IndexerError> {
+    ) -> Result<EpochLowerBoundsMap, IndexerError> {
         let pool = &self.blocking_cp;
-        let results: Vec<(i64, i64, i64, i64)> = read_only_blocking!(pool, move |conn| {
+        let bounds: Vec<EpochLowerBounds> = read_only_blocking!(pool, move |conn| {
             epochs::table
                 .filter(epochs::epoch.eq_any(epochs.iter().map(|&e| e as i64)))
-                .select((
-                    epochs::epoch,
-                    epochs::first_checkpoint_id,
-                    epochs::first_tx_sequence_number,
-                    epochs::first_optimistic_sequence_number,
-                ))
-                .load::<(i64, i64, i64, i64)>(conn)
+                .select(EpochLowerBounds::as_select())
+                .load(conn)
         })
-        .context("Failed to fetch first checkpoint and tx seq num for epochs")?;
+        .context(&format!(
+            "Failed to fetch lower bounds for epochs {epochs:?}"
+        ))?;
 
-        Ok(results
-            .into_iter()
-            .map(|(epoch, checkpoint, tx, optimistic_seq)| {
-                (
-                    epoch as u64,
-                    EpochLowerBounds {
-                        first_checkpoint_id: checkpoint as u64,
-                        first_tx_sequence_number: tx as u64,
-                        first_optimistic_sequence_number: optimistic_seq as u64,
-                    },
-                )
-            })
-            .collect())
+        Ok(EpochLowerBoundsMap(
+            bounds
+                .into_iter()
+                .map(|bounds| (bounds.epoch as u64, bounds))
+                .collect(),
+        ))
     }
 
     fn update_watermarks_lower_bound<Table: AsRef<str>>(
@@ -1586,11 +1587,7 @@ impl PgIndexerStore {
         let lookups: Result<Vec<StoredWatermark>, IndexerError> = watermarks
             .into_iter()
             .map(|(table, epoch)| {
-                let bounds = epoch_mapping.get(&epoch).ok_or_else(|| {
-                    IndexerError::PersistentStorageDataCorruption(format!(
-                        "epoch {epoch} not found in epoch mapping",
-                    ))
-                })?;
+                let bounds = epoch_mapping.get(epoch)?;
 
                 // `optimistic_transactions` is bounded by optimistic sequence
                 // numbers, not tx sequence numbers.
@@ -1604,8 +1601,8 @@ impl PgIndexerStore {
                 Ok(StoredWatermark::from_lower_bound_update(
                     table.as_ref(),
                     epoch,
-                    bounds.first_checkpoint_id,
-                    min_available_tx,
+                    bounds.first_checkpoint_id as u64,
+                    min_available_tx as u64,
                 ))
             })
             .collect();
