@@ -14,6 +14,7 @@ use std::{
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{Stream, StreamExt as _, TryStreamExt as _, future, stream};
+use hyper_util::client::legacy::connect::HttpConnector;
 use iota_http::{PeerConnectionEvent, ServerHandle};
 use iota_network_stack::{
     Multiaddr,
@@ -980,8 +981,16 @@ impl ChannelPool {
             .tls_config(client_tls_config)
             .unwrap();
 
+        // A connector makes `connect_timeout` bound the TLS handshake of later
+        // reconnects too, so a silent peer cannot block the pooled channel.
+        let mut http = HttpConnector::new();
+        http.enforce_http(false);
+        http.set_nodelay(true);
+        http.set_connect_timeout(Some(connect_timeout));
+
         trace!("Connecting to endpoint at {address}");
-        let channel = match tokio::time::timeout_at(deadline, endpoint.connect()).await {
+        let connect = endpoint.connect_with_connector(http);
+        let channel = match tokio::time::timeout_at(deadline, connect).await {
             Ok(Ok(channel)) => channel,
             Ok(Err(e)) => {
                 debug!("Failed to connect to endpoint at {address}: {e:?}");
@@ -2870,6 +2879,71 @@ mod tests {
         ));
 
         long.abort();
+    }
+
+    /// A pooled channel to a peer that accepts TCP but never answers TLS fails
+    /// calls by the connect timeout, and connects again once the peer serves.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn reconnect_without_tls_answer_fails_by_the_connect_timeout() {
+        use std::{net::TcpListener, time::Duration};
+
+        use super::to_socket_addr;
+        use crate::network::NetworkClient as _;
+
+        const TIMEOUT: Duration = Duration::from_secs(3);
+
+        let (context, keys) = Context::new_for_test(4);
+        let peer = context.committee.to_authority_index(0).unwrap();
+        let peer_context = Arc::new(context.clone().with_authority_index(peer));
+        let start_peer = || {
+            let mut server = TonicManager::new(peer_context.clone(), keys[0].0.clone());
+            async move {
+                server
+                    .install_service(Arc::new(Mutex::new(TestService::new())))
+                    .await;
+                server
+            }
+        };
+        let mut server = start_peer().await;
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+        let _ = client
+            .subscribe_block_bundles(peer, 0, TIMEOUT)
+            .await
+            .expect("the peer serves");
+
+        server.stop().await;
+        // Never accepted, so a reconnect gets TCP but no TLS answer.
+        let listener =
+            TcpListener::bind(to_socket_addr(&context.committee.authority(peer).address).unwrap())
+                .unwrap();
+        // The first call may fail on the closed connection; the second has to
+        // reconnect.
+        for _ in 0..2 {
+            let result = tokio::time::timeout(
+                TIMEOUT * 3,
+                client.subscribe_block_bundles(peer, 0, TIMEOUT),
+            )
+            .await
+            .expect("the call fails by the connect timeout instead of waiting");
+            assert!(result.is_err());
+        }
+
+        drop(listener);
+        let _server = start_peer().await;
+        let _ = tokio::time::timeout(
+            TIMEOUT * 3,
+            client.subscribe_block_bundles(peer, 0, TIMEOUT),
+        )
+        .await
+        .expect("the call does not wait for an old connection attempt")
+        .expect("the same pooled channel connects again");
     }
 
     /// A header fetch whose request message never arrives is charged to its
