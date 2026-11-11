@@ -467,9 +467,8 @@ pub(super) fn build_auth_context_data(
 }
 
 /// Run `authenticate_transaction` over `auths_to_run` under `gas_status`,
-/// returning the aggregate outcome (`Err` if any authenticator rejected). Used
-/// to disambiguate a failed combined run and, on its own, to model the node's
-/// pre-consensus signing check.
+/// returning the aggregate outcome (`Err` if any authenticator rejected).
+/// Models the node's pre-consensus signing check.
 pub(super) fn authenticate_only(
     env: &ExecutionEnv,
     store: &dyn BackingStore,
