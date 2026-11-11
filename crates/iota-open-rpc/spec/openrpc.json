@@ -1295,8 +1295,8 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "40",
-              "protocolVersion": "40",
+              "maxSupportedProtocolVersion": "41",
+              "protocolVersion": "41",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,

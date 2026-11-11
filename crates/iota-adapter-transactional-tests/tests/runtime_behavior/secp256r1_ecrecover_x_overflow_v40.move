@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The signature has `r + n >= 2^256` and a recovery id that asks for the x-coordinate `r + n`.
-// Before protocol version 40 the x-coordinate wraps at 2^256 and a public key is recovered.
+// Before protocol version 41 the x-coordinate wraps at 2^256 and a public key is recovered.
 
-//# init --addresses test=0x0 --accounts A --protocol-version 39
+//# init --addresses test=0x0 --accounts A --protocol-version 40
 
 //# publish
 

@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 40;
+pub const MAX_PROTOCOL_VERSION: u64 = 41;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -280,11 +280,11 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             after consensus and in block verification. Block verification
 //             also rejects a block that carries a system transaction kind in
 //             a user transaction or certificate.
-//             `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
-//             restored x-coordinate is not below the field modulus.
 //             Update the gas model version to 3.
 //             Enable validator attestation on devnet, with the checkpoint
 //             summary data version that certifies the verdicts.
+// Version 41: `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
+//             restored x-coordinate is not below the field modulus.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3942,11 +3942,6 @@ impl ProtocolConfig {
                     // signing, after consensus and in block verification.
                     cfg.feature_flags.disallow_self_identifier_in_transactions = true;
 
-                    // `ecdsa_r1::secp256r1_ecrecover` rejects a signature
-                    // whose restored x-coordinate is not below the field
-                    // modulus.
-                    cfg.feature_flags.secp256r1_ecrecover_reject_x_overflow = true;
-
                     // Update the gas model version.
                     cfg.gas_model_version = Some(3);
 
@@ -3956,6 +3951,12 @@ impl ProtocolConfig {
                         cfg.feature_flags.enable_validator_attestation = true;
                         cfg.checkpoint_summary_version_specific_data = Some(2);
                     }
+                }
+                41 => {
+                    // `ecdsa_r1::secp256r1_ecrecover` rejects a signature
+                    // whose restored x-coordinate is not below the field
+                    // modulus.
+                    cfg.feature_flags.secp256r1_ecrecover_reject_x_overflow = true;
                 }
                 // Use this template when making changes:
                 //
