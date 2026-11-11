@@ -1710,11 +1710,12 @@ impl AuthorityState {
     }
 
     /// Takes a P-COOL transaction's [`InflightSlot`] in the consensus queue,
-    /// then runs the consensus queue overload checks against
+    /// then runs graduated shedding against
     /// [`InflightSlot::queue_length_before()`], which also counts admissions
-    /// still in progress. Returns the slot, to be passed to
-    /// [`ConsensusAdapter::submit_with_slot()`]; on an error, the slot is
-    /// released.
+    /// still in progress, and the permit check of
+    /// [`ConsensusAdapter::check_submit_permits()`]. Returns the slot, to be
+    /// passed to [`ConsensusAdapter::submit_with_slot()`]; on an error, the
+    /// slot is released.
     ///
     /// # Errors
     ///
@@ -1729,43 +1730,29 @@ impl AuthorityState {
         tx: &SenderSignedTransaction,
     ) -> IotaResult<InflightSlot> {
         let slot = consensus_adapter.reserve_inflight_slot();
-        self.check_consensus_queue_overload(
+
+        // Graduated shedding: 0% to 100% as the consensus queue fills from the
+        // soft to the hard limit.
+        self.check_consensus_queue_graduated_limits(
             consensus_adapter,
             tx,
             slot.queue_length_before() as usize,
-        )?;
-
-        Ok(slot)
-    }
-
-    /// Runs the P-COOL consensus queue checks: graduated shedding against
-    /// `queue_length`, the number of other transactions in the queue, then
-    /// the binary cutoff and the permit check of
-    /// [`ConsensusAdapter::check_consensus_overload()`].
-    fn check_consensus_queue_overload(
-        &self,
-        consensus_adapter: &Arc<ConsensusAdapter>,
-        tx: &SenderSignedTransaction,
-        queue_length: usize,
-    ) -> IotaResult {
-        // Graduated shedding: 0% to 100% as the consensus queue fills from the
-        // soft to the hard limit.
-        self.check_consensus_queue_graduated_limits(consensus_adapter, tx, queue_length)
-            .tap_err(|_| {
-                self.update_overload_metrics("consensus");
-            })?;
+        )
+        .tap_err(|_| {
+            self.update_overload_metrics("consensus");
+        })?;
 
         // Graduated shedding at 100% already rejects everything at or above
-        // `max_pending_transactions`. The count check below reads the queue as
-        // it is now, including slots taken after this one, so it can also
-        // reject a few transactions right below the limit, which is harmless.
-        // `check_consensus_overload()` stays because it also verifies that
-        // `submit_semaphore` has permits (see `check_consensus_hard_limits` in
-        // consensus_adapter.rs), a separate concurrency limit that graduated
-        // shedding does not cover.
-        consensus_adapter.check_consensus_overload().tap_err(|_| {
+        // `max_pending_transactions`, judged by the queue before this slot.
+        // `check_consensus_overload()` would count the queue as it is now,
+        // including slots taken after this one, and reject transactions that
+        // had room, so only the `submit_semaphore` permits are checked: a
+        // separate concurrency limit that graduated shedding does not cover.
+        consensus_adapter.check_submit_permits().tap_err(|_| {
             self.update_overload_metrics("consensus");
-        })
+        })?;
+
+        Ok(slot)
     }
 
     /// Rejects `tx` via graduated shedding at `queue_length`, the number of

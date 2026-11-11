@@ -9890,7 +9890,7 @@ async fn test_consensus_queue_graduated_load_shedding() {
     // At 15_000: 100 * 5_000 / 10_000 = 50%. At/above 20_000: capped at 100%.
     // At 15_000, whether a specific tx is rejected depends on its digest, so
     // we check the metric instead. At/above the hard limit, rejection is
-    // deterministic (100% graduated shedding, plus the binary cutoff above).
+    // deterministic (100% graduated shedding).
     for (num_inflight_txs, expected_pct, expect_err) in [
         (15_000, 50, false),         // graduated, non-deterministic
         (hard_limit, 100, true),     // at hard limit: 100% shedding
@@ -9913,7 +9913,7 @@ async fn test_consensus_queue_graduated_load_shedding() {
             assert!(
                 result.is_err(),
                 "at/above hard limit ({num_inflight_txs} >= {hard_limit}), transaction should \
-                    always be rejected (100% graduated shedding, plus binary cutoff above)",
+                    always be rejected (100% graduated shedding)",
             );
         }
     }
@@ -10042,6 +10042,160 @@ async fn consensus_queue_slot_is_released_when_the_epoch_has_ended() {
         .await
         .unwrap();
     assert_eq!(consensus_adapter.num_inflight_transactions(), 0);
+}
+
+/// [`AuthorityState::reserve_consensus_queue_slot()`] rejects a transaction
+/// when no submit permit is free, however short the consensus queue, and
+/// releases its slot.
+#[tokio::test]
+async fn consensus_queue_slot_needs_a_free_submit_permit() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object1 = Object::with_owner_for_testing(sender);
+    let gas_object2 = Object::with_owner_for_testing(sender);
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    // An empty queue far below its limit, and no submit permits at all.
+    let no_permits = 0;
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        20_000,
+        no_permits,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        50,
+    ));
+    let tx = make_transfer_object_transaction(
+        gas_object1.object_ref(),
+        gas_object2.object_ref(),
+        sender,
+        &sender_key,
+        Address::random(),
+        authority_state.reference_gas_price_for_testing().unwrap(),
+    );
+
+    let result = authority_state.reserve_consensus_queue_slot(&consensus_adapter, tx.data());
+    assert!(
+        matches!(result, Err(IotaError::TooManyTransactionsPendingConsensus)),
+        "an admission without a free submit permit should be rejected",
+    );
+    assert_eq!(consensus_adapter.num_inflight_transactions(), 0);
+}
+
+/// Admissions that arrive together near the limit fill exactly the places left
+/// in the consensus queue. Each is judged by the queue before its own slot, so
+/// slots taken after it, including those of admissions about to be rejected,
+/// do not get it rejected.
+#[tokio::test]
+async fn concurrent_admissions_fill_exactly_the_places_left_in_the_consensus_queue() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object1 = Object::with_owner_for_testing(sender);
+    let gas_object2 = Object::with_owner_for_testing(sender);
+
+    let hard_limit: usize = 1_000;
+    let places_left: usize = 20;
+    // With the soft limit at the hard limit, graduated shedding accepts every
+    // transaction below the hard limit and rejects every one at it, so the
+    // outcome does not depend on the transaction digest.
+    let soft_limit_pct: u32 = 100;
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        hard_limit,
+        hard_limit,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        soft_limit_pct,
+    ));
+    let tx = make_transfer_object_transaction(
+        gas_object1.object_ref(),
+        gas_object2.object_ref(),
+        sender,
+        &sender_key,
+        Address::random(),
+        authority_state.reference_gas_price_for_testing().unwrap(),
+    );
+
+    consensus_adapter.set_num_inflight_transactions_for_testing((hard_limit - places_left) as u64);
+    // Many threads admit at once, each keeping the slots it was given.
+    let accepted: Vec<_> = std::thread::scope(|scope| {
+        let threads: Vec<_> = (0..16)
+            .map(|_| {
+                scope.spawn(|| {
+                    (0..10)
+                        .filter_map(|_| {
+                            authority_state
+                                .reserve_consensus_queue_slot(&consensus_adapter, tx.data())
+                                .ok()
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        threads
+            .into_iter()
+            .flat_map(|thread| thread.join().expect("an admission thread panicked"))
+            .collect()
+    });
+
+    assert_eq!(accepted.len(), places_left);
+    assert_eq!(
+        consensus_adapter.num_inflight_transactions(),
+        hard_limit as u64
+    );
+    drop(accepted);
+    assert_eq!(
+        consensus_adapter.num_inflight_transactions(),
+        (hard_limit - places_left) as u64
+    );
+}
+
+/// [`ConsensusAdapter::submit_recovered()`] counts every transaction recovered
+/// from the pending consensus table at once, before its submission task
+/// starts, so admissions right after a restart see them.
+#[tokio::test]
+async fn recovered_transactions_count_in_the_consensus_queue_before_their_tasks_start() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object1 = Object::with_owner_for_testing(sender);
+    let gas_object2 = Object::with_owner_for_testing(sender);
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let recovered: Vec<_> = (0..2)
+        .map(|_| {
+            ConsensusTransaction::new_user_transaction(make_transfer_object_transaction(
+                gas_object1.object_ref(),
+                gas_object2.object_ref(),
+                sender,
+                &sender_key,
+                Address::random(),
+                rgp,
+            ))
+        })
+        .collect();
+    epoch_store
+        .insert_pending_consensus_transactions(&recovered, None)
+        .unwrap();
+
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
+        authority_state.name,
+    ));
+    // The test runtime runs one task at a time, so no submission task has
+    // started when the count is read.
+    consensus_adapter.submit_recovered(&epoch_store);
+    assert_eq!(
+        consensus_adapter.num_inflight_transactions(),
+        recovered.len() as u64
+    );
 }
 
 /// Builds an authority with the P-COOL flow, and with it deny rule

@@ -265,8 +265,10 @@ pub struct ConsensusAdapter {
     /// consensus. A P-COOL user transaction counts from admission, where
     /// [`ConsensusAdapter::reserve_inflight_slot()`] takes its slot before the
     /// overload check. Certificates and system transactions count from the
-    /// start of the task that submits them ([`InflightDropGuard::acquire()`]).
-    /// A transaction stops counting when its [`InflightSlot`] is dropped.
+    /// start of the task that submits them ([`InflightDropGuard::acquire()`]),
+    /// and transactions recovered after a restart from
+    /// [`ConsensusAdapter::submit_recovered()`], before their tasks start. A
+    /// transaction stops counting when its [`InflightSlot`] is dropped.
     num_inflight_transactions: AtomicU64,
 
     /// Dictates the maximum position  from which will submit to consensus. Even
@@ -425,9 +427,14 @@ impl ConsensusAdapter {
             if transaction.is_end_of_publish() {
                 info!(epoch=?epoch_store.epoch(), "Submitting EndOfPublish message to consensus");
             }
-            // Admitted before the restart, so no slot from admission: the
-            // transaction counts once its submission task starts.
-            self.submit_unchecked(&[transaction], epoch_store, None);
+            // Admitted before the restart, so it takes its slot here, before
+            // its submission task starts, and admissions arriving meanwhile
+            // count it.
+            self.submit_unchecked(
+                &[transaction],
+                epoch_store,
+                Some(self.reserve_inflight_slot()),
+            );
         }
     }
 
@@ -736,12 +743,6 @@ impl ConsensusAdapter {
     /// Uses relaxed atomic reads: the two limits are not observed atomically.
     fn check_consensus_hard_limits(&self) -> bool {
         // First check total in-flight transactions (waiting and in submission).
-        // TODO: this check is redundant in the P-COOL flow - graduated
-        // shedding already rejects at 100% once `num_inflight_transactions`
-        // reaches `max_pending_transactions`. Remove when the certificate-based
-        // flow is removed from the codebase. The semaphore check below stays in
-        // either case, since it is a separate concurrency limit not covered
-        // by graduated shedding.
         if self.num_inflight_transactions.load(Ordering::Relaxed) as usize
             > self.max_pending_transactions
         {
@@ -763,10 +764,23 @@ impl ConsensusAdapter {
         Ok(())
     }
 
+    /// Returns `TooManyTransactionsPendingConsensus` when `submit_semaphore`
+    /// has no free permit. Unlike [`Self::check_consensus_overload()`], it does
+    /// not check the number of in-flight transactions.
+    pub(crate) fn check_submit_permits(&self) -> IotaResult {
+        fp_ensure!(
+            self.submit_semaphore.available_permits() > 0,
+            IotaError::TooManyTransactionsPendingConsensus
+        );
+
+        Ok(())
+    }
+
     /// Spawns the task that submits `transactions` to consensus, which must
     /// already be in the pending consensus table. `slot` is the
-    /// [`InflightSlot`] the transaction took at admission, if any; without
-    /// one, the task takes a slot when it starts.
+    /// [`InflightSlot`] the transaction already holds, taken at admission or
+    /// when it was recovered after a restart, if any; without one, the task
+    /// takes a slot when it starts.
     fn submit_unchecked(
         self: &Arc<Self>,
         transactions: &[ConsensusTransaction],
@@ -778,10 +792,10 @@ impl ConsensusAdapter {
         let async_stage =
             self.clone()
                 .submit_and_wait(transactions.to_vec(), epoch_store.clone(), slot);
-        // `num_inflight_transactions` limits how many of these tasks exist, and
-        // only for user transactions. The limit is exact in the P-COOL flow,
-        // where the slot is taken at admission, and loose in the certificate
-        // flow, where the count rises only once the task runs.
+        // `num_inflight_transactions` limits user transactions only. The limit
+        // is exact in the P-COOL flow, where an admission takes its slot first
+        // and is judged by the queue before it, and loose in the certificate
+        // flow, where the count rises only once this task runs.
         let join_handle = spawn_monitored_task!(async_stage);
         join_handle
     }
@@ -1482,8 +1496,8 @@ impl<'a> InflightDropGuard<'a> {
     /// Returns a guard that holds the submission's [`InflightSlot`] and
     /// counts the submission in the `sequencing_certificate_inflight` metric
     /// until the guard is dropped. `slot` is the [`InflightSlot`] the
-    /// transaction took at admission, if any; without one, the guard takes a
-    /// slot now.
+    /// transaction already holds, taken at admission or when it was recovered
+    /// after a restart, if any; without one, the guard takes a slot now.
     pub fn acquire(
         adapter: &'a Arc<ConsensusAdapter>,
         tx_type: &'static str,
