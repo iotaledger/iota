@@ -11,7 +11,7 @@ use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{
-    Address, GasCostSummary, ProgrammableTransaction, TransactionDigest, TransactionKind,
+    Address, GasCostSummary, ObjectId, ProgrammableTransaction, TransactionDigest, TransactionKind,
 };
 use move_core_types::account_address::AccountAddress;
 use serde::Serialize;
@@ -180,7 +180,7 @@ impl PTB {
 
         // Tokenize once to detect help flags
         let tokens = self.args.iter().map(|s| s.as_str());
-        for sp!(_, lexeme) in Lexer::new(tokens.clone()).into_iter().flatten() {
+        for sp!(_, lexeme) in Lexer::new(tokens).into_iter().flatten() {
             match lexeme {
                 Lexeme(Token::Command, "help") => {
                     return Ok(PTBCommandResult::Help { long: true });
@@ -193,22 +193,7 @@ impl PTB {
             }
         }
 
-        // Tokenize and parse to get the program
-        let (program, program_metadata) = match ProgramParser::new(tokens)
-            .map_err(|e| vec![e])
-            .and_then(|parser| parser.parse())
-        {
-            Err(errors) => {
-                let suffix = if errors.len() > 1 { "s" } else { "" };
-                let rendered = build_error_reports(&source_string, errors);
-                eprintln!("Encountered error{suffix} when parsing PTB:");
-                for e in rendered.iter() {
-                    eprintln!("{e:?}");
-                }
-                bail!("Could not build PTB due to previous error{suffix}");
-            }
-            Ok(parsed) => parsed,
-        };
+        let (program, program_metadata) = parse(&self.args, &source_string)?;
 
         ensure!(
             !program_metadata.serialize_unsigned_set || !program_metadata.serialize_signed_set,
@@ -228,59 +213,12 @@ impl PTB {
             }));
         }
 
-        let grpc_client = context.get_grpc_client().await?;
-        let env = context.active_env()?;
-        grpc_client.service_info().await.map_err(|e| {
-            anyhow!(
-                "cannot reach the gRPC endpoint for env [{}] at {}: {e}",
-                env.alias(),
-                grpc_client.uri()
-            )
-        })?;
-
-        let (res, warnings) = Self::build_ptb(program, context, grpc_client).await;
-
-        // Render warnings
-        if !warnings.is_empty() {
-            let suffix = if warnings.len() > 1 { "s" } else { "" };
-            eprintln!("Warning{suffix} produced when building PTB:");
-            let rendered = build_error_reports(&source_string, warnings);
-            for e in rendered.iter() {
-                eprintln!("{e:?}");
-            }
-        }
-        let ptb = match res {
-            Err(errors) => {
-                let suffix = if errors.len() > 1 { "s" } else { "" };
-                eprintln!("Encountered error{suffix} when building PTB:");
-                let rendered = build_error_reports(&source_string, errors);
-                for e in rendered.iter() {
-                    eprintln!("{e:?}");
-                }
-                bail!("Could not build PTB due to previous error{suffix}");
-            }
-            Ok(x) => x,
-        };
-
-        let gas: Vec<_> = program_metadata
+        let gas = program_metadata
             .gas_object_ids
             .into_iter()
             .flatten()
             .map(|x| x.value)
             .collect();
-
-        let sender = if let Some(sender) = program_metadata.sender {
-            Address::new(sender.value.into_bytes())
-        } else {
-            // the sender is the gas object if gas is provided, otherwise the active address
-            context.infer_sender(&gas).await?
-        };
-
-        // build the tx kind
-        let tx_kind = TransactionKind::Programmable(ProgrammableTransaction {
-            inputs: ptb.inputs,
-            commands: ptb.commands,
-        });
 
         let gas_data = GasDataArgs {
             gas_budget: program_metadata.gas_budget.map(|x| x.value),
@@ -315,8 +253,7 @@ impl PTB {
         };
 
         let transaction_response =
-            dry_run_or_execute_or_serialize(sender, tx_kind, context, gas, gas_data, processing)
-                .await?;
+            run(program, &source_string, context, gas, gas_data, processing).await?;
 
         let transaction_response = match transaction_response {
             IotaClientCommandResult::ComputeTransactionDigest(_)
@@ -400,6 +337,96 @@ impl PTB {
             .map_err(|e| vec![e])
             .and_then(|parser| parser.parse())
     }
+
+    /// Builds the PTB from `args` and runs it as set by `processing`. Flags in
+    /// `args` are ignored, so `args` should only hold PTB commands.
+    pub async fn execute_commands(
+        args: Vec<String>,
+        context: &mut WalletContext,
+        gas: Vec<ObjectId>,
+        gas_data: GasDataArgs,
+        processing: TxProcessingArgs,
+    ) -> Result<IotaClientCommandResult, Error> {
+        let source_string = to_source_string(args.clone());
+        let (program, _) = parse(&args, &source_string)?;
+        run(program, &source_string, context, gas, gas_data, processing).await
+    }
+}
+
+fn parse(args: &[String], source_string: &str) -> Result<ParsedProgram, Error> {
+    match ProgramParser::new(args.iter().map(|s| s.as_str()))
+        .map_err(|e| vec![e])
+        .and_then(|parser| parser.parse())
+    {
+        Err(errors) => {
+            let suffix = if errors.len() > 1 { "s" } else { "" };
+            let rendered = build_error_reports(source_string, errors);
+            eprintln!("Encountered error{suffix} when parsing PTB:");
+            for e in rendered.iter() {
+                eprintln!("{e:?}");
+            }
+            bail!("Could not build PTB due to previous error{suffix}");
+        }
+        Ok(parsed) => Ok(parsed),
+    }
+}
+
+async fn run(
+    program: Program,
+    source_string: &str,
+    context: &mut WalletContext,
+    gas: Vec<ObjectId>,
+    gas_data: GasDataArgs,
+    processing: TxProcessingArgs,
+) -> Result<IotaClientCommandResult, Error> {
+    let grpc_client = context.get_grpc_client().await?;
+    let env = context.active_env()?;
+    grpc_client.service_info().await.map_err(|e| {
+        anyhow!(
+            "cannot reach the gRPC endpoint for env [{}] at {}: {e}",
+            env.alias(),
+            grpc_client.uri()
+        )
+    })?;
+
+    let (res, warnings) = PTB::build_ptb(program, context, grpc_client).await;
+
+    // Render warnings
+    if !warnings.is_empty() {
+        let suffix = if warnings.len() > 1 { "s" } else { "" };
+        eprintln!("Warning{suffix} produced when building PTB:");
+        let rendered = build_error_reports(source_string, warnings);
+        for e in rendered.iter() {
+            eprintln!("{e:?}");
+        }
+    }
+    let ptb = match res {
+        Err(errors) => {
+            let suffix = if errors.len() > 1 { "s" } else { "" };
+            eprintln!("Encountered error{suffix} when building PTB:");
+            let rendered = build_error_reports(source_string, errors);
+            for e in rendered.iter() {
+                eprintln!("{e:?}");
+            }
+            bail!("Could not build PTB due to previous error{suffix}");
+        }
+        Ok(x) => x,
+    };
+
+    let sender = if let Some(sender) = processing.sender {
+        sender
+    } else {
+        // the sender is the gas object if gas is provided, otherwise the active address
+        context.infer_sender(&gas).await?
+    };
+
+    // build the tx kind
+    let tx_kind = TransactionKind::Programmable(ProgrammableTransaction {
+        inputs: ptb.inputs,
+        commands: ptb.commands,
+    });
+
+    dry_run_or_execute_or_serialize(sender, tx_kind, context, gas, gas_data, processing).await
 }
 
 /// Convert a vector of shell tokens into a single string, with each shell token

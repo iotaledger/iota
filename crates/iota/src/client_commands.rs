@@ -585,16 +585,6 @@ pub struct PaymentArgs {
     pub gas: Vec<ObjectId>,
 }
 
-impl PaymentArgs {
-    /// Output the payment args as a vec of strings for CLI usage.
-    pub fn into_args(self) -> Vec<String> {
-        self.gas
-            .into_iter()
-            .map(|gas_id| format!("--gas {gas_id}"))
-            .collect()
-    }
-}
-
 /// Arguments related to setting gas data, apart from payment coins.
 #[derive(Args, Debug, Default)]
 pub struct GasDataArgs {
@@ -624,23 +614,6 @@ pub struct GasDataArgs {
     /// set.
     #[arg(long)]
     pub gas_sponsor: Option<Address>,
-}
-
-impl GasDataArgs {
-    /// Output the gas data args as a vec of strings for CLI usage.
-    pub fn into_args(self) -> Vec<String> {
-        let mut args = Vec::new();
-        if let Some(gas_budget) = self.gas_budget {
-            args.push(format!("--gas-budget {gas_budget}"));
-        }
-        if let Some(gas_price) = self.gas_price {
-            args.push(format!("--gas-price {gas_price}"));
-        }
-        if let Some(gas_sponsor) = self.gas_sponsor {
-            args.push(format!("--gas-sponsor @{gas_sponsor}"));
-        }
-        args
-    }
 }
 
 /// Arguments specifying how to use a transaction after it has been built.
@@ -707,44 +680,6 @@ pub struct TxProcessingArgs {
     /// sponsor.
     #[arg(long, num_args = 1..)]
     pub sponsor_auth_type_args: Option<Vec<String>>,
-}
-
-impl TxProcessingArgs {
-    /// Output the tx processing args as a vec of strings for CLI usage.
-    pub fn into_args(self) -> Vec<String> {
-        let mut args = Vec::new();
-        if self.tx_digest {
-            args.push("--tx-digest".to_string());
-        }
-        if self.dry_run {
-            args.push("--dry-run".to_string());
-        }
-        if self.dev_inspect {
-            args.push("--dev-inspect".to_string());
-        }
-        if self.local {
-            args.push("--local".to_string());
-        }
-        if self.serialize_unsigned_transaction {
-            args.push("--serialize-unsigned-transaction".to_string());
-        }
-        if self.serialize_signed_transaction {
-            args.push("--serialize-signed-transaction".to_string());
-        }
-        if let Some(sender) = self.sender {
-            args.push(format!("--sender @{sender}"));
-        }
-        if !self.display.is_empty() {
-            let display_fields = self
-                .display
-                .iter()
-                .map(|d| d.to_string())
-                .collect::<Vec<_>>()
-                .join(",");
-            args.push(format!("--display {display_fields}"));
-        }
-        args
-    }
 }
 
 #[derive(Clone, Debug, Display, EnumString, Hash, Eq, PartialEq)]

@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    mem::take,
     str::FromStr,
     time::{Duration, SystemTime},
 };
@@ -382,7 +381,7 @@ impl NameCommand {
                 verbose,
                 payment,
                 gas_data,
-                mut processing,
+                processing,
             } => {
                 ensure!(
                     name.num_labels() == 2,
@@ -462,13 +461,10 @@ impl NameCommand {
                     ));
                 }
                 args.push("--transfer-objects [nft] sender".to_string());
-                let display = take(&mut processing.display);
-                args.extend(payment.into_args());
-                args.extend(gas_data.into_args());
-                args.extend(processing.into_args());
-                let res = IotaClientCommands::PTB(PTB { args, display })
-                    .execute(context)
-                    .await?;
+                let res = PTB::execute_commands(args, context, payment.gas, gas_data, processing)
+                    .await?
+                    .prerender_clever_errors(context)
+                    .await;
 
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::Register {
@@ -488,7 +484,7 @@ impl NameCommand {
                 verbose,
                 payment,
                 gas_data,
-                mut processing,
+                processing,
             } => {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -547,14 +543,10 @@ impl NameCommand {
                     ),
                 ]);
 
-                let display = take(&mut processing.display);
-                args.extend(payment.into_args());
-                args.extend(gas_data.into_args());
-                args.extend(processing.into_args());
-
-                let res = IotaClientCommands::PTB(PTB { args, display })
-                    .execute(context)
-                    .await?;
+                let res = PTB::execute_commands(args, context, payment.gas, gas_data, processing)
+                    .await?
+                    .prerender_clever_errors(context)
+                    .await;
 
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::Renew {
@@ -1032,7 +1024,7 @@ impl SubnameCommand {
                 verbose,
                 payment,
                 gas_data,
-                mut processing,
+                processing,
             } => {
                 let Some(parent) = name.parent() else {
                     bail!("invalid subname: {name}");
@@ -1059,7 +1051,7 @@ impl SubnameCommand {
                 let expiration_timestamp = expiration_timestamp.0;
                 let parent_id = parent.id();
 
-                let mut args = vec![
+                let args = vec![
                     "--move-call iota::tx_context::sender".to_owned(),
                     "--assign sender".to_owned(),
                     format!(
@@ -1072,13 +1064,10 @@ impl SubnameCommand {
                     "--assign nft".to_owned(),
                     "--transfer-objects [nft] sender".to_owned(),
                 ];
-                let display = take(&mut processing.display);
-                args.extend(payment.into_args());
-                args.extend(gas_data.into_args());
-                args.extend(processing.into_args());
-                let res = IotaClientCommands::PTB(PTB { args, display })
-                    .execute(context)
-                    .await?;
+                let res = PTB::execute_commands(args, context, payment.gas, gas_data, processing)
+                    .await?
+                    .prerender_clever_errors(context)
+                    .await;
 
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::RegisterNodeSubname {
