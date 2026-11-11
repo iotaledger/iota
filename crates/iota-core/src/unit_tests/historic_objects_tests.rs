@@ -664,11 +664,10 @@ async fn test_a_tombstone_below_the_relocated_version_is_not_the_answer() {
     }
 }
 
-/// Once the backlog is swept, a bounded read that finds a live version that is
-/// not a tombstone answers with it and leaves the buckets alone; before, and
-/// for anything else, it walks them.
+/// A bounded read that finds a live version that is not a tombstone answers
+/// with it and leaves the buckets alone; for anything else it walks them.
 #[tokio::test]
-async fn test_a_live_version_skips_the_walk_once_the_backlog_is_swept() {
+async fn test_a_live_version_skips_the_walk() {
     let (perpetual, historic, store, _dir) = test_store();
     let id = ObjectId::random();
 
@@ -701,8 +700,6 @@ async fn test_a_live_version_skips_the_walk_once_the_backlog_is_swept() {
         (version, historic.bucket_walks() - before)
     };
 
-    assert_eq!(read(8), (Some(Version::from(8)), 1));
-    historic.mark_backlog_swept();
     assert_eq!(read(8), (Some(Version::from(8)), 0));
     assert_eq!(read(7), (Some(Version::from(7)), 1));
 }
@@ -747,8 +744,7 @@ async fn test_expiry_keeps_a_tombstone_with_a_live_version_below_it() {
     let (perpetual, historic, _historic_ledger, _epoch_markers) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
-    // A version the pre-bucket backlog sweep failed to relocate, and the
-    // tombstone above it.
+    // A version left in the live table below a tombstone.
     let id = ObjectId::random();
     let stale = ObjectKey(id, 4.into());
     let tombstone = ObjectKey(id, 7.into());
@@ -797,8 +793,8 @@ async fn test_expiry_decides_each_of_an_objects_tombstones_on_its_own() {
     let (perpetual, historic, _historic_ledger, _epoch_markers) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
-    // A tombstone, a version the backlog sweep failed to relocate, a second
-    // tombstone above it, and the object's newest version.
+    // A tombstone, a version left in the live table, a second tombstone
+    // above it, and the object's newest version.
     let id = ObjectId::random();
     let lower_tombstone = ObjectKey(id, 3.into());
     let stale = ObjectKey(id, 5.into());

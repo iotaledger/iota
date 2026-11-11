@@ -210,7 +210,6 @@ impl ValidatorConfigBuilder {
             admin_interface_address: validator.admin_interface_address,
             consensus_config: Some(consensus_config),
             enable_jsonrpc_api: default_enable_jsonrpc_api(),
-            enable_index_processing: None,
             genesis: Genesis::new_empty(),
             migration_tx_data_path,
             grpc_load_shed: None,
@@ -637,7 +636,6 @@ impl FullnodeConfigBuilder {
             enable_jsonrpc_api: self
                 .enable_jsonrpc_api
                 .unwrap_or_else(default_enable_jsonrpc_api),
-            enable_index_processing: None,
             genesis,
             migration_tx_data_path,
             grpc_load_shed: None,

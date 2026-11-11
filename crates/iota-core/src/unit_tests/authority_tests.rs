@@ -10731,82 +10731,6 @@ async fn the_pruned_watermark_follows_the_higher_of_the_ledger_and_checkpoint_fl
     );
 }
 
-/// A restart does not write the genesis checkpoint again when only the flat
-/// table holds it, which would drag the synced watermark back to zero.
-#[tokio::test]
-async fn a_restart_leaves_the_genesis_checkpoint_alone_when_only_a_flat_row_holds_it() {
-    use iota_types::messages_checkpoint::FullCheckpointContents;
-
-    use crate::checkpoints::test_checkpoint_with_contents;
-
-    let authority = TestAuthorityBuilder::new()
-        .insert_genesis_checkpoint()
-        .build()
-        .await;
-    let checkpoint_store = &authority.checkpoint_store;
-    let genesis = checkpoint_store
-        .get_checkpoint_by_sequence_number(0)
-        .unwrap()
-        .unwrap();
-    let genesis_contents = checkpoint_store
-        .get_checkpoint_contents(&genesis.contents_digest)
-        .unwrap()
-        .unwrap();
-
-    // Move epoch 0's checkpoint out of its bucket into the flat tables.
-    let bucket = checkpoint_store.historic_checkpoints.ensure(0).unwrap();
-    let mut batch = checkpoint_store.tables.checkpoint_by_digest.batch();
-    batch
-        .delete_batch_tagged(&bucket.checkpoint_by_digest, [*genesis.digest()])
-        .unwrap();
-    batch
-        .delete_batch_tagged(&bucket.checkpoint_content, [genesis.contents_digest])
-        .unwrap();
-    batch
-        .insert_batch(
-            &checkpoint_store.tables.checkpoint_by_digest,
-            [(genesis.digest(), genesis.serializable_ref())],
-        )
-        .unwrap();
-    batch
-        .insert_batch(
-            &checkpoint_store.tables.checkpoint_content,
-            [(&genesis.contents_digest, &genesis_contents)],
-        )
-        .unwrap();
-    batch.write().unwrap();
-    assert!(
-        checkpoint_store
-            .get_checkpoint_by_digest(genesis.digest())
-            .unwrap()
-            .is_none(),
-        "the flat row must be the only one for this to model an unmigrated database",
-    );
-
-    // A later checkpoint the node has synced, so that a reset of the synced
-    // watermark to genesis is observable.
-    let full_contents = FullCheckpointContents::random_for_testing();
-    let synced = test_checkpoint_with_contents(1, 9, &full_contents);
-    checkpoint_store
-        .insert_certified_checkpoint(&synced)
-        .unwrap();
-    checkpoint_store
-        .set_highest_synced_checkpoint_subtle(&synced)
-        .unwrap();
-
-    checkpoint_store.insert_genesis_checkpoint(
-        genesis,
-        genesis_contents,
-        &authority.epoch_store_for_testing(),
-    );
-    assert_eq!(
-        checkpoint_store
-            .get_highest_synced_checkpoint_seq_number()
-            .unwrap(),
-        Some(9),
-    );
-}
-
 /// A restart does not write the genesis checkpoint again once epoch 0's
 /// checkpoint bucket has expired.
 #[tokio::test]
@@ -10971,7 +10895,7 @@ async fn closed_bucket_compaction_compacts_until_stopped() {
 
     let authority = TestAuthorityBuilder::new().build().await;
     let checkpoint_store = authority.checkpoint_store.clone();
-    let flat = &checkpoint_store.tables.checkpoint_by_digest;
+    let flat = &checkpoint_store.tables.watermarks;
     for sequence in [3, 4] {
         let contents = FullCheckpointContents::random_for_testing();
         let checkpoint = test_checkpoint_with_contents(1, sequence, &contents);
