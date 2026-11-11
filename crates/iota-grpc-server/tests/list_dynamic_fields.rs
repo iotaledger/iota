@@ -13,10 +13,23 @@ use std::sync::Arc;
 use common::{MockGrpcStateReader, connect_state_client, object_id_proto, start_test_server};
 use iota_grpc_types::{
     field::FieldMaskUtil,
-    v1::state_service::{ListDynamicFieldsRequest, ListDynamicFieldsResponse},
+    v1::state_service::{
+        ListDynamicFieldsRequest, ListDynamicFieldsResponse,
+        state_service_client::StateServiceClient,
+    },
 };
-use iota_sdk_types::ObjectId;
-use iota_types::storage::DynamicFieldKey;
+use iota_sdk_move_types::iota_framework::{dynamic_field::Field, object::UID};
+use iota_sdk_types::{MoveStruct, ObjectId, Owner, StructTag, TransactionDigest, TypeTag};
+use iota_types::{
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
+    move_layout::MoveLayout as _,
+    object::{MoveStructExt, OBJECT_START_VERSION, Object},
+    storage::DynamicFieldKey,
+};
+use move_core_types::{
+    annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
+    ident_str,
+};
 use prost_types::FieldMask;
 
 // ---------------------------------------------------------------------------
@@ -161,4 +174,96 @@ async fn cursor_row_removed_between_pages_loses_no_field() {
         [index_ids[1].as_bytes().to_vec()],
         "the unchanged second row must not be skipped when the cursor row is gone",
     );
+}
+
+/// The operator config must bound the response size even when the client
+/// asks for far more.
+#[tokio::test]
+async fn message_size_clamped_by_operator_config() {
+    // Above the 4 MiB floor of `GrpcApiConfig::max_message_size_bytes`, so
+    // that the test can tell the operator value from the floor.
+    const OPERATOR_MAX_MESSAGE_SIZE_BYTES: u32 = 8 * 1024 * 1024;
+    const CLIENT_REQUESTED_MAX_MESSAGE_SIZE_BYTES: u32 = 128 * 1024 * 1024;
+    // 60 fields of 200 KB each, about 12 MB in total.
+    const NUM_FIELDS: usize = 60;
+    const VALUE_LEN: usize = 200_000;
+
+    let parent = ObjectId::random();
+    let (mut mock, field_ids) = make_field_mock(parent, NUM_FIELDS);
+    let field_type =
+        StructTag::new_dynamic_field(TypeTag::U64, TypeTag::Vector(Box::new(TypeTag::U8)));
+    for (name, field_id) in field_ids.iter().enumerate() {
+        let contents = bcs::to_bytes(&Field {
+            id: (*field_id).into(),
+            name: name as u64,
+            value: vec![0u8; VALUE_LEN],
+        })
+        .unwrap();
+        let move_struct = MoveStruct::new_from_execution_with_limit(
+            field_type.clone(),
+            OBJECT_START_VERSION,
+            contents,
+            u64::try_from(VALUE_LEN).unwrap() + 1024,
+        )
+        .unwrap();
+        let object = Object::new_move(
+            move_struct,
+            Owner::Object(parent),
+            TransactionDigest::GENESIS_MARKER,
+        );
+        mock.objects.insert(*field_id, object);
+    }
+    mock.struct_layouts.insert(
+        field_type.clone(),
+        MoveTypeLayout::Struct(Box::new(MoveStructLayout {
+            type_: struct_tag_sdk_to_core(&field_type),
+            fields: vec![
+                MoveFieldLayout::new(
+                    ident_str!("id").to_owned(),
+                    MoveTypeLayout::Struct(Box::new(UID::layout())),
+                ),
+                MoveFieldLayout::new(ident_str!("name").to_owned(), MoveTypeLayout::U64),
+                MoveFieldLayout::new(
+                    ident_str!("value").to_owned(),
+                    MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
+                ),
+            ],
+        })),
+    );
+
+    let (handle, _reader) = start_test_server(Arc::new(mock), |config| {
+        config.max_message_size_bytes = OPERATOR_MAX_MESSAGE_SIZE_BYTES;
+    })
+    .await;
+    // The default client decode limit (4 MiB) is below the operator value.
+    let channel = tonic::transport::Channel::from_shared(format!("http://{}", handle.address()))
+        .unwrap()
+        .connect()
+        .await
+        .expect("connect");
+    let mut client = StateServiceClient::new(channel).max_decoding_message_size(128 * 1024 * 1024);
+
+    let request = ListDynamicFieldsRequest::default()
+        .with_parent(object_id_proto(parent))
+        .with_page_size(1000)
+        .with_max_message_size_bytes(CLIENT_REQUESTED_MAX_MESSAGE_SIZE_BYTES)
+        .with_read_mask(FieldMask::from_str("field_id,value"));
+    let resp = client
+        .list_dynamic_fields(request)
+        .await
+        .expect("the server must clamp the response instead of failing")
+        .into_inner();
+
+    assert!(
+        resp.dynamic_fields
+            .iter()
+            .all(|field| field.value.is_some()),
+        "the values must be loaded, or the response is too small to test the limit"
+    );
+    assert!(
+        resp.next_page_token.is_some(),
+        "the operator limit ({OPERATOR_MAX_MESSAGE_SIZE_BYTES} bytes) must split the response \
+         even though the client asked for {CLIENT_REQUESTED_MAX_MESSAGE_SIZE_BYTES}"
+    );
+    common::assert_messages_within_limit(&[resp], OPERATOR_MAX_MESSAGE_SIZE_BYTES);
 }

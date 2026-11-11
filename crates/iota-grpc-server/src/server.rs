@@ -115,8 +115,8 @@ pub async fn start_grpc_server(
     // ("indexes are not available") at request time if indexes are absent,
     // which is more informative than an `Unimplemented` from an unregistered
     // service.
-    let state_service = StateGrpcService::new(grpc_reader.clone());
-    let move_package_service = MovePackageGrpcService::new(grpc_reader);
+    let state_service = StateGrpcService::new(config.clone(), grpc_reader.clone());
+    let move_package_service = MovePackageGrpcService::new(config.clone(), grpc_reader);
 
     // The listener is public, so its connection count is bounded only by this,
     // well inside the process fd limit it shares with RocksDB and the other

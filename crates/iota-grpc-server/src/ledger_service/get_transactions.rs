@@ -19,7 +19,7 @@ use prost::Message;
 use prost_types::FieldMask;
 
 use crate::{
-    constants::validate_max_message_size,
+    constants::effective_max_message_size,
     error::RpcError,
     merge::Merge,
     metrics::{RequestMetrics, ResponseItemKind},
@@ -127,7 +127,7 @@ pub(crate) fn validate_get_transaction_requests(
     skip_all,
     fields(
         batch_size = requests.as_ref().map_or(0, |r| r.requests.len()),
-        ?max_message_size_bytes,
+        max_message_size_bytes = ?client_max_message_size_bytes,
     )
 )]
 pub(crate) fn get_transactions(
@@ -137,11 +137,11 @@ pub(crate) fn get_transactions(
     GetTransactionsRequest {
         requests,
         read_mask,
-        max_message_size_bytes,
+        max_message_size_bytes: client_max_message_size_bytes,
         ..
     }: GetTransactionsRequest,
 ) -> Result<impl Stream<Item = TransactionsStreamResult> + Send, RpcError> {
-    metrics.record_requested_max_message_size(max_message_size_bytes);
+    metrics.record_requested_max_message_size(client_max_message_size_bytes);
     let requests = requests
         .map(|r| r.requests)
         .unwrap_or_default()
@@ -150,7 +150,10 @@ pub(crate) fn get_transactions(
         .collect();
 
     let (digests, read_mask) = validate_get_transaction_requests(requests, read_mask)?;
-    let max_message_size = validate_max_message_size(max_message_size_bytes)?;
+    let max_message_size = effective_max_message_size(
+        client_max_message_size_bytes,
+        config.max_message_size_bytes(),
+    )?;
 
     Ok(crate::create_batching_stream!(
         digests.into_iter(),

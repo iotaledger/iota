@@ -36,8 +36,9 @@ pub const LATENCY_SEC_BUCKETS: &[f64] = &[
 
 /// Sizes of a gRPC message in bytes, at the message size limits of the API: 1
 /// MiB is the smallest `max_message_size_bytes` a request may ask for, 4 MiB the
-/// default, 30 MiB the largest checkpoint of the protocol and 128 MiB the
-/// largest message. 64 KiB, 8, 16 and 64 MiB fill in between.
+/// default, 30 MiB the largest checkpoint of the protocol and the default
+/// `max-message-size-bytes` of the node. 64 KiB, 8, 16, 64 and 128 MiB fill in
+/// between and above.
 const MESSAGE_SIZE_BUCKETS: &[f64] = &[
     65_536.0,
     1_048_576.0,

@@ -17,7 +17,7 @@ use prost::Message;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    constants::validate_max_message_size,
+    constants::effective_max_message_size,
     error::RpcError,
     merge::Merge,
     metrics::{RequestMetrics, ResponseItemKind},
@@ -42,17 +42,18 @@ struct PageToken {
 pub(crate) fn list_owned_objects(
     reader: Arc<GrpcReader>,
     metrics: &RequestMetrics,
+    operator_max_message_size_bytes: u32,
     ListOwnedObjectsRequest {
         owner,
         page_size,
         page_token,
         read_mask,
         object_type,
-        max_message_size_bytes,
+        max_message_size_bytes: client_max_message_size_bytes,
         ..
     }: ListOwnedObjectsRequest,
 ) -> Result<ListOwnedObjectsResponse, RpcError> {
-    metrics.record_requested_max_message_size(max_message_size_bytes);
+    metrics.record_requested_max_message_size(client_max_message_size_bytes);
     let owner_address = require_address(&owner, "owner")?;
 
     let read_mask = validate_read_mask::<Object>(read_mask, LIST_OWNED_OBJECTS_READ_MASK)?;
@@ -70,7 +71,10 @@ pub(crate) fn list_owned_objects(
         .transpose()?;
 
     let page_size = validate_page_size(page_size, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
-    let max_message_size = validate_max_message_size(max_message_size_bytes)?;
+    let max_message_size = effective_max_message_size(
+        client_max_message_size_bytes,
+        operator_max_message_size_bytes,
+    )?;
 
     let page_token: Option<PageToken> = decode_page_token(&page_token)?;
     if let Some(ref t) = page_token {
