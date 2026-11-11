@@ -1256,6 +1256,10 @@ impl GrpcReader {
         }
         if needs.effects || (needs.checkpoint && self.has_transaction_fallback()) {
             pending.data.effects = self.state_reader.try_get_transaction_effects(digest)?;
+            // Read with the effects: pruning can delete the checkpoint while the store is read.
+            if needs.checkpoint && pending.data.effects.is_some() {
+                pending.data.checkpoint = self.state_reader.get_transaction_checkpoint(digest)?;
+            }
         }
         Ok(pending)
     }
@@ -1307,6 +1311,9 @@ impl GrpcReader {
     }
 
     fn read_checkpoint(&self, pending: &mut PendingRead) -> Result<(), RpcError> {
+        if pending.data.checkpoint.is_some() {
+            return Ok(());
+        }
         pending.data.checkpoint = match pending.pruned {
             Some(checkpoint) => Some(checkpoint),
             None => self
