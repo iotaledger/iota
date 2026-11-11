@@ -567,15 +567,6 @@ mod tests {
             unreachable!("not read when loading shared inputs")
         }
 
-        fn try_object_superseded_in_epoch(
-            &self,
-            _: &ObjectId,
-            _: Version,
-            _: EpochId,
-        ) -> IotaResult<bool> {
-            unreachable!("not read when loading shared inputs")
-        }
-
         fn try_get_marker_value(
             &self,
             _: &ObjectId,

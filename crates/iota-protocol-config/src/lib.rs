@@ -1722,6 +1722,13 @@ pub struct ProtocolConfig {
     /// of the epoch. Unset disables the penalty and the cutoff.
     attestation_max_refuted_units_squared: Option<u64>,
 
+    /// How many commits before the one an attested transaction was first
+    /// sequenced in a recorded version may have stopped being current for the
+    /// judge to re-run authentication at it; leader rounds for a version a
+    /// commit prologue superseded, the only position a prologue carries. Unset
+    /// admits any commit of the epoch.
+    attestation_freshness_window_commits: Option<u64>,
+
     /// The max number of transactions that can be included in a single Soft
     /// Bundle.
     max_soft_bundle_size: Option<u64>,
@@ -2630,6 +2637,12 @@ impl ProtocolConfig {
                  pass_validator_scores_to_advance_epoch"
             );
         }
+        if ret.attestation_freshness_window_commits.is_some() {
+            assert!(
+                ret.enable_validator_attestation(),
+                "attestation_freshness_window_commits requires enable_validator_attestation"
+            );
+        }
         // A transaction without shared inputs that waits too long for its
         // dependency is cancelled through its gas object, which carries the
         // suggested gas price.
@@ -3158,6 +3171,7 @@ impl ProtocolConfig {
             checkpoint_summary_version_specific_data: Some(1),
             attestor_accuracy_tolerance_percentage: None,
             attestation_max_refuted_units_squared: None,
+            attestation_freshness_window_commits: None,
 
             max_soft_bundle_size: Some(5),
 
@@ -4505,8 +4519,13 @@ impl ProtocolConfig {
         }
     }
 
+    /// Turning attestation off also unsets the parameters that require it.
     pub fn set_enable_validator_attestation_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_validator_attestation = val;
+        if !val {
+            self.attestation_max_refuted_units_squared = None;
+            self.attestation_freshness_window_commits = None;
+        }
     }
 }
 
