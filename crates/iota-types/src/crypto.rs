@@ -404,8 +404,7 @@ impl From<&AuthorityPublicKey> for AuthorityPublicKeyBytes {
 
 impl From<&AggregateAuthorityPublicKey> for AuthorityPublicKeyBytes {
     fn from(pk: &AggregateAuthorityPublicKey) -> AuthorityPublicKeyBytes {
-        AuthorityPublicKeyBytes::from_bytes(pk.as_ref())
-            .expect("authority public keys are 96 bytes")
+        AuthorityPublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
     }
 }
 

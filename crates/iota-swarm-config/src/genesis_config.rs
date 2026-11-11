@@ -41,7 +41,7 @@ pub struct SsfnGenesisConfig {
 }
 
 // All information needed to build a NodeConfig for a validator.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ValidatorGenesisConfig {
     #[serde(
         default = "default_bls12381_key_pair",
@@ -76,26 +76,6 @@ pub struct ValidatorGenesisConfig {
 }
 
 impl ValidatorGenesisConfig {
-    /// A copy of this config, key pairs included.
-    pub fn copy_with_private_keys(&self) -> Self {
-        Self {
-            authority_key_pair: self.authority_key_pair.clone(),
-            protocol_key_pair: self.protocol_key_pair.clone(),
-            account_key_pair: self.account_key_pair.clone(),
-            network_key_pair: self.network_key_pair.clone(),
-            network_address: self.network_address.clone(),
-            p2p_address: self.p2p_address.clone(),
-            p2p_listen_address: self.p2p_listen_address,
-            metrics_address: self.metrics_address,
-            admin_interface_address: self.admin_interface_address,
-            gas_price: self.gas_price,
-            commission_rate: self.commission_rate,
-            primary_address: self.primary_address.clone(),
-            stake: self.stake,
-            name: self.name.clone(),
-        }
-    }
-
     pub fn to_validator_info(&self, name: String) -> GenesisValidatorInfo {
         let authority_key: AuthorityPublicKeyBytes =
             (&self.authority_key_pair.verifying_key()).into();
