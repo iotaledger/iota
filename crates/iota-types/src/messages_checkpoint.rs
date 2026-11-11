@@ -26,6 +26,7 @@ use tracing::instrument;
 use tracing::warn;
 
 use crate::{
+    attestation::{AttestationEntry, AttestationTotals},
     base_types::{ExecutionData, ExecutionDigests, VerifiedExecutionData, random_object_ref},
     committee::{Committee, EpochId},
     crypto::{
@@ -121,6 +122,14 @@ mod checkpoint_summary_ext {
 /// `iota_sdk_types`. These live on an extension trait because inherent methods
 /// cannot be added to a type that is foreign to this crate.
 pub trait CheckpointSummaryExt: Sized + checkpoint_summary_ext::Sealed {
+    /// `attestation_entries` are the attestation records other than `Valid`,
+    /// each at its transaction's position in `transactions`, and
+    /// `attestation_totals` the epoch's totals through this checkpoint. Both
+    /// are certified from summary version 2 on and ignored before.
+    ///
+    /// # Panics
+    ///
+    /// Under summary version 2, if an entry lies outside `transactions`.
     fn new_with_protocol_config(
         protocol_config: &ProtocolConfig,
         epoch: EpochId,
@@ -132,6 +141,8 @@ pub trait CheckpointSummaryExt: Sized + checkpoint_summary_ext::Sealed {
         end_of_epoch_data: Option<EndOfEpochData>,
         timestamp_ms: CheckpointTimestamp,
         randomness_rounds: Vec<RandomnessRound>,
+        attestation_entries: Vec<AttestationEntry>,
+        attestation_totals: AttestationTotals,
     ) -> Self;
 
     fn verify_epoch(&self, epoch: EpochId) -> IotaResult;
@@ -159,6 +170,8 @@ impl CheckpointSummaryExt for CheckpointSummary {
         end_of_epoch_data: Option<EndOfEpochData>,
         timestamp_ms: CheckpointTimestamp,
         randomness_rounds: Vec<RandomnessRound>,
+        attestation_entries: Vec<AttestationEntry>,
+        attestation_totals: AttestationTotals,
     ) -> Self {
         let contents_digest = transactions.digest();
 
@@ -169,6 +182,22 @@ impl CheckpointSummaryExt for CheckpointSummary {
                     CheckpointVersionSpecificDataV1 { randomness_rounds },
                 ))
                 .expect("version specific data should serialize"),
+                Some(2) => {
+                    assert!(
+                        attestation_entries
+                            .iter()
+                            .all(|entry| (entry.position as usize) < transactions.len()),
+                        "attestation entries lie within the checkpoint"
+                    );
+                    bcs::to_bytes(&CheckpointVersionSpecificData::V2(
+                        CheckpointVersionSpecificDataV2 {
+                            randomness_rounds,
+                            attestation_entries,
+                            attestation_totals,
+                        },
+                    ))
+                    .expect("version specific data should serialize")
+                }
                 _ => unimplemented!(
                     "unrecognized version_specific_data version for
     CheckpointSummary"
@@ -226,7 +255,7 @@ impl CheckpointSummaryExt for CheckpointSummary {
     ) -> Result<Option<CheckpointVersionSpecificData>> {
         match config.checkpoint_summary_version_specific_data_as_option() {
             None | Some(0) => Ok(None),
-            Some(1) => Ok(Some(bcs::from_bytes(&self.version_specific_data)?)),
+            Some(1) | Some(2) => Ok(Some(bcs::from_bytes(&self.version_specific_data)?)),
             _ => unimplemented!("unrecognized version_specific_data version in CheckpointSummary"),
         }
     }
@@ -583,6 +612,55 @@ impl FullCheckpointContents {
         })
     }
 
+    /// Pairs the signatures pinned in `contents` with transactions from this
+    /// node's own store, and puts the pinned signatures on each transaction
+    /// the checkpoint pins signatures for, except where the stored or the
+    /// pinned signatures hold a `MoveAuthenticator`; those are left as stored,
+    /// so the contents fail [`Self::verify`] if the two copies differ.
+    ///
+    /// Only for transactions this node stored itself. Contents received from
+    /// elsewhere must pass [`Self::verify`] as received.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `execution_data` does not hold exactly one
+    /// transaction per entry of `contents`.
+    pub fn from_contents_and_local_execution_data(
+        contents: CheckpointContents,
+        execution_data: impl Iterator<Item = ExecutionData>,
+    ) -> Result<Self> {
+        let mut full_contents = Self::from_contents_and_execution_data(contents, execution_data)?;
+        for (execution_data, pinned_signatures) in full_contents
+            .transactions
+            .iter_mut()
+            .zip(&full_contents.user_signatures)
+        {
+            let stored_signatures = execution_data.transaction.data().signatures();
+            // Genesis and end-of-epoch transactions pin no signatures and keep
+            // their placeholder.
+            if !pinned_signatures.is_empty()
+                && stored_signatures != pinned_signatures.as_slice()
+                // A `MoveAuthenticator` decides part of what the transaction
+                // executes and can read the digests of the other signatures, so
+                // with one in either copy the stored copy's effects might not
+                // match the pinned one. Only checkpoints before protocol version
+                // 36 can hold such a pair: from that version the account object
+                // must be shared, so the transaction is ordered by consensus and
+                // every node executes the copy consensus sequenced.
+                && !stored_signatures
+                    .iter()
+                    .chain(pinned_signatures)
+                    .any(UserSignature::is_move_authenticator)
+            {
+                execution_data.transaction = TransactionEnvelope::from_user_sig_data(
+                    execution_data.transaction.data().transaction().clone(),
+                    pinned_signatures.clone(),
+                );
+            }
+        }
+        Ok(full_contents)
+    }
+
     pub fn try_from_checkpoint_contents<S>(
         store: S,
         contents: CheckpointContents,
@@ -794,18 +872,30 @@ impl VerifiedCheckpointContents {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CheckpointVersionSpecificData {
     V1(CheckpointVersionSpecificDataV1),
+    V2(CheckpointVersionSpecificDataV2),
 }
 
 impl CheckpointVersionSpecificData {
-    pub fn as_v1(&self) -> &CheckpointVersionSpecificDataV1 {
+    pub fn randomness_rounds(&self) -> &[RandomnessRound] {
         match self {
-            Self::V1(v) => v,
+            Self::V1(v) => &v.randomness_rounds,
+            Self::V2(v) => &v.randomness_rounds,
         }
     }
 
-    pub fn into_v1(self) -> CheckpointVersionSpecificDataV1 {
+    /// Empty for V1.
+    pub fn attestation_entries(&self) -> &[AttestationEntry] {
         match self {
-            Self::V1(v) => v,
+            Self::V1(_) => &[],
+            Self::V2(v) => &v.attestation_entries,
+        }
+    }
+
+    /// `None` for V1.
+    pub fn attestation_totals(&self) -> Option<&AttestationTotals> {
+        match self {
+            Self::V1(_) => None,
+            Self::V2(v) => Some(&v.attestation_totals),
         }
     }
 
@@ -823,6 +913,19 @@ pub struct CheckpointVersionSpecificDataV1 {
     pub randomness_rounds: Vec<RandomnessRound>,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CheckpointVersionSpecificDataV2 {
+    /// Lists the rounds for which RandomnessStateUpdate transactions are
+    /// present in the checkpoint.
+    pub randomness_rounds: Vec<RandomnessRound>,
+    /// The attestation records other than `Valid`, each at its transaction's
+    /// position in checkpoint-contents order.
+    pub attestation_entries: Vec<AttestationEntry>,
+    /// The epoch's attestation totals through this checkpoint: the previous
+    /// summary's totals plus this checkpoint's `Refuted` records.
+    pub attestation_totals: AttestationTotals,
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -836,7 +939,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        object::OBJECT_START_VERSION, transaction::VerifiedTransaction, utils::make_committee_key,
+        attestation::{AttestationRecord, AttestationVerdict},
+        object::OBJECT_START_VERSION,
+        transaction::VerifiedTransaction,
+        utils::make_committee_key,
     };
 
     // TODO use the file name as a seed
@@ -873,6 +979,8 @@ mod tests {
                         None,
                         0,
                         Vec::new(),
+                        Vec::new(),
+                        AttestationTotals::default(),
                     ),
                     k,
                     name,
@@ -909,6 +1017,8 @@ mod tests {
             None,
             0,
             Vec::new(),
+            Vec::new(),
+            AttestationTotals::default(),
         );
 
         let sign_infos: Vec<_> = keys
@@ -952,6 +1062,8 @@ mod tests {
                         None,
                         0,
                         Vec::new(),
+                        Vec::new(),
+                        AttestationTotals::default(),
                     ),
                     k,
                     name,
@@ -991,6 +1103,8 @@ mod tests {
                 None,
                 0,
                 Vec::new(),
+                Vec::new(),
+                AttestationTotals::default(),
             )
         };
         let certify = |summary: CheckpointSummary| {
@@ -1057,6 +1171,8 @@ mod tests {
             None,
             100,
             Vec::new(),
+            Vec::new(),
+            AttestationTotals::default(),
         )
     }
 
@@ -1134,6 +1250,110 @@ mod tests {
         assert_eq!(tampered.checkpoint_contents().digest(), digest);
 
         (digest, contents, tampered)
+    }
+
+    /// Contents built from a node's own copy of a transaction carry the pinned
+    /// signatures, with the same transaction data and effects.
+    #[test]
+    fn local_execution_data_gets_the_pinned_signatures() {
+        let (digest, contents, executed_copy) = contents_with_a_swapped_envelope();
+
+        let built = FullCheckpointContents::from_contents_and_local_execution_data(
+            contents.checkpoint_contents(),
+            executed_copy.into_iter(),
+        )
+        .unwrap();
+
+        assert_eq!(built, contents);
+        built.verify_digests(digest).unwrap();
+    }
+
+    /// An end-of-epoch transaction, which the checkpoint pins no signatures
+    /// for, keeps its placeholder signature.
+    #[test]
+    fn local_execution_data_keeps_the_signatures_of_a_transaction_pinned_without_any() {
+        let transaction = VerifiedTransaction::new_end_of_epoch_transaction(vec![]).into_inner();
+        let effects = TestEffectsBuilder::new(transaction.data()).build();
+        let execution_data = ExecutionData {
+            transaction,
+            effects,
+        };
+        let contents = CheckpointContents::new_with_digests_and_signatures(
+            vec![execution_data.digests()],
+            vec![vec![]],
+        );
+        let digest = contents.digest();
+
+        let built = FullCheckpointContents::from_contents_and_local_execution_data(
+            contents,
+            std::iter::once(execution_data.clone()),
+        )
+        .unwrap();
+
+        assert_eq!(built.transactions, vec![execution_data]);
+        built.verify_digests(digest).unwrap();
+    }
+
+    /// Copies with the same `MoveAuthenticator` that differ in their other
+    /// signatures are left as stored: the authenticator can read the digests
+    /// of the other signatures.
+    #[test]
+    fn local_execution_data_with_the_same_move_authenticator_keeps_the_stored_copy() {
+        let (_, mut contents, mut executed_copy) = contents_with_a_swapped_envelope();
+        let transaction = contents.transactions[0]
+            .transaction
+            .data()
+            .transaction()
+            .clone();
+        let (authenticator, _) = crate::utils::make_move_authenticator_sig(transaction.sender());
+        for full_contents in [&mut contents, &mut executed_copy] {
+            let mut signatures = vec![authenticator.clone()];
+            signatures.extend_from_slice(
+                full_contents.transactions[0]
+                    .transaction
+                    .data()
+                    .signatures(),
+            );
+            full_contents.transactions[0].transaction =
+                TransactionEnvelope::from_user_sig_data(transaction.clone(), signatures.clone());
+            full_contents.user_signatures[0] = signatures;
+        }
+        assert_ne!(contents.transactions, executed_copy.transactions);
+
+        let built = FullCheckpointContents::from_contents_and_local_execution_data(
+            contents.checkpoint_contents(),
+            executed_copy.clone().into_iter(),
+        )
+        .unwrap();
+
+        assert_eq!(built.transactions, executed_copy.transactions);
+    }
+
+    /// A copy whose `MoveAuthenticator` differs from the pinned one is left as
+    /// stored, whichever side has it.
+    #[test]
+    fn local_execution_data_keeps_a_move_authenticator() {
+        let plain = FullCheckpointContents::random_for_testing();
+        let transaction = plain.transactions[0]
+            .transaction
+            .data()
+            .transaction()
+            .clone();
+        let (authenticator, _) = crate::utils::make_move_authenticator_sig(transaction.sender());
+        let mut with_authenticator = plain.clone();
+        with_authenticator.transactions[0].transaction =
+            TransactionEnvelope::from_user_sig_data(transaction, vec![authenticator.clone()]);
+        with_authenticator.user_signatures[0] = vec![authenticator];
+
+        for (pinned, stored) in [(&plain, &with_authenticator), (&with_authenticator, &plain)] {
+            let built = FullCheckpointContents::from_contents_and_local_execution_data(
+                pinned.checkpoint_contents(),
+                stored.clone().into_iter(),
+            )
+            .unwrap();
+
+            assert_eq!(built.transactions, stored.transactions);
+        }
     }
 
     /// The checkpoint pins the signatures separately from the transactions, and
@@ -1305,5 +1525,92 @@ mod tests {
         contents.verify_digests(digest).expect_err(
             "a consensus system transaction pinned without signatures must be rejected",
         );
+    }
+
+    fn attestation_record(attestor: u8, verdict: AttestationVerdict) -> AttestationRecord {
+        AttestationRecord { attestor, verdict }
+    }
+
+    #[test]
+    fn version_specific_data_v2_bcs_round_trip() {
+        let v1 = CheckpointVersionSpecificData::V1(CheckpointVersionSpecificDataV1 {
+            randomness_rounds: vec![RandomnessRound::new(3)],
+        });
+        let v2 = CheckpointVersionSpecificData::V2(CheckpointVersionSpecificDataV2 {
+            randomness_rounds: vec![RandomnessRound::new(3)],
+            attestation_entries: vec![
+                AttestationEntry {
+                    position: 1,
+                    record: attestation_record(2, AttestationVerdict::Refuted { units: 5 }),
+                },
+                AttestationEntry {
+                    position: 3,
+                    record: attestation_record(1, AttestationVerdict::Undecided),
+                },
+            ],
+            attestation_totals: AttestationTotals {
+                refuted_units_squared: BTreeMap::from([(2, 16)]),
+            },
+        });
+
+        let v1_bytes = bcs::to_bytes(&v1).unwrap();
+        let v2_bytes = bcs::to_bytes(&v2).unwrap();
+        // The variant tag leaves the V1 encoding unchanged.
+        assert_eq!(v1_bytes[0], 0);
+        assert_eq!(v2_bytes[0], 1);
+        assert_eq!(
+            bcs::from_bytes::<CheckpointVersionSpecificData>(&v1_bytes).unwrap(),
+            v1
+        );
+        assert_eq!(
+            bcs::from_bytes::<CheckpointVersionSpecificData>(&v2_bytes).unwrap(),
+            v2
+        );
+    }
+
+    #[test]
+    fn summary_version_specific_data_follows_the_protocol_knob() {
+        let contents = CheckpointContents::new_with_digests_only_for_tests([
+            ExecutionDigests::random(),
+            ExecutionDigests::random(),
+        ]);
+        let totals = || AttestationTotals {
+            refuted_units_squared: BTreeMap::from([(1, 9)]),
+        };
+        let parsed_for = |version: u64, attestation_entries: Vec<AttestationEntry>| {
+            let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+            config.set_checkpoint_summary_version_specific_data_for_testing(version);
+            CheckpointSummary::new_with_protocol_config(
+                &config,
+                1,
+                2,
+                10,
+                &contents,
+                None,
+                GasCostSummary::default(),
+                None,
+                100,
+                vec![RandomnessRound::new(5)],
+                attestation_entries,
+                totals(),
+            )
+            .parse_version_specific_data(&config)
+            .unwrap()
+            .expect("version specific data is present from version 1")
+        };
+        let entries = vec![AttestationEntry {
+            position: 1,
+            record: attestation_record(1, AttestationVerdict::Refuted { units: 3 }),
+        }];
+
+        let v1 = parsed_for(1, entries.clone());
+        assert_eq!(v1.randomness_rounds(), &[RandomnessRound::new(5)]);
+        assert!(v1.attestation_entries().is_empty());
+        assert!(v1.attestation_totals().is_none());
+
+        let v2 = parsed_for(2, entries.clone());
+        assert_eq!(v2.randomness_rounds(), &[RandomnessRound::new(5)]);
+        assert_eq!(v2.attestation_entries(), entries.as_slice());
+        assert_eq!(v2.attestation_totals(), Some(&totals()));
     }
 }

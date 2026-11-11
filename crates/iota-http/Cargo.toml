@@ -14,6 +14,7 @@ http-body.workspace = true
 http-body-util.workspace = true
 hyper = { workspace = true, features = ["http1", "http2"] }
 hyper-util = { workspace = true, features = ["server-graceful"] }
+parking_lot.workspace = true
 pin-project-lite.workspace = true
 socket2 = { version = "0.5", features = ["all"] }
 strum.workspace = true
@@ -32,12 +33,14 @@ prometheus-filtered.workspace = true
 [dev-dependencies]
 # external dependencies
 axum.workspace = true
-fastcrypto.workspace = true
+futures.workspace = true
+h2 = "0.4.19"
 reqwest.workspace = true
 rustls.workspace = true
 
 # internal dependencies
 iota-metrics = { workspace = true, features = ["test-utils"] }
+iota-sdk-crypto = { workspace = true, features = ["ed25519"] }
 
 [lints]
 workspace = true

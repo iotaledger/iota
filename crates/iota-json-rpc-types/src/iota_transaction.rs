@@ -49,7 +49,7 @@ use tabled::{
 };
 
 use crate::{
-    Filter, IotaEvent, IotaEventID, IotaMoveValue, ObjectRefSchema, Page,
+    IotaEvent, IotaEventID, IotaMoveValue, ObjectRefSchema, Page,
     balance_changes::BalanceChange,
     iota_gas_cost_summary::IotaGasCostSummary,
     iota_owner::OwnerSchema,
@@ -2761,18 +2761,6 @@ pub enum IotaObjectArg {
     },
 }
 
-#[derive(Clone)]
-pub struct EffectsWithInput {
-    pub effects: IotaTransactionBlockEffects,
-    pub input: Transaction,
-}
-
-impl From<EffectsWithInput> for IotaTransactionBlockEffects {
-    fn from(e: EffectsWithInput) -> Self {
-        e.effects
-    }
-}
-
 #[serde_as]
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub enum TransactionFilter {
@@ -2868,67 +2856,6 @@ impl TransactionFilter {
             TransactionFilter::Checkpoint(checkpoint) => {
                 TransactionFilterV2::Checkpoint(*checkpoint)
             }
-        }
-    }
-}
-
-impl TransactionFilter {
-    fn transaction_kind(item: &EffectsWithInput) -> Option<IotaTransactionKind> {
-        IotaTransactionKind::try_from(item.input.kind())
-            .inspect_err(|e| {
-                tracing::warn!(
-                    digest = %item.effects.transaction_digest(),
-                    "transaction kind filter skipped: {e}"
-                )
-            })
-            .ok()
-    }
-}
-
-impl Filter<EffectsWithInput> for TransactionFilter {
-    fn matches(&self, item: &EffectsWithInput) -> bool {
-        match self {
-            TransactionFilter::InputObject(o) => {
-                let Ok(input_objects) = item.input.input_objects() else {
-                    return false;
-                };
-                input_objects.iter().any(|object| object.object_id() == *o)
-            }
-            TransactionFilter::ChangedObject(o) => item
-                .effects
-                .mutated()
-                .iter()
-                .any(|oref: &OwnedObjectRef| &oref.reference.object_id == o),
-            TransactionFilter::FromAddress(a) => &item.input.sender() == a,
-            TransactionFilter::ToAddress(a) => {
-                let mutated: &[OwnedObjectRef] = item.effects.mutated();
-                mutated.iter().chain(item.effects.unwrapped().iter()).any(|oref: &OwnedObjectRef| {
-                    matches!(oref.owner, Owner::Address(owner) if owner == *a)
-                })
-            }
-            TransactionFilter::FromAndToAddress { from, to } => {
-                Self::FromAddress(*from).matches(item) && Self::ToAddress(*to).matches(item)
-            }
-            TransactionFilter::FromOrToAddress { addr } => {
-                Self::FromAddress(*addr).matches(item) || Self::ToAddress(*addr).matches(item)
-            }
-            TransactionFilter::MoveFunction {
-                package,
-                module,
-                function,
-            } => item.input.move_calls().into_iter().any(|(p, m, f)| {
-                p == package
-                    && (module.is_none() || matches!(module,  Some(m2) if m2 == &m.to_string()))
-                    && (function.is_none() || matches!(function, Some(f2) if f2 == &f.to_string()))
-            }),
-            TransactionFilter::TransactionKind(kind) => {
-                Self::transaction_kind(item).is_some_and(|k| k == *kind)
-            }
-            TransactionFilter::TransactionKindIn(kinds) => {
-                Self::transaction_kind(item).is_some_and(|k| kinds.contains(&k))
-            }
-            // this filter is not supported, RPC will reject it on subscription
-            TransactionFilter::Checkpoint(_) => false,
         }
     }
 }
@@ -3041,26 +2968,6 @@ impl TransactionFilterV2 {
             }
             // V2-only variants which do not have a V1 equivalent
             TransactionFilterV2::WrappedOrDeletedObject(_) => None,
-        }
-    }
-}
-
-impl Filter<EffectsWithInput> for TransactionFilterV2 {
-    fn matches(&self, item: &EffectsWithInput) -> bool {
-        if let Some(v1) = self.as_v1() {
-            return v1.matches(item);
-        }
-        // Fallback for new V2-only variants:
-        match self {
-            TransactionFilterV2::WrappedOrDeletedObject(o) => item
-                .effects
-                .wrapped()
-                .iter()
-                .chain(item.effects.deleted())
-                .chain(item.effects.unwrapped_then_deleted())
-                .any(|oref| &oref.object_id == o),
-
-            _ => false,
         }
     }
 }

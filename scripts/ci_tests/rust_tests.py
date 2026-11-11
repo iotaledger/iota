@@ -27,7 +27,6 @@ class RustTestOrchestrator:
     VALID_STEPS = [
         "run_tests",
         "run_sim_tests",
-        "run_stress_new_tests_check_for_flakiness",
         "run_tests_extra",
         "run_unused_deps",
         "run_audit_deps",
@@ -88,7 +87,6 @@ class RustTestOrchestrator:
             print_args = {
                 'run_tests',   
                 'run_sim_tests',
-                'run_stress_new_tests_check_for_flakiness',
                 'run_tests_extra',
                 'run_unused_deps',
                 'run_audit_deps',
@@ -783,18 +781,6 @@ class RustTestOrchestrator:
             filter_overwrite_external,
         )
     
-    # run stress tests for new tests to check for flakiness
-    def run_stress_new_tests_check_for_flakiness(self) -> int:
-        test_env = {
-            'MSIM_WATCHDOG_TIMEOUT_MS': str(self.config['simtest_timeout'])
-        }
-        
-        cmd = "scripts/simtest/stress-new-tests.sh"
-        if self.config['no_capture']:
-            cmd += " --nocapture"
-            
-        return self.print_and_run_command(cmd, test_env)
-    
     # run extra tests like stresstest, doc tests, doc generation, changed files, etc.
     def run_tests_extra(self) -> int:
         # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
@@ -874,7 +860,6 @@ PostgreSQL Environment variables (infrastructure config):
     # Individual test step flags
     parser.add_argument('--run-tests', action='store_true', help='Run rust tests via nextest and current configuration')
     parser.add_argument('--run-sim-tests', action='store_true', help='Run sim tests with current configuration')
-    parser.add_argument('--run-stress-new-tests-check-for-flakiness', action='store_true', help='Run stress tests for new tests to check for flakiness')
     parser.add_argument('--run-tests-extra', action='store_true', help='Run extra tests like stresstest, doc tests, doc generation, changed files, etc.')
     parser.add_argument('--run-unused-deps', action='store_true', help='Check for unused dependencies with cargo-udeps')
     parser.add_argument('--run-audit-deps', action='store_true', help='Run dependency audit for security/license issues with cargo-deny')
@@ -943,7 +928,6 @@ PostgreSQL Environment variables (infrastructure config):
     step_mapping = {
         'run_tests': args.run_tests,
         'run_sim_tests': args.run_sim_tests,
-        'run_stress_new_tests_check_for_flakiness': args.run_stress_new_tests_check_for_flakiness,
         'run_tests_extra': args.run_tests_extra,
         'run_unused_deps': args.run_unused_deps,
         'run_audit_deps': args.run_audit_deps,

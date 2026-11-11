@@ -30,8 +30,8 @@ use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
     IotaObjectDataOptions, IotaObjectResponse, IotaTransactionBlockResponse, IotaTransactionKind,
-    MoveCallMetrics, MoveFunctionName, NetworkMetrics, ParticipationMetrics, TransactionFilter,
-    TransactionFilterV2,
+    MoveCallMetrics, MoveFunctionName, NetworkMetrics, OwnedObjectCursor, ParticipationMetrics,
+    TransactionFilter, TransactionFilterV2,
 };
 use iota_package_resolver::{
     Package, PackageStore, PackageStoreWithLruCache, Resolver, error::Error as PackageResolverError,
@@ -2893,7 +2893,7 @@ impl DataReader for IndexerReader {
         &self,
         address: Address,
         object_type: StructTag,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
         options: IotaObjectDataOptions,
     ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error> {
@@ -2902,7 +2902,9 @@ impl DataReader for IndexerReader {
             .get_owned_objects_in_blocking_task(
                 address,
                 Some(IotaObjectDataFilter::StructType(object_type)),
-                cursor,
+                cursor
+                    .map(crate::apis::common::resolve_object_id_cursor)
+                    .transpose()?,
                 limit + 1,
             )
             .await?;
@@ -2913,11 +2915,13 @@ impl DataReader for IndexerReader {
         if stored_objects.len() > limit && limit > 0 {
             // Here the cursor is the last object id in the previous page
             stored_objects.pop().unwrap();
-            next_cursor = Some(if let Some(last_object) = stored_objects.last() {
-                last_object.get_object_ref()?.object_id
-            } else {
-                ObjectId::ZERO
-            });
+            next_cursor = Some(OwnedObjectCursor::from_object_id(
+                if let Some(last_object) = stored_objects.last() {
+                    last_object.get_object_ref()?.object_id
+                } else {
+                    ObjectId::ZERO
+                },
+            ));
         }
 
         for stored_object in stored_objects {
@@ -3576,6 +3580,36 @@ impl<'a> DBReader<'a> {
                 .optional()
         })
         .map(Option::flatten)
+    }
+
+    /// Returns the number of checkpoints the transaction with `tx_sequence_number`
+    /// is behind the latest transaction in the database.
+    ///
+    /// Returns `None` when the transaction is not in the database, either pruned
+    /// or not indexed yet.
+    pub async fn checkpoints_behind_latest(
+        &self,
+        tx_sequence_number: i64,
+    ) -> Result<Option<i64>, IndexerError> {
+        let pool = self.main_reader.get_pool();
+
+        run_query_async!(&pool, move |conn| {
+            let tx_checkpoint = transactions::table
+                .filter(transactions::tx_sequence_number.eq(tx_sequence_number))
+                .select(transactions::checkpoint_sequence_number)
+                .first::<i64>(conn)
+                .optional()?;
+            let latest_checkpoint = transactions::table
+                .select(transactions::checkpoint_sequence_number)
+                .order(transactions::tx_sequence_number.desc())
+                .first::<i64>(conn)
+                .optional()?;
+            Ok::<_, diesel::result::Error>(
+                tx_checkpoint
+                    .zip(latest_checkpoint)
+                    .map(|(tx, latest)| latest - tx),
+            )
+        })
     }
 
     /// Resolve transaction sequence numbers to their corresponding digests.

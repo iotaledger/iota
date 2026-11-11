@@ -89,13 +89,17 @@ pub struct DBOptions {
     pub rw_options: ReadWriteOptions,
 }
 
-/// Write options tuned for one-shot bulk ingestion into a freshly created
-/// store.
-pub fn bulk_ingestion_write_options() -> rocksdb::WriteOptions {
+/// Write options for a record that must be on disk before the write returns,
+/// rather than in the operating system's cache until some later sync.
+pub fn synced_write_options() -> rocksdb::WriteOptions {
     let mut opts = rocksdb::WriteOptions::default();
-    opts.disable_wal(true);
+    opts.set_sync(true);
     opts
 }
+
+/// The smallest SST file buffer limit, so a small memory budget does not
+/// split the rows into many tiny files.
+const MIN_SST_BUFFER_SIZE: usize = 64 << 20;
 
 /// RocksDB options tuned for one-shot bulk ingestion into a freshly created
 /// store, e.g. initial index building, inserting the genesis snapshot, or
@@ -103,12 +107,56 @@ pub fn bulk_ingestion_write_options() -> rocksdb::WriteOptions {
 pub struct BulkIngestionOptions {
     pub db_options: rocksdb::Options,
     pub column_family_options: DBOptions,
-    pub batch_size_limit: usize,
+    /// The memtable memory one column family may take.
+    cf_memory_budget: usize,
+}
+
+impl BulkIngestionOptions {
+    /// How much memory each of `writers` concurrent
+    /// [`SstFileBuffer`](crate::rocks::SstFileBuffer)s may fill before writing
+    /// a file: one column family's memtable budget, shared between them.
+    pub fn sst_buffer_limit(&self, writers: usize) -> usize {
+        (self.cf_memory_budget / writers.max(1)).max(MIN_SST_BUFFER_SIZE)
+    }
+
+    /// Per-table config applying the bulk column-family options to every
+    /// listed table.
+    pub fn table_config(
+        &self,
+        table_names: impl IntoIterator<Item = String>,
+    ) -> DBMapTableConfigMap {
+        DBMapTableConfigMap::new(
+            table_names
+                .into_iter()
+                .map(|name| (name, self.column_family_options.clone()))
+                .collect(),
+        )
+    }
+}
+
+/// Memtable budget for a bulk-ingestion store, as `(db_write_buffer_size,
+/// cf_memory_budget)`: 80% of system RAM across the whole database and 25%
+/// for a single column family.
+fn write_buffer_budget(total_memory_bytes: u64) -> (usize, usize) {
+    // A failed memory probe reports 0, and RocksDB reads a whole-database cap
+    // of 0 as unlimited; a measured limit is used as is, however small.
+    const FALLBACK_TOTAL_MEMORY_BYTES: u64 = 4 << 30;
+
+    let total_memory_bytes = if total_memory_bytes == 0 {
+        FALLBACK_TOTAL_MEMORY_BYTES as f64
+    } else {
+        total_memory_bytes as f64
+    };
+    (
+        (total_memory_bytes * 0.8) as usize,
+        (total_memory_bytes * 0.25) as usize,
+    )
 }
 
 pub fn bulk_ingestion_options() -> BulkIngestionOptions {
     let total_memory_bytes = available_memory_bytes();
     let num_cpus = num_cpus::get();
+    let (db_write_buffer_size, cf_memory_budget) = write_buffer_budget(total_memory_bytes);
 
     let mut db_options = base_db_options();
 
@@ -120,10 +168,8 @@ pub fn bulk_ingestion_options() -> BulkIngestionOptions {
     // Allow CPU-intensive flushing to use all cores.
     db_options.set_max_background_jobs(num_cpus as i32);
 
-    // Upper bound on memtable memory across all column families: 80% of RAM.
-    // Large memtables give flushing threads enough buffer to keep up with the
-    // writers so the CPUs stay busy.
-    let db_write_buffer_size = (total_memory_bytes as f64 * 0.8) as usize;
+    // Upper bound on memtable memory: 80% of RAM, sized so flushing keeps up
+    // with the writers.
     db_options.set_db_write_buffer_size(db_write_buffer_size);
 
     // Per-column-family options: Create options with compactions disabled and large
@@ -149,7 +195,6 @@ pub fn bulk_ingestion_options() -> BulkIngestionOptions {
         .options
         .set_level_zero_stop_writes_trigger(i32::MAX);
 
-    let cf_memory_budget = (total_memory_bytes as f64 * 0.25) as usize;
     const MIN_BUFFER_SIZE: usize = 64 * 1024 * 1024; // 64 MiB
     // More CPUs means more parallel flushing capacity, so target more buffers,
     // but never shrink a buffer below the minimum.
@@ -163,24 +208,19 @@ pub fn bulk_ingestion_options() -> BulkIngestionOptions {
         .options
         .set_max_write_buffer_number(buffer_count);
 
-    // Calculate batch size limit: default to half the buffer size or 128MB,
-    // whichever is smaller
-    let batch_size_limit = (buffer_size / 2).min(1 << 27);
-
     debug!(
         total_memory_bytes,
         num_cpus,
         db_write_buffer_size,
         buffer_size,
         buffer_count,
-        batch_size_limit,
         "configured bulk ingestion options"
     );
 
     BulkIngestionOptions {
         db_options,
         column_family_options,
-        batch_size_limit,
+        cf_memory_budget,
     }
 }
 
@@ -322,12 +362,8 @@ impl DBOptions {
             .set_level_zero_stop_writes_trigger((max_level_zero_file_num * 16).try_into().unwrap());
 
         // Increase sst file size to 128MiB.
-        self.options.set_target_file_size_base(
-            read_size_from_env(ENV_VAR_TARGET_FILE_SIZE_BASE_MB)
-                .unwrap_or(DEFAULT_TARGET_FILE_SIZE_BASE_MB) as u64
-                * 1024
-                * 1024,
-        );
+        self.options
+            .set_target_file_size_base(target_file_size_base());
 
         // Increase level 1 target size to 256MiB * 6 ~ 1.5GiB.
         self.options
@@ -376,12 +412,8 @@ impl DBOptions {
             .set_level_zero_stop_writes_trigger((max_level_zero_file_num * 16).try_into().unwrap());
 
         // Increase sst file size to 128MiB.
-        self.options.set_target_file_size_base(
-            read_size_from_env(ENV_VAR_TARGET_FILE_SIZE_BASE_MB)
-                .unwrap_or(DEFAULT_TARGET_FILE_SIZE_BASE_MB) as u64
-                * 1024
-                * 1024,
-        );
+        self.options
+            .set_target_file_size_base(target_file_size_base());
 
         // This should be a no-op for universal compaction but increasing it to be safe.
         self.options
@@ -511,6 +543,17 @@ pub fn list_tables(path: std::path::PathBuf) -> eyre::Result<Vec<String>> {
         })
 }
 
+/// The size, in bytes, at which compactions under
+/// [`DBOptions::optimize_for_write_throughput`] and
+/// [`DBOptions::optimize_for_write_throughput_no_deletion`] cut their output
+/// files.
+pub fn target_file_size_base() -> u64 {
+    read_size_from_env(ENV_VAR_TARGET_FILE_SIZE_BASE_MB).unwrap_or(DEFAULT_TARGET_FILE_SIZE_BASE_MB)
+        as u64
+        * 1024
+        * 1024
+}
+
 pub fn read_size_from_env(var_name: &str) -> Option<usize> {
     env::var(var_name)
         .ok()?
@@ -522,4 +565,34 @@ pub fn read_size_from_env(var_name: &str) -> Option<usize> {
             )
         })
         .ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The memtable budget is a fixed share of the measured memory, with a
+    /// safe fallback when the probe fails.
+    #[test]
+    fn write_buffer_budget_scales_with_available_memory() {
+        const TOTAL: u64 = 64 << 30;
+
+        let (db_one, cf_one) = write_buffer_budget(TOTAL);
+        assert_eq!(db_one, (TOTAL as f64 * 0.8) as usize);
+        assert_eq!(cf_one, (TOTAL as f64 * 0.25) as usize);
+
+        // A failed memory probe must not turn the whole-database cap into
+        // RocksDB's unlimited.
+        let (db_unknown, cf_unknown) = write_buffer_budget(0);
+        assert_eq!(write_buffer_budget(4 << 30), (db_unknown, cf_unknown));
+        assert!(db_unknown > 0 && cf_unknown > 0);
+
+        // A measured limit below the fallback is used as is: budgeting above
+        // a cgroup limit would get the process killed.
+        const SMALL: u64 = 2 << 30;
+        let (db_small, cf_small) = write_buffer_budget(SMALL);
+        assert_eq!(db_small, (SMALL as f64 * 0.8) as usize);
+        assert_eq!(cf_small, (SMALL as f64 * 0.25) as usize);
+        assert!(db_small < db_unknown);
+    }
 }

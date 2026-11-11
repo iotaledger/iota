@@ -752,7 +752,7 @@ where
                 return;
             }
             if checkpoint.next_epoch_committee().is_some() {
-                fail_point!("synced-end-of-epoch-checkpoint-from-consensus");
+                fail_point!("synced-end-of-epoch-checkpoint");
             }
         }
 
@@ -1785,9 +1785,12 @@ async fn sync_checkpoint_contents<S>(
                         // for every checkpoint up to the synced watermark. The
                         // checkpoint executor will panic if it encounters missing
                         // contents.
-                        store
+                        let synced = store
                             .try_update_highest_synced_checkpoint(&checkpoint)
                             .expect("store operation should not fail");
+                        if synced && checkpoint.next_epoch_committee().is_some() {
+                            fail_point!("synced-end-of-epoch-checkpoint");
+                        }
                         // We don't care if no one is listening as this is a broadcast channel
                         let _ = checkpoint_event_sender.send(checkpoint.clone());
                         tx_concurrency_remaining += checkpoint.network_total_transactions - highest_synced.network_total_transactions;

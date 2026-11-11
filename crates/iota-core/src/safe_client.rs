@@ -5,7 +5,7 @@
 
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
-use iota_sdk_types::{TransactionDigest, TransactionEffectsDigest};
+use iota_sdk_types::{TransactionDigest, TransactionEffectsDigest, TransactionEvents};
 use iota_types::{
     base_types::*,
     committee::*,
@@ -253,6 +253,37 @@ impl<C> SafeClient<C> {
         Ok(signed_effects)
     }
 
+    /// Checks that `events` are the events `signed_effects` records.
+    fn check_events(
+        &self,
+        events: &TransactionEvents,
+        signed_effects: &SignedTransactionEffects,
+    ) -> IotaResult {
+        match signed_effects.events_digest() {
+            None => {
+                fp_ensure!(
+                    events.is_empty(),
+                    IotaError::ByzantineAuthoritySuspicion {
+                        authority: self.address,
+                        reason: "Returned events but no event digest present in the signed effects"
+                            .to_string(),
+                    }
+                );
+            }
+            Some(events_digest) => {
+                fp_ensure!(
+                    &events.digest() == events_digest,
+                    IotaError::ByzantineAuthoritySuspicion {
+                        authority: self.address,
+                        reason: "Returned events don't match events digest in the signed effects"
+                            .to_string()
+                    }
+                );
+            }
+        }
+        Ok(())
+    }
+
     fn check_transaction_info(
         &self,
         digest: &TransactionDigest,
@@ -268,6 +299,16 @@ impl<C> SafeClient<C> {
         );
         match status {
             TransactionStatus::Signed(signed) => {
+                fp_ensure!(
+                    signed.authority == self.address,
+                    IotaError::ByzantineAuthoritySuspicion {
+                        authority: self.address,
+                        reason: format!(
+                            "Unexpected validator address in the signed transaction signature: {:?}",
+                            signed.authority
+                        ),
+                    }
+                );
                 self.get_committee(&signed.epoch)?;
                 Ok(PlainTransactionInfoResponse::Signed(
                     SignedTransaction::new_from_data_and_sig(transaction.into_data(), signed),
@@ -275,6 +316,7 @@ impl<C> SafeClient<C> {
             }
             TransactionStatus::Executed(cert_opt, effects, events) => {
                 let signed_effects = self.check_signed_effects_plain(digest, effects, None)?;
+                self.check_events(&events, &signed_effects)?;
                 match cert_opt {
                     Some(cert) => {
                         let committee = self.get_committee(&cert.epoch)?;
@@ -368,28 +410,8 @@ where
     ) -> IotaResult<HandleCertificateResponseV1> {
         let signed_effects = self.check_signed_effects_plain(digest, signed_effects, None)?;
 
-        // Check Events
-        match (&events, signed_effects.events_digest()) {
-            (None, None) | (None, Some(_)) => {}
-            (Some(events), None) => {
-                if !events.is_empty() {
-                    return Err(IotaError::ByzantineAuthoritySuspicion {
-                        authority: self.address,
-                        reason: "Returned events but no event digest present in the signed effects"
-                            .to_string(),
-                    });
-                }
-            }
-            (Some(events), Some(events_digest)) => {
-                fp_ensure!(
-                    &events.digest() == events_digest,
-                    IotaError::ByzantineAuthoritySuspicion {
-                        authority: self.address,
-                        reason: "Returned events don't match events digest in the signed effects"
-                            .to_string()
-                    }
-                );
-            }
+        if let Some(events) = &events {
+            self.check_events(events, &signed_effects)?;
         }
 
         // Check Input Objects

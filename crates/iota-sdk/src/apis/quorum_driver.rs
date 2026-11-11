@@ -42,10 +42,16 @@ impl QuorumDriverApi {
     /// [`IotaTransactionBlockResponseOptions::require_effects`]), and to
     /// [`ExecuteTransactionRequestType::WaitForEffectsCert`] otherwise.
     ///
-    /// Under `WaitForLocalExecution` the client polls the read API before
-    /// returning, whenever the node either does not confirm local execution
-    /// or fails with a transient error. If that poll times out, the call
-    /// returns whichever the node already gave it: the response, with
+    /// With `WaitForLocalExecution`, the node answers once it has executed
+    /// and indexed the transaction, and confirms that with
+    /// `confirmed_local_execution: Some(true)`, so a read sent after the call
+    /// sees the transaction. The client returns that answer as it is.
+    ///
+    /// If the node's own wait runs out first, or it fails with a transient
+    /// error, the client polls the read API until it reports the
+    /// transaction's checkpoint, which it does once that checkpoint is
+    /// indexed. If that takes longer than 60 s, the call returns whichever
+    /// answer the node already gave: the response, with
     /// `confirmed_local_execution` left as the node reported it, or the
     /// node's error.
     ///
@@ -95,10 +101,10 @@ impl QuorumDriverApi {
             }
         };
 
-        // Both remaining cases wait for the transaction to become locally
-        // readable. A poll timeout is not itself a failure: the caller gets
-        // back whichever answer the node already gave.
-        let poll_response = self.wait_until_visible(*tx.digest(), &options, start).await;
+        // Both remaining cases wait for the transaction to be indexed. A poll
+        // timeout is not itself a failure: the caller gets back whichever
+        // answer the node already gave.
+        let poll_response = self.wait_until_indexed(*tx.digest(), &options, start).await;
         match (response, poll_response) {
             (Ok(mut response), Ok(_)) | (Err(_), Ok(mut response)) => {
                 response.confirmed_local_execution = Some(true);
@@ -109,9 +115,11 @@ impl QuorumDriverApi {
         }
     }
 
-    /// Polls the read API until `digest` can be read back on the node that
-    /// served the request.
-    async fn wait_until_visible(
+    /// Polls the read API until it reports `digest`'s checkpoint. The node
+    /// that served the request reports a transaction's checkpoint only once
+    /// it has indexed that checkpoint, while the transaction itself is
+    /// readable as soon as it has executed.
+    async fn wait_until_indexed(
         &self,
         digest: TransactionDigest,
         options: &IotaTransactionBlockResponseOptions,
@@ -140,7 +148,9 @@ impl QuorumDriverApi {
                     .get_transaction_block(digest, Some(options.clone()))
                     .await
                 {
-                    return poll_response;
+                    if poll_response.checkpoint.is_some() {
+                        return poll_response;
+                    }
                 }
             }
         })

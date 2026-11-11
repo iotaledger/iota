@@ -715,7 +715,10 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .with_label_values(&[commit_sync_type.as_str()])
                     .inc_by((search_up_to - index_with_votes + 1) as u64);
                 // Continue searching from index_with_votes - 1
-                search_up_to = index_with_votes.saturating_sub(1);
+                let Some(next_index) = index_with_votes.checked_sub(1) else {
+                    return Ok(None);
+                };
+                search_up_to = next_index;
                 if search_up_to < commit_range.start() {
                     return Ok(None);
                 }
@@ -762,7 +765,10 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .with_label_values(&[commit_sync_type.as_str()])
                     .inc_by((index_with_votes - current_search_from + 1) as u64);
                 // Continue searching from index_with_votes + 1
-                current_search_from = index_with_votes.saturating_add(1);
+                let Some(next_index) = index_with_votes.checked_add(1) else {
+                    return Ok(None);
+                };
+                current_search_from = next_index;
             }
         }
     }
@@ -1523,10 +1529,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     }
 
     /// Handles two types of fetch headers requests:
-    /// 1. Missing block headers for header sync (periodic or live):
+    /// 1. Missing block headers for periodic header sync:
     ///    - uses highest_accepted_rounds.
     ///    - at most max_headers_per_header_sync_fetch headers are returned.
-    /// 2. Committed block headers for commit sync:
+    /// 2. Block headers for commit sync and live header sync:
     ///    - does not use highest_accepted_rounds.
     ///    - at most max_headers_per_commit_sync_fetch headers are returned.
     async fn handle_fetch_headers(
@@ -2629,13 +2635,16 @@ mod tests {
     }
 
     fn stream_fixture(context: Arc<Context>) -> StreamFixture {
+        stream_fixture_with_store(context, Arc::new(MemStore::new()))
+    }
+
+    fn stream_fixture_with_store(context: Arc<Context>, store: Arc<dyn Store>) -> StreamFixture {
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, tx_message_receiver) = mpsc::channel(100);
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -5291,6 +5300,89 @@ mod tests {
                 .unwrap();
             assert!(result.0.is_empty(), "{label} returned commits");
             assert!(result.1.is_empty(), "{label} returned headers");
+        }
+    }
+
+    #[rstest]
+    #[case::maximum(
+        CommitIndex::MAX,
+        vec![CommitRange::new(1..=10), CommitRange::new(CommitIndex::MAX - 1..=CommitIndex::MAX)]
+    )]
+    #[case::zero(0, vec![CommitRange::new(0..=0), CommitRange::new(0..=10)])]
+    #[tokio::test]
+    async fn commit_fetch_terminates_at_an_uncertifiable_vote(
+        #[case] vote: CommitIndex,
+        #[case] ranges: Vec<CommitRange>,
+        #[values(false, true)] starfish_speed: bool,
+    ) {
+        use crate::block_verifier::BlockVerifier as _;
+
+        let (mut context, keys) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        let context = Arc::new(context);
+        let directory = tempfile::TempDir::new().unwrap();
+        let store = Arc::new(crate::storage::rocksdb_store::RocksDBStore::new(
+            directory.path().to_str().unwrap(),
+        ));
+        let fixture = stream_fixture_with_store(context.clone(), store.clone());
+        let header = TestBlockHeader::new(10, 2)
+            .set_version(TestBlockHeaderVersion::from_context(&context))
+            .set_ancestors(vec![
+                BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+                BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+            ])
+            .set_commit_votes(vec![CommitRef::new(vote, CommitDigest::MIN)])
+            .build();
+        let signed = SignedBlockHeader::new(header, &keys[2].1).unwrap();
+        SignedBlockVerifier::new(
+            context,
+            Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
+        )
+        .verify(&signed)
+        .unwrap();
+        let serialized = Bytes::from(bcs::to_bytes(&signed).unwrap());
+        fixture.dag_state.write().accept_block_header(
+            VerifiedBlockHeader::new_verified(signed, serialized),
+            DataSource::BlockBundleStream,
+        );
+        fixture.dag_state.write().flush();
+        assert_eq!(
+            store.read_highest_commit_index_with_votes(vote).unwrap(),
+            Some(vote)
+        );
+
+        for (range, commit_sync_type) in ranges.into_iter().flat_map(|range| {
+            [
+                (range.clone(), CommitSyncType::Regular),
+                (range, CommitSyncType::Fast),
+            ]
+        }) {
+            let service = fixture.authority_service.clone();
+            let (sender, receiver) = std::sync::mpsc::channel();
+            // A Tokio timeout cannot interrupt the synchronous store scan.
+            std::thread::spawn(move || {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap();
+                let result = runtime
+                    .block_on(service.handle_fetch_commits(
+                        AuthorityIndex::new_for_test(2),
+                        range,
+                        commit_sync_type,
+                    ))
+                    .map(|(commits, _)| commits.len());
+                let _ = sender.send(result);
+            });
+            let fetched = receiver
+                .recv_timeout(Duration::from_secs(2))
+                .expect("commit fetch must finish when the vote has no quorum")
+                .unwrap();
+            assert_eq!(fetched, 0);
         }
     }
 

@@ -1,17 +1,16 @@
 ---
-description: Learn how to monitor IOTA on-chain activity by subscribing to events emitted by Move packages.
+description: Learn how to emit events in Move packages and follow them with queries, GraphQL subscriptions, or gRPC checkpoint streaming.
 tags: [ rust, sdk, rust-sdk, ts-sdk]
 teams:
   - iotaledger/dev-tools
   - iotaledger/tooling
 ---
-import DeprecatedMethodsNote from '../../_snippets/deprecated_methods_note.mdx';
 
-# Subscribing to On-Chain Events in IOTA
+# Monitoring On-Chain Events in IOTA
 
 Monitoring on-chain activity is essential for understanding and reacting to actions performed by smart contracts on the IOTA network.
-By subscribing to events emitted by Move packages, you can track activities such as NFT minting or IOTA transactions in real-time.
-This guide will show you how to emit events in Move and subscribe to them using the IOTA network.
+By following the events emitted by Move packages, you can track activities such as NFT minting or IOTA transactions as they happen.
+This guide shows you how to emit events in Move, query them, and follow new events as the network produces them.
 
 ## Understanding Events in IOTA
 
@@ -33,18 +32,16 @@ An event object in IOTA consists of the following attributes:
 
 ### Exploring Available Events
 
-To [subscribe to on-chain events](#subscribing-to-events), you first need to identify which events are available. While you can easily track events emitted by your own code, discovering events from external packages can be more challenging. The IOTA RPC provides the [`queryEvents`](/iota-api-ref#iotax_queryevents) method, which allows you to query on-chain packages and obtain a list of events you can subscribe to.
-
-<DeprecatedMethodsNote/>
+To [follow on-chain events](#following-new-events), you first need to identify which events are available. While you can easily track events emitted by your own code, discovering events from external packages can be more challenging. The IOTA RPC provides the [`queryEvents`](/iota-api-ref#iotax_queryevents) method, which allows you to query on-chain packages and obtain a list of the events they emit.
 
 ### Applying Event Filters
 
-When targeting specific events for [querying](#querying-events) or [subscribing](#subscribing-to-events), you can use [filters](#filtering-events) to refine your results. Although the filtering options for querying and subscribing are similar, there are notable differences to be aware of.
+When targeting specific events for [querying](#querying-events), you can use [filters](#filtering-events) to refine your results. The filters a full node supports differ from the ones an indexer supports.
 
 ## Emitting Events in Move
 
 To emit events from your Move modules, you need to use the [`iota::event`](../../developer/references/framework/iota/event.mdx) module.
-Emitting events allows external applications to subscribe and respond to specific on-chain activities.
+Emitting events allows external applications to follow and respond to specific on-chain activities.
 
 First, import the `event` module in your Move code:
 
@@ -157,116 +154,136 @@ interact with the IOTA GraphQL service.
 </TabItem>
 </Tabs>
 
-## Subscribing to Events
+## Following New Events
 
-This example leverages the IOTA TypeScript SDK to subscribe to events the package with ID `<PACKAGE_ID>` emits. Each time the event fires, the code displays the response to the console.
+There are several ways to react to events as the network produces them:
+
+- [Poll `queryEvents`](#polling-with-queryevents) with a cursor, so each request returns only the events since the previous one.
+- [Subscribe through GraphQL](#subscribing-through-graphql) with the TypeScript SDK.
+- [Stream checkpoints over gRPC](#streaming-checkpoints-with-grpc) and read the events of each transaction.
+- Run a [custom indexer](../advanced/custom-indexer.mdx), which processes every checkpoint with IOTA's data ingestion framework.
+
+Polling is the simplest option and is most useful when the events you're monitoring don't fire often or you don't need to act on them right away. GraphQL subscriptions, gRPC streaming and a custom indexer deliver events close to when they happen.
+
+### Polling with `queryEvents`
+
+`queryEvents` returns a `nextCursor` that points at the last event of the page. Passing it back as the `cursor` of the next request returns only newer events. A page without events has no `nextCursor`, so keep the previous cursor in that case. The following examples first look up the newest matching event, so they only print events emitted after they start, and then poll every five seconds.
 
 <Tabs>
-<TabItem value="rs" label="Rust">
+<TabItem value="ts" label="TypeScript">
 
-See [Rust SDK](../../developer/iota-sdk/getting-started/rust.mdx).
+```ts
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
-```rust
-use futures::StreamExt;
-use iota_sdk::rpc_types::EventFilter;
-use iota_sdk::IotaClientBuilder;
-use anyhow::Result;
+const client = new IotaClient({ url: getFullnodeUrl('testnet') });
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let iota = IotaClientBuilder::default()
-        .ws_url("wss://api.testnet.iota.cafe:443")
-        .build("https://api.testnet.iota.cafe:443")
-        .await.unwrap();
-    let mut subscribe_all = iota.event_api().subscribe_event(EventFilter::All(vec![])).await?;
-    loop {
-        println!("{:?}", subscribe_all.next().await);
+const query = { MoveModule: { package: '<PACKAGE_ID>', module: '<MODULE_NAME>' } };
+
+// Start after the newest matching event, so only new events are printed.
+let cursor = (await client.queryEvents({ query, limit: 1, order: 'descending' })).nextCursor;
+
+while (true) {
+    const page = await client.queryEvents({ query, cursor, order: 'ascending' });
+    for (const event of page.data) {
+        console.log(event.parsedJson);
+    }
+    // An empty page has no cursor; keep the previous one so the next poll
+    // doesn't start again from the oldest event.
+    cursor = page.nextCursor ?? cursor;
+    if (!page.hasNextPage) {
+        await new Promise((resolve) => setTimeout(resolve, 5000));
     }
 }
 ```
 
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="rs" label="Rust">
 
-To create the event subscription, you can use a basic Node.js app. You need the [IOTA TypeScript SDK](../../developer/ts-sdk/typescript/index.mdx), so install the module using `npm install @iota/iota-sdk` at the root of your project. In your TypeScript code, import `JsonRpcProvider` and a connection from the library.
+See [Rust SDK](../../developer/iota-sdk/getting-started/rust.mdx).
 
-```ts
+```rust
+use std::time::Duration;
 
-import { getFullnodeUrl, IotaClient } from '@iota/sdk/client';
+use iota_sdk::{rpc_types::EventFilter, types::Identifier, IotaClientBuilder};
 
-// Package is on Testnet.
-const client = new IotaClient({
-	url: getFullnodeUrl('testnet'),
-});
-const Package = '<PACKAGE_ID>';
+const PACKAGE_ID_CONST: &str = "";
 
-const MoveEventType = '<PACKAGE_ID>::<MODULE_NAME>::<METHOD_NAME>';
+#[tokio::main]
+async fn main() -> Result<(), anyhow::Error> {
+    let iota = IotaClientBuilder::default().build_testnet().await?;
+    let filter = EventFilter::MoveModule {
+        package: PACKAGE_ID_CONST.parse()?,
+        module: Identifier::new("dev_trophy")?,
+    };
 
-console.log(
-	await client.getObject({
-		id: Package,
-		options: { showPreviousTransaction: true },
-	}),
-);
+    // Start after the newest matching event, so only new events are printed.
+    let mut cursor = iota
+        .event_api()
+        .query_events(filter.clone(), None, 1, true)
+        .await?
+        .next_cursor;
 
-let unsubscribe = await client.subscribeEvent({
-	filter: { Package },
-	onMessage: (event) => {
-		console.log('subscribeEvent', JSON.stringify(event, null, 2));
-	},
-});
-
-process.on('SIGINT', async () => {
-	console.log('Interrupted...');
-	if (unsubscribe) {
-		await unsubscribe();
-		unsubscribe = undefined;
-	}
-});
-```
-
-### Response
-
-When the subscribed to event fires, the example displays the following JSON representation of the event.
-
-```json
-subscribeEvent {
-  "id": {
-    "txDigest": "HkCBeBLQbpKBYXmuQeTM98zprUqaACRkjKmmtvC6MiP1",
-    "eventSeq": "0"
-  },
-  "packageId": "0x2d6733a32e957430324196dc5d786d7c839f3c7bbfd92b83c469448b988413b1",
-  "transactionModule": "coin_flip",
-  "sender": "0x46f184f2d68007e4344fffe603c4ccacd22f4f28c47f321826e83619dede558e",
-  "type": "0x2d6733a32e957430324196dc5d786d7c839f3c7bbfd92b83c469448b988413b1::coin_flip::Outcome",
-  "parsedJson": {
-    "bet_amount": "4000000000",
-    "game_id": "0xa7e1fb3c18a88d048b75532de219645410705fa48bfb8b13e8dbdbb7f4b9bbce",
-    "guess": 0,
-    "player_won": true
-  },
-  "bcs": "3oWWjWKRVu115bnnZphyDcJ8EyF9X4pgVguwhEtcsVpBf74B6RywQupm2X",
-  "timestampMs": "1687912116638"
+    loop {
+        let page = iota
+            .event_api()
+            .query_events(filter.clone(), cursor, None, false)
+            .await?;
+        for event in &page.data {
+            println!("Event: {:?}", event.parsed_json);
+        }
+        // An empty page has no cursor; keep the previous one so the next poll
+        // doesn't start again from the oldest event.
+        cursor = page.next_cursor.or(cursor);
+        if !page.has_next_page {
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
+    }
 }
 ```
 
 </TabItem>
 </Tabs>
 
-## Monitoring Events
+### Subscribing through GraphQL
 
-Firing events is not very useful in a vacuum. You also need the ability to respond to those events. 
-There are two methods from which to choose when you need to monitor on-chain events:
-- Incorporate a [custom indexer](../advanced/custom-indexer.mdx) to take advantage of IOTA's micro-data ingestion framework.
-- Poll the IOTA network on a schedule to query events.
+The GraphQL service offers subscriptions for events and transactions, if its operator enabled them. In the TypeScript SDK, an `IotaClient` that uses the [`@iota/graphql-transport`](https://www.npmjs.com/package/@iota/graphql-transport) package serves `subscribeEvent` and `subscribeTransaction` through these GraphQL subscriptions. Install the package with `npm install @iota/graphql-transport`.
 
-Using a custom indexer provides a near-real time monitoring of events, so is most useful when your project requires immediate reaction to the firing of events. Polling the network is most useful when the events you're monitoring don't fire often or the need to act on those events are not immediate. The following section provides a polling example.
+```ts
+import { IotaClientGraphQLTransport } from '@iota/graphql-transport';
+import { IotaClient } from '@iota/iota-sdk/client';
+
+const client = new IotaClient({
+    transport: new IotaClientGraphQLTransport({
+        url: 'https://graphql.testnet.iota.cafe',
+    }),
+});
+
+// Call the returned function to stop the subscription.
+const unsubscribe = await client.subscribeEvent({
+    filter: { Package: '<PACKAGE_ID>' },
+    onMessage: (event) => {
+        console.log(JSON.stringify(event, null, 2));
+    },
+});
+
+process.on('SIGINT', async () => {
+    await unsubscribe();
+});
+```
+
+Event subscriptions support the `Package` and `MoveModule` filters, which select the module that emitted the event. To resume after an interruption without missing events, pass the digest of the last transaction you received as `startAfter`.
+
+The transport connects to the `/subscriptions` path of the GraphQL URL over WebSocket. In an environment without a global `WebSocket` class, pass an implementation, for example from the `ws` package, as the `WebSocketConstructor` option of `IotaClientGraphQLTransport`.
+
+### Streaming Checkpoints with gRPC
+
+The gRPC API streams checkpoints as the network produces them, including the events of each transaction, and lets you filter what it sends. See [Stream Checkpoints](../ts-sdk/grpc/how-tos/stream-checkpoints.mdx) for the TypeScript SDK. In Rust, the `iota-sdk-grpc-client` crate provides the gRPC client; see the [SDK architecture](../iota-sdk/explanations/architecture.mdx).
 
 ## Usage Examples with TypeScript SDK
 
 The IOTA TypeScript SDK enables querying on-chain activity, such as emitted events and transaction blocks. Below are detailed usage examples for both `queryEvents` and `queryTransactionBlocks`.
 
-The IOTA TypeScript SDK enables developers to interact with the IOTA Layer 1 blockchain in a structured and type-safe way. This includes retrieving smart contract events, querying transaction history, and subscribing to real-time on-chain activity. Below are **detailed usage examples** of two commonly used methods in the SDK:
+The IOTA TypeScript SDK enables developers to interact with the IOTA Layer 1 blockchain in a structured and type-safe way. This includes retrieving smart contract events and querying transaction history. Below are **detailed usage examples** of two commonly used methods in the SDK:
 
 - **`queryEvents`**: To fetch emitted on-chain events (e.g., from NFTs or smart contracts).
 - **`queryTransactionBlocks`**: To fetch raw transaction blocks based on filters such as sender, block type, or time range.
@@ -352,7 +369,7 @@ queryTransactionBlocks();
 
 ## Filtering Events
 
-You can filter events when [querying](#querying-events) or [subscribing](#subscribing-to-events) to receive only the events you are interested in.
+You can filter events when [querying](#querying-events) to receive only the events you are interested in.
 
 The available filters depend on whether you query against a full node or an indexer endpoint.
 

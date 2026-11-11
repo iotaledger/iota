@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub use balance_changes::*;
+pub use display_template::*;
 use fastcrypto::{
     encoding::{Base58, Base64},
     traits::VerifyingKey,
@@ -32,6 +33,7 @@ use iota_types::{
     iota_serde::BigInt,
 };
 pub use object_changes::*;
+pub use owned_object_cursor::OwnedObjectCursor;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeAs, SerializeAs, serde_as};
@@ -41,6 +43,7 @@ use serde_with::{DeserializeAs, SerializeAs, serde_as};
 mod rpc_types_tests;
 
 mod balance_changes;
+mod display_template;
 mod displays;
 mod iota_checkpoint;
 mod iota_coin;
@@ -58,6 +61,7 @@ mod iota_protocol;
 mod iota_system_state_summary;
 mod iota_transaction;
 mod object_changes;
+mod owned_object_cursor;
 
 pub type DynamicFieldPage = Page<IotaDynamicFieldInfo, ObjectId>;
 

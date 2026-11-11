@@ -16,8 +16,8 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::TxContext,
     committee::EpochId,
-    error::ExecutionError,
-    execution::{ExecutionResult, ExecutionTiming, TypeLayoutStore},
+    error::{ExecutionError, ExecutionErrorKind},
+    execution::{AuthenticateThenExecuteOutput, ExecutionResult, ExecutionTiming, TypeLayoutStore},
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
@@ -105,6 +105,15 @@ pub trait Executor {
         // failed.
         authenticators: MoveAuthenticatorsForExecution,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
+        // Decides whether a gas owner that is a Move account pays when its own
+        // authentication fails: on `true`, it is charged as if it had authorized
+        // the transaction. Not called for a cancellation at the consensus commit
+        // or an invariant violation; a denied certificate is judged, since the
+        // deny list applies after authentication. Ignored while the protocol
+        // feature flag `enable_validator_attestation` is off. It gets the
+        // authentication error's kind, with a wrapping `MoveAuthentication`
+        // status removed. `None` is the same as answering `false`.
+        gas_owner_pays: Option<&dyn Fn(&ExecutionErrorKind) -> bool>,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_signer: Address,
@@ -113,13 +122,7 @@ pub trait Executor {
         auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> (
-        InnerTemporaryStore,
-        IotaGasStatus,
-        TransactionEffects,
-        Vec<ExecutionTiming>,
-        Result<(), ExecutionError>,
-    );
+    ) -> AuthenticateThenExecuteOutput<()>;
 
     fn authenticate_transaction(
         &self,
@@ -148,7 +151,11 @@ pub trait Executor {
         auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> Result<(), ExecutionError>;
+    ) -> (
+        // The gas status the authentication was metered on.
+        IotaGasStatus,
+        Result<(), ExecutionError>,
+    );
 
     fn update_genesis_state(
         &self,

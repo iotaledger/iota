@@ -3,15 +3,12 @@ keystore:
 envs:
   - alias: base
     rpc: "https://custom.rpc.node.base:443"
-    ws: ~
     basic_auth: ~
   - alias: one
     rpc: "https://custom.rpc.node.one:443"
-    ws: ~
     basic_auth: ~
   - alias: two
     rpc: "https://custom.rpc.node.two:443"
-    ws: ~
     basic_auth: ~
 active_env: base
 active_address: "0x0000000000000000000000000000000000000000000000000000000000000000"

@@ -19,6 +19,7 @@ use iota_system::governance_test_utils::{
     add_validator,
     add_validator_candidate,
     advance_epoch,
+    advance_epoch_safe_mode,
     advance_epoch_with_balanced_reward_amounts,
     advance_epoch_with_amounts,
     assert_validator_total_stake_amounts,
@@ -1503,6 +1504,33 @@ fun test_timelock_validator_subsidy_lower_than_computation_charge() {
     assert_eq(total_timelocked_iota_balance(STAKER_ADDR_2, scenario), 150 * NANOS_PER_IOTA);
     assert_eq(total_iota_balance(STAKER_ADDR_2, scenario), 120 * NANOS_PER_IOTA);
 
+    scenario_val.end();
+}
+
+#[test]
+fun test_withdraw_timelocked_stake_skipped_by_safe_mode_epoch_change() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(STAKER_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    // Validator 1 holds 100 IOTA; the pending stake is larger than the pool.
+    stake_timelocked_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 200, 10, scenario);
+    // The epoch change that should have processed the stake runs in safe mode.
+    advance_epoch_safe_mode(scenario);
+
+    // The stake was never processed: the whole principal is locked again and
+    // there is no reward.
+    unstake_timelocked(STAKER_ADDR_1, 0, scenario);
+    assert_eq(total_timelocked_iota_balance(STAKER_ADDR_1, scenario), 200 * NANOS_PER_IOTA);
+    assert!(!has_iota_coins(STAKER_ADDR_1, scenario));
+
+    // The next normal epoch change completes with the pool unchanged.
+    advance_epoch(scenario);
+    assert_validator_total_stake_amounts(
+        validator_addrs(),
+        vector[100 * NANOS_PER_IOTA, 100 * NANOS_PER_IOTA],
+        scenario,
+    );
     scenario_val.end();
 }
 

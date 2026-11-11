@@ -23,6 +23,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::deterministic_random_account_private_key,
     dynamic_field::DynamicFieldName,
+    event::EventID,
     object::{MoveStructExt, OBJECT_START_VERSION, ObjectInner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -188,6 +189,91 @@ async fn query_events() {
 
     for event in event_page.data {
         assert_eq!(event.sender, Address::ZERO);
+    }
+}
+
+/// A cursor naming an event its transaction does not have is refused, rather
+/// than continuing a page from the wrong place.
+#[sim_test]
+async fn query_events_refuses_a_cursor_naming_no_event() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let client = cluster.rpc_client();
+
+    let page = client
+        .query_events(EventFilter::All(vec![]), None, Some(1), None)
+        .await
+        .unwrap();
+    let event = page.data.first().expect("genesis emits events");
+    let cursor = EventID {
+        tx_digest: event.id.tx_digest,
+        event_seq: 9_999,
+    };
+
+    for filter in [
+        EventFilter::TimeRange {
+            start_time: 0,
+            end_time: u64::MAX,
+        },
+        EventFilter::Sender(event.sender),
+        EventFilter::Transaction(event.id.tx_digest),
+    ] {
+        let result = client
+            .query_events(filter.clone(), Some(cursor), Some(10), None)
+            .await;
+        assert!(result.is_err(), "{filter:?}: {result:?}");
+    }
+}
+
+/// A transaction's events page through in order in both directions, each
+/// with its checkpoint's timestamp.
+#[sim_test]
+async fn query_events_pages_through_a_transactions_events() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let client = cluster.rpc_client();
+
+    let first = client
+        .query_events(EventFilter::All(vec![]), None, Some(1), None)
+        .await
+        .unwrap();
+    let digest = first
+        .data
+        .first()
+        .expect("genesis emits events")
+        .id
+        .tx_digest;
+
+    for descending in [false, true] {
+        let mut seqs = Vec::new();
+        let mut cursor = None;
+        loop {
+            let page = client
+                .query_events(
+                    EventFilter::Transaction(digest),
+                    cursor,
+                    Some(1),
+                    Some(descending),
+                )
+                .await
+                .unwrap();
+            for event in &page.data {
+                assert_eq!(event.id.tx_digest, digest);
+                assert!(event.timestamp_ms.is_some());
+            }
+            seqs.extend(page.data.iter().map(|event| event.id.event_seq));
+            if !page.has_next_page {
+                break;
+            }
+            cursor = page.next_cursor;
+        }
+        assert!(
+            seqs.len() > 1,
+            "the pages must split the transaction's events"
+        );
+        let mut expected: Vec<u64> = (0..seqs.len() as u64).collect();
+        if descending {
+            expected.reverse();
+        }
+        assert_eq!(seqs, expected, "descending: {descending}");
     }
 }
 

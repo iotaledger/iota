@@ -50,10 +50,7 @@ impl Scope {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn ip(s: &str) -> IpAddr {
-        s.parse().unwrap()
-    }
+    use crate::metrics::tests::ip;
 
     #[test]
     fn mapped_ipv4_has_the_scope_of_the_ipv4_address() {

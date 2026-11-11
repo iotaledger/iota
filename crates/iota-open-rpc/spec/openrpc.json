@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.35.1-rc"
+    "version": "1.36.1-rc"
   },
   "methods": [
     {
@@ -1288,15 +1288,15 @@
           "params": [
             {
               "name": "version",
-              "value": 39
+              "value": 40
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "39",
-              "protocolVersion": "39",
+              "maxSupportedProtocolVersion": "40",
+              "protocolVersion": "40",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -1335,17 +1335,21 @@
                 "disallow_new_modules_in_deps_only_packages": true,
                 "disallow_randomness_in_move_authenticator": true,
                 "disallow_self_identifier": true,
+                "disallow_self_identifier_in_transactions": true,
                 "enable_group_ops_native_function_msm": true,
                 "enable_move_authentication": true,
                 "enable_move_authentication_for_sponsor": true,
                 "enable_pcool_flow": true,
                 "enable_poseidon": true,
+                "enable_validator_attestation": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
                 "limit_groth16_pvk_inputs": true,
                 "max_ptb_value_size_v2": true,
                 "metadata_in_module_bytes": true,
+                "meter_instantiation_loops": true,
                 "minimize_child_object_mutations": true,
+                "move_authenticator_type_arg_packages_as_inputs": true,
                 "move_native_tx_context": true,
                 "native_charging_v2": true,
                 "no_extraneous_module_bytes": true,
@@ -1386,6 +1390,8 @@
                 "address_to_u256_cost_base": {
                   "u64": "52"
                 },
+                "attestation_max_refuted_units_squared": null,
+                "attestor_accuracy_tolerance_percentage": null,
                 "auth_context_authenticator_function_info_v1_cost_base": {
                   "u64": "270"
                 },
@@ -1508,7 +1514,7 @@
                   "u64": "20"
                 },
                 "checkpoint_summary_version_specific_data": {
-                  "u64": "1"
+                  "u64": "2"
                 },
                 "config_read_setting_impl_cost_base": {
                   "u64": "100"
@@ -1709,7 +1715,7 @@
                   "u64": "1"
                 },
                 "gas_model_version": {
-                  "u64": "2"
+                  "u64": "3"
                 },
                 "gas_rounding_step": {
                   "u64": "1000"
@@ -1950,6 +1956,9 @@
                 "max_input_objects": {
                   "u64": "2048"
                 },
+                "max_instantiation_loop_graph_edges": {
+                  "u64": "100000"
+                },
                 "max_jwk_votes_per_validator_per_epoch": null,
                 "max_loop_depth": {
                   "u64": "5"
@@ -1965,6 +1974,12 @@
                 },
                 "max_modules_in_publish": {
                   "u32": "64"
+                },
+                "max_move_call_argument_nodes": {
+                  "u64": "2097152"
+                },
+                "max_move_call_argument_nodes_total": {
+                  "u64": "16777216"
                 },
                 "max_move_enum_variants": {
                   "u64": "127"
@@ -3500,7 +3515,7 @@
           "name": "cursor",
           "description": "optional paging cursor",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/OwnedObjectCursor"
           }
         },
         {
@@ -3514,10 +3529,10 @@
         }
       ],
       "result": {
-        "name": "Page<Coin,ObjectIdSchema>",
+        "name": "Page<Coin,OwnedObjectCursor>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_Coin_and_OwnedObjectCursor"
         }
       },
       "examples": [
@@ -3775,7 +3790,7 @@
           "name": "cursor",
           "description": "optional paging cursor",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/OwnedObjectCursor"
           }
         },
         {
@@ -3789,10 +3804,10 @@
         }
       ],
       "result": {
-        "name": "Page<Coin,ObjectIdSchema>",
+        "name": "Page<Coin,OwnedObjectCursor>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_Coin_and_OwnedObjectCursor"
         }
       },
       "examples": [
@@ -4362,7 +4377,7 @@
           "name": "cursor",
           "description": "An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/OwnedObjectCursor"
           }
         },
         {
@@ -4376,10 +4391,10 @@
         }
       ],
       "result": {
-        "name": "Page<IotaObjectResponse,ObjectIdSchema>",
+        "name": "Page<IotaObjectResponse,OwnedObjectCursor>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_OwnedObjectCursor"
         }
       },
       "examples": [
@@ -4849,7 +4864,7 @@
         {
           "name": "cursor",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/OwnedObjectCursor"
           }
         },
         {
@@ -4868,10 +4883,10 @@
         }
       ],
       "result": {
-        "name": "Page<IotaObjectResponse,ObjectIdSchema>",
+        "name": "Page<IotaObjectResponse,OwnedObjectCursor>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_OwnedObjectCursor"
         }
       }
     },
@@ -5168,71 +5183,6 @@
           }
         }
       ]
-    },
-    {
-      "name": "iotax_subscribeEvent",
-      "tags": [
-        {
-          "name": "Extended API"
-        },
-        {
-          "name": "Websocket"
-        },
-        {
-          "name": "PubSub"
-        }
-      ],
-      "description": "Subscribe to a stream of IOTA event",
-      "params": [
-        {
-          "name": "filter",
-          "description": "The filter criteria of the event stream. See [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters) documentation for examples.",
-          "required": true,
-          "schema": {
-            "$ref": "#/components/schemas/EventFilter"
-          }
-        }
-      ],
-      "result": {
-        "name": "IotaEvent",
-        "required": true,
-        "schema": {
-          "$ref": "#/components/schemas/Event"
-        }
-      },
-      "deprecated": true
-    },
-    {
-      "name": "iotax_subscribeTransaction",
-      "tags": [
-        {
-          "name": "Extended API"
-        },
-        {
-          "name": "Websocket"
-        },
-        {
-          "name": "PubSub"
-        }
-      ],
-      "description": "Subscribe to a stream of IOTA transaction effects",
-      "params": [
-        {
-          "name": "filter",
-          "required": true,
-          "schema": {
-            "$ref": "#/components/schemas/TransactionFilter"
-          }
-        }
-      ],
-      "result": {
-        "name": "IotaTransactionBlockEffects",
-        "required": true,
-        "schema": {
-          "$ref": "#/components/schemas/TransactionBlockEffects"
-        }
-      },
-      "deprecated": true
     },
     {
       "name": "unsafe_batchTransaction",
@@ -10658,6 +10608,10 @@
           "ByValue"
         ]
       },
+      "OwnedObjectCursor": {
+        "description": "An opaque paging cursor. Pass back the `nextCursor` a page returned to read the page after it; its contents are not part of the API.",
+        "type": "string"
+      },
       "OwnedObjectRef": {
         "type": "object",
         "required": [
@@ -10769,7 +10723,7 @@
           }
         }
       },
-      "Page_for_Coin_and_ObjectID": {
+      "Page_for_Coin_and_OwnedObjectCursor": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -10789,7 +10743,7 @@
           "nextCursor": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/OwnedObjectCursor"
               },
               {
                 "type": "null"
@@ -10941,7 +10895,7 @@
           }
         }
       },
-      "Page_for_IotaObjectResponse_and_ObjectID": {
+      "Page_for_IotaObjectResponse_and_OwnedObjectCursor": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -10961,7 +10915,7 @@
           "nextCursor": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/OwnedObjectCursor"
               },
               {
                 "type": "null"
@@ -12071,183 +12025,6 @@
             ]
           }
         }
-      },
-      "TransactionFilter": {
-        "oneOf": [
-          {
-            "description": "Query by checkpoint.",
-            "type": "object",
-            "required": [
-              "Checkpoint"
-            ],
-            "properties": {
-              "Checkpoint": {
-                "type": "string"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query by move function.",
-            "type": "object",
-            "required": [
-              "MoveFunction"
-            ],
-            "properties": {
-              "MoveFunction": {
-                "type": "object",
-                "required": [
-                  "package"
-                ],
-                "properties": {
-                  "function": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "module": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "package": {
-                    "$ref": "#/components/schemas/ObjectID"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query by input object.",
-            "type": "object",
-            "required": [
-              "InputObject"
-            ],
-            "properties": {
-              "InputObject": {
-                "$ref": "#/components/schemas/ObjectID"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query by changed object, including created, mutated and unwrapped objects.",
-            "type": "object",
-            "required": [
-              "ChangedObject"
-            ],
-            "properties": {
-              "ChangedObject": {
-                "$ref": "#/components/schemas/ObjectID"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query by sender address.",
-            "type": "object",
-            "required": [
-              "FromAddress"
-            ],
-            "properties": {
-              "FromAddress": {
-                "$ref": "#/components/schemas/Address"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query by recipient address.",
-            "type": "object",
-            "required": [
-              "ToAddress"
-            ],
-            "properties": {
-              "ToAddress": {
-                "$ref": "#/components/schemas/Address"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query by sender and recipient address.",
-            "type": "object",
-            "required": [
-              "FromAndToAddress"
-            ],
-            "properties": {
-              "FromAndToAddress": {
-                "type": "object",
-                "required": [
-                  "from",
-                  "to"
-                ],
-                "properties": {
-                  "from": {
-                    "$ref": "#/components/schemas/Address"
-                  },
-                  "to": {
-                    "$ref": "#/components/schemas/Address"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query txs that have a given address as sender or recipient.",
-            "type": "object",
-            "required": [
-              "FromOrToAddress"
-            ],
-            "properties": {
-              "FromOrToAddress": {
-                "type": "object",
-                "required": [
-                  "addr"
-                ],
-                "properties": {
-                  "addr": {
-                    "$ref": "#/components/schemas/Address"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query by transaction kind",
-            "type": "object",
-            "required": [
-              "TransactionKind"
-            ],
-            "properties": {
-              "TransactionKind": {
-                "$ref": "#/components/schemas/IotaTransactionKind"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query transactions of any given kind in the input.",
-            "type": "object",
-            "required": [
-              "TransactionKindIn"
-            ],
-            "properties": {
-              "TransactionKindIn": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/IotaTransactionKind"
-                }
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
       },
       "TransactionFilterV2": {
         "oneOf": [

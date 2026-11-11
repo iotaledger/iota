@@ -306,6 +306,16 @@ pub enum ClientIpStatus {
     XForwardedForUnparsable,
 }
 
+impl ClientIpStatus {
+    /// Whether the server refuses a request with this outcome.
+    pub fn should_refuse_request(&self) -> bool {
+        matches!(
+            self,
+            Self::SocketAddrMissing | Self::XForwardedForInvalidUtf8
+        )
+    }
+}
+
 /// Reports what the node read, in the words an operator needs to act on it.
 /// The three servers share this text, and the hop-count procedure in the
 /// operator guide reads the entries out of the zero-hop line.
@@ -819,19 +829,24 @@ mod tests {
     #[test]
     fn an_unreadable_selected_entry_resolves_no_client() {
         let headers = forwarded(b"10.0.0.1, \x80");
-        assert!(matches!(
-            get_client_ip(&headers, None, &one_hop()),
-            ClientIpStatus::XForwardedForInvalidUtf8
-        ));
+        let status = get_client_ip(&headers, None, &one_hop());
+        assert!(matches!(status, ClientIpStatus::XForwardedForInvalidUtf8));
+        assert!(status.should_refuse_request());
     }
 
     #[test]
     fn a_selected_entry_that_is_not_an_address_resolves_no_client() {
         let headers = forwarded(b"10.0.0.1, not-an-address");
-        assert!(matches!(
-            get_client_ip(&headers, None, &one_hop()),
-            ClientIpStatus::XForwardedForUnparsable
-        ));
+        let status = get_client_ip(&headers, None, &one_hop());
+        assert!(matches!(status, ClientIpStatus::XForwardedForUnparsable));
+        assert!(!status.should_refuse_request());
+    }
+
+    #[test]
+    fn a_request_without_a_peer_address_is_refused() {
+        let status = get_client_ip(&http::HeaderMap::new(), None, &ClientIdSource::SocketAddr);
+        assert!(matches!(status, ClientIpStatus::SocketAddrMissing));
+        assert!(status.should_refuse_request());
     }
 
     #[test]

@@ -79,10 +79,6 @@ use crate::{
     validator_client_monitor::ValidatorClientMetrics,
 };
 
-// How long to wait for local execution (including parents) before a timeout
-// is returned to client.
-const LOCAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(10);
-
 const WAIT_FOR_FINALITY_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// The submission flow for a transaction, selected per request by the
@@ -306,10 +302,14 @@ where
         let include_output_objects = request.include_output_objects;
 
         let tx_digest = *transaction.digest();
+        let wait_for_local_execution = matches!(
+            request_type,
+            ExecuteTransactionRequestType::WaitForLocalExecution
+        );
 
         // Responses built from the local store read the object versions the
-        // transaction superseded, which the objects pruner deletes once the
-        // checkpoint after the transaction's is executed.
+        // transaction superseded, which the expiry of historic object buckets
+        // drops once their epoch falls out of the object retention.
         let _object_retention = (include_input_objects || include_output_objects)
             .then(|| self.validator_state.retain_objects());
 
@@ -328,7 +328,21 @@ where
                 ?tx_digest,
                 "Returning cached results for already-executed transaction"
             );
-            return Ok((response, true));
+            // Executed here. A caller waiting for local execution also gets
+            // the read-after-write guarantee, so for them it is only confirmed
+            // once its checkpoint is indexed too, as below. A transaction
+            // executed in an earlier epoch has its checkpoint indexed already:
+            // an epoch ends only once all its checkpoints are executed, each
+            // after its index commit. The current epoch's table knows only the
+            // current epoch's transactions, so it is not asked for those.
+            let executed_locally = !wait_for_local_execution
+                || (response.effects.effects.epoch() < epoch_store.epoch()
+                    || self
+                        .validator_state
+                        .wait_for_checkpoint_inclusion(&[tx_digest], WAIT_FOR_FINALITY_TIMEOUT)
+                        .await
+                        .is_ok_and(|inclusion| self.is_indexed(&inclusion, &tx_digest)));
+            return Ok((response, executed_locally));
         }
 
         // Reject malformed transactions before either driver inspects shared
@@ -340,10 +354,6 @@ where
             .validity_check(&epoch_store.tx_validity_check_context())
             .map_err(QuorumDriverError::InvalidTransaction)?;
 
-        let wait_for_local_execution = matches!(
-            request_type,
-            ExecuteTransactionRequestType::WaitForLocalExecution
-        );
         let (mut response, seq) =
             match (self.select_driver(&epoch_store)?, wait_for_local_execution) {
                 (Driver::Transaction(td), true) => {
@@ -443,21 +453,40 @@ where
                     )?);
                 }
             }
-            true
+            // The checkpoint is final, but a read right after the response
+            // sees the transaction only once the indexes include it.
+            self.validator_state
+                .is_checkpoint_indexed(seq)
+                .unwrap_or(false)
         } else {
             // The response is already 2f+1 certified — from the QuorumDriver,
             // or inherited by a duplicate submission from an in-flight
             // certifying submission — so just confirm local execution
-            // finished.
-            let ok = Self::wait_for_finalized_tx_executed_locally_with_timeout(
+            // finished. Both waits share one deadline: a fullnode often
+            // executes the transaction only with its checkpoint, so a shorter
+            // limit on the first wait would give up before the second could
+            // succeed.
+            let deadline = tokio::time::Instant::now() + WAIT_FOR_FINALITY_TIMEOUT;
+            let executed = Self::wait_for_finalized_tx_executed_locally_with_timeout(
                 &self.validator_state,
                 &transaction,
                 &self.metrics,
+                deadline,
             )
             .await
             .is_ok();
             add_server_timing("local_execution");
-            ok
+            // Only the checkpoint indexes the transaction, so wait for it too
+            // for an index-backed read after the response to see it.
+            executed
+                && self
+                    .validator_state
+                    .wait_for_checkpoint_inclusion(
+                        &[tx_digest],
+                        deadline.saturating_duration_since(tokio::time::Instant::now()),
+                    )
+                    .await
+                    .is_ok_and(|inclusion| self.is_indexed(&inclusion, &tx_digest))
         };
 
         let response = response.expect("response must be populated before return");
@@ -551,10 +580,25 @@ where
         Ok(())
     }
 
+    /// Whether `inclusion`, from `wait_for_checkpoint_inclusion`, puts
+    /// `digest` in a checkpoint the RPC indexes include, so that a read sent
+    /// right after sees it.
+    fn is_indexed(
+        &self,
+        inclusion: &BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>,
+        digest: &TransactionDigest,
+    ) -> bool {
+        inclusion.get(digest).is_some_and(|&(seq, _)| {
+            self.validator_state
+                .is_checkpoint_indexed(seq)
+                .unwrap_or(false)
+        })
+    }
+
     /// Build a skip-effect-certification response entirely from the local
     /// cache. The caller must have already obtained `checkpoint_seq` via
-    /// `wait_for_checkpoint_inclusion`, which is supposed to guarantee both
-    /// the effects write and the checkpoint-mapping write have landed. A
+    /// `wait_for_checkpoint_inclusion`, which is supposed to guarantee that
+    /// the effects write and the checkpoint-mapping write have both landed. A
     /// missing cache entry here would mean a transient races we observed in
     /// practice; mapped to `TimeoutBeforeFinality` so the client retries
     /// rather than seeing a misleading `QuorumDriverInternal`.
@@ -863,6 +907,7 @@ where
                 Some(request.transaction.clone()),
                 SubmitTransactionOptions {
                     forwarded_client_addr: client_addr,
+                    cut_off_validators: validator_state.cut_off_validators(),
                     ..Default::default()
                 },
                 Some(WAIT_FOR_FINALITY_TIMEOUT),
@@ -1182,6 +1227,7 @@ where
         validator_state: &Arc<AuthorityState>,
         transaction: &VerifiedTransaction,
         metrics: &TransactionOrchestratorMetrics,
+        deadline: tokio::time::Instant,
     ) -> IotaResult {
         let tx_digest = *transaction.digest();
         metrics.local_execution_in_flight.inc();
@@ -1199,8 +1245,8 @@ where
             ?tx_digest,
             "Waiting for finalized tx to be executed locally."
         );
-        match timeout(
-            LOCAL_EXECUTION_TIMEOUT,
+        match tokio::time::timeout_at(
+            deadline,
             validator_state
                 .get_transaction_cache_reader()
                 .try_notify_read_executed_effects_digests(
@@ -1214,8 +1260,7 @@ where
             Err(_elapsed) => {
                 debug!(
                     ?tx_digest,
-                    "Waiting for finalized tx to be executed locally timed out within {:?}.",
-                    LOCAL_EXECUTION_TIMEOUT
+                    "Waiting for finalized tx to be executed locally timed out."
                 );
                 metrics.local_execution_timeout.inc();
                 Err(IotaError::Timeout)
@@ -1453,7 +1498,8 @@ fn convert_td_to_qd_effects(td: TdFinalizedEffects) -> FinalizedEffects {
 /// and `TimeoutBeforeFinality`, but treat `InvalidTransaction`,
 /// `InvalidUserSignature`, and `RejectedByValidators` as terminal.
 /// An overload-dominated timeout maps to the retriable `SystemOverload` or
-/// `SystemOverloadRetryAfter` instead of `TimeoutBeforeFinality`.
+/// `SystemOverloadRetryAfter` instead of `TimeoutBeforeFinality`. Any other
+/// timeout after a failed attempt carries that attempt's error.
 /// Submission-time rejections that cannot succeed on resubmission must
 /// therefore not be reported as internal.
 fn map_td_error_to_qd(e: TransactionDriverError) -> QuorumDriverError {
@@ -1462,29 +1508,32 @@ fn map_td_error_to_qd(e: TransactionDriverError) -> QuorumDriverError {
         ValidationFailed { error } => {
             QuorumDriverError::InvalidUserSignature(IotaError::InvalidSignature { error })
         }
-        TimeoutWithLastRetriableError { last_error, .. } => last_error
-            .and_then(|e| map_overload_to_qd(&e))
-            .unwrap_or(QuorumDriverError::TimeoutBeforeFinality),
+        TimeoutWithLastRetriableError { last_error, .. } => match last_error {
+            Some(last_error) => map_overload_to_qd(&last_error).unwrap_or_else(|| {
+                QuorumDriverError::TimeoutBeforeFinalityWithErrors {
+                    last_error: last_error.to_string(),
+                }
+            }),
+            None => QuorumDriverError::TimeoutBeforeFinality,
+        },
         RejectedByValidators {
             submission_non_retriable_errors,
             ..
         } => {
             // f+1 stake of validators returned non-retriable errors during
-            // submission (bad signature, malformed tx, lock conflict, ...).
+            // submission (bad signature, malformed tx, lock conflict, ...),
+            // or a quorum rejected it for an input object they do not have.
             // Some verdicts depend on validator-local state, so this does not
             // prove the transaction can never execute; the variant is kept
             // distinct from `InvalidTransaction` so clients can tell the two
-            // apart.
-            let representative = submission_non_retriable_errors
-                .errors
-                .into_iter()
-                .next()
-                .map(|(msg, _, _, _)| msg)
-                .unwrap_or_else(|| "transaction rejected as invalid during submission".to_string());
-            QuorumDriverError::RejectedByValidators(IotaError::Unknown(format!(
-                "Transaction was rejected as invalid by more than 1/3 of validator stake \
-                 during submission (non-retriable): {representative}"
-            )))
+            // apart. The driver sorts the messages by stake.
+            QuorumDriverError::RejectedByValidators {
+                errors: submission_non_retriable_errors
+                    .errors
+                    .into_iter()
+                    .map(|(msg, _, _, _)| msg)
+                    .collect(),
+            }
         }
         Aborted {
             submission_retriable_errors,
@@ -2194,7 +2243,8 @@ mod tests {
     /// Validator rejections must map to `RejectedByValidators`, not
     /// `InvalidTransaction`: the verdicts can be validator-local, so clients
     /// must be able to tell them apart from a locally proven invalid
-    /// transaction.
+    /// transaction. Every grouped reason reaches the client in the driver's
+    /// stake order.
     #[test]
     fn map_validator_rejections_to_distinct_variant() {
         use iota_types::error::ErrorCategory;
@@ -2203,12 +2253,20 @@ mod tests {
 
         let td_error = TransactionDriverError::RejectedByValidators {
             submission_non_retriable_errors: AggregatedRequestErrors {
-                errors: vec![(
-                    "Object lock conflict".to_string(),
-                    vec![],
-                    3334,
-                    ErrorCategory::LockConflict,
-                )],
+                errors: vec![
+                    (
+                        "Object lock conflict".to_string(),
+                        vec![],
+                        2500,
+                        ErrorCategory::LockConflict,
+                    ),
+                    (
+                        "Gas budget: 10 is lower than min: 1000000".to_string(),
+                        vec![],
+                        834,
+                        ErrorCategory::InvalidTransaction,
+                    ),
+                ],
                 total_stake: 3334,
                 stake_requested_retry_after: Default::default(),
             },
@@ -2216,10 +2274,16 @@ mod tests {
         };
 
         let qd_error = map_td_error_to_qd(td_error);
-        let QuorumDriverError::RejectedByValidators(inner) = &qd_error else {
+        let QuorumDriverError::RejectedByValidators { errors } = &qd_error else {
             panic!("expected RejectedByValidators, got {qd_error:?}");
         };
-        assert!(inner.to_string().contains("Object lock conflict"));
+        assert_eq!(
+            errors,
+            &[
+                "Object lock conflict".to_string(),
+                "Gas budget: 10 is lower than min: 1000000".to_string(),
+            ]
+        );
         assert_eq!(qd_error.reason(), "rejected_by_validators");
     }
 
@@ -2366,7 +2430,10 @@ mod tests {
                 total_stake: 9000,
                 stake_requested_retry_after: Default::default(),
             })));
-        assert!(matches!(qd_error, QuorumDriverError::TimeoutBeforeFinality));
+        assert!(matches!(
+            qd_error,
+            QuorumDriverError::TimeoutBeforeFinalityWithErrors { .. }
+        ));
 
         let qd_error =
             timeout_with_last_error(Some(aborted_with_retriable(AggregatedRequestErrors {
@@ -2378,9 +2445,41 @@ mod tests {
                 total_stake: 5000,
                 stake_requested_retry_after: Default::default(),
             })));
-        assert!(matches!(qd_error, QuorumDriverError::TimeoutBeforeFinality));
+        assert!(matches!(
+            qd_error,
+            QuorumDriverError::TimeoutBeforeFinalityWithErrors { .. }
+        ));
 
         let qd_error = timeout_with_last_error(None);
         assert!(matches!(qd_error, QuorumDriverError::TimeoutBeforeFinality));
+    }
+
+    /// A timeout after a failed attempt reports that attempt's errors, so
+    /// the client learns what kept the transaction from finalizing.
+    #[test]
+    fn map_timeout_to_last_attempt_errors() {
+        use iota_types::error::ErrorCategory;
+
+        let qd_error =
+            timeout_with_last_error(Some(aborted_with_retriable(AggregatedRequestErrors {
+                errors: vec![
+                    bucket(
+                        "Could not find the referenced object 0x1 at version 5",
+                        5000,
+                        ErrorCategory::Aborted,
+                    ),
+                    bucket("validator unavailable", 5000, ErrorCategory::Unavailable),
+                ],
+                total_stake: 10000,
+                stake_requested_retry_after: Default::default(),
+            })));
+        let QuorumDriverError::TimeoutBeforeFinalityWithErrors { last_error } = &qd_error else {
+            panic!("expected TimeoutBeforeFinalityWithErrors, got {qd_error:?}");
+        };
+        assert!(
+            last_error.contains("Could not find the referenced object 0x1 at version 5"),
+            "{last_error}"
+        );
+        assert_eq!(qd_error.reason(), "timeout_before_finality");
     }
 }

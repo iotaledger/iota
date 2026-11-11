@@ -105,7 +105,11 @@ impl ExecutionScheduler {
         // (e.g. the Clock) is available and panic in the input loader.
         let input_object_kinds = tx
             .data()
-            .collect_all_input_object_kind_for_reading()
+            .collect_all_input_object_kind_for_reading(
+                epoch_store
+                    .protocol_config()
+                    .move_authenticator_type_arg_packages_as_inputs(),
+            )
             // The transaction is already verified by the time it is scheduled, so
             // its input objects are well-formed.
             .expect("collect_all_input_object_kind_for_reading() cannot fail");
