@@ -5,6 +5,7 @@
 use std::{
     collections::BTreeMap,
     net::{SocketAddr, SocketAddrV4, SocketAddrV6},
+    num::{NonZeroU32, NonZeroUsize},
     pin::Pin,
     sync::Arc,
     time::{Duration, Instant},
@@ -34,9 +35,9 @@ use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
-    BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient, NetworkService,
-    SerializedBlockBundle, TransactionChunkStream,
-    admission::AdmissionLayer,
+    BlockBundleStream, ChunkStream, FetchedCommitsAndTransactions, NetworkClient, NetworkService,
+    SerializedBlockBundle,
+    admission::{AdmissionGuard, AdmissionLayer},
     bounded_codec::{
         EntryLimit, NO_ENTRY_LIMIT, TOO_MANY_ENTRIES_IN_REQUEST, TOO_MANY_ENTRIES_IN_RESPONSE,
     },
@@ -110,7 +111,7 @@ fn max_fetch_block_headers_response_bytes(
 /// Upper bound on one fetched transaction entry: a `SerializedTransactionsV2`
 /// carrying the maximum serialized per-block transaction payload, framed with
 /// its `TransactionRef` and length prefix.
-fn max_serialized_transactions_entry_bytes(context: &Context) -> usize {
+pub(crate) fn max_serialized_transactions_entry_bytes(context: &Context) -> usize {
     serialized_transactions_size_limit(context)
         .saturating_add(SERIALIZED_TRANSACTION_REF_BYTES)
         .saturating_add(MAX_BCS_LENGTH_PREFIX_BYTES)
@@ -615,7 +616,7 @@ where
 {
     /// Yields the entries of each response message, ending after the first
     /// error.
-    fn into_stream(self) -> TransactionChunkStream {
+    fn into_stream(self) -> ChunkStream {
         stream::unfold(Some(self), |state| async move {
             let mut chunks = state?;
             let response = chunks.responses.next().await?;
@@ -963,7 +964,7 @@ impl ChannelPool {
                 .clone()
                 .into_inner(),
             certificate_server_name(&self.context),
-            Some(network_keypair.private_key().into_inner()),
+            Some(network_keypair.private_key()),
         );
         let endpoint = tonic_rustls::Channel::from_shared(address.clone())
             .map_err(|e| ConsensusError::NetworkConfig(format!("invalid URI '{address}': {e}")))?
@@ -1102,6 +1103,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
+        let admission_guard = request.extensions().get::<Arc<AdmissionGuard>>().cloned();
         let inner = request.into_inner();
         let highest_accepted_rounds = inner.highest_accepted_rounds;
         let max_fetch_size = self
@@ -1128,22 +1130,21 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
                 }
             })
             .collect();
-        let blocks = self
+        let stream = self
             .service
-            .handle_fetch_headers(peer_index, block_refs, highest_accepted_rounds)
+            .handle_fetch_headers(
+                peer_index,
+                block_refs,
+                highest_accepted_rounds,
+                admission_guard,
+            )
             .await
-            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
-        let responses: std::vec::IntoIter<Result<FetchBlockHeadersResponse, tonic::Status>> =
-            chunk_data(blocks, MAX_FETCH_RESPONSE_BYTES)
-                .into_iter()
-                .map(|block_headers| {
-                    Ok(FetchBlockHeadersResponse {
-                        vec_serialized_block_header: block_headers,
-                    })
-                })
-                .collect::<Vec<_>>()
-                .into_iter();
-        let stream = iter(responses).boxed();
+            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?
+            .map_ok(|block_headers| FetchBlockHeadersResponse {
+                vec_serialized_block_header: block_headers,
+            })
+            .map_err(|e| tonic::Status::internal(format!("{e:?}")))
+            .boxed();
         Ok(Response::new(stream))
     }
 
@@ -1197,6 +1198,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
+        let admission_guard = request.extensions().get::<Arc<AdmissionGuard>>().cloned();
         let request = request.into_inner();
         let FetchedCommitsAndTransactions {
             commits: serialized_commits,
@@ -1204,7 +1206,11 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             transactions,
         } = self
             .service
-            .handle_fetch_commits_and_transactions(peer_index, (request.start..=request.end).into())
+            .handle_fetch_commits_and_transactions(
+                peer_index,
+                (request.start..=request.end).into(),
+                admission_guard,
+            )
             .await
             .map_err(|e| match e {
                 ConsensusError::TransactionsNotAvailable { .. } => {
@@ -1307,6 +1313,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
+        let admission_guard = request.extensions().get::<Arc<AdmissionGuard>>().cloned();
 
         let request = request.into_inner();
         let committed_transactions_refs: Vec<TransactionRef> = request
@@ -1321,23 +1328,16 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             })
             .collect();
 
-        let vec_serialized_transactions = self
+        let stream = self
             .service
-            .handle_fetch_transactions(peer_index, committed_transactions_refs)
+            .handle_fetch_transactions(peer_index, committed_transactions_refs, admission_guard)
             .await
-            .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?;
-
-        let responses: std::vec::IntoIter<Result<FetchTransactionsResponse, tonic::Status>> =
-            chunk_data(vec_serialized_transactions, MAX_FETCH_RESPONSE_BYTES)
-                .into_iter()
-                .map(|transactions| {
-                    Ok(FetchTransactionsResponse {
-                        vec_serialized_transactions: transactions,
-                    })
-                })
-                .collect::<Vec<_>>()
-                .into_iter();
-        let stream = iter(responses).boxed();
+            .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?
+            .map_ok(|transactions| FetchTransactionsResponse {
+                vec_serialized_transactions: transactions,
+            })
+            .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))
+            .boxed();
         Ok(Response::new(stream))
     }
 }
@@ -1372,7 +1372,7 @@ const TIMEOUT_EXEMPT_PATHS: &[&str] = &["/consensus.ConsensusService/SubscribeBl
 /// once. One is enough to serve a peer: the channel pool keeps a single
 /// connection per authority and multiplexes every RPC over it. The rest is
 /// headroom for a reconnect whose predecessor has not been reaped yet.
-const MAX_CONNECTIONS_PER_PEER: usize = 4;
+const MAX_CONNECTIONS_PER_PEER: NonZeroUsize = NonZeroUsize::new(4).unwrap();
 
 /// Time a bounded RPC has to deliver its request message after its headers;
 /// a request still waiting for it is answered with `DEADLINE_EXCEEDED`, which
@@ -1497,7 +1497,7 @@ impl<S: NetworkService> TonicManager<S> {
             .route_layer(layers);
 
         let tls_server_config = iota_tls::create_rustls_server_config_with_client_verifier(
-            self.network_keypair.clone().private_key().into_inner(),
+            self.network_keypair.clone().private_key(),
             certificate_server_name(&self.context),
             AllowPublicKeys::new(
                 self.context
@@ -1546,11 +1546,9 @@ impl<S: NetworkService> TonicManager<S> {
         }
 
         let http_config = iota_http::Config::default()
-            .initial_connection_window_size(64 << 20)
-            .initial_stream_window_size(32 << 20)
-            .max_concurrent_streams(
-                (config.max_concurrent_streams > 0).then_some(config.max_concurrent_streams),
-            )
+            .initial_connection_window_size(NonZeroU32::new(64 << 20))
+            .initial_stream_window_size(NonZeroU32::new(32 << 20))
+            .max_concurrent_streams(NonZeroU32::new(config.max_concurrent_streams))
             .http2_keepalive_interval(Some(config.keepalive_interval))
             .http2_keepalive_timeout(Some(config.keepalive_interval))
             .accept_http1(false)
@@ -2063,7 +2061,7 @@ fn commit_and_header_messages(
 // Splits a list of byte sequences into chunks where each chunk's total size
 // does not exceed the specified `chunk_limit`.
 // Returns a vector of chunks, each being a vector of `Bytes`.
-fn chunk_data(data: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
+pub(crate) fn chunk_data(data: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
     let mut chunks = vec![];
     let mut chunk = vec![];
     let mut chunk_size = 0;
@@ -2093,9 +2091,9 @@ mod tests {
     use starfish_config::{AuthorityIndex, HEADERS_PER_FETCH_CEILING};
 
     use super::{
-        CONSENSUS_SERVICE_METHODS, CONSENSUS_SERVICE_PATH_PREFIX, FetchBlockHeadersResponse,
-        FetchCommitsAndTransactionsResponse, FetchTransactionsResponse, TonicClient, TonicManager,
-        TransactionChunkStream, UNKNOWN_ROUTE, collect_block_headers,
+        CONSENSUS_SERVICE_METHODS, CONSENSUS_SERVICE_PATH_PREFIX, ChunkStream,
+        FetchBlockHeadersResponse, FetchCommitsAndTransactionsResponse, FetchTransactionsResponse,
+        TonicClient, TonicManager, UNKNOWN_ROUTE, collect_block_headers,
         collect_commits_and_transactions, collect_transactions, commit_and_header_messages,
         max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes,
         max_serialized_transactions_entry_bytes, route_label,
@@ -2136,9 +2134,7 @@ mod tests {
 
     /// Reads transaction chunks to their end, returning the entries and the
     /// error that ended them, if any.
-    async fn read_to_end(
-        mut transactions: TransactionChunkStream,
-    ) -> (Vec<Bytes>, Option<ConsensusError>) {
+    async fn read_to_end(mut transactions: ChunkStream) -> (Vec<Bytes>, Option<ConsensusError>) {
         let mut entries = Vec::new();
         while let Some(chunk) = transactions.next().await {
             match chunk {

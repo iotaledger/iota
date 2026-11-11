@@ -116,7 +116,7 @@ use iota_types::{
     },
     traffic_control::{PolicyConfig, TrafficControlReconfigParams},
     transaction::*,
-    transaction_executor::{SimulateTransactionResult, VmChecks},
+    transaction_executor::{InputCheckRules, SimulateTransactionResult, VmChecks},
 };
 use itertools::Itertools;
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
@@ -6715,6 +6715,7 @@ impl AuthorityState {
                 verifier_limits_source,
                 authenticator_gas_budget,
                 is_execute_transaction_to_effects,
+                InputCheckRules::STRICT,
             )?;
 
         Ok((
@@ -6782,6 +6783,7 @@ impl AuthorityState {
                 verifier_limits_source,
                 authenticator_gas_budget,
                 false,
+                InputCheckRules::STRICT,
             )?;
 
         Ok((tx_checked_input_objects, per_authenticator_checked_inputs))

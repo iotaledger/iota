@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{sync::Arc, time::Duration};
+use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use iota_http::Config;
 use tokio::{
@@ -44,6 +44,11 @@ async fn accepted_connections_are_counted_by_scope() {
     let lifetime = reader.histogram_totals("connection_lifetime_seconds", &[]);
     assert_eq!(lifetime.count, 3);
     assert!(lifetime.sum < 5.0, "{}", lifetime.sum);
+    assert_eq!(
+        reader.value("inbound_connections_closed_by_server", &[]),
+        0.0,
+        "a connection its peer closes is not counted as closed by the server"
+    );
 }
 
 #[tokio::test]
@@ -91,6 +96,13 @@ async fn open_connections_return_to_zero_when_the_server_stops() {
             .histogram_totals("connection_lifetime_seconds", &[])
             .count,
         1
+    );
+    assert_eq!(
+        reader.value(
+            "inbound_connections_closed_by_server",
+            &[("reason", "shutdown")]
+        ),
+        1.0
     );
 }
 
@@ -254,7 +266,7 @@ async fn pending_handshakes_peak_counts_the_silent_connections() {
 async fn a_connection_refused_for_its_peer_is_not_left_open() {
     let (reader, metrics) = setup();
     let addr = serve_mutual_tls(
-        Config::default().max_connections_per_peer(Some(1)),
+        Config::default().max_connections_per_peer(Some(NonZeroUsize::MIN)),
         &metrics,
         ok_app(),
     );
@@ -270,9 +282,115 @@ async fn a_connection_refused_for_its_peer_is_not_left_open() {
     .await;
     assert_eq!(reader.value("inbound_connections_accepted", &[]), 2.0);
     assert_eq!(
+        reader.value("inbound_connections_refused", &[("reason", "peer_limit")]),
+        1.0
+    );
+    assert_eq!(
         reader
             .histogram_totals("connection_lifetime_seconds", &[])
             .count,
         1
+    );
+}
+
+#[tokio::test]
+async fn a_connection_refused_by_a_full_listener_is_counted() {
+    let (reader, metrics) = setup();
+    let addr = serve(
+        Config::default().max_connections(NonZeroUsize::MIN),
+        &metrics,
+        ok_app(),
+    );
+
+    let _first = TcpStream::connect(addr).await.unwrap();
+    wait_until("the first connection to be counted", || {
+        reader.value("inbound_connections", &[]) == 1.0
+    })
+    .await;
+    let _second = TcpStream::connect(addr).await.unwrap();
+
+    wait_until("the second connection to be refused", || {
+        reader.value(
+            "inbound_connections_refused",
+            &[("reason", "listener_full")],
+        ) == 1.0
+    })
+    .await;
+    assert_eq!(reader.value("inbound_connections_accepted", &[]), 2.0);
+}
+
+#[tokio::test]
+async fn a_connection_refused_for_its_client_ip_is_counted() {
+    let (reader, metrics) = setup();
+    let addr = serve(
+        Config::default().max_connections_per_client_ip(NonZeroUsize::MIN),
+        &metrics,
+        ok_app(),
+    );
+
+    let _first = TcpStream::connect(addr).await.unwrap();
+    wait_until("the first connection to be counted", || {
+        reader.value("inbound_connections", &[]) == 1.0
+    })
+    .await;
+    let _second = TcpStream::connect(addr).await.unwrap();
+
+    wait_until("the second connection to be refused", || {
+        reader.value(
+            "inbound_connections_refused",
+            &[("reason", "client_ip_limit")],
+        ) == 1.0
+    })
+    .await;
+    assert_eq!(reader.value("inbound_connections_accepted", &[]), 2.0);
+}
+
+#[tokio::test]
+async fn a_connection_closed_for_being_idle_is_counted() {
+    let (reader, metrics) = setup();
+    let addr = serve(
+        Config::default().max_connection_idle(Duration::from_millis(200)),
+        &metrics,
+        ok_app(),
+    );
+
+    let mut idle = TcpStream::connect(addr).await.unwrap();
+    get_root(&mut idle).await;
+
+    wait_until("the idle connection to close", || {
+        reader.value("inbound_connections", &[]) == 0.0
+    })
+    .await;
+    assert_eq!(
+        reader.value(
+            "inbound_connections_closed_by_server",
+            &[("reason", "idle")]
+        ),
+        1.0
+    );
+}
+
+#[tokio::test]
+async fn a_connection_closed_for_its_age_is_counted() {
+    let (reader, metrics) = setup();
+    let addr = serve(
+        Config::default().max_connection_age(Duration::from_millis(200)),
+        &metrics,
+        ok_app(),
+    );
+
+    let mut old = TcpStream::connect(addr).await.unwrap();
+    get_root(&mut old).await;
+
+    wait_until("the connection to close", || {
+        reader.value("inbound_connections", &[]) == 0.0
+    })
+    .await;
+    assert_eq!(
+        reader.value(
+            "inbound_connections_closed_by_server",
+            &[("reason", "max_age")]
+        ),
+        1.0
     );
 }

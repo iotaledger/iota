@@ -26,7 +26,7 @@ use iota_types::{
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     transaction::{TransactionAPI, VerifiedTransaction},
-    transaction_executor::{SimulateTransactionResult, VmChecks},
+    transaction_executor::{InputCheckRules, SimulateTransactionResult, VmChecks},
 };
 
 use crate::SimulatorStore;
@@ -165,6 +165,7 @@ impl EpochState {
             VerifierLimitsSource::NodeConfig(verifier_signing_config),
             authenticator_gas_budget,
             false,
+            InputCheckRules::STRICT,
         )?;
 
         let transaction = transaction.data().transaction();

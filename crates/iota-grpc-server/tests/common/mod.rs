@@ -815,6 +815,7 @@ pub async fn start_test_server_with(
         grpc_reader.clone(),
         executor,
         config,
+        &Default::default(),
         cancellation_token,
         iota_types::digests::ChainIdentifier::default(),
         metrics,

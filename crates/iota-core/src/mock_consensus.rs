@@ -11,7 +11,6 @@ use iota_types::{
     transaction::{SenderSignedTransactionAPI, VerifiedCertificate},
 };
 use prometheus_filtered::Registry;
-use starfish_core::BlockRef;
 use tokio::{
     sync::{mpsc, oneshot},
     task::JoinHandle,
@@ -117,7 +116,7 @@ impl MockConsensusClient {
             .try_send(transaction.clone())
             .map_err(|_| IotaError::from("MockConsensusClient channel overflowed"))?;
         Ok(with_block_status(starfish_core::BlockStatus::Sequenced(
-            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            starfish_core::TransactionRef::default(),
         )))
     }
 }

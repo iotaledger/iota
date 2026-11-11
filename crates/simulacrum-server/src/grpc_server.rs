@@ -43,6 +43,7 @@ pub async fn start_simulacrum_grpc_server(
         grpc_reader,
         executor,
         config,
+        &Default::default(),
         shutdown_token,
         chain_id,
         None,

@@ -1351,40 +1351,12 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
 async fn test_simulate_rejects_a_gas_payment_that_is_not_a_gas_coin() {
     let sender = Address::random();
     let recipient = Address::random();
-    let (validator, fullnode, _object_basics) =
-        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
-
-    let max_tx_gas = validator
-        .epoch_store_for_testing()
-        .protocol_config()
-        .max_tx_gas();
-
-    // A funded gas coin, so the combined balance covers any budget.
-    let funded_coin = Object::new_gas_with_balance_and_owner_for_testing(max_tx_gas * 4, sender);
-    // An owned object of the same sender that is not a coin at all.
-    let not_a_coin_id = ObjectId::random();
-    let not_a_coin = Object::new_move(
-        MoveStruct::new(
-            StructTag::new(
-                Address::FRAMEWORK,
-                Identifier::from_static("object_basics"),
-                Identifier::from_static("Object"),
-                vec![],
-            )
-            .into(),
-            OBJECT_START_VERSION,
-            // A Move object's contents lead with its own id.
-            bcs::to_bytes(&(not_a_coin_id, 7u64)).unwrap(),
-        )
-        .unwrap(),
-        Owner::Address(sender),
-        TransactionDigest::GENESIS_MARKER,
-    );
-
-    for object in [funded_coin.clone(), not_a_coin.clone()] {
-        validator.insert_genesis_object(object.clone());
-        fullnode.insert_genesis_object(object);
-    }
+    let (_validator, fullnode, _object_basics, gas, extra) =
+        simulation_fixture(sender, |package| {
+            vec![object_basics_object(package, Owner::Address(sender))]
+        })
+        .await;
+    let not_a_coin = &extra[0];
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -1392,20 +1364,10 @@ async fn test_simulate_rejects_a_gas_payment_that_is_not_a_gas_coin() {
         builder.finish()
     };
 
-    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
-        let transaction = Transaction::V1(TransactionV1 {
-            kind: TransactionKind::new_programmable(pt.clone()),
-            sender,
-            gas_payment: GasPayment {
-                objects: vec![funded_coin.object_ref(), not_a_coin.object_ref()],
-                owner: sender,
-                price: 0,
-                budget: 0,
-            },
-            expiration: TransactionExpiration::None,
-        });
-
-        let Err(error) = fullnode.simulate_transaction(transaction, checks) else {
+    for (checks, result) in
+        simulate_under_both_checks(&fullnode, sender, vec![gas, not_a_coin.object_ref()], &pt)
+    {
+        let Err(error) = result else {
             panic!("{checks:?} should reject a gas payment that is not a gas coin");
         };
         assert!(
@@ -1413,10 +1375,651 @@ async fn test_simulate_rejects_a_gas_payment_that_is_not_a_gas_coin() {
                 error,
                 IotaError::UserInput {
                     error: UserInputError::InvalidGasObject { object_id }
-                } if object_id == not_a_coin_id
+                } if object_id == not_a_coin.id()
             ),
             "unexpected error for {checks:?}: {error:?}"
         );
+    }
+}
+
+/// Simulates `pt` under both [`VmChecks`], returning what each produced.
+///
+/// The input checks a simulation shares with a signing validator must reject
+/// the same transaction either way, so a test asserting one of them asserts it
+/// over this.
+fn simulate_under_both_checks(
+    fullnode: &Arc<AuthorityState>,
+    sender: Address,
+    gas: Vec<ObjectReference>,
+    pt: &ProgrammableTransaction,
+) -> Vec<(VmChecks, IotaResult<SimulateTransactionResult>)> {
+    [VmChecks::Enabled, VmChecks::Disabled]
+        .into_iter()
+        .map(|checks| {
+            let transaction = Transaction::V1(TransactionV1 {
+                kind: TransactionKind::new_programmable(pt.clone()),
+                sender,
+                gas_payment: GasPayment {
+                    objects: gas.clone(),
+                    owner: sender,
+                    price: 0,
+                    budget: 0,
+                },
+                expiration: TransactionExpiration::None,
+            });
+            (checks, fullnode.simulate_transaction(transaction, checks))
+        })
+        .collect()
+}
+
+/// A labeled test case: `expected` describes what the test wants from running
+/// `input` through the check under test.
+struct Case<T, F> {
+    label: &'static str,
+    input: T,
+    expected: F,
+}
+
+/// A command that touches none of the object inputs, so a test can assert on
+/// what the input checks make of those inputs rather than on what running them
+/// would do. The two pure arguments are the last two inputs.
+fn create_object_command(package: ObjectId, first_pure_input: u16) -> Command {
+    Command::new_move_call(
+        package,
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("create"),
+        vec![],
+        vec![
+            Argument::Input(first_pure_input),
+            Argument::Input(first_pure_input + 1),
+        ],
+    )
+}
+
+/// An `object_basics::Object` with `id` as its own id and the given owner,
+/// ready to insert as a genesis object.
+fn object_basics_object_with_id(package: ObjectId, id: ObjectId, owner: Owner) -> Object {
+    Object::new_move(
+        MoveStruct::new(
+            StructTag::new(
+                Address::from(package),
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("Object"),
+                vec![],
+            )
+            .into(),
+            OBJECT_START_VERSION,
+            // A Move object's contents lead with its own id.
+            bcs::to_bytes(&(id, 7u64)).unwrap(),
+        )
+        .unwrap(),
+        owner,
+        TransactionDigest::GENESIS_MARKER,
+    )
+}
+
+/// An `object_basics::Object` with the given owner, ready to insert as a
+/// genesis object.
+fn object_basics_object(package: ObjectId, owner: Owner) -> Object {
+    object_basics_object_with_id(package, ObjectId::random(), owner)
+}
+
+/// Sets up a validator and a fullnode with `object_basics` published and a gas
+/// coin that covers any budget, plus whatever extra objects the caller needs
+/// on both nodes.
+async fn simulation_fixture(
+    sender: Address,
+    extra_objects: impl Fn(ObjectId) -> Vec<Object>,
+) -> (
+    Arc<AuthorityState>,
+    Arc<AuthorityState>,
+    ObjectId,
+    ObjectReference,
+    Vec<Object>,
+) {
+    let (validator, fullnode, object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+    let max_tx_gas = validator
+        .epoch_store_for_testing()
+        .protocol_config()
+        .max_tx_gas();
+    let gas_coin = Object::new_gas_with_balance_and_owner_for_testing(max_tx_gas * 4, sender);
+    let extra = extra_objects(object_basics.object_id);
+
+    for object in std::iter::once(gas_coin.clone()).chain(extra.iter().cloned()) {
+        validator.insert_genesis_object(object.clone());
+        fullnode.insert_genesis_object(object);
+    }
+
+    (
+        validator,
+        fullnode,
+        object_basics.object_id,
+        gas_coin.object_ref(),
+        extra,
+    )
+}
+
+/// A package named as an owned object is rejected by both check modes: the
+/// engine has no way to treat a package as a Move value.
+#[tokio::test]
+async fn test_simulate_rejects_a_package_used_as_an_object() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, _) =
+        simulation_fixture(sender, |_| vec![]).await;
+    let package = fullnode.get_object(&object_basics).unwrap();
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::ImmutableOrOwned(package.object_ref()),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        let Err(error) = result else {
+            panic!("{checks:?} should reject a package used as an object");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::MovePackageAsObject { object_id }
+                } if object_id == object_basics
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
+
+/// A system transaction is rejected by both check modes.
+#[tokio::test]
+async fn test_simulate_rejects_a_system_transaction() {
+    let sender = Address::random();
+    let (_validator, fullnode, _object_basics, gas, _) =
+        simulation_fixture(sender, |_| vec![]).await;
+
+    let transaction = Transaction::V1(TransactionV1 {
+        kind: TransactionKind::EndOfEpoch(vec![]),
+        sender,
+        gas_payment: GasPayment {
+            objects: vec![gas],
+            owner: sender,
+            price: 0,
+            budget: 0,
+        },
+        expiration: TransactionExpiration::None,
+    });
+
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        let Err(error) = fullnode.simulate_transaction(transaction.clone(), checks) else {
+            panic!("{checks:?} should reject a system transaction");
+        };
+        assert!(
+            matches!(error, IotaError::UnsupportedFeature { .. }),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
+
+/// A child object named as an owned input is rejected by both check modes: it
+/// has to be reached through its parent, not passed directly.
+#[tokio::test]
+async fn test_simulate_rejects_a_child_object_used_as_owned() {
+    let sender = Address::random();
+    let parent_id = ObjectId::random();
+    let (_validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![object_basics_object(package, Owner::Object(parent_id))]
+    })
+    .await;
+    let child = &extra[0];
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::ImmutableOrOwned(child.object_ref()),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        let Err(error) = result else {
+            panic!("{checks:?} should reject a child object used as an owned input");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::InvalidChildObjectArgument { child_id, parent_id: p }
+                } if child_id == child.id() && p == parent_id
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
+
+/// A shared object input whose declared initial version does not match the
+/// object's real initial version is rejected by a dry run, and runs in a dev
+/// inspect.
+#[tokio::test]
+async fn test_dev_inspect_accepts_a_shared_object_with_a_wrong_initial_version() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, _) =
+        simulation_fixture(sender, |_| vec![]).await;
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::Shared(SharedObjectReference::new(
+                ObjectId::CLOCK,
+                Version::from(2),
+                false,
+            )),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        if checks.enabled() {
+            assert!(
+                matches!(
+                    result,
+                    Err(IotaError::UserInput {
+                        error: UserInputError::SharedObjectStartingVersionMismatch
+                    })
+                ),
+                "unexpected result for {checks:?}: {:?}",
+                result.as_ref().err()
+            );
+        } else {
+            let result = result.unwrap_or_else(|error| panic!("{checks:?}: {error:?}"));
+            assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+        }
+    }
+}
+
+/// A mutable `Clock` input is rejected in a dev inspect even when its declared
+/// initial version is wrong, which a dev inspect does not check on its own.
+#[tokio::test]
+async fn test_simulate_rejects_a_mutable_clock_with_a_wrong_initial_version() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, _) =
+        simulation_fixture(sender, |_| vec![]).await;
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::Shared(SharedObjectReference::new(
+                ObjectId::CLOCK,
+                Version::from(2),
+                true,
+            )),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        let error = match result {
+            Err(IotaError::UserInput { error }) => error,
+            Err(error) => panic!("unexpected error for {checks:?}: {error:?}"),
+            Ok(_) => panic!("{checks:?} should reject a mutable Clock"),
+        };
+        if checks.enabled() {
+            assert!(
+                matches!(error, UserInputError::SharedObjectStartingVersionMismatch),
+                "unexpected error for {checks:?}: {error:?}"
+            );
+        } else {
+            assert!(
+                matches!(
+                    error,
+                    UserInputError::ImmutableParameterExpected { object_id } if object_id == ObjectId::CLOCK
+                ),
+                "unexpected error for {checks:?}: {error:?}"
+            );
+        }
+    }
+}
+
+/// A shared object named as an owned input is rejected by a dry run. A dev
+/// inspect runs it as the shared object it is: it can be mutated, and stays
+/// shared.
+#[tokio::test]
+async fn test_dev_inspect_accepts_a_shared_object_used_as_owned() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![object_basics_object(
+            package,
+            Owner::Shared(OBJECT_START_VERSION),
+        )]
+    })
+    .await;
+    let shared = &extra[0];
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::ImmutableOrOwned(shared.object_ref()),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+        ],
+        commands: vec![Command::new_move_call(
+            object_basics,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("set_value"),
+            vec![],
+            vec![Argument::Input(0), Argument::Input(1)],
+        )],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        if checks.enabled() {
+            assert!(
+                matches!(
+                    result,
+                    Err(IotaError::UserInput {
+                        error: UserInputError::NotSharedObject
+                    })
+                ),
+                "unexpected result for {checks:?}: {:?}",
+                result.as_ref().err()
+            );
+        } else {
+            let result = result.unwrap_or_else(|error| panic!("{checks:?}: {error:?}"));
+            assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+            let mutated = result
+                .effects
+                .mutated()
+                .into_iter()
+                .find(|mutated| mutated.reference().object_id == shared.id())
+                .expect("the shared object should be mutated");
+            assert_eq!(mutated.owner(), &Owner::Shared(OBJECT_START_VERSION));
+        }
+    }
+}
+
+/// An address-owned object named as a shared input is rejected by both check
+/// modes.
+#[tokio::test]
+async fn test_simulate_rejects_an_owned_object_used_as_shared() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![object_basics_object(package, Owner::Address(sender))]
+    })
+    .await;
+    let owned = &extra[0];
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::Shared(SharedObjectReference::new(
+                owned.id(),
+                OBJECT_START_VERSION,
+                true,
+            )),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        assert!(
+            matches!(
+                result,
+                Err(IotaError::UserInput {
+                    error: UserInputError::NotSharedObject
+                })
+            ),
+            "unexpected result for {checks:?}: {:?}",
+            result.as_ref().err()
+        );
+    }
+}
+
+/// A gas payment that lists the same coin twice is rejected by both check
+/// modes.
+#[tokio::test]
+async fn test_simulate_rejects_a_gas_coin_listed_twice() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, _) =
+        simulation_fixture(sender, |_| vec![]).await;
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 0)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas, gas], &pt) {
+        let Err(error) = result else {
+            panic!("{checks:?} should reject a gas coin listed twice");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::MutableObjectUsedMoreThanOnce { object_id }
+                } if object_id == gas.object_id
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
+
+type SystemObjectCase = Case<CallArg, fn(&UserInputError) -> bool>;
+
+/// Clock and the Randomness state taken mutably, and the AuthenticatorState
+/// taken at all, are rejected by both check modes. Naming one as an owned
+/// input is rejected too: `InputCheckRules::shared_object_as_owned_input` does
+/// not cover these objects.
+#[tokio::test]
+async fn test_simulate_rejects_a_system_object_misuse() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        // No test genesis creates the authenticator state object; insert a shared
+        // object under its id instead, since the check matches on the id first.
+        vec![object_basics_object_with_id(
+            package,
+            ObjectId::AUTHENTICATOR_STATE,
+            Owner::Shared(Version::INITIAL_SHARED_VERSION),
+        )]
+    })
+    .await;
+    let random_initial_version =
+        get_randomness_state_obj_initial_shared_version(fullnode.get_object_store()).unwrap();
+    let authenticator_state = extra[0].object_ref();
+    let clock = fullnode.get_object(&ObjectId::CLOCK).unwrap().object_ref();
+    let randomness_state = fullnode
+        .get_object(&ObjectId::RANDOMNESS_STATE)
+        .unwrap()
+        .object_ref();
+
+    let cases: [SystemObjectCase; 6] = [
+        Case {
+            label: "Clock taken mutably",
+            input: CallArg::CLOCK_MUTABLE,
+            expected: |error| {
+                matches!(
+                    error,
+                    UserInputError::ImmutableParameterExpected { object_id } if *object_id == ObjectId::CLOCK
+                )
+            },
+        },
+        Case {
+            label: "the Randomness state taken mutably",
+            input: CallArg::Shared(SharedObjectReference::new(
+                ObjectId::RANDOMNESS_STATE,
+                random_initial_version,
+                true,
+            )),
+            expected: |error| {
+                matches!(
+                    error,
+                    UserInputError::ImmutableParameterExpected { object_id } if *object_id == ObjectId::RANDOMNESS_STATE
+                )
+            },
+        },
+        Case {
+            label: "the AuthenticatorState taken as an input",
+            input: CallArg::Shared(SharedObjectReference::new(
+                ObjectId::AUTHENTICATOR_STATE,
+                Version::INITIAL_SHARED_VERSION,
+                false,
+            )),
+            expected: |error| {
+                matches!(
+                    error,
+                    UserInputError::InaccessibleSystemObject { object_id } if *object_id == ObjectId::AUTHENTICATOR_STATE
+                )
+            },
+        },
+        Case {
+            label: "the Clock named as an owned input",
+            input: CallArg::ImmutableOrOwned(clock),
+            expected: |error| matches!(error, UserInputError::NotSharedObject),
+        },
+        Case {
+            label: "the Randomness state named as an owned input",
+            input: CallArg::ImmutableOrOwned(randomness_state),
+            expected: |error| matches!(error, UserInputError::NotSharedObject),
+        },
+        Case {
+            label: "the AuthenticatorState named as an owned input",
+            input: CallArg::ImmutableOrOwned(authenticator_state),
+            expected: |error| matches!(error, UserInputError::NotSharedObject),
+        },
+    ];
+
+    for case in cases {
+        let pt = ProgrammableTransaction {
+            inputs: vec![
+                case.input,
+                CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+                CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+            ],
+            commands: vec![create_object_command(object_basics, 1)],
+        };
+
+        for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+            let Err(error) = result else {
+                panic!("{checks:?} should reject {}", case.label);
+            };
+            let error = UserInputError::try_from(error).unwrap();
+            assert!(
+                (case.expected)(&error),
+                "unexpected error for {checks:?}, {}: {error:?}",
+                case.label
+            );
+        }
+    }
+}
+
+/// A mismatched input object digest is rejected by a dry run and accepted by a
+/// dev inspect.
+///
+/// The digest is an optimistic-concurrency token for submission, which a dev
+/// inspect does not do, and nothing in execution reads it — the object is
+/// loaded by id and version either way.
+#[tokio::test]
+async fn test_simulate_input_object_digest_is_checked_only_with_checks_enabled() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![object_basics_object(package, Owner::Address(sender))]
+    })
+    .await;
+    let owned = &extra[0];
+    let object_ref = owned.object_ref();
+    let wrong_digest = ObjectReference::new(
+        object_ref.object_id,
+        object_ref.version,
+        ObjectDigest::new([9; 32]),
+    );
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::ImmutableOrOwned(wrong_digest),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        match checks {
+            VmChecks::Enabled => {
+                let Err(error) = result else {
+                    panic!("a dry run should reject a mismatched input object digest");
+                };
+                assert!(
+                    matches!(
+                        error,
+                        IotaError::UserInput {
+                            error: UserInputError::InvalidObjectDigest { object_id, .. }
+                        } if object_id == owned.id()
+                    ),
+                    "unexpected error for {checks:?}: {error:?}"
+                );
+            }
+            VmChecks::Disabled => {
+                let result =
+                    result.expect("a dev inspect should accept a mismatched input object digest");
+                assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+            }
+        }
+    }
+}
+
+/// An owned input object whose owner is not the sender is rejected by a dry
+/// run and accepted by a dev inspect.
+#[tokio::test]
+async fn test_simulate_input_object_owner_is_checked_only_with_checks_enabled() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![object_basics_object(
+            package,
+            Owner::Address(Address::random()),
+        )]
+    })
+    .await;
+    let owned = &extra[0];
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::ImmutableOrOwned(owned.object_ref()),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        match checks {
+            VmChecks::Enabled => {
+                let Err(error) = result else {
+                    panic!("a dry run should reject an owned input owned by a different address");
+                };
+                assert!(
+                    matches!(
+                        error,
+                        IotaError::UserInput {
+                            error: UserInputError::IncorrectUserSignature { .. }
+                        }
+                    ),
+                    "unexpected error for {checks:?}: {error:?}"
+                );
+            }
+            VmChecks::Disabled => {
+                let result = result.expect(
+                    "a dev inspect should accept an owned input owned by a different address",
+                );
+                assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+            }
+        }
     }
 }
 
@@ -1466,6 +2069,202 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     assert_eq!(result.effects.status(), &ExecutionStatus::Success);
 }
 
+/// What one entry point produced for a transaction: the execution status on
+/// success where one is available, or the input-check error.
+type EntryPointResult = Result<Option<ExecutionStatus>, UserInputError>;
+type EntryPointCase = Case<ProgrammableTransaction, fn(&'static str, &EntryPointResult) -> bool>;
+
+/// Runs `pt` through every entry point that applies the input checks: a dry
+/// run and a dev inspect on `fullnode`, and `validator` signing it.
+async fn check_under_all_entry_points(
+    validator: &Arc<AuthorityState>,
+    fullnode: &Arc<AuthorityState>,
+    sender: Address,
+    sender_key: &AccountPrivateKey,
+    gas: ObjectReference,
+    pt: &ProgrammableTransaction,
+) -> Vec<(&'static str, EntryPointResult)> {
+    let mut results: Vec<(&'static str, EntryPointResult)> =
+        simulate_under_both_checks(fullnode, sender, vec![gas], pt)
+            .into_iter()
+            .map(|(checks, result)| {
+                let label = if checks.enabled() {
+                    "dry run"
+                } else {
+                    "dev inspect"
+                };
+                let result = result
+                    .map(|r| Some(r.effects.status().clone()))
+                    .map_err(|error| {
+                        UserInputError::try_from(error)
+                            .unwrap_or_else(|error| panic!("{label}: {error}"))
+                    });
+                (label, result)
+            })
+            .collect();
+
+    let rgp = validator.reference_gas_price_for_testing().unwrap();
+    let tx = Transaction::new_programmable(
+        sender,
+        vec![gas],
+        pt.clone(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        rgp,
+    );
+    let signed = to_sender_signed_transaction(tx, sender_key);
+    let verified = validator
+        .epoch_store_for_testing()
+        .verify_transaction(signed)
+        .unwrap();
+    let epoch_store = validator.load_epoch_store_one_call_per_task();
+    let response = validator.handle_transaction(&epoch_store, verified).await;
+    let label = "validator signing";
+    results.push((
+        label,
+        response.map(|_| None).map_err(|error| {
+            UserInputError::try_from(error).unwrap_or_else(|error| panic!("{label}: {error}"))
+        }),
+    ));
+
+    results
+}
+
+/// The input checks reject the same transaction the same way at every entry
+/// point a transaction can come through: a dry run, a dev inspect, and
+/// validator signing. Where a dev inspect relaxes a check, the case says so.
+#[tokio::test]
+async fn test_input_checks_agree_across_entry_points() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![
+            object_basics_object(package, Owner::Object(ObjectId::random())),
+            object_basics_object(package, Owner::Address(Address::random())),
+            object_basics_object(package, Owner::Shared(OBJECT_START_VERSION)),
+            object_basics_object(package, Owner::Address(sender)),
+            // The two nodes have separate genesis, so a system object taken
+            // from one of them has a digest the other rejects. Insert a shared
+            // object under the authenticator state's id instead, since the
+            // check matches on the id.
+            object_basics_object_with_id(
+                package,
+                ObjectId::AUTHENTICATOR_STATE,
+                Owner::Shared(OBJECT_START_VERSION),
+            ),
+        ]
+    })
+    .await;
+    let [child, foreign, shared, sender_owned, authenticator_state] =
+        <[Object; 5]>::try_from(extra).unwrap();
+    let package = fullnode.get_object(&object_basics).unwrap();
+
+    let owned_pt = |object_ref: ObjectReference| ProgrammableTransaction {
+        inputs: vec![
+            CallArg::ImmutableOrOwned(object_ref),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+    let shared_pt = |shared_ref: SharedObjectReference| ProgrammableTransaction {
+        inputs: vec![
+            CallArg::Shared(shared_ref),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    let cases: [EntryPointCase; 7] = [
+        Case {
+            label: "a package used as an object",
+            input: owned_pt(package.object_ref()),
+            expected: |_entry_point, result| matches!(result, Err(error) if matches!(error, UserInputError::MovePackageAsObject { .. })),
+        },
+        Case {
+            label: "a child object used as owned",
+            input: owned_pt(child.object_ref()),
+            expected: |_entry_point, result| matches!(result, Err(error) if matches!(error, UserInputError::InvalidChildObjectArgument { .. })),
+        },
+        Case {
+            label: "an owned object used as shared",
+            input: shared_pt(SharedObjectReference::new(
+                sender_owned.id(),
+                OBJECT_START_VERSION,
+                true,
+            )),
+            expected: |_entry_point, result| matches!(result, Err(error) if matches!(error, UserInputError::NotSharedObject)),
+        },
+        Case {
+            // The initial shared version is not checked in a dev inspect.
+            label: "a shared object with a wrong initial version",
+            input: shared_pt(SharedObjectReference::new(
+                ObjectId::CLOCK,
+                Version::from(2),
+                false,
+            )),
+            expected: |entry_point, result| {
+                if entry_point == "dev inspect" {
+                    matches!(result, Ok(Some(ExecutionStatus::Success)))
+                } else {
+                    matches!(result, Err(error) if matches!(error, UserInputError::SharedObjectStartingVersionMismatch))
+                }
+            },
+        },
+        Case {
+            // A dev inspect accepts a shared object named as an owned input,
+            // but not one of the system objects with their own input rules.
+            label: "the AuthenticatorState used as owned",
+            input: owned_pt(authenticator_state.object_ref()),
+            expected: |_entry_point, result| matches!(result, Err(error) if matches!(error, UserInputError::NotSharedObject)),
+        },
+        Case {
+            // A dev inspect accepts a shared object named as an owned input.
+            label: "a shared object used as owned",
+            input: owned_pt(shared.object_ref()),
+            expected: |entry_point, result| {
+                if entry_point == "dev inspect" {
+                    matches!(result, Ok(Some(ExecutionStatus::Success)))
+                } else {
+                    matches!(result, Err(error) if matches!(error, UserInputError::NotSharedObject))
+                }
+            },
+        },
+        Case {
+            // The owner check is relaxed for a dev inspect, so this entry point
+            // legitimately does not agree with the other two.
+            label: "an owned input owned by a different address",
+            input: owned_pt(foreign.object_ref()),
+            expected: |entry_point, result| {
+                if entry_point == "dev inspect" {
+                    matches!(result, Ok(Some(ExecutionStatus::Success)))
+                } else {
+                    matches!(result, Err(error) if matches!(error, UserInputError::IncorrectUserSignature { .. }))
+                }
+            },
+        },
+    ];
+
+    for case in cases {
+        let results = check_under_all_entry_points(
+            &validator,
+            &fullnode,
+            sender,
+            &sender_key,
+            gas,
+            &case.input,
+        )
+        .await;
+
+        for (entry_point, result) in &results {
+            assert!(
+                (case.expected)(entry_point, result),
+                "{}: {entry_point} produced an unexpected result: {result:?}",
+                case.label
+            );
+        }
+    }
+}
+
 #[tokio::test]
 async fn test_handle_transfer_transaction_bad_signature() {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
@@ -1495,7 +2294,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority_state.config.network_key_pair().public_key(),
+        authority_state.config.network_private_key().public_key(),
     )
     .await
     .unwrap();
@@ -10206,4 +11005,236 @@ async fn closed_bucket_compaction_compacts_until_stopped() {
     );
     compact(false).await;
     assert_eq!(flat.db.sorted_runs(&cf_name).unwrap(), 1);
+}
+
+/// The checkpoint contents a validator serves to state-sync peers carry the
+/// signatures consensus pinned, also when the validator executed another copy
+/// of the transaction with other signatures. Each replica executes one
+/// certificate of T1 on arrival, the way `handle_certificates` does for an
+/// owned-object-only certificate, then processes a consensus commit carrying
+/// the pinned copy, and a real checkpoint builder builds checkpoint 0. The
+/// served contents are checked with `FullCheckpointContents::verify`, the
+/// check a state-sync receiver applies before accepting them. Each replica is
+/// checked with the full-contents cache on (served from the builder's cache)
+/// and off (rebuilt by `RocksDbStore` from the stored transactions).
+#[tokio::test]
+async fn served_checkpoint_contents_carry_the_pinned_signatures() {
+    use std::time::Duration;
+
+    use fastcrypto::{
+        hash::{HashFunction, Sha256},
+        rsa::{Base64UrlUnpadded, Encoding as _},
+    };
+    use iota_sdk_crypto::{Signer, secp256r1::Secp256r1PrivateKey};
+    use iota_sdk_types::{
+        CheckpointContents as SdkCheckpointContents, CheckpointSummary, PasskeyPublicKey,
+        SimpleSignature, UserSignature, crypto::PasskeyAuthenticator,
+    };
+    use iota_types::{
+        messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContentsExt as _},
+        storage::ReadStore as _,
+    };
+    use tokio::sync::mpsc;
+
+    use crate::{
+        checkpoints::{
+            CheckpointMetrics, CheckpointService, CheckpointStore, FullCheckpointContentsCache,
+            FullCheckpointContentsCacheMetrics,
+        },
+        consensus_handler::SequencedConsensusTransaction,
+        execution_scheduler::ExecutionSchedulerAPI as _,
+        global_state_hasher::GlobalStateHasher,
+        storage::RocksDbStore,
+    };
+
+    let network =
+        iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_enable_pcool_flow_for_testing(false);
+
+    let passkey_key = Secp256r1PrivateKey::random();
+    let sender = PasskeyPublicKey::new(passkey_key.public_key()).derive_address();
+    let ids: Vec<ObjectId> = (1u8..=2)
+        .map(|i| {
+            let mut id = [0u8; 32];
+            id[0] = i;
+            ObjectId::new(id)
+        })
+        .collect();
+
+    let replica = || async {
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network, 0)
+            .with_protocol_config(protocol_config.clone())
+            .build()
+            .await;
+        for id in &ids {
+            state.insert_genesis_object(Object::with_id_owner_for_testing(*id, sender));
+        }
+        state
+    };
+
+    let sign = |tx: &Transaction, origin: &str| {
+        let client_data_json = format!(
+            r#"{{"type":"webauthn.get","challenge":"{}","origin":"{origin}"}}"#,
+            Base64UrlUnpadded::encode_string(&tx.signing_digest())
+        );
+        let authenticator_data = vec![0u8; 37];
+        let mut message = authenticator_data.clone();
+        message.extend_from_slice(&Sha256::digest(client_data_json.as_bytes()).digest);
+        let signature: SimpleSignature = passkey_key.sign(&message);
+        let passkey =
+            PasskeyAuthenticator::new(authenticator_data, client_data_json, signature).unwrap();
+        TransactionEnvelope::from_user_sig_data(
+            tx.clone(),
+            vec![UserSignature::PasskeyAuthenticator(passkey)],
+        )
+    };
+
+    let first = replica().await;
+    let rgp = first.reference_gas_price_for_testing().unwrap();
+    let t1 = Transaction::new_transfer(
+        Address::random(),
+        first.get_object(&ids[0]).unwrap().object_ref(),
+        sender,
+        first.get_object(&ids[1]).unwrap().object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    // Two certificates of one transaction: same digest, different user
+    // signatures. The first is the copy consensus sequences.
+    let pinned = init_certified_transaction(sign(&t1, "https://a.io"), &first);
+    let other = init_certified_transaction(sign(&t1, "https://b.io"), &first);
+    assert_eq!(pinned.digest(), other.digest());
+    assert_ne!(pinned.data().signatures(), other.data().signatures());
+    let digest = *pinned.digest();
+    let pinned_sigs = pinned.data().signatures().to_vec();
+
+    // (executed certificate, full-contents cache on) for each replica.
+    let cases = [
+        (pinned.clone(), true),
+        (pinned.clone(), false),
+        (other.clone(), true),
+        (other.clone(), false),
+    ];
+    for (index, (executed, cache_on)) in cases.into_iter().enumerate() {
+        let state = if index == 0 {
+            first.clone()
+        } else {
+            replica().await
+        };
+        let epoch_store = state.epoch_store_for_testing().clone();
+        for cert in [&pinned, &other] {
+            cert.validity_check(&epoch_store.tx_validity_check_context())
+                .unwrap();
+            epoch_store
+                .signature_verifier
+                .multi_verify_certs(vec![cert.clone().into_inner()])
+                .await
+                .into_iter()
+                .for_each(|r| {
+                    r.unwrap();
+                });
+        }
+
+        // Executed on arrival, before any consensus copy is sequenced.
+        state
+            .wait_for_certificate_execution(&executed, &epoch_store)
+            .await
+            .unwrap();
+
+        let tmp_dir = iota_common::tempdir();
+        let contents_cache = if cache_on {
+            FullCheckpointContentsCache::default()
+        } else {
+            FullCheckpointContentsCache::new(0, FullCheckpointContentsCacheMetrics::new_for_tests())
+        };
+        let checkpoint_store =
+            CheckpointStore::new_with_contents_cache(tmp_dir.path(), None, contents_cache);
+        let (output, mut result) = mpsc::channel::<(SdkCheckpointContents, CheckpointSummary)>(10);
+        let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
+        let hasher = Arc::new(GlobalStateHasher::new_for_tests(
+            state.get_global_state_hash_store().clone(),
+        ));
+        let checkpoint_service = CheckpointService::build(
+            state.clone(),
+            checkpoint_store.clone(),
+            epoch_store.clone(),
+            state.get_transaction_cache_reader().clone(),
+            Arc::downgrade(&hasher),
+            Box::new(output),
+            Box::new(certified_output),
+            CheckpointMetrics::new_for_tests(),
+            100,
+            30 * 1024 * 1024,
+        );
+        let _tasks = checkpoint_service.spawn(None).await;
+
+        // One commit carrying the pinned copy of T1.
+        let sequenced = vec![SequencedConsensusTransaction::new_test(
+            ConsensusTransaction::new_certificate_message(&state.name, pinned.clone().into_inner()),
+        )];
+        let (schedulables, _) = epoch_store
+            .process_consensus_transactions_for_tests(
+                sequenced,
+                &checkpoint_service,
+                state.get_object_cache_reader().as_ref(),
+                &state.metrics,
+                true,
+                &state,
+            )
+            .await
+            .unwrap();
+        // As the consensus handler does; T1 is already executed.
+        state.execution_scheduler().enqueue(
+            drop_attestations(schedulables)
+                .into_iter()
+                .map(|s| (s, ExecutionEnv::new()))
+                .collect(),
+            &epoch_store,
+        );
+
+        let (contents, summary) = tokio::time::timeout(Duration::from_secs(60), result.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        // The contents pin the sequenced copy's signatures.
+        let (_, sigs) = contents
+            .clone()
+            .into_iter_with_signatures()
+            .find(|(digests, _)| digests.transaction == digest)
+            .expect("checkpoint 0 holds T1");
+        assert_eq!(sigs, pinned_sigs);
+        // The later consensus copy did not replace the stored envelope.
+        let stored = state
+            .get_transaction_cache_reader()
+            .get_transaction_block(&digest)
+            .unwrap();
+        assert_eq!(stored.data().signatures(), executed.data().signatures());
+
+        // What this node serves to a state-sync peer.
+        let rocks = RocksDbStore::new(
+            state.execution_cache_trait_pointers.clone(),
+            state.committee_store().clone(),
+            checkpoint_store.clone(),
+        );
+        assert_eq!(
+            checkpoint_store
+                .get_full_checkpoint_contents_by_digest(&summary.contents_digest)
+                .is_some(),
+            cache_on,
+            "served from the builder's cache only when the cache is on"
+        );
+        let served = rocks
+            .try_get_full_checkpoint_contents(&summary.contents_digest)
+            .unwrap()
+            .expect("the node serves the contents of a checkpoint it built");
+        let executed_pinned = executed.data().signatures() == pinned_sigs.as_slice();
+        served
+            .verify(summary.contents_digest)
+            .unwrap_or_else(|err| {
+                panic!("executed pinned copy: {executed_pinned}, cache on: {cache_on}: {err}")
+            });
+    }
 }

@@ -981,7 +981,7 @@ mod tests {
 
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_types::{crypto::AuthorityKeyPair, messages_consensus::ConsensusTransactionKind};
-    use starfish_core::{BlockRef, BlockStatus};
+    use starfish_core::BlockStatus;
     use tokio::sync::mpsc;
 
     use crate::{
@@ -1034,7 +1034,7 @@ mod tests {
                 })
                 .returning(|_, _| {
                     Ok(with_block_status(BlockStatus::Sequenced(
-                        starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+                        starfish_core::TransactionRef::default(),
                     )))
                 });
 
@@ -1203,7 +1203,7 @@ mod tests {
                 })
                 .returning(|_, _| {
                     Ok(with_block_status(starfish_core::BlockStatus::Sequenced(
-                        starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+                        starfish_core::TransactionRef::default(),
                     )))
                 });
 
@@ -1332,7 +1332,7 @@ mod tests {
             })
             .returning(|_, _| {
                 Ok(with_block_status(BlockStatus::Sequenced(
-                    starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+                    starfish_core::TransactionRef::default(),
                 )))
             });
         let consensus_adapter = Arc::new(ConsensusAdapter::new(
@@ -1395,7 +1395,7 @@ mod tests {
                 })
                 .returning(|_, _| {
                     Ok(with_block_status(BlockStatus::Sequenced(
-                        starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+                        starfish_core::TransactionRef::default(),
                     )))
                 });
 
@@ -1668,7 +1668,7 @@ mod tests {
                 })
                 .returning(|_, _| {
                     Ok(with_block_status(BlockStatus::Sequenced(
-                        starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+                        starfish_core::TransactionRef::default(),
                     )))
                 });
 
