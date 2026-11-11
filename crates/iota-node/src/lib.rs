@@ -920,21 +920,25 @@ impl IotaNode {
             None
         };
 
-        // Validators expose neither JSON-RPC nor gRPC.
-        let kv_store = if config.is_validator() {
-            None
-        } else {
-            Some(SharedKeyValueStore::new(&config, &prometheus_registry)?)
-        };
+        // Only the JSON-RPC and gRPC APIs read the store, and validators expose neither.
+        let kv_store =
+            if config.is_validator() || !(config.enable_jsonrpc_api || config.enable_grpc_api) {
+                None
+            } else {
+                Some(SharedKeyValueStore::new(&config, &prometheus_registry)?)
+            };
 
         // Run the JSON-RPC server (and its per-request handlers) on the serving
         // runtime. `iota_http::Builder::serve` spawns the accept loop via
         // `Handle::current()`, so the builder must execute on the serving runtime.
-        let http_server = match kv_store
-            .as_ref()
-            .map(|kv_store| kv_store.json_rpc_store(&state))
-        {
-            Some(kv_store) => Some(
+        let http_server = if config.is_validator() {
+            None
+        } else {
+            let json_rpc_store = kv_store
+                .as_ref()
+                .filter(|_| config.enable_jsonrpc_api)
+                .map(|kv_store| kv_store.json_rpc_store(&state));
+            Some(
                 serving_rt_handle
                     .spawn({
                         let state = state.clone();
@@ -947,15 +951,14 @@ impl IotaNode {
                                 &transaction_orchestrator,
                                 &config,
                                 &prometheus_registry,
-                                kv_store,
+                                json_rpc_store,
                             )
                             .await
                         }
                     })
                     .await
                     .expect("Failed to join JSON-RPC server startup task")?,
-            ),
-            None => None,
+            )
         };
 
         let global_state_hasher = Arc::new(GlobalStateHasher::new(
@@ -2805,7 +2808,8 @@ async fn build_grpc_server(
 }
 
 /// Builds and starts the HTTP server for the IOTA node, exposing the JSON-RPC
-/// API based on the node's configuration.
+/// API with `json_rpc_store`, or no JSON-RPC API when it is `None`. The
+/// `/health` endpoint is served whether or not the JSON-RPC API is enabled.
 ///
 /// Must not be called for a validator, which exposes no JSON-RPC API.
 pub async fn build_http_server(
@@ -2813,13 +2817,13 @@ pub async fn build_http_server(
     transaction_orchestrator: &Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     config: &NodeConfig,
     prometheus_registry: &Registry,
-    kv_store: Arc<TransactionKeyValueStore>,
+    json_rpc_store: Option<Arc<TransactionKeyValueStore>>,
 ) -> Result<iota_http::ServerHandle> {
     let mut router = axum::Router::new();
 
     // A full node with JSON-RPC off still serves `/health`, which liveness
     // probes rely on.
-    if config.enable_jsonrpc_api {
+    if let Some(kv_store) = json_rpc_store {
         let json_rpc_router = {
             let traffic_controller = state.traffic_controller.clone();
             let mut server = JsonRpcServerBuilder::new(
