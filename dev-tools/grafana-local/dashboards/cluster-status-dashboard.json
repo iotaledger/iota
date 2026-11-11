@@ -1632,6 +1632,22 @@
           "range": true,
           "refId": "A",
           "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "consensus_handler_load_shedding_percentage{host=~\"$validator\"}",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "{{host}} quorum load shedding percentage",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
         }
       ],
       "title": "Load shedding percentage",
@@ -1744,7 +1760,7 @@
       },
       "id": 38,
       "panels": [],
-      "title": "Shared Object Congestion Control",
+      "title": "Congestion Control",
       "type": "row"
     },
     {
@@ -1835,7 +1851,7 @@
           "fullMetaSearch": false,
           "includeNullMetadata": false,
           "instant": false,
-          "legendFormat": "{{host}}",
+          "legendFormat": "{{host}} {{reason}}",
           "range": true,
           "refId": "A",
           "useBackend": false
@@ -1932,7 +1948,7 @@
           "fullMetaSearch": false,
           "includeNullMetadata": false,
           "instant": false,
-          "legendFormat": "{{host}}",
+          "legendFormat": "{{host}} {{reason}}",
           "range": true,
           "refId": "A",
           "useBackend": false
@@ -2122,7 +2138,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "consensus_handler_max_object_costs{host=~\"$validator\"}",
+          "expr": "consensus_handler_max_congestion_control_object_costs{host=~\"$validator\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -2136,12 +2152,416 @@
       "type": "timeseries"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 44
+      },
+      "id": 56,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "consensus_handler_execution_worker_debt{host=~\"$validator\"}",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "{{host}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Execution worker debt",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 44
+      },
+      "id": 57,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "consensus_handler_execution_worker_end_time{host=~\"$validator\"}",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "{{host}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Execution worker end time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 52
+      },
+      "id": 58,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "consensus_handler_commit_deferred_transactions{host=~\"$validator\"}",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "{{host}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Transactions deferred per commit",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 52
+      },
+      "id": 59,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.5, sum by (le, reason) (rate(consensus_handler_suggested_gas_price_increase_bucket{host=~\"$validator\"}[$__rate_interval])))",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "p50 {{reason}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (le, reason) (rate(consensus_handler_suggested_gas_price_increase_bucket{host=~\"$validator\"}[$__rate_interval])))",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "p99 {{reason}}",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        }
+      ],
+      "title": "Suggested gas price increase at cancellation",
+      "type": "timeseries"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 52
+        "y": 60
       },
       "id": 10,
       "panels": [],
@@ -2209,7 +2629,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 53
+        "y": 61
       },
       "id": 4,
       "options": {
@@ -2340,7 +2760,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 53
+        "y": 61
       },
       "id": 17,
       "options": {
@@ -2437,7 +2857,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 61
+        "y": 69
       },
       "id": 5,
       "options": {
@@ -2571,7 +2991,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 69
+        "y": 77
       },
       "id": 3,
       "options": {
@@ -2723,7 +3143,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 69
+        "y": 77
       },
       "id": 1,
       "options": {
@@ -2816,7 +3236,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 77
+        "y": 85
       },
       "id": 18,
       "panels": [],
@@ -2884,7 +3304,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 78
+        "y": 86
       },
       "id": 19,
       "options": {
@@ -2981,7 +3401,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 78
+        "y": 86
       },
       "id": 24,
       "options": {
@@ -3078,7 +3498,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 78
+        "y": 86
       },
       "id": 29,
       "options": {
@@ -3175,7 +3595,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 86
+        "y": 94
       },
       "id": 28,
       "options": {
@@ -3273,7 +3693,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 86
+        "y": 94
       },
       "id": 25,
       "options": {
@@ -3370,7 +3790,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 94
+        "y": 102
       },
       "id": 27,
       "options": {
@@ -3468,7 +3888,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 94
+        "y": 102
       },
       "id": 26,
       "options": {
@@ -3566,7 +3986,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 102
+        "y": 110
       },
       "id": 50,
       "options": {
@@ -3660,7 +4080,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 102
+        "y": 110
       },
       "id": 51,
       "options": {
@@ -3754,7 +4174,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 110
+        "y": 118
       },
       "id": 52,
       "options": {
@@ -3848,7 +4268,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 110
+        "y": 118
       },
       "id": 53,
       "options": {
@@ -3942,7 +4362,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 118
+        "y": 126
       },
       "id": 54,
       "options": {
@@ -4042,7 +4462,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 118
+        "y": 126
       },
       "id": 55,
       "options": {

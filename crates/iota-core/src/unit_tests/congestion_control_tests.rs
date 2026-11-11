@@ -1297,21 +1297,31 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
     );
     assert!(randomness_roots.is_empty());
 
-    // Both losers were deferred (within the deferral limit), not cancelled.
-    assert_eq!(
-        authority
-            .metrics
-            .consensus_handler_deferred_transactions
-            .get(),
-        2
-    );
-    assert_eq!(
-        authority
-            .metrics
-            .consensus_handler_cancelled_transactions
-            .get(),
-        0
-    );
+    // Both losers were deferred by the execution workers (within the deferral
+    // limit), not cancelled.
+    let metrics = &authority.metrics;
+    assert_eq!(metrics.consensus_handler_deferred_transactions.get(), 2);
+    for (reason, congested) in [
+        ("execution_worker_congestion", 2),
+        ("shared_object_congestion", 0),
+    ] {
+        assert_eq!(
+            metrics
+                .consensus_handler_congested_transactions
+                .with_label_values(&[reason])
+                .get(),
+            congested,
+            "{reason}"
+        );
+        assert_eq!(
+            metrics
+                .consensus_handler_cancelled_transactions
+                .with_label_values(&[reason])
+                .get(),
+            0,
+            "{reason}"
+        );
+    }
 }
 
 /// A transaction running past the commit's budget leaves a debt for its
@@ -1613,6 +1623,49 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
     );
     let (cancelled_tx, effects) = cancelled.pop().unwrap();
 
+    // The metrics name the execution workers, as the effects do, and record
+    // how far the suggested gas price exceeds the transaction's own.
+    let metrics = &authority.metrics;
+    for (reason, count) in [
+        ("execution_worker_congestion", 1),
+        ("shared_object_congestion", 0),
+    ] {
+        assert_eq!(
+            metrics
+                .consensus_handler_congested_transactions
+                .with_label_values(&[reason])
+                .get(),
+            count,
+            "{reason}"
+        );
+        assert_eq!(
+            metrics
+                .consensus_handler_cancelled_transactions
+                .with_label_values(&[reason])
+                .get(),
+            count,
+            "{reason}"
+        );
+    }
+    let ExecutionStatus::Failure {
+        error:
+            ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
+                suggested_gas_price,
+            },
+        ..
+    } = effects.status()
+    else {
+        panic!("the cancelled transaction must fail with execution-worker congestion");
+    };
+    let increase = metrics
+        .consensus_handler_suggested_gas_price_increase
+        .with_label_values(&["execution_worker_congestion"]);
+    assert_eq!(increase.get_sample_count(), 1);
+    assert_eq!(
+        increase.get_sample_sum(),
+        (suggested_gas_price - rgp) as f64
+    );
+
     // The cancelled execution charged gas (the gas object was mutated), and
     // the cancellation left no shared object entries in the effects.
     let gas_object_id = cancelled_tx.transaction().gas()[0].object_id;
@@ -1815,6 +1868,23 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
         cancellations, 1,
         "exactly one transaction fits the single execution worker"
     );
+
+    // The effects report the shared input as congested, but the metrics name
+    // the execution workers that shed the transaction.
+    for (reason, count) in [
+        ("execution_worker_congestion", 1),
+        ("shared_object_congestion", 0),
+    ] {
+        assert_eq!(
+            authority_state
+                .metrics
+                .consensus_handler_cancelled_transactions
+                .with_label_values(&[reason])
+                .get(),
+            count,
+            "{reason}"
+        );
+    }
 }
 
 // A cancelled transaction without shared inputs that pays with multiple gas
