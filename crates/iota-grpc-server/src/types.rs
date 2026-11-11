@@ -2012,7 +2012,8 @@ async fn store_read<T>(
     match result {
         Ok(Ok(value)) => Ok(value),
         Ok(Err(error)) => Err(store_unavailable(error)),
-        Err(_) => Err(store_unavailable("read timed out")),
+        // The read took all the time the request had left.
+        Err(_) => Err(store_budget_spent()),
     }
 }
 
@@ -2022,7 +2023,7 @@ fn store_unavailable(detail: impl std::fmt::Display) -> crate::error::RpcError {
     crate::error::RpcError::new(tonic::Code::Unavailable, "key-value store unavailable")
 }
 
-/// Not logged: every further item of the request gets it, and no read failed.
+/// Not logged: every further item of the request gets it.
 fn store_budget_spent() -> crate::error::RpcError {
     crate::error::RpcError::new(
         tonic::Code::Unavailable,

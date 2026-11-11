@@ -1602,6 +1602,8 @@ async fn lookups_after_the_budget_is_spent_are_unavailable() {
     let mut expected = vec![Some(tonic::Code::NotFound); 100];
     expected.push(Some(tonic::Code::Unavailable));
     assert_eq!(codes, expected);
+    let message = results[100].error_message().unwrap();
+    assert!(message.contains("request fewer transactions"), "{message}");
 }
 
 #[tokio::test]
