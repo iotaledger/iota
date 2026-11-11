@@ -33,9 +33,9 @@ use http_body::Frame;
 use pin_project_lite::pin_project;
 use tokio::{sync::Semaphore, task::AbortHandle};
 use tonic::{
-    Status,
+    Code, Status,
     body::Body,
-    codegen::http::{Request, Response},
+    codegen::http::{HeaderMap, HeaderValue, Request, Response},
     server::NamedService,
 };
 use tower::Service;
@@ -47,8 +47,8 @@ type BoxError = Box<dyn std::error::Error + Send + Sync>;
 ///
 /// A request is in flight from admission until its response body has been
 /// sent or dropped. A response body still unsent `response_send_timeout` after
-/// its headers gives up its contents and its slot, and the client then sees
-/// the stream fail with `DEADLINE_EXCEEDED` if it reads it.
+/// its headers gives up its contents and its slot, and ends with gRPC status
+/// `DEADLINE_EXCEEDED`, which the client gets if it reads on.
 ///
 /// With `load_shed` enabled, requests over the limit are rejected immediately
 /// with gRPC `RESOURCE_EXHAUSTED`; otherwise they wait for a slot to free up.
@@ -206,6 +206,20 @@ where
 /// out of reach, so a small frame keeps what a reclaim cannot free small.
 const MAX_FRAME_BYTES: usize = 64 * 1024;
 
+/// Trailers ending a `ReclaimableBody` that has given up its contents.
+fn deadline_exceeded_trailers() -> HeaderMap {
+    let mut trailers = HeaderMap::with_capacity(2);
+    trailers.insert(
+        Status::GRPC_STATUS,
+        HeaderValue::from(Code::DeadlineExceeded as i32),
+    );
+    trailers.insert(
+        Status::GRPC_MESSAGE,
+        HeaderValue::from_static("response was not read in time"),
+    );
+    trailers
+}
+
 /// What a `ReclaimableBody` gives up at its deadline.
 struct Held<B, D> {
     inner: B,
@@ -219,13 +233,16 @@ pin_project! {
     /// it has been sent. The transport polls a body only when the receiver
     /// grants it window, so a receiver that stops reading leaves the body
     /// parked, together with everything it owns; the deadline takes the inner
-    /// body and `until_deadline` away from under it, and any later poll yields
-    /// an error. `until_end` stays until the body itself is dropped, once the
-    /// stream has been written, reset or abandoned.
+    /// body and `until_deadline` away from under it, and the body then ends
+    /// with trailers carrying gRPC status `DEADLINE_EXCEEDED`. `until_end`
+    /// stays until the body itself is dropped, once the stream has been
+    /// written, reset or abandoned.
     pub struct ReclaimableBody<B, D, E> {
         held: Arc<Mutex<Option<Held<B, D>>>>,
         _until_end: Option<E>,
         timer: Option<AbortHandle>,
+        // Whether a reclaimed body has handed over its trailers.
+        ended: bool,
     }
 
     impl<B, D, E> PinnedDrop for ReclaimableBody<B, D, E> {
@@ -259,6 +276,7 @@ where
             }))),
             _until_end: until_end,
             timer: None,
+            ended: false,
         }
     }
 
@@ -312,9 +330,14 @@ where
         let this = self.project();
         let mut held = this.held.lock().unwrap_or_else(PoisonError::into_inner);
         let Some(state) = held.as_mut() else {
-            return Poll::Ready(Some(Err(Box::new(Status::deadline_exceeded(
-                "response was not read in time",
-            )))));
+            // The status goes in trailers, the way a gRPC server reports an
+            // error after the headers. An error from the body would make the
+            // transport reset the stream, which the client reads as
+            // `INTERNAL`.
+            if std::mem::replace(this.ended, true) {
+                return Poll::Ready(None);
+            }
+            return Poll::Ready(Some(Ok(Frame::trailers(deadline_exceeded_trailers()))));
         };
         if state.pending.is_empty() {
             match ready!(Pin::new(&mut state.inner).poll_frame(cx)) {
@@ -351,8 +374,10 @@ where
 
     fn is_end_stream(&self) -> bool {
         let held = self.held.lock().unwrap_or_else(PoisonError::into_inner);
-        held.as_ref()
-            .is_some_and(|state| state.pending.is_empty() && state.inner.is_end_stream())
+        match held.as_ref() {
+            Some(state) => state.pending.is_empty() && state.inner.is_end_stream(),
+            None => self.ended,
+        }
     }
 
     fn size_hint(&self) -> http_body::SizeHint {
@@ -587,8 +612,8 @@ mod tests {
     }
 
     /// A body that is never read, as when the client grants no flow-control
-    /// window, must give back its slot once the send timeout passes, and fail
-    /// if it is read afterwards.
+    /// window, must give back its slot once the send timeout passes, and end
+    /// with `DEADLINE_EXCEEDED` if it is read afterwards.
     #[tokio::test]
     async fn a_response_not_sent_in_time_gives_back_its_slot() {
         const SHORT_SEND_TIMEOUT: Duration = Duration::from_millis(50);
@@ -604,11 +629,31 @@ mod tests {
             "the slot must be free once the send timeout has passed"
         );
 
-        let read_late = std::future::poll_fn(|cx| Pin::new(unread.body_mut()).poll_frame(cx))
+        assert_ends_with_deadline_exceeded(unread.body_mut()).await;
+    }
+
+    /// Reads a reclaimed body to its end: trailers with the gRPC status
+    /// `DEADLINE_EXCEEDED`, then nothing more.
+    async fn assert_ends_with_deadline_exceeded<B>(body: &mut B)
+    where
+        B: http_body::Body + Unpin,
+        B::Error: std::fmt::Debug,
+    {
+        assert!(!body.is_end_stream(), "the trailers are still to come");
+        let Ok(trailers) = next_frame(body)
             .await
-            .expect("a reclaimed body must report an error, not a clean end")
-            .expect_err("a reclaimed body must not yield data");
-        assert_eq!(read_late.code(), tonic::Code::DeadlineExceeded);
+            .expect("a reclaimed body must end with trailers, not a bare end")
+            .expect("a reclaimed body must not fail, which would reset the stream")
+            .into_trailers()
+        else {
+            panic!("a reclaimed body must not yield data");
+        };
+        assert_eq!(
+            Status::from_header_map(&trailers).map(|status| status.code()),
+            Some(tonic::Code::DeadlineExceeded)
+        );
+        assert!(body.is_end_stream());
+        assert!(next_frame(body).await.is_none());
     }
 
     /// The send timeout must not change a response that is read in time.
@@ -751,12 +796,9 @@ mod tests {
         assert!(reclaimed_deadline.load(Ordering::SeqCst));
         assert!(reported.load(Ordering::SeqCst));
         assert!(!reclaimed_end.load(Ordering::SeqCst));
-        // The transport, once the peer lets it poll again, gets an error.
-        let error = next_frame(&mut body).await.unwrap().unwrap_err();
-        assert_eq!(
-            Status::from_error(error).code(),
-            tonic::Code::DeadlineExceeded
-        );
+        // The transport, once the peer lets it poll again, ends the stream.
+        assert_ends_with_deadline_exceeded(&mut body).await;
+        assert!(!reclaimed_end.load(Ordering::SeqCst));
 
         drop(body);
         assert!(reclaimed_end.load(Ordering::SeqCst));

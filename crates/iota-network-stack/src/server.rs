@@ -34,10 +34,12 @@ use crate::{
 
 /// Server-side deadline for a request whose config sets no `request_timeout`.
 ///
-/// A request holds its admission slot from the moment its headers arrive
-/// until the handler responds, including the time spent receiving the body,
-/// so without a deadline a peer that never finishes sending pins the slot
-/// indefinitely.
+/// It bounds the time from a request's headers arriving until the handler
+/// responds, including the time spent receiving the request body, so a peer
+/// that never finishes sending cannot hold the request's admission slot
+/// indefinitely. It does not cover the response body, which keeps the slot
+/// until it has been sent; `response_send_timeout` of
+/// [`ServerBuilder::add_service_with_concurrency_limit`] bounds that.
 pub const DEFAULT_GRPC_REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
 
 pub struct ServerBuilder<M: MetricsCallbackProvider = DefaultMetricsCallbackProvider> {
@@ -117,8 +119,9 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
     /// A request keeps its slot until its response body has been sent, so a
     /// streaming response counts for as long as it streams.
     /// `response_send_timeout` bounds that: a response still unsent that long
-    /// after its headers is given up and frees its slot. It must exceed the
-    /// longest a response of `svc` legitimately takes to send.
+    /// after its headers is given up, ending with gRPC status
+    /// `DEADLINE_EXCEEDED`, and frees its slot. It must exceed the longest a
+    /// response of `svc` legitimately takes to send.
     pub fn add_service_with_concurrency_limit<S>(
         mut self,
         svc: S,
@@ -744,8 +747,15 @@ mod test {
         server.server_handle.shutdown().await;
     }
 
+    /// Length of the response `ImmediateData` answers with, far more than a
+    /// response with a send timeout hands to the transport at a time, so most
+    /// of it is still in the body when the client stops reading.
+    const IMMEDIATE_DATA_LEN: usize = 1024 * 1024;
+
     /// Answers at once with a body that has data ready, so whether the body is
-    /// sent depends only on the client granting flow-control window.
+    /// sent depends only on the client granting flow-control window. Like a
+    /// tonic response, the body does not declare its length, so the response
+    /// carries no `content-length` that cutting it short would contradict.
     #[derive(Clone)]
     struct ImmediateData;
 
@@ -762,7 +772,10 @@ mod test {
         }
 
         fn call(&mut self, _request: http::Request<tonic::body::Body>) -> Self::Future {
-            let body = http_body_util::Full::new(bytes::Bytes::from_static(&[0; 1024]));
+            let data: Result<_, std::convert::Infallible> = Ok(http_body::Frame::data(
+                bytes::Bytes::from(vec![0; IMMEDIATE_DATA_LEN]),
+            ));
+            let body = http_body_util::StreamBody::new(futures::stream::iter([data]));
             std::future::ready(Ok(http::Response::builder()
                 .header("content-type", "application/grpc")
                 .body(tonic::body::Body::new(body))
@@ -774,11 +787,14 @@ mod test {
         const NAME: &'static str = "test.ImmediateData";
     }
 
-    /// A client that grants no flow-control window never lets its response
-    /// body be sent. The admission slot it holds must still come back once the
-    /// response send timeout passes, and not before.
+    /// A client that stops reading keeps its response body from being sent.
+    /// The admission slot it holds must still come back once the response send
+    /// timeout passes, and not before, and the client that reads on must get
+    /// the gRPC status `DEADLINE_EXCEEDED`.
     #[tokio::test]
     async fn a_response_the_client_does_not_read_gives_back_its_slot_after_the_send_timeout() {
+        // Far smaller than the response, so the response stalls unless read.
+        const CLIENT_WINDOW: u32 = 1024;
         const SEND_TIMEOUT: Duration = Duration::from_millis(300);
 
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
@@ -799,7 +815,7 @@ mod test {
             .unwrap();
         let (mut sender, connection) =
             hyper::client::conn::http2::Builder::new(hyper_util::rt::TokioExecutor::new())
-                .initial_stream_window_size(0)
+                .initial_stream_window_size(CLIENT_WINDOW)
                 .handshake::<_, http_body_util::Empty<bytes::Bytes>>(hyper_util::rt::TokioIo::new(
                     stream,
                 ))
@@ -820,7 +836,7 @@ mod test {
                 .is_some_and(|status| *status == (Code::ResourceExhausted as i32).to_string())
         };
 
-        // Its headers arrive, but its body can never be sent.
+        // Its headers arrive, but its body is not read.
         let unread = sender.send_request(request()).await.unwrap();
         assert!(!shed(&unread));
 
@@ -837,7 +853,27 @@ mod test {
             "the slot must be free once the send timeout has passed"
         );
 
-        drop(unread);
+        let read_late = tokio::time::timeout(
+            SEND_TIMEOUT * 10,
+            http_body_util::BodyExt::collect(unread.into_body()),
+        )
+        .await
+        .expect("a response given up at the send timeout must end once read")
+        .expect("the stream must end with a status, not be reset");
+        let trailers = read_late
+            .trailers()
+            .expect("the status must arrive in trailers")
+            .clone();
+        assert_eq!(
+            tonic::Status::from_header_map(&trailers).map(|status| status.code()),
+            Some(Code::DeadlineExceeded)
+        );
+        assert!(
+            read_late.to_bytes().len() < IMMEDIATE_DATA_LEN,
+            "the rest of the response must be given up"
+        );
+
+        drop(after_timeout);
         server.server_handle.shutdown().await;
     }
 

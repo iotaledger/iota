@@ -114,11 +114,19 @@ pub struct NodeConfig {
     /// cores of the machine at server startup, so the same config file scales
     /// with the hardware.
     ///
-    /// Most request time is spent awaiting locks, I/O or consensus rather
-    /// than on-CPU, so the default ceiling is generous: it bounds total
-    /// in-flight work so a request flood cannot grow queues and memory
-    /// without limit, it does not throttle normal load. Operators wanting
-    /// hard load-shedding can lower it and set `grpc_load_shed`.
+    /// A request is in flight from admission until its response has been
+    /// sent, so a streaming `ValidatorV2` response (`SubmitTx`, `GetTxStatus`)
+    /// counts for as long as it streams; a `GetTxStatus` stream waits up to
+    /// 30 s for its transactions. A response the client stops reading gives
+    /// up its slot after the listener's response send timeout.
+    ///
+    /// Most of that time is spent awaiting locks, I/O, consensus or execution
+    /// rather than on-CPU, so the default ceiling is generous: it is meant to
+    /// bound total in-flight work, so a request flood cannot grow queues and
+    /// memory without limit, rather than to throttle normal load. A lower
+    /// value must leave room for every `GetTxStatus` stream open at peak, each
+    /// holding its slot while it waits. Operators wanting hard load-shedding
+    /// can lower it and set `grpc_load_shed`.
     ///
     /// A value of zero is rejected at config load: it would not disable the
     /// limit, it would block every request.
