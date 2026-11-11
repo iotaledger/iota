@@ -2118,6 +2118,7 @@ dependencies = [
  "move-ir-types",
  "move-trace-format",
  "petgraph",
+ "rayon",
  "serde",
 ]
 

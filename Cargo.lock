@@ -9989,6 +9989,7 @@ dependencies = [
  "move-ir-types",
  "move-trace-format",
  "petgraph 0.8.3",
+ "rayon",
  "serde",
 ]
 
