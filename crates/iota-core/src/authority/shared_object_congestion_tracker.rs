@@ -1087,6 +1087,7 @@ pub mod shared_object_test_utils {
     };
 
     use super::*;
+    use crate::execution_scheduler::transaction_manager::AttestationSource;
 
     pub const TEST_ONLY_GAS_PRICE: u64 = 1_000;
 
@@ -1125,7 +1126,7 @@ pub mod shared_object_test_utils {
             ),
             0,
         );
-        VerifiedExecutableAttestedTransaction::new(tx, None)
+        VerifiedExecutableAttestedTransaction::new(tx, AttestationSource::Unattested)
     }
 
     pub(crate) fn initialize_tracker_and_compute_tx_start_time(
