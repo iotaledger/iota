@@ -383,9 +383,7 @@ pub(super) fn execute_with_move_authenticators(
             trace_builder_opt,
         );
 
-    let authenticator_outcome = authentication_error.map_or(Ok(()), |kind| {
-        Err(iota_types::error::ExecutionError::from_kind(kind))
-    });
+    let authenticator_outcome = authentication_error.map_or(Ok(()), |kind| Err(kind.into()));
 
     // The authenticator engine entry point does not return per-command
     // results, so a signed `MoveAuthenticator` run carries none.
