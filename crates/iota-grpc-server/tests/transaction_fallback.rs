@@ -69,6 +69,10 @@ struct MockFallbackStore {
     /// Digests that fail any checkpoint lookup they are part of, as one failed
     /// GET fails the whole call of the HTTP store.
     failing_lookups: HashSet<TransactionDigest>,
+    /// Digests that fail any `multi_get` they are part of.
+    failing_transactions: HashSet<TransactionDigest>,
+    /// Object keys that fail any objects call they are part of.
+    failing_objects: HashSet<ObjectKey>,
     /// Requests made, in call order; `multi_get` also records which keys it
     /// got.
     requests: Arc<Mutex<Vec<&'static str>>>,
@@ -91,13 +95,19 @@ impl MockFallbackStore {
 
     /// Records the call as `request` and fails it when `method` is failing.
     fn serve_as<T>(&self, method: &'static str, request: &'static str, value: T) -> IotaResult<T> {
-        self.requests.lock().unwrap().push(request);
         if self.failing.contains(method) {
-            return Err(IotaError::Storage(format!(
-                "connection refused by http://{STORE_HOST}"
-            )));
+            return self.fail(request);
         }
+        self.requests.lock().unwrap().push(request);
         Ok(value)
+    }
+
+    /// Records the call as `request` and fails it.
+    fn fail<T>(&self, request: &'static str) -> IotaResult<T> {
+        self.requests.lock().unwrap().push(request);
+        Err(IotaError::Storage(format!(
+            "connection refused by http://{STORE_HOST}"
+        )))
     }
 }
 
@@ -118,6 +128,13 @@ impl TransactionKeyValueStoreTrait for MockFallbackStore {
             (true, false) => "multi_get(effects)",
             (true, true) => "multi_get()",
         };
+        if transaction_keys
+            .iter()
+            .chain(effects_keys)
+            .any(|digest| self.failing_transactions.contains(digest))
+        {
+            return self.fail(request);
+        }
         self.serve_as(
             "multi_get",
             request,
@@ -180,6 +197,12 @@ impl TransactionKeyValueStoreTrait for MockFallbackStore {
             .lock()
             .unwrap()
             .push(object_keys.to_vec());
+        if object_keys
+            .iter()
+            .any(|key| self.failing_objects.contains(key))
+        {
+            return self.fail("multi_get_objects");
+        }
         self.serve(
             "multi_get_objects",
             object_keys
@@ -204,13 +227,7 @@ impl TransactionKeyValueStoreTrait for MockFallbackStore {
             .iter()
             .any(|digest| self.failing_lookups.contains(digest))
         {
-            self.requests
-                .lock()
-                .unwrap()
-                .push("multi_get_transactions_perpetual_checkpoints");
-            return Err(IotaError::Storage(format!(
-                "connection refused by http://{STORE_HOST}"
-            )));
+            return self.fail("multi_get_transactions_perpetual_checkpoints");
         }
         self.serve(
             "multi_get_transactions_perpetual_checkpoints",
@@ -1038,7 +1055,8 @@ const CASES: &[Case] = &[
         store: failing_store(&[READ_OBJECTS]),
         read_mask: "input_objects",
         expect: Expect::Error(tonic::Code::Unavailable),
-        requests: &[READ_OBJECTS],
+        // The failed call, then one call for each of the two input objects.
+        requests: &[READ_OBJECTS, READ_OBJECTS, READ_OBJECTS],
         ..CASE
     },
     Case {
@@ -1310,13 +1328,18 @@ async fn failing_store_only_fails_its_own_item() {
         local.input_objects.len(),
         "the transaction whose objects are on the node lost them"
     );
-    // The one failed objects call fails every transaction that needed it.
+    // Every objects call fails, so every transaction that needed one fails.
     for result in &results[1..] {
         assert_eq!(error_code(result), Some(tonic::Code::Unavailable));
         let message = result.error_message().unwrap();
         assert!(message.contains("key-value store unavailable"));
     }
-    assert_eq!(*requests.lock().unwrap(), [READ_OBJECTS]);
+    // The failed call, then one call for each input object it held.
+    let objects = objects_missing
+        .iter()
+        .map(|test| test.input_objects.len())
+        .sum::<usize>();
+    assert_eq!(*requests.lock().unwrap(), vec![READ_OBJECTS; 1 + objects]);
 }
 
 // ---------------------------------------------------------------------------
@@ -1533,6 +1556,31 @@ async fn a_failed_lookup_of_one_digest_hides_no_other_pruned_transaction() {
     let mut retried = digests.map(|digest| vec![digest]).to_vec();
     retried.sort();
     assert_eq!(lookups, [vec![digests.to_vec()], retried].concat());
+}
+
+#[tokio::test]
+async fn a_failed_key_fails_only_the_transaction_that_needs_it() {
+    let pruned = [
+        test_transaction(false),
+        test_transaction(false),
+        test_transaction(false),
+    ];
+    let (state, mut store) = node_and_store(PRUNED, &pruned);
+    store.failing_transactions = HashSet::from([pruned[0].digest()]);
+    store.failing_objects = HashSet::from([input_object_keys(&pruned[1].effects)[0]]);
+    let handle = start(state, Some(store)).await;
+    let digests = pruned.each_ref().map(TestTransaction::digest);
+
+    let results = get_transactions(&handle, &digests, "transaction,input_objects").await;
+
+    assert_eq!(error_code(&results[0]), Some(tonic::Code::Unavailable));
+    assert_eq!(error_code(&results[1]), Some(tonic::Code::Unavailable));
+    assert_eq!(served_digest(&results[2]), digests[2].bytes().to_vec());
+    let executed = results[2].executed_transaction().unwrap().unwrap();
+    assert_eq!(
+        served_object_keys(&executed.input_objects),
+        object_key_bytes(&input_object_keys(&pruned[2].effects))
+    );
 }
 
 #[tokio::test(start_paused = true)]

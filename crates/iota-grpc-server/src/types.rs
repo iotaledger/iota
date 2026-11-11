@@ -1189,9 +1189,10 @@ impl GrpcReader {
     /// [`Self::with_transaction_fallback`], if any.
     ///
     /// The store is read once for each kind of data, for all the digests that need it. If a read
-    /// fails, every digest that needed it fails, except for the checkpoint lookup: until
-    /// `store_budget` is spent, a failed lookup is treated as "not in the store". Every read draws
-    /// on `store_budget`, which callers share across one request.
+    /// fails, each of its keys is read again on its own, and only the digests whose keys fail
+    /// again fail, except for the checkpoint lookup: until `store_budget` is spent, a failed lookup
+    /// is treated as "not in the store". Every read draws on `store_budget`, which callers share
+    /// across one request.
     #[tracing::instrument(skip_all, fields(transactions = digests.len()))]
     pub async fn get_transaction_reads(
         &self,
@@ -1281,33 +1282,26 @@ impl GrpcReader {
             Err(error) => return fail_reads(reads, &indexes, &error.into()),
         };
         let digests = digests_at(reads, &indexes);
-        // A failed lookup counts as a miss: clients polling for a new
-        // transaction give up on any per-item error other than `NOT_FOUND`.
-        let checkpoints = match store_read(
-            store.multi_get_transactions_perpetual_checkpoints(&digests),
-            store_budget,
-        )
-        .await
-        {
-            Ok(checkpoints) => checkpoints,
-            Err(error) if store_budget.is_spent() => return fail_reads(reads, &indexes, &error),
-            // One failed key fails the whole call, which would hide every pruned
-            // transaction of the call, so only a digest whose own lookup fails
-            // counts as a miss.
-            Err(_) if digests.len() > 1 => {
-                match store_read(lookup_each(store, &digests), store_budget).await {
-                    Ok(checkpoints) => checkpoints,
-                    Err(error) if store_budget.is_spent() => {
-                        return fail_reads(reads, &indexes, &error);
-                    }
-                    Err(_) => return,
+        let checkpoints = read_keys(store, &digests, store_budget, |store, digests| {
+            store.multi_get_transactions_perpetual_checkpoints(digests)
+        })
+        .await;
+        let checkpoints = digests
+            .into_iter()
+            .zip(checkpoints)
+            .collect::<std::collections::HashMap<_, _>>();
+        for index in indexes {
+            let Ok(pending) = &mut reads[index] else {
+                continue;
+            };
+            match &checkpoints[&pending.data.digest] {
+                Ok(checkpoint) => {
+                    pending.pruned = checkpoint.filter(|&checkpoint| checkpoint < lowest_available)
                 }
-            }
-            Err(_) => return,
-        };
-        for (&index, checkpoint) in indexes.iter().zip(checkpoints) {
-            if let Ok(pending) = &mut reads[index] {
-                pending.pruned = checkpoint.filter(|&checkpoint| checkpoint < lowest_available);
+                Err(error) if store_budget.is_spent() => reads[index] = Err(error.clone()),
+                // A failed lookup counts as a miss: clients polling for a new
+                // transaction give up on any per-item error other than `NOT_FOUND`.
+                Err(_) => {}
             }
         }
     }
@@ -1322,15 +1316,15 @@ impl GrpcReader {
         Ok(())
     }
 
-    /// Reads from the store, with one call, the data the node lacks: `missing` holds each key with
-    /// the index of the read that needs it. Returns what the store has, by key, and nothing without
-    /// a store. A failed call fails every read in `missing`.
+    /// Reads from the store the data the node lacks: `missing` holds each key with the index of the
+    /// read that needs it. Returns what the store has, by key, and nothing without a store. A read
+    /// fails when the store fails to read one of its keys, see [`read_keys`].
     async fn read_missing<K, V>(
         &self,
         reads: &mut [Result<PendingRead, RpcError>],
         missing: &[(usize, K)],
         store_budget: &StoreReadBudget,
-        read: impl for<'a> FnOnce(
+        read: impl for<'a> Fn(
             &'a Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>,
             &'a [K],
         ) -> futures::future::BoxFuture<
@@ -1351,19 +1345,26 @@ impl GrpcReader {
         let mut keys = missing.iter().map(|&(_, key)| key).collect::<Vec<_>>();
         keys.sort_unstable();
         keys.dedup();
-        match store_read(read(store, &keys), store_budget).await {
-            // A reply shorter than the request leaves the rest missing.
-            Ok(values) => keys
-                .into_iter()
-                .zip(values)
-                .filter_map(|(key, value)| Some((key, value?)))
-                .collect(),
-            Err(error) => {
-                let indexes = missing.iter().map(|&(index, _)| index).collect::<Vec<_>>();
-                fail_reads(reads, &indexes, &error);
-                std::collections::HashMap::new()
+        let values = read_keys(store, &keys, store_budget, read).await;
+        let mut fetched = std::collections::HashMap::new();
+        let mut failed = std::collections::HashMap::new();
+        for (key, value) in keys.into_iter().zip(values) {
+            match value {
+                Ok(Some(value)) => {
+                    fetched.insert(key, value);
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    failed.insert(key, error);
+                }
             }
         }
+        for (index, key) in missing {
+            if let Some(error) = failed.get(key) {
+                fail_reads(reads, &[*index], error);
+            }
+        }
+        fetched
     }
 
     async fn read_timestamps(
@@ -1619,20 +1620,58 @@ impl GrpcReader {
     }
 }
 
-/// Looks up the checkpoint of each of `digests` with a call of its own, with
-/// `None` for a digest whose call fails.
-async fn lookup_each(
+/// Reads `keys` from `store` with one call of `read`. One key the HTTP store fails to read fails
+/// the whole call, so when the call fails before `store_budget` is spent, each key is read again
+/// with a call of its own. Returns one result per key, in key order: a key fails only when its own
+/// read fails.
+async fn read_keys<K, V>(
     store: &Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>,
-    digests: &[TransactionDigest],
-) -> iota_types::error::IotaResult<Vec<Option<u64>>> {
-    let lookups = digests.iter().map(|digest| async move {
-        store
-            .multi_get_transactions_perpetual_checkpoints(std::slice::from_ref(digest))
-            .await
-            .ok()
-            .and_then(|checkpoints| checkpoints.into_iter().next().flatten())
-    });
-    Ok(futures::future::join_all(lookups).await)
+    keys: &[K],
+    store_budget: &StoreReadBudget,
+    read: impl for<'a> Fn(
+        &'a Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>,
+        &'a [K],
+    ) -> futures::future::BoxFuture<
+        'a,
+        iota_types::error::IotaResult<Vec<Option<V>>>,
+    >,
+) -> Vec<Result<Option<V>, RpcError>> {
+    let error = match store_read(read(store, keys), store_budget).await {
+        Ok(values) => {
+            // A reply shorter than the request leaves the rest missing.
+            let mut values = values.into_iter();
+            return keys.iter().map(|_| Ok(values.next().flatten())).collect();
+        }
+        Err(error) => error,
+    };
+    if keys.len() < 2 || store_budget.is_spent() {
+        return keys.iter().map(|_| Err(error.clone())).collect();
+    }
+    let each = futures::future::join_all(
+        keys.iter()
+            .map(|key| read(store, std::slice::from_ref(key))),
+    );
+    match store_read(
+        async { Ok::<_, iota_types::error::IotaError>(each.await) },
+        store_budget,
+    )
+    .await
+    {
+        Ok(values) => {
+            // One warning for all the keys that fail again.
+            let mut failed = None;
+            values
+                .into_iter()
+                .map(|value| match value {
+                    Ok(value) => Ok(value.into_iter().next().flatten()),
+                    Err(error) => Err(failed
+                        .get_or_insert_with(|| store_unavailable(error))
+                        .clone()),
+                })
+                .collect()
+        }
+        Err(error) => keys.iter().map(|_| Err(error.clone())).collect(),
+    }
 }
 
 /// Reads the transactions and effects of the pruned reads from `store`.
@@ -1643,42 +1682,55 @@ async fn read_pruned_transactions(
     store_budget: &StoreReadBudget,
 ) {
     // A pruned transaction reads both its transaction and its effects from the store.
-    let transaction_indexes = pending_indexes(reads, |pending| {
-        pending.pruned.is_some() && needs.transaction
-    });
-    let effects_indexes =
-        pending_indexes(reads, |pending| pending.pruned.is_some() && needs.effects);
-    if transaction_indexes.is_empty() && effects_indexes.is_empty() {
+    let (read_transactions, read_effects) = (needs.transaction, needs.effects);
+    let indexes = pending_indexes(reads, |pending| pending.pruned.is_some());
+    if indexes.is_empty() || !(read_transactions || read_effects) {
         return;
     }
-    let (transactions, effects) = match store_read(
-        store.multi_get(
-            &digests_at(reads, &transaction_indexes),
-            &digests_at(reads, &effects_indexes),
-        ),
-        store_budget,
-    )
-    .await
-    {
-        Ok(read) => read,
-        Err(error) => {
-            fail_reads(reads, &transaction_indexes, &error);
-            return fail_reads(reads, &effects_indexes, &error);
-        }
-    };
-    let mut transactions = transactions.into_iter();
-    for &index in &transaction_indexes {
-        let transaction = transactions.next().flatten();
-        if let Ok(pending) = &mut reads[index] {
+    let digests = digests_at(reads, &indexes);
+    let read = read_keys(store, &digests, store_budget, move |store, digests| {
+        Box::pin(async move {
+            let (transactions, effects) = store
+                .multi_get(
+                    if read_transactions { digests } else { &[] },
+                    if read_effects { digests } else { &[] },
+                )
+                .await?;
+            let (mut transactions, mut effects) = (transactions.into_iter(), effects.into_iter());
+            Ok(digests
+                .iter()
+                .map(|_| Some((transactions.next().flatten(), effects.next().flatten())))
+                .collect())
+        })
+    })
+    .await;
+    let read = digests
+        .into_iter()
+        .zip(read)
+        .collect::<std::collections::HashMap<_, _>>();
+    for index in indexes {
+        let Ok(pending) = &mut reads[index] else {
+            continue;
+        };
+        let (transaction, effects) = match &read[&pending.data.digest] {
+            Ok(found) => found
+                .as_ref()
+                .map_or((None, None), |(transaction, effects)| {
+                    (transaction.as_ref(), effects.as_ref())
+                }),
+            Err(error) => {
+                reads[index] = Err(error.clone());
+                continue;
+            }
+        };
+        if read_transactions {
             match transaction {
-                Some(transaction) => pending.set_transaction(&transaction, &needs.fields),
+                Some(transaction) => pending.set_transaction(transaction, &needs.fields),
                 None => pending.has_transaction = false,
             }
         }
-    }
-    for (&index, effects) in effects_indexes.iter().zip(effects) {
-        if let Ok(pending) = &mut reads[index] {
-            pending.data.effects = effects;
+        if read_effects {
+            pending.data.effects = effects.cloned();
         }
     }
 }
