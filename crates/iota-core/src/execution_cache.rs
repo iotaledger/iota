@@ -216,6 +216,34 @@ pub trait ExecutionCacheCommit: Send + Sync {
         digests: &[TransactionDigest],
     ) -> IotaResult;
 
+    /// The first half of [`Self::commit_transaction_outputs`]: writes `batch`
+    /// to the database and returns the outputs to pass to
+    /// [`Self::flush_committed_transaction_outputs`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the database write fails.
+    fn write_transaction_outputs_batch(
+        &self,
+        batch: Batch,
+        digests: &[TransactionDigest],
+    ) -> Vec<Arc<TransactionOutputs>>;
+
+    /// The second half of [`Self::commit_transaction_outputs`]: releases the
+    /// in-memory copies of outputs that
+    /// [`Self::write_transaction_outputs_batch`] wrote. Call it once per
+    /// written batch, in the order the batches were written, and before
+    /// the epoch's state is cleared.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called out of that order or for outputs not written.
+    fn flush_committed_transaction_outputs(
+        &self,
+        epoch: EpochId,
+        outputs: &[Arc<TransactionOutputs>],
+    );
+
     /// Non-fallible version of `try_commit_transaction_outputs`.
     fn commit_transaction_outputs(
         &self,

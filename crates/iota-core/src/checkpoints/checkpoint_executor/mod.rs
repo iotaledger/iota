@@ -488,24 +488,37 @@ impl CheckpointExecutor {
 
         finish_stage!(pipeline_handle, BuildDbBatch);
 
-        let ckpt_state = tokio::task::spawn_blocking({
+        let (ckpt_state, written_outputs) = tokio::task::spawn_blocking({
             let this = self.clone();
             move || {
                 // Commit all transaction effects to disk
                 let cache_commit = this.state.get_cache_commit();
                 debug!(?seq, "committing checkpoint transactions to disk");
-                cache_commit.commit_transaction_outputs(
-                    this.epoch_store.epoch(),
-                    batch,
-                    &ckpt_state.data.tx_digests,
-                );
+                let written_outputs = cache_commit
+                    .write_transaction_outputs_batch(batch, &ckpt_state.data.tx_digests);
                 fail_point!("crash-after-checkpoint-outputs-commit");
-                ckpt_state
+                (ckpt_state, written_outputs)
             }
         })
         .await?;
 
         finish_stage!(pipeline_handle, CommitTransactionOutputs);
+
+        // In this stage, so the flush overlaps the next checkpoint's write.
+        // It relies on the stage running in checkpoint order, after this
+        // checkpoint's write.
+        tokio::task::spawn_blocking({
+            let this = self.clone();
+            move || {
+                this.state
+                    .get_cache_commit()
+                    .flush_committed_transaction_outputs(
+                        this.epoch_store.epoch(),
+                        &written_outputs,
+                    );
+            }
+        })
+        .await?;
 
         self.epoch_store
             .handle_finalized_checkpoint(&ckpt_state.data.checkpoint, &ckpt_state.data.tx_digests)

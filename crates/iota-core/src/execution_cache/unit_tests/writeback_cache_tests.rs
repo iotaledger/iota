@@ -745,6 +745,99 @@ async fn test_out_of_order_commit() {
     .await;
 }
 
+/// A checkpoint's outputs written before the previous checkpoint's are
+/// flushed: every version reads the same after each step, and each flush
+/// releases only its own checkpoint.
+#[tokio::test]
+async fn test_write_of_next_checkpoint_before_flush_of_previous() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        s.with_created(&[1, 2]);
+        let tx1 = s.do_tx().await;
+        let first: Vec<Object> = [1, 2]
+            .iter()
+            .map(|short_id| s.objects[&s.obj_id(*short_id)].clone())
+            .collect();
+        s.with_mutated(&[1, 2]);
+        let tx2 = s.do_tx().await;
+
+        let assert_readable = |s: &Scenario| {
+            for object in &first {
+                assert_eq!(
+                    s.cache()
+                        .get_object_by_key(&object.id(), object.version())
+                        .unwrap(),
+                    *object
+                );
+            }
+            s.assert_live(&[1, 2]);
+        };
+
+        let batch1 = s.cache().build_db_batch(1, 0, &[tx1]);
+        let batch2 = s.cache().build_db_batch(1, 1, &[tx2]);
+
+        let outputs1 = s.cache().write_transaction_outputs_batch(batch1, &[tx1]);
+        s.count_action();
+        assert_readable(&s);
+
+        let outputs2 = s.cache().write_transaction_outputs_batch(batch2, &[tx2]);
+        s.count_action();
+        assert_readable(&s);
+        s.assert_dirty(&[1, 2]);
+
+        s.cache().flush_committed_transaction_outputs(1, &outputs1);
+        s.count_action();
+        assert_readable(&s);
+        s.assert_dirty(&[1, 2]);
+
+        s.cache().flush_committed_transaction_outputs(1, &outputs2);
+        s.count_action();
+        assert_readable(&s);
+        s.assert_not_dirty(&[1, 2]);
+    })
+    .await;
+}
+
+#[tokio::test]
+#[should_panic(expected = "version must be the oldest in the map")]
+async fn test_out_of_order_flush() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        s.with_created(&[1]);
+        let tx1 = s.do_tx().await;
+        s.with_mutated(&[1]);
+        let tx2 = s.do_tx().await;
+
+        let batch1 = s.cache().build_db_batch(1, 0, &[tx1]);
+        let batch2 = s.cache().build_db_batch(1, 1, &[tx2]);
+        s.cache().write_transaction_outputs_batch(batch1, &[tx1]);
+        let outputs2 = s.cache().write_transaction_outputs_batch(batch2, &[tx2]);
+
+        s.cache().flush_committed_transaction_outputs(1, &outputs2);
+    })
+    .await;
+}
+
+/// The pending count drops when the outputs are written, not when they are
+/// flushed.
+#[tokio::test]
+async fn test_pending_count_drops_at_the_write() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        s.with_created(&[1]);
+        let tx = s.do_tx().await;
+        assert_eq!(s.cache().approximate_pending_transaction_count(), 1);
+
+        let batch = s.cache().build_db_batch(1, 0, &[tx]);
+        let outputs = s.cache().write_transaction_outputs_batch(batch, &[tx]);
+        assert_eq!(s.cache().approximate_pending_transaction_count(), 0);
+
+        s.cache().flush_committed_transaction_outputs(1, &outputs);
+        assert_eq!(s.cache().approximate_pending_transaction_count(), 0);
+    })
+    .await;
+}
+
 #[tokio::test]
 async fn test_lt_or_eq() {
     telemetry_subscribers::init_for_testing();
