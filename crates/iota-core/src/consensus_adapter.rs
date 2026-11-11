@@ -22,12 +22,13 @@ use futures::{
     stream::FuturesUnordered,
 };
 use iota_metrics::{GaugeGuard, InflightGuardFutureExt, LATENCY_SEC_BUCKETS, spawn_monitored_task};
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::TransactionDigest;
 use iota_simulator::anemo::PeerId;
 use iota_types::{
     base_types::AuthorityName,
     committee::Committee,
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     fp_ensure,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
 };
@@ -381,6 +382,17 @@ impl ConsensusAdapter {
         self.low_scoring_authorities.swap(Arc::new(new_low_scoring));
     }
 
+    /// Submits to consensus the transactions that the pending consensus table
+    /// holds after a restart, except those larger than consensus accepts,
+    /// which are removed from the table. Also submits
+    /// [`ConsensusTransactionKind::EndOfPublish`] when the [`ReconfigState`]
+    /// rejects user certificates, no certificate is pending and the table
+    /// holds no such message.
+    ///
+    /// # Panics
+    ///
+    /// When the pending consensus table cannot be read, or a transaction
+    /// cannot be removed from it.
     pub fn submit_recovered(self: &Arc<Self>, epoch_store: &Arc<AuthorityPerEpochStore>) {
         // Currently consensus worker might lose transactions on restart, so we need to
         // resend them.
@@ -388,6 +400,29 @@ impl ConsensusAdapter {
         // twice when initializing AuthorityPerEpochStore and here, should not
         // be a big deal but can be optimized
         let mut recovered = epoch_store.get_all_pending_consensus_transactions();
+        // Transactions larger than consensus accepts are removed instead of
+        // submitted. Only a build that stored transactions without checking
+        // their size leaves them in the table. They are removed before the
+        // check for pending certificates below, since removing one can change
+        // its result.
+        recovered.retain(|transaction| {
+            let Err(error) = check_consensus_transactions_fit(
+                std::slice::from_ref(transaction),
+                epoch_store.protocol_config(),
+            ) else {
+                return true;
+            };
+            warn!(
+                key = ?transaction.key(),
+                ?error,
+                "Dropping a recovered pending consensus transaction larger than consensus accepts",
+            );
+            epoch_store
+                .remove_pending_consensus_transactions(&[transaction.key()])
+                .expect("Storage error when removing consensus transaction");
+
+            false
+        });
 
         let is_pending_consensus_certificates_empty =
             if epoch_store.protocol_config().enable_pcool_flow() {
@@ -663,7 +698,10 @@ impl ConsensusAdapter {
     ///
     /// [`IotaError::InvalidTxKindInSoftBundle`] when a batch of more than one
     /// mixes kinds or holds anything but user transactions or certificates,
-    /// and any error writing to the pending consensus table.
+    /// [`UserInputError::SizeLimitExceeded`] when consensus would refuse the
+    /// submission as larger than it accepts,
+    /// [`IotaError::TransactionSerialization`] when a transaction cannot be
+    /// serialized, and any error writing to the pending consensus table.
     fn submit_batch_inner(
         self: &Arc<Self>,
         transactions: &[ConsensusTransaction],
@@ -688,6 +726,10 @@ impl ConsensusAdapter {
                 IotaError::InvalidTxKindInSoftBundle
             );
         }
+
+        // Consensus does not take transactions that do not fit, so they are
+        // refused before they are stored.
+        check_consensus_transactions_fit(transactions, epoch_store.protocol_config())?;
 
         epoch_store.insert_pending_consensus_transactions(transactions, lock)?;
 
@@ -949,7 +991,7 @@ impl ConsensusAdapter {
                 loop {
                     // Submit the transaction to consensus and return the submit result with a
                     // status waiter
-                    let status_waiter = self
+                    let Some(status_waiter) = self
                         .submit_inner(
                             &transactions,
                             epoch_store,
@@ -957,7 +999,10 @@ impl ConsensusAdapter {
                             tx_type,
                             is_soft_bundle,
                         )
-                        .await;
+                        .await
+                    else {
+                        return false;
+                    };
 
                     match status_waiter.await {
                         Ok(BlockStatusInternal::Sequenced) => {
@@ -1000,14 +1045,20 @@ impl ConsensusAdapter {
                         }
                     }
                 }
+
+                true
             };
 
             guard.processed_method = match select(processed_waiter, submit_inner.boxed()).await {
                 Either::Left((observed_via_consensus, _submit_inner)) => observed_via_consensus,
-                Either::Right(((), processed_waiter)) => {
+                Either::Right((true, processed_waiter)) => {
                     debug!("Submitted {transaction_keys:?} to consensus");
                     processed_waiter.await
                 }
+                // Consensus does not process transactions it refuses, so
+                // there is nothing to wait for. They are removed from the
+                // pending table below.
+                Either::Right((false, _processed_waiter)) => ProcessedMethod::Refused,
             };
         }
         debug!("{transaction_keys:?} processed by consensus");
@@ -1089,12 +1140,18 @@ impl ConsensusAdapter {
                 }
             });
         }
-        self.metrics
-            .sequencing_certificate_success
-            .with_label_values(&[tx_type])
-            .inc();
+        if guard.processed_method != ProcessedMethod::Refused {
+            self.metrics
+                .sequencing_certificate_success
+                .with_label_values(&[tx_type])
+                .inc();
+        }
     }
 
+    /// Submits `transactions` to consensus, retrying until consensus takes
+    /// them, and returns the receiver for the status of the block that
+    /// includes them. Returns `None` when consensus refuses them as larger than
+    /// it accepts.
     async fn submit_inner(
         self: &Arc<Self>,
         transactions: &[ConsensusTransaction],
@@ -1102,7 +1159,7 @@ impl ConsensusAdapter {
         transaction_keys: &[SequencedConsensusTransactionKey],
         tx_type: &str,
         is_soft_bundle: bool,
-    ) -> BlockStatusReceiver {
+    ) -> Option<BlockStatusReceiver> {
         let ack_start = Instant::now();
         let mut retries: u32 = 0;
 
@@ -1112,6 +1169,22 @@ impl ConsensusAdapter {
                 .submit(transactions, epoch_store)
                 .await
             {
+                Err(
+                    err @ IotaError::UserInput {
+                        error: UserInputError::SizeLimitExceeded { .. },
+                    },
+                ) => {
+                    warn!(
+                        "Consensus refuses transactions {transaction_keys:?} as larger than it \
+                            accepts, so they are not submitted again: {err:?}"
+                    );
+                    self.metrics
+                        .sequencing_certificate_failures
+                        .with_label_values(&[tx_type])
+                        .inc();
+
+                    return None;
+                }
                 Err(err) => {
                     // This can happen during reconfig, or when consensus has full internal buffers
                     // and needs to back pressure, so retry a few times before logging warnings.
@@ -1158,7 +1231,7 @@ impl ConsensusAdapter {
             .with_label_values(&[bucket.as_str(), tx_type])
             .observe(ack_start.elapsed().as_secs_f64());
 
-        status_waiter
+        Some(status_waiter)
     }
 
     /// Waits for transactions to appear either to consensus output or been
@@ -1490,6 +1563,10 @@ enum ProcessedMethod {
     Consensus,
     Checkpoint,
     Dropped,
+    /// Consensus refused the submission as larger than it accepts, so the
+    /// transactions were removed from the pending table without being
+    /// processed.
+    Refused,
 }
 
 impl<'a> InflightDropGuard<'a> {
@@ -1569,6 +1646,7 @@ impl Drop for InflightDropGuard<'_> {
             ProcessedMethod::Consensus => "processed_via_consensus",
             ProcessedMethod::Checkpoint => "processed_via_checkpoint",
             ProcessedMethod::Dropped => "dropped",
+            ProcessedMethod::Refused => "refused_by_consensus",
         };
         self.adapter
             .metrics
@@ -1607,6 +1685,75 @@ impl SubmitToConsensus for Arc<ConsensusAdapter> {
         self.submit_batch(transactions, None, epoch_store)
             .map(|_| ())
     }
+}
+
+/// Checks that consensus accepts `transactions` as one submission: each one
+/// is no larger than [`ProtocolConfig::max_transaction_size_bytes()`] once
+/// serialized, there are no more of them than
+/// [`ProtocolConfig::max_num_transactions_in_block()`], and together they are
+/// no larger than [`ProtocolConfig::max_transactions_in_block_bytes()`].
+/// Starfish refuses a submission that exceeds any of these limits.
+///
+/// # Errors
+///
+/// [`UserInputError::SizeLimitExceeded`] naming the limit exceeded, and
+/// [`IotaError::TransactionSerialization`] when a transaction cannot be
+/// serialized.
+fn check_consensus_transactions_fit(
+    transactions: &[ConsensusTransaction],
+    protocol_config: &ProtocolConfig,
+) -> IotaResult {
+    let max_count = protocol_config.max_num_transactions_in_block();
+    fp_ensure!(
+        transactions.len() as u64 <= max_count,
+        IotaError::UserInput {
+            error: UserInputError::SizeLimitExceeded {
+                limit: format!(
+                    "number of consensus transactions in one submission exceeded maximum of \
+                        {max_count}"
+                ),
+                value: transactions.len().to_string(),
+            }
+        }
+    );
+
+    let max_size = protocol_config.max_transaction_size_bytes();
+    let mut total_size: u64 = 0;
+    for transaction in transactions {
+        let size = bcs::serialized_size(transaction).map_err(|error| {
+            IotaError::TransactionSerialization {
+                error: error.to_string(),
+            }
+        })? as u64;
+        fp_ensure!(
+            size <= max_size,
+            IotaError::UserInput {
+                error: UserInputError::SizeLimitExceeded {
+                    limit: format!(
+                        "serialized consensus transaction size exceeded maximum of {max_size}"
+                    ),
+                    value: size.to_string(),
+                }
+            }
+        );
+        total_size = total_size.saturating_add(size);
+    }
+
+    let max_total_size = protocol_config.max_transactions_in_block_bytes();
+    fp_ensure!(
+        total_size <= max_total_size,
+        IotaError::UserInput {
+            error: UserInputError::SizeLimitExceeded {
+                limit: format!(
+                    "total serialized size of consensus transactions in one submission exceeded \
+                        maximum of {max_total_size}"
+                ),
+                value: total_size.to_string(),
+            }
+        }
+    );
+
+    Ok(())
 }
 
 pub fn position_submit_certificate(
