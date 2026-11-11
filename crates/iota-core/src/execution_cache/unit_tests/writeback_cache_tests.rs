@@ -798,6 +798,69 @@ async fn test_write_of_next_checkpoint_before_flush_of_previous() {
     .await;
 }
 
+/// One checkpoint's flush runs while the next checkpoint's outputs are
+/// written, as in the checkpoint executor. A reader on a third thread finds
+/// every version of both checkpoints throughout.
+#[tokio::test]
+async fn test_flush_concurrent_with_write_of_next_checkpoint() {
+    use std::sync::atomic::AtomicBool;
+
+    telemetry_subscribers::init_for_testing();
+    let mut s = Scenario::new(None, Arc::new(AtomicU32::new(0))).await;
+    s.with_created(&[1, 2]);
+    let tx = s.do_tx().await;
+    s.commit(tx).await;
+
+    for _ in 0..200 {
+        let mut versions = Vec::new();
+        s.with_mutated(&[1, 2]);
+        let tx1 = s.do_tx().await;
+        versions.extend([1, 2].map(|short_id| s.objects[&s.obj_id(short_id)].clone()));
+        s.with_mutated(&[1, 2]);
+        let tx2 = s.do_tx().await;
+        let latest = [1, 2].map(|short_id| s.objects[&s.obj_id(short_id)].clone());
+        versions.extend(latest.iter().cloned());
+
+        let cache: &WritebackCache = &s.cache;
+        let batch1 = cache.build_db_batch(1, 0, &[tx1]);
+        let batch2 = cache.build_db_batch(1, 1, &[tx2]);
+        let outputs1 = cache.write_transaction_outputs_batch(batch1, &[tx1]);
+
+        let done = AtomicBool::new(false);
+        let outputs2 = std::thread::scope(|scope| {
+            let reader = scope.spawn(|| {
+                let api: &dyn ExecutionCacheAPI = cache;
+                let mut finished = false;
+                // One more pass after both steps are done.
+                while !finished {
+                    finished = done.load(Ordering::Acquire);
+                    for object in &versions {
+                        assert_eq!(
+                            api.get_object_by_key(&object.id(), object.version())
+                                .as_ref(),
+                            Some(object)
+                        );
+                    }
+                    for object in &latest {
+                        assert_eq!(api.get_object(&object.id()).as_ref(), Some(object));
+                    }
+                }
+            });
+            let flush = scope.spawn(|| cache.flush_committed_transaction_outputs(1, &outputs1));
+            let write = scope.spawn(|| cache.write_transaction_outputs_batch(batch2, &[tx2]));
+
+            flush.join().unwrap();
+            let outputs2 = write.join().unwrap();
+            done.store(true, Ordering::Release);
+            reader.join().unwrap();
+            outputs2
+        });
+        cache.flush_committed_transaction_outputs(1, &outputs2);
+    }
+    s.assert_not_dirty(&[1, 2]);
+    s.assert_live(&[1, 2]);
+}
+
 #[tokio::test]
 #[should_panic(expected = "version must be the oldest in the map")]
 async fn test_out_of_order_flush() {

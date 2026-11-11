@@ -235,6 +235,11 @@ pub trait ExecutionCacheCommit: Send + Sync {
     /// written batch, in the order the batches were written, and before
     /// the epoch's state is cleared.
     ///
+    /// Outputs written and not yet flushed stay in memory without counting
+    /// as pending, so backpressure does not see them. The checkpoint executor
+    /// holds at most `checkpoint_execution_max_concurrency` checkpoints in
+    /// that state.
+    ///
     /// # Panics
     ///
     /// Panics if called out of that order or for outputs not written.
