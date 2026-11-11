@@ -28,7 +28,10 @@ use crate::{
         watermark_task::{WatermarkCache, WatermarkTask},
     },
     read::IndexerReader,
-    store::{IndexerAnalyticalStore, IndexerStore, PgIndexerStore},
+    store::{
+        IndexerAnalyticalStore, IndexerStore, PgIndexerStore,
+        pg_partition_manager::EpochPartitionKey,
+    },
     system_package_task::SystemPackageTask,
 };
 
@@ -59,6 +62,10 @@ impl Indexer {
 
         let remote_store_url =
             resolve_remote_url(&config.sources, MAX_URL_RESOLUTION_TIMEOUT).await?;
+
+        store
+            .execute_in_blocking_worker(|this| EpochPartitionInvariant { store: this }.enforce())
+            .await?;
 
         if let Some(retention_config) = retention_config {
             let pruner = Pruner::new(
@@ -203,5 +210,112 @@ impl Indexer {
         let mut processor_orchestrator = ProcessorOrchestrator::new(store, metrics, cancel);
         processor_orchestrator.run_forever().await;
         Ok(())
+    }
+}
+
+/// The invariant that each epoch-based partition holds only the keys of its epoch.
+///
+/// Wraps a [`PgIndexerStore`] to enforce the invariant at startup.
+struct EpochPartitionInvariant {
+    store: PgIndexerStore,
+}
+
+impl EpochPartitionInvariant {
+    /// Aligns the range of key of epoch-based partitions.
+    ///
+    /// A range is considered aligned if the associated keys (e.g. transaction or checkpoint
+    /// sequence numbers) belong to the epoch the partition corresponds to.
+    ///
+    /// For all epochs except for the current this implies partitions with keys in
+    /// `[epoch_lowest_key, next_epoch_lowest_key)`.
+    ///
+    /// For the current epoch the aligned range becomes `[epoch_lowest_key, i64::MAX)`.
+    ///
+    /// # Motivation
+    ///
+    /// When we start the service the last partition `<table>_partition_<last_partition>` of
+    /// epoch-partitioned tables may be in one of the following two states.
+    ///
+    /// * `last_partition >= current_epoch`: This is the case where no gap exists in the table
+    ///   ingestion, and data from the current epoch go into the last_partition. Partition ranges in
+    ///   such a case are aligned.
+    /// * `last_partition < current_epoch`: This implies a gap in the table ingestion caused by a
+    ///   change of operational level. In this case the partition range is not aligned and if left
+    ///   untreated causes data from the current epoch stored in the partition of a previous epoch.
+    ///   This in turn would break the pruning guarantee that dropping an epoch partition affects
+    ///   data of the respective epochs only.
+    ///
+    /// Aligning partitions maintains pruning invariants, and moreover allows creating or using the
+    /// correct partitions when backfilling data.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a database query fails, if the `epochs` table has no row for a needed
+    /// epoch, or if a partition number does not fit in `i64`.
+    fn enforce(&self) -> Result<(), IndexerError> {
+        let Some(checkpoint) = self.store.get_latest_checkpoint()? else {
+            return Ok(());
+        };
+        let current_epoch_id = checkpoint.epoch as u64 + checkpoint.end_of_epoch as u64;
+        let partition_manager = &self.store.partition_manager;
+        for (table, (_, last_partition)) in partition_manager.get_table_partitions()? {
+            let Some(key) = partition_manager.get_strategy(&table).epoch() else {
+                continue;
+            };
+            if current_epoch_id <= last_partition {
+                continue;
+            }
+            self.align_epoch_partition_range(&table, last_partition, key)?;
+            self.create_new_epoch_partition(&table, current_epoch_id, key)?;
+        }
+        Ok(())
+    }
+
+    /// Changes the range of `<table>_partition_<epoch>` to the keys of `epoch`.
+    ///
+    /// The new range is from the first key of `epoch` to the first key of `epoch + 1`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a database query fails, if the `epochs` table has no row for `epoch` or
+    /// `epoch + 1`, or if `epoch` does not fit in `i64`. Also returns an error if the partition has
+    /// a row that is not in the new range.
+    fn align_epoch_partition_range(
+        &self,
+        table: &str,
+        epoch: u64,
+        key: EpochPartitionKey,
+    ) -> Result<(), IndexerError> {
+        let bounds = self.store.map_epochs_to_low_bounds(&[epoch, epoch + 1])?;
+        let range_start = key.start(bounds.get(epoch)?);
+        let range_end = key.start(bounds.get(epoch + 1)?);
+        self.store.partition_manager.alter_partition_range(
+            table,
+            epoch.try_into()?,
+            range_start,
+            range_end,
+        )
+    }
+
+    /// Creates `<table>_partition_<epoch>` with the range from the first key of `epoch` to
+    /// `MAXVALUE`.
+    ///
+    /// Does nothing if the partition exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a database query fails, if the `epochs` table has no row for `epoch`,
+    /// or if `epoch` does not fit in `i64`.
+    fn create_new_epoch_partition(
+        &self,
+        table: &str,
+        epoch: u64,
+        key: EpochPartitionKey,
+    ) -> Result<(), IndexerError> {
+        let bounds = self.store.map_epochs_to_low_bounds(&[epoch])?;
+        let range_start = key.start(bounds.get(epoch)?);
+        self.store
+            .partition_manager
+            .create_partition(table, epoch.try_into()?, range_start)
     }
 }
