@@ -93,6 +93,7 @@ use typed_store::{
 use super::{
     authority_store_tables::ENV_VAR_LOCKS_BLOCK_CACHE_SIZE,
     epoch_start_configuration::EpochStartConfigTrait,
+    lease::{LeaseHolder, LeaseHolderWrapper, LeaseKey},
     shared_object_congestion_tracker::{
         ExecutionTime, SequencingResult, SharedObjectCongestionTracker,
     },
@@ -878,6 +879,11 @@ pub struct AuthorityEpochTables {
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
     owned_object_locked_transactions: DBMap<ObjectReference, LockDetailsWrapper>,
 
+    /// The leases held by the transactions that post-consensus validation kept
+    /// in this epoch, by sender and lease. Written by each commit's quarantine
+    /// flush.
+    leases: DBMap<LeaseKey, LeaseHolderWrapper>,
+
     /// The rows of the handler object state, for P-COOL deterministic
     /// post-consensus validation (see [`handler_object_state`]): every object
     /// version produced by a commit the handler assigned. Written by each
@@ -1183,6 +1189,10 @@ impl AuthorityEpochTables {
 
     pub fn get_last_consensus_stats(&self) -> IotaResult<Option<ExecutionIndicesWithStats>> {
         Ok(self.last_consensus_stats.get(&LAST_CONSENSUS_STATS_ADDR)?)
+    }
+
+    pub fn get_lease(&self, key: &LeaseKey) -> IotaResult<Option<LeaseHolder>> {
+        Ok(self.leases.get(key)?.map(LeaseHolderWrapper::into_inner))
     }
 
     pub fn get_locked_transaction(
@@ -1780,6 +1790,7 @@ impl AuthorityPerEpochStore {
         TxValidityCheckContext {
             config: &self.protocol_config,
             epoch: self.epoch(),
+            chain_identifier: self.get_chain_identifier(),
         }
     }
 
@@ -4327,6 +4338,15 @@ impl AuthorityPerEpochStore {
             .get_owned_object_lock(obj_ref)
     }
 
+    /// The transaction that took the lease `key` in a consensus commit of this
+    /// epoch, if any.
+    pub fn get_lease_taken_in_epoch(&self, key: &LeaseKey) -> IotaResult<Option<LeaseHolder>> {
+        if let Some(holder) = self.consensus_quarantine.read().get_lease(key) {
+            return Ok(Some(holder));
+        }
+        self.tables()?.get_lease(key)
+    }
+
     pub(crate) fn get_randomness_last_round_timestamp(
         &self,
     ) -> IotaResult<Option<CheckpointTimestamp>> {
@@ -5160,8 +5180,8 @@ impl AuthorityPerEpochStore {
                     }
                 });
             }
-            let (dropped, owned_object_locks, soft_lock_digests) =
-                post_consensus_validation::validate_and_resolve_conflicts(
+            let (dropped, owned_object_locks, leases, soft_lock_digests) =
+                post_consensus_validation::validate_and_resolve_conflicts_with_leases(
                     authority_state,
                     self,
                     consensus_commit_info.index,
@@ -5170,6 +5190,7 @@ impl AuthorityPerEpochStore {
                 )
                 .await?;
             output.set_owned_object_locks(owned_object_locks);
+            output.set_leases(leases);
             soft_lock_release_tx_digests.extend(soft_lock_digests);
             let kept: Vec<_> = sequenced_transactions
                 .iter()

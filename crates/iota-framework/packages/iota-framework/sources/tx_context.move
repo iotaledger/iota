@@ -61,6 +61,41 @@ public fun sponsor(_self: &TxContext): Option<address> {
     option_sponsor()
 }
 
+/// Return the first epoch in which the transaction may run, or `None` if the
+/// transaction has no valid window.
+public fun first_valid(_self: &TxContext): Option<u64> {
+    valid_window_value(0)
+}
+
+/// Return the last epoch in which the transaction may run, or `None` if the
+/// transaction has no valid window.
+public fun last_valid(_self: &TxContext): Option<u64> {
+    valid_window_value(1)
+}
+
+/// Return the note of the transaction's valid window, or `None` if the
+/// transaction has no valid window.
+public fun note(_self: &TxContext): Option<u64> {
+    valid_window_value(2)
+}
+
+/// Return the 32 bytes of the transaction's lease, or `None` if the transaction
+/// has no lease. Until the last valid epoch of a transaction with a lease, no
+/// other transaction of the same sender with the same lease is executed.
+public fun lease(_self: &TxContext): Option<vector<u8>> {
+    let lease = native_lease();
+    if (lease.is_empty()) option::none() else option::some(lease)
+}
+
+fun valid_window_value(index: u64): Option<u64> {
+    let window = native_valid_window();
+    if (window.is_empty()) option::none() else option::some(window[index])
+}
+// Returns the first valid epoch, the last valid epoch and the note, or nothing.
+native fun native_valid_window(): vector<u64>;
+// Returns the lease, or an empty vector.
+native fun native_lease(): vector<u8>;
+
 /// Create an `address` that has not been used. As it is an object address, it will never
 /// occur as the address for a user.
 /// In other words, the generated address is a globally unique object ID.
@@ -247,6 +282,30 @@ native fun replace(
     gas_budget: u64,
     sponsor: vector<address>,
 );
+
+#[test_only]
+/// Give the transaction a valid window, with a 32-byte `lease` if it is some.
+public fun set_valid_window_for_testing(
+    _self: &mut TxContext,
+    first_valid: u64,
+    last_valid: u64,
+    note: u64,
+    lease: Option<vector<u8>>,
+) {
+    replace_valid_window(
+        vector[first_valid, last_valid, note],
+        lease.destroy_with_default(vector[]),
+    );
+}
+
+#[test_only]
+/// Remove the valid window of the transaction.
+public fun clear_valid_window_for_testing(_self: &mut TxContext) {
+    replace_valid_window(vector[], vector[]);
+}
+
+#[test_only]
+native fun replace_valid_window(window: vector<u64>, lease: vector<u8>);
 
 #[allow(unused_function)]
 /// Native function for deriving an ID via hash(tx_hash || ids_created)

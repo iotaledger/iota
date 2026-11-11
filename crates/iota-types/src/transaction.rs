@@ -24,7 +24,8 @@ use iota_sdk_types::{
     ObjectId, ObjectReference, Owner, ProgrammableTransaction, Publish, RandomnessRound,
     RandomnessStateUpdate, SenderSignedTransaction, SharedObjectReference, SignatureScheme,
     SplitCoins, Transaction, TransactionDenyRulesUpdate, TransactionDigest, TransactionExpiration,
-    TransactionKind, TransactionV1, TransferObjects, TypeTag, Upgrade, UserSignature, Version,
+    TransactionKind, TransactionV1, TransferObjects, TypeTag, Upgrade, UserSignature, ValidWindow,
+    Version,
     crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
 };
 use itertools::Either;
@@ -42,6 +43,7 @@ use crate::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
         AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, Signer, zero_ed25519_signature,
     },
+    digests::ChainIdentifier,
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
@@ -80,6 +82,10 @@ mod messages_tests;
 #[cfg(test)]
 #[path = "unit_tests/claim_account_validity_tests.rs"]
 mod claim_account_validity_tests;
+
+#[cfg(test)]
+#[path = "unit_tests/valid_window_tests.rs"]
+mod valid_window_tests;
 
 /// Type alias for the SDK's `Input` type, used as transaction call arguments.
 pub type CallArg = Input;
@@ -2115,6 +2121,68 @@ impl TransactionAPI for Transaction {
 pub struct TxValidityCheckContext<'a> {
     pub config: &'a ProtocolConfig,
     pub epoch: EpochId,
+    /// The network the node runs on. A transaction with a valid window must
+    /// name it.
+    pub chain_identifier: ChainIdentifier,
+}
+
+/// Checks that a transaction with `window` may run in the epoch of `context`,
+/// on the network of `context`.
+fn check_valid_window(window: &ValidWindow, context: &TxValidityCheckContext<'_>) -> IotaResult {
+    let config = context.config;
+    fp_ensure!(
+        config.enable_valid_window(),
+        IotaError::UserInput {
+            error: UserInputError::Unsupported(
+                "a valid window as transaction expiration is not supported".to_string()
+            )
+        }
+    );
+    fp_ensure!(
+        window.lease.is_none() || config.enable_lease_nonce(),
+        IotaError::UserInput {
+            error: UserInputError::Unsupported(
+                "a lease in the valid window of a transaction is not supported".to_string()
+            )
+        }
+    );
+
+    let max_txn_life_epochs = config.max_txn_life_epochs();
+    fp_ensure!(
+        window
+            .last_valid
+            .checked_sub(window.first_valid)
+            .is_some_and(|epochs| epochs <= max_txn_life_epochs),
+        IotaError::UserInput {
+            error: UserInputError::ValidWindowTooLong {
+                first_valid: window.first_valid,
+                last_valid: window.last_valid,
+                max_txn_life_epochs,
+            }
+        }
+    );
+    fp_ensure!(
+        window.genesis_hash == context.chain_identifier.digest(),
+        IotaError::UserInput {
+            error: UserInputError::ValidWindowWrongNetwork {
+                genesis_hash: window.genesis_hash,
+            }
+        }
+    );
+    fp_ensure!(
+        window.first_valid <= context.epoch,
+        IotaError::UserInput {
+            error: UserInputError::TransactionNotYetValid {
+                first_valid: window.first_valid,
+                current_epoch: context.epoch,
+            }
+        }
+    );
+    fp_ensure!(
+        context.epoch <= window.last_valid,
+        IotaError::TransactionExpired
+    );
+    Ok(())
 }
 
 /// Merge every [`MoveAuthenticator`]'s input objects into `input_objects`,
@@ -2325,14 +2393,15 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
         );
 
         // Checks to see if the transaction has expired
-        if match &tx.expiration() {
-            TransactionExpiration::None => false,
-            TransactionExpiration::Epoch(exp_poch) => *exp_poch < context.epoch,
+        match tx.expiration() {
+            TransactionExpiration::None => {}
+            TransactionExpiration::Epoch(exp_poch) => {
+                fp_ensure!(*exp_poch >= context.epoch, IotaError::TransactionExpired);
+            }
+            TransactionExpiration::ValidWindow(window) => check_valid_window(window, context)?,
             _ => unimplemented!(
                 "a new TransactionExpiration enum variant was added and needs to be handled"
             ),
-        } {
-            return Err(IotaError::TransactionExpired);
         }
 
         // Enforce overall transaction size limit.

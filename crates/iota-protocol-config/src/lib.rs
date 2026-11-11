@@ -803,6 +803,19 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_claim_account_transaction: bool,
 
+    // If true, `TransactionExpiration::ValidWindow` is accepted: a transaction may name the
+    // first and last epoch in which it may run and the network it is for. Requires
+    // `max_txn_life_epochs`.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_valid_window: bool,
+
+    // If true, a `ValidWindow` may carry a lease. Validators keep the first transaction of a
+    // sender with a given lease and drop every later one of that sender with the same lease
+    // until the first one's last valid epoch. The drop happens in post-consensus validation,
+    // so the flag has no effect without `enable_valid_window` and `enable_pcool_flow`.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_lease_nonce: bool,
+
     // If true, a consensus message is skipped as a duplicate of an earlier message with the same
     // key that was recorded as processed or passed verification in the same commit:
     // - The consensus handler adds a message to its processed-transaction cache only after the
@@ -1877,6 +1890,17 @@ pub struct ProtocolConfig {
     // Upper bound on the bytes a `ClaimAccount` stores beyond its raw public key bytes: the
     // account object, its authenticator function reference and the field holding the key.
     claim_account_storage_bytes_bound: Option<u64>,
+
+    // The largest number of epochs between the first and the last valid epoch of a
+    // `TransactionExpiration::ValidWindow`. It also bounds how many earlier epochs validators
+    // look at for a lease that is still held.
+    max_txn_life_epochs: Option<u64>,
+    // Cost param shared by the Move native functions behind `tx_context::first_valid`,
+    // `last_valid`, `note` and `lease`.
+    tx_context_valid_window_cost_base: Option<u64>,
+    // Cost param for the Move native function `verified_nonce::take_lease_nonce_key(nonce_key:
+    // u64): bool`
+    verified_nonce_take_lease_nonce_key_cost_base: Option<u64>,
 }
 
 // feature flags
@@ -2447,6 +2471,26 @@ impl ProtocolConfig {
             );
         }
         enable_claim_account_transaction
+    }
+
+    pub fn enable_valid_window(&self) -> bool {
+        let enable_valid_window = self.feature_flags.enable_valid_window;
+        if enable_valid_window {
+            assert!(
+                self.max_txn_life_epochs.is_some(),
+                "enable_valid_window requires max_txn_life_epochs to be set"
+            );
+        }
+        enable_valid_window
+    }
+
+    /// Whether a transaction may carry a lease. A lease is only enforced in
+    /// post-consensus validation, so this is false wherever the valid window
+    /// or the P-COOL flow is off.
+    pub fn enable_lease_nonce(&self) -> bool {
+        self.feature_flags.enable_lease_nonce
+            && self.enable_valid_window()
+            && self.enable_pcool_flow()
     }
 
     pub fn disallow_self_identifier_in_transactions(&self) -> bool {
@@ -3219,6 +3263,10 @@ impl ProtocolConfig {
 
             claim_account_max_computation_units: None,
             claim_account_storage_bytes_bound: None,
+
+            max_txn_life_epochs: None,
+            tx_context_valid_window_cost_base: None,
+            verified_nonce_take_lease_nonce_key_cost_base: None,
 
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
@@ -4045,7 +4093,17 @@ impl ProtocolConfig {
                         // out of gas at any admissible gas price or key size.
                         cfg.claim_account_max_computation_units = Some(5_000);
                         cfg.claim_account_storage_bytes_bound = Some(2_000);
+
+                        // Accept transactions with a valid window, and a lease
+                        // in it, in devnet only. The lease needs the P-COOL
+                        // flow, which runs only there.
+                        cfg.feature_flags.enable_valid_window = true;
+                        cfg.feature_flags.enable_lease_nonce = true;
                     }
+
+                    cfg.max_txn_life_epochs = Some(1);
+                    cfg.tx_context_valid_window_cost_base = Some(30);
+                    cfg.verified_nonce_take_lease_nonce_key_cost_base = Some(52);
 
                     // Set the cost for built-in Move authenticators to 0 for now.
                     cfg.builtin_move_authenticator_cost_base = Some(0);
@@ -4257,6 +4315,14 @@ impl ProtocolConfig {
 
     pub fn set_enable_claim_account_transaction_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_claim_account_transaction = val;
+    }
+
+    pub fn set_enable_valid_window_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_valid_window = val;
+    }
+
+    pub fn set_enable_lease_nonce_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_lease_nonce = val;
     }
 
     pub fn set_disallow_new_modules_in_deps_only_packages_for_testing(&mut self, val: bool) {

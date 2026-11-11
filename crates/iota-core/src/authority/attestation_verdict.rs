@@ -446,6 +446,7 @@ impl AttestationVerdictContext<'_> {
             transaction_kind,
             self.transaction_signer,
             self.transaction_digest,
+            *self.transaction.expiration(),
             auth_context_data,
             &mut None,
         );

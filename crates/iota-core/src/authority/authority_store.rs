@@ -40,6 +40,7 @@ use typed_store::{
 
 use super::{
     authority_store_tables::{AuthorityPerpetualTables, LiveObject},
+    lease::{LeaseHolder, LeaseHolderWrapper, lease_of},
     *,
 };
 use crate::{
@@ -1045,6 +1046,17 @@ impl AuthorityStore {
                 &ledger_bucket.executed_effects,
                 [(transaction_digest, effects_digest)],
             )?;
+
+        if let Some((key, last_valid)) = lease_of(transaction.data().transaction()) {
+            let holder = LeaseHolder {
+                transaction: *transaction_digest,
+                last_valid,
+            };
+            write_batch.insert_batch_tagged(
+                &ledger_bucket.leases,
+                [(key, LeaseHolderWrapper::from(holder))],
+            )?;
+        }
 
         if let Some(record) = attestation_record {
             write_batch.insert_batch_tagged(

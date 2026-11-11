@@ -1162,6 +1162,27 @@ native_epoch_timestamp_ms
 sponsor
 	public fun
 	0x2::tx_context
+first_valid
+	public fun
+	0x2::tx_context
+last_valid
+	public fun
+	0x2::tx_context
+note
+	public fun
+	0x2::tx_context
+lease
+	public fun
+	0x2::tx_context
+valid_window_value
+	fun
+	0x2::tx_context
+native_valid_window
+	fun
+	0x2::tx_context
+native_lease
+	fun
+	0x2::tx_context
 fresh_object_address
 	public fun
 	0x2::tx_context
@@ -4219,6 +4240,18 @@ update
 apply_delta
 	fun
 	0x2::transaction_deny_rules
+VerifiedNonce
+	public struct
+	0x2::verified_nonce
+verify_lease_nonce
+	public fun
+	0x2::verified_nonce
+lease_lines
+	fun
+	0x2::verified_nonce
+take_lease_nonce_key
+	fun
+	0x2::verified_nonce
 VerifiedID
 	public struct
 	0x2::zklogin_verified_id

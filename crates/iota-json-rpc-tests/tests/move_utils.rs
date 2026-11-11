@@ -95,6 +95,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "vdf",
             "vec_map",
             "vec_set",
+            "verified_nonce",
             "versioned",
             "zklogin_verified_id",
             "zklogin_verified_issuer",

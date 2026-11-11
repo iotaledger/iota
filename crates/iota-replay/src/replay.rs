@@ -804,6 +804,7 @@ impl LocalExec {
                 transaction_kind.clone(),
                 tx_info.sender,
                 *tx_digest,
+                *tx_info.sender_signed_data.transaction().expiration(),
                 &mut None,
             )
         } else {
@@ -902,6 +903,7 @@ impl LocalExec {
                     transaction_kind.clone(),
                     tx_info.sender,
                     *tx_digest,
+                    *tx_info.sender_signed_data.transaction().expiration(),
                     auth_context_data,
                     &mut None,
                 );
@@ -984,6 +986,7 @@ impl LocalExec {
                             transaction_kind.clone(),
                             tx_info.sender,
                             tx_info.sender_signed_data.digest(),
+                            *tx_info.sender_signed_data.transaction().expiration(),
                             skip_checks,
                         )
                         .3
@@ -1082,6 +1085,7 @@ impl LocalExec {
                 kind,
                 signer,
                 *executable.digest(),
+                *executable.transaction().expiration(),
                 &mut None,
             )
         } else {
@@ -1227,6 +1231,7 @@ impl LocalExec {
                     kind,
                     signer,
                     *executable.digest(),
+                    *executable.transaction().expiration(),
                     auth_context_data,
                     &mut None,
                 );

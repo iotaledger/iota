@@ -589,3 +589,102 @@ async fn an_epochs_read_finds_only_that_epochs_execution_records() {
     );
     assert_eq!(historic.bucket_walks(), before);
 }
+
+/// Records in `epoch`'s bucket that `transaction` holds the lease `key` until
+/// `last_valid`.
+fn record_lease(
+    historic: &super::HistoricLedger,
+    epoch: u64,
+    key: crate::authority::lease::LeaseKey,
+    transaction: TransactionDigest,
+    last_valid: u64,
+) {
+    use crate::authority::lease::{LeaseHolder, LeaseHolderWrapper};
+
+    let bucket = historic.ensure(epoch).unwrap();
+    let mut batch = bucket.leases.batch();
+    batch
+        .insert_batch_tagged(
+            &bucket.leases,
+            [(
+                key,
+                LeaseHolderWrapper::from(LeaseHolder {
+                    transaction,
+                    last_valid,
+                }),
+            )],
+        )
+        .unwrap();
+    batch.write().unwrap();
+}
+
+#[tokio::test]
+async fn a_lease_is_held_from_an_earlier_epoch_until_its_last_valid_epoch() {
+    let dir = iota_common::tempdir();
+    let (_perpetual, _historic_objects, historic, _epoch_markers) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+    let key = (iota_sdk_types::Address::random(), [1; 32]);
+    let holder = TransactionDigest::random();
+    // Executed in epoch 4, may run until epoch 5.
+    record_lease(&historic, 4, key, holder, 5);
+
+    let held_in = |epoch| {
+        historic
+            .get_lease_held_from_earlier_epochs(&key, epoch, 1)
+            .unwrap()
+            .map(|holder| holder.transaction)
+    };
+
+    assert_eq!(held_in(5), Some(holder));
+    // The last valid epoch has passed.
+    assert_eq!(held_in(6), None);
+    // The bucket of the current epoch is not read.
+    assert_eq!(held_in(4), None);
+}
+
+#[tokio::test]
+async fn only_the_last_max_txn_life_epochs_are_read_for_a_held_lease() {
+    let dir = iota_common::tempdir();
+    let (_perpetual, _historic_objects, historic, _epoch_markers) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+    let key = (iota_sdk_types::Address::random(), [1; 32]);
+    let holder = TransactionDigest::random();
+    record_lease(&historic, 4, key, holder, 6);
+
+    let held = |max_txn_life_epochs| {
+        historic
+            .get_lease_held_from_earlier_epochs(&key, 6, max_txn_life_epochs)
+            .unwrap()
+            .map(|holder| holder.transaction)
+    };
+
+    assert_eq!(held(1), None);
+    assert_eq!(held(2), Some(holder));
+}
+
+#[tokio::test]
+async fn another_sender_or_another_lease_is_not_held() {
+    let dir = iota_common::tempdir();
+    let (_perpetual, _historic_objects, historic, _epoch_markers) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+    let sender = iota_sdk_types::Address::random();
+    record_lease(
+        &historic,
+        4,
+        (sender, [1; 32]),
+        TransactionDigest::random(),
+        5,
+    );
+
+    for key in [
+        (iota_sdk_types::Address::random(), [1; 32]),
+        (sender, [2; 32]),
+    ] {
+        assert_eq!(
+            historic
+                .get_lease_held_from_earlier_epochs(&key, 5, 1)
+                .unwrap(),
+            None
+        );
+    }
+}

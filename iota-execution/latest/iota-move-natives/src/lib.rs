@@ -75,10 +75,11 @@ use self::{
         TxContextDeriveIdCostParams, TxContextEpochCostParams, TxContextEpochTimestampMsCostParams,
         TxContextFreshIdCostParams, TxContextGasBudgetCostParams, TxContextGasPriceCostParams,
         TxContextIdsCreatedCostParams, TxContextRGPCostParams, TxContextReplaceCostParams,
-        TxContextSenderCostParams, TxContextSponsorCostParams,
+        TxContextSenderCostParams, TxContextSponsorCostParams, TxContextValidWindowCostParams,
     },
     types::TypesIsOneTimeWitnessCostParams,
     validator::ValidatorValidateMetadataBcsCostParams,
+    verified_nonce::VerifiedNonceTakeLeaseNonceKeyCostParams,
 };
 use crate::{
     auth_context::{
@@ -117,6 +118,7 @@ mod tx_context;
 mod types;
 mod utils;
 mod validator;
+mod verified_nonce;
 
 impl NativeExtensionMarker<'_> for NativesCostTable {}
 
@@ -213,6 +215,12 @@ pub struct NativesCostTable {
 
     // public_key
     pub public_key_to_iota_address_impl_cost_params: PublicKeyToIotaAddressImplCostParams,
+
+    // valid window of the transaction
+    pub tx_context_valid_window_cost_params: TxContextValidWindowCostParams,
+
+    // verified_nonce
+    pub verified_nonce_take_lease_nonce_key_cost_params: VerifiedNonceTakeLeaseNonceKeyCostParams,
 
     // builtin_authenticator_functions
     pub builtin_authenticator_functions_cost_params: BuiltinAuthenticatorFunctionsCostParams,
@@ -392,6 +400,17 @@ impl NativesCostTable {
                     .public_key_to_iota_address_impl_cost_base_as_option()
                     .map(Into::into),
             },
+            tx_context_valid_window_cost_params: TxContextValidWindowCostParams {
+                tx_context_valid_window_cost_base: protocol_config
+                    .tx_context_valid_window_cost_base_as_option()
+                    .map(Into::into),
+            },
+            verified_nonce_take_lease_nonce_key_cost_params:
+                VerifiedNonceTakeLeaseNonceKeyCostParams {
+                    verified_nonce_take_lease_nonce_key_cost_base: protocol_config
+                        .verified_nonce_take_lease_nonce_key_cost_base_as_option()
+                        .map(Into::into),
+                },
             builtin_authenticator_functions_cost_params: BuiltinAuthenticatorFunctionsCostParams {
                 builtin_move_authenticator_cost_base: protocol_config
                     .builtin_move_authenticator_cost_base_as_option()
@@ -1374,6 +1393,26 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             make_native!(tx_context::ids_created),
         ),
         ("tx_context", "replace", make_native!(tx_context::replace)),
+        (
+            "tx_context",
+            "native_valid_window",
+            make_native!(tx_context::valid_window),
+        ),
+        (
+            "tx_context",
+            "native_lease",
+            make_native!(tx_context::lease),
+        ),
+        (
+            "tx_context",
+            "replace_valid_window",
+            make_native!(tx_context::replace_valid_window),
+        ),
+        (
+            "verified_nonce",
+            "take_lease_nonce_key",
+            make_native!(verified_nonce::take_lease_nonce_key),
+        ),
         (
             "types",
             "is_one_time_witness",

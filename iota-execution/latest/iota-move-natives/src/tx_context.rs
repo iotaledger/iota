@@ -4,9 +4,11 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_types::{ObjectId, TransactionDigest};
-use move_binary_format::errors::PartialVMResult;
-use move_core_types::{account_address::AccountAddress, gas_algebra::InternalGas};
+use iota_sdk_types::{CheckpointDigest, ObjectId, TransactionDigest, ValidWindow};
+use move_binary_format::errors::{PartialVMError, PartialVMResult};
+use move_core_types::{
+    account_address::AccountAddress, gas_algebra::InternalGas, vm_status::StatusCode,
+};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
@@ -278,6 +280,133 @@ pub fn sponsor(
         .into_iter();
     let sponsor = Value::vector_address(sponsor);
     Ok(NativeResult::ok(context.gas_used(), smallvec![sponsor]))
+}
+
+#[derive(Clone)]
+pub struct TxContextValidWindowCostParams {
+    pub tx_context_valid_window_cost_base: Option<InternalGas>,
+}
+
+fn valid_window_cost(context: &NativeContext) -> PartialVMResult<InternalGas> {
+    context
+        .extensions()
+        .get::<NativesCostTable>()?
+        .tx_context_valid_window_cost_params
+        .tx_context_valid_window_cost_base
+        .ok_or_else(|| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message("Gas cost for the valid window natives not available".to_string())
+        })
+}
+
+/// Implementation of the Move native function
+/// `fun native_valid_window(): vector<u64>`
+///
+/// Returns the first valid epoch, the last valid epoch and the note of the
+/// transaction's valid window, or an empty vector if the transaction has
+/// none.
+///
+/// gas cost: tx_context_valid_window_cost_base
+pub fn valid_window(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.is_empty());
+
+    let cost_base = valid_window_cost(context)?;
+    native_charge_gas_early_exit!(context, cost_base);
+
+    let transaction_context: &mut TransactionContext = context.extensions_mut().get_mut()?;
+    let window = transaction_context
+        .valid_window()
+        .map(|window| vec![window.first_valid, window.last_valid, window.note])
+        .unwrap_or_default();
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![Value::vector_u64(window)],
+    ))
+}
+
+/// Implementation of the Move native function
+/// `fun native_lease(): vector<u8>`
+///
+/// Returns the 32 bytes of the lease in the transaction's valid window, or an
+/// empty vector if the transaction has no lease.
+///
+/// gas cost: tx_context_valid_window_cost_base
+pub fn lease(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.is_empty());
+
+    let cost_base = valid_window_cost(context)?;
+    native_charge_gas_early_exit!(context, cost_base);
+
+    let transaction_context: &mut TransactionContext = context.extensions_mut().get_mut()?;
+    let lease = transaction_context
+        .valid_window()
+        .and_then(|window| window.lease)
+        .map(|lease| lease.to_vec())
+        .unwrap_or_default();
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![Value::vector_u8(lease)],
+    ))
+}
+
+/// Implementation of the Move test-only native function
+/// `fun replace_valid_window(window: vector<u64>, lease: vector<u8>)`
+///
+/// Sets the valid window of the transaction context from the first valid
+/// epoch, the last valid epoch and the note in `window`, with `lease` if it
+/// is not empty. An empty `window` clears the valid window.
+pub fn replace_valid_window(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.len() == 2);
+
+    let lease: Vec<u8> = pop_arg!(args, Vec<u8>);
+    let window: Vec<u64> = pop_arg!(args, Vec<u64>);
+
+    let valid_window = match window[..] {
+        [] => None,
+        [first_valid, last_valid, note] => {
+            let lease = if lease.is_empty() {
+                None
+            } else {
+                Some(<[u8; 32]>::try_from(lease).map_err(|_| {
+                    PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                        .with_message("a lease must be 32 bytes".to_string())
+                })?)
+            };
+            Some(ValidWindow {
+                first_valid,
+                last_valid,
+                genesis_hash: CheckpointDigest::ZERO,
+                note,
+                lease,
+            })
+        }
+        _ => {
+            return Err(
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                    .with_message("a valid window has three values".to_string()),
+            );
+        }
+    };
+
+    let transaction_context: &mut TransactionContext = context.extensions_mut().get_mut()?;
+    transaction_context.set_valid_window(valid_window)?;
+
+    Ok(NativeResult::ok(context.gas_used(), smallvec![]))
 }
 
 #[derive(Clone)]

@@ -183,6 +183,7 @@ impl EpochState {
                 kind,
                 signer,
                 tx_digest,
+                *transaction.expiration(),
                 &mut None,
             );
         Ok((inner_temp_store, gas_status, effects, result))
@@ -313,6 +314,7 @@ impl EpochState {
                 kind,
                 signer,
                 transaction.digest(),
+                *transaction.expiration(),
                 checks.disabled(),
             );
 

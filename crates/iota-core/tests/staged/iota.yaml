@@ -986,6 +986,10 @@ TransactionExpiration:
     1:
       Epoch:
         NEWTYPE: U64
+    2:
+      ValidWindow:
+        NEWTYPE:
+          TYPENAME: ValidWindow
 TransactionKind:
   ENUM:
     0:
@@ -1140,6 +1144,18 @@ UpgradeInfo:
     - upgraded_id:
         TYPENAME: ObjectId
     - upgraded_version: U64
+ValidWindow:
+  STRUCT:
+    - first_valid: U64
+    - last_valid: U64
+    - genesis_hash:
+        TYPENAME: CheckpointDigest
+    - note: U64
+    - lease:
+        OPTION:
+          TUPLEARRAY:
+            CONTENT: U8
+            SIZE: 32
 ValidatorCommitteeMember:
   STRUCT:
     - public_key: BYTES

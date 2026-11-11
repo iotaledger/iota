@@ -6,8 +6,8 @@
 use std::{collections::BTreeMap, convert::AsRef, fmt::Debug};
 
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CommandArgumentError, ObjectDigest, ObjectId,
-    ObjectReference, Owner, TransactionDigest, TransactionEffectsDigest, Version,
+    Address, CheckpointContentsDigest, CheckpointDigest, CommandArgumentError, ObjectDigest,
+    ObjectId, ObjectReference, Owner, TransactionDigest, TransactionEffectsDigest, Version,
 };
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
@@ -393,6 +393,23 @@ pub enum UserInputError {
         object_id: ObjectId,
         version: Option<Version>,
     },
+    #[error(
+        "Transaction is not valid before epoch {first_valid}, the current epoch is {current_epoch}"
+    )]
+    TransactionNotYetValid {
+        first_valid: EpochId,
+        current_epoch: EpochId,
+    },
+    #[error(
+        "The valid window from epoch {first_valid} to epoch {last_valid} is empty or longer than {max_txn_life_epochs} epoch(s)"
+    )]
+    ValidWindowTooLong {
+        first_valid: EpochId,
+        last_valid: EpochId,
+        max_txn_life_epochs: u64,
+    },
+    #[error("The valid window names another network: genesis checkpoint {genesis_hash}")]
+    ValidWindowWrongNetwork { genesis_hash: CheckpointDigest },
 }
 
 /// Formats `version` as " at version {version}", or as nothing when it is
@@ -781,6 +798,17 @@ pub enum IotaError {
          `attestation_max_refuted_units_squared`"
     )]
     AttestorCutOff { attestor: AuthorityIndex },
+
+    #[error(
+        "Lease 0x{} of sender {sender} is held by transaction {holder} until epoch {last_valid}",
+        hex::encode(.lease)
+    )]
+    LeaseConflict {
+        sender: Address,
+        lease: [u8; 32],
+        holder: TransactionDigest,
+        last_valid: EpochId,
+    },
 }
 
 #[repr(u64)]
@@ -966,6 +994,7 @@ impl IotaError {
             IotaError::TxAlreadyFinalizedWithDifferentUserSigs => false,
             IotaError::FailedToVerifyTxCertWithExecutedEffects { .. } => false,
             IotaError::ObjectLockConflict { .. } => false,
+            IotaError::LeaseConflict { .. } => false,
 
             // NB: This is not an internal overload, but instead an imposed rate
             // limit / blocking of a client. It must be non-retryable otherwise
@@ -1060,7 +1089,9 @@ pub fn categorize(error: &IotaError) -> ErrorCategory {
         | IotaError::UnknownSigner { .. }
         | IotaError::TransactionExpired => ErrorCategory::InvalidTransaction,
 
-        IotaError::ObjectLockConflict { .. } => ErrorCategory::LockConflict,
+        IotaError::ObjectLockConflict { .. } | IotaError::LeaseConflict { .. } => {
+            ErrorCategory::LockConflict
+        }
 
         IotaError::TooManyTransactionsPendingExecution { .. }
         | IotaError::TooManyTransactionsPendingOnObject { .. }

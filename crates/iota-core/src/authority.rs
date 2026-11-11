@@ -150,6 +150,7 @@ use crate::{
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
         historic_ledger::HistoricLedger,
         historic_objects::HistoricObjects,
+        lease::{LeaseHolder, LeaseKey},
         object_retention::{ObjectRetention, ObjectRetentionGuard},
         shared_object_version_manager::{AssignedVersions, Schedulable},
     },
@@ -264,6 +265,7 @@ pub mod epoch_markers;
 pub mod epoch_start_configuration;
 pub mod historic_ledger;
 pub mod historic_objects;
+pub mod lease;
 pub mod ledger_backlog_migration;
 pub mod object_backlog_sweep;
 pub mod object_retention;
@@ -1346,6 +1348,7 @@ impl AuthorityState {
             kind,
             signer,
             transaction.digest().to_owned(),
+            *tx.expiration(),
             auth_context_data,
             &mut None,
         );
@@ -2386,6 +2389,7 @@ impl AuthorityState {
                     kind,
                     signer,
                     tx_digest,
+                    *tx.expiration(),
                     &mut None,
                 );
             // Without Move authentication there is nothing to judge.
@@ -2650,6 +2654,7 @@ impl AuthorityState {
                     kind,
                     signer,
                     tx_digest,
+                    *tx.expiration(),
                     auth_context_data,
                     &mut None,
                 );
@@ -2975,6 +2980,7 @@ impl AuthorityState {
             kind,
             signer,
             transaction.digest(),
+            *transaction.expiration(),
             checks.disabled(),
         );
 
@@ -3340,6 +3346,25 @@ impl AuthorityState {
     /// Executed transactions keyed by checkpoint, bucketed by epoch.
     pub fn get_historic_ledger(&self) -> &Arc<HistoricLedger> {
         &self.historic_ledger
+    }
+
+    /// The transaction that holds the lease `key` in the epoch of
+    /// `epoch_store`, if any: one kept by post-consensus validation in a
+    /// commit of this epoch that the consensus handler has processed, or one
+    /// executed in an earlier epoch whose last valid epoch has not passed.
+    pub fn get_held_lease(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        key: &LeaseKey,
+    ) -> IotaResult<Option<LeaseHolder>> {
+        if let Some(holder) = epoch_store.get_lease_taken_in_epoch(key)? {
+            return Ok(Some(holder));
+        }
+        self.historic_ledger.get_lease_held_from_earlier_epochs(
+            key,
+            epoch_store.epoch(),
+            epoch_store.protocol_config().max_txn_life_epochs(),
+        )
     }
 
     // TODO: Consolidate our traits to reduce the number of methods here.
@@ -3716,7 +3741,18 @@ impl AuthorityState {
                 })
         });
         let held_back = objects_to_retain != configured_objects_to_retain;
-        let checkpoints_to_retain = pruning_config.num_epochs_to_retain_for_checkpoints();
+        // A lease is held for up to `max_txn_life_epochs` epochs after the
+        // epoch that executed its transaction, and validation reads it from
+        // that epoch's ledger bucket, so those buckets are kept whatever the
+        // node's own setting.
+        let epochs_holding_leases = self
+            .load_epoch_store_one_call_per_task()
+            .protocol_config()
+            .max_txn_life_epochs_as_option()
+            .unwrap_or_default();
+        let checkpoints_to_retain = pruning_config
+            .num_epochs_to_retain_for_checkpoints()
+            .map(|epochs| epochs.max(epochs_holding_leases));
 
         // Blocks for as long as the deletes and drops take.
         let historic_objects = self.historic_objects.clone();

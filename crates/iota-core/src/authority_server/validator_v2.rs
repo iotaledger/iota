@@ -30,7 +30,9 @@ use iota_types::{
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
-    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
+    authority::{
+        AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore, lease::lease_of,
+    },
     authority_server::{
         StreamResponse, ValidatorService, ValidatorServiceMetrics, normalize,
         soft_lock::PreConsensusSoftLocks,
@@ -361,6 +363,29 @@ impl ValidatorService {
             let error = IotaError::ValidatorHaltedAtEpochEnd;
             let weight = normalize(&error);
             return (TxStatusUpdate::Rejected { error }, weight);
+        }
+
+        // A lease this validator knows to be held by another transaction. The
+        // transaction would be dropped after consensus, so it is kept out of
+        // blocks.
+        if let Some((key, _)) = lease_of(verified_tx.data().transaction()) {
+            match state.get_held_lease(epoch_store, &key) {
+                Ok(Some(holder)) if holder.transaction != tx_digest => {
+                    let error = IotaError::LeaseConflict {
+                        sender: key.0,
+                        lease: key.1,
+                        holder: holder.transaction,
+                        last_valid: holder.last_valid,
+                    };
+                    let weight = normalize(&error);
+                    return (TxStatusUpdate::Rejected { error }, weight);
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    let weight = normalize(&error);
+                    return (TxStatusUpdate::Rejected { error }, weight);
+                }
+            }
         }
 
         // Deny-rule source for admission. With governance enabled, admission

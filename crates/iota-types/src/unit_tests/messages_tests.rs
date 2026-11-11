@@ -1035,6 +1035,7 @@ fn validity_check_rejects_authenticated_object_version_in_or_below_canceled_rang
     let context = TxValidityCheckContext {
         config: &config,
         epoch: 0,
+        chain_identifier: Default::default(),
     };
     let sender = Address::random();
     let version = Version::MAX_VALID_EXCL - 1;
@@ -1123,6 +1124,7 @@ fn validity_check_rejects_randomness_state_in_move_authenticator() {
             tx.validity_check(&TxValidityCheckContext {
                 config: &config,
                 epoch: 0,
+                chain_identifier: Default::default(),
             })
             .unwrap_err(),
             IotaError::UserInput {
@@ -1134,6 +1136,7 @@ fn validity_check_rejects_randomness_state_in_move_authenticator() {
         tx.validity_check(&TxValidityCheckContext {
             config: &flag_off,
             epoch: 0,
+            chain_identifier: Default::default(),
         })
         .unwrap();
     }
@@ -1147,6 +1150,7 @@ fn validity_check_rejects_a_mutable_shared_call_argument_in_move_authenticator()
     let context = TxValidityCheckContext {
         config: &config,
         epoch: 0,
+        chain_identifier: Default::default(),
     };
     let sender = Address::random();
     let account = SharedObjectReference::new(sender.into(), Version::from(1), false);
@@ -1195,6 +1199,7 @@ fn validity_check_rejects_authenticator_state_in_move_authenticator() {
                 .validity_check(&TxValidityCheckContext {
                     config: &config,
                     epoch: 0,
+                    chain_identifier: Default::default(),
                 })
                 .unwrap_err(),
             IotaError::UserInput {
@@ -1227,6 +1232,7 @@ fn validity_check_leaves_move_authenticator_input_kinds_to_the_loaded_objects() 
             .validity_check(&TxValidityCheckContext {
                 config: &config,
                 epoch: 0,
+                chain_identifier: Default::default(),
             })
             .unwrap();
     }
@@ -1251,6 +1257,7 @@ fn validity_check_accepts_randomness_state_in_programmable_transaction() {
         .validity_check(&TxValidityCheckContext {
             config: &config,
             epoch: 0,
+            chain_identifier: Default::default(),
         })
         .unwrap();
 }
@@ -1278,6 +1285,7 @@ fn validity_check_rejects_randomness_state_in_both_transaction_and_move_authenti
             .validity_check(&TxValidityCheckContext {
                 config: &config,
                 epoch: 0,
+                chain_identifier: Default::default(),
             })
             .unwrap_err(),
         IotaError::UserInput {
@@ -1624,8 +1632,13 @@ fn validity_check_with_and_without_type_arg_packages(
     assert!(flag_on.move_authenticator_type_arg_packages_as_inputs());
     let mut flag_off = flag_on.clone();
     flag_off.set_move_authenticator_type_arg_packages_as_inputs_for_testing(false);
-    let check =
-        |config: &ProtocolConfig| tx.validity_check(&TxValidityCheckContext { config, epoch: 0 });
+    let check = |config: &ProtocolConfig| {
+        tx.validity_check(&TxValidityCheckContext {
+            config,
+            epoch: 0,
+            chain_identifier: Default::default(),
+        })
+    };
     (check(&flag_on), check(&flag_off))
 }
 
@@ -2007,6 +2020,7 @@ fn test_transaction_deny_rules_kinds_rejected_from_users() {
         let context = TxValidityCheckContext {
             config: &flag_on,
             epoch: 1,
+            chain_identifier: Default::default(),
         };
         assert!(matches!(
             user_submission.validity_check(&context),
