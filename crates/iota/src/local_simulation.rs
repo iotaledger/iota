@@ -19,7 +19,7 @@
 //! deny-list, and the network's signing verifier limits — this runs with an
 //! empty deny-list and the default limits.
 
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -39,7 +39,8 @@ use iota_types::{
     effects::TransactionEffectsAPI, gas::report_simulation_gas, transaction::TransactionAPI,
 };
 use iota_vm_sdk::{
-    ChainContext, ExecuteOptions, ExecutionResult, InMemoryStore, LocalVm, Store, grpc::GrpcStore,
+    ChainContext, DebugConfig, ExecuteOptions, ExecutionResult, InMemoryStore, LocalVm,
+    ProfileOutput, ProfileSink, Store, grpc::GrpcStore,
 };
 
 use crate::{
@@ -60,6 +61,7 @@ pub(crate) async fn execute_local_dry_run(
     gas_price: Option<u64>,
     gas_payment: Vec<ObjectReference>,
     sponsor: Option<Address>,
+    gas_profile: Option<Option<PathBuf>>,
 ) -> Result<IotaClientCommandResult> {
     let (store, chain_context) = connect(context).await?;
     let vm = LocalVm::new(chain_context, store.clone())?;
@@ -71,6 +73,7 @@ pub(crate) async fn execute_local_dry_run(
         gas_price,
         gas_payment,
         sponsor,
+        gas_profile,
     )?;
 
     // Render a Move abort as the node does, from the packages the run fetched.
@@ -97,6 +100,7 @@ pub(crate) async fn execute_local_dev_inspect(
     gas_price: Option<u64>,
     gas_payment: Vec<ObjectReference>,
     sponsor: Option<Address>,
+    gas_profile: Option<Option<PathBuf>>,
 ) -> Result<IotaClientCommandResult> {
     let (store, chain_context) = connect(context).await?;
     let mut vm = LocalVm::new(chain_context, store)?;
@@ -110,7 +114,7 @@ pub(crate) async fn execute_local_dev_inspect(
         gas_price.unwrap_or_default(),
         sponsor.unwrap_or(signer),
     );
-    let mut result = vm.execute(tx_data, ExecuteOptions::dev_inspect())?;
+    let mut result = execute(&mut vm, tx_data, ExecuteOptions::dev_inspect(), gas_profile)?;
 
     let return_values = match result.execution_error.take() {
         Some(error) => Err(error),
@@ -147,7 +151,7 @@ pub(crate) async fn estimate_local_gas_budget(
     let (store, chain_context) = connect(context).await?;
     let reference_gas_price = chain_context.reference_gas_price;
     let vm = LocalVm::new(chain_context, store)?;
-    let (response, _) = run_dry_run(vm, signer, kind, None, None, Vec::new(), None)?;
+    let (response, _) = run_dry_run(vm, signer, kind, None, None, Vec::new(), None, None)?;
     Ok(estimate_gas_budget_from_gas_cost(
         response.effects.gas_cost_summary(),
         reference_gas_price,
@@ -184,6 +188,7 @@ fn run_dry_run(
     gas_price: Option<u64>,
     gas_payment: Vec<ObjectReference>,
     sponsor: Option<Address>,
+    gas_profile: Option<Option<PathBuf>>,
 ) -> Result<(DryRunTransactionBlockResponse, ExecutionStatus)> {
     let gas_price = gas_price.unwrap_or_else(|| vm.reference_gas_price());
 
@@ -196,9 +201,48 @@ fn run_dry_run(
         sponsor.unwrap_or(signer),
     );
 
-    let result = vm.execute(tx_data.clone(), ExecuteOptions::dry_run())?;
+    let result = execute(
+        &mut vm,
+        tx_data.clone(),
+        ExecuteOptions::dry_run(),
+        gas_profile,
+    )?;
     let status = result.effects.status().clone();
     Ok((dry_run_response(&vm, tx_data, result)?, status))
+}
+
+/// Run `tx_data` and, when `gas_profile` is set, write the run's gas profile
+/// to the given path or to `gas_profile_<DIGEST>.speedscope.json`.
+fn execute(
+    vm: &mut LocalVm,
+    tx_data: Transaction,
+    options: ExecuteOptions,
+    gas_profile: Option<Option<PathBuf>>,
+) -> Result<ExecutionResult> {
+    let Some(path) = gas_profile else {
+        return Ok(vm.execute(tx_data, options)?);
+    };
+    let options = options.with_debug(DebugConfig::default().with_profiling(ProfileSink::Capture));
+    let result = vm.execute(tx_data, options)?;
+    let Some(ProfileOutput::Json(profile)) = result.debug.as_ref().and_then(|d| d.profile.as_ref())
+    else {
+        eprintln!("The run produced no gas profile");
+        return Ok(result);
+    };
+    let path = path.unwrap_or_else(|| {
+        format!(
+            "gas_profile_{}.speedscope.json",
+            result.effects.transaction_digest()
+        )
+        .into()
+    });
+    std::fs::write(&path, profile)
+        .with_context(|| format!("cannot write the gas profile to {}", path.display()))?;
+    eprintln!(
+        "Gas profile written to {}; open it with https://www.speedscope.app",
+        path.display()
+    );
+    Ok(result)
 }
 
 /// Assemble a [`DryRunTransactionBlockResponse`] from a local run, resolving
