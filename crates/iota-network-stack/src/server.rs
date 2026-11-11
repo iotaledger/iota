@@ -34,12 +34,11 @@ use crate::{
 
 /// Server-side deadline for a request whose config sets no `request_timeout`.
 ///
-/// It bounds the time from a request's headers arriving until the handler
-/// responds, including the time spent receiving the request body, so a peer
-/// that never finishes sending cannot hold the request's admission slot
-/// indefinitely. It does not cover the response body, which keeps the slot
-/// until it has been sent; `response_send_timeout` of
-/// [`ServerBuilder::add_service_with_concurrency_limit`] bounds that.
+/// It bounds the time until the response headers are returned, including
+/// waiting for an admission slot and receiving the request, so a peer that
+/// never finishes sending cannot hold a slot for good. Sending the response
+/// body is bounded by `response_send_timeout` of
+/// [`ServerBuilder::add_service_with_concurrency_limit`] instead.
 pub const DEFAULT_GRPC_REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
 
 pub struct ServerBuilder<M: MetricsCallbackProvider = DefaultMetricsCallbackProvider> {
@@ -114,14 +113,14 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
     ///
     /// With `load_shed` enabled, requests over the limit are rejected
     /// immediately with gRPC `RESOURCE_EXHAUSTED`; otherwise they wait for a
-    /// slot to free up.
+    /// slot, up to [`Self::request_timeout`].
     ///
     /// A request keeps its slot until its response body has been sent, so a
     /// streaming response counts for as long as it streams.
     /// `response_send_timeout` bounds that: a response still unsent that long
     /// after its headers is given up, ending with gRPC status
-    /// `DEADLINE_EXCEEDED`, and frees its slot. It must exceed the longest a
-    /// response of `svc` legitimately takes to send.
+    /// `DEADLINE_EXCEEDED`, and frees its slot. It must exceed the longest time
+    /// a response of `svc` legitimately takes to send.
     pub fn add_service_with_concurrency_limit<S>(
         mut self,
         svc: S,
