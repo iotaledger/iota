@@ -19,4 +19,8 @@ impl Tracer for InstructionOnlyTracer {
                 | TraceEvent::CloseFrame { .. }
         )
     }
+
+    fn wants_effects(&self) -> bool {
+        false
+    }
 }
