@@ -744,7 +744,7 @@ mod test {
                 kind,
                 signer,
                 genesis_digest,
-                *transaction.expiration(),
+                transaction.expiration().clone(),
                 &mut None,
             );
 

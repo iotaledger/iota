@@ -419,13 +419,14 @@ async fn test_submit_single_tx_with_a_held_lease_rejected_without_reaching_conse
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
-    *tx_data.expiration_mut_for_testing() = TransactionExpiration::ValidWindow(ValidWindow {
-        first_valid: epoch_store.epoch(),
-        last_valid: epoch_store.epoch(),
-        genesis_hash: epoch_store.get_chain_identifier().digest(),
-        note: 0,
-        lease: Some(lease),
-    });
+    *tx_data.expiration_mut_for_testing() =
+        TransactionExpiration::ValidWindow(Box::new(ValidWindow {
+            first_valid: epoch_store.epoch(),
+            last_valid: epoch_store.epoch(),
+            genesis_hash: epoch_store.get_chain_identifier().digest(),
+            note: 0,
+            lease: Some(lease),
+        }));
     let tx = to_sender_signed_transaction(tx_data, &sender_key);
 
     let (update, _weight) = ValidatorService::submit_single_tx(

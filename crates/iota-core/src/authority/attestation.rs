@@ -151,7 +151,7 @@ impl AuthorityState {
                         kind,
                         signer,
                         tx_digest,
-                        *tx.expiration(),
+                        tx.expiration().clone(),
                         &mut None,
                     );
                 // This branch has no Move authentication, so it can never fail auth.
@@ -253,7 +253,7 @@ impl AuthorityState {
                         kind,
                         signer,
                         tx_digest,
-                        *tx.expiration(),
+                        tx.expiration().clone(),
                         auth_context_data,
                         &mut None,
                     );

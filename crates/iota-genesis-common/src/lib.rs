@@ -96,7 +96,7 @@ pub fn execute_genesis_transaction(
             kind,
             signer,
             genesis_digest,
-            *transaction.expiration(),
+            transaction.expiration().clone(),
             &mut None,
         );
     assert!(inner_temp_store.input_objects.is_empty());

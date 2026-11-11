@@ -42,7 +42,7 @@ fn window() -> ValidWindow {
 fn check(config: &ProtocolConfig, window: ValidWindow) -> IotaResult<usize> {
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let mut data = make_transaction_data(sender);
-    *data.expiration_mut_for_testing() = TransactionExpiration::ValidWindow(window);
+    *data.expiration_mut_for_testing() = TransactionExpiration::ValidWindow(Box::new(window));
     let transaction = to_sender_signed_transaction(data, &key);
 
     transaction.data().validity_check(&TxValidityCheckContext {

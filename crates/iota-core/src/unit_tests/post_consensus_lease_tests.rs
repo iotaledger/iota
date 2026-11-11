@@ -117,13 +117,14 @@ impl Setup {
             rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
             rgp,
         );
-        *data.expiration_mut_for_testing() = TransactionExpiration::ValidWindow(ValidWindow {
-            first_valid: epoch,
-            last_valid: epoch + 1,
-            genesis_hash: self.epoch_store.get_chain_identifier().digest(),
-            note: 0,
-            lease,
-        });
+        *data.expiration_mut_for_testing() =
+            TransactionExpiration::ValidWindow(Box::new(ValidWindow {
+                first_valid: epoch,
+                last_valid: epoch + 1,
+                genesis_hash: self.epoch_store.get_chain_identifier().digest(),
+                note: 0,
+                lease,
+            }));
         self.epoch_store
             .verify_transaction(to_sender_signed_transaction(data, &sender.key))
             .unwrap()

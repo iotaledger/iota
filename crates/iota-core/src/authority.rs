@@ -1348,7 +1348,7 @@ impl AuthorityState {
             kind,
             signer,
             transaction.digest().to_owned(),
-            *tx.expiration(),
+            tx.expiration().clone(),
             auth_context_data,
             &mut None,
         );
@@ -2389,7 +2389,7 @@ impl AuthorityState {
                     kind,
                     signer,
                     tx_digest,
-                    *tx.expiration(),
+                    tx.expiration().clone(),
                     &mut None,
                 );
             // Without Move authentication there is nothing to judge.
@@ -2654,7 +2654,7 @@ impl AuthorityState {
                     kind,
                     signer,
                     tx_digest,
-                    *tx.expiration(),
+                    tx.expiration().clone(),
                     auth_context_data,
                     &mut None,
                 );
@@ -2980,7 +2980,7 @@ impl AuthorityState {
             kind,
             signer,
             transaction.digest(),
-            *transaction.expiration(),
+            transaction.expiration().clone(),
             checks.disabled(),
         );
 
