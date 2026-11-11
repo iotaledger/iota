@@ -127,14 +127,17 @@ impl MyEndpoint {
         });
 
         // Apply the endpoint's configured connect timeout (Config::connect_timeout
-        // applied in apply_config_to_endpoint) to the connectors, as tonic's own lazy
-        // connect does. tonic's Channel::new path does not apply
-        // Endpoint::connect_timeout to a provided connector, so without this the lazy
-        // channel can sit in State::Connecting forever when a peer is unreachable (msim
-        // with dropped SYNs, real network partitions, etc) or accepts TCP and never
-        // completes the TLS handshake, blocking every gRPC call on that channel. The
-        // HTTP connector's timeout bounds each TCP connect attempt; the
+        // applied in apply_config_to_endpoint) to the connectors, as tonic's
+        // Endpoint::connect_with_connector_lazy does. tonic's Channel::new path does
+        // not apply Endpoint::connect_timeout to a provided connector, so without this
+        // the lazy channel can sit in State::Connecting forever when a peer is
+        // unreachable (msim with dropped SYNs, real network partitions, etc) or accepts
+        // TCP and never completes the TLS handshake, blocking every gRPC call on that
+        // channel. The HTTP connector's timeout bounds each TCP connect attempt; the
         // TimeoutConnector bounds the whole attempt, TLS handshake included.
+        // connect_with_connector_lazy itself can't be used here: once any crate in the
+        // build enables a tonic TLS feature, it rejects an https URI unless tonic does
+        // the TLS.
         let connect_timeout = self.endpoint.get_connect_timeout();
 
         if disable_caching_resolver {
