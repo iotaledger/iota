@@ -48,7 +48,8 @@ const FETCH_TOTAL_TIMEOUT: Duration = Duration::from_secs(30);
 /// How many GETs may be in flight at once. All GETs share one HTTP/2 connection, and a GET beyond
 /// the server's concurrent-stream limit waits inside the client with its [`FETCH_TIMEOUT`] already
 /// running, so a busy but healthy store would time out. GETs beyond this limit wait for a slot
-/// before their timeout starts. Matches the limit iota-rest-kv sets (200 streams).
+/// before their timeout starts. Matches the stream limit of iota-rest-kv, which keeps hyper's
+/// default of 200.
 const MAX_IN_FLIGHT_FETCHES: usize = 200;
 
 /// Reads a trusted HTTP key-value store. Its checks catch data stored under the
@@ -370,7 +371,12 @@ impl HttpKVStore {
 
     /// Allows at most `max` GETs in flight instead of [`MAX_IN_FLIGHT_FETCHES`]; for a store whose
     /// server allows fewer concurrent HTTP/2 streams.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `max` is 0, with which every GET would wait forever.
     pub fn with_max_in_flight_fetches(mut self, max: usize) -> Self {
+        assert!(max > 0, "at least one GET must be allowed in flight");
         self.fetch_slots = Semaphore::new(max);
         self
     }
