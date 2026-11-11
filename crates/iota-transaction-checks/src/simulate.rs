@@ -1,4 +1,5 @@
-// Copyright (c) 2026 IOTA Stiftung
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::HashSet, sync::Arc};
@@ -44,9 +45,11 @@ pub struct SimulationEnv<'a> {
 /// `checks` selects the Move VM semantics: `VmChecks::Enabled` runs the
 /// transaction as it would run on chain (a dry run), while
 /// `VmChecks::Disabled` relaxes the checks around entry functions and
-/// argument values (a dev inspect). Both report the per-command return
-/// values in [`SimulateTransactionResult::execution_result`]. System
-/// transactions are rejected.
+/// argument values and drops the input checks named in
+/// [`InputCheckRules::RELAXED_UNSAFE`] (a dev inspect). Both report the
+/// per-command return values in
+/// [`SimulateTransactionResult::execution_result`]. System transactions are
+/// rejected.
 ///
 /// Under either `checks`, the simulation fills in whatever gas the
 /// transaction leaves unset, so that a caller with no gas to declare can
