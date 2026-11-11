@@ -76,7 +76,7 @@ use crate::{
 };
 
 /// Lower bounds of epochs, by epoch number.
-struct EpochLowerBoundsMap(HashMap<u64, EpochLowerBounds>);
+pub(crate) struct EpochLowerBoundsMap(HashMap<u64, EpochLowerBounds>);
 
 impl EpochLowerBoundsMap {
     /// Returns the lower bounds of `epoch`.
@@ -84,7 +84,7 @@ impl EpochLowerBoundsMap {
     /// # Errors
     ///
     /// Returns an error if the `epochs` table has no row for `epoch`.
-    fn get(&self, epoch: u64) -> Result<&EpochLowerBounds, IndexerError> {
+    pub(crate) fn get(&self, epoch: u64) -> Result<&EpochLowerBounds, IndexerError> {
         self.0.get(&epoch).ok_or_else(|| {
             IndexerError::PersistentStorageDataCorruption(format!(
                 "epoch {epoch} not found in epoch mapping",
@@ -136,7 +136,7 @@ pub struct PgIndexerStoreConfig {
 pub struct PgIndexerStore {
     blocking_cp: ConnectionPool,
     metrics: IndexerMetrics,
-    partition_manager: PgPartitionManager,
+    pub(crate) partition_manager: PgPartitionManager,
     pub(crate) config: PgIndexerStoreConfig,
 }
 
@@ -1557,7 +1557,7 @@ impl PgIndexerStore {
         })
     }
 
-    fn map_epochs_to_low_bounds(
+    pub(crate) fn map_epochs_to_low_bounds(
         &self,
         epochs: &[u64],
     ) -> Result<EpochLowerBoundsMap, IndexerError> {
@@ -1717,6 +1717,22 @@ impl PgIndexerStore {
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )
+    }
+
+    /// Returns the checkpoint with the highest sequence number, or `None` if the `checkpoints`
+    /// table is empty.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails.
+    pub(crate) fn get_latest_checkpoint(&self) -> Result<Option<StoredCheckpoint>, IndexerError> {
+        read_only_blocking!(&self.blocking_cp, |conn| {
+            checkpoints::dsl::checkpoints
+                .order_by(checkpoints::sequence_number.desc())
+                .first::<StoredCheckpoint>(conn)
+                .optional()
+        })
+        .context("Failed reading latest checkpoint from PostgresDB")
     }
 
     pub(crate) async fn execute_in_blocking_worker<F, R>(&self, f: F) -> Result<R, IndexerError>
