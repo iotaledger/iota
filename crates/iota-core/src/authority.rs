@@ -114,7 +114,7 @@ use iota_types::{
     },
     traffic_control::{PolicyConfig, TrafficControlReconfigParams},
     transaction::*,
-    transaction_executor::{SimulateTransactionResult, VmChecks},
+    transaction_executor::{InputCheckRules, SimulateTransactionResult, VmChecks},
 };
 use itertools::Itertools;
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
@@ -2828,23 +2828,12 @@ impl AuthorityState {
         mut transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
-        if transaction.kind().is_system() {
-            return Err(IotaError::UnsupportedFeature {
-                error: "simulate does not support system transactions".to_string(),
-            });
-        }
-
-        transaction.check_serialized_size(epoch_store.protocol_config())?;
-
-        // Cheap validity checks for a transaction, including input size limits.
-        // This does not check if gas objects are missing since we may create a
-        // mock gas object. It checks for other transaction input validity.
-        transaction.validity_check_no_gas_check(epoch_store.protocol_config())?;
-
-        // The full validity check caps the gas payment size alongside requiring a
-        // gas payment at all, which a simulation relaxes so it can mock one. The cap
-        // still applies, and is cheapest before any object is loaded.
-        transaction.check_gas_payment_size(epoch_store.protocol_config())?;
+        // A missing gas payment is allowed here, since we may create a mock gas
+        // object below.
+        iota_transaction_checks::check_user_transaction_validity(
+            &transaction,
+            epoch_store.protocol_config(),
+        )?;
 
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();
@@ -2893,60 +2882,18 @@ impl AuthorityState {
         // `authenticator_gas_budget` to 0.
         let authenticator_gas_budget = 0;
 
-        // Checks enabled -> DRY-RUN, it means we are simulating a real TX
-        // Checks disabled -> DEV-INSPECT, more relaxed Move VM checks
-        let (gas_status, checked_input_objects) = if checks.enabled() {
-            iota_transaction_checks::check_transaction_input(
-                protocol_config,
-                epoch_store.reference_gas_price(),
-                &transaction,
-                input_objects,
-                &receiving_objects,
-                &self.metrics.bytecode_verifier_metrics,
-                VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
-                authenticator_gas_budget,
-                false,
-            )?
-        } else {
-            // Execution smashes the gas coins and reserves the whole budget from them
-            // before running any command, treating the input checks as having verified
-            // that they are gas coins at all — so with those checks skipped here, this
-            // has to stand in for them. With the checks enabled,
-            // `check_transaction_input` covers it.
-            iota_types::gas::check_gas_coins_cover_budget_in_simulation(
-                &input_objects,
-                transaction.gas(),
-                transaction.gas_budget(),
-            )?;
-
-            let checked_input_objects = iota_transaction_checks::check_simulation_input(
-                protocol_config,
-                transaction.kind(),
-                input_objects,
-                receiving_objects,
-            )?;
-
-            // Execution verifies the packages a transaction publishes with neither a
-            // limit nor a meter, trusting signing to have bounded them — so with the
-            // signing-time checks skipped here, this has to bound them. The node's
-            // own limits reject nothing that signing would accept. With the checks
-            // enabled, `check_transaction_input` covers it.
-            iota_transaction_checks::check_non_system_packages_to_be_published(
-                &transaction,
-                protocol_config,
-                &self.metrics.bytecode_verifier_metrics,
-                VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
-            )?;
-
-            let gas_status = IotaGasStatus::new(
-                transaction.gas_budget(),
-                transaction.gas_price(),
-                epoch_store.reference_gas_price(),
-                protocol_config,
-            )?;
-
-            (gas_status, checked_input_objects)
-        };
+        let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
+            protocol_config,
+            epoch_store.reference_gas_price(),
+            &transaction,
+            input_objects,
+            &receiving_objects,
+            &self.metrics.bytecode_verifier_metrics,
+            VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
+            authenticator_gas_budget,
+            false,
+            InputCheckRules::from(checks),
+        )?;
 
         // Create a new executor for the simulation
         let executor = iota_execution::executor(
@@ -6867,6 +6814,7 @@ impl AuthorityState {
                 verifier_limits_source,
                 authenticator_gas_budget,
                 is_execute_transaction_to_effects,
+                InputCheckRules::STRICT,
             )?;
 
         Ok((
@@ -6934,6 +6882,7 @@ impl AuthorityState {
                 verifier_limits_source,
                 authenticator_gas_budget,
                 false,
+                InputCheckRules::STRICT,
             )?;
 
         Ok((tx_checked_input_objects, per_authenticator_checked_inputs))

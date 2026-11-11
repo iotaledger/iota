@@ -4377,6 +4377,11 @@ impl ProtocolConfig {
         }
     }
 
+    pub fn set_pass_calculated_validator_scores_to_advance_epoch_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .pass_calculated_validator_scores_to_advance_epoch = val;
+    }
+
     pub fn set_package_metadata_with_dynamic_module_metadata_for_testing(&mut self, val: bool) {
         self.feature_flags
             .package_metadata_with_dynamic_module_metadata = val;

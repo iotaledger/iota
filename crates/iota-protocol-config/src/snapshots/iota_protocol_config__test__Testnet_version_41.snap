@@ -61,7 +61,6 @@ feature_flags:
   validate_input_object_versions: true
   disallow_self_identifier: true
   disallow_self_identifier_in_transactions: true
-  secp256r1_ecrecover_checks_x_below_p: true
   check_canonical_module_version_header: true
   disallow_randomness_in_move_authenticator: true
   check_cyclic_dependencies: true
@@ -74,6 +73,7 @@ feature_flags:
   deprecate_global_storage_ops: true
   meter_instantiation_loops: true
   move_authenticator_type_arg_packages_as_inputs: true
+  secp256r1_ecrecover_checks_x_below_p: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000

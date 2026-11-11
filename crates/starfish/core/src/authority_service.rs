@@ -54,7 +54,7 @@ use crate::{
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
     task::spawn_blocking,
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    transaction_ref::TransactionRef,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -830,9 +830,7 @@ fn read_transaction_payloads(
         // state does not hold is not in the store either.
         let dag_state = dag_state.read();
         for transaction_ref in refs {
-            if let Some(payload) =
-                dag_state.get_cached_serialized_transactions((*transaction_ref).into())
-            {
+            if let Some(payload) = dag_state.get_cached_serialized_transactions(*transaction_ref) {
                 payloads.insert(*transaction_ref, payload);
             } else if transaction_ref.round
                 <= dag_state.evicted_transaction_round(transaction_ref.author)
@@ -906,7 +904,7 @@ fn take_payload(
 ) -> Option<Bytes> {
     payloads.remove(&transaction_ref).or_else(|| {
         context
-            .empty_transactions_for_ref(transaction_ref.into())
+            .empty_transactions_for_ref(transaction_ref)
             .map(|empty| empty.serialized().clone())
     })
 }
@@ -930,7 +928,7 @@ fn check_first_commit_payloads(
         }
         let mut evicted = Vec::new();
         for &transaction_ref in transaction_refs {
-            if dag_state.contains_cached_transactions(transaction_ref.into()) {
+            if dag_state.contains_cached_transactions(transaction_ref) {
                 continue;
             }
             if transaction_ref.round > dag_state.evicted_transaction_round(transaction_ref.author) {
@@ -943,9 +941,7 @@ fn check_first_commit_payloads(
     if evicted.is_empty() {
         return Ok(());
     }
-    let generic_refs: Vec<GenericTransactionRef> =
-        evicted.iter().copied().map(Into::into).collect();
-    let stored = store.contains_transactions(&generic_refs)?;
+    let stored = store.contains_transactions(&evicted)?;
     match evicted.into_iter().zip(stored).find(|(_, stored)| !stored) {
         Some((transaction_ref, _)) => {
             Err(ConsensusError::TransactionsNotAvailable { transaction_ref })
@@ -1249,7 +1245,7 @@ fn read_transactions_up_to_budget(
         // the next flush.
         let is_evicted = |transaction_ref: &TransactionRef| {
             transaction_ref.round <= dag_state.evicted_transaction_round(transaction_ref.author)
-                && !dag_state.contains_cached_transactions((*transaction_ref).into())
+                && !dag_state.contains_cached_transactions(*transaction_ref)
         };
         while let Some(&transaction_ref) = refs.front() {
             if is_evicted(&transaction_ref) || (!payloads.is_empty() && total_bytes >= byte_budget)
@@ -1257,9 +1253,7 @@ fn read_transactions_up_to_budget(
                 break;
             }
             refs.pop_front();
-            if let Some(payload) =
-                dag_state.get_cached_serialized_transactions(transaction_ref.into())
-            {
+            if let Some(payload) = dag_state.get_cached_serialized_transactions(transaction_ref) {
                 total_bytes += payload.len();
                 payloads.push((transaction_ref, payload));
             }
@@ -1280,14 +1274,12 @@ fn read_transactions_up_to_budget(
             (byte_budget.saturating_sub(total_bytes) / max_entry_bytes).clamp(1, evicted.len());
         let (group, rest) = evicted.split_at(count);
         evicted = rest;
-        let generic_refs: Vec<GenericTransactionRef> =
-            group.iter().copied().map(Into::into).collect();
-        let stored = store.read_serialized_transactions(&generic_refs)?;
+        let stored = store.read_serialized_transactions(group)?;
         for (&transaction_ref, payload) in group.iter().zip(stored) {
             refs.pop_front();
             let payload = payload.or_else(|| {
                 context
-                    .empty_transactions_for_ref(transaction_ref.into())
+                    .empty_transactions_for_ref(transaction_ref)
                     .map(|empty| empty.serialized().clone())
             });
             if let Some(payload) = payload {
@@ -1391,7 +1383,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         )?;
         let block_ref = verified_block_header.reference();
         let transaction_ref = verified_block_header.transaction_ref();
-        let gen_transaction_ref = GenericTransactionRef::from(transaction_ref);
         let far_future_ceiling = self.dag_state.read().far_future_round_ceiling();
         let primary_block_far_future = block_ref.round > far_future_ceiling;
         if primary_block_far_future {
@@ -1664,7 +1655,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .into();
             let shard_for_core = VerifiedOwnShard {
                 serialized_shard: serialized_shard_for_core,
-                gen_transaction_ref,
+                transaction_ref,
             };
             self.core_dispatcher
                 .add_shards(vec![shard_for_core])
@@ -2054,19 +2045,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .handle_fetch_commits(peer, commit_range, CommitSyncType::Fast)
             .await?;
 
-        // The `BlockRef` arm exists only for `CommitV1`, which is no longer
-        // produced and never enters the per-epoch store these commits are read
-        // from.
         let commits_transaction_refs: Vec<Vec<TransactionRef>> = commits
             .iter()
-            .map(|commit| {
-                commit
-                    .committed_transactions()
-                    .into_iter()
-                    .map(GenericTransactionRef::expect_transaction_ref)
-                    .collect::<ConsensusResult<Vec<_>>>()
-            })
-            .collect::<ConsensusResult<_>>()?;
+            .map(|commit| commit.committed_transactions().to_vec())
+            .collect();
 
         if let (Some(first_commit), Some(first_commit_refs)) =
             (commits.first(), commits_transaction_refs.first())
@@ -2496,7 +2478,7 @@ mod tests {
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
-        transaction_ref::{GenericTransactionRef, TransactionRef},
+        transaction_ref::TransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,
     };
 
@@ -3941,7 +3923,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -3957,7 +3939,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -3980,7 +3962,7 @@ mod tests {
 
         async fn get_missing_transaction_data(
             &self,
-        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!("Unimplemented")
         }
 
@@ -3990,7 +3972,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -4015,7 +3997,7 @@ mod tests {
             &self,
             _round: Round,
             _reason: ReasonToCreateBlock,
-        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!("Unimplemented")
         }
 
@@ -6695,7 +6677,7 @@ mod tests {
         let late_ref = late.transaction_ref();
         assert!(late_ref.round <= dag_state.read().evicted_transaction_round(late_ref.author));
         dag_state.write().add_transactions(late, DataSource::Test);
-        assert!(!store.contains_transactions(&[late_ref.into()]).unwrap()[0]);
+        assert!(!store.contains_transactions(&[late_ref]).unwrap()[0]);
 
         let payloads = read_transaction_payloads(&dag_state, &[late_ref], |evicted| {
             store.scan_serialized_transactions(&evicted, usize::MAX)

@@ -1930,7 +1930,7 @@ mod tests {
         misbehavior_store::MisbehaviorStore,
         network::{BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient},
         storage::mem_store::MemStore,
-        transaction_ref::{GenericTransactionRef, TransactionRef},
+        transaction_ref::TransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,
     };
 
@@ -3445,7 +3445,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -3463,7 +3463,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -3484,7 +3484,7 @@ mod tests {
 
         async fn get_missing_transaction_data(
             &self,
-        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!("Unimplemented")
         }
 
@@ -3495,7 +3495,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -3521,7 +3521,7 @@ mod tests {
             &self,
             _round: Round,
             _reason: ReasonToCreateBlock,
-        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             Ok(BTreeMap::new())
         }
 

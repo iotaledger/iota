@@ -4,7 +4,11 @@
 
 use std::collections::BTreeSet;
 
-use fastcrypto::{groups::bls12381, serde_helpers::ToFromByteArray};
+use anemo::types::response::StatusCode;
+use fastcrypto::{
+    groups::{GroupElement, bls12381},
+    serde_helpers::ToFromByteArray,
+};
 use fastcrypto_threshold::{mocked_dkg, nodes};
 use iota_macros::sim_test;
 use iota_swarm_config::test_utils::CommitteeFixture;
@@ -581,6 +585,212 @@ async fn test_full_sig_from_checkpoint() {
     tokio::time::sleep(Duration::from_secs(5)).await;
     let unexpected = randomness_rxs[3].try_recv();
     assert!(unexpected.is_err(), "unexpected randomness: {unexpected:?}");
+}
+
+#[tokio::test]
+async fn test_full_peer_mailbox_rejects_requests() {
+    telemetry_subscribers::init_for_testing();
+    let committee_fixture =
+        CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
+    let committee = committee_fixture.committee();
+    let (authority, _) = committee.members().next().unwrap();
+
+    let config = RandomnessConfig {
+        mailbox_capacity: Some(2),
+        peer_mailbox_capacity: Some(2),
+        ..Default::default()
+    };
+    let (tx, _rx) = mpsc::channel(3);
+    let (unstarted, router) = Builder::new(*authority, tx).config(config).build();
+    let network = utils::build_network(|r| r.merge(router));
+    let peer_network = utils::build_network(|r| r);
+    peer_network.connect(network.local_addr()).await.unwrap();
+
+    // The event loop is not started yet, so nothing drains its mailboxes.
+    let (event_loop, handle) = unstarted.build(network.clone());
+    event_loop
+        .allowed_peers
+        .update(Arc::new(HashSet::from([peer_network.peer_id()])));
+
+    let mut client = RandomnessClient::new(peer_network.peer(network.peer_id()).unwrap());
+    let request = || {
+        anemo::Request::new(SendSignaturesRequest {
+            epoch: 0,
+            round: RandomnessRound::new(0),
+            partial_sigs: Vec::new(),
+            sig: None,
+        })
+        .with_timeout(Duration::from_secs(5))
+    };
+    for _ in 0..2 {
+        client.send_signatures(request()).await.unwrap();
+    }
+    let status = client.send_signatures(request()).await.unwrap_err();
+    assert_eq!(status.status(), StatusCode::TooManyRequests);
+
+    // A full peer mailbox leaves room for the node's own messages.
+    handle.send_partial_signatures(0, RandomnessRound::new(0));
+    handle.complete_round(0, RandomnessRound::new(0));
+
+    // Once the event loop drains the mailbox, requests are accepted again.
+    tokio::spawn(event_loop.start());
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while client.send_signatures(request()).await.is_err() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("request should be accepted once the mailbox drains");
+}
+
+#[tokio::test]
+async fn test_queued_requests_per_peer_are_limited() {
+    telemetry_subscribers::init_for_testing();
+    let committee_fixture =
+        CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
+    let committee = committee_fixture.committee();
+    let (authority, _) = committee.members().next().unwrap();
+
+    let config = RandomnessConfig {
+        max_queued_requests_per_peer: Some(2),
+        ..Default::default()
+    };
+    let (tx, _rx) = mpsc::channel(3);
+    let (unstarted, router) = Builder::new(*authority, tx).config(config).build();
+    let network = utils::build_network(|r| r.merge(router));
+    let flooding_network = utils::build_network(|r| r);
+    let honest_network = utils::build_network(|r| r);
+    flooding_network
+        .connect(network.local_addr())
+        .await
+        .unwrap();
+    honest_network.connect(network.local_addr()).await.unwrap();
+
+    // The event loop is not started yet, so nothing drains its mailboxes.
+    let (event_loop, _handle) = unstarted.build(network.clone());
+    event_loop.allowed_peers.update(Arc::new(HashSet::from([
+        flooding_network.peer_id(),
+        honest_network.peer_id(),
+    ])));
+
+    let mut flooding_client =
+        RandomnessClient::new(flooding_network.peer(network.peer_id()).unwrap());
+    let mut honest_client = RandomnessClient::new(honest_network.peer(network.peer_id()).unwrap());
+    let request = || {
+        anemo::Request::new(SendSignaturesRequest {
+            epoch: 0,
+            round: RandomnessRound::new(0),
+            partial_sigs: Vec::new(),
+            sig: None,
+        })
+        .with_timeout(Duration::from_secs(5))
+    };
+    for _ in 0..2 {
+        flooding_client.send_signatures(request()).await.unwrap();
+    }
+    let status = flooding_client
+        .send_signatures(request())
+        .await
+        .unwrap_err();
+    assert_eq!(status.status(), StatusCode::TooManyRequests);
+
+    // Another peer's requests are still accepted.
+    honest_client.send_signatures(request()).await.unwrap();
+
+    // Once the event loop handles the queued requests, the peer may send again.
+    tokio::spawn(event_loop.start());
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while flooding_client.send_signatures(request()).await.is_err() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("request should be accepted once the queued requests are handled");
+}
+
+/// Builds the event loop of the first member of a 4-member committee, in
+/// epoch 0 with round 0 requested, and returns it with the mocked DKG output of
+/// the second member and that member's peer ID.
+fn event_loop_at_round_0() -> (RandomnessEventLoop, dkg_v1::Output<PkG, EncG>, PeerId) {
+    let committee_fixture =
+        CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
+    let committee = committee_fixture.committee();
+    let config = RandomnessConfig {
+        max_ignored_peer_weight_factor: Some(0.3),
+        ..Default::default()
+    };
+
+    let mut authority_info = HashMap::new();
+    let mut nodes = Vec::new();
+    for (i, (authority, stake)) in committee.members().enumerate() {
+        let node = node_from_committee(committee, authority, *stake);
+        authority_info.insert(*authority, (PeerId([i as u8; 32]), node.id));
+        nodes.push(node);
+    }
+    let nodes = nodes::Nodes::new(nodes).unwrap();
+    let threshold = committee.validity_threshold();
+    let mock_dkg_output = |party_id| {
+        mocked_dkg::generate_mocked_output::<PkG, EncG>(
+            nodes.clone(),
+            threshold.try_into().unwrap(),
+            0,
+            party_id,
+        )
+    };
+
+    let (authority, _) = committee.members().next().unwrap();
+    let (tx, _rx) = mpsc::channel(3);
+    let (unstarted, _router) = Builder::new(*authority, tx).config(config).build();
+    let (mut event_loop, _handle) = unstarted.build(utils::build_network(|r| r));
+    let own_party_id = authority_info[authority].1;
+    event_loop
+        .update_epoch(
+            0,
+            authority_info.clone(),
+            mock_dkg_output(own_party_id),
+            threshold.try_into().unwrap(),
+            None,
+        )
+        .unwrap();
+    event_loop.send_partial_signatures(0, RandomnessRound::new(0));
+
+    let (peer_name, _) = committee.members().nth(1).unwrap();
+    let (peer_id, peer_party_id) = authority_info[peer_name];
+    (event_loop, mock_dkg_output(peer_party_id), peer_id)
+}
+
+#[tokio::test]
+async fn test_invalid_full_sig_ignores_peer() {
+    let (mut event_loop, _, peer_id) = event_loop_at_round_0();
+    assert!(event_loop.allowed_peers_set.contains(&peer_id));
+
+    event_loop.receive_full_signature(
+        peer_id,
+        0,
+        RandomnessRound::new(0),
+        RandomnessSignature::generator(),
+    );
+
+    assert!(!event_loop.allowed_peers_set.contains(&peer_id));
+}
+
+#[tokio::test]
+async fn test_invalid_partial_sigs_ignore_peer() {
+    let (mut event_loop, peer_dkg_output, peer_id) = event_loop_at_round_0();
+    assert!(event_loop.allowed_peers_set.contains(&peer_id));
+
+    // Signed for the wrong round, so they fail verification for round 0.
+    let partial_sigs = ThresholdBls12381MinSig::partial_sign_batch(
+        peer_dkg_output.shares.unwrap().iter(),
+        &RandomnessRound::new(1).signature_message(),
+    );
+    let sig_bytes = partial_sigs
+        .iter()
+        .map(|sig| bcs::to_bytes(sig).unwrap())
+        .collect();
+    event_loop.receive_partial_signatures(peer_id, 0, RandomnessRound::new(0), sig_bytes);
+
+    assert!(!event_loop.allowed_peers_set.contains(&peer_id));
 }
 
 fn node_from_committee(

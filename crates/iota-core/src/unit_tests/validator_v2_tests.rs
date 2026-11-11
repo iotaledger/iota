@@ -66,7 +66,7 @@ async fn test_submit_single_tx_produces_an_attested_user_transaction() {
     mock.expect_submit().returning(move |transactions, _| {
         let _ = captured_tx.try_send(transactions[0].clone());
         Ok(with_block_status(starfish_core::BlockStatus::Sequenced(
-            starfish_core::GenericTransactionRef::BlockRef(starfish_core::BlockRef::MIN),
+            starfish_core::TransactionRef::default(),
         )))
     });
 
