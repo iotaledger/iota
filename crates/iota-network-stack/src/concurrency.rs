@@ -62,8 +62,8 @@ pub struct ServiceConcurrencyLimit<S> {
 }
 
 impl<S> ServiceConcurrencyLimit<S> {
-    /// `response_send_timeout` must be longer than any response of the
-    /// service legitimately takes to send, streaming responses included.
+    /// `response_send_timeout` must exceed the longest time a response of the
+    /// service legitimately takes to send.
     pub fn new(
         inner: S,
         limit: NonZeroUsize,
