@@ -580,17 +580,6 @@ pub trait ObjectCacheRead: Send + Sync {
             .expect("storage access failed")
     }
 
-    /// Whether `version` of `object_id` stopped being the current version
-    /// during `epoch`, that is a transaction of that epoch consumed it. Reads
-    /// only `epoch`'s records, so the answer does not depend on how many
-    /// epochs the node retains.
-    fn try_object_superseded_in_epoch(
-        &self,
-        object_id: &ObjectId,
-        version: Version,
-        epoch: EpochId,
-    ) -> IotaResult<bool>;
-
     // Marker methods
 
     /// Get the marker at a specific version

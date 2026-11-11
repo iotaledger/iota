@@ -14,6 +14,7 @@
 
 use std::{
     cell::Cell,
+    cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
@@ -23,7 +24,7 @@ use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Digest, GasPayment, MoveAuthenticator, ObjectId, ObjectReference, Transaction,
-    TransactionDigest, Version,
+    TransactionDigest, TransactionEffects, TransactionKind, Version,
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
@@ -35,43 +36,195 @@ use iota_types::{
     attestation::{self, Attestation},
     auth_context::AuthContextData,
     committee::EpochId,
+    effects::TransactionEffectsAPI,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     execution::{is_any_invariant_violation, is_cancellation, unwrap_move_authentication_error},
     gas::{IotaGasStatus, IotaGasStatusAPI},
     metrics::LimitsMetrics,
     move_authenticator::MoveAuthenticatorExt,
-    storage::BackingStore,
+    storage::{BackingStore, ObjectKey},
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        TransactionAPI,
+        TransactionAPI, TransactionKey,
     },
 };
 
-use crate::execution_cache::ObjectCacheRead;
+use crate::{
+    authority::authority_per_epoch_store::{
+        AuthorityPerEpochStore, ExecutionIndices,
+        handler_object_state::{CommitIndex, HandlerProcessedObject},
+    },
+    execution_cache::{ObjectCacheRead, TransactionCacheRead},
+};
 
-/// Resolves whether an object version was superseded (overwritten, deleted or
-/// wrapped) by a transaction of the current epoch — such versions stay in the
-/// epoch's historic bucket and can be re-run at.
+/// When a recorded version stopped being current: the commit of the
+/// transaction that replaced it, or the leader round when that transaction
+/// is a commit prologue, which carries no commit index.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SupersededAt {
+    Commit(CommitIndex),
+    Round(u64),
+}
+
+/// Finds when a recorded version stopped being current this epoch, with
+/// nothing written for it: the object's versions lead from the one execution
+/// used back to the recorded one, and each step's transaction carries its
+/// commit, on the handler's assignment or on the row of its gas coin, or its
+/// round when it is a commit prologue.
 pub(crate) struct AttestedObjectVersions<'a> {
     pub(crate) object_cache: &'a dyn ObjectCacheRead,
-    pub(crate) current_epoch: EpochId,
+    pub(crate) transaction_cache: &'a dyn TransactionCacheRead,
+    pub(crate) epoch_store: &'a AuthorityPerEpochStore,
+    /// Where consensus first sequenced the attested transaction.
+    pub(crate) sequenced_at: ExecutionIndices,
+    /// How many commits, or rounds, before `sequenced_at` a supersession may
+    /// lie; `None` admits any of the epoch.
+    pub(crate) window: Option<u64>,
 }
 
 impl AttestedObjectVersions<'_> {
-    pub(crate) fn superseded_in_current_epoch(
+    /// When `attested` stopped being current, if inside the window. Walks
+    /// down from `executed`, the version execution used, and gives up at the
+    /// first step before the window, since every earlier one is older.
+    pub(crate) fn superseded_within_window(
+        &self,
+        object_id: &ObjectId,
+        attested: Version,
+        executed: Version,
+    ) -> Option<SupersededAt> {
+        // The replacing version is often the next one, always for the Clock,
+        // whose chain a walk from `executed` would follow commit by commit.
+        let next = attested.next().ok();
+        let mut version = match next.and_then(|next| self.step(object_id, next)) {
+            Some((replaced, at)) if replaced == attested => {
+                return self.within_window(at).then_some(at);
+            }
+            _ => executed,
+        };
+        loop {
+            let (replaced, at) = self.step(object_id, version)?;
+            if !self.within_window(at) {
+                return None;
+            }
+            match replaced.cmp(&attested) {
+                Ordering::Equal => return Some(at),
+                Ordering::Greater => version = replaced,
+                Ordering::Less => return None,
+            }
+        }
+    }
+
+    /// The version that `version` replaced and when, from the transaction
+    /// that produced `version`. `None` when that transaction ran in an earlier
+    /// epoch, created the object, or carries no position.
+    fn step(&self, object_id: &ObjectId, version: Version) -> Option<(Version, SupersededAt)> {
+        let epoch = self.epoch_store.epoch();
+        let object = self
+            .object_cache
+            .try_get_object_by_key_with_historic_fallback(object_id, version, epoch)
+            .unwrap_or_else(|error| fatal!("cannot read {object_id}@{version}: {error}"));
+        let digest = match object {
+            Some(object) => object.previous_transaction,
+            None => self.deleting_transaction(object_id, version)?,
+        };
+        let effects = self
+            .transaction_cache
+            .get_executed_effects(&digest)
+            .unwrap_or_else(|| {
+                fatal!("no effects for {digest}, which produced {object_id}@{version}")
+            });
+        if effects.epoch() != epoch {
+            return None;
+        }
+        let replaced = effects
+            .modified_at_versions()
+            .into_iter()
+            .find(|modified| modified.object_id() == object_id)?
+            .version();
+        Some((replaced, self.transaction_position(&digest, &effects)?))
+    }
+
+    /// The transaction that deleted `object_id` at `version`: from the marker
+    /// of a shared object, else from the tombstone's row.
+    fn deleting_transaction(
         &self,
         object_id: &ObjectId,
         version: Version,
-    ) -> bool {
-        // A read failure must not decide a verdict every validator has to
-        // reach alike.
-        self.object_cache
-            .try_object_superseded_in_epoch(object_id, version, self.current_epoch)
+    ) -> Option<TransactionDigest> {
+        let epoch = self.epoch_store.epoch();
+        let marker = self
+            .object_cache
+            .try_get_deleted_shared_object_previous_tx_digest(object_id, version, epoch)
             .unwrap_or_else(|error| {
-                fatal!(
-                    "cannot read whether {object_id}@{version} was superseded this epoch: {error}"
+                fatal!("cannot read the deletion of {object_id}@{version}: {error}")
+            });
+        marker.or_else(|| self.row(&ObjectKey(*object_id, version))?.deleted_by)
+    }
+
+    /// Where `digest` ran: its commit from the handler's assignment while the
+    /// commit is open, afterwards from the row of the gas coin it mutated;
+    /// its round for a commit prologue. Any other system transaction has none.
+    fn transaction_position(
+        &self,
+        digest: &TransactionDigest,
+        effects: &TransactionEffects,
+    ) -> Option<SupersededAt> {
+        let transaction = self
+            .transaction_cache
+            .get_transaction_block(digest)
+            .unwrap_or_else(|| fatal!("no transaction {digest} behind its executed effects"));
+        if let TransactionKind::ConsensusCommitPrologueV1(prologue) =
+            transaction.inner().transaction().kind()
+        {
+            return Some(SupersededAt::Round(prologue.round));
+        }
+        if transaction.is_system_tx() {
+            return None;
+        }
+        let commit = self
+            .epoch_store
+            .commit_index_of(&TransactionKey::Digest(*digest))
+            .or_else(|| {
+                let gas = effects.gas_object();
+                let gas = gas.reference();
+                Some(
+                    self.row(&ObjectKey(gas.object_id, gas.version))?
+                        .produced_at,
                 )
             })
+            .unwrap_or_else(|| {
+                fatal!("no commit for {digest}: neither assigned nor on its gas coin's row")
+            });
+        Some(SupersededAt::Commit(commit))
+    }
+
+    fn row(&self, key: &ObjectKey) -> Option<HandlerProcessedObject> {
+        self.epoch_store
+            .handler_processed_object(key)
+            .unwrap_or_else(|error| fatal!("cannot read the row of {key:?}: {error}"))
+    }
+
+    fn within_window(&self, at: SupersededAt) -> bool {
+        within_freshness_window(at, self.sequenced_at, self.window)
+    }
+}
+
+/// Whether a version superseded at `at` was current recently enough before
+/// `sequenced_at` for an honest dry run to have read it: at or after the
+/// window's start, or anywhere in the epoch when there is no window.
+fn within_freshness_window(
+    at: SupersededAt,
+    sequenced_at: ExecutionIndices,
+    window: Option<u64>,
+) -> bool {
+    let Some(window) = window else {
+        return true;
+    };
+    match at {
+        SupersededAt::Commit(commit) => commit >= sequenced_at.sub_dag_index.saturating_sub(window),
+        SupersededAt::Round(round) => {
+            round >= sequenced_at.last_committed_round.saturating_sub(window)
+        }
     }
 }
 
@@ -176,9 +329,10 @@ impl AttestationVerdictContext<'_> {
     /// # Panics
     ///
     /// If the recorded state cannot be read. The drift check only admits
-    /// versions superseded this epoch, which the epoch's historic bucket keeps,
-    /// so a missing or unreadable one is a fault of this node and must not
-    /// become a verdict the other validators do not share.
+    /// versions superseded this epoch within the freshness window, which the
+    /// epoch's historic bucket keeps, so a missing or unreadable one is a fault
+    /// of this node and must not become a verdict the other validators do not
+    /// share.
     pub(crate) fn decide_authentication_failure_blame(
         &self,
         kind: &ExecutionErrorKind,
@@ -215,9 +369,10 @@ impl AttestationVerdictContext<'_> {
             self.attestation.object_versions(),
             &self.executed_versions,
             &pinned_by_transaction,
-            |object_id, version| {
+            |object_id, attested, executed| {
                 self.attested_versions
-                    .superseded_in_current_epoch(object_id, version)
+                    .superseded_within_window(object_id, attested, executed)
+                    .is_some()
             },
         ) {
             return AuthenticationFailureBlame::Attestor {
@@ -240,7 +395,7 @@ fn should_reauthenticate(
     attested_versions: &[ObjectReference],
     executed_versions: &BTreeMap<ObjectId, Version>,
     pinned_by_transaction: &BTreeSet<ObjectId>,
-    superseded_in_current_epoch: impl Fn(&ObjectId, Version) -> bool,
+    superseded_within_window: impl Fn(&ObjectId, Version, Version) -> bool,
 ) -> bool {
     let mut drifted = false;
     for object_ref in attested_versions {
@@ -252,15 +407,15 @@ fn should_reauthenticate(
             continue;
         }
         // A recorded version ahead of the executed one cannot come from an
-        // honest dry run. A recorded version superseded before this epoch was
-        // never live this epoch, so an honest dry run could not have seen it.
+        // honest dry run. A recorded version superseded before the freshness
+        // window was not current when an honest dry run could have read it.
         // An honest dry run records no input the transaction pins, so a
         // differing version for one is a lie as well; judged on its own, it
         // would send the re-run against an object the transaction never named
         // at that version.
         if attested > executed
             || pinned_by_transaction.contains(object_ref.object_id())
-            || !superseded_in_current_epoch(object_ref.object_id(), attested)
+            || !superseded_within_window(object_ref.object_id(), attested, executed)
         {
             return false;
         }
@@ -504,7 +659,7 @@ impl AttestationVerdictContext<'_> {
                         .try_get_object_by_key_with_historic_fallback(
                             &object_id,
                             version,
-                            self.attested_versions.current_epoch,
+                            self.epoch_id,
                         )
                         .unwrap_or_else(|error| {
                             fatal!("cannot read {object_id}@{version}: {error}")
@@ -719,7 +874,7 @@ mod tests {
             attested,
             executed,
             &BTreeSet::new(),
-            |object_id, version| superseded.contains(&(*object_id, version)),
+            |object_id, version, _| superseded.contains(&(*object_id, version)),
         )
     }
 
@@ -736,7 +891,7 @@ mod tests {
             &[input],
             &executed,
             &pinned,
-            |object_id, version| superseded.contains(&(*object_id, version))
+            |object_id, version, _| superseded.contains(&(*object_id, version))
         ));
     }
 
@@ -811,5 +966,52 @@ mod tests {
         ]);
 
         assert!(!reauthenticates(&[account, input], &executed, superseded));
+    }
+
+    /// The window admits a supersession at its floor, inside it, and anywhere
+    /// in the epoch when unset; a prologue's round is measured against the
+    /// sequencing round.
+    #[test]
+    fn freshness_window_admits_recent_supersessions_only() {
+        let sequenced_at = |sub_dag_index, last_committed_round| ExecutionIndices {
+            last_committed_round,
+            sub_dag_index,
+            transaction_index: 0,
+        };
+        assert!(within_freshness_window(
+            SupersededAt::Commit(10),
+            sequenced_at(20, 25),
+            Some(10)
+        ));
+        assert!(within_freshness_window(
+            SupersededAt::Commit(15),
+            sequenced_at(20, 25),
+            Some(10)
+        ));
+        assert!(!within_freshness_window(
+            SupersededAt::Commit(9),
+            sequenced_at(20, 25),
+            Some(10)
+        ));
+        assert!(within_freshness_window(
+            SupersededAt::Round(15),
+            sequenced_at(20, 25),
+            Some(10)
+        ));
+        assert!(!within_freshness_window(
+            SupersededAt::Round(14),
+            sequenced_at(20, 25),
+            Some(10)
+        ));
+        assert!(within_freshness_window(
+            SupersededAt::Commit(1),
+            sequenced_at(5, 5),
+            Some(32)
+        ));
+        assert!(within_freshness_window(
+            SupersededAt::Commit(1),
+            sequenced_at(500, 500),
+            None
+        ));
     }
 }

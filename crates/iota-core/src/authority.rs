@@ -2217,7 +2217,6 @@ impl AuthorityState {
             inner_temporary_store,
             read_objects,
             &self.metrics,
-            epoch_store.protocol_config().enable_validator_attestation(),
             attestation_record,
         );
         self.get_cache_writer()
@@ -2476,36 +2475,40 @@ impl AuthorityState {
             // Only attested transactions can have their Move-authentication
             // failure attributed, and only they carry recorded versions to judge.
             let attestation_verdict_context = match attestation {
-                AttestationSource::Attestation(attestation) => {
-                    Some(attestation_verdict::AttestationVerdictContext {
-                        attestation,
-                        attested_versions: attestation_verdict::AttestedObjectVersions {
-                            object_cache: self.get_object_cache_reader().as_ref(),
-                            current_epoch: epoch_id,
-                        },
-                        store: backing_store,
-                        executor: epoch_store.executor().as_ref(),
-                        protocol_config,
-                        metrics: self.metrics.limits_metrics.clone(),
-                        epoch_id,
-                        epoch_timestamp_ms: epoch_start_timestamp,
-                        reference_gas_price,
-                        gas_data: gas_data.clone(),
-                        authenticators: attestation_verdict::authenticator_inputs(
-                            &move_authenticators,
-                            &per_authenticator_checked_input_objects,
-                        ),
-                        executed_versions: attestation_verdict::executed_versions(
-                            &per_authenticator_checked_input_objects,
-                            &resolutions,
-                        ),
-                        transaction: tx,
-                        transaction_signer: signer,
-                        transaction_digest: tx_digest,
-                        sender_auth_digest,
-                        sponsor_auth_digest,
-                    })
-                }
+                AttestationSource::Attestation {
+                    attestation,
+                    sequenced_at,
+                } => Some(attestation_verdict::AttestationVerdictContext {
+                    attestation,
+                    attested_versions: attestation_verdict::AttestedObjectVersions {
+                        object_cache: self.get_object_cache_reader().as_ref(),
+                        transaction_cache: self.get_transaction_cache_reader().as_ref(),
+                        epoch_store,
+                        sequenced_at: *sequenced_at,
+                        window: protocol_config.attestation_freshness_window_commits_as_option(),
+                    },
+                    store: backing_store,
+                    executor: epoch_store.executor().as_ref(),
+                    protocol_config,
+                    metrics: self.metrics.limits_metrics.clone(),
+                    epoch_id,
+                    epoch_timestamp_ms: epoch_start_timestamp,
+                    reference_gas_price,
+                    gas_data: gas_data.clone(),
+                    authenticators: attestation_verdict::authenticator_inputs(
+                        &move_authenticators,
+                        &per_authenticator_checked_input_objects,
+                    ),
+                    executed_versions: attestation_verdict::executed_versions(
+                        &per_authenticator_checked_input_objects,
+                        &resolutions,
+                    ),
+                    transaction: tx,
+                    transaction_signer: signer,
+                    transaction_digest: tx_digest,
+                    sender_auth_digest,
+                    sponsor_auth_digest,
+                }),
                 AttestationSource::Unattested | AttestationSource::Certified(_) => None,
             };
 
@@ -2596,7 +2599,7 @@ impl AuthorityState {
             let blame = Cell::new(None);
             let gas_owner_pays = |kind: &ExecutionErrorKind| {
                 match (attestation, &attestation_verdict_context) {
-                    (AttestationSource::Attestation(_), Some(context)) => {
+                    (AttestationSource::Attestation { .. }, Some(context)) => {
                         let answer = context.decide_authentication_failure_blame(kind);
                         blame.set(Some(answer));
 

@@ -33,7 +33,7 @@ use tracing::{error, info, instrument, trace, warn};
 use crate::{
     authority::{
         AuthorityMetrics, ExecutionEnv,
-        authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_per_epoch_store::{AuthorityPerEpochStore, ExecutionIndices},
         shared_object_version_manager::{AsTx, Schedulable},
     },
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
@@ -77,8 +77,12 @@ pub enum AttestationSource {
     /// No attestation: an unattested user transaction or a system transaction.
     #[default]
     Unattested,
-    /// The attestation from consensus, judged at execution.
-    Attestation(Attestation),
+    /// The attestation from consensus, judged at execution, and where
+    /// consensus first sequenced the transaction, kept across deferrals.
+    Attestation {
+        attestation: Attestation,
+        sequenced_at: ExecutionIndices,
+    },
     /// The record a certified checkpoint carries, when executing from it;
     /// `None` when the attestation was valid or there was none.
     Certified(Option<AttestationRecord>),
@@ -98,11 +102,7 @@ pub struct VerifiedExecutableAttestedTransaction {
 }
 
 impl VerifiedExecutableAttestedTransaction {
-    pub fn new(tx: VerifiedExecutableTransaction, attestation: Option<Attestation>) -> Self {
-        let attestation = attestation.map_or(
-            AttestationSource::Unattested,
-            AttestationSource::Attestation,
-        );
+    pub fn new(tx: VerifiedExecutableTransaction, attestation: AttestationSource) -> Self {
         Self { tx, attestation }
     }
 
@@ -114,7 +114,9 @@ impl VerifiedExecutableAttestedTransaction {
     /// transaction was not attested.
     pub fn attested_computation_units(&self) -> Option<u64> {
         match &self.attestation {
-            AttestationSource::Attestation(attestation) => Some(attestation.computation_units()),
+            AttestationSource::Attestation { attestation, .. } => {
+                Some(attestation.computation_units())
+            }
             AttestationSource::Unattested | AttestationSource::Certified(_) => None,
         }
     }
@@ -137,7 +139,7 @@ impl AsTx for VerifiedExecutableAttestedTransaction {
 
 impl From<VerifiedExecutableTransaction> for VerifiedExecutableAttestedTransaction {
     fn from(tx: VerifiedExecutableTransaction) -> Self {
-        Self::new(tx, None)
+        Self::new(tx, AttestationSource::Unattested)
     }
 }
 
