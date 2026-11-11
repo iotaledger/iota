@@ -14,8 +14,13 @@ use std::{
 };
 
 use bytes::Bytes;
-use http_body_util::Full;
-use hyper::{Request, Response, StatusCode, body::Incoming, service::service_fn};
+use futures::StreamExt;
+use http_body_util::{Full, StreamBody};
+use hyper::{
+    Request, Response, StatusCode,
+    body::{Frame, Incoming},
+    service::service_fn,
+};
 use hyper_util::{
     rt::{TokioExecutor, TokioIo},
     server::conn::auto::Builder,
@@ -84,6 +89,37 @@ async fn serve(values: Values, max_streams: u32, delay: Duration) -> SocketAddr 
     addr
 }
 
+/// Serves `value` for every path over HTTP/2 without TLS, in `parts` parts, waiting `gap` before
+/// each part.
+async fn serve_in_parts(value: Vec<u8>, parts: usize, gap: Duration) -> SocketAddr {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let parts = value
+        .chunks(value.len().div_ceil(parts))
+        .map(Bytes::copy_from_slice)
+        .collect::<Vec<_>>();
+    tokio::spawn(async move {
+        loop {
+            let (stream, _) = listener.accept().await.unwrap();
+            let parts = parts.clone();
+            tokio::spawn(async move {
+                let service = service_fn(move |_: Request<Incoming>| {
+                    let body = futures::stream::iter(parts.clone()).then(move |part| async move {
+                        tokio::time::sleep(gap).await;
+                        Ok::<_, Infallible>(Frame::data(part))
+                    });
+                    async move { Ok::<_, Infallible>(Response::new(StreamBody::new(body))) }
+                });
+                Builder::new(TokioExecutor::new())
+                    .serve_connection(TokioIo::new(stream), service)
+                    .await
+                    .ok();
+            });
+        }
+    });
+    addr
+}
+
 fn store(addr: SocketAddr) -> HttpKVStore {
     let metrics = KeyValueStoreMetrics::new_for_tests();
     HttpKVStore::new(&format!("http://{addr}"), 1000, metrics).unwrap()
@@ -110,4 +146,16 @@ async fn gets_beyond_the_server_stream_limit_wait_for_a_slot_instead_of_timing_o
     let (fetched, _) = store.multi_get(&digests, &[]).await.unwrap();
 
     assert_eq!(fetched, txs.into_iter().map(Some).collect::<Vec<_>>());
+}
+
+#[tokio::test]
+async fn a_value_that_keeps_arriving_past_the_read_timeout_is_read() {
+    // 4 parts, 2 s apart: the value takes 8 s, more than the 5 s read timeout, but no part waits
+    // longer than 2 s.
+    let tx = random_tx();
+    let addr = serve_in_parts(bcs::to_bytes(&tx).unwrap(), 4, Duration::from_secs(2)).await;
+
+    let (fetched, _) = store(addr).multi_get(&[*tx.digest()], &[]).await.unwrap();
+
+    assert_eq!(fetched, vec![Some(tx)]);
 }

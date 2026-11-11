@@ -37,9 +37,13 @@ use crate::{
     key_value_store_metrics::KeyValueStoreMetrics,
 };
 
-/// How long one GET may take. A GET that times out fails the read, so a key that never answers
-/// does not hold up the call.
+/// How long a GET may wait for the next part of its answer. A GET that waits longer fails the
+/// read, so a key that never answers does not hold up the call, while a large value that keeps
+/// arriving is not cut off.
 const FETCH_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// How long one GET may take in total, also while its answer keeps arriving.
+const FETCH_TOTAL_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// How many GETs may be in flight at once. All GETs share one HTTP/2 connection, and a GET beyond
 /// the server's concurrent-stream limit waits inside the client with its [`FETCH_TIMEOUT`] already
@@ -338,7 +342,8 @@ impl HttpKVStore {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let client = Client::builder()
             .http2_prior_knowledge()
-            .timeout(FETCH_TIMEOUT)
+            .read_timeout(FETCH_TIMEOUT)
+            .timeout(FETCH_TOTAL_TIMEOUT)
             .build()
             .unwrap();
 
