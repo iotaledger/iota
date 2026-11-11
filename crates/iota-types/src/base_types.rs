@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::BTreeSet,
     convert::{TryFrom, TryInto},
     fmt,
     str::FromStr,
@@ -15,7 +16,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Identifier, MoveObjectType, ObjectDigest, ObjectId, ObjectReference, Owner,
     SignatureScheme, StructTag, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
-    TypeTag, Version,
+    TransactionExpiration, TypeTag, ValidWindow, Version,
 };
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
@@ -431,6 +432,10 @@ pub struct TxContext {
     /// Whether the `TxContext` is native or not (i.e., Move reads values via
     /// native functions instead of struct fields).
     is_native: bool,
+    /// The valid window of the transaction, if its expiration is one
+    valid_window: Option<ValidWindow>,
+    /// The nonce keys taken under the transaction's lease so far
+    taken_lease_nonce_keys: BTreeSet<u64>,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -489,7 +494,33 @@ impl TxContext {
             gas_budget,
             sponsor: sponsor.map(|s| AccountAddress::new(s.into_bytes())),
             is_native: protocol_config.move_native_tx_context(),
+            valid_window: None,
+            taken_lease_nonce_keys: BTreeSet::new(),
         }
+    }
+
+    /// Sets the valid window from the transaction's expiration, if it is one.
+    pub fn with_expiration(mut self, expiration: &TransactionExpiration) -> Self {
+        self.valid_window = expiration.as_opt_valid_window().copied();
+        self
+    }
+
+    /// The valid window of the transaction, if its expiration is one.
+    pub fn valid_window(&self) -> Option<&ValidWindow> {
+        self.valid_window.as_ref()
+    }
+
+    /// Sets or clears the valid window. Used by Move test-only native
+    /// functions.
+    pub fn set_valid_window(&mut self, valid_window: Option<ValidWindow>) {
+        self.valid_window = valid_window;
+        self.taken_lease_nonce_keys.clear();
+    }
+
+    /// Records that `nonce_key` was taken under the transaction's lease.
+    /// Returns false if it was already taken in this transaction.
+    pub fn take_lease_nonce_key(&mut self, nonce_key: u64) -> bool {
+        self.taken_lease_nonce_keys.insert(nonce_key)
     }
 
     /// Returns whether the type signature is &mut TxContext, &TxContext, or
@@ -583,6 +614,8 @@ impl TxContext {
                 gas_budget: 0,
                 sponsor: None,
                 is_native: true,
+                valid_window: None,
+                taken_lease_nonce_keys: BTreeSet::new(),
             };
             tx_context.into()
         } else {
@@ -633,6 +666,8 @@ impl TxContext {
         self.gas_price = gas_price;
         self.gas_budget = gas_budget;
         self.sponsor = sponsor;
+        self.valid_window = None;
+        self.taken_lease_nonce_keys.clear();
     }
 
     // Generate a random TxContext for testing.

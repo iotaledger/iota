@@ -17,7 +17,7 @@ use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, GasPayment, MoveAuthenticator, ProgrammableTransaction, TransactionDigest,
-    TransactionEffects, TransactionKind,
+    TransactionEffects, TransactionExpiration, TransactionKind,
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
@@ -88,6 +88,7 @@ impl executor::Executor for Executor {
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
+        transaction_expiration: TransactionExpiration,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
         InnerTemporaryStore,
@@ -104,6 +105,7 @@ impl executor::Executor for Executor {
             transaction_kind,
             transaction_signer,
             transaction_digest,
+            transaction_expiration,
             &self.0,
             epoch_id,
             epoch_timestamp_ms,
@@ -130,6 +132,7 @@ impl executor::Executor for Executor {
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
+        transaction_expiration: TransactionExpiration,
         skip_all_checks: bool,
     ) -> (
         InnerTemporaryStore,
@@ -146,6 +149,7 @@ impl executor::Executor for Executor {
                 transaction_kind,
                 transaction_signer,
                 transaction_digest,
+                transaction_expiration,
                 &self.0,
                 epoch_id,
                 epoch_timestamp_ms,
@@ -164,6 +168,7 @@ impl executor::Executor for Executor {
                 transaction_kind,
                 transaction_signer,
                 transaction_digest,
+                transaction_expiration,
                 &self.0,
                 epoch_id,
                 epoch_timestamp_ms,
@@ -199,6 +204,7 @@ impl executor::Executor for Executor {
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
+        transaction_expiration: TransactionExpiration,
         auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
@@ -219,6 +225,7 @@ impl executor::Executor for Executor {
             transaction_kind,
             transaction_signer,
             transaction_digest,
+            transaction_expiration,
             auth_context_data,
             trace_builder_opt,
             &self.0,
@@ -248,6 +255,7 @@ impl executor::Executor for Executor {
         authenticated_transaction_kind: TransactionKind,
         authenticated_transaction_signer: Address,
         authenticated_transaction_digest: TransactionDigest,
+        authenticated_transaction_expiration: TransactionExpiration,
         auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
@@ -265,6 +273,7 @@ impl executor::Executor for Executor {
             authenticated_transaction_kind,
             authenticated_transaction_signer,
             authenticated_transaction_digest,
+            authenticated_transaction_expiration,
             auth_context_data,
             trace_builder_opt,
             &self.0,

@@ -22,7 +22,8 @@ mod checked {
         ExecutionStatus, GasCostSummary, GasPayment, GenesisTransaction, Identifier,
         MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
         SharedObjectReference, StructTag, SystemPackage, TransactionDenyRulesUpdate,
-        TransactionDigest, TransactionEffects, TransactionKind, TypeTag, Version,
+        TransactionDigest, TransactionEffects, TransactionExpiration, TransactionKind, TypeTag,
+        Version,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -99,6 +100,7 @@ mod checked {
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
+        transaction_expiration: TransactionExpiration,
         move_vm: &Arc<MoveVM>,
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -155,7 +157,8 @@ mod checked {
             gas_data.budget,
             sponsor,
             protocol_config,
-        );
+        )
+        .with_expiration(&transaction_expiration);
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
         execute_transaction_to_effects_inner::<Mode>(
@@ -333,6 +336,7 @@ mod checked {
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
+        transaction_expiration: TransactionExpiration,
         auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
@@ -395,7 +399,8 @@ mod checked {
             gas_data.budget,
             sponsor,
             protocol_config,
-        );
+        )
+        .with_expiration(&transaction_expiration);
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
         let enable_pcool = protocol_config.enable_pcool_flow();
@@ -800,6 +805,7 @@ mod checked {
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
+        transaction_expiration: TransactionExpiration,
         auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
@@ -828,7 +834,8 @@ mod checked {
             gas_data.budget,
             sponsor,
             protocol_config,
-        );
+        )
+        .with_expiration(&transaction_expiration);
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
         let mut temporary_store = TemporaryStore::new(

@@ -303,6 +303,7 @@ pub(super) fn execute_prepared(
         kind,
         signer,
         transaction.digest(),
+        transaction.expiration().clone(),
         dev_inspect,
     );
 
@@ -451,6 +452,7 @@ pub(super) fn execute_with_move_authenticators(
             kind,
             signer,
             transaction.digest(),
+            transaction.expiration().clone(),
             auth_context_data.clone(),
             trace_builder_opt,
         );
@@ -616,6 +618,7 @@ pub(super) fn authenticate_only(
         kind,
         signer,
         transaction.digest(),
+        transaction.expiration().clone(),
         auth_context_data,
         &mut None,
     );

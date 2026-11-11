@@ -29,6 +29,7 @@ use crate::{
         authority_per_epoch_store::{
             LockDetails, LockDetailsWrapper, report_aggregator::DBReceivedReportsStatePerAuthority,
         },
+        lease::{LeaseHolder, LeaseHolderWrapper, LeaseKey},
         shared_object_congestion_tracker::{
             CongestionPerObjectDebt, CongestionWorkerDebt, WorkerDebtSlots,
         },
@@ -97,6 +98,9 @@ pub(crate) struct ConsensusCommitOutput {
 
     // P-COOL owned object locks acquired in this commit
     owned_object_locks: HashMap<ObjectReference, LockDetails>,
+
+    // Leases taken by the transactions kept in this commit
+    leases: HashMap<LeaseKey, LeaseHolder>,
 
     // Latest overload-shed percentage advertised by each authority via
     // OverloadNotificationV1 during this commit. Flushed to
@@ -263,6 +267,10 @@ impl ConsensusCommitOutput {
 
     pub fn set_owned_object_locks(&mut self, locks: HashMap<ObjectReference, LockDetails>) {
         self.owned_object_locks = locks;
+    }
+
+    pub fn set_leases(&mut self, leases: HashMap<LeaseKey, LeaseHolder>) {
+        self.leases = leases;
     }
 
     pub fn record_overload_notification(&mut self, authority: AuthorityName, percentage: u8) {
@@ -445,6 +453,15 @@ impl ConsensusCommitOutput {
                     .map(|(obj_ref, lock)| (obj_ref, LockDetailsWrapper::from(lock))),
             )?;
         }
+
+        if !self.leases.is_empty() {
+            batch.insert_batch(
+                &tables.leases,
+                self.leases
+                    .into_iter()
+                    .map(|(key, holder)| (key, LeaseHolderWrapper::from(holder))),
+            )?;
+        }
         batch.insert_batch(
             &tables.authority_overload_notifications,
             self.overload_notifications,
@@ -591,6 +608,9 @@ pub(crate) struct ConsensusOutputQuarantine {
     // P-COOL owned object locks (aggregate across all quarantined commits)
     owned_object_locks: HashMap<ObjectReference, LockDetails>,
 
+    // Leases taken in the quarantined commits
+    leases: HashMap<LeaseKey, LeaseHolder>,
+
     // In-memory cache of the `authority_overload_notifications` table: the most
     // recent load-shedding percentage each authority has broadcast, for the
     // commits that have already been flushed to disk. Loaded once from the
@@ -628,6 +648,7 @@ impl ConsensusOutputQuarantine {
             congestion_control_randomness_object_debts: RefCountedHashMap::new(),
             processed_consensus_messages: RefCountedHashMap::new(),
             owned_object_locks: HashMap::new(),
+            leases: HashMap::new(),
             cached_overload_notifications,
             cached_deny_rule_proposals,
             metrics: authority_metrics,
@@ -648,6 +669,7 @@ impl ConsensusOutputQuarantine {
         self.insert_congestion_control_debts(&output);
         self.insert_processed_consensus_messages(&output);
         self.insert_owned_object_locks(&output);
+        self.leases.extend(&output.leases);
         let has_deny_rule_proposals = !output.deny_rule_proposals.is_empty();
         self.output_queue.push_back(output);
 
@@ -812,6 +834,9 @@ impl ConsensusOutputQuarantine {
                 self.remove_processed_consensus_messages(&output);
                 self.remove_congestion_control_debts(&output);
                 self.remove_owned_object_locks(&output);
+                for key in output.leases.keys() {
+                    self.leases.remove(key);
+                }
                 // Advance the in-memory caches in lockstep with the table
                 // writes below, so they stay equal to the persisted state once
                 // this commit leaves the queue.
@@ -935,6 +960,10 @@ impl ConsensusOutputQuarantine {
 
     pub(super) fn get_owned_object_lock(&self, obj_ref: &ObjectReference) -> Option<LockDetails> {
         self.owned_object_locks.get(obj_ref).copied()
+    }
+
+    pub(super) fn get_lease(&self, key: &LeaseKey) -> Option<LeaseHolder> {
+        self.leases.get(key).copied()
     }
 
     // Read methods - all methods in this block return data from the quarantine

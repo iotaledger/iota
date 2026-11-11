@@ -5,7 +5,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use better_any::{Tid, TidAble};
-use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+use iota_sdk_types::{Address, ObjectId, TransactionDigest, ValidWindow};
 use iota_types::{base_types::TxContext, committee::EpochId};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -93,6 +93,31 @@ impl TransactionContext {
 
     pub fn sponsor(&self) -> Option<Address> {
         self.tx_context.borrow().sponsor()
+    }
+
+    /// The valid window of the transaction, if its expiration is one.
+    pub fn valid_window(&self) -> Option<ValidWindow> {
+        self.tx_context.borrow().valid_window().copied()
+    }
+
+    /// Records that `nonce_key` was taken under the transaction's lease.
+    /// Returns false if it was already taken in this transaction.
+    pub fn take_lease_nonce_key(&self, nonce_key: u64) -> bool {
+        self.tx_context.borrow_mut().take_lease_nonce_key(nonce_key)
+    }
+
+    // Test only function: set or clear the valid window of the wrapped
+    // TxContext.
+    pub fn set_valid_window(&mut self, valid_window: Option<ValidWindow>) -> PartialVMResult<()> {
+        if !self.test_only {
+            return Err(
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    "`set_valid_window` called on a non testing scenario".to_string(),
+                ),
+            );
+        }
+        self.tx_context.borrow_mut().set_valid_window(valid_window);
+        Ok(())
     }
 
     pub fn rgp(&self) -> u64 {

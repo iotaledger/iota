@@ -76,6 +76,8 @@ feature_flags:
   allow_dkg_completion_after_timeout: true
   enable_builtin_move_authenticators: true
   enable_claim_account_transaction: true
+  enable_valid_window: true
+  enable_lease_nonce: true
   consensus_dedup_only_recorded_messages: true
   reject_partially_signed_mixed_ed25519_multisig: true
   limit_groth16_pvk_inputs: true
@@ -400,3 +402,6 @@ multisig_multisig_validate_pubkey_cost_base: 52
 public_key_to_iota_address_impl_cost_base: 52
 claim_account_max_computation_units: 5000
 claim_account_storage_bytes_bound: 2000
+max_txn_life_epochs: 1
+tx_context_valid_window_cost_base: 30
+verified_nonce_take_lease_nonce_key_cost_base: 52

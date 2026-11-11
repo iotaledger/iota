@@ -44,10 +44,12 @@
 //!    later copy of the digest is validated.
 //! 6. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop with error, except a
 //!    lock held by the same transaction, which is exempt. Cheap; performed before expensive checks.
+//!    Then the lease, for a transaction that carries one: the same three places, then the leases
+//!    still held from earlier epochs — drop with error if another transaction holds it.
 //! 7. `handle_transaction_validation_checks_at_commit()` — drop with error. An attested transaction
 //!    runs the input checks execution runs, gas included, and the checks on receiving objects; the
 //!    publish verifier stays at execution. Only reached when all locks are free.
-//! 8. All passed — acquire locks in the local tracking map, keep transaction.
+//! 8. All passed — acquire locks and the lease in the local tracking maps, keep transaction.
 //!
 //! Non-`UserTransactionV1` transactions pass through unchanged.
 //!
@@ -72,7 +74,7 @@ use iota_types::{
     attestation::Attestation,
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     gas::check_gas_bounds,
     transaction::{
         InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction,
@@ -90,6 +92,7 @@ use crate::{
             AuthorityPerEpochStore, LockDetails, PreviouslyDeferredTransactions,
             handler_object_state::CommitIndex,
         },
+        lease::{LeaseHolder, LeaseKey, lease_of},
     },
     consensus_handler::{
         SequencedConsensusTransactionKey, SequencedConsensusTransactionKind,
@@ -215,14 +218,16 @@ type ValidatedCopy<'a> = (
 ///
 /// # Returns
 ///
-/// `Ok((dropped, locks, all_user_tx_digests))` where:
+/// `Ok((dropped, locks, leases, all_user_tx_digests))` where:
 /// - `dropped` — `(digest, error, decision)` for every semantically-invalid or lock-conflicting
 ///   transaction, where `decision` is never `Kept`. Silent drops (duplicates) are **not** included.
 /// - `locks` — Owned-object locks acquired in this commit, to be stored in the consensus quarantine
 ///   so subsequent commits can see them.
+/// - `leases` — Leases taken by the transactions kept in this commit, to be stored in the consensus
+///   quarantine so subsequent commits can see them.
 /// - `all_user_tx_digests` — Every `UserTransactionV1` digest that passed dedup (both kept and
 ///   dropped), once each. Used by the caller to release pre-consensus soft locks.
-pub async fn validate_and_resolve_conflicts(
+pub async fn validate_and_resolve_conflicts_with_leases(
     authority_state: &AuthorityState,
     epoch_store: &Arc<AuthorityPerEpochStore>,
     commit_index: CommitIndex,
@@ -231,6 +236,7 @@ pub async fn validate_and_resolve_conflicts(
 ) -> IotaResult<(
     Vec<(TransactionDigest, IotaError, PostConsensusDecision)>,
     HashMap<ObjectReference, LockDetails>,
+    HashMap<LeaseKey, LeaseHolder>,
     Vec<TransactionDigest>,
 )> {
     // Keys of the transactions other than user transactions seen so far.
@@ -244,6 +250,8 @@ pub async fn validate_and_resolve_conflicts(
     // Locks acquired within this commit. Populated for every transaction that
     // passes all checks; used by subsequent transactions' conflict checks.
     let mut current_commit_locks: HashMap<ObjectReference, LockDetails> = HashMap::new();
+    // Leases taken within this commit, by the transactions kept so far.
+    let mut current_commit_leases: HashMap<LeaseKey, LeaseHolder> = HashMap::new();
     // Index-parallel keep flags: true = keep, false = remove.
     let mut keep = vec![true; transactions.len()];
     // All UserTransactionV1 digests seen in this commit (both kept and dropped),
@@ -440,6 +448,17 @@ pub async fn validate_and_resolve_conflicts(
                 }
                 current_commit_locks.insert(*obj_ref, digest);
             }
+            // It took its lease when it was kept; record it again so the
+            // quarantine holds it after a restart.
+            if let Some((key, last_valid)) = lease_of(transaction.data().transaction()) {
+                current_commit_leases.insert(
+                    key,
+                    LeaseHolder {
+                        transaction: digest,
+                        last_valid,
+                    },
+                );
+            }
             debug!(
                 ?digest,
                 num_owned_inputs = owned_inputs.len(),
@@ -626,6 +645,43 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
+        // Check #5b: The lease. The first transaction of a sender that is kept
+        // with a given lease holds it until its last valid epoch; every other
+        // transaction of that sender with that lease is dropped until then.
+        //
+        // A lease held by this same transaction is its own, taken in an
+        // earlier commit. Sender and lease are part of the transaction data,
+        // so the drop holds for every copy of the digest.
+        let lease = lease_of(transaction.data().transaction());
+        let other_holder = match &lease {
+            Some((key, _)) => {
+                find_lease_holder(key, &current_commit_leases, authority_state, epoch_store)?
+                    .filter(|holder| holder.transaction != digest)
+                    .map(|holder| (*key, holder))
+            }
+            None => None,
+        };
+        if let Some(((sender, lease), holder)) = other_holder {
+            debug!(
+                ?digest,
+                ?holder,
+                "Transaction carries a lease held by another transaction, dropping"
+            );
+            decisions.drop_copy(
+                digest,
+                IotaError::LeaseConflict {
+                    sender,
+                    lease,
+                    holder: holder.transaction,
+                    last_valid: holder.last_valid,
+                },
+                false,
+                from_signatures(FailedCheck::Data),
+            );
+            keep[i] = false;
+            continue;
+        }
+
         // Check #6: Validation and deny checks. Only reached when all locks are
         // free, so the expensive object loading is skipped for transactions the
         // lock conflict check would drop.
@@ -742,6 +798,15 @@ pub async fn validate_and_resolve_conflicts(
         for obj_ref in &validated_owned_objects {
             current_commit_locks.insert(*obj_ref, digest);
         }
+        if let Some((key, last_valid)) = lease {
+            current_commit_leases.insert(
+                key,
+                LeaseHolder {
+                    transaction: digest,
+                    last_valid,
+                },
+            );
+        }
         // Log the acquired refs, not just their count, so the winner's locks
         // are attributable per (object_id, version).
         debug!(
@@ -829,7 +894,37 @@ pub async fn validate_and_resolve_conflicts(
     let mut iter = keep.into_iter();
     transactions.retain(|_| iter.next().unwrap_or(true));
 
-    Ok((dropped, current_commit_locks, all_user_tx_digests))
+    Ok((
+        dropped,
+        current_commit_locks,
+        current_commit_leases,
+        all_user_tx_digests,
+    ))
+}
+
+/// [`validate_and_resolve_conflicts_with_leases`] without the leases taken.
+#[cfg(test)]
+pub async fn validate_and_resolve_conflicts(
+    authority_state: &AuthorityState,
+    epoch_store: &Arc<AuthorityPerEpochStore>,
+    commit_index: CommitIndex,
+    previously_deferred: &PreviouslyDeferredTransactions,
+    transactions: &mut Vec<VerifiedSequencedConsensusTransaction>,
+) -> IotaResult<(
+    Vec<(TransactionDigest, IotaError, PostConsensusDecision)>,
+    HashMap<ObjectReference, LockDetails>,
+    Vec<TransactionDigest>,
+)> {
+    let (dropped, locks, _leases, all_user_tx_digests) =
+        validate_and_resolve_conflicts_with_leases(
+            authority_state,
+            epoch_store,
+            commit_index,
+            previously_deferred,
+            transactions,
+        )
+        .await?;
+    Ok((dropped, locks, all_user_tx_digests))
 }
 
 /// The decision so far for each user transaction digest of a commit.
@@ -948,8 +1043,15 @@ fn drop_may_come_from_signatures(
     match check {
         FailedCheck::Attestation => true,
         FailedCheck::Validity(error) => {
-            !matches!(error, IotaError::TransactionExpired)
-                && !data.is_system_tx()
+            !matches!(
+                error,
+                IotaError::TransactionExpired
+                    | IotaError::UserInput {
+                        error: UserInputError::TransactionNotYetValid { .. }
+                            | UserInputError::ValidWindowTooLong { .. }
+                            | UserInputError::ValidWindowWrongNetwork { .. }
+                    }
+            ) && !data.is_system_tx()
                 && data.validity_check(config).is_ok()
         }
         FailedCheck::OwnedInputs => data.input_objects().is_ok(),
@@ -1028,6 +1130,23 @@ fn find_existing_lock(
     epoch_store.tables()?.get_locked_transaction(obj_ref)
 }
 
+/// The transaction that holds the lease `key`, if any.
+///
+/// Looks at the leases taken in the current commit, then at those taken in
+/// earlier commits of this epoch, then at those still held from earlier
+/// epochs.
+fn find_lease_holder(
+    key: &LeaseKey,
+    current_commit_leases: &HashMap<LeaseKey, LeaseHolder>,
+    authority_state: &AuthorityState,
+    epoch_store: &Arc<AuthorityPerEpochStore>,
+) -> IotaResult<Option<LeaseHolder>> {
+    if let Some(holder) = current_commit_leases.get(key) {
+        return Ok(Some(*holder));
+    }
+    authority_state.get_held_lease(epoch_store, key)
+}
+
 /// Extracts the `ImmOrOwnedMoveObject` input references of a
 /// `UserTransactionV1` consensus transaction (excludes shared objects and
 /// packages).
@@ -1072,3 +1191,7 @@ fn extract_owned_input_objects(
 #[cfg(test)]
 #[path = "unit_tests/post_consensus_validation_tests.rs"]
 mod post_consensus_validation_tests;
+
+#[cfg(test)]
+#[path = "unit_tests/post_consensus_lease_tests.rs"]
+mod post_consensus_lease_tests;

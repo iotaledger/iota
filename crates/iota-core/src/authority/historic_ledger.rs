@@ -26,10 +26,13 @@ use typed_store::{
     traits::Map,
 };
 
-use crate::epoch_buckets::{
-    BucketPaths, BucketReopen, EpochBuckets, PrunedBuckets, absent_if_dropped, bucket_cf_epoch,
-    bucket_cf_options, bucket_metrics_label, dump_page, dump_retention_floor, dump_rows,
-    extra_column_family_options,
+use crate::{
+    authority::lease::{LeaseHolder, LeaseHolderWrapper, LeaseKey},
+    epoch_buckets::{
+        BucketPaths, BucketReopen, EpochBuckets, PrunedBuckets, absent_if_dropped, bucket_cf_epoch,
+        bucket_cf_options, bucket_metrics_label, dump_page, dump_retention_floor, dump_rows,
+        extra_column_family_options,
+    },
 };
 
 /// Column-family prefix of the historic ledger buckets; a bucket's family
@@ -49,6 +52,7 @@ const DB_PREFIX_HISTORIC_EXECUTED_EFFECTS: u8 = 2;
 const DB_PREFIX_HISTORIC_EVENTS: u8 = 3;
 const DB_PREFIX_HISTORIC_TX_TO_CHECKPOINT: u8 = 4;
 const DB_PREFIX_HISTORIC_ATTESTATION_RECORDS: u8 = 5;
+const DB_PREFIX_HISTORIC_LEASES: u8 = 6;
 
 /// Column family holding the earliest-retained-epoch marker
 /// [`EpochBuckets`] persists on a prune; empty until the first prune.
@@ -74,6 +78,10 @@ pub struct HistoricLedgerBucket {
     pub(crate) events: TaggedDBMap<TransactionDigest, TransactionEvents>,
     pub(crate) tx_to_checkpoint: TaggedDBMap<TransactionDigest, CheckpointSequenceNumber>,
     pub(crate) attestation_records: TaggedDBMap<TransactionDigest, AttestationRecord>,
+    /// The lease of each executed transaction that carries one, by sender and
+    /// lease. Written with the transaction's executed effects only, so a
+    /// bucket holds every lease of its epoch once the epoch is executed.
+    pub(crate) leases: TaggedDBMap<LeaseKey, LeaseHolderWrapper>,
 }
 
 impl BucketReopen for HistoricLedgerBucket {
@@ -123,6 +131,14 @@ impl BucketReopen for HistoricLedgerBucket {
                 db,
                 cf_name,
                 DB_PREFIX_HISTORIC_ATTESTATION_RECORDS,
+                &ReadWriteOptions::default(),
+                true,
+            )?
+            .with_metrics_label(bucket_metrics_label(cf_name)),
+            leases: TaggedDBMap::reopen(
+                db,
+                cf_name,
+                DB_PREFIX_HISTORIC_LEASES,
                 &ReadWriteOptions::default(),
                 true,
             )?
@@ -449,6 +465,35 @@ impl HistoricLedger {
         self.multi_get_in_epoch(epoch, digests, |bucket| &bucket.events)
     }
 
+    /// The transaction that still holds the lease `key` from an epoch before
+    /// `current_epoch`, if any: one executed in the `max_txn_life_epochs`
+    /// epochs before `current_epoch` whose last valid epoch has not passed.
+    ///
+    /// Only the buckets of earlier epochs are read. Every validator has
+    /// executed those epochs in full before it validates a transaction in
+    /// `current_epoch`, so all of them get the same answer. A node that has no
+    /// bucket for one of those epochs, as after a restore from a formal
+    /// snapshot, finds no lease there.
+    pub fn get_lease_held_from_earlier_epochs(
+        &self,
+        key: &LeaseKey,
+        current_epoch: EpochId,
+        max_txn_life_epochs: u64,
+    ) -> IotaResult<Option<LeaseHolder>> {
+        let earliest_epoch = current_epoch.saturating_sub(max_txn_life_epochs);
+        for epoch in (earliest_epoch..current_epoch).rev() {
+            let holder = self
+                .multi_get_in_epoch(epoch, std::slice::from_ref(key), |bucket| &bucket.leases)?
+                .pop()
+                .flatten()
+                .map(LeaseHolderWrapper::into_inner);
+            if let Some(holder) = holder.filter(|holder| holder.last_valid >= current_epoch) {
+                return Ok(Some(holder));
+            }
+        }
+        Ok(None)
+    }
+
     /// The values `keys` hold in `epoch`'s bucket, in the table `table`
     /// picks; all `None` when there is no such bucket or it was dropped.
     fn multi_get_in_epoch<K, V>(
@@ -744,6 +789,7 @@ impl HistoricLedger {
             bucket.events.try_catch_up_with_primary()?;
             bucket.tx_to_checkpoint.try_catch_up_with_primary()?;
             bucket.attestation_records.try_catch_up_with_primary()?;
+            bucket.leases.try_catch_up_with_primary()?;
             let rows = dump_rows("transaction:", bucket.transactions.safe_iter())
                 .chain(dump_rows("effects:", bucket.effects.safe_iter()))
                 .chain(dump_rows(
@@ -758,7 +804,8 @@ impl HistoricLedger {
                 .chain(dump_rows(
                     "attestation_record:",
                     bucket.attestation_records.safe_iter(),
-                ));
+                ))
+                .chain(dump_rows("lease:", bucket.leases.safe_iter()));
             return dump_page(rows, page_size, page_number).map(Some);
         }
         if cf_name == EARLIEST_RETAINED_CF {

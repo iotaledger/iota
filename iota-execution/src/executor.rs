@@ -7,7 +7,7 @@ use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, GasPayment, MoveAuthenticator, ProgrammableTransaction, TransactionDigest,
-    TransactionEffects, TransactionKind,
+    TransactionEffects, TransactionExpiration, TransactionKind,
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
@@ -49,6 +49,7 @@ pub trait Executor {
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
+        transaction_expiration: TransactionExpiration,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
         InnerTemporaryStore,
@@ -78,6 +79,7 @@ pub trait Executor {
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
+        transaction_expiration: TransactionExpiration,
         skip_all_checks: bool,
     ) -> (
         InnerTemporaryStore,
@@ -118,6 +120,7 @@ pub trait Executor {
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
+        transaction_expiration: TransactionExpiration,
         // BCS-serialized `Transaction` bytes for the auth context.
         auth_context_data: AuthContextData,
         // Tracing
@@ -147,6 +150,7 @@ pub trait Executor {
         authenticated_transaction_kind: TransactionKind,
         authenticated_transaction_signer: Address,
         authenticated_transaction_digest: TransactionDigest,
+        authenticated_transaction_expiration: TransactionExpiration,
         // BCS-serialized `Transaction` bytes for the auth context.
         auth_context_data: AuthContextData,
         // Tracing

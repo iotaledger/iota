@@ -519,3 +519,15 @@ typed-store-error = { path = "crates/typed-store-error" }
 # so the workspace shares a single fastcrypto instead of two conflicting copies.
 [patch."https://github.com/MystenLabs/fastcrypto"]
 fastcrypto = "=0.1.11"
+
+# Local prototype only: take the SDK crates from a local clone of
+# iota-rust-sdk, which adds `TransactionExpiration::ValidWindow`.
+[patch."https://github.com/iotaledger/iota-rust-sdk.git"]
+iota-sdk-crypto = { path = "../iota-rust-sdk/crates/iota-sdk-crypto" }
+iota-sdk-graphql-client = { path = "../iota-rust-sdk/crates/iota-sdk-graphql-client" }
+iota-sdk-graphql-client-build = { path = "../iota-rust-sdk/crates/iota-sdk-graphql-client-build" }
+iota-sdk-grpc-client = { path = "../iota-rust-sdk/crates/iota-sdk-grpc-client" }
+iota-sdk-grpc-types = { path = "../iota-rust-sdk/crates/iota-sdk-grpc-types" }
+iota-sdk-move-types = { path = "../iota-rust-sdk/crates/iota-sdk-move-types" }
+iota-sdk-transaction-builder = { path = "../iota-rust-sdk/crates/iota-sdk-transaction-builder" }
+iota-sdk-types = { path = "../iota-rust-sdk/crates/iota-sdk-types" }

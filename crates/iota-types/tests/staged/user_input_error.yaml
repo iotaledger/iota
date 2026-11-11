@@ -75,3 +75,6 @@
 73: RandomnessStateIsInMoveAuthenticatorInput
 74: InvalidArgumentIndex
 75: InputObjectNotAvailableAtCommit
+76: TransactionNotYetValid
+77: ValidWindowTooLong
+78: ValidWindowWrongNetwork

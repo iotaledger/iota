@@ -919,6 +919,7 @@ async fn pre_execution_failure_skips_execution_and_charges_gas() {
             kind,
             signer,
             *executable.digest(),
+            executable.data().transaction().expiration().clone(),
             auth_context_data,
             &mut None,
         );

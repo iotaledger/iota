@@ -354,3 +354,101 @@ async fn test_submit_single_tx_rejects_an_attested_transaction_too_large_for_con
         "nothing may reach the consensus adapter"
     );
 }
+
+/// Submits to `submit_single_tx` a transaction whose lease another
+/// transaction of the same sender took in an earlier consensus commit.
+/// Asserts that the validator rejects it with the lease conflict and never
+/// forwards it to the consensus adapter.
+#[tokio::test]
+async fn test_submit_single_tx_with_a_held_lease_rejected_without_reaching_consensus() {
+    use std::collections::HashMap;
+
+    use iota_sdk_types::{TransactionDigest, TransactionExpiration, ValidWindow};
+
+    use crate::authority::{
+        authority_per_epoch_store::consensus_quarantine::ConsensusCommitOutput, lease::LeaseHolder,
+    };
+
+    telemetry_subscribers::init_for_testing();
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[Object::with_id_owner_for_testing(gas_id, sender)])
+        .build()
+        .await;
+
+    // Consensus must never be reached — any submit call panics the test.
+    let mut mock = MockConsensusClient::new();
+    mock.expect_submit().never();
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(mock),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        100_000,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        50,
+    ));
+
+    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
+    let metrics = Arc::new(ValidatorServiceMetrics::new_for_tests());
+    let soft_locks = Arc::new(PreConsensusSoftLocks::new());
+
+    // Another transaction of the sender took the lease in an earlier commit.
+    let lease = [1; 32];
+    let holder = LeaseHolder {
+        transaction: TransactionDigest::random(),
+        last_valid: epoch_store.epoch(),
+    };
+    let mut output = ConsensusCommitOutput::default();
+    output.set_leases(HashMap::from([((sender, lease), holder)]));
+    output.set_default_commit_stats_for_testing();
+    epoch_store.push_consensus_output_for_tests(output);
+
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let gas_ref = authority_state.get_object(&gas_id).unwrap().object_ref();
+    let mut tx_data = Transaction::new_transfer_iota(
+        dbg_addr(2),
+        sender,
+        None,
+        gas_ref,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    *tx_data.expiration_mut_for_testing() =
+        TransactionExpiration::ValidWindow(Box::new(ValidWindow {
+            first_valid: epoch_store.epoch(),
+            last_valid: epoch_store.epoch(),
+            genesis_hash: epoch_store.get_chain_identifier().digest(),
+            note: 0,
+            lease: Some(lease),
+        }));
+    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+
+    let (update, _weight) = ValidatorService::submit_single_tx(
+        &authority_state,
+        &consensus_adapter,
+        &metrics,
+        &epoch_store,
+        &soft_locks,
+        tx,
+    )
+    .await;
+
+    let TxStatusUpdate::Rejected { error } = update else {
+        panic!("expected Rejected, got {update:?}");
+    };
+    assert_eq!(
+        error,
+        IotaError::LeaseConflict {
+            sender,
+            lease,
+            holder: holder.transaction,
+            last_valid: holder.last_valid,
+        }
+    );
+}

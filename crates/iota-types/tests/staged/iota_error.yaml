@@ -99,3 +99,4 @@
 97: AttestationUnitsBelowMinimum
 98: AttestationUnitsAboveBudget
 99: AttestorCutOff
+100: LeaseConflict

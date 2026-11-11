@@ -49,3 +49,34 @@ fun test_tx_context_returned_refs_consistency() {
     // the created reference to the first digest should still be valid and unchanged
     assert_eq!(*digest_ref1, digest1);
 }
+
+#[test]
+fun valid_window_reads_are_none_without_a_valid_window() {
+    let ctx = tx_context::dummy();
+
+    assert!(ctx.first_valid().is_none());
+    assert!(ctx.last_valid().is_none());
+    assert!(ctx.note().is_none());
+    assert!(ctx.lease().is_none());
+}
+
+#[test]
+fun valid_window_reads_return_the_window() {
+    use std::unit_test::assert_eq;
+
+    let lease = x"00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+    let mut ctx = tx_context::dummy();
+
+    ctx.set_valid_window_for_testing(4, 5, 77, option::none());
+    assert_eq!(ctx.first_valid(), option::some(4));
+    assert_eq!(ctx.last_valid(), option::some(5));
+    assert_eq!(ctx.note(), option::some(77));
+    assert!(ctx.lease().is_none());
+
+    ctx.set_valid_window_for_testing(4, 5, 77, option::some(lease));
+    assert_eq!(ctx.lease(), option::some(lease));
+
+    ctx.clear_valid_window_for_testing();
+    assert!(ctx.first_valid().is_none());
+    assert!(ctx.lease().is_none());
+}

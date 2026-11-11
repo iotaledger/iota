@@ -261,6 +261,7 @@ impl SingleValidator {
                 kind,
                 signer,
                 *executable.digest(),
+                executable.transaction().expiration().clone(),
                 &mut None,
             );
         assert!(effects.status().is_success());
