@@ -21,8 +21,11 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 
-use super::attestation_verdict::AttestedObjectVersions;
-use crate::authority::{ExecutionEnv, test_authority_builder::TestAuthorityBuilder};
+use super::attestation_verdict::{AttestedObjectVersions, SupersededAt};
+use crate::authority::{
+    ExecutionEnv, authority_per_epoch_store::ExecutionIndices,
+    test_authority_builder::TestAuthorityBuilder,
+};
 
 /// A transaction whose Move authenticator points at an object that is not an
 /// abstract account — here an immutable object with no
@@ -128,7 +131,7 @@ async fn structural_move_auth_failure_resolves_to_failure_effect() {
 }
 
 /// Deciding whether an attested version can be re-run at comes down to the
-/// epoch it stopped being current in. Exercised against a real store, with the
+/// commit it stopped being current at. Exercised against a real store, with the
 /// supersession committed so the answer comes from the database.
 #[tokio::test]
 async fn attested_object_version_state_follows_the_superseding_transaction() {
@@ -174,6 +177,9 @@ async fn attested_object_version_state_follows_the_superseding_transaction() {
     let verified_tx = epoch_store.verify_transaction(tx).unwrap();
     let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
     epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
+    let commit = epoch_store
+        .commit_index_of(&executable.key())
+        .expect("the test assigned the transaction a commit");
     let (effects, _execution_error) = authority
         .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();
@@ -196,28 +202,32 @@ async fn attested_object_version_state_follows_the_superseding_transaction() {
         "the transfer must have superseded the attested version"
     );
 
-    let versions_as_of = |current_epoch| AttestedObjectVersions {
+    let versions = AttestedObjectVersions {
         object_cache: authority.get_object_cache_reader().as_ref(),
-        current_epoch,
+        transaction_cache: authority.get_transaction_cache_reader().as_ref(),
+        epoch_store: &epoch_store,
+        sequenced_at: ExecutionIndices::default(),
+        window: None,
     };
 
-    assert!(
-        !versions_as_of(epoch).superseded_in_current_epoch(&attested_id, current_version),
+    assert_eq!(
+        versions.superseded_within_window(&attested_id, current_version, current_version),
+        None,
         "the version the object is still at has not been superseded"
     );
-    assert!(
-        versions_as_of(epoch).superseded_in_current_epoch(&attested_id, attested_ref.version()),
-        "a version this epoch superseded can still be re-run at"
+    assert_eq!(
+        versions.superseded_within_window(&attested_id, attested_ref.version(), current_version),
+        Some(SupersededAt::Commit(commit)),
+        "a version this epoch superseded carries the superseding commit"
     );
-    assert!(
-        !versions_as_of(epoch + 1)
-            .superseded_in_current_epoch(&attested_id, attested_ref.version()),
-        "the same version is out of reach once the superseding epoch has passed"
-    );
-    assert!(
-        !versions_as_of(epoch)
-            .superseded_in_current_epoch(&ObjectId::random(), attested_ref.version()),
-        "an unknown object has no supersession record"
+    assert_eq!(
+        versions.superseded_within_window(
+            &ObjectId::random(),
+            attested_ref.version(),
+            current_version
+        ),
+        None,
+        "an unknown object has no history to walk"
     );
 }
 
@@ -267,6 +277,9 @@ async fn attested_object_version_state_does_not_depend_on_flush_state() {
     let verified_tx = epoch_store.verify_transaction(tx).unwrap();
     let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
     epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
+    let commit = epoch_store
+        .commit_index_of(&executable.key())
+        .expect("the test assigned the transaction a commit");
     let (effects, _execution_error) = authority
         .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();
@@ -274,13 +287,19 @@ async fn attested_object_version_state_does_not_depend_on_flush_state() {
 
     let versions = AttestedObjectVersions {
         object_cache: authority.get_object_cache_reader().as_ref(),
-        current_epoch: epoch,
+        transaction_cache: authority.get_transaction_cache_reader().as_ref(),
+        epoch_store: &epoch_store,
+        sequenced_at: ExecutionIndices::default(),
+        window: None,
     };
+    let current_version = authority.get_object(&attested_id).unwrap().version();
 
     // Nothing has been written back yet, so this is answered from the cache.
-    let before_commit = versions.superseded_in_current_epoch(&attested_id, attested_ref.version());
-    assert!(
+    let before_commit =
+        versions.superseded_within_window(&attested_id, attested_ref.version(), current_version);
+    assert_eq!(
         before_commit,
+        Some(SupersededAt::Commit(commit)),
         "a supersession still in the cache must already count"
     );
 
@@ -289,7 +308,8 @@ async fn attested_object_version_state_does_not_depend_on_flush_state() {
     let batch = cache_commit.build_db_batch(epoch, 0, &digests);
     cache_commit.commit_transaction_outputs(epoch, batch, &digests);
 
-    let after_commit = versions.superseded_in_current_epoch(&attested_id, attested_ref.version());
+    let after_commit =
+        versions.superseded_within_window(&attested_id, attested_ref.version(), current_version);
     assert_eq!(
         before_commit, after_commit,
         "the verdict must not change when the supersession reaches the database"
@@ -353,6 +373,9 @@ async fn attested_object_version_state_judges_a_deleted_object() {
     let verified_tx = epoch_store.verify_transaction(tx).unwrap();
     let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
     epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
+    let commit = epoch_store
+        .commit_index_of(&executable.key())
+        .expect("the test assigned the transaction a commit");
     let (effects, _execution_error) = authority
         .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();
@@ -373,17 +396,22 @@ async fn attested_object_version_state_judges_a_deleted_object() {
         "the merge must have deleted the attested object"
     );
 
-    let versions_as_of = |current_epoch| AttestedObjectVersions {
+    let deleted_version = effects
+        .deleted()
+        .into_iter()
+        .find(|reference| reference.object_id == attested_id)
+        .expect("the merge deleted the attested object")
+        .version;
+    let versions = AttestedObjectVersions {
         object_cache: authority.get_object_cache_reader().as_ref(),
-        current_epoch,
+        transaction_cache: authority.get_transaction_cache_reader().as_ref(),
+        epoch_store: &epoch_store,
+        sequenced_at: ExecutionIndices::default(),
+        window: None,
     };
-    assert!(
-        versions_as_of(epoch).superseded_in_current_epoch(&attested_id, attested_ref.version()),
-        "a version a deletion superseded this epoch can still be re-run at"
-    );
-    assert!(
-        !versions_as_of(epoch + 1)
-            .superseded_in_current_epoch(&attested_id, attested_ref.version()),
-        "the same version is out of reach once the superseding epoch has passed"
+    assert_eq!(
+        versions.superseded_within_window(&attested_id, attested_ref.version(), deleted_version),
+        Some(SupersededAt::Commit(commit)),
+        "a version a deletion superseded this epoch carries the deleting commit"
     );
 }
