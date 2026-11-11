@@ -8,7 +8,7 @@ use crate::error::RpcError;
 /// Lowest `iota-sdk-grpc-client` version able to decode this node's gRPC
 /// responses, sent in the
 /// [`X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION`](iota_grpc_types::headers::X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION)
-/// header of every successful response.
+/// header of every response.
 ///
 /// Raise it to the SDK release that ships a wire-visible change (a new enum
 /// variant, a new `oneof` case, ...) once that release is out, so clients on

@@ -12,10 +12,13 @@ use std::{
 
 use anyhow::Result;
 use iota_config::node::ListenerLimitsConfig;
-use iota_grpc_types::v1::{
-    ledger_service as grpc_ledger_service, move_package_service as grpc_move_package_service,
-    service_methods, state_service as grpc_state_service,
-    transaction_execution_service as grpc_tx_service,
+use iota_grpc_types::{
+    headers,
+    v1::{
+        ledger_service as grpc_ledger_service, move_package_service as grpc_move_package_service,
+        service_methods, state_service as grpc_state_service,
+        transaction_execution_service as grpc_tx_service,
+    },
 };
 use iota_network_stack::{grpc_timeout::GrpcTimeout, server::insert_tonic_connect_info};
 use iota_traffic_controller::TrafficController;
@@ -27,8 +30,8 @@ use tonic::service::Routes;
 use crate::{
     GrpcCheckpointDataBroadcaster, GrpcReader, GrpcServerMetrics, LedgerGrpcService,
     MovePackageGrpcService, StateGrpcService, TransactionExecutionGrpcService,
-    metrics::GrpcMetricsLayer, server_timing::ServerTimingLayer,
-    traffic_control::TrafficControlLayer,
+    constants::MIN_IOTA_SDK_GRPC_CLIENT_VERSION, metrics::GrpcMetricsLayer,
+    server_timing::ServerTimingLayer, traffic_control::TrafficControlLayer,
 };
 
 /// Handle to control a running gRPC server
@@ -222,12 +225,14 @@ pub async fn start_grpc_server(
     }
 
     // Order matters: the address copy before traffic control, which reads it;
-    // metrics before traffic control, to count blocked requests; `GrpcTimeout`
-    // inside both, so they see the status of a call that ends at its deadline;
-    // server-timing innermost, to time only the requests that traffic control
-    // lets through.
+    // the minimum client version outside every layer that can answer a
+    // request itself, so those responses carry it too; metrics before traffic
+    // control, to count blocked requests; `GrpcTimeout` inside both, so they
+    // see the status of a call that ends at its deadline; server-timing
+    // innermost, to time only the requests that traffic control lets through.
     let service = tower::ServiceBuilder::new()
         .map_request(insert_tonic_connect_info)
+        .map_response(insert_min_client_version)
         .option_layer(
             metrics.map(|m| GrpcMetricsLayer::new(Arc::new(m), &service_methods::ALL_METHOD_PATHS)),
         )
@@ -265,4 +270,13 @@ pub async fn start_grpc_server(
         checkpoint_data_broadcaster,
         address: actual_addr,
     })
+}
+
+/// Adds the lowest supported `iota-sdk-grpc-client` version to a response.
+fn insert_min_client_version<B>(mut response: http::Response<B>) -> http::Response<B> {
+    response.headers_mut().insert(
+        headers::X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION,
+        http::HeaderValue::from_static(MIN_IOTA_SDK_GRPC_CLIENT_VERSION),
+    );
+    response
 }
