@@ -4,8 +4,8 @@
 
 use fastcrypto::error::FastCryptoError;
 use iota_data_ingestion_core::IngestionError;
-use iota_json_rpc_api::{error_object_from_rpc, internal_error};
-use iota_json_rpc_types::IotaObjectResponseError;
+use iota_json_rpc_api::internal_error;
+use iota_json_rpc_types::{DataPrunedErrorData, IotaObjectResponseError};
 use iota_names::error::IotaNamesError;
 use iota_sdk_types::{ObjectId, Version};
 use iota_types::{
@@ -13,8 +13,13 @@ use iota_types::{
     error::{IotaError, UserInputError},
     iota_sdk_types_conversions::SdkTypeConversionError,
 };
-use jsonrpsee::{core::ClientError as RpcError, types::ErrorObjectOwned};
+use jsonrpsee::{
+    core::ClientError as RpcError,
+    types::{ErrorObjectOwned, error::INTERNAL_ERROR_CODE},
+};
 use thiserror::Error;
+
+use crate::pruning::oldest_available_checkpoint::OldestAvailableCheckpoint;
 
 #[derive(Debug, Error)]
 pub struct DataDownloadError {
@@ -64,26 +69,26 @@ pub enum IndexerError {
     #[error("Indexer failed to find object mutations, which should never happen.")]
     ObjectMutationNotAvailable,
 
-    #[error("Indexer failed to build PG connection pool with error: `{0}`")]
-    PgConnectionPoolInit(String),
+    #[error("Indexer failed to build PG connection pool")]
+    PgConnectionPoolInit,
 
-    #[error("Indexer failed to get a pool connection from PG connection pool with error: `{0}`")]
-    PgPoolConnection(String),
+    #[error("Indexer failed to get a pool connection from PG connection pool")]
+    PgPoolConnection,
 
-    #[error("Indexer failed to read PostgresDB with error: `{0}`")]
-    PostgresRead(String),
+    #[error("Indexer failed to read PostgresDB")]
+    PostgresRead,
 
-    #[error("Indexer failed to reset PostgresDB with error: `{0}`")]
-    PostgresReset(String),
+    #[error("Indexer failed to reset PostgresDB")]
+    PostgresReset,
 
-    #[error("Indexer failed to commit changes to PostgresDB with error: `{0}`")]
-    PostgresWrite(String),
+    #[error("Indexer failed to commit changes to PostgresDB")]
+    PostgresWrite,
 
-    #[error(transparent)]
+    #[error("Indexer failed to execute a PostgresDB query")]
     Postgres(#[from] diesel::result::Error),
 
-    #[error("Indexer failed to assign TX global order with error: `{0}`")]
-    PostgresUniqueTxGlobalOrderViolation(String),
+    #[error("Indexer failed to assign TX global order")]
+    PostgresUniqueTxGlobalOrderViolation,
 
     #[error("Indexer failed to initialize fullnode Http client with error: `{0}`")]
     HttpClientInit(String),
@@ -165,11 +170,20 @@ pub enum IndexerError {
     #[error("historical fallback storage error: {0}")]
     HistoricalFallbackStorageError(String),
 
+    #[error("historical fallback response too large: {size} bytes received, limit is {max} bytes")]
+    HistoricalFallbackResponseTooLarge { size: u64, max: u64 },
+
     #[error("historical fallback input error: {0}")]
     HistoricalFallbackInput(String),
 
-    #[error("Missing data due to pruning: `{0}`")]
-    DataPruned(String),
+    #[error("Missing data due to pruning: `{message}`")]
+    DataPruned {
+        message: String,
+        /// The oldest checkpoint the request could have found data in.
+        ///
+        /// Anything before it has been pruned and is no longer served.
+        oldest_available_checkpoint: OldestAvailableCheckpoint,
+    },
 
     #[error("grpc error: `{0}`")]
     Grpc(String),
@@ -198,13 +212,27 @@ impl<T> Context<T> for Result<T, IndexerError> {
 
 impl From<IndexerError> for RpcError {
     fn from(e: IndexerError) -> Self {
-        RpcError::Call(internal_error(e))
+        RpcError::Call(e.into())
     }
 }
 
 impl From<IndexerError> for ErrorObjectOwned {
     fn from(value: IndexerError) -> Self {
-        error_object_from_rpc(value.into())
+        if let IndexerError::DataPruned {
+            oldest_available_checkpoint,
+            ..
+        } = &value
+        {
+            return ErrorObjectOwned::owned(
+                INTERNAL_ERROR_CODE,
+                value.to_string(),
+                Some(DataPrunedErrorData::new(
+                    (*oldest_available_checkpoint).into(),
+                )),
+            );
+        }
+
+        internal_error(value)
     }
 }
 
@@ -235,5 +263,32 @@ impl From<iota_grpc_client::GrpcError> for IndexerError {
 impl From<iota_grpc_types::proto::TryFromProtoError> for IndexerError {
     fn from(err: iota_grpc_types::proto::TryFromProtoError) -> Self {
         IndexerError::Grpc(err.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use jsonrpsee::types::error::INTERNAL_ERROR_CODE;
+
+    use super::*;
+
+    /// A database failure reaches an RPC client as a fixed message, while the
+    /// wrapped diesel error keeps its detail for server-side logs.
+    #[test]
+    fn postgres_errors_do_not_disclose_detail_to_rpc_clients() {
+        let detail = "column objects.serialized_object does not exist";
+        let error = IndexerError::Postgres(diesel::result::Error::QueryBuilderError(detail.into()));
+        assert!(format!("{error:?}").contains(detail));
+
+        let object: ErrorObjectOwned = error.into();
+        assert_eq!(object.code(), INTERNAL_ERROR_CODE);
+        assert_eq!(
+            object.message(),
+            "Indexer failed to execute a PostgresDB query"
+        );
+
+        let object: ErrorObjectOwned = IndexerError::PostgresRead.into();
+        assert_eq!(object.code(), INTERNAL_ERROR_CODE);
+        assert_eq!(object.message(), "Indexer failed to read PostgresDB");
     }
 }

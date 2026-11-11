@@ -5,7 +5,7 @@
 use iota_sdk_types::{Address, Identifier};
 use iota_types::{
     base_types::{TxContext, TxContextKind},
-    clock::Clock,
+    clock::is_mutable_clock,
     error::ExecutionError,
     is_object, is_object_vector, is_primitive,
     move_package::{FnInfoMap, is_test_fun},
@@ -28,15 +28,13 @@ use crate::{INIT_FN_NAME, verification_failure};
 /// - The function must have the name specified by `INIT_FN_NAME`
 /// - The function must have `Visibility::Private`
 /// - The function can have at most two parameters:
-///   - mandatory &mut TxContext or &TxContext (see `is_tx_context`) in the last
-///     position
-///   - optional one-time witness type (see one_time_witness verifier pass)
-///     passed by value in the first position
+///   - mandatory &mut TxContext or &TxContext (see `is_tx_context`) in the last position
+///   - optional one-time witness type (see one_time_witness verifier pass) passed by value in the
+///     first position
 ///
 /// For transaction entry points
 /// - The function must have `is_entry` true
-/// - The function may have a &mut TxContext or &TxContext (see `is_tx_context`)
-///   parameter
+/// - The function may have a &mut TxContext or &TxContext (see `is_tx_context`) parameter
 ///   - The transaction context parameter must be the last parameter
 /// - The function cannot have any return values
 pub fn verify_module(
@@ -227,7 +225,7 @@ fn verify_param_type(
 ) -> Result<(), String> {
     // Only `iota::iota_system` is allowed to expose entry functions that accept a
     // mutable clock parameter.
-    if Clock::is_mutable(view, param) {
+    if is_mutable_clock(view, param) {
         return Err(format!(
             "Invalid entry point parameter type. Clock must be passed by immutable reference. got: \
              {}",

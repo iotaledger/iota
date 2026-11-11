@@ -5,9 +5,19 @@
 use std::{pin::pin, time::Duration};
 
 use http::{Request, Response};
+use hyper_util::server::graceful::GracefulConnection;
 use tracing::{debug, trace};
 
-use crate::{ActiveConnections, BoxError, ConnectionId, fuse::Fuse};
+use crate::{
+    ActiveConnections, BoxError, ConnectionId,
+    connection_info::ConnectionCountGuard,
+    fuse::Fuse,
+    idle_timer::IdleTimer,
+    metrics::{CloseReason, ListenerMetrics},
+};
+
+/// How long a connection asked to close is given to shut down.
+pub(crate) const SHUTDOWN_GRACE_PERIOD: Duration = Duration::from_secs(1);
 
 // This is moved to its own function as a way to get around
 // https://github.com/rust-lang/rust/issues/102211
@@ -17,6 +27,8 @@ pub async fn serve_connection<IO, S, B, C>(
     builder: hyper_util::server::conn::auto::Builder<hyper_util::rt::TokioExecutor>,
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
     max_connection_age: Option<Duration>,
+    idle_timer: Option<IdleTimer>,
+    metrics: Option<ListenerMetrics>,
     on_connection_close: C,
 ) where
     B: http_body::Body + Send + 'static,
@@ -27,17 +39,72 @@ pub async fn serve_connection<IO, S, B, C>(
     S::Future: Send + 'static,
     S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
+    // `serve_connection_with_upgrades` serves HTTP/1 even when the builder
+    // allows only HTTP/2.
+    if builder.is_http1_available() {
+        serve_until_closed(
+            builder.serve_connection_with_upgrades(hyper_io, hyper_svc),
+            graceful_shutdown_token,
+            max_connection_age,
+            idle_timer,
+            metrics,
+        )
+        .await;
+    } else {
+        serve_until_closed(
+            builder.serve_connection(hyper_io, hyper_svc),
+            graceful_shutdown_token,
+            max_connection_age,
+            idle_timer,
+            metrics,
+        )
+        .await;
+    }
+
+    trace!("connection closed");
+    drop(on_connection_close);
+}
+
+/// Serves `conn` until it closes. Starts a graceful shutdown of `conn` on the
+/// shutdown signal, at `max_connection_age`, and when `idle_timer` is reached.
+/// Drops `conn` if it has not closed [`SHUTDOWN_GRACE_PERIOD`] later.
+async fn serve_until_closed(
+    conn: impl GracefulConnection<Error = BoxError>,
+    graceful_shutdown_token: tokio_util::sync::CancellationToken,
+    max_connection_age: Option<Duration>,
+    idle_timer: Option<IdleTimer>,
+    metrics: Option<ListenerMetrics>,
+) {
     let mut sig = pin!(Fuse::new(graceful_shutdown_token.cancelled_owned()));
 
-    let mut conn = pin!(builder.serve_connection_with_upgrades(hyper_io, hyper_svc));
+    let mut conn = pin!(conn);
 
     let sleep = sleep_or_pending(max_connection_age);
+    let idle = idle_or_pending(idle_timer);
     tokio::pin!(sleep);
+    tokio::pin!(idle);
+
+    // The peer may ignore a graceful shutdown, so it is bounded by
+    // `force_close`. Once requested, the branches that request it are disabled.
+    let mut shutdown_requested = false;
+    let force_close = sleep_or_pending(None);
+    tokio::pin!(force_close);
+
+    macro_rules! request_shutdown {
+        ($reason:expr) => {{
+            shutdown_requested = true;
+            if let Some(metrics) = &metrics {
+                metrics.record_close($reason);
+            }
+            conn.as_mut().graceful_shutdown();
+            force_close.set(sleep_or_pending(Some(SHUTDOWN_GRACE_PERIOD)));
+        }};
+    }
 
     loop {
         tokio::select! {
-            _ = &mut sig => {
-                conn.as_mut().graceful_shutdown();
+            _ = &mut sig, if !shutdown_requested => {
+                request_shutdown!(CloseReason::Shutdown);
             }
             rv = &mut conn => {
                 if let Err(err) = rv {
@@ -45,15 +112,20 @@ pub async fn serve_connection<IO, S, B, C>(
                 }
                 break;
             },
-            _ = &mut sleep  => {
-                conn.as_mut().graceful_shutdown();
-                sleep.set(sleep_or_pending(None));
-            },
+            _ = &mut idle, if !shutdown_requested => {
+                debug!("closing a connection that has been idle past its deadline");
+                request_shutdown!(CloseReason::Idle);
+            }
+            _ = &mut sleep, if !shutdown_requested => {
+                debug!("closing a connection that has reached its maximum age");
+                request_shutdown!(CloseReason::MaxAge);
+            }
+            _ = &mut force_close => {
+                debug!("dropping a connection that did not close when asked");
+                break;
+            }
         }
     }
-
-    trace!("connection closed");
-    drop(on_connection_close);
 }
 
 pub(crate) async fn sleep_or_pending(wait_for: Option<Duration>) {
@@ -63,16 +135,30 @@ pub(crate) async fn sleep_or_pending(wait_for: Option<Duration>) {
     };
 }
 
+/// Waits for `idle_timer`, or forever when there is none.
+async fn idle_or_pending(idle_timer: Option<IdleTimer>) {
+    match idle_timer {
+        Some(idle_timer) => idle_timer.wait().await,
+        None => std::future::pending().await,
+    };
+}
+
 pub(crate) struct OnConnectionClose<A> {
     id: ConnectionId,
     active_connections: ActiveConnections<A>,
+    _count_guard: ConnectionCountGuard,
 }
 
 impl<A> OnConnectionClose<A> {
-    pub(crate) fn new(id: ConnectionId, active_connections: ActiveConnections<A>) -> Self {
+    pub(crate) fn new(
+        id: ConnectionId,
+        active_connections: ActiveConnections<A>,
+        count_guard: ConnectionCountGuard,
+    ) -> Self {
         Self {
             id,
             active_connections,
+            _count_guard: count_guard,
         }
     }
 }

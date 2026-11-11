@@ -17,7 +17,6 @@ pub mod store;
 pub mod transaction_executor;
 
 use std::{
-    collections::HashMap,
     num::NonZeroUsize,
     path::PathBuf,
     sync::{Arc, RwLock},
@@ -56,10 +55,11 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
-    storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
+    storage::{EpochInfoV2, ObjectStore, ReadStore},
+    supported_protocol_versions::SupportedProtocolVersions,
     transaction::{TransactionAPI, TransactionEnvelope, VerifiedTransaction},
 };
-use rand::rngs::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
 pub use self::store::{SimulatorStore, in_mem_store::InMemoryStore};
 use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
@@ -73,7 +73,7 @@ use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
 /// See [module level][mod] documentation for more details.
 ///
 /// [mod]: index.html
-pub struct Simulacrum<R = OsRng, Store: SimulatorStore = InMemoryStore> {
+pub struct Simulacrum<R = UnwrapErr<SysRng>, Store: SimulatorStore = InMemoryStore> {
     // Mutable state protected by RwLock for thread-safe interior mutability
     inner: RwLock<SimulacrumInner<R, Store>>,
     // Immutable config - can be accessed directly
@@ -99,13 +99,13 @@ impl Simulacrum {
     /// of randomness.
     #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
-        Self::new_with_rng(OsRng)
+        Self::new_with_rng(UnwrapErr(SysRng))
     }
 }
 
 impl<R> Simulacrum<R>
 where
-    R: rand::RngCore + rand::CryptoRng,
+    R: rand::CryptoRng,
 {
     /// Create a new Simulacrum instance using the provided `rng`.
     ///
@@ -141,6 +141,12 @@ where
             .with_chain_start_timestamp_ms(chain_start_timestamp_ms)
             .deterministic_committee_size(NonZeroUsize::new(1).unwrap())
             .with_protocol_version(protocol_version)
+            // The protocol version never changes, so validators only need the stake it
+            // requires.
+            .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
+                protocol_version.as_u64(),
+                protocol_version.as_u64(),
+            ))
             .with_accounts(account_configs)
             .build();
         Self::new_with_network_config_in_mem(&config, rng)
@@ -193,7 +199,9 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         transaction: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
         let mut inner = self.inner.write().unwrap();
-        let transaction = transaction.try_into_verified_for_testing(&VerifyParams::default())?;
+        let transaction = transaction.try_into_verified_for_testing(
+            &VerifyParams::from_protocol_config(inner.epoch_state.protocol_config()),
+        )?;
 
         let (inner_temporary_store, _, effects, execution_error_opt) =
             inner.epoch_state.execute_transaction(
@@ -245,7 +253,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let (checkpoint, contents) = {
             let mut inner = self.inner.write().unwrap();
             let committee = CommitteeWithKeys::new(&inner.keystore, inner.epoch_state.committee());
-            let timestamp_ms = inner.store.get_clock().timestamp_ms();
+            let timestamp_ms = inner.store.get_clock().timestamp_ms;
             let (checkpoint, contents, _) =
                 inner.checkpoint_builder.build(&committee, timestamp_ms);
             inner.store.insert_checkpoint(checkpoint.clone());
@@ -266,7 +274,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let mut inner = self.inner.write().unwrap();
         let epoch = inner.epoch_state.epoch();
         let round = inner.epoch_state.next_consensus_round();
-        let timestamp_ms = inner.store.get_clock().timestamp_ms() + duration.as_millis() as u64;
+        let timestamp_ms = inner.store.get_clock().timestamp_ms + duration.as_millis() as u64;
         drop(inner);
 
         let consensus_commit_prologue_transaction =
@@ -295,7 +303,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     ///
     /// With `create_deny_rules_object`, the end-of-epoch transaction also
     /// creates the `TransactionDenyRules` object (requires the
-    /// `deny_rule_governance_on_chain` feature flag).
+    /// `enable_pcool_flow` feature flag).
     ///
     /// Returns the effects of the end-of-epoch transaction.
     ///
@@ -311,7 +319,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             .checkpoint_builder
             .epoch_rolling_gas_cost_summary()
             .clone();
-        let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms();
+        let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms;
         let pass_validator_scores = inner
             .epoch_state
             .protocol_config()
@@ -398,7 +406,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             let (checkpoint, contents, _) = {
                 let committee =
                     CommitteeWithKeys::new(&inner.keystore, inner.epoch_state.committee());
-                let timestamp_ms = inner.store.get_clock().timestamp_ms();
+                let timestamp_ms = inner.store.get_clock().timestamp_ms;
                 inner.checkpoint_builder.build_end_of_epoch(
                     &committee,
                     timestamp_ms,
@@ -818,6 +826,33 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcStateReader for
         Some(self)
     }
 
+    fn get_transaction_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+        Ok(self.with_store(|store| {
+            let highest_seq = store
+                .get_highest_checkpoint()
+                .map(|cp| cp.sequence_number())?;
+
+            for seq in (0..=highest_seq).rev() {
+                if let Some(checkpoint) = store.get_checkpoint_by_sequence_number(seq) {
+                    if let Some(contents) =
+                        store.get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
+                    {
+                        if contents
+                            .iter()
+                            .any(|exec_digests| exec_digests.transaction == *digest)
+                        {
+                            return Some(checkpoint.sequence_number());
+                        }
+                    }
+                }
+            }
+            None
+        }))
+    }
+
     fn get_struct_layout(
         &self,
         _: &StructTag,
@@ -843,39 +878,6 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> Simulacrum<T, V> {
 }
 
 impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Simulacrum<T, V> {
-    fn get_transaction_info(
-        &self,
-        digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<TransactionInfo>> {
-        Ok(self.with_store(|store| {
-            let highest_seq = store
-                .get_highest_checkpoint()
-                .map(|cp| cp.sequence_number())?;
-
-            for seq in (0..=highest_seq).rev() {
-                if let Some(checkpoint) = store.get_checkpoint_by_sequence_number(seq) {
-                    if let Some(contents) =
-                        store.get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
-                    {
-                        if contents
-                            .iter()
-                            .any(|exec_digests| exec_digests.transaction == *digest)
-                        {
-                            // object_types left empty — production GrpcIndexesStore
-                            // populates this from input/output objects but that is
-                            // not needed for the simulacrum test harness.
-                            return Some(TransactionInfo {
-                                checkpoint: checkpoint.sequence_number(),
-                                object_types: HashMap::new(),
-                            });
-                        }
-                    }
-                }
-            }
-            None
-        }))
-    }
-
     fn account_owned_objects_info_iter(
         &self,
         _owner: Address,
@@ -969,7 +971,12 @@ mod tests {
     use std::time::Duration;
 
     use iota_types::{
-        effects::TransactionEffectsAPI, gas_coin::GasCoin, transaction::TransactionAPI,
+        effects::TransactionEffectsAPI,
+        error::IotaError,
+        gas_coin::GasCoin,
+        transaction::TransactionAPI,
+        transaction_executor::VmChecks,
+        utils::{assert_size_limit_err, ptb_above_max_tx_size},
     };
     use rand::{SeedableRng, rngs::StdRng};
 
@@ -1006,7 +1013,7 @@ mod tests {
         let start_time_ms = sim.with_store(|store| {
             let clock = store.get_clock();
             println!("clock: {clock:#?}");
-            clock.timestamp_ms()
+            clock.timestamp_ms
         });
 
         for _ in 0..steps {
@@ -1017,7 +1024,7 @@ mod tests {
                 println!("clock: {clock:#?}");
             });
         }
-        let end_time_ms = sim.with_store(|store| store.get_clock().timestamp_ms());
+        let end_time_ms = sim.with_store(|store| store.get_clock().timestamp_ms);
         assert_eq!(end_time_ms - start_time_ms, steps);
         sim.with_store(|store| {
             dbg!(store.get_highest_checkpoint());
@@ -1026,14 +1033,6 @@ mod tests {
 
     #[test]
     fn advance_epoch_creates_deny_rules_object() {
-        let _guard =
-            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_deny_rule_governance_for_testing(true);
-                config.set_deny_rule_governance_on_chain_for_testing(true);
-                config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-                config.set_deny_rule_removal_grace_round_floor_for_testing(0);
-                config
-            });
         let sim = Simulacrum::new();
 
         assert!(sim.with_store(|store| {
@@ -1065,14 +1064,6 @@ mod tests {
             get_transaction_deny_rules, get_transaction_deny_rules_obj_initial_shared_version,
         };
 
-        let _guard =
-            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_deny_rule_governance_for_testing(true);
-                config.set_deny_rule_governance_on_chain_for_testing(true);
-                config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-                config.set_deny_rule_removal_grace_round_floor_for_testing(0);
-                config
-            });
         let sim = Simulacrum::new();
         sim.advance_epoch(true);
 
@@ -1144,10 +1135,7 @@ mod tests {
 
         let _guard =
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_deny_rule_governance_for_testing(true);
-                config.set_deny_rule_governance_on_chain_for_testing(true);
                 config.set_deny_rule_update_max_entries_per_tx_for_testing(CEILING);
-                config.set_deny_rule_removal_grace_round_floor_for_testing(0);
                 config
             });
         let sim = Simulacrum::new();
@@ -1260,5 +1248,24 @@ mod tests {
 
         assert_eq!(&checkpoint.epoch_rolling_gas_cost_summary, gas_summary);
         assert_eq!(checkpoint.network_total_transactions, 2); // genesis + 1 txn
+    }
+
+    #[test]
+    fn simulate_rejects_a_transaction_above_the_size_limit() {
+        let sim = Simulacrum::new();
+        let pt = {
+            let inner = sim.inner.read().unwrap();
+            ptb_above_max_tx_size(inner.epoch_state.protocol_config())
+        };
+        let transaction =
+            Transaction::new_programmable(Address::random(), vec![], pt, 10_000_000, 1000);
+
+        let Err(err) = sim.simulate_transaction(transaction, VmChecks::Enabled) else {
+            panic!("a transaction above the size limit must be rejected");
+        };
+        let IotaError::UserInput { error } = &err else {
+            panic!("got {err:?}");
+        };
+        assert_size_limit_err(error, "serialized transaction size exceeded maximum");
     }
 }

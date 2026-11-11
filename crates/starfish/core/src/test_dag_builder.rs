@@ -9,7 +9,7 @@ use std::{
 };
 
 use parking_lot::RwLock;
-use rand::{Rng, SeedableRng, rngs::StdRng, seq::SliceRandom};
+use rand::{RngExt, SeedableRng, rngs::StdRng, seq::SliceRandom};
 use starfish_config::{AuthorityIndex, ProtocolKeyPair};
 
 use crate::{
@@ -317,7 +317,6 @@ impl DagBuilder {
             }
 
             let commit = TrustedCommit::new_for_test(
-                &self.context,
                 last_commit_ref.index + 1,
                 last_commit_ref.digest,
                 last_timestamp_ms,
@@ -591,7 +590,7 @@ impl DagBuilder {
         };
 
         let mut references = Vec::new();
-        let version = TestBlockHeaderVersion::from_context(&self.context);
+        let version = TestBlockHeaderVersion::V2;
 
         for (authority, ancestors) in connections {
             let author = authority.value() as u8;
@@ -614,7 +613,7 @@ impl DagBuilder {
             self.record_own_block(block.reference());
             self.block_headers.insert(block.reference(), block.clone());
         }
-        let mut rng = StdRng::from_entropy();
+        let mut rng = rand::make_rng::<StdRng>();
         let unique_transaction_acks: Vec<BlockRef> = transaction_acks
             .values()
             .flatten()
@@ -653,8 +652,7 @@ impl DagBuilder {
     /// acknowledgments count towards what it has, so they have to be recorded
     /// before the vote is derived. `None` when the block does not link the
     /// leader, since an author that has not seen the leader block cannot vote
-    /// on it, and `None` while `consensus_starfish_speed` is off, where
-    /// headers are V1 and nothing reads the recorded transactions.
+    /// on it.
     fn strong_vote(
         &mut self,
         round: Round,
@@ -662,9 +660,6 @@ impl DagBuilder {
         ancestors: &[BlockRef],
         acknowledgments: &[BlockRef],
     ) -> Option<StrongVote> {
-        if !self.context.protocol_config.consensus_starfish_speed() {
-            return None;
-        }
         self.available_transactions[author].extend(acknowledgments.iter().copied());
 
         let leader_round = round - 1;
@@ -696,9 +691,7 @@ impl DagBuilder {
     /// Records that an author holds the transactions of the block it just
     /// built.
     fn record_own_block(&mut self, block_ref: BlockRef) {
-        if self.context.protocol_config.consensus_starfish_speed() {
-            self.available_transactions[block_ref.author].insert(block_ref);
-        }
+        self.available_transactions[block_ref.author].insert(block_ref);
     }
 }
 /// Refer to doc comments for [`DagBuilder`] for usage information.
@@ -990,7 +983,7 @@ impl<'a> LayerBuilder<'a> {
 
         let mut rng = match self.min_ancestor_links_random_seed {
             Some(s) => StdRng::seed_from_u64(s),
-            None => StdRng::from_entropy(),
+            None => rand::make_rng::<StdRng>(),
         };
 
         let mut authorities_to_shuffle = authorities.clone();
@@ -1148,8 +1141,8 @@ impl<'a> LayerBuilder<'a> {
         transaction_acknowledgments: HashMap<AuthorityIndex, Vec<BlockRef>>,
     ) {
         let mut references = Vec::new();
-        let mut rng = StdRng::from_entropy();
-        let version = TestBlockHeaderVersion::from_context(&self.dag_builder.context);
+        let mut rng = rand::make_rng::<StdRng>();
+        let version = TestBlockHeaderVersion::V2;
 
         for (authority, ancestors) in connections {
             if self.should_skip_block(round, authority) {

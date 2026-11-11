@@ -84,9 +84,9 @@ pub(crate) type Cursor = cursor::JsonCursor<CheckpointCursor>;
 pub(crate) struct CheckpointCursor {
     /// The checkpoint sequence number this was viewed at.
     #[serde(rename = "c")]
-    pub checkpoint_viewed_at: u64,
+    pub checkpoint_viewed_at: UInt53,
     #[serde(rename = "s")]
-    pub sequence_number: u64,
+    pub sequence_number: UInt53,
 }
 
 /// Checkpoints contain finalized transactions and are used for node
@@ -508,15 +508,15 @@ impl Checkpoint {
 impl Target<Cursor> for StoredCheckpoint {
     fn cursor(&self, checkpoint_viewed_at: u64) -> Cursor {
         Cursor::new(CheckpointCursor {
-            checkpoint_viewed_at,
-            sequence_number: self.sequence_number as u64,
+            checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
+            sequence_number: UInt53::new_unchecked(self.sequence_number as u64),
         })
     }
 }
 
 impl Checkpointed for Cursor {
     fn checkpoint_viewed_at(&self) -> u64 {
-        self.checkpoint_viewed_at
+        self.checkpoint_viewed_at.into()
     }
 }
 
@@ -537,8 +537,12 @@ impl Page<Cursor> {
         let lo = *available.start();
         let hi = *available.end();
 
-        let after = self.after().map(|c| ("after", c.sequence_number));
-        let before = self.before().map(|c| ("before", c.sequence_number));
+        let after = self
+            .after()
+            .map(|c| ("after", u64::from(c.sequence_number)));
+        let before = self
+            .before()
+            .map(|c| ("before", u64::from(c.sequence_number)));
 
         // If `after > before`, the range is empty; skip cursor validation.
         if let (Some((_, after_seq)), Some((_, before_seq))) = (after, before) {

@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use futures::future::try_join_all;
+use tokio::task::JoinSet;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 use super::{
@@ -15,21 +16,29 @@ use crate::{metrics::IndexerMetrics, store::IndexerAnalyticalStore};
 pub struct ProcessorOrchestrator<S> {
     store: S,
     metrics: IndexerMetrics,
+    cancel: CancellationToken,
 }
 
 impl<S> ProcessorOrchestrator<S>
 where
     S: IndexerAnalyticalStore + Clone + Send + Sync + 'static,
 {
-    pub fn new(store: S, metrics: IndexerMetrics) -> Self {
-        Self { store, metrics }
+    pub fn new(store: S, metrics: IndexerMetrics, cancel: CancellationToken) -> Self {
+        Self {
+            store,
+            metrics,
+            cancel,
+        }
     }
 
     pub async fn run_forever(&mut self) {
         info!("Processor orchestrator started...");
+        let mut tasks = JoinSet::new();
+
         let network_metrics_processor =
             NetworkMetricsProcessor::new(self.store.clone(), self.metrics.clone());
-        let network_metrics_handle = tokio::task::spawn(async move {
+
+        tasks.spawn(async move {
             loop {
                 let network_metrics_res = network_metrics_processor.start().await;
                 if let Err(e) = network_metrics_res {
@@ -43,7 +52,8 @@ where
 
         let addr_metrics_processor =
             AddressMetricsProcessor::new(self.store.clone(), self.metrics.clone());
-        let addr_metrics_handle = tokio::task::spawn(async move {
+
+        tasks.spawn(async move {
             loop {
                 let addr_metrics_res = addr_metrics_processor.start().await;
                 if let Err(e) = addr_metrics_res {
@@ -57,7 +67,8 @@ where
 
         let move_call_metrics_processor =
             MoveCallMetricsProcessor::new(self.store.clone(), self.metrics.clone());
-        let move_call_metrics_handle = tokio::task::spawn(async move {
+
+        tasks.spawn(async move {
             loop {
                 let move_call_metrics_res = move_call_metrics_processor.start().await;
                 if let Err(e) = move_call_metrics_res {
@@ -69,12 +80,19 @@ where
             }
         });
 
-        try_join_all(vec![
-            network_metrics_handle,
-            addr_metrics_handle,
-            move_call_metrics_handle,
-        ])
-        .await
-        .expect("processor orchestrator should not run into errors.");
+        tokio::select! {
+            _ = self.cancel.cancelled() => {
+                info!("Processor orchestrator shutting down...");
+                // Aborting mid-batch is safe, each batch commits in one transaction,
+                // so an interrupted one rolls back, and the processors resume from the
+                // last committed cursor on the next start.
+                tasks.shutdown().await;
+            }
+            _ = async {
+                while let Some(res) = tasks.join_next().await {
+                    res.expect("processor orchestrator should not run into errors.");
+                }
+            } => {}
+        }
     }
 }

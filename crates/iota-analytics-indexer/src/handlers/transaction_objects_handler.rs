@@ -100,9 +100,10 @@ impl TransactionObjectsHandler {
         // input
         //
         // Process all objects associated with the transaction, including authenticator
-        // inputs.
+        // inputs, except the packages named by the authenticators' type arguments.
+        // In the context of ingestion packages are handled as part of the output objects.
         transaction
-            .input_objects()
+            .input_objects(false)
             .expect("input objects must be valid")
             .into_iter()
             .map(|object| (object.object_id(), object.version().map(|v| v.as_u64())))

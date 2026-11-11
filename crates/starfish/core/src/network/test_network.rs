@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::stream;
+use futures::{StreamExt as _, stream};
 use parking_lot::Mutex;
 use starfish_config::AuthorityIndex;
 use tokio::sync::Notify;
@@ -18,9 +18,24 @@ use crate::{
     commit_syncer::CommitSyncType,
     encoder::ShardEncoder,
     error::ConsensusResult,
-    network::{BlockBundleStream, NetworkService, SerializedBlockBundle, StreamPosition},
+    network::{
+        BlockBundleStream, ChunkStream, FetchedCommitsAndTransactions, NetworkService,
+        SerializedBlockBundle, StreamPosition,
+        admission::AdmissionGuard,
+        tonic_network::{MAX_FETCH_RESPONSE_BYTES, chunk_data},
+    },
     transaction_ref::TransactionRef,
 };
+
+/// Serves `entries` in messages of at most `MAX_FETCH_RESPONSE_BYTES` each.
+fn chunk_stream(entries: Vec<Bytes>) -> ChunkStream {
+    stream::iter(
+        chunk_data(entries, MAX_FETCH_RESPONSE_BYTES)
+            .into_iter()
+            .map(Ok),
+    )
+    .boxed()
+}
 
 /// Parks the bundle handler so a test can act while one bundle is in flight.
 #[derive(Clone)]
@@ -36,6 +51,23 @@ pub(crate) struct TestService {
     pub(crate) handle_fetch_commits: Vec<(AuthorityIndex, CommitRange)>,
     pub(crate) own_block_bundles: Vec<SerializedBlockBundle>,
     pub(crate) block_bundle_handler_gate: Option<BundleHandlerGate>,
+    /// Keeps every subscription open, so a test can hold admission slots.
+    pub(crate) endless_subscriptions: bool,
+    /// Served as the transaction chunks of every fast commit-sync fetch.
+    pub(crate) fetch_commits_and_transactions_chunks: Vec<ConsensusResult<Vec<Bytes>>>,
+    /// Served as the commits of every fast commit-sync fetch.
+    pub(crate) fetch_commits_and_transactions_commits: Vec<Bytes>,
+    /// Served as the certifier headers of every fast commit-sync fetch.
+    pub(crate) fetch_commits_and_transactions_certifier_block_headers: Vec<Bytes>,
+    /// Served as the headers of every header fetch.
+    pub(crate) fetch_block_headers_response: Vec<Bytes>,
+    pub(crate) handle_fetch_transactions: Vec<(AuthorityIndex, Vec<TransactionRef>)>,
+    /// Served as the entries of every transaction fetch.
+    pub(crate) fetch_transactions_response: Vec<Bytes>,
+    /// Served as the headers of every latest header fetch.
+    pub(crate) fetch_latest_block_headers_response: Vec<Bytes>,
+    /// Served as the commits of every regular commit-sync fetch.
+    pub(crate) fetch_commits_response: Vec<TrustedCommit>,
 }
 
 impl TestService {
@@ -61,6 +93,15 @@ impl TestService {
             handle_fetch_block_headers: Vec::new(),
             handle_fetch_commits: Vec::new(),
             block_bundle_handler_gate: None,
+            endless_subscriptions: false,
+            fetch_commits_and_transactions_chunks: Vec::new(),
+            fetch_commits_and_transactions_commits: Vec::new(),
+            fetch_commits_and_transactions_certifier_block_headers: Vec::new(),
+            fetch_block_headers_response: Vec::new(),
+            handle_fetch_transactions: Vec::new(),
+            fetch_transactions_response: Vec::new(),
+            fetch_latest_block_headers_response: Vec::new(),
+            fetch_commits_response: Vec::new(),
         }
     }
 
@@ -104,6 +145,9 @@ impl NetworkService for Mutex<TestService> {
         state
             .handle_subscribed_block_bundle_requests
             .push((peer, last_received));
+        if state.endless_subscriptions {
+            return Ok(Box::pin(stream::pending()));
+        }
         let own_blocks = state
             .own_block_bundles
             .iter()
@@ -119,11 +163,11 @@ impl NetworkService for Mutex<TestService> {
         peer: AuthorityIndex,
         block_refs: Vec<BlockRef>,
         _highest_accepted_rounds: Vec<Round>,
-    ) -> ConsensusResult<Vec<Bytes>> {
-        self.lock()
-            .handle_fetch_block_headers
-            .push((peer, block_refs));
-        Ok(vec![])
+        _admission_guard: Option<Arc<AdmissionGuard>>,
+    ) -> ConsensusResult<ChunkStream> {
+        let mut service = self.lock();
+        service.handle_fetch_block_headers.push((peer, block_refs));
+        Ok(chunk_stream(service.fetch_block_headers_response.clone()))
     }
 
     async fn handle_fetch_commits(
@@ -132,16 +176,26 @@ impl NetworkService for Mutex<TestService> {
         commit_range: CommitRange,
         _commit_sync_type: CommitSyncType,
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
-        self.lock().handle_fetch_commits.push((peer, commit_range));
-        Ok((vec![], vec![]))
+        let mut service = self.lock();
+        service.handle_fetch_commits.push((peer, commit_range));
+        Ok((service.fetch_commits_response.clone(), vec![]))
     }
 
     async fn handle_fetch_commits_and_transactions(
         &self,
         _peer: AuthorityIndex,
         _commit_range: CommitRange,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
-        unimplemented!("Unimplemented")
+        _admission_guard: Option<Arc<AdmissionGuard>>,
+    ) -> ConsensusResult<FetchedCommitsAndTransactions> {
+        let service = self.lock();
+        Ok(FetchedCommitsAndTransactions {
+            commits: service.fetch_commits_and_transactions_commits.clone(),
+            certifier_block_headers: service
+                .fetch_commits_and_transactions_certifier_block_headers
+                .clone(),
+            transactions: stream::iter(service.fetch_commits_and_transactions_chunks.clone())
+                .boxed(),
+        })
     }
 
     async fn handle_fetch_latest_block_headers(
@@ -149,15 +203,19 @@ impl NetworkService for Mutex<TestService> {
         _peer: AuthorityIndex,
         _authorities: Vec<AuthorityIndex>,
     ) -> ConsensusResult<Vec<Bytes>> {
-        unimplemented!("Unimplemented")
+        Ok(self.lock().fetch_latest_block_headers_response.clone())
     }
 
     async fn handle_fetch_transactions(
         &self,
-        _peer: AuthorityIndex,
-        _transaction_refs: Vec<TransactionRef>,
-        _fetch_mode: crate::network::TransactionFetchMode,
-    ) -> ConsensusResult<Vec<Bytes>> {
-        unimplemented!("Unimplemented")
+        peer: AuthorityIndex,
+        transaction_refs: Vec<TransactionRef>,
+        _admission_guard: Option<Arc<AdmissionGuard>>,
+    ) -> ConsensusResult<ChunkStream> {
+        let mut service = self.lock();
+        service
+            .handle_fetch_transactions
+            .push((peer, transaction_refs));
+        Ok(chunk_stream(service.fetch_transactions_response.clone()))
     }
 }

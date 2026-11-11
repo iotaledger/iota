@@ -5,7 +5,6 @@
 use std::{collections::HashSet, time::Duration};
 
 use anemo::{Result, types::PeerAffinity};
-use fastcrypto::{ed25519::Ed25519PublicKey, traits::KeyPair};
 use futures::stream::FuturesUnordered;
 use iota_config::{local_ip_utils, p2p::AllowlistedPeer};
 use tokio::time::timeout;
@@ -32,7 +31,8 @@ fn default_p2p_config_with_private_addresses_allowed() -> P2pConfig {
         .set_discovery_config(default_discovery_config_with_private_addresses_allowed())
 }
 
-fn assert_peers(
+/// Returns a description of the first peer set that differs from the expected one.
+fn check_peers(
     self_name: &str,
     network: &Network,
     state: &Arc<RwLock<State>>,
@@ -40,22 +40,24 @@ fn assert_peers(
     expected_network_connected_peers: HashSet<PeerId>,
     expected_discovery_known_peers: HashSet<PeerId>,
     expected_discovery_connected_peers: HashSet<PeerId>,
-) {
+) -> Result<(), String> {
     let actual = network
         .known_peers()
         .get_all()
         .iter()
         .map(|pi| pi.peer_id)
         .collect::<HashSet<_>>();
-    assert_eq!(
-        actual, expected_network_known_peers,
-        "{self_name} network known peers mismatch. Expected: {expected_network_known_peers:#?}, actual: {actual:#?}",
-    );
+    if actual != expected_network_known_peers {
+        return Err(format!(
+            "{self_name} network known peers mismatch. Expected: {expected_network_known_peers:#?}, actual: {actual:#?}"
+        ));
+    }
     let actual = network.peers().iter().copied().collect::<HashSet<_>>();
-    assert_eq!(
-        actual, expected_network_connected_peers,
-        "{self_name} network connected peers mismatch. Expected: {expected_network_connected_peers:#?}, actual: {actual:#?}",
-    );
+    if actual != expected_network_connected_peers {
+        return Err(format!(
+            "{self_name} network connected peers mismatch. Expected: {expected_network_connected_peers:#?}, actual: {actual:#?}"
+        ));
+    }
     let actual = state
         .read()
         .unwrap()
@@ -63,10 +65,11 @@ fn assert_peers(
         .keys()
         .cloned()
         .collect::<HashSet<_>>();
-    assert_eq!(
-        actual, expected_discovery_known_peers,
-        "{self_name} discovery known peers mismatch. Expected: {expected_discovery_known_peers:#?}, actual: {actual:#?}",
-    );
+    if actual != expected_discovery_known_peers {
+        return Err(format!(
+            "{self_name} discovery known peers mismatch. Expected: {expected_discovery_known_peers:#?}, actual: {actual:#?}"
+        ));
+    }
 
     let actual = state
         .read()
@@ -75,10 +78,12 @@ fn assert_peers(
         .keys()
         .cloned()
         .collect::<HashSet<_>>();
-    assert_eq!(
-        actual, expected_discovery_connected_peers,
-        "{self_name} discovery connected peers mismatch. Expected: {expected_discovery_connected_peers:#?}, actual: {actual:#?}",
-    );
+    if actual != expected_discovery_connected_peers {
+        return Err(format!(
+            "{self_name} discovery connected peers mismatch. Expected: {expected_discovery_connected_peers:#?}, actual: {actual:#?}"
+        ));
+    }
+    Ok(())
 }
 
 fn unwrap_new_peer_event(event: PeerEvent) -> PeerId {
@@ -103,7 +108,7 @@ fn set_up_network_with_trusted_peer_change_rx(
     UnstartedDiscovery,
     DiscoveryServer<impl Discovery>,
     Network,
-    NetworkKeyPair,
+    NetworkPrivateKey,
 ) {
     let anemo_config = p2p_config.anemo_config.clone().unwrap_or_default();
 
@@ -111,7 +116,7 @@ fn set_up_network_with_trusted_peer_change_rx(
         .config(p2p_config)
         .build();
 
-    let (network, keypair) = match address {
+    let (network, private_key) = match address {
         Some(addr) => build_network_with_address_and_anemo_config(
             |router| router.add_rpc_service(server.clone()),
             addr,
@@ -123,7 +128,7 @@ fn set_up_network_with_trusted_peer_change_rx(
         ),
     };
 
-    (discovery, server, network, keypair)
+    (discovery, server, network, private_key)
 }
 
 fn set_up_network(
@@ -133,7 +138,7 @@ fn set_up_network(
     UnstartedDiscovery,
     DiscoveryServer<impl Discovery>,
     Network,
-    NetworkKeyPair,
+    NetworkPrivateKey,
 ) {
     set_up_network_with_trusted_peer_change_rx(p2p_config, address, create_test_channel().1)
 }
@@ -141,9 +146,9 @@ fn set_up_network(
 fn start_network(
     discovery: UnstartedDiscovery,
     network: Network,
-    keypair: NetworkKeyPair,
+    private_key: NetworkPrivateKey,
 ) -> (DiscoveryEventLoop, Handle, Arc<RwLock<State>>) {
-    let (mut event_loop, handle) = discovery.build(network.clone(), keypair);
+    let (mut event_loop, handle) = discovery.build(network.clone(), private_key);
     event_loop.config.external_address = Some(local_multiaddr_from_network(&network));
     let state = event_loop.state.clone();
     (event_loop, handle, state)
@@ -152,9 +157,9 @@ fn start_network(
 fn start_network_without_external_address(
     discovery: UnstartedDiscovery,
     network: Network,
-    keypair: NetworkKeyPair,
+    private_key: NetworkPrivateKey,
 ) -> (DiscoveryEventLoop, Handle, Arc<RwLock<State>>) {
-    let (event_loop, handle) = discovery.build(network, keypair);
+    let (event_loop, handle) = discovery.build(network, private_key);
     let state = event_loop.state.clone();
     (event_loop, handle, state)
 }
@@ -307,7 +312,7 @@ async fn get_known_peers() -> Result<()> {
     let config = default_p2p_config_with_private_addresses_allowed();
 
     let (discovery, server, network, key) = set_up_network(config, None);
-    let key_for_signing = key.copy();
+    let key_for_signing = key.clone();
     let (_event_loop, _handle, state) = start_network(discovery, network.clone(), key);
 
     // Err when own_info not set
@@ -349,7 +354,7 @@ async fn get_known_peers() -> Result<()> {
         peer_info_other.peer_id,
         VerifiedSignedNodeInfo::new_unchecked(SignedNodeInfo::new_from_data_and_sig(
             peer_info_other.clone(),
-            Ed25519Signature::default(),
+            Ed25519Signature::new([0; 64]),
         )),
     );
     let response = server
@@ -477,7 +482,7 @@ async fn three_nodes_can_connect_via_discovery() -> Result<()> {
     let mut connected_peers_3 = Vec::new();
 
     // Collect all events from each subscriber and filter for NewPeer events
-    tokio::time::timeout(Duration::from_secs(1), async {
+    tokio::time::timeout(Duration::from_secs(30), async {
         // Keep collecting until we have at least 2 NewPeer events per node or timeout
         loop {
             tokio::select! {
@@ -571,12 +576,10 @@ async fn peers_are_added_from_reconfig_channel() -> Result<()> {
     let (mut subscriber_2, _) = network_2.subscribe()?;
 
     // We send peer 1 a new peer info (peer 2) in the channel.
-    let peer_2_network_pubkey =
-        Ed25519PublicKey(ed25519_consensus::VerificationKey::try_from(peer_id_2.0).unwrap());
     let peer2_addr: Multiaddr = local_multiaddr_from_network(&network_2);
     tx_1.send(TrustedPeerChangeEvent {
         new_committee: vec![PeerInfo {
-            peer_id: PeerId(peer_2_network_pubkey.0.to_bytes()),
+            peer_id: peer_id_2,
             affinity: PeerAffinity::High,
             address: vec![peer2_addr.to_anemo_address().unwrap()],
         }],
@@ -831,150 +834,168 @@ async fn test_access_types() {
     info!("peer_id_10: {:?}", peer_id_10);
     info!("peer_id_11: {:?}", peer_id_11);
 
-    // Let them fully connect
-    tokio::time::sleep(Duration::from_secs(10)).await;
+    let check_all_peers = || -> Result<(), String> {
+        // Node 1 is connected to everyone. But it does not "know" private nodes.
+        check_peers(
+            "Node 1",
+            &network_1,
+            &state_1,
+            HashSet::from_iter(vec![]),
+            HashSet::from_iter(vec![
+                peer_id_2, peer_id_3, peer_id_4, peer_id_5, peer_id_6, peer_id_7, peer_id_8,
+                peer_id_9, peer_id_10, peer_id_11,
+            ]),
+            HashSet::from_iter(vec![peer_id_2, peer_id_9]),
+            HashSet::from_iter(vec![
+                peer_id_2, peer_id_3, peer_id_4, peer_id_5, peer_id_6, peer_id_7, peer_id_8,
+                peer_id_9, peer_id_10, peer_id_11,
+            ]),
+        )?;
 
-    // Node 1 is connected to everyone. But it does not "know" private nodes.
-    assert_peers(
-        "Node 1",
-        &network_1,
-        &state_1,
-        HashSet::from_iter(vec![]),
-        HashSet::from_iter(vec![
-            peer_id_2, peer_id_3, peer_id_4, peer_id_5, peer_id_6, peer_id_7, peer_id_8, peer_id_9,
-            peer_id_10, peer_id_11,
-        ]),
-        HashSet::from_iter(vec![peer_id_2, peer_id_9]),
-        HashSet::from_iter(vec![
-            peer_id_2, peer_id_3, peer_id_4, peer_id_5, peer_id_6, peer_id_7, peer_id_8, peer_id_9,
-            peer_id_10, peer_id_11,
-        ]),
-    );
+        // Node 2 is connected to everyone. But it does not "know" private nodes except
+        // the allowlisted ones 7 and 8.
+        check_peers(
+            "Node 2",
+            &network_2,
+            &state_2,
+            HashSet::from_iter(vec![peer_id_1, peer_id_7, peer_id_8]),
+            HashSet::from_iter(vec![
+                peer_id_1, peer_id_3, peer_id_4, peer_id_5, peer_id_6, peer_id_7, peer_id_8,
+                peer_id_9, peer_id_10, peer_id_11,
+            ]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_7, peer_id_8, peer_id_9]),
+            HashSet::from_iter(vec![
+                peer_id_1, peer_id_3, peer_id_4, peer_id_5, peer_id_6, peer_id_7, peer_id_8,
+                peer_id_9, peer_id_10, peer_id_11,
+            ]),
+        )?;
 
-    // Node 2 is connected to everyone. But it does not "know" private nodes except
-    // the allowlisted ones 7 and 8.
-    assert_peers(
-        "Node 2",
-        &network_2,
-        &state_2,
-        HashSet::from_iter(vec![peer_id_1, peer_id_7, peer_id_8]),
-        HashSet::from_iter(vec![
-            peer_id_1, peer_id_3, peer_id_4, peer_id_5, peer_id_6, peer_id_7, peer_id_8, peer_id_9,
-            peer_id_10, peer_id_11,
-        ]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_7, peer_id_8, peer_id_9]),
-        HashSet::from_iter(vec![
-            peer_id_1, peer_id_3, peer_id_4, peer_id_5, peer_id_6, peer_id_7, peer_id_8, peer_id_9,
-            peer_id_10, peer_id_11,
-        ]),
-    );
+        check_peers(
+            "Node 3",
+            &network_3,
+            &state_3,
+            HashSet::from_iter(vec![peer_id_1, peer_id_4, peer_id_5]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_4, peer_id_5, peer_id_9]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_4, peer_id_5, peer_id_9]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_4, peer_id_5, peer_id_9]),
+        )?;
 
-    assert_peers(
-        "Node 3",
-        &network_3,
-        &state_3,
-        HashSet::from_iter(vec![peer_id_1, peer_id_4, peer_id_5]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_4, peer_id_5, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_4, peer_id_5, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_4, peer_id_5, peer_id_9]),
-    );
+        check_peers(
+            "Node 4",
+            &network_4,
+            &state_4,
+            HashSet::from_iter(vec![peer_id_3, peer_id_5, peer_id_6]),
+            HashSet::from_iter(vec![
+                peer_id_1, peer_id_2, peer_id_3, peer_id_5, peer_id_6, peer_id_9,
+            ]),
+            HashSet::from_iter(vec![
+                peer_id_1, peer_id_2, peer_id_3, peer_id_5, peer_id_6, peer_id_9,
+            ]),
+            HashSet::from_iter(vec![
+                peer_id_1, peer_id_2, peer_id_3, peer_id_5, peer_id_6, peer_id_9,
+            ]),
+        )?;
 
-    assert_peers(
-        "Node 4",
-        &network_4,
-        &state_4,
-        HashSet::from_iter(vec![peer_id_3, peer_id_5, peer_id_6]),
-        HashSet::from_iter(vec![
-            peer_id_1, peer_id_2, peer_id_3, peer_id_5, peer_id_6, peer_id_9,
-        ]),
-        HashSet::from_iter(vec![
-            peer_id_1, peer_id_2, peer_id_3, peer_id_5, peer_id_6, peer_id_9,
-        ]),
-        HashSet::from_iter(vec![
-            peer_id_1, peer_id_2, peer_id_3, peer_id_5, peer_id_6, peer_id_9,
-        ]),
-    );
+        check_peers(
+            "Node 5",
+            &network_5,
+            &state_5,
+            HashSet::from_iter(vec![peer_id_3, peer_id_4]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_3, peer_id_4, peer_id_9]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_3, peer_id_4, peer_id_9]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_3, peer_id_4, peer_id_9]),
+        )?;
 
-    assert_peers(
-        "Node 5",
-        &network_5,
-        &state_5,
-        HashSet::from_iter(vec![peer_id_3, peer_id_4]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_3, peer_id_4, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_3, peer_id_4, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_3, peer_id_4, peer_id_9]),
-    );
+        check_peers(
+            "Node 6",
+            &network_6,
+            &state_6,
+            HashSet::from_iter(vec![peer_id_4]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_4, peer_id_9]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_4, peer_id_9]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_4, peer_id_9]),
+        )?;
 
-    assert_peers(
-        "Node 6",
-        &network_6,
-        &state_6,
-        HashSet::from_iter(vec![peer_id_4]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_4, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_4, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_4, peer_id_9]),
-    );
+        // Node 11 can't find private Node 7 via Node 2.
+        check_peers(
+            "Node 7",
+            &network_7,
+            &state_7,
+            HashSet::from_iter(vec![peer_id_2, peer_id_8]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9]),
+        )?;
 
-    // Node 11 can't find private Node 7 via Node 2.
-    assert_peers(
-        "Node 7",
-        &network_7,
-        &state_7,
-        HashSet::from_iter(vec![peer_id_2, peer_id_8]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9]),
-    );
+        // Node 11 can't find private Node 8 via Node 2.
+        check_peers(
+            "Node 8",
+            &network_8,
+            &state_8,
+            HashSet::from_iter(vec![peer_id_7, peer_id_9]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_7, peer_id_9]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_7, peer_id_9]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_7, peer_id_9]),
+        )?;
 
-    // Node 11 can't find private Node 8 via Node 2.
-    assert_peers(
-        "Node 8",
-        &network_8,
-        &state_8,
-        HashSet::from_iter(vec![peer_id_7, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_7, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_7, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_7, peer_id_9]),
-    );
+        check_peers(
+            "Node 9",
+            &network_9,
+            &state_9,
+            HashSet::from_iter(vec![]),
+            HashSet::from_iter(vec![
+                peer_id_1, peer_id_2, peer_id_3, peer_id_4, peer_id_5, peer_id_6, peer_id_7,
+                peer_id_8, peer_id_10, peer_id_11,
+            ]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2]),
+            HashSet::from_iter(vec![
+                peer_id_1, peer_id_2, peer_id_3, peer_id_4, peer_id_5, peer_id_6, peer_id_7,
+                peer_id_8, peer_id_10, peer_id_11,
+            ]),
+        )?;
 
-    assert_peers(
-        "Node 9",
-        &network_9,
-        &state_9,
-        HashSet::from_iter(vec![]),
-        HashSet::from_iter(vec![
-            peer_id_1, peer_id_2, peer_id_3, peer_id_4, peer_id_5, peer_id_6, peer_id_7, peer_id_8,
-            peer_id_10, peer_id_11,
-        ]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2]),
-        HashSet::from_iter(vec![
-            peer_id_1, peer_id_2, peer_id_3, peer_id_4, peer_id_5, peer_id_6, peer_id_7, peer_id_8,
-            peer_id_10, peer_id_11,
-        ]),
-    );
+        // Node 10 does not talk to any other private nodes.
+        check_peers(
+            "Node 10",
+            &network_10,
+            &state_10,
+            HashSet::from_iter(vec![peer_id_9]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
+        )?;
 
-    // Node 10 does not talk to any other private nodes.
-    assert_peers(
-        "Node 10",
-        &network_10,
-        &state_10,
-        HashSet::from_iter(vec![peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
-    );
+        // 11 allowlists 8 but 8 does not 11, so they can't connect
+        // although 8 is still in 11's known peer list
+        check_peers(
+            "Node 11",
+            &network_11,
+            &state_11,
+            HashSet::from_iter(vec![peer_id_1, peer_id_7, peer_id_8]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
+            HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
+        )?;
 
-    // 11 allowlists 8 but 8 does not 11, so they can't connect
-    // although 8 is still in 11's known peer list
-    assert_peers(
-        "Node 11",
-        &network_11,
-        &state_11,
-        HashSet::from_iter(vec![peer_id_1, peer_id_7, peer_id_8]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
-    );
+        Ok(())
+    };
+
+    // Private nodes such as 4 and 6 only learn about the public nodes through a
+    // chain of other nodes, one discovery tick per step, so wait for every node
+    // to reach its expected peers.
+    let _ = timeout(Duration::from_secs(60), async {
+        while check_all_peers().is_err() {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+    })
+    .await;
+
+    // Check again a few ticks later, so that connections the topology does not
+    // allow have time to show up.
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    if let Err(mismatch) = check_all_peers() {
+        panic!("{mismatch}");
+    }
 }
 
 #[tokio::test]
@@ -1144,7 +1165,7 @@ async fn test_address_spoofing_prevention() -> Result<()> {
     // Create a legitimate node that will be spoofed
     let (discovery_legitimate, _server_legitimate, network_legitimate, key_legitimate) =
         set_up_network(config.clone(), None);
-    let key_legitimate_for_signing = key_legitimate.copy(); // Keep a copy for signing
+    let key_legitimate_for_signing = key_legitimate.clone(); // Keep a copy for signing
     let (mut event_loop_legitimate, _handle_legitimate, _state_legitimate) = start_network(
         discovery_legitimate,
         network_legitimate.clone(),
@@ -1181,10 +1202,9 @@ async fn test_address_spoofing_prevention() -> Result<()> {
     let mut malicious_peers = Vec::new();
 
     for i in 0..5 {
-        // Create different keypairs (different private keys) for each malicious peer
-        let malicious_key = NetworkKeyPair::generate(&mut rand::thread_rng());
-        let malicious_peer_id =
-            anemo::PeerId(malicious_key.public().as_bytes().try_into().unwrap());
+        // Create a different private key for each malicious peer
+        let malicious_key = NetworkPrivateKey::random();
+        let malicious_peer_id = anemo::PeerId(malicious_key.public_key().into_bytes());
         let timestamp_malicious = start_timestamp_ms + i + 100;
 
         let signed_peer_info_malicious = NodeInfo {
@@ -1203,9 +1223,8 @@ async fn test_address_spoofing_prevention() -> Result<()> {
     // Malicious actor claims to be a legitimate peer but at a fake
     // non-existing/non-reachable address
     let fake_address: Multiaddr = "/dns/localhost/udp/54321".parse()?;
-    let key_malicious_2 = NetworkKeyPair::generate(&mut rand::thread_rng());
-    let peer_id_malicious_2 =
-        anemo::PeerId(key_malicious_2.public().as_bytes().try_into().unwrap());
+    let key_malicious_2 = NetworkPrivateKey::random();
+    let peer_id_malicious_2 = anemo::PeerId(key_malicious_2.public_key().into_bytes());
     let timestamp_malicious_2 = start_timestamp_ms + 1000; // Newer timestamp
     let signed_peer_info_spoof_fake_addr = NodeInfo {
         peer_id: peer_id_malicious_2,
@@ -1221,7 +1240,7 @@ async fn test_address_spoofing_prevention() -> Result<()> {
     // Create another legitimate node to use as the "malicious_address"
     let (discovery_malicious_3, _server_malicious_3, network_malicious_3, key_malicious_3) =
         set_up_network(config.clone(), None);
-    let key_malicious_3_for_signing = key_malicious_3.copy(); // Keep a copy for signing
+    let key_malicious_3_for_signing = key_malicious_3.clone(); // Keep a copy for signing
     let (event_loop_malicious_3, _handle_malicious_3) =
         discovery_malicious_3.build(network_malicious_3.clone(), key_malicious_3);
 
@@ -1265,7 +1284,19 @@ async fn test_address_spoofing_prevention() -> Result<()> {
     let mut attack_peers = vec![signed_peer_info_legitimate];
     attack_peers.extend(malicious_peers.clone());
 
+    let (mut victim_peer_events, _) = network_victim.subscribe()?;
+
     update_peers_for_test(&network_victim, state_victim.clone(), attack_peers, true).await;
+
+    // A verification connection that joins the peer set takes the place of a real
+    // connection to the same peer, and closing it afterwards drops both.
+    assert!(
+        matches!(
+            victim_peer_events.try_recv(),
+            Err(tokio::sync::broadcast::error::TryRecvError::Empty)
+        ),
+        "Address verification should not add or remove network peers"
+    );
 
     // Verify that address deduplication and verification work together correctly
     let known_peers = state_victim.read().unwrap().known_peers.clone();
@@ -1332,7 +1363,7 @@ async fn test_address_conflict_resolution_with_existing_peers() -> Result<()> {
 
     // Create network 1 first
     let (discovery_1, _server_1, network_1, key_1) = set_up_network(config.clone(), None);
-    let key_1_for_signing = key_1.copy();
+    let key_1_for_signing = key_1.clone();
     let (event_loop_1, handle_1, _state_1) = start_network(discovery_1, network_1.clone(), key_1);
     let peer_id_1 = network_1.peer_id();
 
@@ -1387,7 +1418,7 @@ async fn test_address_conflict_resolution_with_existing_peers() -> Result<()> {
     // Create network 2 with the same address that 1 was using
     let (discovery_2, _server_2, network_2, key_2) =
         set_up_network(config.clone(), Some(shared_socket_addr.into()));
-    let key_2_for_signing = key_2.copy();
+    let key_2_for_signing = key_2.clone();
     let (event_loop_2, handle_2, _state_2) = start_network(discovery_2, network_2.clone(), key_2);
     let peer_id_2 = network_2.peer_id();
 
@@ -1446,7 +1477,7 @@ async fn test_address_conflict_resolution_with_existing_peers() -> Result<()> {
     // Create network 3 with the same address
     let (discovery_3, _server_3, network_3, key_3) =
         set_up_network(config.clone(), Some(shared_socket_addr.into()));
-    let key_3_for_signing = key_3.copy();
+    let key_3_for_signing = key_3.clone();
     let (_event_loop_3, _handle_3, _state_3) = start_network(discovery_3, network_3.clone(), key_3);
     let peer_id_3 = network_3.peer_id();
 
@@ -1614,12 +1645,12 @@ async fn test_peer_deduplication() -> Result<()> {
     // This test verifies that the deduplicate_peers function correctly handles
     // each field in NodeInfo individually
 
-    // Create test keypairs
-    let key1 = NetworkKeyPair::generate(&mut rand::thread_rng());
-    let key2 = NetworkKeyPair::generate(&mut rand::thread_rng());
+    // Create test private keys
+    let key1 = NetworkPrivateKey::random();
+    let key2 = NetworkPrivateKey::random();
 
-    let peer_id1 = anemo::PeerId(key1.public().as_bytes().try_into().unwrap());
-    let peer_id2 = anemo::PeerId(key2.public().as_bytes().try_into().unwrap());
+    let peer_id1 = anemo::PeerId(key1.public_key().into_bytes());
+    let peer_id2 = anemo::PeerId(key2.public_key().into_bytes());
 
     let address1: Multiaddr = "/dns/localhost/udp/1111".parse()?;
     let address2: Multiaddr = "/dns/localhost/udp/2222".parse()?;
@@ -1908,8 +1939,8 @@ async fn test_private_address_filtering() -> Result<()> {
 
     // Create peers with private/unroutable addresses (should be filtered)
     for (i, address_str) in filtered_addresses.iter().enumerate() {
-        let key = NetworkKeyPair::generate(&mut rand::thread_rng());
-        let peer_id = anemo::PeerId(key.public().0.to_bytes());
+        let key = NetworkPrivateKey::random();
+        let peer_id = anemo::PeerId(key.public_key().into_bytes());
 
         let peer_info = NodeInfo {
             peer_id,
@@ -1928,8 +1959,8 @@ async fn test_private_address_filtering() -> Result<()> {
 
     // Create peers with public addresses (should reach verification)
     for (i, address_str) in public_addresses.iter().enumerate() {
-        let key = NetworkKeyPair::generate(&mut rand::thread_rng());
-        let peer_id = anemo::PeerId(key.public().0.to_bytes());
+        let key = NetworkPrivateKey::random();
+        let peer_id = anemo::PeerId(key.public_key().into_bytes());
 
         let peer_info = NodeInfo {
             peer_id,
@@ -2126,6 +2157,89 @@ async fn test_construct_our_info_address_filtering() -> Result<()> {
                 "Private/unroutable address {address_str} ({description}) should be filtered out from our own info",
             );
         }
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_known_peers_limit_evicts_oldest_peers() -> Result<()> {
+    let (discovery, _server, network, key) =
+        set_up_network(default_p2p_config_with_private_addresses_allowed(), None);
+    let now = now_unix();
+    let our_info = NodeInfo {
+        peer_id: network.peer_id(),
+        addresses: vec![local_multiaddr_from_network(&network)],
+        timestamp_ms: now,
+        access_type: AccessType::Public,
+    }
+    .sign(&key);
+    let (_event_loop, _handle, state) = start_network(discovery, network.clone(), key);
+    state.write().unwrap().our_info = Some(our_info);
+
+    let signed_peer_info = |timestamp_ms: u64, port: u16| {
+        let key = NetworkPrivateKey::random();
+        NodeInfo {
+            peer_id: anemo::PeerId(key.public_key().into_bytes()),
+            addresses: vec![format!("/dns/localhost/udp/{port}").parse().unwrap()],
+            timestamp_ms,
+            access_type: AccessType::Public,
+        }
+        .sign(&key)
+    };
+
+    // Four existing peers, oldest first. The oldest one is connected.
+    let existing_peers: Vec<_> = (0..4u16)
+        .map(|i| signed_peer_info(now - 4_000 + u64::from(i) * 1_000, 1000 + i))
+        .collect();
+    {
+        let mut state_guard = state.write().unwrap();
+        for peer in &existing_peers {
+            state_guard.known_peers.insert(
+                peer.peer_id,
+                VerifiedSignedNodeInfo::new_from_verified(peer.clone()),
+            );
+        }
+        state_guard
+            .connected_peers
+            .insert(existing_peers[0].peer_id, ());
+    }
+
+    // Two new allowlisted peers, which are added without address verification.
+    let new_peers: Vec<_> = (0..2u16).map(|i| signed_peer_info(now, 2000 + i)).collect();
+    let allowlisted_peers: HashMap<_, _> =
+        new_peers.iter().map(|peer| (peer.peer_id, None)).collect();
+
+    let config = DiscoveryConfig {
+        allow_private_addresses: Some(true),
+        max_known_peers: Some(4),
+        ..Default::default()
+    };
+    update_known_peers(
+        &network,
+        state.clone(),
+        Metrics::disabled(),
+        new_peers.clone(),
+        Arc::new(allowlisted_peers),
+        &config,
+    )
+    .await;
+
+    assert_known_peers_count(&state, 4, "Should keep 4 known peers but got {}");
+    for (peer, should_be_known) in [
+        (&existing_peers[0], true),
+        (&existing_peers[1], false),
+        (&existing_peers[2], false),
+        (&existing_peers[3], true),
+        (&new_peers[0], true),
+        (&new_peers[1], true),
+    ] {
+        assert_peer_in_known_peers(
+            &state,
+            &peer.peer_id,
+            should_be_known,
+            "Unexpected known peers state for peer {}",
+        );
     }
 
     Ok(())

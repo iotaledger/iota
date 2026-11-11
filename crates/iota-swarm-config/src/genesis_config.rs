@@ -20,11 +20,15 @@ use iota_sdk_types::Address;
 use iota_types::{
     committee::ProtocolVersion,
     crypto::{
-        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair,
+        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkPrivateKey,
         NetworkPublicKey, PublicKey, generate_proof_of_possession, get_key_pair_from_rng,
     },
 };
-use rand::{SeedableRng, rngs::StdRng};
+use rand::{
+    SeedableRng,
+    rand_core::UnwrapErr,
+    rngs::{StdRng, SysRng},
+};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -32,7 +36,8 @@ use tracing::info;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SsfnGenesisConfig {
     pub p2p_address: Multiaddr,
-    pub network_key_pair: Option<NetworkKeyPair>,
+    #[serde(default, with = "base64_formatted_network_private_key::option")]
+    pub network_key_pair: Option<NetworkPrivateKey>,
 }
 
 // All information needed to build a NodeConfig for a validator.
@@ -40,12 +45,18 @@ pub struct SsfnGenesisConfig {
 pub struct ValidatorGenesisConfig {
     #[serde(default = "default_bls12381_key_pair")]
     pub authority_key_pair: AuthorityKeyPair,
-    #[serde(default = "default_ed25519_key_pair")]
-    pub protocol_key_pair: NetworkKeyPair,
+    #[serde(
+        default = "default_network_private_key",
+        with = "base64_formatted_network_private_key"
+    )]
+    pub protocol_key_pair: NetworkPrivateKey,
     #[serde(default = "default_iota_key_pair", with = "base64_formatted_keypair")]
     pub account_key_pair: SimpleKeypair,
-    #[serde(default = "default_ed25519_key_pair")]
-    pub network_key_pair: NetworkKeyPair,
+    #[serde(
+        default = "default_network_private_key",
+        with = "base64_formatted_network_private_key"
+    )]
+    pub network_key_pair: NetworkPrivateKey,
     pub network_address: Multiaddr,
     pub p2p_address: Multiaddr,
     pub p2p_listen_address: Option<SocketAddr>,
@@ -62,15 +73,15 @@ pub struct ValidatorGenesisConfig {
 }
 
 impl ValidatorGenesisConfig {
-    /// A copy of this config, key pairs included. The key pair types do not
-    /// implement `Clone`, which is why this is not a `Clone` implementation
-    /// and why the name says what it copies.
+    /// A copy of this config, key pairs included. The authority key pair does
+    /// not implement `Clone`, which is why this is not a `Clone`
+    /// implementation and why the name says what it copies.
     pub fn copy_with_private_keys(&self) -> Self {
         Self {
             authority_key_pair: self.authority_key_pair.copy(),
-            protocol_key_pair: self.protocol_key_pair.copy(),
+            protocol_key_pair: self.protocol_key_pair.clone(),
             account_key_pair: self.account_key_pair.clone(),
-            network_key_pair: self.network_key_pair.copy(),
+            network_key_pair: self.network_key_pair.clone(),
             network_address: self.network_address.clone(),
             p2p_address: self.p2p_address.clone(),
             p2p_listen_address: self.p2p_listen_address,
@@ -87,8 +98,8 @@ impl ValidatorGenesisConfig {
     pub fn to_validator_info(&self, name: String) -> GenesisValidatorInfo {
         let authority_key: AuthorityPublicKeyBytes = self.authority_key_pair.public().into();
         let account_key = PublicKey::from(&self.account_key_pair);
-        let network_key: NetworkPublicKey = self.network_key_pair.public().clone();
-        let protocol_key: NetworkPublicKey = self.protocol_key_pair.public().clone();
+        let network_key: NetworkPublicKey = self.network_key_pair.public_key();
+        let protocol_key: NetworkPublicKey = self.protocol_key_pair.public_key();
         let network_address = self.network_address.clone();
 
         let info = ValidatorInfo {
@@ -135,6 +146,7 @@ pub struct ValidatorGenesisConfigBuilder {
     /// testing on AWS.
     p2p_listen_ip_address: Option<IpAddr>,
     metrics_ip_address: Option<IpAddr>,
+    protocol_version: Option<ProtocolVersion>,
 }
 
 impl ValidatorGenesisConfigBuilder {
@@ -180,7 +192,14 @@ impl ValidatorGenesisConfigBuilder {
         self
     }
 
-    pub fn build<R: rand::RngCore + rand::CryptoRng>(self, rng: &mut R) -> ValidatorGenesisConfig {
+    /// Stake the validator with the low stake threshold of
+    /// `protocol_version` rather than that of `ProtocolVersion::MAX`.
+    pub fn with_protocol_version(mut self, protocol_version: ProtocolVersion) -> Self {
+        self.protocol_version = Some(protocol_version);
+        self
+    }
+
+    pub fn build<R: rand::CryptoRng>(self, rng: &mut R) -> ValidatorGenesisConfig {
         let ip = self.ip.unwrap_or_else(local_ip_utils::get_new_ip);
         let localhost = local_ip_utils::localhost_for_testing();
 
@@ -192,7 +211,7 @@ impl ValidatorGenesisConfigBuilder {
             .unwrap_or_else(|| get_key_pair_from_rng(rng).1);
         let gas_price = self.gas_price.unwrap_or(DEFAULT_VALIDATOR_GAS_PRICE);
 
-        let (protocol_key_pair, network_key_pair): (NetworkKeyPair, NetworkKeyPair) =
+        let (protocol_private_key, network_private_key): (NetworkPrivateKey, NetworkPrivateKey) =
             (get_key_pair_from_rng(rng).1, get_key_pair_from_rng(rng).1);
 
         let metrics_ip = self.metrics_ip_address.map(|ip| ip.to_string());
@@ -238,9 +257,9 @@ impl ValidatorGenesisConfigBuilder {
 
         ValidatorGenesisConfig {
             authority_key_pair,
-            protocol_key_pair,
+            protocol_key_pair: protocol_private_key,
             account_key_pair: account_private_key.into(),
-            network_key_pair,
+            network_key_pair: network_private_key,
             network_address,
             p2p_address,
             p2p_listen_address,
@@ -249,12 +268,15 @@ impl ValidatorGenesisConfigBuilder {
             gas_price,
             commission_rate: DEFAULT_COMMISSION_RATE,
             primary_address,
-            // A test-wide protocol config override can replace even the MAX lookup
-            // with a pre-version-32 config where the threshold is absent, so fall
-            // back to the historical value.
-            stake: ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown)
-                .validator_low_stake_threshold_as_option()
-                .unwrap_or(PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD),
+            // Below protocol version 32 the threshold isn't present in the protocol
+            // config, and a test-wide protocol config override can replace even the
+            // MAX lookup with such a config, so fall back to the historical value.
+            stake: ProtocolConfig::get_for_version(
+                self.protocol_version.unwrap_or(ProtocolVersion::MAX),
+                Chain::Unknown,
+            )
+            .validator_low_stake_threshold_as_option()
+            .unwrap_or(PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD),
             name: None,
         }
     }
@@ -283,7 +305,7 @@ impl GenesisConfig {
         ProtocolConfig::get_for_version(self.parameters.protocol_version, Chain::Unknown)
     }
 
-    pub fn generate_accounts<R: rand::RngCore + rand::CryptoRng>(
+    pub fn generate_accounts<R: rand::CryptoRng>(
         &self,
         mut rng: R,
     ) -> Result<(Vec<AccountPrivateKey>, Vec<TokenAllocation>)> {
@@ -333,11 +355,11 @@ fn default_stake() -> u64 {
 }
 
 fn default_bls12381_key_pair() -> AuthorityKeyPair {
-    get_key_pair_from_rng(&mut rand::rngs::OsRng).1
+    get_key_pair_from_rng(&mut UnwrapErr(SysRng)).1
 }
 
-fn default_ed25519_key_pair() -> NetworkKeyPair {
-    get_key_pair_from_rng(&mut rand::rngs::OsRng).1
+fn default_network_private_key() -> NetworkPrivateKey {
+    get_key_pair_from_rng(&mut UnwrapErr(SysRng)).1
 }
 
 fn default_iota_key_pair() -> SimpleKeypair {
@@ -361,6 +383,52 @@ mod base64_formatted_keypair {
         let s = String::deserialize(d)?;
         let bytes = Base64::decode(&s).map_err(Error::custom)?;
         SimpleKeypair::from_bytes(&bytes).map_err(Error::custom)
+    }
+}
+
+// Serde adapter storing the network private key as base64 of the raw private key
+// bytes, the on-disk format of these config fields.
+mod base64_formatted_network_private_key {
+    use iota_sdk_crypto::ToFromBase64 as _;
+    use iota_types::crypto::NetworkPrivateKey;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(
+        private_key: &NetworkPrivateKey,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&private_key.to_base64())
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<NetworkPrivateKey, D::Error> {
+        use serde::de::Error;
+
+        let s = String::deserialize(d)?;
+        NetworkPrivateKey::from_base64(&s).map_err(Error::custom)
+    }
+
+    pub mod option {
+        use super::*;
+
+        pub fn serialize<S: Serializer>(
+            private_key: &Option<NetworkPrivateKey>,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            match private_key {
+                Some(private_key) => serializer.serialize_some(&private_key.to_base64()),
+                None => serializer.serialize_none(),
+            }
+        }
+
+        pub fn deserialize<'de, D: Deserializer<'de>>(
+            d: D,
+        ) -> Result<Option<NetworkPrivateKey>, D::Error> {
+            use serde::de::Error;
+
+            Option::<String>::deserialize(d)?
+                .map(|s| NetworkPrivateKey::from_base64(&s).map_err(Error::custom))
+                .transpose()
+        }
     }
 }
 
@@ -539,7 +607,7 @@ impl GenesisConfig {
 mod tests {
     use std::net::Ipv4Addr;
 
-    use rand::rngs::OsRng;
+    use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
     use super::ValidatorGenesisConfigBuilder;
 
@@ -549,7 +617,7 @@ mod tests {
             .with_ip("127.0.0.1".to_owned())
             .with_deterministic_ports(9200)
             .with_metrics_ip_address(Ipv4Addr::LOCALHOST.into())
-            .build(&mut OsRng);
+            .build(&mut UnwrapErr(SysRng));
 
         assert_eq!(
             config.network_address.to_string(),
@@ -572,7 +640,7 @@ mod tests {
         let config = ValidatorGenesisConfigBuilder::new()
             .with_ip("127.0.0.1".to_owned())
             .with_deterministic_ports(9200)
-            .build(&mut OsRng);
+            .build(&mut UnwrapErr(SysRng));
 
         assert_eq!(config.metrics_address.to_string(), "0.0.0.0:9202");
     }

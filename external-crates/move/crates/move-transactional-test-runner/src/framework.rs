@@ -129,12 +129,21 @@ pub trait MoveTestAdapter<'a>: Sized + Send {
         path: &Path,
     ) -> (Self, Option<String>);
 
+    /// Publishes `modules`, returning the ones later tasks may use — normally
+    /// the modules that were published.
+    ///
+    /// Return an empty list to store nothing. No address is then bound and the
+    /// task's source is left off the compiler's search path, so later tasks can
+    /// neither call nor compile against these modules. A publish that only
+    /// simulated the transaction has to do this, and is the only reason to
+    /// return an empty list.
     async fn publish_modules(
         &mut self,
         modules: Vec<MaybeNamedCompiledModule>,
         gas_budget: Option<u64>,
         extra: Self::ExtraPublishArgs,
     ) -> Result<(Option<String>, Vec<MaybeNamedCompiledModule>)>;
+
     async fn call_function(
         &mut self,
         module: &ModuleId,
@@ -626,6 +635,12 @@ pub fn store_modules<'a, A: MoveTestAdapter<'a>>(
     data: NamedTempFile,
     mut modules: Vec<MaybeNamedCompiledModule>,
 ) {
+    // A publish that was only simulated returns nothing, and must leave no trace:
+    // registering its source file would keep a module the chain never got on the
+    // compiler's search path for every later task.
+    if modules.is_empty() {
+        return;
+    }
     match syntax {
         SyntaxChoice::Source => {
             let path = data.path().to_str().unwrap().to_owned();

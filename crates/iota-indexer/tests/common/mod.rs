@@ -5,6 +5,7 @@ pub mod backward_history;
 pub mod object_versions;
 
 use std::{
+    future::Future,
     net::SocketAddr,
     path::PathBuf,
     sync::{Arc, OnceLock},
@@ -15,13 +16,21 @@ use iota_sdk_crypto::{Signer, simple::SimpleKeypair};
 use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 
 const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
+const READER_READY_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// How long to wait for a reported watermark to catch up with the pruner.
+///
+/// The reader refreshes its watermarks from the database periodically, so after
+/// pruning it can still report the old checkpoint for up to one refresh
+/// interval.
+pub const WATERMARK_REFRESH_TIMEOUT: Duration = Duration::from_secs(30);
 
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
 use iota_grpc_server::GrpcServerHandle;
 use iota_indexer::{
     config::{IotaNamesOptions, JsonRpcConfig, RetentionConfig},
-    db::{ConnectionPoolConfig, new_connection_pool},
+    db::{ConnectionPoolConfig, DbUrl, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
     metrics::IndexerMetrics,
@@ -32,29 +41,34 @@ use iota_indexer::{
     test_utils::{DBInitHook, IndexerTypeConfig, create_pg_store, db_url, start_test_indexer},
 };
 use iota_json_rpc_api::{
-    CoinReadApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
+    CoinReadApiClient, ExtendedApiClient, QUERY_MAX_RESULT_LIMIT, ReadApiClient,
+    TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
-    TransactionBlockBytes,
+    DataPrunedErrorData, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    ObjectChange, TransactionBlockBytes,
 };
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
 use iota_sdk_types::{TransactionDigest, crypto::SimpleSignature};
 use iota_types::{
-    quorum_driver_types::ExecuteTransactionRequestType, utils::to_sender_signed_transaction,
+    effects::TransactionEffectsAPI, quorum_driver_types::ExecuteTransactionRequestType,
+    utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
+    core::ClientError,
     http_client::{HttpClient, HttpClientBuilder},
-    types::ErrorObject,
+    types::{ErrorObject, ErrorObjectOwned},
 };
 use simulacrum::Simulacrum;
 use simulacrum_server::start_simulacrum_grpc_server;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{
+    net::TcpStream,
     runtime::Runtime,
     sync::{Mutex, OnceCell},
     task::JoinHandle,
+    time::error::Elapsed,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -167,7 +181,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
     .await;
 
     // start indexer in read mode
-    let indexer_port = start_indexer_reader(cluster.grpc_url(), database_name);
+    let indexer_port = start_indexer_reader(cluster.grpc_url(), database_name).await;
 
     // create an RPC client by using the indexer url
     let rpc_client = HttpClientBuilder::default()
@@ -177,6 +191,36 @@ pub async fn start_test_cluster_with_read_write_indexer(
     (cluster, pg_store, rpc_client)
 }
 
+/// Calls `f` every 100 ms until it returns `Some`, returning an error if
+/// the given `timeout` is reached first.
+///
+/// Returns `Ok(value)` upon success, or `Err(Elapsed)` if the timeout expires.
+///
+/// # Example
+///
+/// ```ignore
+/// let first_row = retry_with_timeout(Duration::from_secs(60), || async move {
+///     read_first_row(store).await
+/// })
+/// .await
+/// .expect("timeout waiting for the first row");
+/// ```
+pub async fn retry_with_timeout<T, F, Fut>(timeout: Duration, mut f: F) -> Result<T, Elapsed>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Option<T>>,
+{
+    tokio::time::timeout(timeout, async {
+        loop {
+            if let Some(value) = f().await {
+                return value;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+}
+
 /// Wait for the indexer to catch up to the given checkpoint sequence number
 ///
 /// Indexer starts storing data after checkpoint 0
@@ -184,16 +228,12 @@ pub async fn indexer_wait_for_checkpoint(
     pg_store: &PgIndexerStore,
     checkpoint_sequence_number: u64,
 ) {
-    tokio::time::timeout(Duration::from_secs(30), async {
-        while {
-            let cp_opt = pg_store
-                .get_latest_checkpoint_sequence_number()
-                .await
-                .unwrap();
-            cp_opt.is_none() || (cp_opt.unwrap() < checkpoint_sequence_number)
-        } {
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+    retry_with_timeout(Duration::from_secs(30), || async move {
+        pg_store
+            .get_latest_checkpoint_sequence_number()
+            .await
+            .unwrap()
+            .filter(|latest| *latest >= checkpoint_sequence_number)
     })
     .await
     .expect("timeout waiting for indexer to catchup to checkpoint");
@@ -214,28 +254,20 @@ pub async fn indexer_wait_for_latest_checkpoint(pg_store: &PgIndexerStore, clust
 
 /// Wait for the indexer to index a checkpoint from the specified epoch or later
 pub async fn indexer_wait_for_epoch(pg_store: &PgIndexerStore, expected_epoch: u64) {
-    tokio::time::timeout(Duration::from_secs(30), async {
-        loop {
-            let blocking_cp = pg_store.blocking_cp();
-            let result = spawn_blocking_task(move || {
-                read_only_blocking!(&blocking_cp, |conn| {
-                    checkpoints::table
-                        .order(checkpoints::sequence_number.desc())
-                        .first::<StoredCheckpoint>(conn)
-                        .optional()
-                })
+    retry_with_timeout(Duration::from_secs(30), || async move {
+        let blocking_cp = pg_store.blocking_cp();
+        spawn_blocking_task(move || {
+            read_only_blocking!(&blocking_cp, |conn| {
+                checkpoints::table
+                    .order(checkpoints::sequence_number.desc())
+                    .first::<StoredCheckpoint>(conn)
+                    .optional()
             })
-            .await
-            .expect("task join failed")
-            .expect("failed to get latest checkpoint");
-
-            if let Some(checkpoint) = result {
-                if checkpoint.epoch as u64 >= expected_epoch {
-                    break;
-                }
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
+        })
+        .await
+        .expect("task join failed")
+        .expect("failed to get latest checkpoint")
+        .filter(|checkpoint| checkpoint.epoch as u64 >= expected_epoch)
     })
     .await
     .expect("timeout waiting for indexer to index epoch");
@@ -260,26 +292,17 @@ async fn wait_for_object(
     object_id: ObjectId,
     version: Version,
 ) -> anyhow::Result<()> {
-    tokio::time::timeout(Duration::from_secs(30), async {
-        loop {
-            let Ok(obj_res) = client.get_object(object_id, None).await else {
-                tokio::time::sleep(Duration::from_millis(20)).await;
-                continue;
-            };
-
-            if obj_res
-                .data
-                .map(|obj| obj.version == version)
-                .unwrap_or_default()
-            {
-                break;
-            }
-
-            tokio::time::sleep(Duration::from_millis(50)).await;
-        }
+    retry_with_timeout(Duration::from_secs(30), || async move {
+        client
+            .get_object(object_id, None)
+            .await
+            .ok()?
+            .data
+            .filter(|obj| obj.version == version)
     })
-    .await?;
-    Ok(())
+    .await
+    .map_err(Into::into)
+    .map(|_| ())
 }
 
 /// Wait for the indexer to catch up to the given object sequence number
@@ -313,14 +336,9 @@ pub async fn indexer_wait_for_optimistic_transactions_count(
     pg_store: &PgIndexerStore,
     expected_transactions_count: u64,
 ) {
-    if tokio::time::timeout(PRUNING_WAIT_TIMEOUT, async {
-        loop {
-            let count = get_optimistic_transactions_count(pg_store).await;
-            if count == expected_transactions_count {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
+    if retry_with_timeout(PRUNING_WAIT_TIMEOUT, || async move {
+        (get_optimistic_transactions_count(pg_store).await == expected_transactions_count)
+            .then_some(())
     })
     .await
     .is_err()
@@ -344,19 +362,13 @@ pub async fn indexer_wait_for_checkpoint_pruned(
     pg_store: &PgIndexerStore,
     checkpoint_sequence_number: u64,
 ) {
-    tokio::time::timeout(PRUNING_WAIT_TIMEOUT, async {
-        loop {
-            let (min, _max) = pg_store
-                .get_available_checkpoint_range()
-                .await
-                .expect("failed to get available checkpoint range");
+    retry_with_timeout(PRUNING_WAIT_TIMEOUT, || async move {
+        let (min, _max) = pg_store
+            .get_available_checkpoint_range()
+            .await
+            .expect("failed to get available checkpoint range");
 
-            if min > checkpoint_sequence_number {
-                break;
-            }
-
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+        (min > checkpoint_sequence_number).then_some(())
     })
     .await
     .expect("timeout waiting for indexer to prune checkpoint");
@@ -367,22 +379,17 @@ pub async fn indexer_wait_for_transaction(
     pg_store: &PgIndexerStore,
     indexer_client: &HttpClient,
 ) {
-    tokio::time::timeout(Duration::from_secs(30), async {
-        loop {
-            if let Ok(tx) = indexer_client
-                .get_transaction_block(tx_digest, Some(IotaTransactionBlockResponseOptions::new()))
-                .await
-            {
-                if let Some(checkpoint) = tx.checkpoint {
-                    indexer_wait_for_checkpoint(pg_store, checkpoint).await;
-                    break;
-                }
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+    let checkpoint = retry_with_timeout(Duration::from_secs(30), || async move {
+        indexer_client
+            .get_transaction_block(tx_digest, Some(IotaTransactionBlockResponseOptions::new()))
+            .await
+            .ok()?
+            .checkpoint
     })
     .await
     .expect("timeout waiting for indexer to catchup to given transaction");
+
+    indexer_wait_for_checkpoint(pg_store, checkpoint).await;
 }
 
 pub async fn execute_tx_and_wait_for_indexer_checkpoint(
@@ -420,20 +427,25 @@ pub async fn execute_tx_must_succeed(
     *txn.digest()
 }
 
-/// Start an Indexer instance in `Read` mode
-fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Option<&str>) -> u16 {
+/// Starts the indexer JSON-RPC reader on a free local port and returns that
+/// port once the server accepts connections.
+async fn start_indexer_reader(
+    fullnode_rpc_url: impl Into<String>,
+    database_name: Option<&str>,
+) -> u16 {
     let db_url = db_url(database_name.unwrap_or(DEFAULT_DB));
     let port = get_available_port(DEFAULT_INDEXER_IP);
+    let rpc_address = SocketAddr::new(DEFAULT_INDEXER_IP.parse().unwrap(), port);
 
     let config = JsonRpcConfig {
         iota_names_options: IotaNamesOptions::default(),
         historic_fallback_options: Default::default(),
-        rpc_address: SocketAddr::new(DEFAULT_INDEXER_IP.parse().unwrap(), port),
+        rpc_address,
         rpc_client_url: fullnode_rpc_url.into(),
     };
 
     let pool = new_connection_pool(
-        &db_url,
+        &DbUrl::from(db_url.as_str()),
         &ConnectionPoolConfig {
             pool_size: 5,
             ..Default::default()
@@ -447,7 +459,7 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Opti
 
     let store = create_pg_store(&db_url, false);
 
-    tokio::spawn(async move {
+    let reader = tokio::spawn(async move {
         Indexer::start_reader(
             &config,
             store,
@@ -458,7 +470,99 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Opti
         )
         .await
     });
+
+    // Wait for the reader to start accepting connections.
+    retry_with_timeout(READER_READY_TIMEOUT, || async {
+        if reader.is_finished() {
+            panic!("indexer reader exited before accepting connections");
+        }
+        TcpStream::connect(rpc_address).await.ok()
+    })
+    .await
+    .expect("indexer reader should accept connections before the timeout");
+
     port
+}
+
+/// Reads the oldest available checkpoint `error` reports, when it reports one.
+pub fn oldest_available_cp_in(error: &ErrorObjectOwned) -> Option<u64> {
+    serde_json::from_str::<DataPrunedErrorData>(error.data()?.get())
+        .ok()
+        .map(|data| data.oldest_available_checkpoint.into_inner())
+}
+
+/// Returns the first checkpoint of `epoch`.
+pub async fn first_checkpoint_of_epoch(client: &HttpClient, epoch: u64) -> u64 {
+    let epochs = client
+        .get_epochs(Some((epoch + 1).into()), Some(1), Some(true))
+        .await
+        .expect("epochs are indexed");
+    let epoch_info = epochs
+        .data
+        .first()
+        .unwrap_or_else(|| panic!("epoch {epoch} is indexed"));
+    assert_eq!(epoch_info.epoch, epoch);
+    epoch_info.first_checkpoint_id
+}
+
+/// Asserts that `call` reports its data as pruned below `oldest_available_epoch`.
+///
+/// Retries until the watermark the indexer serves from has moved that far.
+pub async fn assert_reports_data_pruned<F, Fut, T>(
+    client: &HttpClient,
+    method: &str,
+    oldest_available_epoch: u64,
+    mut call: F,
+) where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T, ClientError>>,
+{
+    let oldest_available_checkpoint =
+        first_checkpoint_of_epoch(client, oldest_available_epoch).await;
+    let error = retry_with_timeout(WATERMARK_REFRESH_TIMEOUT, || {
+        // Called here so the returned future borrows nothing from `call`.
+        let lookup = call();
+        async move {
+            match lookup.await {
+                Err(ClientError::Call(error))
+                    if oldest_available_cp_in(&error) == Some(oldest_available_checkpoint) =>
+                {
+                    Some(error)
+                }
+                _ => None,
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!(
+            "timeout waiting for {method} to report checkpoint {oldest_available_checkpoint}, the first of epoch {oldest_available_epoch}"
+        )
+    });
+
+    assert!(
+        error.message().contains("Missing data due to pruning"),
+        "expected {method} to report the pruned data as such, got {error}"
+    );
+}
+
+/// Transfers a few IOTA, waits for the indexer and returns the tx digest.
+pub async fn execute_dummy_tx_and_wait_for_indexer(
+    cluster: &TestCluster,
+    store: &PgIndexerStore,
+    client: &HttpClient,
+) -> TransactionDigest {
+    let transfer = cluster
+        .test_transaction_builder()
+        .await
+        .transfer_iota(Some(1_000), Address::random())
+        .build();
+    let digest = *cluster
+        .sign_and_execute_transaction(&transfer)
+        .await
+        .transaction_digest();
+    indexer_wait_for_transaction(digest, store, client).await;
+    digest
 }
 
 /// Check if provided error message does match with
@@ -475,6 +579,15 @@ pub fn rpc_call_error_msg_matches<T>(
         }
         _ => false,
     })
+}
+
+/// The error an RPC method returns when its input has more entries than
+/// [`QUERY_MAX_RESULT_LIMIT`], as expected by [`rpc_call_error_msg_matches`].
+pub fn input_size_limit_exceeded_msg() -> String {
+    format!(
+        r#"{{"code":-32602,"message":"Input exceeds limit of {}"}}"#,
+        *QUERY_MAX_RESULT_LIMIT
+    )
 }
 
 /// Set up a test indexer fetching from a gRPC endpoint served by the given
@@ -536,7 +649,7 @@ pub async fn start_simulacrum_grpc_with_read_write_indexer(
 
     // start indexer in read mode
     let indexer_port =
-        start_indexer_reader(format!("http://{simulacrum_server_url}"), database_name);
+        start_indexer_reader(format!("http://{simulacrum_server_url}"), database_name).await;
 
     // create an RPC client by using the indexer url
     let rpc_client = HttpClientBuilder::default()
@@ -568,10 +681,7 @@ pub async fn publish_test_move_package(
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", test_package_name]);
 
-    let compiled_package = BuildConfig::new_for_testing()
-        .with_allow_view_function()
-        .build(&path)
-        .unwrap();
+    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
     let with_unpublished_deps = false;
     let compiled_modules_bytes = compiled_package.get_package_base64(with_unpublished_deps);
     let dependencies = compiled_package.get_dependency_storage_package_ids();

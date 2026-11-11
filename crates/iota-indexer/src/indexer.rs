@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{env, time::Duration};
+use std::env;
 
 use anyhow::{Context, Result};
 use iota_data_ingestion_core::ReaderOptions;
@@ -17,7 +17,10 @@ use crate::{
     db::ConnectionPool,
     errors::IndexerError,
     historical_fallback::reader::HistoricalFallbackReader,
-    ingestion::{common::connection::resolve_remote_url, primary::orchestration::PrimaryPipeline},
+    ingestion::{
+        common::connection::{MAX_URL_RESOLUTION_TIMEOUT, resolve_remote_url},
+        primary::orchestration::PrimaryPipeline,
+    },
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
     pruning::{
@@ -28,9 +31,6 @@ use crate::{
     store::{IndexerAnalyticalStore, IndexerStore, PgIndexerStore},
     system_package_task::SystemPackageTask,
 };
-
-/// Maximum timeout for resolving the remote checkpoint source.
-const MAX_URL_RESOLUTION_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct Indexer;
 
@@ -139,6 +139,7 @@ impl Indexer {
             fallback_kv_multi_fetch_batch_size,
             fallback_kv_concurrent_fetches,
             fallback_kv_cache_size,
+            fallback_kv_max_response_size_bytes,
         } = config.historic_fallback_options
         {
             let historic_fallback_reader = HistoricalFallbackReader::new(
@@ -147,6 +148,7 @@ impl Indexer {
                 read.package_resolver().clone(),
                 fallback_kv_multi_fetch_batch_size,
                 fallback_kv_concurrent_fetches,
+                fallback_kv_max_response_size_bytes,
                 registry,
             )?;
             info!("HistoricalFallbackReader initialized with URL: {url}");
@@ -155,8 +157,13 @@ impl Indexer {
             info!("No config for HistoricalFallbackReader provided, skipping...");
         }
 
+        // Fill the cache before the server accepts requests, so that read requests
+        // don't have to deal with not filled cache.
+        let watermark_task = WatermarkTask::new(store.clone(), watermark_cache);
+        watermark_task.update_watermarks().await?;
+
         let handle = build_json_rpc_server(
-            store.clone(),
+            store,
             registry,
             read.clone(),
             config,
@@ -167,7 +174,6 @@ impl Indexer {
         .expect("json rpc server should not run into errors upon start.");
 
         tracing::info!("Starting watermark background task to track pruning state");
-        let watermark_task = WatermarkTask::new(store, watermark_cache);
         watermark_task.start(cancel.clone());
 
         tracing::info!("Starting system package task");
@@ -187,12 +193,13 @@ impl Indexer {
     >(
         store: S,
         metrics: IndexerMetrics,
+        cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
             "IOTA Indexer Analytical Worker (version {:?}) started...",
             env!("CARGO_PKG_VERSION")
         );
-        let mut processor_orchestrator = ProcessorOrchestrator::new(store, metrics);
+        let mut processor_orchestrator = ProcessorOrchestrator::new(store, metrics, cancel);
         processor_orchestrator.run_forever().await;
         Ok(())
     }

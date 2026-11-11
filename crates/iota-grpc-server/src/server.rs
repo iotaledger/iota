@@ -3,20 +3,26 @@
 
 //! Shared gRPC server utilities
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::SocketAddr,
+    num::{NonZeroU32, NonZeroUsize},
+    sync::Arc,
+    time::Duration,
+};
 
 use anyhow::Result;
+use iota_config::node::ListenerLimitsConfig;
 use iota_grpc_types::v1::{
     ledger_service as grpc_ledger_service, move_package_service as grpc_move_package_service,
     service_methods, state_service as grpc_state_service,
     transaction_execution_service as grpc_tx_service,
 };
+use iota_network_stack::{grpc_timeout::GrpcTimeout, server::insert_tonic_connect_info};
 use iota_traffic_controller::TrafficController;
 use iota_types::{traffic_control::ClientIdSource, transaction_executor::TransactionExecutor};
 use tokio::sync::broadcast;
-use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::sync::CancellationToken;
-use tonic::transport::{Identity, Server, ServerTlsConfig};
+use tonic::service::Routes;
 
 use crate::{
     GrpcCheckpointDataBroadcaster, GrpcReader, GrpcServerMetrics, LedgerGrpcService,
@@ -27,8 +33,8 @@ use crate::{
 
 /// Handle to control a running gRPC server
 pub struct GrpcServerHandle {
-    /// Handle to the server task
-    pub server_handle: tokio::task::JoinHandle<Result<(), tonic::transport::Error>>,
+    /// Handle to the task that shuts the server down
+    server_handle: tokio::task::JoinHandle<()>,
     /// Shutdown signal sender
     shutdown_token: CancellationToken,
     /// Broadcaster for checkpoint data
@@ -38,13 +44,13 @@ pub struct GrpcServerHandle {
 }
 
 impl GrpcServerHandle {
-    /// Graceful shutdown of the gRPC server
+    /// Graceful shutdown of the gRPC server. Calls still running 1 s after the
+    /// shutdown starts are closed.
     pub async fn shutdown(self) -> Result<()> {
         self.shutdown_token.cancel();
-        match self.server_handle.await {
-            Ok(result) => result.map_err(Into::into),
-            Err(join_error) => Err(anyhow::anyhow!("Server task failed: {join_error}")),
-        }
+        self.server_handle
+            .await
+            .map_err(|join_error| anyhow::anyhow!("server task failed: {join_error}"))
     }
 
     /// Get the server address (actual bound address)
@@ -58,67 +64,6 @@ impl GrpcServerHandle {
     }
 }
 
-/// Adds gRPC services to a server builder and spawns the server.
-///
-/// This macro avoids duplicating the service registration and spawning logic
-/// across the with-metrics and without-metrics code paths, since
-/// `Server::layer()` changes the builder's type parameter.
-macro_rules! build_and_spawn {
-    ($server_builder:expr, $ledger_service:expr, $tx_service:expr, $state_service:expr,
-     $move_package_service:expr, $config:expr,
-     $listener:expr, $actual_addr:expr, $shutdown_token:expr) => {{
-        let mut router = $server_builder.add_service(
-            grpc_ledger_service::ledger_service_server::LedgerServiceServer::new($ledger_service)
-                .max_encoding_message_size($config.max_message_size_bytes() as usize),
-        );
-
-        if let Some(tx_service) = $tx_service {
-            router = router.add_service(
-                grpc_tx_service::transaction_execution_service_server::TransactionExecutionServiceServer::new(tx_service)
-                .max_encoding_message_size($config.max_message_size_bytes() as usize),
-            );
-        }
-
-        router = router.add_service(
-            grpc_state_service::state_service_server::StateServiceServer::new($state_service)
-                .max_encoding_message_size($config.max_message_size_bytes() as usize),
-        );
-
-        router = router.add_service(
-            grpc_move_package_service::move_package_service_server::MovePackageServiceServer::new($move_package_service)
-                .max_encoding_message_size($config.max_message_size_bytes() as usize),
-        );
-
-        let shutdown_token_for_server = $shutdown_token.clone();
-        if $config.tls_config().is_some() {
-            // TLS case: tonic needs to control the entire transport stack for TLS,
-            // so we let it handle binding. We drop our pre-bound listener since
-            // tonic will create its own with proper TLS configuration.
-            drop($listener);
-
-            tokio::spawn(async move {
-                let result = router
-                    .serve_with_shutdown($actual_addr, shutdown_token_for_server.cancelled())
-                    .await;
-                tracing::info!("gRPC server shutdown completed");
-                result
-            })
-        } else {
-            // Non-TLS case: use the existing listener
-            tokio::spawn(async move {
-                let result = router
-                    .serve_with_incoming_shutdown(
-                        TcpListenerStream::new($listener),
-                        shutdown_token_for_server.cancelled(),
-                    )
-                    .await;
-                tracing::info!("gRPC server shutdown completed");
-                result
-            })
-        }
-    }};
-}
-
 /// Start a gRPC server with checkpoint and event services
 ///
 /// This function creates and starts a gRPC server that hosts checkpoint-related
@@ -129,6 +74,7 @@ pub async fn start_grpc_server(
     grpc_reader: Arc<GrpcReader>,
     executor: Option<Arc<dyn TransactionExecutor>>,
     config: iota_config::node::GrpcApiConfig,
+    listener_limits: &ListenerLimitsConfig,
     shutdown_token: CancellationToken,
     chain_id: iota_types::digests::ChainIdentifier,
     metrics: Option<GrpcServerMetrics>,
@@ -170,12 +116,133 @@ pub async fn start_grpc_server(
     // which is more informative than an `Unimplemented` from an unregistered
     // service.
     let state_service = StateGrpcService::new(grpc_reader.clone());
-    let move_package_service = MovePackageGrpcService::new(grpc_reader.clone());
+    let move_package_service = MovePackageGrpcService::new(grpc_reader);
 
-    // Bind to the address to get the actual local address (especially important for
-    // port 0)
-    let listener = tokio::net::TcpListener::bind(config.address).await?;
-    let actual_addr = listener.local_addr().unwrap_or(config.address);
+    // The listener is public, so its connection count is bounded only by this,
+    // well inside the process fd limit it shares with RocksDB and the other
+    // listeners.
+    const MAX_CONNECTIONS: NonZeroUsize = NonZeroUsize::new(4096).unwrap();
+    // A reverse proxy in front of the node shows as one address, so one
+    // address may hold a quarter of the listener; it then takes four to fill
+    // it.
+    const MAX_CONNECTIONS_PER_CLIENT_IP: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
+    // Frees the connections of clients that stopped sending requests. A
+    // checkpoint subscription counts as a request for as long as it streams.
+    const MAX_CONNECTION_IDLE: Duration = Duration::from_secs(300);
+    // The smallest value RFC 9113 recommends. Subscriptions are streams too,
+    // and are also capped across all connections by
+    // `max_concurrent_stream_subscribers`.
+    const MAX_CONCURRENT_STREAMS: NonZeroU32 = NonZeroU32::new(100).unwrap();
+    // Closes a connection whose peer has gone while a subscription is still
+    // streaming to it, which the idle deadline does not.
+    const HTTP2_KEEPALIVE: Duration = Duration::from_secs(60);
+
+    // gRPC runs over HTTP/2 only, and no route of this API uses the extended
+    // CONNECT protocol.
+    let http_config = iota_http::Config::default()
+        .accept_http1(false)
+        .enable_connect_protocol(false)
+        .handshake_timeout(
+            listener_limits
+                .handshake_timeout
+                .resolve(iota_http::DEFAULT_HANDSHAKE_TIMEOUT),
+        )
+        .max_pending_connections(
+            listener_limits
+                .max_pending_connections
+                .resolve(iota_http::DEFAULT_MAX_PENDING_CONNECTIONS),
+        )
+        .max_connections(listener_limits.max_connections.resolve(MAX_CONNECTIONS))
+        .max_connections_per_client_ip(
+            listener_limits
+                .max_connections_per_client_ip
+                .resolve(MAX_CONNECTIONS_PER_CLIENT_IP),
+        )
+        .ipv6_prefix_len(
+            listener_limits
+                .ipv6_prefix_len
+                .unwrap_or(iota_http::DEFAULT_IPV6_PREFIX_LEN),
+        )
+        .max_connection_idle(
+            listener_limits
+                .max_connection_idle
+                .resolve(MAX_CONNECTION_IDLE),
+        )
+        .max_concurrent_streams(
+            listener_limits
+                .max_concurrent_streams
+                .resolve(MAX_CONCURRENT_STREAMS),
+        )
+        .http2_keepalive_interval(
+            listener_limits
+                .http2_keepalive_interval
+                .resolve(HTTP2_KEEPALIVE),
+        )
+        .http1_header_read_timeout(
+            listener_limits
+                .http1_header_read_timeout
+                .resolve(iota_http::DEFAULT_HTTP1_HEADER_READ_TIMEOUT),
+        )
+        .metrics(metrics.as_ref().map(GrpcServerMetrics::listener_metrics));
+    let mut http_builder = iota_http::Builder::new().config(http_config);
+
+    if let Some(tls_config) = config.tls_config() {
+        http_builder = http_builder
+            .tls_single_cert(tls_config.cert(), tls_config.key())
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "failed to load the TLS cert file '{}' and key file '{}': {e}",
+                    tls_config.cert(),
+                    tls_config.key()
+                )
+            })?;
+        tracing::info!("gRPC server TLS enabled");
+    }
+
+    let max_message_size = config.max_message_size_bytes() as usize;
+    let mut routes = Routes::new(
+        grpc_ledger_service::ledger_service_server::LedgerServiceServer::new(ledger_service)
+            .max_encoding_message_size(max_message_size),
+    )
+    .add_service(
+        grpc_state_service::state_service_server::StateServiceServer::new(state_service)
+            .max_encoding_message_size(max_message_size),
+    )
+    .add_service(
+        grpc_move_package_service::move_package_service_server::MovePackageServiceServer::new(
+            move_package_service,
+        )
+        .max_encoding_message_size(max_message_size),
+    );
+    if let Some(tx_service) = tx_service {
+        routes = routes.add_service(
+            grpc_tx_service::transaction_execution_service_server::TransactionExecutionServiceServer::new(tx_service)
+                .max_encoding_message_size(max_message_size),
+        );
+    }
+
+    // Order matters: the address copy before traffic control, which reads it;
+    // metrics before traffic control, to count blocked requests; `GrpcTimeout`
+    // inside both, so they see the status of a call that ends at its deadline;
+    // server-timing innermost, to time only the requests that traffic control
+    // lets through.
+    let service = tower::ServiceBuilder::new()
+        .map_request(insert_tonic_connect_info)
+        .option_layer(
+            metrics.map(|m| GrpcMetricsLayer::new(Arc::new(m), &service_methods::ALL_METHOD_PATHS)),
+        )
+        .option_layer(
+            traffic_controller
+                .map(|tc| TrafficControlLayer::new(tc, client_id_source.unwrap_or_default())),
+        )
+        .layer_fn(|service| GrpcTimeout::new(service, None))
+        .layer(ServerTimingLayer)
+        .service(routes.prepare());
+
+    let http_handle = http_builder.serve(config.address, service).map_err(|e| {
+        anyhow::anyhow!("failed to start the gRPC server on {}: {e}", config.address)
+    })?;
+    let actual_addr = *http_handle.local_addr();
 
     tracing::info!(
         "Starting gRPC server on {} (bound to {})",
@@ -183,60 +250,14 @@ pub async fn start_grpc_server(
         actual_addr
     );
 
-    // Build the server builder with TLS and optional metrics layer.
-    // Server::layer() changes the builder's generic type parameter, so we use
-    // a macro to avoid duplicating the service registration and spawn logic.
-    let mut server_builder = Server::builder();
-
-    // Configure TLS if enabled
-    if let Some(tls_config) = config.tls_config() {
-        let cert = std::fs::read_to_string(tls_config.cert()).map_err(|e| {
-            anyhow::anyhow!(
-                "failed to read TLS cert file '{}': {}",
-                tls_config.cert(),
-                e
-            )
-        })?;
-        let key = std::fs::read_to_string(tls_config.key()).map_err(|e| {
-            anyhow::anyhow!("failed to read TLS key file '{}': {}", tls_config.key(), e)
-        })?;
-
-        let identity = Identity::from_pem(cert, key);
-        let tls = ServerTlsConfig::new().identity(identity);
-
-        tracing::info!("gRPC server TLS enabled");
-
-        server_builder = server_builder
-            .tls_config(tls)
-            .map_err(|e| anyhow::anyhow!("failed to configure TLS: {e}"))?;
-    }
-
-    // Order matters: metrics outermost to observe blocked requests; server-timing
-    // innermost so the timer covers only accepted requests.
-    let mut layered_builder = server_builder.layer(
-        tower::ServiceBuilder::new()
-            .option_layer(
-                metrics.map(|m| {
-                    GrpcMetricsLayer::new(Arc::new(m), &service_methods::ALL_METHOD_PATHS)
-                }),
-            )
-            .option_layer(
-                traffic_controller
-                    .map(|tc| TrafficControlLayer::new(tc, client_id_source.unwrap_or_default())),
-            )
-            .layer(ServerTimingLayer),
-    );
-    let server_handle = build_and_spawn!(
-        layered_builder,
-        ledger_service,
-        tx_service,
-        state_service,
-        move_package_service,
-        config,
-        listener,
-        actual_addr,
-        shutdown_token
-    );
+    let server_handle = tokio::spawn({
+        let shutdown_token = shutdown_token.clone();
+        async move {
+            shutdown_token.cancelled().await;
+            http_handle.shutdown().await;
+            tracing::info!("gRPC server shutdown completed");
+        }
+    });
 
     Ok(GrpcServerHandle {
         server_handle,

@@ -102,10 +102,9 @@ pub struct StateSyncConfig {
     /// sequence number.
     ///
     /// This can be used:
-    /// - in case of a fork, to prevent the node from syncing to the wrong
-    ///   chain.
-    /// - in case of a network stall, to force the node to proceed with a
-    ///   manually-injected checkpoint.
+    /// - in case of a fork, to prevent the node from syncing to the wrong chain.
+    /// - in case of a network stall, to force the node to proceed with a manually-injected
+    ///   checkpoint.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub pinned_checkpoints: Vec<(CheckpointSequenceNumber, CheckpointDigest)>,
 
@@ -293,13 +292,13 @@ impl StateSyncConfig {
     }
 
     pub fn randomized_for_testing() -> Self {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
+        use rand::RngExt;
+        let mut rng = rand::rng();
         let config = Self {
-            mailbox_capacity: Some(rng.gen_range(16..=2048)),
-            synced_checkpoint_broadcast_channel_capacity: Some(rng.gen_range(16..=2048)),
-            checkpoint_header_download_concurrency: Some(rng.gen_range(10..=500)),
-            checkpoint_content_download_concurrency: Some(rng.gen_range(10..=500)),
+            mailbox_capacity: Some(rng.random_range(16..=2048)),
+            synced_checkpoint_broadcast_channel_capacity: Some(rng.random_range(16..=2048)),
+            checkpoint_header_download_concurrency: Some(rng.random_range(10..=500)),
+            checkpoint_content_download_concurrency: Some(rng.random_range(10..=500)),
             ..Default::default()
         };
         tracing::info!(
@@ -316,8 +315,8 @@ impl StateSyncConfig {
 /// Access Type of a node.
 /// AccessType info is shared in the discovery process.
 /// * If the node marks itself as Public, other nodes may try to connect to it.
-/// * If the node marks itself as Private, only nodes that have it in their
-///   `allowlisted_peers` or `seed_peers` will try to connect to it.
+/// * If the node marks itself as Private, only nodes that have it in their `allowlisted_peers` or
+///   `seed_peers` will try to connect to it.
 /// * If not set, defaults to Public.
 ///
 /// AccessType is useful when a network of nodes want to stay private. To
@@ -352,6 +351,15 @@ pub struct DiscoveryConfig {
     /// If unspecified, this will default to `1`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub peers_to_query: Option<usize>,
+
+    /// Maximum number of peers kept in the discovery table of known peers.
+    ///
+    /// When the table grows past this number, the peers with the oldest
+    /// timestamps are removed first.
+    ///
+    /// If unspecified, this will default to `10,000`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_known_peers: Option<usize>,
 
     /// Timeout for individual peer query requests in discovery protocol.
     ///
@@ -441,6 +449,12 @@ impl DiscoveryConfig {
         const PEERS_TO_QUERY: usize = 1;
 
         self.peers_to_query.unwrap_or(PEERS_TO_QUERY)
+    }
+
+    pub fn max_known_peers(&self) -> usize {
+        const MAX_KNOWN_PEERS: usize = 10_000;
+
+        self.max_known_peers.unwrap_or(MAX_KNOWN_PEERS)
     }
 
     pub fn peer_query_timeout(&self) -> Duration {

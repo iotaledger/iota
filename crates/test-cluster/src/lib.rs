@@ -17,7 +17,7 @@ use iota_config::{
     Config, ExecutionCacheConfig, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
     NodeConfig, PersistedConfig,
     genesis::Genesis,
-    node::{AuthorityOverloadConfig, GrpcApiConfig, RunWithRange},
+    node::{AuthorityOverloadConfig, GrpcApiConfig, RunWithRange, StateSnapshotConfig},
     transaction_deny_config::TransactionDenyConfig,
 };
 use iota_core::{
@@ -54,6 +54,7 @@ use iota_swarm_config::{
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
+    node_config_override::NodeConfigOverride,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -70,17 +71,18 @@ use iota_types::{
     object::Object,
     quorum_driver_types::{ExecuteTransactionRequestType, ExecuteTransactionRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
-    traffic_control::{PolicyConfig, RemoteFirewallConfig},
+    traffic_control::PolicyConfig,
     transaction::{CertifiedTransaction, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-use rand::{distributions::*, rngs::OsRng, seq::SliceRandom};
+use rand::{distr::*, rand_core::UnwrapErr, rngs::SysRng, seq::IndexedRandom};
 use tokio::{
     task::JoinHandle,
     time::{Instant, sleep, timeout},
 };
 use tracing::{error, info};
+use typed_store::rocks::disable_fallocate;
 
 const NUM_VALIDATOR: usize = 4;
 
@@ -134,12 +136,16 @@ impl Drop for PcoolFlowOverride {
         unsafe {
             std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
             std::env::remove_var("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW");
+            std::env::remove_var(
+                "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            );
         }
     }
 }
 
 /// Sets the P-COOL protocol flag for every node of a test cluster built while
-/// the returned guard is alive.
+/// the returned guard is alive. Turning the flow off also turns validator
+/// attestation off, since attestation cannot run without the flow.
 ///
 /// `ProtocolConfig::apply_overrides_for_testing` is thread-local and does not
 /// reach the tasks a cluster spawns, so the flag goes through the protocol
@@ -152,8 +158,47 @@ pub fn override_pcool_flow(enabled: bool) -> PcoolFlowOverride {
             "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW",
             enabled.to_string(),
         );
+        if !enabled {
+            std::env::set_var(
+                "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+                "false",
+            );
+        }
     }
     PcoolFlowOverride
+}
+
+/// Reverts the validator attestation flag override when dropped.
+#[must_use = "the override only holds while the guard is alive"]
+pub struct ValidatorAttestationOverride;
+
+impl Drop for ValidatorAttestationOverride {
+    fn drop(&mut self) {
+        // SAFETY: paired with `override_validator_attestation`; both run on the
+        // test thread, outside the cluster's lifetime.
+        unsafe {
+            std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
+            std::env::remove_var(
+                "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            );
+        }
+    }
+}
+
+/// Sets the validator attestation flag for every node of a test cluster built
+/// while the returned guard is alive, leaving the P-COOL flow as the protocol
+/// version has it. See [`override_pcool_flow`] for why this goes through the
+/// environment.
+pub fn override_validator_attestation(enabled: bool) -> ValidatorAttestationOverride {
+    // SAFETY: called before the cluster is built, on the test thread.
+    unsafe {
+        std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
+        std::env::set_var(
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            enabled.to_string(),
+        );
+    }
+    ValidatorAttestationOverride
 }
 
 impl TestCluster {
@@ -182,8 +227,8 @@ impl TestCluster {
     }
 
     /// Create a gRPC client connected to the fullnode's gRPC API.
-    pub fn grpc_client(&self) -> iota_grpc_client::Client {
-        iota_grpc_client::Client::new(self.grpc_url()).expect("failed to create gRPC client")
+    pub fn grpc_client(&self) -> iota_grpc_client::GrpcClient {
+        iota_grpc_client::GrpcClient::new(self.grpc_url()).expect("failed to create gRPC client")
     }
 
     /// Create a gRPC-driven [`TransactionBuilder`] for `sender`, resolving
@@ -191,7 +236,7 @@ impl TestCluster {
     pub fn grpc_transaction_builder(
         &self,
         sender: Address,
-    ) -> TransactionBuilder<iota_grpc_client::Client> {
+    ) -> TransactionBuilder<iota_grpc_client::GrpcClient> {
         TransactionBuilder::new(sender).with_client(self.grpc_client())
     }
 
@@ -236,7 +281,7 @@ impl TestCluster {
     pub async fn spawn_new_fullnode(&mut self) -> FullNodeHandle {
         self.start_fullnode_from_config(
             self.fullnode_config_builder()
-                .build(&mut OsRng, self.swarm.config()),
+                .build(&mut UnwrapErr(SysRng), self.swarm.config()),
         )
         .await
     }
@@ -563,6 +608,34 @@ impl TestCluster {
         }
     }
 
+    /// Replace one validator's transaction deny config, by restarting it.
+    ///
+    /// A deny list usually names objects or packages that only exist once the
+    /// cluster is running, which is too late for
+    /// [`TestClusterBuilder::with_transaction_deny_config`]. The config is read
+    /// once, when the node builds its `AuthorityState`, so a restart is the
+    /// only way to install a new one — the same procedure an operator follows.
+    ///
+    /// Restarting leaves the authority clients cached by the fullnode, and so
+    /// the ones [`Self::authority_aggregator`] hands out, connected to a node
+    /// that is gone. Reach the restarted validator through its node handle
+    /// instead, or drive an epoch change first.
+    pub async fn update_transaction_deny_config_on(
+        &self,
+        authority: &AuthorityName,
+        transaction_deny_config: TransactionDenyConfig,
+    ) {
+        self.stop_node(authority);
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+        self.swarm
+            .node(authority)
+            .unwrap()
+            .config()
+            .transaction_deny_config = transaction_deny_config;
+        self.start_node(authority).await;
+        info!("Restarted validator {}", authority);
+    }
+
     /// Wait for all nodes in the network to upgrade to `protocol_version`.
     pub async fn wait_for_all_nodes_upgrade_to(&self, protocol_version: u64) {
         for h in self.all_node_handles() {
@@ -649,11 +722,9 @@ impl TestCluster {
     pub async fn execute_transaction(&self, tx: TransactionEnvelope) -> TransactionEffects {
         let executed = self
             .grpc_client()
-            .execute_transaction(
-                tx.into(),
-                CHECKPOINT_INCLUSION_TIMEOUT_MS,
-                TransactionField::EFFECTS_BCS,
-            )
+            .execute_transaction(tx.into())
+            .checkpoint_inclusion_timeout_ms(CHECKPOINT_INCLUSION_TIMEOUT_MS)
+            .read_mask(TransactionField::EFFECTS_BCS)
             .await
             .unwrap_or_else(|e| panic!("Transaction submission failed: {e}"))
             .into_inner();
@@ -689,11 +760,9 @@ impl TestCluster {
             .submit_transaction_to_validators(tx.clone(), &self.get_validator_pubkeys())
             .await?;
         self.grpc_client()
-            .execute_transaction(
-                tx.into(),
-                CHECKPOINT_INCLUSION_TIMEOUT_MS,
-                TransactionField::EFFECTS_BCS,
-            )
+            .execute_transaction(tx.into())
+            .checkpoint_inclusion_timeout_ms(CHECKPOINT_INCLUSION_TIMEOUT_MS)
+            .read_mask(TransactionField::EFFECTS_BCS)
             .await
             .unwrap();
         Ok(results)
@@ -1035,19 +1104,19 @@ impl RandomNodeRestarter {
     fn new(test_cluster: Arc<TestCluster>) -> Self {
         Self {
             test_cluster,
-            kill_interval: Uniform::new(Duration::from_secs(10), Duration::from_secs(11)),
-            restart_delay: Uniform::new(Duration::from_secs(1), Duration::from_secs(2)),
+            kill_interval: Uniform::new(Duration::from_secs(10), Duration::from_secs(11)).unwrap(),
+            restart_delay: Uniform::new(Duration::from_secs(1), Duration::from_secs(2)).unwrap(),
             task_handle: Default::default(),
         }
     }
 
     pub fn with_kill_interval_secs(mut self, a: u64, b: u64) -> Self {
-        self.kill_interval = Uniform::new(Duration::from_secs(a), Duration::from_secs(b));
+        self.kill_interval = Uniform::new(Duration::from_secs(a), Duration::from_secs(b)).unwrap();
         self
     }
 
     pub fn with_restart_delay_secs(mut self, a: u64, b: u64) -> Self {
-        self.restart_delay = Uniform::new(Duration::from_secs(a), Duration::from_secs(b));
+        self.restart_delay = Uniform::new(Duration::from_secs(a), Duration::from_secs(b)).unwrap();
         self
     }
 
@@ -1060,15 +1129,15 @@ impl RandomNodeRestarter {
         assert!(task_handle.is_none());
         task_handle.replace(tokio::task::spawn(async move {
             loop {
-                let delay = kill_interval.sample(&mut OsRng);
+                let delay = kill_interval.sample(&mut UnwrapErr(SysRng));
                 info!("Sleeping {delay:?} before killing a validator");
                 sleep(delay).await;
 
-                let validator = validators.choose(&mut OsRng).unwrap();
+                let validator = validators.choose(&mut UnwrapErr(SysRng)).unwrap();
                 info!("Killing validator {:?}", validator.concise());
                 test_cluster.stop_node(validator);
 
-                let delay = restart_delay.sample(&mut OsRng);
+                let delay = restart_delay.sample(&mut UnwrapErr(SysRng));
                 info!("Sleeping {delay:?} before restarting");
                 sleep(delay).await;
                 info!("Starting validator {:?}", validator.concise());
@@ -1105,15 +1174,17 @@ pub struct TestClusterBuilder {
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
+    fullnode_num_epochs_to_retain_for_indexes: Option<u64>,
     fullnode_policy_config: Option<PolicyConfig>,
-    fullnode_fw_config: Option<RemoteFirewallConfig>,
     fullnode_enable_grpc_api: bool,
+    fullnode_state_snapshot_config: Option<StateSnapshotConfig>,
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
     validator_global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig,
     disable_address_verification_cooldown: bool,
     chain_override: Option<Chain>,
+    node_config_overrides: Vec<NodeConfigOverride>,
 }
 
 impl TestClusterBuilder {
@@ -1137,9 +1208,10 @@ impl TestClusterBuilder {
             execution_cache_config: None,
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
+            fullnode_num_epochs_to_retain_for_indexes: None,
             fullnode_policy_config: None,
-            fullnode_fw_config: None,
             fullnode_enable_grpc_api: true,
+            fullnode_state_snapshot_config: None,
             fullnode_grpc_api_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
@@ -1147,7 +1219,13 @@ impl TestClusterBuilder {
                 true,
             ),
             disable_address_verification_cooldown: false,
+            node_config_overrides: vec![],
         }
+    }
+
+    pub fn with_fullnode_num_epochs_to_retain_for_indexes(mut self, epochs: Option<u64>) -> Self {
+        self.fullnode_num_epochs_to_retain_for_indexes = epochs;
+        self
     }
 
     pub fn with_fullnode_run_with_range(mut self, run_with_range: Option<RunWithRange>) -> Self {
@@ -1162,11 +1240,6 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_fullnode_fw_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
-        self.fullnode_fw_config = config;
-        self
-    }
-
     pub fn with_fullnode_rpc_port(mut self, rpc_port: u16) -> Self {
         self.fullnode_rpc_port = Some(rpc_port);
         self
@@ -1174,6 +1247,13 @@ impl TestClusterBuilder {
 
     pub fn with_fullnode_rpc_addr(mut self, addr: SocketAddr) -> Self {
         self.fullnode_rpc_addr = Some(addr);
+        self
+    }
+
+    /// Makes the fullnode publish a formal state snapshot at every epoch
+    /// boundary, to the store the config names.
+    pub fn with_fullnode_state_snapshot_config(mut self, config: StateSnapshotConfig) -> Self {
+        self.fullnode_state_snapshot_config = Some(config);
         self
     }
 
@@ -1353,6 +1433,15 @@ impl TestClusterBuilder {
         self
     }
 
+    /// Apply the given overrides to every node config the cluster starts with.
+    pub fn with_node_config_overrides(
+        mut self,
+        node_config_overrides: Vec<NodeConfigOverride>,
+    ) -> Self {
+        self.node_config_overrides = node_config_overrides;
+        self
+    }
+
     pub async fn build(mut self) -> TestCluster {
         // We can add a faucet account to the `GenesisConfig` if there was no
         // `NetworkConfig` provided. Only either a `GenesisConfig` or a
@@ -1412,6 +1501,10 @@ impl TestClusterBuilder {
 
     /// Start a Swarm and set up WalletConfig
     async fn start_swarm(&mut self) -> Result<Swarm, anyhow::Error> {
+        // Each node opens several databases, and each write-ahead log would
+        // otherwise take hundreds of MiB on disk.
+        disable_fallocate();
+
         let mut builder: SwarmBuilder = Swarm::builder()
             .committee_size(
                 NonZeroUsize::new(self.num_validators.unwrap_or(NUM_VALIDATOR)).unwrap(),
@@ -1430,8 +1523,10 @@ impl TestClusterBuilder {
                     .unwrap_or(self.validator_supported_protocol_versions_config.clone()),
             )
             .with_fullnode_run_with_range(self.fullnode_run_with_range)
-            .with_fullnode_policy_config(self.fullnode_policy_config.clone())
-            .with_fullnode_fw_config(self.fullnode_fw_config.clone());
+            .with_fullnode_num_epochs_to_retain_for_indexes(
+                self.fullnode_num_epochs_to_retain_for_indexes,
+            )
+            .with_fullnode_policy_config(self.fullnode_policy_config.clone());
 
         if let Some(chain) = self.chain_override {
             builder = builder.with_chain_override(chain);
@@ -1488,11 +1583,17 @@ impl TestClusterBuilder {
             builder = builder.with_disable_fullnode_pruning();
         }
         builder = builder.with_fullnode_enable_grpc_api(self.fullnode_enable_grpc_api);
+        if let Some(config) = self.fullnode_state_snapshot_config.clone() {
+            builder = builder.with_fullnode_state_snapshot_config(config);
+        }
         if let Some(config) = &self.fullnode_grpc_api_config {
             builder = builder.with_fullnode_grpc_api_config(config.clone());
         }
         if self.disable_address_verification_cooldown {
             builder = builder.with_disabled_address_verification_cooldown();
+        }
+        if !self.node_config_overrides.is_empty() {
+            builder = builder.with_node_config_overrides(self.node_config_overrides.clone());
         }
 
         let mut swarm = builder.build();

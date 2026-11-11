@@ -7,7 +7,7 @@
 //! Creating connections, applying or validating migrations are examples of
 //! operations included in this scope.
 
-use std::{collections::HashSet, time::Duration};
+use std::{collections::HashSet, fmt, time::Duration};
 
 use anyhow::anyhow;
 use clap::Args;
@@ -17,8 +17,10 @@ use diesel::{
     query_dsl::RunQueryDsl,
     r2d2::{ConnectionManager, Pool, PooledConnection, R2D2Connection},
 };
+use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
-use tracing::info;
+use tracing::{error, info};
+use url::Url;
 
 use crate::{errors::IndexerError, pruning::pruner::PrunableTable};
 
@@ -121,11 +123,60 @@ impl<T: R2D2Connection + 'static> diesel::r2d2::CustomizeConnection<T, diesel::r
     }
 }
 
+/// A database connection URL, which can contain a password.
+///
+/// Its `Debug` impl hides the password, so that printing a config that
+/// contains it does not write password to the logs.
+#[derive(Serialize, Deserialize, Clone, Eq, PartialEq)]
+#[serde(transparent)]
+pub struct DbUrl(String);
+
+impl DbUrl {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// The URL with its password replaced by `****`. If it's impossible to
+    /// parse the url to hide only the password then the whole url is hidden.
+    fn redacted(&self) -> String {
+        const HIDDEN: &str = "****";
+
+        let Ok(mut url) = Url::parse(&self.0) else {
+            return HIDDEN.to_string();
+        };
+
+        let password = url.password().map(|_| HIDDEN);
+        if url.set_password(password).is_err() {
+            return HIDDEN.to_string();
+        }
+
+        url.to_string()
+    }
+}
+
+impl From<String> for DbUrl {
+    fn from(url: String) -> Self {
+        Self(url)
+    }
+}
+
+impl From<&str> for DbUrl {
+    fn from(url: &str) -> Self {
+        Self(url.to_string())
+    }
+}
+
+impl fmt::Debug for DbUrl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("DbUrl").field(&self.redacted()).finish()
+    }
+}
+
 pub fn new_connection_pool(
-    db_url: &str,
+    db_url: &DbUrl,
     config: &ConnectionPoolConfig,
 ) -> Result<ConnectionPool, IndexerError> {
-    let manager = ConnectionManager::<PgConnection>::new(db_url);
+    let manager = ConnectionManager::<PgConnection>::new(db_url.as_str());
 
     Pool::builder()
         .max_size(config.pool_size)
@@ -133,17 +184,15 @@ pub fn new_connection_pool(
         .connection_customizer(Box::new(config.connection_config()))
         .build(manager)
         .map_err(|e| {
-            IndexerError::PgConnectionPoolInit(format!(
-                "failed to initialize connection pool for {db_url} with error: {e:?}"
-            ))
+            error!("failed to initialize connection pool: {e:?}");
+            IndexerError::PgConnectionPoolInit
         })
 }
 
 pub fn get_pool_connection(pool: &ConnectionPool) -> Result<PoolConnection, IndexerError> {
     pool.get().map_err(|e| {
-        IndexerError::PgPoolConnection(format!(
-            "failed to get connection from PG connection pool with error: {e:?}"
-        ))
+        error!("failed to get connection from PG connection pool: {e:?}");
+        IndexerError::PgPoolConnection
     })
 }
 
@@ -433,6 +482,39 @@ pub mod setup_postgres {
                     .unwrap();
             }
             database.drop_if_exists();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_db_url_debug_hides_password() {
+        let cases = [
+            (
+                "postgres://user:hunter2@localhost:5432/iota_indexer",
+                "postgres://user:****@localhost:5432/iota_indexer",
+            ),
+            (
+                "postgres://user@localhost:5432/iota_indexer",
+                "postgres://user@localhost:5432/iota_indexer",
+            ),
+            (
+                "postgres://localhost:5432/iota_indexer",
+                "postgres://localhost:5432/iota_indexer",
+            ),
+            // url fails to parse, password can be anywhere
+            ("user:hunter2@localhost", "****"),
+            ("host=localhost password=hunter2", "****"),
+        ];
+
+        for (url, expect) in cases {
+            let db_url = DbUrl::from(url);
+
+            assert_eq!(format!("{db_url:?}"), format!(r#"DbUrl("{expect}")"#));
+            assert_eq!(db_url.as_str(), url);
         }
     }
 }

@@ -9,20 +9,17 @@
 //! Tables backing Transaction filters in GraphQL all follow the same rough
 //! shape:
 //!
-//! 1. They each get their own table, mapping the filter value to the
-//!    transaction sequence number.
+//! 1. They each get their own table, mapping the filter value to the transaction sequence number.
 //!
-//! 2. They also include a `sender` column, and a secondary index over the
-//!    sender, filter values and the transaction sequence number.
+//! 2. They also include a `sender` column, and a secondary index over the sender, filter values and
+//!    the transaction sequence number.
 //!
 //! 3. They also include a secondary index over the transaction sequence number.
 //!
 //! This pattern allows us to offer a simple rule for users:
-//! - If you are filtering on a **single value**, you can do so without
-//!   worrying.
-//! - If you want to additionally filter by the sender, that is also possible,
-//!   but if you want to combine any other set of filters, you need to use a
-//!   "scan limit".
+//! - If you are filtering on a **single value**, you can do so without worrying.
+//! - If you want to additionally filter by the sender, that is also possible, but if you want to
+//!   combine any other set of filters, you need to use a "scan limit".
 //!
 //! ## Query construction
 //!
@@ -30,24 +27,21 @@
 //! transaction sequence numbers to fetch, and then fetch their contents.
 //! Filtering all happens in the first phase:
 //!
-//! - Firstly filters are broken down into individual queries targeting the
-//!   appropriate lookup table. Each constituent query is expected to return a
-//!   sorted run of transaction sequence numbers.
+//! - Firstly filters are broken down into individual queries targeting the appropriate lookup
+//!   table. Each constituent query is expected to return a sorted run of transaction sequence
+//!   numbers.
 //!
-//! - If a `sender` filter is included, then it is incorporated into each
-//!   constituent query, leveraging their secondary indices (2), otherwise each
-//!   constituent query filters only based on its filter value using the primary
-//!   index (1).
+//! - If a `sender` filter is included, then it is incorporated into each constituent query,
+//!   leveraging their secondary indices (2), otherwise each constituent query filters only based on
+//!   its filter value using the primary index (1).
 //!
-//! - The fact that both the primary and secondary indices contain the
-//!   transaction sequence number help to ensure that the output from an index
-//!   scan is already sorted, which avoids a potentially expensive materialize
-//!   and sort operation.
+//! - The fact that both the primary and secondary indices contain the transaction sequence number
+//!   help to ensure that the output from an index scan is already sorted, which avoids a
+//!   potentially expensive materialize and sort operation.
 //!
-//! - If there are multiple constituent queries, they are intersected using
-//!   inner joins. Postgres can occasionally pick a poor query plan for this
-//!   merge, so we require that filters resulting in such merges also use a
-//!   "scan limit" (see below).
+//! - If there are multiple constituent queries, they are intersected using inner joins. Postgres
+//!   can occasionally pick a poor query plan for this merge, so we require that filters resulting
+//!   in such merges also use a "scan limit" (see below).
 //!
 //! ## Scan limits
 //!
@@ -212,19 +206,20 @@ impl TxBounds {
         };
 
         // If the cursors point outside checkpoint bounds, we can return early.
-        if matches!(page.after(), Some(a) if tx_hi <= a.tx_sequence_number.saturating_add(1)) {
+        if matches!(page.after(), Some(a) if tx_hi <= u64::from(a.tx_sequence_number).saturating_add(1))
+        {
             return Ok(None);
         }
 
-        if matches!(page.before(), Some(b) if b.tx_sequence_number <= tx_lo) {
+        if matches!(page.before(), Some(b) if u64::from(b.tx_sequence_number) <= tx_lo) {
             return Ok(None);
         }
 
         Ok(Some(Self {
             tx_lo,
             tx_hi,
-            cursor_lo_exclusive: page.after().map(|a| a.tx_sequence_number),
-            cursor_hi: page.before().map(|b| b.tx_sequence_number),
+            cursor_lo_exclusive: page.after().map(|a| a.tx_sequence_number.into()),
+            cursor_hi: page.before().map(|b| b.tx_sequence_number.into()),
             scan_limit,
             end: page.end(),
         }))

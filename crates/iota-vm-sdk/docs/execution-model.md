@@ -28,7 +28,7 @@ effects are committed:
 
 | Mode         | Input check                                                                         | Gas price                                   | Gas budget                                                    | Mock gas coin if none supplied? | Commits to store? |
 | ------------ | ----------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------- | ------------------------------- | ----------------- |
-| `DevInspect` | `check_simulation_input` (relaxed), plus a gas balance check                        | declared, or the reference gas price if `0` | declared, or the coins' balance capped at `max_tx_gas` if `0` | yes                             | no                |
+| `DevInspect` | the same relaxed checks as the node's dev-inspect                                   | declared, or the reference gas price if `0` | declared, or the coins' balance capped at `max_tx_gas` if `0` | yes                             | no                |
 | `DryRun`     | `check_transaction_input` (authenticator budget `0` → meters at the full tx budget) | declared, or the reference gas price if `0` | declared, or the coins' balance capped at `max_tx_gas` if `0` | yes                             | no                |
 | `Execute`    | `check_transaction_input` (authenticator budget `0` → meters at the full tx budget) | declared                                    | declared                                                      | no — requires real gas          | yes, on success   |
 
@@ -93,6 +93,6 @@ separately:
   signing.
 
 A transaction is accepted on-chain only if it passes both, so a caller that
-needs the full picture runs both. Neither models the deny-list or input policies
-a validator also applies (see the deny-list check the node runs before the
-authenticators).
+needs the full picture runs both. `check_signing_authentication` models neither
+the deny-list nor the input policies a validator applies; `execute` and
+`execute_signed` apply both, against whatever `ExecuteOptions` supplies.

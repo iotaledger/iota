@@ -1,17 +1,21 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::iota_framework::{
+    account::AuthenticatorFunctionRefV1Key, dynamic_field::Field,
+};
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest, TypeTag,
+    Address, Identifier, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
+    StructTag, TransactionDigest, TypeTag, Version,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    account_abstraction::account::AuthenticatorFunctionRefV1Key,
-    dynamic_field::{self, Field},
-    error::{IotaError, UserInputError, UserInputResult},
+    dynamic_field,
+    error::{ExecutionError, IotaError, UserInputError, UserInputResult},
     execution::DynamicallyLoadedObjectMetadata,
     object::Object,
+    transaction::CheckedInputObjects,
 };
 
 pub const AUTHENTICATOR_FUNCTION_MODULE_NAME: Identifier =
@@ -111,6 +115,83 @@ impl AuthenticatorFunctionRefForExecution {
     }
 }
 
+/// A `MoveAuthenticator` with the inputs and account resolution it executes
+/// with. `FunctionRef` is `Option`al while resolution may still have failed.
+pub struct MoveAuthenticatorForExecution<FunctionRef = AuthenticatorFunctionRefForExecution> {
+    pub authenticator: MoveAuthenticator,
+    pub function_ref: FunctionRef,
+    pub input_objects: CheckedInputObjects,
+}
+
+/// The Move authenticators a transaction executes with: either every
+/// authenticator's function ref resolved, or resolution failed before
+/// execution and the failure is reported in the authentication's place.
+pub enum MoveAuthenticatorsForExecution {
+    Resolved(Vec<MoveAuthenticatorForExecution>),
+    /// An account could not be resolved; `error` is the first such failure in
+    /// signature order. `accounts` are the addresses of the accounts the
+    /// transaction's Move authenticators authenticate, so execution can tell
+    /// whether the gas owner is one of them. `gas_owner` is the gas owner's
+    /// authenticator when its account resolved. With P-COOL deterministic
+    /// validation it runs to decide whether the gas owner pays; otherwise no
+    /// authenticator runs.
+    ResolutionFailed {
+        error: ExecutionError,
+        accounts: Vec<Address>,
+        gas_owner: Option<Box<MoveAuthenticatorForExecution>>,
+    },
+}
+
+/// Checks that a loaded account object can authenticate `signer` and returns
+/// the account version at which the authenticator function ref field is
+/// resolved.
+pub fn validate_account_object(
+    account_object_id: ObjectId,
+    pinned_version: Option<Version>,
+    pinned_digest: Option<ObjectDigest>,
+    signer: &Address,
+    account_object: &Object,
+) -> UserInputResult<Version> {
+    let account_object_addr = Address::from(account_object_id);
+    if signer != &account_object_addr {
+        return Err(UserInputError::IncorrectUserSignature {
+            error: format!(
+                "Move authenticator is trying to unlock {account_object_addr:?}, but given signer address is {signer:?}"
+            ),
+        });
+    }
+
+    if !(account_object.is_shared() || account_object.is_immutable()) {
+        return Err(UserInputError::AccountObjectNotSupported {
+            object_id: account_object_id,
+        });
+    }
+
+    let account_object_version = account_object.version();
+    if let Some(pinned_version) = pinned_version {
+        if account_object_version != pinned_version {
+            return Err(UserInputError::AccountObjectVersionMismatch {
+                object_id: account_object_id,
+                expected_version: pinned_version,
+                actual_version: account_object_version,
+            });
+        }
+    }
+
+    if let Some(pinned_digest) = pinned_digest {
+        let expected_digest = account_object.digest();
+        if expected_digest != pinned_digest {
+            return Err(UserInputError::InvalidAccountObjectDigest {
+                object_id: account_object_id,
+                expected_digest,
+                actual_digest: pinned_digest,
+            });
+        }
+    }
+
+    Ok(account_object_version)
+}
+
 /// Derive the id of the dynamic field on the account object that holds its
 /// [`AuthenticatorFunctionRefV1`].
 pub fn derive_authenticator_function_ref_v1_dynamic_field_id(
@@ -120,7 +201,8 @@ pub fn derive_authenticator_function_ref_v1_dynamic_field_id(
     dynamic_field::derive_dynamic_field_id(
         account_object_id,
         &StructTag::new_authenticator_function_ref_v1_key().into(),
-        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+        &bcs::to_bytes(&AuthenticatorFunctionRefV1Key::default())
+            .expect("BCS of a struct with one bool field cannot fail"),
     )
     .map_err(|_| UserInputError::UnableToGetMoveAuthenticatorId { account_object_id })
 }

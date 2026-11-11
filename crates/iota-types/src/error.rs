@@ -17,6 +17,7 @@ use tonic::Status;
 use typed_store_error::TypedStoreError;
 
 use crate::{
+    attestation::AuthorityIndex,
     base_types::*,
     committee::{Committee, EpochId, StakeUnit},
     messages_checkpoint::CheckpointSequenceNumber,
@@ -369,6 +370,38 @@ pub enum UserInputError {
         "Mutable shared object {object_id} is in the `MoveAuthenticator` input that is unsupported"
     )]
     MutableSharedIsInMoveAuthenticatorInput { object_id: ObjectId },
+    #[error(
+        "Immutable account object {object_id} cannot authenticate a transaction, only a shared account object is supported"
+    )]
+    ImmutableAccountObjectNotSupported { object_id: ObjectId },
+    #[error(
+        "Randomness state object {object_id} is in the `MoveAuthenticator` input that is unsupported"
+    )]
+    RandomnessStateIsInMoveAuthenticatorInput { object_id: ObjectId },
+    #[error(
+        "Invalid argument at command {command_idx}, argument {argument_idx}: index {index} is out of bounds"
+    )]
+    InvalidArgumentIndex {
+        command_idx: usize,
+        argument_idx: usize,
+        index: u16,
+    },
+    #[error(
+        "Input object {object_id}{} can't be used: at the consensus commit that sequenced the transaction, it was already consumed, deleted, or didn't match what the transaction declared",
+        at_version(.version)
+    )]
+    InputObjectNotAvailableAtCommit {
+        object_id: ObjectId,
+        version: Option<Version>,
+    },
+}
+
+/// Formats `version` as " at version {version}", or as nothing when it is
+/// absent.
+fn at_version(version: &Option<Version>) -> String {
+    version
+        .map(|version| format!(" at version {version}"))
+        .unwrap_or_default()
 }
 
 /// Custom error type for Iota.
@@ -718,6 +751,37 @@ pub enum IotaError {
         id: ObjectId,
         key: String,
     },
+
+    #[error(
+        "Attestation author mismatch: attestation claims attestor {expected:?} \
+         but the block was authored by {actual:?}"
+    )]
+    AttestationAuthorMismatch {
+        expected: AuthorityIndex,
+        actual: AuthorityIndex,
+    },
+
+    #[error(
+        "Attestation reports computation_units = {actual} gas units, \
+         below the protocol minimum of {minimum} \
+         (`min(base_tx_cost_fixed, gas_rounding_step)`); \
+         no honest dry-run can meter below this minimum"
+    )]
+    AttestationUnitsBelowMinimum { actual: u64, minimum: u64 },
+
+    #[error(
+        "Attestation reports computation_units = {actual} gas units, \
+         above the user's budget maximum of {maximum} (`gas_budget / gas_price`); \
+         an honest dry-run cannot exceed what the tx can pay for"
+    )]
+    AttestationUnitsAboveBudget { actual: u64, maximum: u64 },
+
+    #[error(
+        "Attestor {attestor:?} is cut off for the rest of the epoch: the squared \
+         units of its refuted attestations reached \
+         `attestation_max_refuted_units_squared`"
+    )]
+    AttestorCutOff { attestor: AuthorityIndex },
 }
 
 #[repr(u64)]
@@ -873,6 +937,9 @@ impl IotaError {
                     // Only ObjectNotFound and DependentPackageNotFound is potentially retryable
                     UserInputError::ObjectNotFound { .. } => true,
                     UserInputError::DependentPackageNotFound { .. } => true,
+                    // Every validator drops the transaction at the commit for
+                    // good, so a resubmission of it gets the same answer.
+                    UserInputError::InputObjectNotAvailableAtCommit { .. } => false,
                     _ => false,
                 }
             }
@@ -982,6 +1049,9 @@ pub fn categorize(error: &IotaError) -> ErrorCategory {
         IotaError::UserInput { error } => match error {
             UserInputError::ObjectNotFound { .. } => ErrorCategory::Aborted,
             UserInputError::DependentPackageNotFound { .. } => ErrorCategory::Aborted,
+            UserInputError::InputObjectNotAvailableAtCommit { .. } => {
+                ErrorCategory::InvalidTransaction
+            }
             _ => ErrorCategory::InvalidTransaction,
         },
         IotaError::InvalidSignature { .. }

@@ -18,7 +18,7 @@ use std::{
 
 use iota_network::tonic;
 use iota_traffic_controller::{
-    ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
+    ClientIpStatus, TrafficController, forwarded_hop_depth, get_client_ip, policies::TrafficTally,
 };
 use iota_types::{
     error::*,
@@ -91,75 +91,39 @@ impl ValidatorService {
         &self.state
     }
 
+    /// The client IP that traffic control charges a request to, or `None`
+    /// when the node could not resolve one. Errors when the request is one
+    /// that [`ClientIpStatus::should_refuse_request`] refuses.
     pub(crate) fn get_client_ip_addr<T>(
-        &self,
+        metrics: &ValidatorServiceMetrics,
         request: &tonic::Request<T>,
         source: &ClientIdSource,
-    ) -> Option<IpAddr> {
+    ) -> Result<Option<IpAddr>, tonic::Status> {
         // Observability gauge: track the hop depth even when we're not using
         // x-forwarded-for as the source, to detect misconfigured proxies.
-        if let Some(header) = request.metadata().get_all("x-forwarded-for").iter().next() {
-            let num_hops = header
-                .to_str()
-                .map(|h| h.split(',').count().saturating_sub(1))
-                .unwrap_or(0);
-            self.metrics.x_forwarded_for_num_hops.set(num_hops as f64);
+        if let Some(num_hops) = forwarded_hop_depth(request.metadata().as_ref()) {
+            metrics.x_forwarded_for_num_hops.set(num_hops as f64);
         }
 
-        match get_client_ip(request.metadata().as_ref(), request.remote_addr(), source) {
-            ClientIpStatus::Ok(ip) => Some(ip),
-            ClientIpStatus::SocketAddrMissing => {
-                // We will hit this case if the IO type used does not
-                // implement Connected or when using a unix domain socket.
-                // TODO(#11095): reject requests without a peer address.
-                // issue: https://github.com/iotaledger/iota/issues/11756
-                if cfg!(msim) {
-                    // Ignore the error from simtests.
-                } else if cfg!(test) {
-                    panic!("Failed to get remote address from request");
-                } else {
-                    self.metrics.connection_ip_not_found.inc();
-                    error!("Failed to get remote address from request");
-                }
-                None
-            }
+        let status = get_client_ip(request.metadata().as_ref(), request.remote_addr(), source);
+        match &status {
+            ClientIpStatus::Ok(ip) => return Ok(Some(*ip)),
+            ClientIpStatus::SocketAddrMissing => metrics.connection_ip_not_found.inc(),
             ClientIpStatus::XForwardedForHeaderMissing => {
-                self.metrics.forwarded_header_not_included.inc();
-                error!(
-                    "x-forwarded-for header not present for request despite node configuring x-forwarded-for tracking type"
-                );
-                None
+                metrics.forwarded_header_not_included.inc()
             }
-            ClientIpStatus::XForwardedForInvalidUtf8 => {
-                // TODO: once we have confirmed that no legitimate traffic
-                // is hitting this case, we should reject such requests that
-                // hit this case.
-                // issue: https://github.com/iotaledger/iota/issues/11756
-                self.metrics.forwarded_header_invalid.inc();
-                error!("Invalid UTF-8 in x-forwarded-for header");
-                None
+            ClientIpStatus::XForwardedForInvalidUtf8 => metrics.forwarded_header_invalid.inc(),
+            ClientIpStatus::XForwardedForZeroHops { .. } => {}
+            ClientIpStatus::XForwardedForConfigMismatch { .. } => {
+                metrics.client_id_source_config_mismatch.inc()
             }
-            ClientIpStatus::XForwardedForZeroHops => {
-                error!(
-                    "x-forwarded-for: 0 specified. Please assign nonzero value for number of hops here, or use \
-                    `socket-addr` client-id-source type if requests are not being proxied to this node. \
-                    Skipping traffic controller request handling."
-                );
-                None
-            }
-            ClientIpStatus::XForwardedForConfigMismatch { expected, actual } => {
-                error!(
-                    "x-forwarded-for header contains {actual} values, but {expected} hops were specified. \
-                    Please correctly set the `x-forwarded-for` value under `client-id-source` in the node config."
-                );
-                self.metrics.client_id_source_config_mismatch.inc();
-                None
-            }
-            ClientIpStatus::XForwardedForUnparsable => {
-                self.metrics.forwarded_header_parse_error.inc();
-                None
-            }
+            ClientIpStatus::XForwardedForUnparsable => metrics.forwarded_header_parse_error.inc(),
         }
+        error!("{status}");
+        if status.should_refuse_request() {
+            return Err(tonic::Status::invalid_argument(status.to_string()));
+        }
+        Ok(None)
     }
 
     fn check_traffic(&self, client: Option<IpAddr>) -> Result<(), tonic::Status> {
@@ -175,10 +139,14 @@ impl ValidatorService {
         }
     }
 
-    fn extract_client_ip<ProtoReq>(&self, request: &tonic::Request<ProtoReq>) -> Option<IpAddr> {
-        self.client_id_source
-            .as_ref()
-            .and_then(|source| self.get_client_ip_addr(request, source))
+    fn extract_client_ip<ProtoReq>(
+        &self,
+        request: &tonic::Request<ProtoReq>,
+    ) -> Result<Option<IpAddr>, tonic::Status> {
+        match &self.client_id_source {
+            Some(source) => Self::get_client_ip_addr(&self.metrics, request, source),
+            None => Ok(None),
+        }
     }
 
     fn tally_traffic<T>(
@@ -209,7 +177,7 @@ impl ValidatorService {
         ProtoReq: TryInto<DomainReq>,
         ProtoReq::Error: std::fmt::Display,
     {
-        let ip = self.extract_client_ip(&request);
+        let ip = self.extract_client_ip(&request)?;
         self.check_traffic(ip)?;
         // TODO(#11095): move deserialization off the critical path (spawn_blocking).
         let domain_req = request.into_inner().try_into().map_err(|e| {
@@ -241,12 +209,14 @@ impl ValidatorService {
 
     /// Tallies traffic per stream item and maps each domain item into its
     /// proto equivalent. Each item carries its own business-logic Weight,
-    /// which feeds the spam-policy axis of the traffic controller. Top-level
-    /// errors are tallied once at stream creation.
+    /// which feeds the spam-policy axis of the traffic controller, and
+    /// `item_error` returns the error an item reports, which feeds the error
+    /// policy. Top-level errors are tallied once at stream creation.
     fn post_handle_stream<S, DomainItem, ProtoItem>(
         &self,
         ip: Option<IpAddr>,
         result: Result<S, tonic::Status>,
+        item_error: fn(&DomainItem) -> Option<IotaError>,
     ) -> Result<tonic::Response<StreamResponse<ProtoItem>>, tonic::Status>
     where
         S: tokio_stream::Stream<Item = Result<(DomainItem, Weight), tonic::Status>>
@@ -276,7 +246,7 @@ impl ValidatorService {
                 Option<IotaError>,
                 Result<DomainItem, tonic::Status>,
             ) = match item {
-                Ok((data, w)) => (w, None, Ok(data)),
+                Ok((data, w)) => (w, item_error(&data), Ok(data)),
                 Err(status) => (
                     Weight::zero(),
                     Some(IotaError::from(status.clone())),
@@ -318,7 +288,8 @@ pub(super) fn normalize(err: &IotaError) -> Weight {
                 | UserInputError::PackageIsInMoveAuthenticatorInput { .. }
                 | UserInputError::AddressOwnedIsInMoveAuthenticatorInput { .. }
                 | UserInputError::ObjectOwnedIsInMoveAuthenticatorInput { .. }
-                | UserInputError::MutableSharedIsInMoveAuthenticatorInput { .. },
+                | UserInputError::MutableSharedIsInMoveAuthenticatorInput { .. }
+                | UserInputError::RandomnessStateIsInMoveAuthenticatorInput { .. },
         } => Weight::one(),
         IotaError::InvalidSignature { .. }
         | IotaError::SignerSignatureAbsent { .. }
@@ -365,7 +336,7 @@ macro_rules! handle_with_decoration {
             return $self.$func_name($request).await.map(|(result, _)| result);
         }
 
-        let client = $self.extract_client_ip(&$request);
+        let client = $self.extract_client_ip(&$request)?;
 
         // check if either IP is blocked, in which case return early
         $self.check_traffic(client.clone())?;
@@ -381,8 +352,73 @@ mod client_ip_forwarding_tests {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     use iota_traffic_controller::parse_ip;
+    use iota_types::traffic_control::ClientIdSource;
+    use tonic::codegen::http;
 
+    use super::{ValidatorService, ValidatorServiceMetrics};
     use crate::authority_client::insert_metadata;
+
+    /// A request carrying `value` as its `x-forwarded-for` header, built over
+    /// the raw bytes so that a test can send what the gRPC metadata API
+    /// refuses.
+    fn forwarded(value: &[u8]) -> tonic::Request<()> {
+        let request = http::Request::builder()
+            .header(
+                "x-forwarded-for",
+                http::HeaderValue::from_bytes(value).expect("a valid header value"),
+            )
+            .body(())
+            .expect("a valid request");
+        tonic::Request::from_http(request)
+    }
+
+    /// The node reports the depth of the proxy chain even when the part of the
+    /// header the client sent is not readable as text.
+    #[test]
+    fn a_byte_the_client_sent_does_not_zero_the_hop_gauge() {
+        let metrics = ValidatorServiceMetrics::new_for_tests();
+        let client = ValidatorService::get_client_ip_addr(
+            &metrics,
+            &forwarded(b"\x80, 10.0.0.1"),
+            &ClientIdSource::XForwardedFor(1),
+        )
+        .expect("the selected entry is an address");
+
+        assert_eq!(client, Some(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))));
+        assert_eq!(metrics.x_forwarded_for_num_hops.get(), 1.0);
+    }
+
+    /// A request that reached the node without the proxy that sets the header
+    /// names no client, and the node counts it under that cause.
+    #[test]
+    fn a_request_without_the_header_is_counted_under_its_cause() {
+        let metrics = ValidatorServiceMetrics::new_for_tests();
+        let client = ValidatorService::get_client_ip_addr(
+            &metrics,
+            &tonic::Request::new(()),
+            &ClientIdSource::XForwardedFor(1),
+        )
+        .expect("a request without the header is served");
+
+        assert_eq!(client, None);
+        assert_eq!(metrics.forwarded_header_not_included.get(), 1);
+    }
+
+    /// A proxy never writes an entry that is not valid UTF-8, so the node
+    /// refuses such a request, and counts it under that cause.
+    #[test]
+    fn an_unreadable_selected_entry_is_refused_and_counted() {
+        let metrics = ValidatorServiceMetrics::new_for_tests();
+        let status = ValidatorService::get_client_ip_addr(
+            &metrics,
+            &forwarded(b"10.0.0.1, \x80"),
+            &ClientIdSource::XForwardedFor(1),
+        )
+        .expect_err("the node refuses an unreadable selected entry");
+
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+        assert_eq!(metrics.forwarded_header_invalid.get(), 1);
+    }
 
     /// Verifies that `insert_metadata` on the client side sets the
     /// `x-forwarded-for` header such that the server-side

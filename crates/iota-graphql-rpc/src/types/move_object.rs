@@ -225,10 +225,10 @@ impl MoveObject {
 
     /// The current status of the object as read from the off-chain store. The
     /// possible states are:
-    /// - NOT_INDEXED: The object is loaded from serialized data, such as the
-    ///   contents of a genesis or system package upgrade transaction.
-    /// - INDEXED: The object is retrieved from the off-chain index and
-    ///   represents the most recent or historical state of the object.
+    /// - NOT_INDEXED: The object is loaded from serialized data, such as the contents of a genesis
+    ///   or system package upgrade transaction.
+    /// - INDEXED: The object is retrieved from the off-chain index and represents the most recent
+    ///   or historical state of the object.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_).status().await
     }

@@ -8,7 +8,7 @@ use std::sync::Arc;
 use iota_grpc_types::v1::move_package_service::{self as grpc_move_package_service};
 use tonic::Response;
 
-use crate::types::*;
+use crate::{metrics::RequestMetrics, types::*};
 
 pub struct MovePackageGrpcService {
     pub reader: Arc<GrpcReader>,
@@ -31,10 +31,14 @@ impl grpc_move_package_service::move_package_service_server::MovePackageService
         tonic::Response<grpc_move_package_service::ListPackageVersionsResponse>,
         tonic::Status,
     > {
-        let response =
-            list_package_versions::list_package_versions(self.reader.clone(), request.into_inner())
-                .map(Response::new)
-                .map_err(tonic::Status::from)?;
+        let metrics = RequestMetrics::from_extensions(request.extensions());
+        let response = list_package_versions::list_package_versions(
+            self.reader.clone(),
+            &metrics,
+            request.into_inner(),
+        )
+        .map(Response::new)
+        .map_err(tonic::Status::from)?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 }

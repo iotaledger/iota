@@ -14,7 +14,7 @@ use iota_data_ingestion_core::{
     WorkerPool,
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
-use iota_grpc_client::Client;
+use iota_grpc_client::GrpcClient;
 use iota_kvstore::{BigTableClient, KvWorker, Table};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus_filtered::Registry;
@@ -187,7 +187,7 @@ async fn main() -> Result<()> {
                     anyhow::bail!("Blob worker type requires a fullnode remote store URL");
                 };
 
-                let grpc_client = Client::new(url)?;
+                let grpc_client = GrpcClient::new(url)?;
                 let watermark = executor.read_watermark(task_config.name.clone()).await?;
                 let (current_epoch, current_epoch_first_checkpoint_seq_num) =
                     common::epoch_info(&grpc_client, None).await?;

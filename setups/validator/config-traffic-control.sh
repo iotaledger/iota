@@ -60,12 +60,11 @@ while IFS= read -r line; do
         # Store the entire array into a variable (space-separated)
         contents_var="${items[@]}"
 
-        # Find the index of the search element
+        # Find the last index of the search element
         found_index=-1
         for i in "${!items[@]}"; do
             if [ "${items[$i]}" = "$search" ]; then
                 found_index=$i
-                break
             fi
         done
 

@@ -10,16 +10,19 @@ use std::{
 };
 
 use anemo::{
-    Network, Peer, PeerId, Request, Response,
+    Network, Peer, PeerId, ProbeOutcome, Request, Response,
     types::{PeerEvent, PeerInfo},
 };
-use fastcrypto::ed25519::{Ed25519PublicKey, Ed25519Signature};
 use futures::StreamExt;
 use iota_config::p2p::{AccessType, DiscoveryConfig, P2pConfig, SeedPeer};
 use iota_multiaddr::Multiaddr;
-use iota_sdk_types::{Digest, crypto::IntentScope};
+use iota_sdk_crypto::{Signer as _, Verifier as _, ed25519::Ed25519VerifyingKey};
+use iota_sdk_types::{
+    Digest,
+    crypto::{Ed25519Signature, IntentScope},
+};
 use iota_types::{
-    crypto::{NetworkKeyPair, Signer, ToFromBytes, VerifyingKey},
+    crypto::{NetworkPrivateKey, NetworkPublicKey},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
 };
 use serde::{Deserialize, Serialize};
@@ -85,9 +88,9 @@ pub struct NodeInfo {
 }
 
 impl NodeInfo {
-    fn sign(self, keypair: &NetworkKeyPair) -> SignedNodeInfo {
+    fn sign(self, private_key: &NetworkPrivateKey) -> SignedNodeInfo {
         let msg = bcs::to_bytes(&self).expect("BCS serialization should not fail");
-        let sig = keypair.sign(&msg);
+        let sig = private_key.sign(&msg);
         SignedNodeInfo::new_from_data_and_sig(self, sig)
     }
 }
@@ -126,7 +129,7 @@ struct DiscoveryEventLoop {
     discovery_config: Arc<DiscoveryConfig>,
     allowlisted_peers: Arc<HashMap<PeerId, Option<Multiaddr>>>,
     network: Network,
-    keypair: NetworkKeyPair,
+    private_key: NetworkPrivateKey,
     tasks: JoinSet<()>,
     pending_dials: HashMap<PeerId, AbortHandle>,
     dial_seed_peers_task: Option<AbortHandle>,
@@ -226,7 +229,7 @@ impl DiscoveryEventLoop {
             timestamp_ms: now_unix(),
             access_type: self.discovery_config.access_type(),
         }
-        .sign(&self.keypair);
+        .sign(&self.private_key);
 
         self.state.write().unwrap().our_info = Some(our_info);
     }
@@ -274,7 +277,7 @@ impl DiscoveryEventLoop {
         if let Some(our_info) = &state.our_info {
             let mut data = our_info.data().clone();
             data.timestamp_ms = now_unix;
-            state.our_info = Some(data.sign(&self.keypair));
+            state.our_info = Some(data.sign(&self.private_key));
         }
     }
 
@@ -337,8 +340,8 @@ impl DiscoveryEventLoop {
 
     /// Handles a [`PeerEvent`].
     ///
-    /// * NewPeer: Adds the peer to the connected peers list and queries the
-    ///   peer for their known peers.
+    /// * NewPeer: Adds the peer to the connected peers list and queries the peer for their known
+    ///   peers.
     /// * LostPeer: Removes the peer from the connected peers list.
     /// * Closed: Panics if the channel is closed.
     fn handle_peer_event(&mut self, peer_event: Result<PeerEvent, RecvError>) {
@@ -383,10 +386,9 @@ impl DiscoveryEventLoop {
     /// 2. Queries a subset of connected peers for their known peers.
     /// 3. Culls old known peers older than a day.
     /// 4. Cleans out the pending_dials, dial_seed_peers_task if it's done.
-    /// 5. Selects a subset of known peers to dial if we're not connected to
-    ///    enough peers.
-    /// 6. If we have no neighbors and we aren't presently trying to connect to
-    ///    anyone we need to try the seed peers.
+    /// 5. Selects a subset of known peers to dial if we're not connected to enough peers.
+    /// 6. If we have no neighbors and we aren't presently trying to connect to anyone we need to
+    ///    try the seed peers.
     fn handle_tick(&mut self, _now: std::time::Instant, now_unix: u64) {
         self.update_our_info_timestamp(now_unix);
 
@@ -427,7 +429,7 @@ impl DiscoveryEventLoop {
                     && !state.connected_peers.contains_key(&peer_id) // We're not already connected
                     && !self.pending_dials.contains_key(&peer_id) // There is no pending dial to this node
             })
-            .map(|(&peer_id, info)| (peer_id, info.clone()))
+            .map(|(&peer_id, info)| (peer_id, info))
             .collect();
 
         // No need to connect to any more peers if we're already connected to a bunch
@@ -440,11 +442,9 @@ impl DiscoveryEventLoop {
         );
 
         // Randomly selects the number_to_dial of peers to connect to.
-        for (peer_id, info) in rand::seq::SliceRandom::choose_multiple(
-            eligible.as_slice(),
-            &mut rand::thread_rng(),
-            number_to_dial,
-        ) {
+        for (peer_id, info) in
+            rand::seq::IndexedRandom::sample(eligible.as_slice(), &mut rand::rng(), number_to_dial)
+        {
             let abort_handle = self.tasks.spawn(try_to_connect_to_peer(
                 self.network.clone(),
                 info.data().to_owned(),
@@ -500,27 +500,26 @@ async fn verify_address_ownership(
                         return Some(address);
                     }
 
-                    // Try to connect to the claimed address with the claimed peer_id
+                    // Probe the claimed address for the claimed peer_id. Unlike a regular
+                    // connection, a probe never joins the peer set, so it can't replace or
+                    // close a real connection to this peer.
                     match tokio::time::timeout(
                         config.address_verification_timeout(),
-                        network.connect_with_peer_id(anemo_address, peer_id),
+                        network.probe_address(anemo_address, peer_id),
                     )
                     .await
                     {
-                        Ok(Ok(_connection)) => {
+                        Ok(ProbeOutcome::Reachable) => {
                             debug!(
                                 "Address verification succeeded for peer {} at address {}",
                                 peer_id, address
                             );
-
-                            // Disconnect immediately since this was just for verification
-                            let _ = network.disconnect(peer_id);
                             return Some(address);
                         }
-                        Ok(Err(e)) => {
+                        Ok(outcome) => {
                             debug!(
-                                "Address verification failed for peer {} at address {}: {}",
-                                peer_id, address, e
+                                "Address verification failed for peer {} at address {}: {:?}",
+                                peer_id, address, outcome
                             );
                         }
                         Err(_timeout) => {
@@ -603,7 +602,7 @@ impl std::hash::Hash for HashableSignedNodeInfo {
         self.0.addresses.hash(state);
         self.0.timestamp_ms.hash(state);
         state.write_isize(self.0.access_type as isize);
-        self.0.auth_sig().as_bytes().hash(state);
+        self.0.auth_sig().bytes().hash(state);
     }
 }
 
@@ -688,7 +687,7 @@ async fn query_connected_peers_for_their_known_peers(
         .peers()
         .into_iter()
         .flat_map(|id| network.peer(id))
-        .choose_multiple(&mut rand::thread_rng(), config.peers_to_query());
+        .sample(&mut rand::rng(), config.peers_to_query());
 
     let peer_query_timeout = config.peer_query_timeout();
 
@@ -883,16 +882,18 @@ fn verify_peer_infos(
         }
 
         // Verify the signature
-        let Ok(public_key) = Ed25519PublicKey::from_bytes(&peer_info.peer_id.0) else {
+        let Ok(verifying_key) =
+            Ed25519VerifyingKey::new(&NetworkPublicKey::new(peer_info.peer_id.0))
+        else {
             debug!(
                 // This should never happen.
-                "Failed to convert anemo PeerId {:?} to Ed25519PublicKey",
+                "Failed to convert anemo PeerId {:?} to an ed25519 public key",
                 peer_info.peer_id
             );
             continue;
         };
         let msg = bcs::to_bytes(peer_info.data()).expect("BCS serialization should not fail");
-        if let Err(e) = public_key.verify(&msg, peer_info.auth_sig()) {
+        if let Err(e) = verifying_key.verify(&msg, peer_info.auth_sig()) {
             debug!(
                 "Discovery failed to verify signature for NodeInfo for peer {:?}: {e:?}",
                 peer_info.peer_id
@@ -1207,7 +1208,55 @@ async fn update_known_peers(
         for (verified_peer, _) in verified_peers {
             insert_or_update_peer(&mut state_guard, verified_peer, &metrics);
         }
+
+        evict_oldest_known_peers(
+            &mut state_guard,
+            config.max_known_peers(),
+            &allowlisted_peers,
+            &metrics,
+        );
     }
+}
+
+/// Removes the known peers with the oldest timestamps until at most
+/// `max_known_peers` remain. Connected and allowlisted peers are never removed,
+/// so the table can stay above the limit if those alone exceed it.
+fn evict_oldest_known_peers(
+    state: &mut State,
+    max_known_peers: usize,
+    allowlisted_peers: &HashMap<PeerId, Option<Multiaddr>>,
+    metrics: &Metrics,
+) {
+    let excess = state.known_peers.len().saturating_sub(max_known_peers);
+    if excess == 0 {
+        return;
+    }
+
+    let mut candidates: Vec<(u64, PeerId)> = state
+        .known_peers
+        .iter()
+        .filter(|(peer_id, _)| {
+            !state.connected_peers.contains_key(peer_id) && !allowlisted_peers.contains_key(peer_id)
+        })
+        .map(|(peer_id, info)| (info.timestamp_ms, *peer_id))
+        .collect();
+
+    let number_to_evict = excess.min(candidates.len());
+    if number_to_evict == 0 {
+        return;
+    }
+
+    candidates.select_nth_unstable(number_to_evict - 1);
+    for (_, peer_id) in &candidates[..number_to_evict] {
+        if let Some(removed) = state.known_peers.remove(peer_id) {
+            if !removed.addresses.is_empty() {
+                metrics.dec_num_peers_with_external_address();
+            }
+        }
+    }
+    debug!(
+        "Evicted {number_to_evict} oldest known peers to stay within the limit of {max_known_peers}"
+    );
 }
 
 /// Inserts or updates a peer in the known peers list.

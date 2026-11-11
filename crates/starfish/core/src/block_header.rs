@@ -28,7 +28,7 @@ use crate::{
     context::Context,
     encoder::{ShardEncoder, create_encoder_for_committee},
     error::{ConsensusError, ConsensusResult},
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 /// Round number of a block.
@@ -65,12 +65,12 @@ pub(crate) const fn uleb128_len(mut value: usize) -> usize {
 ///
 /// `BlockHeaderV2` is the largest header variant; its size is dominated by two
 /// committee-sized vectors. Layout:
-/// - 55 fixed bytes: `epoch` (8) + `round` (4) + `author` (1) + `timestamp_ms`
-///   (8) + overlap indices (1 + 1) + `transactions_commitment` (32).
-/// - `references`: at most `3 * committee_size` [`BlockRef`]s (37 bytes each)
-///   plus the sequence-length prefix.
-/// - `commit_votes`: at most `committee_size` `CommitVote`s (36 bytes each:
-///   index (4) + digest (32)) plus the sequence-length prefix.
+/// - 55 fixed bytes: `epoch` (8) + `round` (4) + `author` (1) + `timestamp_ms` (8) + overlap
+///   indices (1 + 1) + `transactions_commitment` (32).
+/// - `references`: at most `3 * committee_size` [`BlockRef`]s (37 bytes each) plus the
+///   sequence-length prefix.
+/// - `commit_votes`: at most `committee_size` `CommitVote`s (36 bytes each: index (4) + digest
+///   (32)) plus the sequence-length prefix.
 /// - 34 bytes for `Option<StrongVote>`: `Some` tag (1) + `leader_authority` (1)
 ///   + `AuthoritySet` bitmask (32).
 ///
@@ -132,10 +132,10 @@ impl Transaction {
     // Create one random transaction for testing
     #[cfg(test)]
     pub fn random_transaction(max_len: usize) -> Self {
-        use rand::{Rng, RngCore};
+        use rand::{Rng, RngExt};
 
-        let mut rng = rand::thread_rng();
-        let len = rng.gen_range(0..=max_len);
+        let mut rng = rand::rng();
+        let len = rng.random_range(0..=max_len);
         let mut buf = vec![0u8; len];
         rng.fill_bytes(&mut buf);
         Transaction {
@@ -193,8 +193,8 @@ pub struct BlockHeaderV1 {
     // references is a compressed vector that contains both the ancestors and acknowledgments
     // layout: |ancestors|overlap_without_ref0|acknowledgments|ref0?|
     references: Vec<BlockRef>,
-    overlap_start_index: u8, // bounded by committee size <=256
-    overlap_end_index: u8,   // bounded by committee size <=256
+    overlap_start_index: u8, // bounded by committee size <= 255
+    overlap_end_index: u8,   // bounded by committee size <= 255
     transactions_commitment: TransactionsCommitment,
     commit_votes: Vec<CommitVote>,
 }
@@ -356,24 +356,6 @@ impl BlockHeaderV2 {
             transactions_commitment,
             commit_votes,
             strong_vote,
-        }
-    }
-
-    // Will be used when genesis block construction is gated on
-    // consensus_starfish_speed.
-    #[expect(dead_code)]
-    fn genesis_block_header(context: &Context, author: AuthorityIndex) -> Self {
-        Self {
-            epoch: context.committee.epoch(),
-            round: GENESIS_ROUND,
-            author,
-            timestamp_ms: context.epoch_start_timestamp_ms,
-            references: vec![],
-            overlap_start_index: 0,
-            overlap_end_index: 0,
-            commit_votes: vec![],
-            transactions_commitment: TransactionsCommitment::default(),
-            strong_vote: None,
         }
     }
 }
@@ -694,7 +676,7 @@ impl BlockHeaderDigest {
 
 impl BlockHeaderDigest {
     #[cfg(test)]
-    pub fn random<R: rand::RngCore + rand::CryptoRng>(mut rng: R) -> Self {
+    pub fn random<R: rand::CryptoRng>(mut rng: R) -> Self {
         let mut bytes = [0; DIGEST_LENGTH];
         rng.fill_bytes(&mut bytes);
         Self(bytes)
@@ -854,7 +836,7 @@ impl ShardWithProofAPI for ShardWithProofV2 {
 
 pub(crate) struct VerifiedOwnShard {
     pub(crate) serialized_shard: Bytes,
-    pub(crate) gen_transaction_ref: GenericTransactionRef,
+    pub(crate) transaction_ref: TransactionRef,
 }
 
 impl TransactionsCommitment {
@@ -1563,19 +1545,6 @@ pub enum TestBlockHeaderVersion {
     V2,
 }
 
-impl TestBlockHeaderVersion {
-    /// The version `Core` proposes under this context's
-    /// `consensus_starfish_speed` setting.
-    #[cfg(test)]
-    pub(crate) fn from_context(context: &Context) -> Self {
-        if context.protocol_config.consensus_starfish_speed() {
-            Self::V2
-        } else {
-            Self::V1
-        }
-    }
-}
-
 /// This struct is public for testing in other crates.
 #[derive(Clone)]
 pub struct TestBlockHeader {
@@ -1848,7 +1817,7 @@ mod tests {
     #[tokio::test]
     async fn test_compress_references() {
         use crate::block_header::BlockRef;
-        let rng = &mut rand::thread_rng();
+        let rng = &mut rand::rng();
 
         let ref_a = BlockRef::new(1, 0.into(), BlockHeaderDigest::random(&mut *rng));
         let ref_b = BlockRef::new(1, 1.into(), BlockHeaderDigest::random(&mut *rng));
@@ -1937,7 +1906,7 @@ mod tests {
     #[test]
     fn test_verify_references_indices(#[values(false, true)] use_v2: bool) {
         use crate::block_header::{BlockHeader, BlockHeaderV1, BlockHeaderV2, BlockRef};
-        let rng = &mut rand::thread_rng();
+        let rng = &mut rand::rng();
         let refs = vec![
             BlockRef::new(1, 0.into(), BlockHeaderDigest::random(&mut *rng)),
             BlockRef::new(1, 1.into(), BlockHeaderDigest::random(&mut *rng)),

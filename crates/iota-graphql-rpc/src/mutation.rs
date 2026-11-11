@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use async_graphql::*;
 use fastcrypto::encoding::Base64;
 
@@ -18,10 +19,8 @@ pub struct Mutation;
 impl Mutation {
     /// Execute a transaction, committing its effects on chain.
     ///
-    /// - `txBytes` is a `Transaction` struct that has been BCS-encoded and then
-    ///   Base64-encoded.
-    /// - `signatures` are a list of `flag || signature || pubkey` bytes,
-    ///   Base64-encoded.
+    /// - `txBytes` is a `Transaction` struct that has been BCS-encoded and then Base64-encoded.
+    /// - `signatures` are a list of `flag || signature || pubkey` bytes, Base64-encoded.
     ///
     /// Waits until the transaction has reached finality on chain to return its
     /// transaction digest, or returns the error that prevented finality if

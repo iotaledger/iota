@@ -284,8 +284,7 @@ pub fn gen_split_coins_input(
     // the tradeoff here is that we either generate output for each split command
     // that will make it succeed or we will very quickly hit the insufficient
     // coin error only after a few (often just
-    // 2) split coin transactions are executed making the whole batch testing into a
-    //    rather narrow
+    // 2) split coin transactions are executed making the whole batch testing into a rather narrow
     // error case
     create_input_calls(
         builder,
@@ -412,8 +411,8 @@ pub fn gen_move_vec_input(
 
 /// A helper function to generate enough input coins for a command (transfer,
 /// merge, or create vector)
-/// - either collect them all from previous command or generate additional ones
-///   if the previous command does not deliver enough.
+/// - either collect them all from previous command or generate additional ones if the previous
+///   command does not deliver enough.
 fn gen_enough_arguments(
     builder: &mut ProgrammableTransactionBuilder,
     prev_cmd_num: i64,

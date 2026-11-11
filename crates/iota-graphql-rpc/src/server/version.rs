@@ -16,6 +16,16 @@ use crate::{
 };
 
 pub(crate) static VERSION_HEADER: HeaderName = HeaderName::from_static("x-iota-rpc-version");
+pub(crate) static MIN_SDK_VERSION_HEADER: HeaderName =
+    HeaderName::from_static("x-iota-min-sdk-version");
+
+/// Lowest `iota-sdk-graphql-client` version able to decode this service's
+/// responses, sent in the [`MIN_SDK_VERSION_HEADER`] of every response.
+///
+/// Bump this alongside SDK releases containing wire-visible changes (e.g., new enum variants or
+/// renamed fields) to force older clients to reject the service and fail safely rather than
+/// panicking on un-decodable values.
+pub(crate) const MIN_SDK_VERSION: &str = "1.0.0-rc.1";
 
 #[expect(unused)]
 pub(crate) struct IotaRpcVersion(Vec<u8>, Vec<Vec<u8>>);
@@ -93,7 +103,8 @@ pub(crate) async fn check_version_middleware(
 }
 
 /// Mark every outgoing response with a header indicating the precise version of
-/// the RPC that was used (including the patch version and sha).
+/// the RPC that was used (including the patch version and sha), and one with
+/// the lowest SDK version able to decode it.
 pub(crate) async fn set_version_middleware(
     State(version): State<Version>,
     request: Request,
@@ -104,6 +115,10 @@ pub(crate) async fn set_version_middleware(
     headers.insert(
         VERSION_HEADER.clone(),
         HeaderValue::from_static(version.full),
+    );
+    headers.insert(
+        MIN_SDK_VERSION_HEADER.clone(),
+        HeaderValue::from_static(MIN_SDK_VERSION),
     );
     response
 }
@@ -206,6 +221,11 @@ mod tests {
         serde_json::to_string_pretty(&value).unwrap()
     }
 
+    #[test]
+    fn min_sdk_version_is_valid_semver() {
+        semver::Version::parse(MIN_SDK_VERSION).unwrap();
+    }
+
     #[tokio::test]
     async fn successful() {
         let version = Version::for_testing();
@@ -220,6 +240,10 @@ mod tests {
             response.headers().get(&VERSION_HEADER),
             Some(&HeaderValue::from_static(version.full))
         );
+        assert_eq!(
+            response.headers().get(&MIN_SDK_VERSION_HEADER),
+            Some(&HeaderValue::from_static(MIN_SDK_VERSION))
+        );
     }
 
     #[tokio::test]
@@ -231,6 +255,10 @@ mod tests {
         assert_eq!(
             response.headers().get(&VERSION_HEADER),
             Some(&HeaderValue::from_static(version.full))
+        );
+        assert_eq!(
+            response.headers().get(&MIN_SDK_VERSION_HEADER),
+            Some(&HeaderValue::from_static(MIN_SDK_VERSION))
         );
     }
 

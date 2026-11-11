@@ -4,15 +4,20 @@
 
 use fastcrypto::traits::ToFromBytes;
 use iota_multiaddr::Multiaddr;
+use iota_sdk_move_types::{
+    iota_framework::{bag::Bag, object::ID, system_admin_cap::IotaSystemAdminCap, table::Table},
+    iota_system::validator_wrapper::Validator,
+};
 use iota_sdk_types::Address;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     balance::Balance,
-    collection_types::{Bag, Table},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
-    crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey},
+    crypto::{
+        AuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey, network_pubkey_from_bytes,
+    },
     error::IotaError,
     gas_coin::IotaTreasuryCap,
     iota_system_state::{
@@ -21,7 +26,6 @@ use crate::{
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     storage::ObjectStore,
-    system_admin_cap::IotaSystemAdminCap,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -49,7 +53,7 @@ pub struct SimTestSystemParametersV1 {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct SimTestValidatorSetV1 {
     pub active_validators: Vec<SimTestValidatorV1>,
-    pub inactive_validators: Table,
+    pub inactive_validators: Table<ID, Validator>,
     pub extra_fields: Bag,
 }
 
@@ -101,10 +105,9 @@ impl SimTestValidatorMetadataV1 {
     pub fn verify(&self) -> VerifiedSimTestValidatorMetadataV1 {
         let authority_pubkey =
             AuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref()).unwrap();
-        let network_pubkey =
-            NetworkPublicKey::from_bytes(self.network_pubkey_bytes.as_ref()).unwrap();
+        let network_pubkey = network_pubkey_from_bytes(self.network_pubkey_bytes.as_ref()).unwrap();
         let protocol_pubkey =
-            NetworkPublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref()).unwrap();
+            network_pubkey_from_bytes(self.protocol_pubkey_bytes.as_ref()).unwrap();
         let net_address = Multiaddr::try_from(self.net_address.clone()).unwrap();
         let p2p_address = Multiaddr::try_from(self.p2p_address.clone()).unwrap();
         let primary_address = Multiaddr::try_from(self.primary_address.clone()).unwrap();
@@ -177,7 +180,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateV1 {
                         NetworkMetadata {
                             network_address: verified_metadata.net_address.clone(),
                             primary_address: verified_metadata.primary_address.clone(),
-                            network_public_key: Some(verified_metadata.network_pubkey.clone()),
+                            network_public_key: Some(verified_metadata.network_pubkey),
                         },
                     ),
                 )
@@ -203,8 +206,8 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateV1 {
                 EpochStartValidatorInfoV1 {
                     iota_address: metadata.iota_address,
                     authority_pubkey: metadata.authority_pubkey.clone(),
-                    network_pubkey: metadata.network_pubkey.clone(),
-                    protocol_pubkey: metadata.protocol_pubkey.clone(),
+                    network_pubkey: metadata.network_pubkey,
+                    protocol_pubkey: metadata.protocol_pubkey,
                     iota_net_address: metadata.net_address.clone(),
                     p2p_address: metadata.p2p_address.clone(),
                     primary_address: metadata.primary_address.clone(),
@@ -300,7 +303,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateShallowV1 {
                         NetworkMetadata {
                             network_address: verified_metadata.net_address.clone(),
                             primary_address: verified_metadata.primary_address.clone(),
-                            network_public_key: Some(verified_metadata.network_pubkey.clone()),
+                            network_public_key: Some(verified_metadata.network_pubkey),
                         },
                     ),
                 )
@@ -326,8 +329,8 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateShallowV1 {
                 EpochStartValidatorInfoV1 {
                     iota_address: metadata.iota_address,
                     authority_pubkey: metadata.authority_pubkey.clone(),
-                    network_pubkey: metadata.network_pubkey.clone(),
-                    protocol_pubkey: metadata.protocol_pubkey.clone(),
+                    network_pubkey: metadata.network_pubkey,
+                    protocol_pubkey: metadata.protocol_pubkey,
                     iota_net_address: metadata.net_address.clone(),
                     p2p_address: metadata.p2p_address.clone(),
                     primary_address: metadata.primary_address.clone(),
@@ -358,7 +361,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateShallowV1 {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct SimTestValidatorSetDeepV1 {
     pub active_validators: Vec<SimTestValidatorDeepV1>,
-    pub inactive_validators: Table,
+    pub inactive_validators: Table<ID, Validator>,
     pub extra_fields: Bag,
 }
 
@@ -452,7 +455,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateDeepV1 {
                         NetworkMetadata {
                             network_address: verified_metadata.net_address.clone(),
                             primary_address: verified_metadata.primary_address.clone(),
-                            network_public_key: Some(verified_metadata.network_pubkey.clone()),
+                            network_public_key: Some(verified_metadata.network_pubkey),
                         },
                     ),
                 )
@@ -478,8 +481,8 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateDeepV1 {
                 EpochStartValidatorInfoV1 {
                     iota_address: metadata.iota_address,
                     authority_pubkey: metadata.authority_pubkey.clone(),
-                    network_pubkey: metadata.network_pubkey.clone(),
-                    protocol_pubkey: metadata.protocol_pubkey.clone(),
+                    network_pubkey: metadata.network_pubkey,
+                    protocol_pubkey: metadata.protocol_pubkey,
                     iota_net_address: metadata.net_address.clone(),
                     p2p_address: metadata.p2p_address.clone(),
                     primary_address: metadata.primary_address.clone(),

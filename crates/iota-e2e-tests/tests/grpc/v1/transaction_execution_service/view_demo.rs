@@ -47,14 +47,11 @@ struct ViewDemoPackage {
 /// behind local (`WaitForLocalExecution`) visibility.
 async fn publish_view_demo_package(
     test_cluster: &TestCluster,
-    client: &iota_grpc_client::Client,
+    client: &iota_grpc_client::GrpcClient,
 ) -> ViewDemoPackage {
     let sender = first_sender(test_cluster);
 
-    // `with_allow_view_function` is required for the `#[view]` attribute to be
-    // compiled into on-chain module metadata.
     let compiled_package = BuildConfig::new_for_testing()
-        .with_allow_view_function()
         .build(&view_demo_package_path())
         .expect("view_demo package should build");
 

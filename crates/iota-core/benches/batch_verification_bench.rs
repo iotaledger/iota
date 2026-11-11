@@ -14,11 +14,12 @@ use iota_sdk_types::Address;
 use iota_types::{
     committee::Committee,
     crypto::{AccountPrivateKey, AuthorityKeyPair, get_key_pair},
+    signature::VerifyParams,
     transaction::CertifiedTransaction,
 };
 use itertools::Itertools as _;
 use prometheus_filtered::Registry;
-use rand::{prelude::*, seq::SliceRandom};
+use rand::{rng, seq::SliceRandom};
 
 fn gen_certs(
     committee: &Committee,
@@ -80,8 +81,7 @@ fn async_verifier_bench(c: &mut Criterion) {
                         BTreeSet::new(),
                         batch_size,
                         metrics.clone(),
-                        true, // accept_passkey_in_multisig
-                        true, // additional_multisig_checks
+                        VerifyParams::new(true, true, true),
                     ));
 
                     b.iter(|| {
@@ -133,7 +133,7 @@ fn batch_verification_bench(c: &mut Criterion) {
                 |b, batch_size| {
                     assert_eq!(certs.len() as u64, *batch_size);
                     b.iter(|| {
-                        certs.shuffle(&mut thread_rng());
+                        certs.shuffle(&mut rng());
                         batch_verify_certificates(&committee, &certs.iter().collect_vec());
                     })
                 },

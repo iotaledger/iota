@@ -6,12 +6,11 @@
 //!
 //! Two layouts are supported, selected by the
 //! `package_metadata_with_dynamic_module_metadata` protocol feature flag:
-//! - `V1`: the legacy inline layout, where the module metadata is embedded in
-//!   the `PackageMetadataV1` object itself. Built natively here for backwards
-//!   compatibility with the existing ledger.
-//! - `V1WithDynamicModuleMetadata`: the module metadata is stored in dynamic
-//!   fields, built by the framework
-//!   `create_package_metadata_v1_with_dynamic_metadata` constructor.
+//! - `V1`: the legacy inline layout, where the module metadata is embedded in the
+//!   `PackageMetadataV1` object itself. Built natively here for backwards compatibility with the
+//!   existing ledger.
+//! - `V1WithDynamicModuleMetadata`: the module metadata is stored in dynamic fields, built by the
+//!   framework `create_package_metadata_v1_with_dynamic_metadata` constructor.
 
 pub(crate) use checked::*;
 
@@ -20,11 +19,11 @@ mod checked {
     use std::collections::BTreeMap;
 
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_move_types::iota_framework::object::ID;
     use iota_sdk_types::{ObjectId, TypeTag};
     use iota_types::{
         IOTA_FRAMEWORK_PACKAGE_ID,
         error::{ExecutionError, ExecutionErrorKind},
-        id::ID,
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         move_package::{
             IotaAttributeV1, IotaAttributeV2, PackageMetadata, ProtocolBuildConfig,

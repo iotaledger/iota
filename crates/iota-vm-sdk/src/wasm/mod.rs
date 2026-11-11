@@ -6,19 +6,18 @@
 //!
 //! The browser flow:
 //!
-//! 1. JS builds the transaction with the TS SDK and serializes it to base-64
-//!    BCS (and, for signed simulation, holds the raw signature blobs).
-//! 2. JS calls [`simulate`](simulate::simulate) with the chain info and
-//!    (optionally) signatures, handing it a `fetch_object` callback.
-//! 3. The wasm side runs the transaction through the local Move VM, calling
-//!    back into `fetch_object` for any object it needs — resolved on demand
-//!    (e.g. from the node's GraphQL/JSON-RPC) as base-64 BCS.
+//! 1. JS builds the transaction with the TS SDK and serializes it to base-64 BCS (and, for signed
+//!    simulation, holds the raw signature blobs).
+//! 2. JS calls [`simulate`](simulate::simulate) with the chain info and (optionally) signatures,
+//!    handing it a `fetch_object` callback.
+//! 3. The wasm side runs the transaction through the local Move VM, calling back into
+//!    `fetch_object` for any object it needs — resolved on demand (e.g. from the node's
+//!    GraphQL/JSON-RPC) as base-64 BCS.
 //!
 //! Every [`VmSdkError`] is mapped to a thrown JS exception via [`JsError`].
 //!
 //! The surface is split across submodules:
-//! - [`types`] — the serde request/result types for
-//!   [`simulate`](simulate::simulate).
+//! - [`types`] — the serde request/result types for [`simulate`](simulate::simulate).
 //! - [`simulate`] — the [`simulate`](simulate::simulate) entry point.
 //!
 //! [`store`] is internal: the on-demand object store backing a run.

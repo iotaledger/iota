@@ -3,10 +3,7 @@
 
 //! gRPC-backed store (`feature = "grpc"`, native only); see [`GrpcStore`].
 
-use iota_grpc_client::{
-    Client,
-    read_mask_fields::{EpochReadMask, ObjectReadMask, ServiceInfoReadMask},
-};
+use iota_grpc_client::GrpcClient;
 use iota_sdk_types::{CheckpointDigest, Digest, ObjectId, Version};
 use iota_types::{digests::ChainIdentifier, object::Object};
 
@@ -32,28 +29,26 @@ pub struct GrpcStore {
 }
 
 impl GrpcStore {
-    /// Wrap an existing client. The store starts with the built-in framework
-    /// packages already loaded so Move calls resolve.
-    pub fn new(client: Client) -> Self {
+    /// Wrap an existing client. The store starts empty and fetches every
+    /// object a run needs, framework packages included, from the node.
+    pub fn new(client: GrpcClient) -> Self {
         Self {
             cache: CachingStore::new(GrpcFetcher { client }),
         }
     }
 
-    /// Connect to a gRPC endpoint (by URL) and create a store containing only
-    /// the built-in framework packages.
+    /// Connect to a gRPC endpoint (by URL) and create an empty store.
     ///
     /// # Errors
     ///
     /// Returns [`VmSdkError::Store`] if the client cannot be created for `url`.
     pub fn connect(url: impl Into<String>) -> Result<Self, VmSdkError> {
         let url: String = url.into();
-        let client = Client::new(url).map_err(|e| StoreError::new("connect gRPC", e))?;
+        let client = GrpcClient::new(url).map_err(|e| StoreError::new("connect gRPC", e))?;
         Ok(Self::new(client))
     }
 
-    /// A snapshot clone of the objects cached so far (framework packages plus
-    /// anything fetched on demand).
+    /// A snapshot clone of the objects fetched or inserted so far.
     pub fn store(&self) -> InMemoryStore {
         self.cache.store()
     }
@@ -70,10 +65,8 @@ impl GrpcStore {
     /// can't be decoded.
     pub async fn fetch_chain_context(&self) -> Result<ChainContext, VmSdkError> {
         let client = &self.cache.fetcher().client;
-        let (epoch_response, service_info_response) = tokio::join!(
-            client.epoch(None, EpochReadMask::default()),
-            client.service_info(ServiceInfoReadMask::default())
-        );
+        let (epoch_response, service_info_response) =
+            tokio::join!(client.epoch(), client.service_info());
         let epoch = epoch_response
             .map_err(|e| StoreError::new("fetch epoch", e))?
             .into_inner();
@@ -139,7 +132,7 @@ impl Store for GrpcStore {
 /// gRPC transport for [`CachingStore`].
 #[derive(Clone)]
 struct GrpcFetcher {
-    client: Client,
+    client: GrpcClient,
 }
 
 impl ObjectFetcher for GrpcFetcher {
@@ -149,7 +142,7 @@ impl ObjectFetcher for GrpcFetcher {
     ) -> Result<Vec<Object>, StoreError> {
         let results = self
             .client
-            .objects_with_versions(refs.iter().copied(), ObjectReadMask::default())
+            .objects_with_versions(refs.iter().copied())
             .await
             .map_err(|e| StoreError::new("fetch objects via gRPC", e))?
             .into_inner();
@@ -196,11 +189,9 @@ mod tests {
     use super::skip_not_found;
 
     fn server_error(code: tonic::Code) -> GrpcError {
-        GrpcError::Server(RpcStatus {
-            code: code.into(),
-            message: String::new(),
-            details: Vec::new(),
-        })
+        let mut status = RpcStatus::default();
+        status.code = code.into();
+        GrpcError::Server(status)
     }
 
     #[test]

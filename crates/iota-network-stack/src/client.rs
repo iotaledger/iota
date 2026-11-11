@@ -8,6 +8,7 @@ use std::{
     future::Future,
     io,
     net::{SocketAddr, ToSocketAddrs},
+    num::NonZeroU32,
     pin::Pin,
     sync::{Arc, Mutex},
     task::{self, Poll},
@@ -188,10 +189,6 @@ fn apply_config_to_endpoint(config: &Config, mut endpoint: Endpoint) -> Endpoint
         endpoint = endpoint.connect_timeout(timeout);
     }
 
-    if let Some(tcp_nodelay) = config.tcp_nodelay {
-        endpoint = endpoint.tcp_nodelay(tcp_nodelay);
-    }
-
     if let Some(http2_keepalive_interval) = config.http2_keepalive_interval {
         endpoint = endpoint.http2_keep_alive_interval(http2_keepalive_interval);
     }
@@ -205,8 +202,12 @@ fn apply_config_to_endpoint(config: &Config, mut endpoint: Endpoint) -> Endpoint
     }
 
     endpoint
-        .initial_stream_window_size(config.http2_initial_stream_window_size)
-        .initial_connection_window_size(config.http2_initial_connection_window_size)
+        .initial_stream_window_size(config.http2_initial_stream_window_size.map(NonZeroU32::get))
+        .initial_connection_window_size(
+            config
+                .http2_initial_connection_window_size
+                .map(NonZeroU32::get),
+        )
         .tcp_keepalive(config.tcp_keepalive)
 }
 

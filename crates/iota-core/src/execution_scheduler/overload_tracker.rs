@@ -191,7 +191,7 @@ impl TransactionQueue {
 
 #[cfg(test)]
 mod test {
-    use rand::{Rng, RngCore};
+    use rand::{Rng, RngExt};
 
     use super::*;
 
@@ -291,7 +291,7 @@ mod test {
     #[test]
     #[cfg_attr(msim, ignore)]
     fn transaction_queue_random_test() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut digests = Vec::new();
         for _ in 0..100 {
             let mut digest = [0; 32];
@@ -305,15 +305,15 @@ mod test {
 
         for _ in 0..70 {
             now += Duration::from_secs(1);
-            let digest = digests[rng.gen_range(0..digests.len())];
+            let digest = digests[rng.random_range(0..digests.len())];
             queue.insert(digest, now);
             verifier.entry(digest).or_insert(now);
         }
 
         for _ in 0..100000 {
             now += Duration::from_secs(1);
-            let digest = digests[rng.gen_range(0..digests.len())];
-            if rng.gen_bool(0.5) {
+            let digest = digests[rng.random_range(0..digests.len())];
+            if rng.random_bool(0.5) {
                 queue.insert(digest, now);
                 verifier.entry(digest).or_insert(now);
             } else {

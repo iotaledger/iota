@@ -25,7 +25,7 @@ use iota_types::{
         SubmitCertificateResponse, SystemStateRequest, TransactionInfoRequest,
         TransactionInfoResponse,
     },
-    traffic_control::{ClientIdSource, Weight},
+    traffic_control::Weight,
     transaction::*,
 };
 use nonempty::{NonEmpty, nonempty};
@@ -205,10 +205,9 @@ impl ValidatorService {
 
         let _metrics_guard = metrics.start_timer();
 
-        // 1) Check if the certificate is already executed. This is only needed when we
-        //    have only one certificate (not a soft bundle). When multiple certificates
-        //    are provided, we will either submit all of them or none of them to
-        //    consensus.
+        // 1) Check if the certificate is already executed. This is only needed when we have only
+        //    one certificate (not a soft bundle). When multiple certificates are provided, we will
+        //    either submit all of them or none of them to consensus.
         if certificates.len() == 1 {
             let tx_digest = *certificates[0].digest();
 
@@ -366,8 +365,7 @@ impl ValidatorService {
             return Ok((None, Weight::zero()));
         }
 
-        // 4) Execute the certificates immediately if they contain only owned object
-        //    transactions,
+        // 4) Execute the certificates immediately if they contain only owned object transactions,
         // or wait for the execution results if it contains shared objects.
         let responses = futures::future::try_join_all(verified_certificates.into_iter().map(
             |certificate| async move {
@@ -646,10 +644,11 @@ impl ValidatorService {
             .into()
         );
 
-        let client_addr = if let Some(client_id_source) = &self.client_id_source {
-            self.get_client_ip_addr(&request, client_id_source)
-        } else {
-            self.get_client_ip_addr(&request, &ClientIdSource::SocketAddr)
+        let client_addr = match &self.client_id_source {
+            Some(client_id_source) => {
+                ValidatorService::get_client_ip_addr(&self.metrics, &request, client_id_source)?
+            }
+            None => request.remote_addr().map(|addr| addr.ip()),
         };
 
         let request = request.into_inner();

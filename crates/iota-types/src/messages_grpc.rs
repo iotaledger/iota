@@ -358,6 +358,9 @@ pub enum TxStatusUpdate {
     },
     /// The transaction was rejected.
     Rejected { error: IotaError },
-    /// Transaction status has expired from the cache or timed out.
+    /// The epoch ended before the transaction was executed or dropped.
     Expired { epoch: EpochId },
+    /// The validator reached the end of its wait without a final status for
+    /// the transaction. Ask again.
+    TimedOut,
 }

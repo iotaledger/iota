@@ -8,20 +8,21 @@ use std::{
 };
 
 use axum::{
-    extract::{ConnectInfo, Json, State},
-    response::Response,
+    extract::{ConnectInfo, FromRequest, Json, Request as HttpRequest, State},
+    response::{IntoResponse, Response},
 };
-use hyper::{HeaderMap, header::HeaderValue};
+use hyper::HeaderMap;
 use iota_json_rpc_api::{
     CLIENT_TARGET_API_VERSION_HEADER, TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
     TRANSACTION_NOT_FOUND_ERROR_CODE,
 };
-use iota_traffic_controller::{TrafficController, parse_ip, policies::TrafficTally};
+use iota_traffic_controller::{
+    ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
+};
 use iota_types::traffic_control::{ClientIdSource, PolicyConfig, Weight};
 use jsonrpsee::{
-    BoundedSubscriptions, ConnectionId, Extensions, MethodCallback, MethodKind, MethodResponse,
-    core::server::{Methods, helpers::MethodSink},
-    server::RandomIntegerIdProvider,
+    ConnectionId, Extensions, MethodCallback, MethodKind, MethodResponse,
+    core::server::Methods,
     types::{
         ErrorObject, Id, InvalidRequest, Params, Request,
         error::{BATCHES_NOT_SUPPORTED_CODE, BATCHES_NOT_SUPPORTED_MSG, ErrorCode},
@@ -30,10 +31,7 @@ use jsonrpsee::{
 use serde_json::value::RawValue;
 use tracing::error;
 
-use crate::{
-    logger::{Logger, TransportProtocol},
-    routing_layer::RpcRouter,
-};
+use crate::{logger::Logger, routing_layer::RpcRouter};
 
 pub const MAX_RESPONSE_SIZE: u32 = 2 << 30;
 const TOO_MANY_REQUESTS_MSG: &str = "Too many requests";
@@ -41,8 +39,6 @@ const TOO_MANY_REQUESTS_MSG: &str = "Too many requests";
 #[derive(Clone, Debug)]
 pub struct JsonRpcService<L> {
     logger: L,
-
-    id_provider: Arc<RandomIntegerIdProvider>,
 
     /// Registered server methods.
     methods: Methods,
@@ -66,7 +62,6 @@ impl<L> JsonRpcService<L> {
             rpc_router,
             logger,
             extensions,
-            id_provider: Arc::new(RandomIntegerIdProvider),
             traffic_controller,
             client_id_source: policy_config.map(|policy| policy.client_id_source),
         }
@@ -81,24 +76,7 @@ impl<L: Logger> JsonRpcService<L> {
             rpc_router: &self.rpc_router,
             extensions: &self.extensions,
             max_response_body_size: MAX_RESPONSE_SIZE,
-            request_start: self.logger.on_request(TransportProtocol::Http),
-        }
-    }
-
-    fn ws_call_data<'c, 'a: 'c, 'b: 'c>(
-        &'a self,
-        bounded_subscriptions: BoundedSubscriptions,
-        sink: &'b MethodSink,
-    ) -> ws::WsCallData<'c, L> {
-        ws::WsCallData {
-            logger: &self.logger,
-            methods: &self.methods,
-            extensions: &self.extensions,
-            max_response_body_size: MAX_RESPONSE_SIZE,
-            request_start: self.logger.on_request(TransportProtocol::Http),
-            bounded_subscriptions,
-            id_provider: &*self.id_provider,
-            sink,
+            request_start: self.logger.on_request(),
         }
     }
 }
@@ -130,82 +108,76 @@ pub(crate) fn ok_response(body: String) -> Response {
 pub async fn json_rpc_handler<L: Logger>(
     ConnectInfo(client_addr): ConnectInfo<SocketAddr>,
     State(service): State<JsonRpcService<L>>,
-    headers: HeaderMap,
-    Json(raw_request): Json<Box<RawValue>>,
-) -> impl axum::response::IntoResponse {
-    let headers_clone = headers.clone();
+    request: HttpRequest,
+) -> Response {
+    let headers = request.headers().clone();
+    let client = match client_ip(&service, &headers, client_addr) {
+        Ok(client) => client,
+        Err(refused_response) => return ok_response(refused_response.into_result()),
+    };
+    // Check whether the client may be served before reading the body, so a
+    // refused client's body is neither read nor parsed.
+    if let Some(traffic_controller) = &service.traffic_controller {
+        if let Err(blocked_response) = handle_traffic_req(traffic_controller.clone(), &client) {
+            return ok_response(blocked_response.into_result());
+        }
+    }
+    let raw_request = match Json::<Box<RawValue>>::from_request(request, &()).await {
+        Ok(Json(raw_request)) => raw_request,
+        Err(rejection) => {
+            // Any body the `Json` extractor rejects (not JSON, no JSON content
+            // type, too large, or not fully received) is tallied like a request
+            // the node cannot parse.
+            if let Some(traffic_controller) = &service.traffic_controller {
+                let parse_error =
+                    MethodResponse::error(Id::Null, ErrorObject::from(ErrorCode::ParseError));
+                handle_traffic_resp(traffic_controller.clone(), client, &parse_error);
+            }
+            return rejection.into_response();
+        }
+    };
     // Get version from header.
     let api_version = headers
         .get(CLIENT_TARGET_API_VERSION_HEADER)
         .and_then(|h| h.to_str().ok());
-    let response = process_raw_request(
-        &service,
-        api_version,
-        raw_request.get(),
-        client_addr,
-        headers_clone,
-    )
-    .await;
+    let response = process_raw_request(&service, api_version, raw_request.get(), client).await;
 
     ok_response(response.into_result())
+}
+
+/// Resolves the client IP used for traffic control. Returns the response to
+/// send instead of serving the request when the request must be refused.
+fn client_ip<L>(
+    service: &JsonRpcService<L>,
+    headers: &HeaderMap,
+    client_addr: SocketAddr,
+) -> Result<Option<IpAddr>, MethodResponse> {
+    let Some(source) = service.client_id_source.as_ref() else {
+        return Ok(None);
+    };
+    match get_client_ip(headers, Some(client_addr), source) {
+        ClientIpStatus::Ok(client) => Ok(Some(client)),
+        status => {
+            error!("{status}");
+            if status.should_refuse_request() {
+                let err_obj = ErrorObject::owned(
+                    ErrorCode::InvalidRequest.code(),
+                    status.to_string(),
+                    None::<()>,
+                );
+                return Err(MethodResponse::error(Id::Null, err_obj));
+            }
+            Ok(None)
+        }
+    }
 }
 
 async fn process_raw_request<L: Logger>(
     service: &JsonRpcService<L>,
     api_version: Option<&str>,
     raw_request: &str,
-    client_addr: SocketAddr,
-    headers: HeaderMap,
+    client: Option<IpAddr>,
 ) -> MethodResponse {
-    let client = match service.client_id_source {
-        Some(ClientIdSource::SocketAddr) => Some(client_addr.ip()),
-        Some(ClientIdSource::XForwardedFor(num_hops)) => {
-            let do_header_parse = |header: &HeaderValue| match header.to_str() {
-                Ok(header_val) => {
-                    let header_contents = header_val.split(',').map(str::trim).collect::<Vec<_>>();
-                    if num_hops == 0 {
-                        error!(
-                            "x-forwarded-for: 0 specified. x-forwarded-for contents: {header_contents:?}. Please assign nonzero value for \
-                                number of hops here, or use `socket-addr` client-id-source type if requests are not being proxied \
-                                to this node. Skipping traffic controller request handling.",
-                        );
-                        return None;
-                    }
-                    let contents_len = header_contents.len();
-                    let Some(client_ip) = header_contents.get(contents_len - num_hops) else {
-                        error!(
-                            "x-forwarded-for header value of {header_contents:?} contains {contents_len} values, but {num_hops} hops were specified. \
-                                Expected {} values. Skipping traffic controller request handling.",
-                            num_hops + 1,
-                        );
-                        return None;
-                    };
-                    parse_ip(client_ip)
-                }
-                Err(e) => {
-                    error!("invalid UTF-8 in x-forwarded-for header: {e:?}");
-                    None
-                }
-            };
-            if let Some(header) = headers.get("x-forwarded-for") {
-                do_header_parse(header)
-            } else if let Some(header) = headers.get("X-Forwarded-For") {
-                do_header_parse(header)
-            } else {
-                error!(
-                    "x-forwarded-for header not present for request despite node configuring x-forwarded-for tracking type"
-                );
-                None
-            }
-        }
-        None => None,
-    };
-    // check if either IP is blocked, in which case return early
-    if let Some(traffic_controller) = &service.traffic_controller {
-        if let Err(blocked_response) = handle_traffic_req(traffic_controller.clone(), &client) {
-            return blocked_response;
-        }
-    }
     let response = if let Ok(request) = serde_json::from_str::<Request>(raw_request) {
         process_request(request, api_version, service.call_data()).await
     } else if let Ok(_batch) = serde_json::from_str::<Vec<&RawValue>>(raw_request) {
@@ -279,13 +251,135 @@ fn normalize(err: ErrorCode) -> Weight {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        collections::HashMap,
+        net::{IpAddr, Ipv4Addr, SocketAddr},
+        sync::Arc,
+    };
+
+    use axum::{body::Body, extract::ConnectInfo, http::Request, routing::post};
+    use hyper::StatusCode;
     use iota_json_rpc_api::{
         TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSACTION_NOT_FOUND_ERROR_CODE,
     };
-    use iota_types::traffic_control::Weight;
-    use jsonrpsee::types::ErrorCode;
+    use iota_traffic_controller::TrafficController;
+    use iota_types::traffic_control::{ClientIdSource, PolicyConfig, PolicyType, Weight};
+    use jsonrpsee::{Extensions, core::server::Methods, types::ErrorCode};
+    use tower::ServiceExt;
 
-    use super::normalize;
+    use super::{JsonRpcService, TOO_MANY_REQUESTS_MSG, json_rpc_handler, normalize};
+    use crate::routing_layer::RpcRouter;
+
+    const CLIENT: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9000);
+
+    /// A JSON-RPC router whose traffic controller runs the given spam and error
+    /// policies.
+    fn router(
+        spam_policy_type: PolicyType,
+        error_policy_type: PolicyType,
+    ) -> (axum::Router, Arc<TrafficController>) {
+        let policy_config = PolicyConfig {
+            client_id_source: ClientIdSource::SocketAddr,
+            connection_blocklist_ttl_sec: 120,
+            spam_policy_type,
+            error_policy_type,
+            spam_sample_rate: Weight::one(),
+            dry_run: false,
+            ..Default::default()
+        };
+        let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config.clone()));
+        let service = JsonRpcService::new(
+            Methods::new(),
+            RpcRouter::new(HashMap::new(), false),
+            (),
+            Some(traffic_controller.clone()),
+            Some(policy_config),
+            Extensions::new(),
+        );
+        let router = axum::Router::new()
+            .route("/", post(json_rpc_handler::<()>))
+            .with_state(service);
+        (router, traffic_controller)
+    }
+
+    async fn send(
+        router: &axum::Router,
+        content_type: Option<&str>,
+        body: impl Into<Body>,
+    ) -> (StatusCode, String) {
+        let mut request = Request::post("/").extension(ConnectInfo(CLIENT));
+        if let Some(content_type) = content_type {
+            request = request.header("content-type", content_type);
+        }
+        let response = router
+            .clone()
+            .oneshot(request.body(body.into()).unwrap())
+            .await
+            .unwrap();
+        let status = response.status();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        (status, String::from_utf8_lossy(&body).into_owned())
+    }
+
+    /// A request with a JSON body still reaches the method dispatch and is
+    /// tallied.
+    #[tokio::test]
+    async fn parsed_requests_are_served_and_tallied() {
+        let (router, traffic_controller) = router(PolicyType::TestNConnIP(1), PolicyType::NoOp);
+        let request = r#"{"jsonrpc":"2.0","id":1,"method":"unknown_method"}"#;
+
+        let (status, body) = send(&router, Some("application/json"), request).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.contains("Method not found"), "{body}");
+        assert!(!traffic_controller.check(&Some(CLIENT.ip()), &None));
+    }
+
+    /// A body the `Json` extractor rejects keeps its status and is tallied, and
+    /// the same request is refused once the client is blocked.
+    #[tokio::test]
+    async fn rejected_bodies_are_tallied_and_checked() {
+        let json = Some("application/json");
+        let request = r#"{"jsonrpc":"2.0","id":1,"method":"rpc.discover"}"#;
+        let too_large = vec![b' '; 3 * 1024 * 1024];
+        for (content_type, body, status) in [
+            (json, b"not-json".to_vec(), StatusCode::BAD_REQUEST),
+            (
+                None,
+                request.as_bytes().to_vec(),
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            ),
+            (json, too_large, StatusCode::PAYLOAD_TOO_LARGE),
+        ] {
+            let (router, traffic_controller) = router(PolicyType::TestNConnIP(1), PolicyType::NoOp);
+
+            assert_eq!(send(&router, content_type, body.clone()).await.0, status);
+            assert!(
+                !traffic_controller.check(&Some(CLIENT.ip()), &None),
+                "{status}: the rejected request must be tallied"
+            );
+
+            let (blocked_status, blocked_body) = send(&router, content_type, body).await;
+            assert_eq!(blocked_status, StatusCode::OK, "{status}");
+            assert!(
+                blocked_body.contains(TOO_MANY_REQUESTS_MSG),
+                "{blocked_body}"
+            );
+        }
+    }
+
+    /// A body the `Json` extractor rejects is tallied as a client error.
+    #[tokio::test]
+    async fn rejected_bodies_feed_the_error_policy() {
+        let (router, traffic_controller) = router(PolicyType::NoOp, PolicyType::TestNConnIP(1));
+
+        let (status, _) = send(&router, Some("application/json"), "not-json").await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(!traffic_controller.check(&Some(CLIENT.ip()), &None));
+    }
 
     #[test]
     fn transaction_not_found_has_zero_error_weight() {
@@ -330,22 +424,12 @@ async fn process_request<L: Logger>(
 
     let response = match methods.method_with_name(name) {
         None => {
-            logger.on_call(
-                name,
-                params.clone(),
-                MethodKind::NotFound,
-                TransportProtocol::Http,
-            );
+            logger.on_call(name, params.clone(), MethodKind::NotFound);
             MethodResponse::error(id, ErrorObject::from(ErrorCode::MethodNotFound))
         }
         Some((name, method)) => match method {
             MethodCallback::Sync(callback) => {
-                logger.on_call(
-                    name,
-                    params.clone(),
-                    MethodKind::MethodCall,
-                    TransportProtocol::Http,
-                );
+                logger.on_call(name, params.clone(), MethodKind::MethodCall);
                 (callback)(
                     id,
                     params,
@@ -354,12 +438,7 @@ async fn process_request<L: Logger>(
                 )
             }
             MethodCallback::Async(callback) => {
-                logger.on_call(
-                    name,
-                    params.clone(),
-                    MethodKind::MethodCall,
-                    TransportProtocol::Http,
-                );
+                logger.on_call(name, params.clone(), MethodKind::MethodCall);
 
                 let id = id.into_owned();
                 let params = params.into_owned();
@@ -374,12 +453,7 @@ async fn process_request<L: Logger>(
                 .await
             }
             MethodCallback::Subscription(_) | MethodCallback::Unsubscription(_) => {
-                logger.on_call(
-                    name,
-                    params.clone(),
-                    MethodKind::NotFound,
-                    TransportProtocol::Http,
-                );
+                logger.on_call(name, params.clone(), MethodKind::NotFound);
                 // Subscriptions not supported on HTTP
                 MethodResponse::error(id, ErrorObject::from(ErrorCode::InternalError))
             }
@@ -391,7 +465,6 @@ async fn process_request<L: Logger>(
         response.is_success(),
         response.as_error_code(),
         request_start,
-        TransportProtocol::Http,
     );
     response
 }
@@ -413,228 +486,4 @@ pub(crate) struct CallData<'a, L: Logger> {
     extensions: &'a Extensions,
     max_response_body_size: u32,
     request_start: L::Instant,
-}
-
-pub mod ws {
-    use axum::{
-        extract::{
-            WebSocketUpgrade,
-            ws::{Message, WebSocket},
-        },
-        response::Response,
-    };
-    use jsonrpsee::{
-        SubscriptionState, core::server::helpers::MethodSink, server::IdProvider,
-        types::error::reject_too_many_subscriptions,
-    };
-    use tokio::sync::mpsc;
-
-    use super::*;
-
-    const MAX_WS_MESSAGE_BUFFER: usize = 100;
-
-    #[derive(Debug, Clone)]
-    pub(crate) struct WsCallData<'a, L: Logger> {
-        pub bounded_subscriptions: BoundedSubscriptions,
-        pub id_provider: &'a dyn IdProvider,
-        pub methods: &'a Methods,
-        pub extensions: &'a Extensions,
-        pub max_response_body_size: u32,
-        pub sink: &'a MethodSink,
-        pub logger: &'a L,
-        pub request_start: L::Instant,
-    }
-
-    // A WebSocket handler that echos any message it receives.
-    //
-    // This one we'll be integration testing so it can be written in the regular
-    // way.
-    pub async fn ws_json_rpc_upgrade<L: Logger>(
-        ws: WebSocketUpgrade,
-        State(service): State<JsonRpcService<L>>,
-    ) -> Response {
-        ws.on_upgrade(|ws| ws_json_rpc_handler(ws, service))
-    }
-
-    async fn ws_json_rpc_handler<L: Logger>(mut socket: WebSocket, service: JsonRpcService<L>) {
-        let (tx, mut rx) = mpsc::channel::<String>(MAX_WS_MESSAGE_BUFFER);
-        let sink = MethodSink::new_with_limit(tx, MAX_RESPONSE_SIZE);
-        let bounded_subscriptions = BoundedSubscriptions::new(100);
-
-        loop {
-            tokio::select! {
-                maybe_message = socket.recv() => {
-                    if let Some(Ok(message)) = maybe_message {
-                        if let Message::Text(msg) = message {
-                            let response =
-                                process_raw_request(&service, &msg, bounded_subscriptions.clone(), &sink).await;
-                            if let Some(response) = response {
-                                sink.send(response.into_result()).await.ok();
-                            }
-                        }
-                    } else {
-                        break;
-                    }
-                },
-                Some(response) = rx.recv() => {
-                    if socket.send(Message::Text(response.into())).await.is_err() {
-                        break;
-                    }
-                },
-            }
-        }
-    }
-
-    async fn process_raw_request<L: Logger>(
-        service: &JsonRpcService<L>,
-        raw_request: &str,
-        bounded_subscriptions: BoundedSubscriptions,
-        sink: &MethodSink,
-    ) -> Option<MethodResponse> {
-        if let Ok(request) = serde_json::from_str::<Request>(raw_request) {
-            process_request(request, service.ws_call_data(bounded_subscriptions, sink)).await
-        } else if let Ok(_batch) = serde_json::from_str::<Vec<&RawValue>>(raw_request) {
-            Some(MethodResponse::error(
-                Id::Null,
-                ErrorObject::borrowed(BATCHES_NOT_SUPPORTED_CODE, BATCHES_NOT_SUPPORTED_MSG, None),
-            ))
-        } else {
-            let (id, code) = prepare_error(raw_request);
-            Some(MethodResponse::error(id, ErrorObject::from(code)))
-        }
-    }
-
-    async fn process_request<L: Logger>(
-        req: Request<'_>,
-        call: WsCallData<'_, L>,
-    ) -> Option<MethodResponse> {
-        let WsCallData {
-            methods,
-            logger,
-            extensions,
-            max_response_body_size,
-            request_start,
-            bounded_subscriptions,
-            id_provider,
-            sink,
-        } = call;
-        let conn_id = ConnectionId(0); // unused
-
-        let params = Params::new(req.params.as_ref().map(|params| params.get()));
-        let name = &req.method;
-        let id = req.id;
-
-        let response = match methods.method_with_name(name) {
-            None => {
-                logger.on_call(
-                    name,
-                    params.clone(),
-                    MethodKind::NotFound,
-                    TransportProtocol::Http,
-                );
-                Some(MethodResponse::error(
-                    id,
-                    ErrorObject::from(ErrorCode::MethodNotFound),
-                ))
-            }
-            Some((name, method)) => match method {
-                MethodCallback::Sync(callback) => {
-                    logger.on_call(
-                        name,
-                        params.clone(),
-                        MethodKind::MethodCall,
-                        TransportProtocol::Http,
-                    );
-                    tracing::info!("calling {name} sync");
-                    Some((callback)(
-                        id,
-                        params,
-                        max_response_body_size as usize,
-                        extensions.clone(),
-                    ))
-                }
-                MethodCallback::Async(callback) => {
-                    logger.on_call(
-                        name,
-                        params.clone(),
-                        MethodKind::MethodCall,
-                        TransportProtocol::Http,
-                    );
-
-                    let id = id.into_owned();
-                    let params = params.into_owned();
-
-                    tracing::info!("calling {name} async");
-                    Some(
-                        (callback)(
-                            id,
-                            params,
-                            conn_id,
-                            max_response_body_size as usize,
-                            extensions.clone(),
-                        )
-                        .await,
-                    )
-                }
-
-                MethodCallback::Subscription(callback) => {
-                    logger.on_call(
-                        name,
-                        params.clone(),
-                        MethodKind::Subscription,
-                        TransportProtocol::WebSocket,
-                    );
-                    if let Some(subscription_permit) = bounded_subscriptions.acquire() {
-                        let conn_state = SubscriptionState {
-                            conn_id,
-                            subscription_permit,
-                            id_provider,
-                        };
-                        (callback)(
-                            id.clone(),
-                            params,
-                            sink.clone(),
-                            conn_state,
-                            extensions.clone(),
-                        )
-                        .await;
-                        None
-                    } else {
-                        Some(MethodResponse::error(
-                            id,
-                            reject_too_many_subscriptions(bounded_subscriptions.max()),
-                        ))
-                    }
-                }
-
-                MethodCallback::Unsubscription(callback) => {
-                    logger.on_call(
-                        name,
-                        params.clone(),
-                        MethodKind::Unsubscription,
-                        TransportProtocol::WebSocket,
-                    );
-
-                    Some(callback(
-                        id,
-                        params,
-                        conn_id,
-                        max_response_body_size as usize,
-                        extensions.clone(),
-                    ))
-                }
-            },
-        };
-
-        if let Some(response) = &response {
-            logger.on_result(
-                name,
-                response.is_success(),
-                response.as_error_code(),
-                request_start,
-                TransportProtocol::WebSocket,
-            );
-        }
-        response
-    }
 }

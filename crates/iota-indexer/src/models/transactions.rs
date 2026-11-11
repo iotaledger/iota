@@ -411,7 +411,7 @@ impl StoredTransaction {
         })?;
         let effects =
             IotaTransactionBlockEffects::from_native_with_clever_error(effects, package_resolver)
-                .await;
+                .await?;
         Ok(effects)
     }
 

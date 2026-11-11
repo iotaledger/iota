@@ -97,10 +97,10 @@ pub struct Config {
     /// transactions.
     ///
     /// **Performance Trade-offs:**
-    /// - **Higher values**: Reduce database query frequency but increase
-    ///   latency and memory usage per batch
-    /// - **Lower values**: Increase responsiveness but may cause more frequent
-    ///   database queries for small checkpoints
+    /// - **Higher values**: Reduce database query frequency but increase latency and memory usage
+    ///   per batch
+    /// - **Lower values**: Increase responsiveness but may cause more frequent database queries
+    ///   for small checkpoints
     ///
     /// The value of 10 provides a good balance between throughput and latency
     /// for typical checkpoint sizes.
@@ -114,14 +114,29 @@ pub struct Config {
     /// multiple batches of this size to maintain consistent performance.
     ///
     /// **Performance Trade-offs:**
-    /// - **Too small**: May fall behind the indexer commit rate, causing the
-    ///   streaming service to lag behind real-time data ingestion
-    /// - **Too large**: May overwhelm subscribers with large batches, causing
-    ///   them to lag or drop messages due to slow processing
+    /// - **Too small**: May fall behind the indexer commit rate, causing the streaming service to
+    ///   lag behind real-time data ingestion
+    /// - **Too large**: May overwhelm subscribers with large batches, causing them to lag or drop
+    ///   messages due to slow processing
     ///
     /// The value of 50 provides good balance between indexer synchronization
     /// and subscriber responsiveness for typical workloads.
     pub transaction_batch_size: NonZeroI64,
+    /// The maximum number of checkpoints a recovery stream may replay from
+    /// the database before switching to live data.
+    ///
+    /// The distance is measured between the latest indexed checkpoint and the
+    /// checkpoint containing the [`RecoveryPoint`]. A larger distance fails the
+    /// stream with [`IndexerStreamingError::RecoveryDistanceExceeded`]. `None`
+    /// leaves the distance unbounded.
+    ///
+    /// # Example
+    ///
+    /// With a limit of 10000, resuming from a transaction in checkpoint 4000
+    /// while the latest one is 15000 is rejected, since the distance is 11000.
+    ///
+    /// - default: `None`
+    pub max_recovery_checkpoints: Option<NonZeroI64>,
 }
 
 impl Default for Config {
@@ -130,16 +145,15 @@ impl Default for Config {
             channel_buffer_size: NonZeroUsize::new(1000).expect("value should be greater than 0"),
             transaction_batch_size: NonZeroI64::new(50).expect("value should be greater than 0"),
             notification_chunk_size: NonZeroUsize::new(10).expect("value should be greater than 0"),
+            max_recovery_checkpoints: None,
         }
     }
 }
 
 /// Where to start a recovery stream relative to a known transaction digest.
 ///
-/// - [`Inclusive`](Self::Inclusive): yield the identified transaction, then
-///   everything after it.
-/// - [`Exclusive`](Self::Exclusive): skip the identified transaction; start
-///   from the next one.
+/// - [`Inclusive`](Self::Inclusive): yield the identified transaction, then everything after it.
+/// - [`Exclusive`](Self::Exclusive): skip the identified transaction; start from the next one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
 pub enum RecoveryPoint {
     /// Include the transaction identified by the digest.
@@ -170,8 +184,7 @@ impl RecoveryPoint {
 /// stream recovery after a disconnection.
 ///
 /// The streamer consists of:
-/// - A PostgreSQL connection listening for notifications after every committed
-///   checkpoint.
+/// - A PostgreSQL connection listening for notifications after every committed checkpoint.
 /// - Internal broadcasters that fan-out data to multiple subscribers using a
 ///   [`tokio::sync::broadcast`] channels.
 ///
@@ -212,8 +225,7 @@ impl InMemory {
     /// - establishes a connection to PostgreSQL.
     /// - sets up the notification listener.
     /// - spawns the background task that processes checkpoint notifications.
-    /// - handles automatically reconnecting to PostgreSQL if the connection is
-    ///   lost.
+    /// - handles automatically reconnecting to PostgreSQL if the connection is lost.
     pub async fn new(
         config: Config,
         indexer_reader: IndexerReader,
@@ -243,7 +255,7 @@ impl InMemory {
                                 "failed to get connection from postgres connection pool with error: {e:?}"
                             );
                             Self::publish_error(
-                                IndexerStreamingError::Postgres(e.to_string()),
+                                IndexerStreamingError::Postgres,
                                 &event_tx,
                                 &transaction_tx,
                             );
@@ -299,12 +311,10 @@ impl InMemory {
     ///
     /// The recovery point variant controls whether events of the starting
     /// transaction are included:
-    /// - [`RecoveryPoint::Inclusive`]: events of the starting transaction are
-    ///   yielded.
-    /// - [`RecoveryPoint::Exclusive`]: events of the starting transaction are
-    ///   skipped; streaming begins from the next transaction onward. Useful for
-    ///   reconnection, where the client already received that transaction's
-    ///   events in the previous session.
+    /// - [`RecoveryPoint::Inclusive`]: events of the starting transaction are yielded.
+    /// - [`RecoveryPoint::Exclusive`]: events of the starting transaction are skipped; streaming
+    ///   begins from the next transaction onward. Useful for reconnection, where the client already
+    ///   received that transaction's events in the previous session.
     ///
     /// # Note
     /// Since under the hood a [`tokio::sync::broadcast`] channel is used for
@@ -373,6 +383,7 @@ impl InMemory {
             recovery_point.digest(),
             self.reader.clone(),
             self.config.transaction_batch_size.get(),
+            self.config.max_recovery_checkpoints.map(NonZeroI64::get),
             self.metrics.clone(),
         );
 
@@ -440,10 +451,9 @@ impl InMemory {
     /// The recovery point variant controls whether the starting transaction
     /// itself is included:
     /// - [`RecoveryPoint::Inclusive`]: the starting transaction is yielded.
-    /// - [`RecoveryPoint::Exclusive`]: streaming begins from the transaction
-    ///   immediately after the one identified by the digest. Useful for
-    ///   reconnection, where the client already received that transaction in
-    ///   the previous session.
+    /// - [`RecoveryPoint::Exclusive`]: streaming begins from the transaction immediately after the
+    ///   one identified by the digest. Useful for reconnection, where the client already received
+    ///   that transaction in the previous session.
     ///
     /// # Note
     /// Since under the hood a [`tokio::sync::broadcast`] channel is used for
@@ -511,6 +521,7 @@ impl InMemory {
             recovery_point.digest(),
             self.reader.clone(),
             self.config.transaction_batch_size.get(),
+            self.config.max_recovery_checkpoints.map(NonZeroI64::get),
             self.metrics.clone(),
         );
 
@@ -564,14 +575,11 @@ impl InMemory {
 
     /// Listens for database notifications and processes them.
     ///
-    /// - resolves from received notifications the transaction sequence number
-    ///   bounds.
-    /// - splits the transaction sequence number bounds into batches if
-    ///   exceeded.
-    /// - fetches the transactions within the batch bounds and sends them to
-    ///   subscribers alongside extracted events.
-    /// - leverages exponential backoff retries for transient errors when
-    ///   processing notifications.
+    /// - resolves from received notifications the transaction sequence number bounds.
+    /// - splits the transaction sequence number bounds into batches if exceeded.
+    /// - fetches the transactions within the batch bounds and sends them to subscribers alongside
+    ///   extracted events.
+    /// - leverages exponential backoff retries for transient errors when processing notifications.
     async fn process_checkpoint_notifications(
         metrics: &InMemoryStreamMetrics,
         config: &Config,
@@ -786,9 +794,10 @@ impl InMemory {
                     Err(_) => None,
                 }
             }
-            Err(e) => Some(Err(IndexerStreamingError::Postgres(format!(
-                "database connection error: {e}"
-            )))),
+            Err(e) => {
+                error!("failed to receive postgres notification: {e:?}");
+                Some(Err(IndexerStreamingError::Postgres))
+            }
         })
     }
 
@@ -942,6 +951,9 @@ struct HistoricalFetch {
     buffer: VecDeque<StoredTransaction>,
     /// Number of transactions to fetch per database query.
     batch_size: i64,
+    /// Maximum allowed number of checkpoints between the resolved cursor and
+    /// the latest committed checkpoint, if bounded.
+    max_recovery_checkpoints: Option<i64>,
     /// Upon an unrecoverable error, the stream should be closed.
     should_close_stream: bool,
     /// Tracks the latency of querying transaction batch from the indexer
@@ -955,6 +967,7 @@ impl HistoricalFetch {
         start_from_digest: TransactionDigest,
         reader: IndexerReader,
         batch_size: i64,
+        max_recovery_checkpoints: impl Into<Option<i64>>,
         metrics: Arc<InMemoryStreamMetrics>,
     ) -> Self {
         let active_subscriber_number = metrics.active_subscriber_number.with_label_values(&[label]);
@@ -968,6 +981,7 @@ impl HistoricalFetch {
             reader,
             buffer: VecDeque::new(),
             batch_size,
+            max_recovery_checkpoints: max_recovery_checkpoints.into(),
             should_close_stream: false,
             query_tx_from_indexer_db_latency: metrics.query_tx_from_indexer_db_latency.clone(),
         }
@@ -1008,6 +1022,51 @@ impl HistoricalFetch {
         backoff::future::retry(backoff, f).await
     }
 
+    /// Checks whether the resolved cursor is more than [`Config::max_recovery_checkpoints`]
+    /// behind the latest one in the database.
+    ///
+    /// Always succeeds when the bound is unset.
+    ///
+    /// # Errors
+    /// Returns an error if:
+    /// - The database query fails after retries [`IndexerStreamingError::Postgres`].
+    /// - The transaction/cursor does not exist or has been pruned
+    ///   [`IndexerStreamingError::NotFound`].
+    /// - The calculated distance exceeds the maximum allowed recovery window
+    ///   [`IndexerStreamingError::RecoveryDistanceExceeded`].
+    async fn check_recovery_distance(&self) -> Result<(), IndexerStreamingError> {
+        let Some(max) = self.max_recovery_checkpoints else {
+            return Ok(());
+        };
+        let cursor = self.cursor_value();
+        let distance = Self::with_retry(|| async {
+            self.reader
+                .db()
+                .checkpoints_behind_latest(cursor)
+                .await
+                .map_err(backoff::Error::transient)
+        })
+        .await
+        .map_err(|e| {
+            error!("unable to compute recovery distance: {e:?}");
+            IndexerStreamingError::Postgres
+        })?
+        .ok_or_else(|| {
+            let e = IndexerStreamingError::NotFound(format!(
+                "transaction {} may not exist or has been pruned",
+                self.start_from_digest
+            ));
+            debug!("{e}");
+            e
+        })?;
+        if distance > max {
+            let e = IndexerStreamingError::RecoveryDistanceExceeded { distance, max };
+            debug!("{e}");
+            return Err(e);
+        }
+        Ok(())
+    }
+
     /// Converts into a stream that yields historical transactions from the
     /// database in batches. The stream ends once all transactions up to
     /// the latest committed transaction to database have been yielded, at which
@@ -1034,23 +1093,36 @@ impl HistoricalFetch {
                             state
                                 .reader
                                 .db()
-                                .resolve_cursor_tx_digest_to_seq_num(state.start_from_digest)
+                                .resolve_cursor_tx_digest_to_seq_num_maybe(state.start_from_digest)
                                 .await
                                 .map_err(backoff::Error::transient)
                         })
                         .await
                         {
-                            Ok(cursor) => {
+                            Ok(Some(cursor)) => {
                                 state.cursor_resolved = true;
                                 state.update_cursor(cursor);
-                            },
-                            Err(e) => {
+                                if let Err(e) = state.check_recovery_distance().await {
+                                    state.should_close_stream = true;
+                                    return Some((Err(e), state));
+                                }
+                            }
+                            Ok(None) => {
                                 state.should_close_stream = true;
                                 let e = IndexerStreamingError::NotFound(format!(
-                                    "unable to resolve transaction, may not exist or has been pruned: {e}"
+                                    "transaction {} may not exist or has been pruned",
+                                    state.start_from_digest
                                 ));
-                                error!("{e}");
+                                debug!("{e}");
                                 return Some((Err(e), state));
+                            }
+                            Err(e) => {
+                                state.should_close_stream = true;
+                                error!(
+                                    "unable to resolve transaction {}: {e:?}",
+                                    state.start_from_digest
+                                );
+                                return Some((Err(IndexerStreamingError::Postgres), state));
                             }
                         }
                     }
@@ -1075,19 +1147,13 @@ impl HistoricalFetch {
                             // have data in transactions table.
                             Ok(None) => {
                                 state.should_close_stream = true;
-                                let e = IndexerStreamingError::Postgres(
-                                    "unable to fetch latest tx sequence number".into(),
-                                );
-                                error!("{e}");
-                                return Some((Err(e), state));
+                                error!("unable to fetch latest tx sequence number");
+                                return Some((Err(IndexerStreamingError::Postgres), state));
                             }
                             Err(e) => {
                                 state.should_close_stream = true;
-                                let e = IndexerStreamingError::Postgres(format!(
-                                    "unable to fetch latest tx sequence number: {e}"
-                                ));
-                                error!("{e}");
-                                return Some((Err(e), state));
+                                error!("unable to fetch latest tx sequence number: {e:?}");
+                                return Some((Err(IndexerStreamingError::Postgres), state));
                             }
                         };
 
@@ -1107,7 +1173,8 @@ impl HistoricalFetch {
 
                     // fetch transaction batch from database and update the cursor.
                     let start = state.cursor_value();
-                    let end = (start + state.batch_size.saturating_sub(1)).min(state.latest_tx_in_db);
+                    let end =
+                        (start + state.batch_size.saturating_sub(1)).min(state.latest_tx_in_db);
 
                     let db_query_timer = state.query_tx_from_indexer_db_latency.start_timer();
                     match Self::with_retry(|| async {
@@ -1133,14 +1200,13 @@ impl HistoricalFetch {
                         }
                         Err(e) => {
                             state.should_close_stream = true;
-                            let e = IndexerStreamingError::Postgres(e.to_string());
                             error!(
                                 batch_start = start,
                                 batch_end = end,
                                 error = ?e,
                                 "batch processing failed after retries, publishing error to clients"
                             );
-                            return Some((Err(e), state));
+                            return Some((Err(IndexerStreamingError::Postgres), state));
                         }
                     }
                 }

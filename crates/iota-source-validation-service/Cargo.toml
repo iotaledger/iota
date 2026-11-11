@@ -48,6 +48,7 @@ telemetry-subscribers.workspace = true
 expect-test.workspace = true
 fs_extra.workspace = true
 reqwest.workspace = true
+rustls.workspace = true
 
 # internal dependencies
 iota.workspace = true

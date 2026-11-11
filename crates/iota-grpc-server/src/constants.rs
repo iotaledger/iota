@@ -16,6 +16,33 @@ use crate::error::RpcError;
 /// decode.
 pub const MIN_SDK_VERSION: &str = "1.0.0-beta.1";
 
+/// Maximum number of nested `All`, `Any` and `Not` filters in a transaction or
+/// event filter. The event filter of a transaction filter adds one level.
+pub const MAX_FILTER_DEPTH: usize = 10;
+
+/// Maximum number of filters in a transaction or event filter, counting `All`,
+/// `Any` and `Not` themselves, every filter inside them, and every transaction
+/// kind of a `TransactionKind` filter.
+pub const MAX_FILTER_NODES: usize = 256;
+
+/// Adds `added` filters at nesting level `depth` to `nodes`, the number of
+/// filters converted so far. Fails if `depth` is over [`MAX_FILTER_DEPTH`] or
+/// `nodes` goes over [`MAX_FILTER_NODES`].
+pub(crate) fn count_filters(depth: usize, nodes: &mut usize, added: usize) -> Result<(), String> {
+    if depth > MAX_FILTER_DEPTH {
+        return Err(format!(
+            "filter nesting exceeds the limit of {MAX_FILTER_DEPTH} levels"
+        ));
+    }
+    *nodes += added;
+    if *nodes > MAX_FILTER_NODES {
+        return Err(format!(
+            "filter exceeds the limit of {MAX_FILTER_NODES} nodes"
+        ));
+    }
+    Ok(())
+}
+
 /// Default maximum message size for chunked responses (4MB)
 pub const DEFAULT_MAX_MESSAGE_SIZE_BYTES: usize = 4 * 1024 * 1024;
 

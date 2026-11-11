@@ -15,13 +15,13 @@ pub struct MetricsPushClient {
 }
 
 impl MetricsPushClient {
-    pub fn new(metrics_key: iota_types::crypto::NetworkKeyPair) -> Self {
-        use fastcrypto::traits::KeyPair;
+    pub fn new(metrics_key: iota_types::crypto::NetworkPrivateKey) -> Self {
         let certificate = std::sync::Arc::new(iota_tls::SelfSignedCertificate::new(
-            metrics_key.private(),
+            metrics_key,
             iota_tls::IOTA_VALIDATOR_SERVER_NAME,
         ));
         let identity = certificate.reqwest_identity();
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::builder()
             .identity(identity)
             .build()

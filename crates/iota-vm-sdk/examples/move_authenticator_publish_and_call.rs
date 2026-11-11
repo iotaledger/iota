@@ -305,7 +305,7 @@ fn run_signed(
     account_version: Version,
     trace: bool,
 ) -> Result<ExecutionResult> {
-    let authenticator = MoveAuthenticatorV1::new_with_shared_account_object(
+    let authenticator = MoveAuthenticatorV1::new(
         vec![],
         vec![],
         SharedObjectReference::new(account_id, account_version, false),

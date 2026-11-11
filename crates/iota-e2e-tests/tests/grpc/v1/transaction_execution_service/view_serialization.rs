@@ -3,19 +3,19 @@
 
 //! End-to-end tests for the `ViewFunctionCalls` endpoint that exercise:
 //!
-//! - the value-serialization layer, in both directions, for a range of Move
-//!   types — a value returned by a `#[view]` function is rendered to both BCS
-//!   (`CommandOutput.bcs`) and JSON (`CommandOutput.json`);
-//! - the argument-resolution layer — an input argument supplied either as a
-//!   JSON value or as pre-encoded BCS is resolved against the callee's Move
-//!   signature into the correct on-chain value;
-//! - per-call independence — each call runs in its own transaction, so one call
-//!   aborting or being rejected leaves the others' results intact, and a client
-//!   can split many calls across several batched requests;
-//! - read-mask handling — which output fields a valid mask selects, and that
-//!   invalid mask paths are rejected;
-//! - argument-resolution errors — too few or too many arguments, and a value
-//!   that does not match a generic parameter's type.
+//! - the value-serialization layer, in both directions, for a range of Move types — a value
+//!   returned by a `#[view]` function is rendered to both BCS (`CommandOutput.bcs`) and JSON
+//!   (`CommandOutput.json`);
+//! - the argument-resolution layer — an input argument supplied either as a JSON value or as
+//!   pre-encoded BCS is resolved against the callee's Move signature into the correct on-chain
+//!   value;
+//! - per-call independence — each call runs in its own transaction, so one call aborting or being
+//!   rejected leaves the others' results intact, and a client can split many calls across several
+//!   batched requests;
+//! - read-mask handling — which output fields a valid mask selects, and that invalid mask paths are
+//!   rejected;
+//! - argument-resolution errors — too few or too many arguments, and a value that does not match a
+//!   generic parameter's type.
 //!
 //! The `view_demo::echo` module returns each input unchanged, so a successful
 //! call's return value equals its argument, letting each test assert a full
@@ -64,11 +64,10 @@ fn view_demo_package_path() -> PathBuf {
 /// land in a checkpoint, since the endpoint reads checkpoint-indexed state.
 async fn publish_view_demo(
     test_cluster: &TestCluster,
-    client: &iota_grpc_client::Client,
+    client: &iota_grpc_client::GrpcClient,
 ) -> ObjectId {
     let sender = first_sender(test_cluster);
     let compiled_package = BuildConfig::new_for_testing()
-        .with_allow_view_function()
         .build(&view_demo_package_path())
         .expect("view_demo package should build");
 

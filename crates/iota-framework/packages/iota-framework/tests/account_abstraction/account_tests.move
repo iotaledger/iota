@@ -6,6 +6,7 @@ module iota::account_tests;
 
 use iota::account;
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
+use iota::protocol_config;
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{Self, assert_eq, assert_ref_eq};
 use std::ascii;
@@ -66,6 +67,8 @@ fun authenticator_function_ref_v1_account_happy_path() {
 #[test]
 fun authenticator_function_ref_v1_immutable_account_happy_path() {
     account_test!(|scenario, account| {
+        allow_immutable_account_creation();
+
         let default_authenticator_function_ref = create_default_authenticator_function_ref_v1_for_testing();
 
         // Check that there is no an attached `AuthenticatorFunctionRefV1` just after creation.
@@ -85,6 +88,19 @@ fun authenticator_function_ref_v1_immutable_account_happy_path() {
         );
 
         test_scenario::return_immutable(account);
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = account::EImmutableAccountCreationRejected)]
+fun authenticator_function_ref_v1_immutable_account_creation_rejected() {
+    account_test!(|_, account| {
+        reject_immutable_account_creation();
+
+        account::create_immutable_account_v1(
+            account,
+            create_default_authenticator_function_ref_v1_for_testing(),
+        );
     });
 }
 
@@ -114,6 +130,8 @@ fun authenticator_function_ref_v1_double_account_creation() {
 #[expected_failure(abort_code = account::EAuthenticatorFunctionRefV1AlreadyAttached)]
 fun authenticator_function_ref_v1_double_immutable_account_creation() {
     account_test!(|scenario, account| {
+        allow_immutable_account_creation();
+
         let authenticator_function_ref_1 = create_default_authenticator_function_ref_v1_for_testing();
         let authenticator_function_ref_2 = authenticator_function::create_auth_function_ref_v1_for_testing(
             @0x2,
@@ -151,6 +169,14 @@ fun authenticator_function_ref_v1_rotate_non_attached() {
 
         test_utils::destroy(account);
     });
+}
+
+fun allow_immutable_account_creation() {
+    protocol_config::set_feature_enabled_for_testing(b"reject_immutable_account_creation", false);
+}
+
+fun reject_immutable_account_creation() {
+    protocol_config::set_feature_enabled_for_testing(b"reject_immutable_account_creation", true);
 }
 
 fun create_test_account(scenario: &mut Scenario): TestAccount {

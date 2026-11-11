@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-pub(crate) use indexer_analytics_store::IndexerAnalyticalStore;
+pub(crate) use indexer_analytics_store::{IndexerAnalyticalStore, WatermarkLowerBounds};
 pub(crate) use indexer_store::*;
 pub use pg_indexer_analytical_store::PgIndexerAnalyticalStore;
 pub use pg_indexer_store::PgIndexerStore;
@@ -66,7 +66,10 @@ pub mod diesel_macro {
                 .read_only()
                 .repeatable_read()
                 .run($query)
-                .map_err(|e| $crate::errors::IndexerError::PostgresRead(e.to_string()))
+                .map_err(|e| {
+                    tracing::error!("failed to read from PostgresDB: {e:?}");
+                    $crate::errors::IndexerError::PostgresRead
+                })
         }};
     }
 
@@ -92,7 +95,10 @@ pub mod diesel_macro {
                 .build_transaction()
                 .read_only()
                 .run($query)
-                .map_err(|e| $crate::errors::IndexerError::PostgresRead(e.to_string()))
+                .map_err(|e| {
+                    tracing::error!("failed to read from PostgresDB: {e:?}");
+                    $crate::errors::IndexerError::PostgresRead
+                })
         }};
     }
 
@@ -115,8 +121,8 @@ pub mod diesel_macro {
             backoff.max_elapsed_time = Some($max_elapsed);
             let result = match backoff::retry(backoff, || {
                 let mut pool_conn =
-                    get_pool_connection($pool).map_err(|e| backoff::Error::Transient {
-                        err: IndexerError::PostgresWrite(e.to_string()),
+                    get_pool_connection($pool).map_err(|err| backoff::Error::Transient {
+                        err,
                         retry_after: None,
                     })?;
                 pool_conn
@@ -129,7 +135,7 @@ pub mod diesel_macro {
                     .map_err(|e| {
                         tracing::error!("error with persisting data into DB: {e:?}, retrying...");
                         backoff::Error::Transient {
-                            err: IndexerError::PostgresWrite(e.to_string()),
+                            err: IndexerError::PostgresWrite,
                             retry_after: None,
                         }
                     })
@@ -163,8 +169,8 @@ pub mod diesel_macro {
             backoff.max_elapsed_time = Some($max_elapsed);
             let result = match backoff::retry(backoff, || {
                 let mut pool_conn =
-                    get_pool_connection($pool).map_err(|e| backoff::Error::Transient {
-                        err: IndexerError::PostgresWrite(e.to_string()),
+                    get_pool_connection($pool).map_err(|err| backoff::Error::Transient {
+                        err,
                         retry_after: None,
                     })?;
                 pool_conn
@@ -180,7 +186,7 @@ pub mod diesel_macro {
                             backoff::Error::Permanent(e)
                         } else {
                             backoff::Error::Transient {
-                                err: IndexerError::PostgresWrite(e.to_string()),
+                                err: IndexerError::PostgresWrite,
                                 retry_after: None,
                             }
                         }
@@ -305,10 +311,9 @@ pub mod diesel_macro {
     /// - Checking that we are not inside a tokio runtime context
     ///
     /// Or:
-    /// - If we are inside a tokio runtime context, ensure that the call went
-    ///   through a spawned blocking task that called `mark_in_blocking_pool`,
-    ///   such as `store::diesel_macro::spawn_blocking_task`,
-    ///   `IndexerReader::spawn_blocking` or
+    /// - If we are inside a tokio runtime context, ensure that the call went through a spawned
+    ///   blocking task that called `mark_in_blocking_pool`, such as
+    ///   `store::diesel_macro::spawn_blocking_task`, `IndexerReader::spawn_blocking` or
     ///   `PgIndexerStore::execute_in_blocking_worker`.
     #[macro_export]
     macro_rules! blocking_call_is_ok_or_panic {
@@ -336,25 +341,20 @@ pub mod diesel_macro {
     ///
     /// # Parameters
     ///
-    /// * `$table` - The target database table (e.g., `events::table`,
-    ///   `transactions::table`)
-    /// * `$chunk` - Collection of data to persist (must implement `.len()` and
-    ///   `.chunks()`)
+    /// * `$table` - The target database table (e.g., `events::table`, `transactions::table`)
+    /// * `$chunk` - Collection of data to persist (must implement `.len()` and `.chunks()`)
     /// * `$pool` - Database connection pool reference
     ///
     /// # Behavior
     ///
     /// 1. **Performance Timing**: Records operation duration for monitoring
-    /// 2. **Automatic Batching**: Splits data into chunks of
-    ///    `PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX` rows
-    /// 3. **Transaction Safety**: Uses `transactional_blocking_with_retry!` for
-    ///    atomic operations
-    /// 4. **Conflict Resolution**: Employs `INSERT ... ON CONFLICT DO NOTHING`
-    ///    strategy
-    /// 5. **Retry Logic**: Automatically retries failed operations with timeout
-    ///    of `PG_DB_COMMIT_SLEEP_DURATION`
-    /// 6. **Comprehensive Logging**: Logs success/failure with timing and row
-    ///    count information
+    /// 2. **Automatic Batching**: Splits data into chunks of `PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX`
+    ///    rows
+    /// 3. **Transaction Safety**: Uses `transactional_blocking_with_retry!` for atomic operations
+    /// 4. **Conflict Resolution**: Employs `INSERT ... ON CONFLICT DO NOTHING` strategy
+    /// 5. **Retry Logic**: Automatically retries failed operations with timeout of
+    ///    `PG_DB_COMMIT_SLEEP_DURATION`
+    /// 6. **Comprehensive Logging**: Logs success/failure with timing and row count information
     ///
     /// # Examples
     ///
@@ -398,7 +398,7 @@ pub mod diesel_macro {
                 );
             })
             .tap_err(|e| {
-                tracing::error!("failed to persist {} with error: {e}", stringify!($table));
+                tracing::error!("failed to persist {} with error: {e:?}", stringify!($table));
             })
         }};
     }

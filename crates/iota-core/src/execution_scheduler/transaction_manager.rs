@@ -5,6 +5,7 @@
 use std::{
     cmp::{Reverse, max},
     collections::{BTreeSet, BinaryHeap, HashMap, HashSet, hash_map},
+    ops::Deref,
     sync::Arc,
     time::Duration,
 };
@@ -14,6 +15,7 @@ use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
 use iota_sdk_types::{ObjectId, SenderSignedTransaction, TransactionDigest, Version};
 use iota_types::{
+    attestation::{Attestation, AttestationRecord},
     committee::EpochId,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -30,8 +32,9 @@ use tracing::{error, info, instrument, trace, warn};
 
 use crate::{
     authority::{
-        AuthorityMetrics, ExecutionEnv, authority_per_epoch_store::AuthorityPerEpochStore,
-        shared_object_version_manager::Schedulable,
+        AuthorityMetrics, ExecutionEnv,
+        authority_per_epoch_store::AuthorityPerEpochStore,
+        shared_object_version_manager::{AsTx, Schedulable},
     },
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
     execution_scheduler::{
@@ -66,6 +69,84 @@ pub struct TransactionManager {
     // acquire the outer lock for write, to ensure that no other threads can be running while
     // we reconfigure.
     inner: RwLock<RwLock<Inner>>,
+}
+
+/// Where the verdict on a transaction's attestation comes from.
+#[derive(Clone, Debug, Default)]
+pub enum AttestationSource {
+    /// No attestation: an unattested user transaction or a system transaction.
+    #[default]
+    Unattested,
+    /// The attestation from consensus, judged at execution.
+    Attestation(Attestation),
+    /// The record a certified checkpoint carries, when executing from it;
+    /// `None` when the attestation was valid or there was none.
+    Certified(Option<AttestationRecord>),
+}
+
+/// Wraps a [`VerifiedExecutableTransaction`] with its pre-consensus
+/// [`Attestation`] (if any). Carrying the full attestation lets downstream code
+/// consult both scheduling metadata and attestor identity / observed object
+/// versions.
+///
+/// This is runtime-only scheduling metadata: it is never serialized or
+/// persisted.
+#[derive(Clone, Debug)]
+pub struct VerifiedExecutableAttestedTransaction {
+    tx: VerifiedExecutableTransaction,
+    attestation: AttestationSource,
+}
+
+impl VerifiedExecutableAttestedTransaction {
+    pub fn new(tx: VerifiedExecutableTransaction, attestation: Option<Attestation>) -> Self {
+        let attestation = attestation.map_or(
+            AttestationSource::Unattested,
+            AttestationSource::Attestation,
+        );
+        Self { tx, attestation }
+    }
+
+    pub fn attestation(&self) -> &AttestationSource {
+        &self.attestation
+    }
+
+    /// Returns the attestor's estimated computation units, or `None` if the
+    /// transaction was not attested.
+    pub fn attested_computation_units(&self) -> Option<u64> {
+        match &self.attestation {
+            AttestationSource::Attestation(attestation) => Some(attestation.computation_units()),
+            AttestationSource::Unattested | AttestationSource::Certified(_) => None,
+        }
+    }
+
+    /// Consume the wrapper and return its parts.
+    pub fn into_parts(self) -> (VerifiedExecutableTransaction, AttestationSource) {
+        (self.tx, self.attestation)
+    }
+}
+
+/// A [`Schedulable`] carrying its attestation, as the consensus handler hands
+/// it to execution.
+pub type SchedulableAttestedTransaction = Schedulable<VerifiedExecutableAttestedTransaction>;
+
+impl AsTx for VerifiedExecutableAttestedTransaction {
+    fn as_tx(&self) -> &VerifiedExecutableTransaction {
+        &self.tx
+    }
+}
+
+impl From<VerifiedExecutableTransaction> for VerifiedExecutableAttestedTransaction {
+    fn from(tx: VerifiedExecutableTransaction) -> Self {
+        Self::new(tx, None)
+    }
+}
+
+impl Deref for VerifiedExecutableAttestedTransaction {
+    type Target = VerifiedExecutableTransaction;
+
+    fn deref(&self) -> &Self::Target {
+        &self.tx
+    }
 }
 
 struct CacheInner {
@@ -437,8 +518,13 @@ impl TransactionManager {
                 .map(|(tx, execution_env)| {
                     // Check availability of all transaction associated input objects(transaction +
                     // authenticators).
-                    let input_object_kinds =
-                        tx.input_objects().expect("input_objects() cannot fail");
+                    let input_object_kinds = tx
+                        .input_objects(
+                            epoch_store
+                                .protocol_config()
+                                .move_authenticator_type_arg_packages_as_inputs(),
+                        )
+                        .expect("input_objects() cannot fail");
                     let mut input_object_keys = epoch_store.get_input_object_keys(
                         &tx.key(),
                         &input_object_kinds,
@@ -1136,7 +1222,7 @@ impl TransactionQueue {
 #[cfg(test)]
 mod test {
     use prometheus_filtered::Registry;
-    use rand::{Rng, RngCore};
+    use rand::{Rng, RngExt};
 
     use super::*;
 
@@ -1324,7 +1410,7 @@ mod test {
     #[test]
     #[cfg_attr(msim, ignore)]
     fn transaction_queue_random_test() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut digests = Vec::new();
         for _ in 0..100 {
             let mut digest = [0; 32];
@@ -1341,7 +1427,7 @@ mod test {
         // out well-populated
         for _ in 0..70 {
             now += Duration::from_secs(1);
-            let digest = digests[rng.gen_range(0..digests.len())];
+            let digest = digests[rng.random_range(0..digests.len())];
             let time = now;
             queue.insert(digest, time);
             verifier.entry(digest).or_insert(time);
@@ -1354,10 +1440,10 @@ mod test {
             now += Duration::from_secs(1);
 
             // pick a random digest
-            let digest = digests[rng.gen_range(0..digests.len())];
+            let digest = digests[rng.random_range(0..digests.len())];
 
             // either insert or remove it
-            if rng.gen_bool(0.5) {
+            if rng.random_bool(0.5) {
                 let time = now;
                 queue.insert(digest, time);
                 verifier.entry(digest).or_insert(time);

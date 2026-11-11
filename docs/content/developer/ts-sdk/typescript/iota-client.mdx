@@ -4,8 +4,6 @@ teams:
    - iotaledger/tooling
 sidebar_label: IotaClient
 ---
-import DeprecatedMethodsNote from '../../../_snippets/deprecated_methods_note.mdx';
-
 # Network Interactions with IotaClient
 
 The IOTA TypeScript SDK provides a `IotaClient` class to connect to a network's JSON-RPC server. Use
@@ -66,21 +64,27 @@ For a full list of available RPC methods, see the
 [RPC documentation](../../references/iota-api/).
 
 
-## Subscribing to events with IotaClient
+## Subscribing to events and transactions
 
-In addition to calling RPC methods, you can use `IotaClient` to subscribe to network events:
+`subscribeEvent` and `subscribeTransaction` are served by GraphQL subscriptions, so they need an
+`IotaClient` that uses the `IotaClientGraphQLTransport` from the `@iota/graphql-transport` package,
+and a GraphQL service with subscriptions enabled. Install the package with
+`npm install @iota/graphql-transport`.
 
 ```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { IotaClientGraphQLTransport } from '@iota/graphql-transport';
+import { IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({
-    url: getFullnodeUrl('testnet'),
+    transport: new IotaClientGraphQLTransport({
+        url: 'https://graphql.testnet.iota.cafe',
+    }),
 });
 
 // naming the function unsubscribe may seem counterintuitive here, but you call it later to unsubscribe from the event
 const unsubscribe = await client.subscribeEvent({
     filter: {
-        Sender: '<SENDER_ADDRESS>',
+        Package: '<PACKAGE_ID>',
     },
     onMessage(event) {
         // handle subscription notification message here. This function is called once per subscription message.
@@ -91,60 +95,50 @@ const unsubscribe = await client.subscribeEvent({
 await unsubscribe();
 ```
 
-<DeprecatedMethodsNote/>
-
-## Using subscriptions in Node.js
-
-If you are using `IotaClient` in an environment that does not support the `WebSocket` API, including
-Node.js, you may need to provide your own implementation of the `WebSocket` API when creating your
-IotaClient. You can either use a global polyfill for the WebSocket class, or pass a compatible
-WebSocket implementation into IotaHTTPTransport (eg, using the `ws` package)
+`subscribeTransaction` works the same way:
 
 ```typescript
-import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota-sdk/client';
+const unsubscribe = await client.subscribeTransaction({
+    filter: {
+        FromAddress: '<IOTA_ADDRESS>',
+    },
+    onMessage(effects) {
+        // This function is called once per transaction.
+    },
+});
+```
+
+Event subscriptions support the `Package` and `MoveModule` filters. Transaction subscriptions
+support the `FromAddress`, `TransactionKind` and `MoveFunction` filters. To resume after an
+interruption without missing anything, pass the digest of the last transaction you received as
+`startAfter`.
+
+The transport connects to the `/subscriptions` path of the GraphQL URL over WebSocket; set `wsUrl` to
+use a different address. In an environment without a global `WebSocket` class, such as older Node.js
+versions, pass an implementation, for example from the `ws` package, as `WebSocketConstructor`:
+
+```typescript
+import { IotaClientGraphQLTransport } from '@iota/graphql-transport';
+import { IotaClient } from '@iota/iota-sdk/client';
 import { WebSocket } from 'ws';
 
-new IotaClient({
-    transport: new IotaHTTPTransport({
-        url: getFullnodeUrl('testnet'),
+const client = new IotaClient({
+    transport: new IotaClientGraphQLTransport({
+        url: 'https://graphql.testnet.iota.cafe',
         // The typescript definitions may not match perfectly, casting to never avoids these minor incompatibilities
         WebSocketConstructor: WebSocket as never,
     }),
 });
 ```
 
-## Subscribing to transactions with IotaClient
-
-Similar to subscribing to events, the `IotaClient` also supports subscribing to transactions:
-
-```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
-
-const client = new IotaClient({
-    url: getFullnodeUrl('testnet'),
-});
-
-const unsubscribe = await client.subscribeTransaction({
-    filter: {
-        FromAddress: '<IOTA_ADDRESS>',
-    },
-    onMessage(event) {
-        // This function is called once per transaction.
-    },
-});
-
-// later, to unsubscribe:
-await unsubscribe();
-```
-
-<DeprecatedMethodsNote/>
+An `IotaClient` that connects to a full node's JSON-RPC URL can't subscribe; use
+[`queryEvents`](../../iota-101/using-events.mdx#polling-with-queryevents) with a cursor instead.
 
 ## Customizing the transport
 
 The `IotaClient` uses a `Transport` class to manage connections to the RPC node. The default
-`IotaHTTPTransport` makes both JSON RPC requests, as well as websocket requests for subscriptions.
-You can construct a custom transport instance if you need to pass any custom options, such as
-headers or timeout values.
+`IotaHTTPTransport` makes JSON RPC requests. You can construct a custom transport instance if you
+need to pass any custom options, such as headers or timeout values.
 
 ```typescript
 import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota-sdk/client';
@@ -152,10 +146,6 @@ import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota-sdk/cl
 const client = new IotaClient({
     transport: new IotaHTTPTransport({
         url: 'https://my-custom-node.com/rpc',
-        websocket: {
-            reconnectTimeout: 1000,
-            url: 'https://my-custom-node.com/websockets',
-        },
         rpc: {
             headers: {
                 'x-custom-header': 'custom value',

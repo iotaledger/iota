@@ -112,8 +112,7 @@ impl SignatureVerifier {
         non_committee_validators: BTreeSet<AuthorityName>,
         batch_size: usize,
         metrics: Arc<SignatureVerifierMetrics>,
-        accept_passkey_in_multisig: bool,
-        additional_multisig_checks: bool,
+        verify_params: VerifyParams,
     ) -> Self {
         Self {
             committee,
@@ -135,10 +134,7 @@ impl SignatureVerifier {
             ),
             queue: Mutex::new(CertBuffer::new(batch_size)),
             metrics,
-            verify_params: VerifyParams::new(
-                accept_passkey_in_multisig,
-                additional_multisig_checks,
-            ),
+            verify_params,
         }
     }
 
@@ -146,16 +142,14 @@ impl SignatureVerifier {
         committee: Arc<Committee>,
         non_committee_validators: BTreeSet<AuthorityName>,
         metrics: Arc<SignatureVerifierMetrics>,
-        accept_passkey_in_multisig: bool,
-        additional_multisig_checks: bool,
+        verify_params: VerifyParams,
     ) -> Self {
         Self::new_with_batch_size(
             committee,
             non_committee_validators,
             MAX_BATCH_SIZE,
             metrics,
-            accept_passkey_in_multisig,
-            additional_multisig_checks,
+            verify_params,
         )
     }
 
@@ -520,22 +514,21 @@ pub fn batch_verify_all_certificates_and_checkpoints(
 
 /// Verifies certificates in batch mode, but returns a separate result for each
 /// cert.
+///
+/// Only the committee signatures are checked; the caller must have verified
+/// the user signatures of `certs.data()` already.
 #[instrument(level = "trace", skip_all)]
 pub fn batch_verify_certificates(
     committee: &Committee,
     certs: &[&CertifiedTransaction],
 ) -> Vec<IotaResult> {
-    // certs.data() is assumed to be verified already by the caller.
-    let verify_params = VerifyParams::default();
     match batch_verify(committee, certs, &[]) {
         Ok(_) => vec![Ok(()); certs.len()],
 
         // Verify one by one to find which certs were invalid.
         Err(_) if certs.len() > 1 => certs
             .iter()
-            // TODO: verify_signature currently checks the tx sig as well, which might be cached
-            // already.
-            .map(|c| c.verify_signatures_authenticated(committee, &verify_params))
+            .map(|c| c.verify_committee_sigs_only(committee))
             .collect(),
 
         Err(e) => vec![Err(e)],

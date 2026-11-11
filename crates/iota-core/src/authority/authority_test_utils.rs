@@ -3,7 +3,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use core::default::Default;
 use std::sync::Arc;
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
@@ -19,6 +18,7 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::ConsensusTransaction,
     object::Object,
+    signature::VerifyParams,
     transaction::{
         CertifiedTransaction, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         TransactionAPI, TransactionEnvelope, TransactionKey, VerifiedCertificate,
@@ -37,7 +37,9 @@ use crate::{
     authority::{AuthorityState, ExecutionEnv},
     checkpoints::CheckpointServiceNoop,
     consensus_handler::SequencedConsensusTransaction,
-    execution_scheduler::ExecutionSchedulerAPI,
+    execution_scheduler::{
+        ExecutionSchedulerAPI, transaction_manager::SchedulableAttestedTransaction,
+    },
     global_state_hasher::GlobalStateHasher,
 };
 
@@ -84,12 +86,17 @@ pub async fn certify_transaction(
         .handle_transaction(&epoch_store, transaction.clone())
         .await?;
     let vote = response.status.into_signed_for_testing();
+    // As in `init_certified_transaction`.
+    epoch_store.assign_to_a_new_commit_for_testing(&[transaction.key()]);
 
     // Collect signatures from a quorum of authorities
     let committee = authority.clone_committee_for_testing();
     let certificate = CertifiedTransaction::new(transaction.into_message(), vec![vote], &committee)
         .unwrap()
-        .try_into_verified_for_testing(&committee, &Default::default())
+        .try_into_verified_for_testing(
+            &committee,
+            &VerifyParams::from_protocol_config(epoch_store.protocol_config()),
+        )
         .unwrap();
     Ok(certificate)
 }
@@ -114,7 +121,7 @@ pub async fn execute_certificate_with_execution_error(
     // lead to transaction execution and state change.
     let state_acc =
         GlobalStateHasher::new_for_tests(authority.get_global_state_hash_store().clone());
-    let mut state = state_acc.accumulate_cached_live_object_set_for_testing();
+    let mut state = state_acc.accumulate_cached_live_object_set_for_testing()?;
 
     let assigned_versions = if with_shared {
         if fake_consensus {
@@ -147,7 +154,7 @@ pub async fn execute_certificate_with_execution_error(
         &certificate,
         ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
     )?;
-    let state_after = state_acc.accumulate_cached_live_object_set_for_testing();
+    let state_after = state_acc.accumulate_cached_live_object_set_for_testing()?;
     let effects_acc = state_acc.accumulate_effects(&[result.inner().data().clone()]);
     state.union(&effects_acc);
 
@@ -333,12 +340,16 @@ pub fn init_certified_transfer_transaction(
     init_certified_transaction(transfer_transaction.into(), authority_state)
 }
 
+/// With the P-COOL flow, the transaction is also assigned to a new commit,
+/// as the consensus handler assigns every transaction it sequences before
+/// it can execute.
 pub fn init_certified_transaction(
     transaction: TransactionEnvelope,
     authority_state: &AuthorityState,
 ) -> VerifiedCertificate {
     let epoch_store = authority_state.epoch_store_for_testing();
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
+    epoch_store.assign_to_a_new_commit_for_testing(&[transaction.key()]);
 
     let vote = VerifiedSignedTransaction::new(
         0,
@@ -352,7 +363,10 @@ pub fn init_certified_transaction(
         epoch_store.committee(),
     )
     .unwrap()
-    .try_into_verified_for_testing(epoch_store.committee(), &Default::default())
+    .try_into_verified_for_testing(
+        epoch_store.committee(),
+        &VerifyParams::from_protocol_config(epoch_store.protocol_config()),
+    )
     .unwrap()
 }
 
@@ -372,7 +386,10 @@ pub async fn certify_shared_obj_transaction_no_execution(
     let certificate =
         CertifiedTransaction::new(transaction.into_message(), vec![vote.clone()], &committee)
             .unwrap()
-            .try_into_verified_for_testing(&committee, &Default::default())
+            .try_into_verified_for_testing(
+                &committee,
+                &VerifyParams::from_protocol_config(epoch_store.protocol_config()),
+            )
             .unwrap();
 
     let assigned_versions = send_consensus_no_execution(authority, &certificate).await;
@@ -410,6 +427,9 @@ pub async fn execute_sequenced_certificate_to_effects(
     assigned_versions: AssignedVersions,
 ) -> Result<(TransactionEffects, Option<ExecutionError>), IotaError> {
     let env = ExecutionEnv::new().with_assigned_versions(assigned_versions);
+    authority
+        .epoch_store_for_testing()
+        .assign_to_a_new_commit_for_testing(&[certificate.key()]);
     authority.execution_scheduler().enqueue(
         vec![(
             VerifiedExecutableTransaction::new_from_certificate(certificate.clone()).into(),
@@ -454,9 +474,11 @@ pub async fn send_consensus(
         ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
     )];
 
+    let epoch_store = authority.epoch_store_for_testing();
+    epoch_store.assign_to_a_new_commit_for_testing(&[cert.key()]);
     authority
         .execution_scheduler()
-        .enqueue_transactions(certs, &authority.epoch_store_for_testing());
+        .enqueue_transactions(certs, &epoch_store);
 
     assigned_versions
 }
@@ -510,7 +532,7 @@ pub async fn send_batch_consensus_no_execution(
     // Call process_consensus_transaction() instead of
     // handle_consensus_transaction(), to avoid actually executing cert.
     // This allows testing cert execution independently.
-    authority
+    let (scheduled, assigned_versions) = authority
         .epoch_store_for_testing()
         .process_consensus_transactions_for_tests(
             transactions,
@@ -521,7 +543,22 @@ pub async fn send_batch_consensus_no_execution(
             authority,
         )
         .await
-        .unwrap()
+        .unwrap();
+    (drop_attestations(scheduled), assigned_versions)
+}
+
+/// The scheduled transactions without their attestations, for tests that
+/// hand them to the scheduler's plain interface.
+pub fn drop_attestations(scheduled: Vec<SchedulableAttestedTransaction>) -> Vec<Schedulable> {
+    scheduled
+        .into_iter()
+        .map(|scheduled| match scheduled {
+            Schedulable::Transaction(attested) => Schedulable::Transaction(attested.into_parts().0),
+            Schedulable::RandomnessStateUpdate(epoch, round) => {
+                Schedulable::RandomnessStateUpdate(epoch, round)
+            }
+        })
+        .collect()
 }
 
 /// Builds the randomness state update for `round`, persists it and records its

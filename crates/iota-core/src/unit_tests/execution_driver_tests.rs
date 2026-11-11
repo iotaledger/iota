@@ -20,6 +20,7 @@ use iota_types::{
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
+    signature::VerifyParams,
     transaction::{
         CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
         TransactionEnvelope, VerifiedCertificate,
@@ -51,6 +52,11 @@ use crate::{
     },
     unit_test_utils::{init_local_authorities, init_local_authorities_with_overload_thresholds},
 };
+
+/// The signature checks the newest protocol version applies.
+fn latest_verify_params() -> VerifyParams {
+    VerifyParams::from_protocol_config(&ProtocolConfig::get_for_max_version_UNSAFE())
+}
 
 #[expect(dead_code)]
 async fn wait_for_certs(
@@ -258,7 +264,7 @@ async fn execute_owned_on_first_three_authorities(
     do_transaction(&authority_clients[2], tx).await;
     let cert = extract_cert(authority_clients, committee, tx.digest())
         .await
-        .try_into_verified_for_testing(committee, &Default::default())
+        .try_into_verified_for_testing(committee, &latest_verify_params())
         .unwrap();
     do_cert(&authority_clients[0], &cert).await;
     do_cert(&authority_clients[1], &cert).await;
@@ -289,7 +295,7 @@ async fn execute_shared_on_first_three_authorities(
     do_transaction(&authority_clients[2], tx).await;
     let cert = extract_cert(authority_clients, committee, tx.digest())
         .await
-        .try_into_verified_for_testing(committee, &Default::default())
+        .try_into_verified_for_testing(committee, &latest_verify_params())
         .unwrap();
     do_cert_with_shared_objects(&authority_clients[0].authority_client().state, &cert).await;
     do_cert_with_shared_objects(&authority_clients[1].authority_client().state, &cert).await;
@@ -465,6 +471,9 @@ async fn execution_with_dependencies(use_execution_scheduler: bool) {
         );
     }
     for cert in executed_owned_certs.iter().rev() {
+        authorities[3]
+            .epoch_store_for_testing()
+            .assign_to_a_new_commit_for_testing(&[cert.key()]);
         authorities[3].execution_scheduler().enqueue(
             vec![(
                 Schedulable::Transaction(VerifiedExecutableTransaction::new_from_certificate(
@@ -504,7 +513,7 @@ async fn try_sign_on_first_three_authorities(
     }
     extract_cert(authority_clients, committee, tx.digest())
         .await
-        .try_into_verified_for_testing(committee, &Default::default())
+        .try_into_verified_for_testing(committee, &latest_verify_params())
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]

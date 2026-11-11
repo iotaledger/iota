@@ -4,7 +4,7 @@
 //! GraphQL-backed store (`feature = "graphql"`, native only); see
 //! [`GraphQLStore`], which mirrors `GrpcStore` but fetches over GraphQL.
 
-use iota_sdk_graphql_client::Client;
+use iota_sdk_graphql_client::GraphQLClient;
 use iota_sdk_types::{ObjectId, Version};
 use iota_types::{digests::ChainIdentifier, object::Object};
 
@@ -31,28 +31,26 @@ pub struct GraphQLStore {
 }
 
 impl GraphQLStore {
-    /// Wrap an existing client. The store starts with the built-in framework
-    /// packages already loaded so Move calls resolve.
-    pub fn new(client: Client) -> Self {
+    /// Wrap an existing client. The store starts empty and fetches every
+    /// object a run needs, framework packages included, from the node.
+    pub fn new(client: GraphQLClient) -> Self {
         Self {
             cache: CachingStore::new(GraphQLFetcher { client }),
         }
     }
 
-    /// Connect to a GraphQL endpoint (by URL) and create a store containing
-    /// only the built-in framework packages.
+    /// Connect to a GraphQL endpoint (by URL) and create an empty store.
     ///
     /// # Errors
     ///
     /// Returns [`VmSdkError::Store`] if `url` is not a valid server address.
     pub fn connect(url: impl Into<String>) -> Result<Self, VmSdkError> {
-        let client =
-            Client::new(&url.into()).map_err(|e| StoreError::new("connect GraphQL client", e))?;
+        let client = GraphQLClient::new(&url.into())
+            .map_err(|e| StoreError::new("connect GraphQL client", e))?;
         Ok(Self::new(client))
     }
 
-    /// A snapshot clone of the objects cached so far (framework packages plus
-    /// anything fetched on demand).
+    /// A snapshot clone of the objects fetched or inserted so far.
     pub fn store(&self) -> InMemoryStore {
         self.cache.store()
     }
@@ -154,7 +152,7 @@ impl Store for GraphQLStore {
 /// GraphQL transport for [`CachingStore`].
 #[derive(Clone)]
 struct GraphQLFetcher {
-    client: Client,
+    client: GraphQLClient,
 }
 
 impl GraphQLFetcher {
@@ -165,22 +163,10 @@ impl GraphQLFetcher {
             "query".to_owned(),
             serde_json::Value::String(query.to_owned()),
         )]);
-        let response = self
-            .client
+        self.client
             .run_query_from_json(request)
             .await
-            .map_err(|e| StoreError::new(context, e))?;
-        if let Some(errors) = response.errors.filter(|errors| !errors.is_empty()) {
-            let message = errors
-                .iter()
-                .map(|e| e.message.as_str())
-                .collect::<Vec<_>>()
-                .join("; ");
-            return Err(StoreError::new(context, message));
-        }
-        response
-            .data
-            .ok_or_else(|| StoreError::new(context, "empty response"))
+            .map_err(|e| StoreError::new(context, e))
     }
 }
 
@@ -195,9 +181,11 @@ impl ObjectFetcher for GraphQLFetcher {
         // exist must read as absent, not fault), so missing refs are skipped.
         let mut objects = Vec::with_capacity(refs.len());
         for (id, version) in refs {
-            if let Some(obj) = self
-                .client
-                .object(*id, *version)
+            let mut query = self.client.object(*id);
+            if let Some(version) = *version {
+                query = query.version(version);
+            }
+            if let Some(obj) = query
                 .await
                 .map_err(|e| StoreError::new(format!("fetch object {id} via GraphQL"), e))?
             {

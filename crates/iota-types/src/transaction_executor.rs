@@ -35,7 +35,8 @@ pub trait TransactionExecutor: Send + Sync {
         checks: VmChecks,
     ) -> Result<SimulateTransactionResult, IotaError>;
 
-    /// Wait for the given transactions to be included in a checkpoint.
+    /// Wait until the given transactions are in a checkpoint and the RPC
+    /// indexes include that checkpoint.
     ///
     /// Returns a mapping from transaction digest to
     /// `(checkpoint_sequence_number, checkpoint_timestamp_ms)`.
@@ -46,6 +47,14 @@ pub trait TransactionExecutor: Send + Sync {
         digests: &[TransactionDigest],
         timeout: Duration,
     ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError>;
+
+    /// Keeps the objects that `read_transaction_from_cache` returns for
+    /// transactions executed from now on readable until the returned value is
+    /// dropped. Take it before executing transactions whose objects are read
+    /// from the cache afterwards. Executors that do not prune retain nothing.
+    fn retain_cached_objects(&self) -> Box<dyn Send + Sync> {
+        Box::new(())
+    }
 
     /// Read authoritative effects, events, and input/output objects for a
     /// locally-executed transaction from the cache. Used by callers that

@@ -264,8 +264,8 @@ pub(crate) enum ConsensusError {
         limit: usize,
     },
 
-    #[error("Peer {peer} sent a commit that is too large: {size} > {limit}")]
-    SerializedCommitTooLarge {
+    #[error("Peer {peer} sent too many commit bytes: {size} > {limit}")]
+    TooManyCommitBytes {
         peer: AuthorityIndex,
         size: usize,
         limit: usize,
@@ -366,14 +366,6 @@ pub(crate) enum ConsensusError {
         block_round: Round,
     },
 
-    #[error(
-        "All GenericTransactionRef elements must have the same variant (BlockRef, TransactionRef, etc.) for batch operations."
-    )]
-    InconsistentTransactionRefVariants,
-
-    #[error("Expected TransactionRef, but received {received_variant}")]
-    TransactionRefVariantMismatch { received_variant: &'static str },
-
     #[error("Failed to fetch {num_requested} block headers from any peer")]
     FailedToFetchBlockHeaders { num_requested: usize },
 
@@ -383,13 +375,8 @@ pub(crate) enum ConsensusError {
     #[error("ShardWithProof variant {actual} is not the expected V2")]
     WrongShardVersion { actual: &'static str },
 
-    #[error(
-        "Commit variant {actual} does not match protocol flags (consensus_starfish_speed={starfish_speed})"
-    )]
-    WrongCommitVersionForFlags {
-        actual: &'static str,
-        starfish_speed: bool,
-    },
+    #[error("Commit variant {actual} is not the expected V3")]
+    WrongCommitVersion { actual: &'static str },
 
     #[error("Block strong_vote contains invalid authority index {index}, committee size is {max}")]
     InvalidStrongVoteAuthority { index: AuthorityIndex, max: usize },
@@ -404,13 +391,8 @@ pub(crate) enum ConsensusError {
         leader_authority: AuthorityIndex,
     },
 
-    #[error(
-        "BlockHeader variant {actual} does not match protocol flag (consensus_starfish_speed={starfish_speed})"
-    )]
-    WrongBlockHeaderVersionForFlag {
-        actual: &'static str,
-        starfish_speed: bool,
-    },
+    #[error("BlockHeader variant {actual} is not the expected V2")]
+    WrongBlockHeaderVersion { actual: &'static str },
 
     #[error("Authority {authority} equivocated: signed a second block header for round {round}")]
     BlockHeaderEquivocation {
@@ -449,6 +431,21 @@ pub(crate) enum ConsensusError {
         round: Round,
         last_round: Round,
     },
+
+    #[error("Transaction {transaction_ref} of a requested commit is not available on this node")]
+    TransactionsNotAvailable { transaction_ref: TransactionRef },
+
+    #[error("Peer {peer} sent commits or certifier headers after transactions")]
+    CommitDataAfterTransactions { peer: AuthorityIndex },
+
+    #[error("Peer {peer} sent transactions {received} before an earlier commit's transactions")]
+    TransactionsOutOfCommitOrder {
+        peer: AuthorityIndex,
+        received: TransactionRef,
+    },
+
+    #[error("Peer {peer} sent a commit-sync response message with more than {limit} entries")]
+    TooManyCommitSyncEntries { peer: AuthorityIndex, limit: usize },
 }
 
 impl ConsensusError {

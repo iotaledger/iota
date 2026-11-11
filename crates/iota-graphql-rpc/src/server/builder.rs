@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{
     any::Any,
     convert::Infallible,
@@ -30,10 +31,13 @@ use axum_extra::{TypedHeader, headers::ContentLength};
 use chrono::Utc;
 use http::{HeaderValue, Method, Request};
 use iota_graphql_rpc_headers::LIMITS_HEADER;
-use iota_grpc_client::Client as GrpcClient;
+use iota_grpc_client::GrpcClient;
 use iota_indexer::{
     apis::{OptimisticWriteApi, ReadApi, WriteApi},
-    db::{get_pool_connection, setup_postgres::check_db_migration_consistency},
+    db::{
+        ConnectionPoolConfig, get_pool_connection, new_connection_pool,
+        setup_postgres::check_db_migration_consistency,
+    },
     metrics::IndexerMetrics,
     optimistic_indexing::OptimisticTransactionExecutor,
     read::IndexerReader,
@@ -88,6 +92,9 @@ use crate::{
 const DEFAULT_MAX_CHECKPOINT_LAG: Duration = Duration::from_secs(300);
 /// The maximum complexity allowed for native [`async_graphql`] checks.
 const MAX_COMPLEXITY: usize = 6000;
+/// Subscriptions replay from their own pool, sized as the main pool divided
+/// by this, to limit the extra connections opened on the database.
+const SUBSCRIPTION_POOL_DIVISOR: u32 = 2;
 
 pub(crate) struct Server {
     router: Router,
@@ -439,7 +446,7 @@ impl ServerBuilder {
 
         let iota_names_config = config.service.iota_names.clone();
         let reader = PgManager::reader_with_config(
-            config.connection.db_url.clone(),
+            &config.connection.db_url,
             config.connection.db_pool_size,
             // Bound each statement in a request with the overall request timeout, to bound DB
             // utilisation (in the worst case we will use 2x the request timeout time in DB wall
@@ -484,7 +491,25 @@ impl ServerBuilder {
             ));
         };
 
-        let graphql_streams = GraphQLStream::new(reader.clone(), &registry).await?;
+        // subscriptions replay from their own pool for better performance.
+        let mut subscription_pool_config = ConnectionPoolConfig::default();
+        // The live broker holds one connection for LISTEN, so keep at least one more for replays.
+        let pool_size = (config.connection.db_pool_size / SUBSCRIPTION_POOL_DIVISOR).max(2);
+        subscription_pool_config.set_pool_size(pool_size);
+        subscription_pool_config.set_statement_timeout(Duration::from_millis(
+            config.service.limits.request_timeout_ms.into(),
+        ));
+        let subscription_pool =
+            new_connection_pool(&config.connection.db_url, &subscription_pool_config).map_err(
+                |e| {
+                    Error::ServerInit(format!(
+                        "failed to create subscription connection pool: {e}"
+                    ))
+                },
+            )?;
+        let subscription_reader = IndexerReader::new_without_watermark_cache(subscription_pool);
+        let graphql_streams =
+            GraphQLStream::new(subscription_reader, &registry, &config.service.limits).await?;
 
         let fullnode_grpc_client =
             GrpcClient::new(fullnode_url).map_err(|e| Error::ServerInit(e.to_string()))?;
@@ -815,7 +840,7 @@ pub mod tests {
 
         let registry = prometheus_filtered::Registry::new();
         let reader = PgManager::reader_with_config(
-            connection_config.db_url.clone(),
+            &connection_config.db_url,
             connection_config.db_pool_size,
             service_config.limits.request_timeout_ms.into(),
             IndexerMetrics::new(&registry),
@@ -1232,6 +1257,7 @@ pub mod tests {
         );
         server_builder.build_schema();
 
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let resp = reqwest::get(&url).await.unwrap();
         assert_eq!(resp.status(), reqwest::StatusCode::OK);
 

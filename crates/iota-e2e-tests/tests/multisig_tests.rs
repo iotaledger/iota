@@ -119,20 +119,17 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     pk_bytes[1..].copy_from_slice(x.unwrap());
     let passkey_pk = PasskeyPublicKey::new(Secp256r1PublicKey::new(pk_bytes));
 
-    // Construct a multisig with 4 pks (ed25519, secp256k1, secp256r1, passkey) with
+    // Construct a multisig with 3 pks (secp256k1, secp256r1, passkey) with
     // threshold = 1.
-    let kp1 = Ed25519PrivateKey::random();
-    let kp2 = Secp256k1PrivateKey::random();
-    let kp3 = Secp256r1PrivateKey::random();
-    let pk0 = kp1.public_key(); // ed25519
-    let pk1 = kp2.public_key(); // secp256k1
-    let pk2 = kp3.public_key(); // secp256r1
+    let kp1 = Secp256k1PrivateKey::random();
+    let kp2 = Secp256r1PrivateKey::random();
+    let pk0 = kp1.public_key(); // secp256k1
+    let pk1 = kp2.public_key(); // secp256r1
 
     let multisig_pk = MultisigCommittee::new(
         vec![
             MultisigMember::new(pk0, 1),
             MultisigMember::new(pk1, 1),
-            MultisigMember::new(pk2, 1),
             MultisigMember::new(passkey_pk, 1),
         ],
         1,
@@ -256,10 +253,10 @@ async fn test_multisig_e2e() {
     let context = &test_cluster.wallet;
     let rgp = test_cluster.get_reference_gas_price().await;
 
-    let kp1 = Ed25519PrivateKey::random();
+    let kp1 = Secp256r1PrivateKey::random();
     let kp2 = Secp256k1PrivateKey::random();
     let kp3 = Secp256r1PrivateKey::random();
-    let pk0 = kp1.public_key(); // ed25519
+    let pk0 = kp1.public_key(); // secp256r1
     let pk1: PublicKey = kp2.public_key().into(); // secp256k1
     let pk2 = kp3.public_key(); // secp256r1
 
@@ -376,6 +373,76 @@ async fn test_multisig_e2e() {
             .to_string()
             .contains(format!("Invalid sig for pk={}", pk3.to_base64()).as_str())
     );
+}
+
+#[sim_test]
+async fn test_multisig_mixed_ed25519_requires_all_signatures() {
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let context = &test_cluster.wallet;
+    let rgp = test_cluster.get_reference_gas_price().await;
+
+    let keys: [SimpleKeypair; 3] = [
+        Ed25519PrivateKey::random().into(),
+        Secp256k1PrivateKey::random().into(),
+        Secp256r1PrivateKey::random().into(),
+    ];
+    let multisig_pk = MultisigCommittee::new_unchecked(
+        keys.iter()
+            .map(|key| MultisigMember::new(key.public_key(), 1))
+            .collect(),
+        2,
+    );
+    let multisig_addr = Address::from(&multisig_pk);
+
+    // Signatures reaching the threshold without every member fail to execute.
+    let gas = test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
+        .await;
+    let tx1 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
+        .transfer_iota(None, Address::ZERO)
+        .build_and_sign_multisig(multisig_pk.clone(), &[&keys[0], &keys[1]], 0b011);
+    let res = context.execute_transaction_may_fail(tx1).await;
+    assert!(
+        res.unwrap_err()
+            .to_string()
+            .contains("requires a signature from every member")
+    );
+
+    // Signatures from every member execute successfully.
+    let tx2 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
+        .transfer_iota(None, Address::ZERO)
+        .build_and_sign_multisig(multisig_pk, &[&keys[0], &keys[1], &keys[2]], 0b111);
+    let res = context.execute_transaction_must_succeed(tx2).await;
+    assert!(res.status_ok().unwrap());
+
+    // A committee of Ed25519 keys only still executes with signatures from a
+    // subset of its members.
+    let ed25519_keys: [SimpleKeypair; 3] = [
+        Ed25519PrivateKey::random().into(),
+        Ed25519PrivateKey::random().into(),
+        Ed25519PrivateKey::random().into(),
+    ];
+    let ed25519_multisig_pk = MultisigCommittee::new(
+        ed25519_keys
+            .iter()
+            .map(|key| MultisigMember::new(key.public_key(), 1))
+            .collect(),
+        2,
+    )
+    .unwrap();
+    let ed25519_multisig_addr = Address::from(&ed25519_multisig_pk);
+    let gas = test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), ed25519_multisig_addr)
+        .await;
+    let tx3 = TestTransactionBuilder::new(ed25519_multisig_addr, gas, rgp)
+        .transfer_iota(None, Address::ZERO)
+        .build_and_sign_multisig(
+            ed25519_multisig_pk,
+            &[&ed25519_keys[0], &ed25519_keys[2]],
+            0b101,
+        );
+    let res = context.execute_transaction_must_succeed(tx3).await;
+    assert!(res.status_ok().unwrap());
 }
 
 #[sim_test]

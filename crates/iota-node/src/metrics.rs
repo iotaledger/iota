@@ -203,6 +203,7 @@ iota_counter_2 1"
     }
 
     async fn get_metrics(port: u16) -> String {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::new();
         let response = client
             .get(format!("http://127.0.0.1:{port}/metrics"))

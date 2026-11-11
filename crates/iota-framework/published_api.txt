@@ -112,6 +112,18 @@ pool_token_amount
 is_preactive_at_epoch
 	fun
 	0x3::staking_pool
+latest_exchange_rate_epoch
+	fun
+	0x3::staking_pool
+earliest_exchange_rate_epoch
+	fun
+	0x3::staking_pool
+is_stake_pending
+	fun
+	0x3::staking_pool
+pool_token_exchange_rate_at_stake_activation
+	fun
+	0x3::staking_pool
 get_iota_amount
 	fun
 	0x3::staking_pool
@@ -1120,12 +1132,6 @@ ecvrf_verify
 ed25519_verify
 	public fun
 	0x2::ed25519
-is_feature_enabled
-	public(package) fun
-	0x2::protocol_config
-get_attr
-	public(package) fun
-	0x2::protocol_config
 hash_to_input
 	public fun
 	0x2::vdf
@@ -1138,6 +1144,12 @@ vdf_verify
 vdf_verify_internal
 	fun
 	0x2::vdf
+is_feature_enabled
+	public(package) fun
+	0x2::protocol_config
+get_attr
+	public(package) fun
+	0x2::protocol_config
 TxContext
 	public struct
 	0x2::tx_context

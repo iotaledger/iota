@@ -5,6 +5,9 @@
 use std::str::FromStr;
 
 use anyhow::ensure;
+use iota_sdk_move_types::iota_system::iota_system_state_inner::{
+    SystemEpochInfoEventV1, SystemEpochInfoEventV2,
+};
 use iota_sdk_types::{Event, TransactionDigest};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -117,40 +120,4 @@ impl From<Event> for SystemEpochInfoEvent {
             )
         }
     }
-}
-
-/// Event emitted in move code `fun advance_epoch` in protocol versions 1 to 3
-#[derive(Serialize, Deserialize, Default)]
-pub struct SystemEpochInfoEventV1 {
-    pub epoch: u64,
-    pub protocol_version: u64,
-    pub reference_gas_price: u64,
-    pub total_stake: u64,
-    pub storage_charge: u64,
-    pub storage_rebate: u64,
-    pub storage_fund_balance: u64,
-    pub total_gas_fees: u64,
-    pub total_stake_rewards_distributed: u64,
-    pub burnt_tokens_amount: u64,
-    pub minted_tokens_amount: u64,
-}
-
-/// Event emitted in move code `fun advance_epoch` in protocol versions 5 and
-/// later.
-/// This second version of the event includes the tips amount to show how much
-/// of the gas fees go to the validators when protocol_defined_base_fee is
-/// enabled in the protocol config.
-#[derive(Serialize, Deserialize, Default)]
-pub struct SystemEpochInfoEventV2 {
-    pub epoch: u64,
-    pub protocol_version: u64,
-    pub total_stake: u64,
-    pub storage_charge: u64,
-    pub storage_rebate: u64,
-    pub storage_fund_balance: u64,
-    pub total_gas_fees: u64,
-    pub total_stake_rewards_distributed: u64,
-    pub burnt_tokens_amount: u64,
-    pub minted_tokens_amount: u64,
-    pub tips_amount: u64,
 }

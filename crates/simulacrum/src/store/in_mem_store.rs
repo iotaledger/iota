@@ -133,7 +133,7 @@ impl InMemoryStore {
         iota_types::iota_system_state::get_iota_system_state(self).expect("system state must exist")
     }
 
-    pub fn get_clock(&self) -> iota_types::clock::Clock {
+    pub fn get_clock(&self) -> iota_sdk_move_types::iota_framework::clock::Clock {
         self.get_object(&ObjectId::CLOCK)
             .expect("clock should exist")
             .to_rust()
@@ -582,7 +582,7 @@ impl SimulatorStore for InMemoryStore {
         self.get_system_state()
     }
 
-    fn get_clock(&self) -> iota_types::clock::Clock {
+    fn get_clock(&self) -> iota_sdk_move_types::iota_framework::clock::Clock {
         self.get_clock()
     }
 

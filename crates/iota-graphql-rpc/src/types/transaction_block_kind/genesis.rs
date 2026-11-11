@@ -62,8 +62,12 @@ impl GenesisTransaction {
                 TransactionDigest::GENESIS_MARKER,
             );
 
-            let object =
-                Object::from_native(IotaAddress::from(native.id()), native, cursor.c, None);
+            let object = Object::from_native(
+                IotaAddress::from(native.id()),
+                native,
+                cursor.c.into(),
+                None,
+            );
             connection
                 .edges
                 .push(Edge::new(cursor.encode_cursor(), object));
@@ -99,7 +103,7 @@ impl GenesisTransaction {
             let event = Event {
                 checkpointed_info: None,
                 native: native_event,
-                checkpoint_viewed_at: cursor.c,
+                checkpoint_viewed_at: cursor.c.into(),
             };
 
             connection

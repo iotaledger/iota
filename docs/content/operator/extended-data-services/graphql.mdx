@@ -98,11 +98,22 @@ Resolving a dynamic field or dynamic object field at a parent object's version n
 
 :::
 
-The `--fallback-kv-multi-fetch-batch-size`, `--fallback-kv-concurrent-fetches`, and `--fallback-kv-cache-size` knobs tune the KV client's request batching, concurrency, and in-memory cache.
+The `--fallback-kv-multi-fetch-batch-size`, `--fallback-kv-concurrent-fetches`, and `--fallback-kv-cache-size` knobs tune the KV client's request batching, concurrency, and in-memory cache. `--fallback-kv-max-response-size-bytes` caps the size of a single response body accepted from the KV store, larger responses are rejected.
 
 ### HTTP server
 
 `--host` and `--port` set the address the GraphQL endpoint binds to (default `127.0.0.1:8000`). The interactive GraphiQL IDE is served on the same address; its page title comes from `--ide-title`.
+
+### Response headers
+
+Every response carries two headers that clients use to check compatibility:
+
+| Header                   | Value                                                                             |
+| ------------------------ | --------------------------------------------------------------------------------- |
+| `x-iota-rpc-version`     | Full version of the running binary, including the git sha.                        |
+| `x-iota-min-sdk-version` | Lowest `iota-sdk-graphql-client` version able to decode this service's responses. |
+
+The minimum SDK version is fixed at build time and cannot be configured. It is raised in releases whose responses an older SDK cannot decode, so clients on an older SDK reject the service instead of panicking on unknown values.
 
 ### Prometheus metrics
 
@@ -190,6 +201,7 @@ reverse-registry-id = "0x..."
 | `--fallback-kv-multi-fetch-batch-size` | `100`                                                   | Experimental. Maximum number of keys per batch request to the fallback KV store. Also `FALLBACK_KV_MULTI_FETCH_BATCH_SIZE` env var. |
 | `--fallback-kv-concurrent-fetches`    | `10`                                                     | Experimental. Maximum number of concurrent batch requests to the fallback KV store. Also `FALLBACK_KV_CONCURRENT_FETCHES` env var. |
 | `--fallback-kv-cache-size`            | `100000`                                                 | Experimental. In-memory cache size for historic fallback. Also `FALLBACK_KV_CACHE_SIZE` env var.  |
+| `--fallback-kv-max-response-size-bytes` | `~ 134 MB`                                             | Experimental. Maximum size in bytes of a single response body accepted from the fallback KV store. Also `FALLBACK_KV_MAX_RESPONSE_SIZE_BYTES` env var. |
 | `--ide-title`, `-i`                   | `IOTA GraphQL IDE`                                       | Title displayed at the top of the GraphiQL IDE.                                                   |
 | `--config`, `-c`                      | _(none)_                                                 | Path to a TOML file with service configuration; see below.                                        |
 
@@ -215,6 +227,8 @@ The `[limits]` table controls how heavy a single query can be.
 | `max-move-value-depth`       | `128`       | Maximum depth of a Move value.                                                                                                                           |
 | `max-transaction-ids`        | `1000`      | Maximum number of transaction ids accepted by `TransactionBlockFilter` and `transactionBlocksByDigests`.                                                 |
 | `max-scan-limit`             | `100000000` | Maximum number of candidate rows the database scans when assembling a page.                                                                              |
+| `max-subscription-recovery-checkpoints` | `20000` | Maximum number of checkpoints a subscription replays from the database when resuming from `startAfter`. An older item is rejected. |
+| `max-active-subscriptions` | `1000` | Maximum number of subscriptions active at the same time across all connections. |
 
 ### TOML — other tables
 

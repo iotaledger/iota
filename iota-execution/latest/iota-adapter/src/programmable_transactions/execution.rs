@@ -16,6 +16,7 @@ mod checked {
 
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_move_types::iota_framework::package::UpgradeTicket;
     use iota_sdk_types::{
         Address, Command, CommandArgumentError, Identifier, MovePackage, ObjectId,
         PackageUpgradeError, ProgrammableTransaction, StructTag, TypeTag,
@@ -23,23 +24,23 @@ mod checked {
     use iota_types::{
         auth_context,
         base_types::{
-            MoveLegacyTxContext, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR,
-            TxContext, TxContextKind,
+            MoveLegacyTxContext, RESOLVED_ASCII_STR, RESOLVED_IOTA_ID, RESOLVED_STD_OPTION,
+            RESOLVED_UTF8_STR, TxContext, TxContextKind,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, IotaError, command_argument_error},
         execution::{ExecutionTiming, ResultWithTimings},
         execution_config_utils::to_binary_config,
-        id::RESOLVED_IOTA_ID,
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
             IotaAttributeV2, MovePackageExt, ProtocolBuildConfig, RuntimeModuleMetadata,
-            UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
+            UpgradeCap, UpgradePolicy, UpgradeReceipt,
             normalize_deserialized_modules_with_metadata, normalize_modules_with_metadata,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
+        transaction::ProgrammableTransactionExt,
         transfer::RESOLVED_RECEIVING_STRUCT,
     };
     use iota_verifier::{
@@ -52,14 +53,14 @@ mod checked {
     use move_binary_format::{
         CompiledModule,
         compatibility::{Compatibility, InclusionCheck},
-        errors::{Location, PartialVMResult, VMResult},
+        errors::{Location, PartialVMError, PartialVMResult, VMResult},
         file_format::{AbilitySet, CodeOffset, FunctionDefinitionIndex, LocalIndex, Visibility},
-        file_format_common::VERSION_6,
+        file_format_common::{BinaryConstants, BinaryFlavor, VERSION_6},
         normalized,
     };
     use move_core_types::{
         account_address::AccountAddress, identifier::IdentStr, language_storage::ModuleId,
-        u256::U256,
+        u256::U256, vm_status::StatusCode,
     };
     use move_trace_format::format::MoveTraceBuilder;
     use move_vm_runtime::{
@@ -137,6 +138,13 @@ mod checked {
         pt: ProgrammableTransaction,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<Mode::ExecutionResults, ExecutionError> {
+        if protocol_config.validate_ptb_argument_indices() {
+            if let Err(err) = pt.validate_argument_indices() {
+                invariant_violation!(
+                    "PTB argument indices are checked at signing -- this should be impossible: {err}"
+                );
+            }
+        }
         let ProgrammableTransaction { inputs, commands } = pt;
         let mut context = ExecutionContext::new(
             protocol_config,
@@ -815,7 +823,7 @@ mod checked {
         };
 
         let pool = &mut normalized::RcPool::new();
-        let binary_config = to_binary_config(context.protocol_config);
+        let binary_config = to_binary_config(context.protocol_config, None);
         let current_normalized = match normalize_modules_with_metadata(
             pool,
             existing_package.serialized_module_map().values(),
@@ -1095,12 +1103,19 @@ mod checked {
         context: &mut ExecutionContext<'_, '_, '_>,
         module_bytes: &[Vec<u8>],
     ) -> Result<Vec<CompiledModule>, ExecutionError> {
-        let binary_config = to_binary_config(context.protocol_config);
+        let check_canonical_header = context
+            .protocol_config
+            .check_canonical_module_version_header();
+        let binary_config = to_binary_config(context.protocol_config, None);
         let modules = module_bytes
             .iter()
             .map(|b| {
-                CompiledModule::deserialize_with_config(b, &binary_config)
-                    .map_err(|e| e.finish(Location::Undefined))
+                let module = CompiledModule::deserialize_with_config(b, &binary_config)
+                    .map_err(|e| e.finish(Location::Undefined))?;
+                if check_canonical_header {
+                    canonical_version_header(b, &module)?;
+                }
+                Ok(module)
             })
             .collect::<VMResult<Vec<CompiledModule>>>()
             .map_err(|e| context.convert_vm_error(e))?;
@@ -1111,6 +1126,26 @@ mod checked {
         );
 
         Ok(modules)
+    }
+
+    /// Rejects a module header that is not the encoding the serializer writes
+    /// for the version the header decodes to.
+    ///
+    /// Below binary format version 7 the flavor is not part of the header, so
+    /// the deserializer masks the high byte off instead of reading it.
+    /// Requiring the round trip through `encode_version` keeps the header
+    /// the only encoding of its version.
+    fn canonical_version_header(module_bytes: &[u8], module: &CompiledModule) -> VMResult<()> {
+        let start = BinaryConstants::MOVE_MAGIC_SIZE;
+        let header: Option<[u8; 4]> = module_bytes
+            .get(start..start + 4)
+            .and_then(|bytes| bytes.try_into().ok());
+        if header.map(u32::from_le_bytes) != Some(BinaryFlavor::encode_version(module.version)) {
+            return Err(PartialVMError::new(StatusCode::UNKNOWN_VERSION)
+                .with_message("Non-canonical version header".to_string())
+                .finish(Location::Undefined));
+        }
+        Ok(())
     }
 
     /// Publishes a set of `CompiledModule` instances to the blockchain under
@@ -1311,6 +1346,14 @@ mod checked {
             (Visibility::Private | Visibility::Friend, false)
                 if Mode::allow_arbitrary_function_calls() =>
             {
+                // A non-public native trusts its Move callers to check its
+                // arguments.
+                if fdef.is_native() && !Mode::allow_non_public_native_calls() {
+                    return Err(ExecutionError::new_with_source(
+                        ExecutionErrorKind::NonEntryFunctionInvoked,
+                        "Cannot call a non-public native function directly",
+                    ));
+                }
                 FunctionKind::NonEntry
             }
             (Visibility::Private | Visibility::Friend, false) => {
@@ -1571,6 +1614,7 @@ mod checked {
             let bcs_true_value = bcs::to_bytes(&true).unwrap();
             serialized_args.push(bcs_true_value)
         }
+        let mut call_argument_nodes = context.new_call_argument_node_budget();
         for ((idx, arg), param_ty) in args.iter().copied().enumerate().zip(parameters) {
             let (value, non_ref_param_ty): (Value, &Type) = match param_ty {
                 Type::MutableReference(inner) => {
@@ -1615,8 +1659,15 @@ mod checked {
                 value.write_bcs_bytes(&mut v, None)?;
                 v
             };
+            context.count_argument_nodes(
+                &mut call_argument_nodes,
+                idx,
+                non_ref_param_ty,
+                &bytes,
+            )?;
             serialized_args.push(bytes);
         }
+        context.record_call_argument_nodes(call_argument_nodes);
         Ok((tx_ctx_kind, has_auth_context, by_mut_ref, serialized_args))
     }
 

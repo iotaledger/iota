@@ -722,7 +722,9 @@ pub(crate) async fn check_compatibility(
     let existing_modules = existing_package
         .module_map
         .iter()
-        .map(|m| CompiledModule::deserialize_with_config(m.1, &to_binary_config(&protocol_config)))
+        .map(|m| {
+            CompiledModule::deserialize_with_config(m.1, &to_binary_config(&protocol_config, None))
+        })
         .collect::<Result<Vec<_>, _>>()
         .context("Unable to get existing package")?;
 
@@ -732,7 +734,7 @@ pub(crate) async fn check_compatibility(
     compare_packages(
         AccountAddress::new(
             existing_package
-                .to_move_package(u64::MAX /* safe as this pkg comes from the network */)?
+                .to_move_package()
                 .original_package_id()
                 .into_bytes(),
         ),

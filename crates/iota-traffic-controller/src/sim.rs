@@ -12,7 +12,7 @@ use std::{
 };
 
 use iota_types::traffic_control::{PolicyConfig, Weight};
-use rand::Rng;
+use rand::RngExt;
 use tokio::time;
 use tracing::error;
 
@@ -65,7 +65,7 @@ impl TrafficSim {
         assert!(per_client_tps > 0);
         assert!(duration.as_secs() > 0);
 
-        let controller = TrafficController::init_for_test(policy, None);
+        let controller = TrafficController::init_for_test(policy);
         let tasks = (0..num_clients).map(|task_num| {
             tokio::spawn(Self::run_single_client(
                 controller.clone(),
@@ -96,7 +96,7 @@ impl TrafficSim {
         // Do an initial sleep for a random amount of time to smooth
         // out the traffic. This shouldn't be strictly necessary and
         // we can remove if we want more determinism
-        let sleep_time = Duration::from_micros(rand::thread_rng().gen_range(0..100));
+        let sleep_time = Duration::from_micros(rand::rng().random_range(0..100));
         tokio::time::sleep(sleep_time).await;
 
         // collectors

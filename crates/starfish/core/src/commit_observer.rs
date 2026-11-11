@@ -28,7 +28,7 @@ use crate::{
     leader_schedule::LeaderSchedule,
     linearizer::Linearizer,
     storage::Store,
-    transaction_ref::GenericTransactionRef,
+    transaction_ref::TransactionRef,
 };
 
 #[derive(Clone, Copy)]
@@ -50,11 +50,9 @@ impl CommittedSubDagSource {
 
 /// Role of CommitObserver
 /// - Called by core when try_commit() returns newly committed leaders.
-/// - The newly committed leaders are sent to commit observer and then commit
-///   observer gets subdags for each leader via the commit interpreter
-///   (linearizer)
-/// - The committed subdags are sent as consensus output via an unbounded tokio
-///   channel.
+/// - The newly committed leaders are sent to commit observer and then commit observer gets subdags
+///   for each leader via the commit interpreter (linearizer)
+/// - The committed subdags are sent as consensus output via an unbounded tokio channel.
 ///
 /// During normal operation no backpressure mechanism is needed as backpressure
 /// is handled as input into consensus. During recovery, resending the
@@ -62,10 +60,10 @@ impl CommittedSubDagSource {
 /// bounded; the consumer must therefore already be draining the channel when
 /// the observer is created.
 ///
-/// - Commit metadata including index is persisted in store, before the
-///   CommittedSubDag is sent to the consumer.
-/// - When CommitObserver is initialized a last processed commit index can be
-///   used to ensure any missing commits are re-sent.
+/// - Commit metadata including index is persisted in store, before the CommittedSubDag is sent to
+///   the consumer.
+/// - When CommitObserver is initialized a last processed commit index can be used to ensure any
+///   missing commits are re-sent.
 pub(crate) struct CommitObserver {
     context: Arc<Context>,
     /// Component to deterministically collect subdags for committed leaders.
@@ -83,8 +81,8 @@ pub(crate) struct CommitObserver {
     dag_state: Arc<RwLock<DagState>>,
 
     leader_schedule: Arc<LeaderSchedule>,
-    /// Tracks the last commit index sent through the channel.
-    /// Used to prevent resending already sent commits.
+    /// Tracks the last commit index sent through the channel. Only solid
+    /// commits are sent. Used to prevent resending already sent commits.
     last_sent_commit_index: CommitIndex,
 }
 
@@ -120,29 +118,27 @@ impl CommitObserver {
         observer
     }
 
-    /// Reinitialize the CommitObserver at a new commit index.
-    /// Uses the existing `recover_and_send_commits` method which handles:
-    /// - Recovering linearizer state (transaction ack tracker, traversed
-    ///   headers)
-    /// - Only re-sends commits that are > last_commit_index (none in this case)
-    pub(crate) async fn reinitialize(
-        &mut self,
-        last_commit_index: CommitIndex,
-    ) -> ConsensusResult<()> {
+    /// Reinitializes the CommitObserver after fast sync. Stored commits above
+    /// the last one sent to execution are sent once their transactions are
+    /// available.
+    pub(crate) async fn reinitialize(&mut self) -> ConsensusResult<()> {
         let now = Instant::now();
 
         // Clear linearizer state
         self.linearizer.clear_state();
-        self.last_sent_commit_index = last_commit_index;
 
-        // Reuse existing recovery logic - it won't resend commits since
-        // they're all <= last_commit_index
-        self.recover_and_send_commits(last_commit_index, CommittedSubDagSource::FastCommitSyncer)
-            .await?;
+        let last_sent_commit_index = self.last_sent_commit_index;
+        self.recover_and_send_commits(
+            last_sent_commit_index,
+            CommittedSubDagSource::FastCommitSyncer,
+        )
+        .await?;
 
         info!(
-            "CommitObserver reinitialized at commit index {}, took {:?}",
-            last_commit_index,
+            "CommitObserver reinitialized: commits up to {} were already sent to execution, \
+             recovery sent up to {}, took {:?}",
+            last_sent_commit_index,
+            self.last_sent_commit_index,
             now.elapsed()
         );
         Ok(())
@@ -152,23 +148,17 @@ impl CommitObserver {
     ///
     /// # Returns
     /// A tuple containing:
-    /// - A vector of sub-dags, which include block references to committed
-    ///   transactions (but not the transactions themselves) created by the
-    ///   committed leaders.
-    /// - A vector of block references to transactions that were missing during
-    ///   the commit.
+    /// - A vector of sub-dags, which include block references to committed transactions (but not
+    ///   the transactions themselves) created by the committed leaders.
+    /// - A vector of block references to transactions that were missing during the commit.
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn handle_committed_leaders(
         &mut self,
-        committed_leaders: Vec<(
-            VerifiedBlockHeader,
-            Option<CommitMetastate>,
-            Vec<AuthorityIndex>,
-        )>,
+        committed_leaders: Vec<(VerifiedBlockHeader, CommitMetastate, Vec<AuthorityIndex>)>,
         source: CommittedSubDagSource,
     ) -> ConsensusResult<(
         Vec<PendingSubDag>,
-        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _s = self
             .context
@@ -243,7 +233,7 @@ impl CommitObserver {
         let transaction_results = self
             .dag_state
             .read()
-            .try_get_verified_transactions(&tx_refs)?;
+            .try_get_verified_transactions(tx_refs)?;
         let missing_refs: Vec<_> = tx_refs
             .iter()
             .zip(&transaction_results)
@@ -347,6 +337,10 @@ impl CommitObserver {
         // not be reset per batch.
         self.commit_solidifier
             .set_last_solid_committed_index(self.last_sent_commit_index);
+        // Buffered commits up to this index were already sent by fast sync and
+        // can no longer be output.
+        self.commit_solidifier
+            .remove_pending_subdags_up_to(self.last_sent_commit_index);
 
         // Process in bounded batches so a large unprocessed range (e.g. when tx
         // data lagged behind commits for a long period) is never materialized at
@@ -641,7 +635,7 @@ impl CommitObserver {
     /// who acknowledged them
     pub(crate) fn get_missing_transaction_data(
         &self,
-    ) -> BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> {
+    ) -> BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>> {
         let missing_refs = self.commit_solidifier.get_missing_transaction_data();
         self.linearizer
             .get_transaction_ack_authors(missing_refs.into_iter().collect())
@@ -765,12 +759,11 @@ mod tests {
     use super::*;
     use crate::{
         block_header::BlockRef,
-        commit::with_no_metastate,
+        commit::with_standard_metastate,
         context::Context,
         dag_state::{DagState, DataSource},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
-        transaction_ref::GenericTransactionRefAPI,
     };
 
     #[tokio::test]
@@ -816,7 +809,7 @@ mod tests {
 
         let (commits, _missing_transactions_refs) = observer
             .handle_committed_leaders(
-                with_no_metastate(leaders.clone()),
+                with_standard_metastate(leaders.clone()),
                 CommittedSubDagSource::Consensus,
             )
             .unwrap();
@@ -940,7 +933,7 @@ mod tests {
         let expected_last_processed_index: usize = 2;
         let (mut created_commits, _missing_transactions_refs) = observer
             .handle_committed_leaders(
-                with_no_metastate(
+                with_standard_metastate(
                     leaders
                         .clone()
                         .into_iter()
@@ -979,7 +972,7 @@ mod tests {
         created_commits.append(
             &mut observer
                 .handle_committed_leaders(
-                    with_no_metastate(
+                    with_standard_metastate(
                         leaders
                             .into_iter()
                             .skip(expected_last_processed_index)
@@ -1092,7 +1085,10 @@ mod tests {
         // the consensus output channel.
         let expected_last_processed_index: usize = 10;
         let (created_commits, _missing_transactions_refs) = observer
-            .handle_committed_leaders(with_no_metastate(leaders), CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(
+                with_standard_metastate(leaders),
+                CommittedSubDagSource::Consensus,
+            )
             .unwrap();
 
         // Check commits sent over consensus output channel is accurate
@@ -1189,7 +1185,10 @@ mod tests {
         assert_eq!(leaders.len(), num_rounds as usize);
 
         let _ = observer
-            .handle_committed_leaders(with_no_metastate(leaders), CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(
+                with_standard_metastate(leaders),
+                CommittedSubDagSource::Consensus,
+            )
             .unwrap();
 
         // Drain the receiver to simulate consumer processing commits before crash.
@@ -1215,9 +1214,9 @@ mod tests {
             let dag_state_guard = dag_state.read();
             for commit in &commits {
                 let committed_refs = commit.committed_transactions();
-                let tx_results = dag_state_guard.get_verified_transactions(&committed_refs);
+                let tx_results = dag_state_guard.get_verified_transactions(committed_refs);
                 let missing_refs = committed_refs
-                    .into_iter()
+                    .iter()
                     .zip(tx_results.iter())
                     .filter_map(|(tx_ref, tx)| tx.is_none().then_some(tx_ref))
                     .collect::<Vec<_>>();
@@ -1380,7 +1379,10 @@ mod tests {
             .map(Option::unwrap)
             .collect::<Vec<_>>();
         observer
-            .handle_committed_leaders(with_no_metastate(leaders), CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(
+                with_standard_metastate(leaders),
+                CommittedSubDagSource::Consensus,
+            )
             .unwrap();
         while receiver.try_recv().is_ok() {}
         drop(observer);
@@ -1459,8 +1461,8 @@ mod tests {
     /// 1. Create blocks and commit some leaders
     /// 2. Restart node (clears traversed_headers_tracker)
     /// 3. During recovery, verify that traversed headers are recorded
-    /// 4. Verify that new blocks can still successfully acknowledge and commit
-    ///    transactions from blocks that existed before restart
+    /// 4. Verify that new blocks can still successfully acknowledge and commit transactions from
+    ///    blocks that existed before restart
     #[tokio::test]
     async fn test_recovery_restores_persistent_state_across_restart() {
         telemetry_subscribers::init_for_testing();
@@ -1529,7 +1531,7 @@ mod tests {
         // Each leader in the first 3 rounds has transactions from previous rounds
         let (_, _) = observer
             .handle_committed_leaders(
-                with_no_metastate(all_leaders[0..3].to_vec()),
+                with_standard_metastate(all_leaders[0..3].to_vec()),
                 CommittedSubDagSource::Consensus,
             )
             .unwrap();
@@ -1574,7 +1576,7 @@ mod tests {
         // plus transactions from recovered blocks (rounds 1-3)
         let (_commits_after, _) = observer_after_restart
             .handle_committed_leaders(
-                with_no_metastate(new_leaders),
+                with_standard_metastate(new_leaders),
                 CommittedSubDagSource::Consensus,
             )
             .unwrap();
@@ -1590,23 +1592,21 @@ mod tests {
         assert!(txs_after >= txs_before * 4,);
     }
 
-    /// Run the commit pipeline through a restart. With `starfish_speed` true,
-    /// L5 is committed Optimistically (full-committee strong-voters); with
-    /// false, L5 is committed standardly. Returns L5's ref, L5's acks, the
-    /// refs in L5's commit, and the refs across all post-restart commits.
+    /// Run the commit pipeline through a restart. With `optimistic` true, L5
+    /// is committed Optimistically (full-committee strong-voters); with false,
+    /// L5 is committed standardly. Returns L5's ref, L5's acks, the refs in
+    /// L5's commit, and the refs across all post-restart commits.
     async fn run_recovery_scenario(
-        starfish_speed: bool,
+        optimistic: bool,
     ) -> (
         BlockRef,
         Vec<BlockRef>,
-        Vec<GenericTransactionRef>,
-        Vec<GenericTransactionRef>,
+        Vec<TransactionRef>,
+        Vec<TransactionRef>,
     ) {
         let num_authorities = 4;
 
-        let mut protocol_config =
-            iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_starfish_speed_for_testing(starfish_speed);
+        let protocol_config = iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
 
         let (committee, _keypairs) =
             starfish_config::local_committee_and_keys(0, vec![1; num_authorities]);
@@ -1666,18 +1666,18 @@ mod tests {
 
         observer
             .handle_committed_leaders(
-                with_no_metastate(leaders_1_to_4),
+                with_standard_metastate(leaders_1_to_4),
                 CommittedSubDagSource::Consensus,
             )
             .unwrap();
 
-        let l5_meta = if starfish_speed {
+        let l5_meta = if optimistic {
             let strong_voters: Vec<AuthorityIndex> = (0..num_authorities as u8)
                 .map(AuthorityIndex::new_for_test)
                 .collect();
-            vec![(l5, Some(CommitMetastate::Optimistic), strong_voters)]
+            vec![(l5, CommitMetastate::Optimistic, strong_voters)]
         } else {
-            with_no_metastate(vec![l5])
+            with_standard_metastate(vec![l5])
         };
         let (pre_commits, _) = observer
             .handle_committed_leaders(l5_meta, CommittedSubDagSource::Consensus)
@@ -1704,11 +1704,11 @@ mod tests {
         let later_leaders: Vec<_> = builder.leader_blocks(6..=8).into_iter().flatten().collect();
         let (later_commits, _) = observer_after
             .handle_committed_leaders(
-                with_no_metastate(later_leaders),
+                with_standard_metastate(later_leaders),
                 CommittedSubDagSource::Consensus,
             )
             .unwrap();
-        let post_refs: Vec<GenericTransactionRef> = later_commits
+        let post_refs: Vec<TransactionRef> = later_commits
             .iter()
             .flat_map(|c| c.committed_transaction_refs.iter().cloned())
             .collect();
@@ -1716,71 +1716,72 @@ mod tests {
         (l5_ref, l5_acks, pre_refs, post_refs)
     }
 
-    /// With `consensus_starfish_speed` ON, L5 is committed Optimistically and
-    /// its ref + acks land in commit 5 (early); recovery seeding then
-    /// suppresses re-commit post-restart. With the flag OFF, L5 is
-    /// committed standardly: its ref + acks are NOT in commit 5 and appear
-    /// only later, when natural 2f+1 acks accumulate across post-restart
-    /// commits.
+    /// When L5 is committed Optimistically, its ref + acks land in commit 5
+    /// (early); recovery seeding then suppresses re-commit post-restart. When
+    /// L5 is committed standardly, its ref + acks are NOT in commit 5 and
+    /// appear only later, when natural 2f+1 acks accumulate across
+    /// post-restart commits.
     #[tokio::test]
     async fn test_optimistic_vs_standard_recovery_timing() {
         telemetry_subscribers::init_for_testing();
 
-        let (l5_ref_on, l5_acks_on, pre_on, post_on) = run_recovery_scenario(true).await;
-        let (l5_ref_off, l5_acks_off, pre_off, post_off) = run_recovery_scenario(false).await;
+        let (l5_ref_optimistic, l5_acks_optimistic, pre_optimistic, post_optimistic) =
+            run_recovery_scenario(true).await;
+        let (l5_ref_standard, l5_acks_standard, pre_standard, post_standard) =
+            run_recovery_scenario(false).await;
 
-        assert!(!l5_acks_on.is_empty(), "leader should have acks");
-        assert!(!l5_acks_off.is_empty(), "leader should have acks");
+        assert!(!l5_acks_optimistic.is_empty(), "leader should have acks");
+        assert!(!l5_acks_standard.is_empty(), "leader should have acks");
 
-        let contains = |refs: &[GenericTransactionRef], target: &BlockRef| -> bool {
+        let contains = |refs: &[TransactionRef], target: &BlockRef| -> bool {
             refs.iter()
-                .any(|r| r.round() == target.round && r.author() == target.author)
+                .any(|r| r.round == target.round && r.author == target.author)
         };
 
-        // Flag ON: L5's ref + every ack land in L5's commit (early), and
+        // Optimistic: L5's ref + every ack land in L5's commit (early), and
         // recovery seeding suppresses re-commit post-restart.
         assert!(
-            contains(&pre_on, &l5_ref_on),
-            "ON: L5's commit should include L5_ref"
+            contains(&pre_optimistic, &l5_ref_optimistic),
+            "Optimistic: L5's commit should include L5_ref"
         );
-        for ack in &l5_acks_on {
+        for ack in &l5_acks_optimistic {
             assert!(
-                contains(&pre_on, ack),
-                "ON: L5's commit should include L5_ack {ack:?}"
+                contains(&pre_optimistic, ack),
+                "Optimistic: L5's commit should include L5_ack {ack:?}"
             );
         }
         assert!(
-            !contains(&post_on, &l5_ref_on),
-            "ON: post-restart commits must NOT re-include L5_ref"
+            !contains(&post_optimistic, &l5_ref_optimistic),
+            "Optimistic: post-restart commits must NOT re-include L5_ref"
         );
-        for ack in &l5_acks_on {
+        for ack in &l5_acks_optimistic {
             assert!(
-                !contains(&post_on, ack),
-                "ON: post-restart commits must NOT re-include L5_ack {ack:?}"
+                !contains(&post_optimistic, ack),
+                "Optimistic: post-restart commits must NOT re-include L5_ack {ack:?}"
             );
         }
 
-        // Flag OFF: L5's ref + acks are NOT in L5's commit (no Optimistic
+        // Standard: L5's ref + acks are NOT in L5's commit (no Optimistic
         // pre-credit); they appear only in some later commit when 2f+1 acks
         // accumulate naturally.
         assert!(
-            !contains(&pre_off, &l5_ref_off),
-            "OFF: L5's commit must NOT include L5_ref"
+            !contains(&pre_standard, &l5_ref_standard),
+            "Standard: L5's commit must NOT include L5_ref"
         );
-        for ack in &l5_acks_off {
+        for ack in &l5_acks_standard {
             assert!(
-                !contains(&pre_off, ack),
-                "OFF: L5's commit must NOT include L5_ack {ack:?}"
+                !contains(&pre_standard, ack),
+                "Standard: L5's commit must NOT include L5_ack {ack:?}"
             );
         }
         assert!(
-            contains(&post_off, &l5_ref_off),
-            "OFF: post-restart commits SHOULD include L5_ref once natural acks accumulate"
+            contains(&post_standard, &l5_ref_standard),
+            "Standard: post-restart commits SHOULD include L5_ref once natural acks accumulate"
         );
-        for ack in &l5_acks_off {
+        for ack in &l5_acks_standard {
             assert!(
-                contains(&post_off, ack),
-                "OFF: post-restart commits SHOULD include L5_ack {ack:?} once natural acks accumulate"
+                contains(&post_standard, ack),
+                "Standard: post-restart commits SHOULD include L5_ack {ack:?} once natural acks accumulate"
             );
         }
     }
@@ -1796,13 +1797,12 @@ mod tests {
     #[case::standard(false)]
     #[case::optimistic(true)]
     #[tokio::test]
-    async fn test_recovery_seeds_backlog_acks(#[case] starfish_speed: bool) {
+    async fn test_recovery_seeds_backlog_acks(#[case] optimistic: bool) {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
 
         let mut protocol_config =
             iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_starfish_speed_for_testing(starfish_speed);
         // Small gc_depth so the backlog only needs to exceed 2 * gc_depth commits.
         let gc_depth = 5;
         protocol_config.set_gc_depth_for_testing(gc_depth);
@@ -1865,22 +1865,16 @@ mod tests {
         )
         .await;
 
-        let committed_leaders = if starfish_speed {
+        let committed_leaders = if optimistic {
             let strong_voters: Vec<AuthorityIndex> = (0..num_authorities as u8)
                 .map(AuthorityIndex::new_for_test)
                 .collect();
             leaders
                 .into_iter()
-                .map(|leader| {
-                    (
-                        leader,
-                        Some(CommitMetastate::Optimistic),
-                        strong_voters.clone(),
-                    )
-                })
+                .map(|leader| (leader, CommitMetastate::Optimistic, strong_voters.clone()))
                 .collect::<Vec<_>>()
         } else {
-            with_no_metastate(leaders)
+            with_standard_metastate(leaders)
         };
         observer
             .handle_committed_leaders(committed_leaders, CommittedSubDagSource::Consensus)
@@ -1909,7 +1903,7 @@ mod tests {
         // The stall must land inside the backlog that the old tip-anchored window
         // (last_commit - 2 * gc_depth) would have skipped, or the test wouldn't
         // distinguish the fix.
-        let earliest_missing_round = raw_missing.iter().map(|r| r.round()).min().unwrap();
+        let earliest_missing_round = raw_missing.iter().map(|r| r.round).min().unwrap();
         assert!(
             earliest_missing_round < num_rounds - 2 * gc_depth,
             "stall must land below the pre-fix seeding window"

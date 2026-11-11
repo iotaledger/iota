@@ -30,7 +30,7 @@ use crate::{
     backward_view::{HistoricalFilter, consistent, historical},
     config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
-    consistency::Checkpointed,
+    consistency::{Checkpointed, UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER},
     data::{DataLoader, Db, DbConnection, QueryExecutor, package_resolver::PackageResolver},
     error::Error,
     filter, or_filter,
@@ -53,8 +53,7 @@ use crate::{
         move_package::MovePackage,
         owner::{Owner, OwnerImpl},
         stake::StakedIota,
-        transaction_block,
-        transaction_block::{TransactionBlock, TransactionBlockFilter},
+        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
         type_filter::{ExactTypeFilter, TypeFilter},
         uint53::UInt53,
     },
@@ -123,8 +122,7 @@ pub(crate) struct ObjectRef {
 ///
 /// - Type matches the `type` filter,
 /// - AND, whose owner matches the `owner` filter,
-/// - AND, whose ID is in `objectIds` OR whose ID and version is in
-///   `objectKeys`.
+/// - AND, whose ID is in `objectIds` OR whose ID and version is in `objectKeys`.
 #[derive(InputObject, Default, Debug, Clone, Eq, PartialEq)]
 pub(crate) struct ObjectFilter {
     /// Filter objects by their type's `package`, `package::module`, or their
@@ -239,10 +237,10 @@ pub(crate) struct HistoricalObjectCursor {
     object_id: Vec<u8>,
     /// The version of the object this cursor points at.
     #[serde(rename = "v")]
-    object_version: u64,
+    object_version: UInt53,
     /// The checkpoint sequence number this was viewed at.
     #[serde(rename = "c")]
-    checkpoint_viewed_at: u64,
+    checkpoint_viewed_at: UInt53,
 }
 
 /// Interface implemented by on-chain values that are addressable by an ID (also
@@ -465,10 +463,10 @@ impl Object {
 
     /// The current status of the object as read from the off-chain store. The
     /// possible states are:
-    /// - NOT_INDEXED: The object is loaded from serialized data, such as the
-    ///   contents of a genesis or system package upgrade transaction.
-    /// - INDEXED: The object is retrieved from the off-chain index and
-    ///   represents the most recent or historical state of the object.
+    /// - NOT_INDEXED: The object is loaded from serialized data, such as the contents of a genesis
+    ///   or system package upgrade transaction.
+    /// - INDEXED: The object is retrieved from the off-chain index and represents the most recent
+    ///   or historical state of the object.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(self).status().await
     }
@@ -671,7 +669,10 @@ impl ObjectImpl<'_> {
                 initial_shared_version: UInt53::try_from(initial_shared_version.as_u64())
                     .extend()?,
             }))),
-            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
+            _ => Err(Error::Internal(
+                "unknown Owner variant in object owner".to_string(),
+            ))
+            .extend(),
         }
     }
 
@@ -1053,8 +1054,7 @@ impl TryFrom<StoredHistoryObject> for ActiveObject {
     ///
     /// Fails in the following cases:
     ///
-    /// - The row is not active (a wrapped or deleted tombstone, or an
-    ///   unrecognized status).
+    /// - The row is not active (a wrapped or deleted tombstone, or an unrecognized status).
     /// - The row has no serialized object, or it fails to deserialize.
     fn try_from(stored: StoredHistoryObject) -> Result<Self, Self::Error> {
         if !matches!(
@@ -1259,15 +1259,15 @@ impl HistoricalObjectCursor {
     pub(crate) fn new(object_id: Vec<u8>, object_version: u64, checkpoint_viewed_at: u64) -> Self {
         Self {
             object_id,
-            object_version,
-            checkpoint_viewed_at,
+            object_version: UInt53::new_unchecked(object_version),
+            checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
         }
     }
 }
 
 impl Checkpointed for Cursor {
     fn checkpoint_viewed_at(&self) -> u64 {
-        self.checkpoint_viewed_at
+        self.checkpoint_viewed_at.into()
     }
 }
 
@@ -1429,9 +1429,7 @@ impl FallbackObjectKey for ParentVersionKey {
 ///
 /// This function currently returns false for indexer restored from snapshot.
 fn objects_version_complete(db: &Db) -> bool {
-    db.inner
-        .ensure_data_not_pruned_for_checkpoint(0, &[CommitterTables::ObjectsVersion])
-        .is_ok()
+    !db.inner.is_pruned(CommitterTables::ObjectsVersion)
 }
 
 /// Fills the missing `results` entries with objects fetched from the
@@ -1671,7 +1669,11 @@ impl Loader<OptimisticKey> for Db {
         let mut missing_keys = Vec::new();
         for key in keys {
             if let Some(stored) = id_version_to_stored.get(&(key.id, key.version)) {
-                let object = Object::try_from_stored_object(stored.clone(), u64::MAX, None)?;
+                let object = Object::try_from_stored_object(
+                    stored.clone(),
+                    UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
+                    None,
+                )?;
                 result.insert(*key, Ok(object));
             } else {
                 missing_keys.push(*key);
@@ -1685,7 +1687,7 @@ impl Loader<OptimisticKey> for Db {
                 .map(|key| HistoricalKey {
                     id: key.id,
                     version: key.version,
-                    checkpoint_viewed_at: u64::MAX,
+                    checkpoint_viewed_at: UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
                 })
                 .collect();
 

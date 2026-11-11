@@ -21,13 +21,13 @@ use iota_sdk_types::{
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+        AuthenticatorFunctionRef, MoveAuthenticatorsForExecution,
     },
     auth_context::AuthContextData,
     base_types::TxContext,
     committee::EpochId,
-    error::{ExecutionError, IotaError, IotaResult},
-    execution::{ExecutionResult, ExecutionTiming, TypeLayoutStore},
+    error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
+    execution::{AuthenticateThenExecuteOutput, ExecutionResult, ExecutionTiming, TypeLayoutStore},
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
@@ -192,12 +192,9 @@ impl executor::Executor for Executor {
         gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
-        authenticators: Vec<(
-            MoveAuthenticator,
-            AuthenticatorFunctionRefForExecution,
-            CheckedInputObjects,
-        )>,
+        authenticators: MoveAuthenticatorsForExecution,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
+        gas_owner_pays: Option<&dyn Fn(&ExecutionErrorKind) -> bool>,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_signer: Address,
@@ -205,13 +202,7 @@ impl executor::Executor for Executor {
         auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> (
-        InnerTemporaryStore,
-        IotaGasStatus,
-        TransactionEffects,
-        Vec<ExecutionTiming>,
-        Result<(), ExecutionError>,
-    ) {
+    ) -> AuthenticateThenExecuteOutput<()> {
         authenticate_then_execute_transaction_to_effects::<execution_mode::Normal>(
             store,
             protocol_config,
@@ -224,6 +215,7 @@ impl executor::Executor for Executor {
             gas_status,
             authenticators,
             authenticator_and_transaction_input_objects,
+            gas_owner_pays,
             transaction_kind,
             transaction_signer,
             transaction_digest,
@@ -259,7 +251,7 @@ impl executor::Executor for Executor {
         auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> Result<(), ExecutionError> {
+    ) -> (IotaGasStatus, Result<(), ExecutionError>) {
         authenticate_transaction(
             store,
             protocol_config,
@@ -310,6 +302,10 @@ impl executor::Executor for Executor {
 impl verifier::Verifier for Verifier<'_> {
     fn meter(&self, config: MeterConfig) -> Box<dyn Meter> {
         Box::new(IotaVerifierMeter::new(config))
+    }
+
+    fn deprecate_global_storage_ops(&self) -> bool {
+        self.config.deprecate_global_storage_ops
     }
 
     fn meter_compiled_modules(

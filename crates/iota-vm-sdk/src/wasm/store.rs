@@ -29,7 +29,8 @@ use crate::{
 
 /// A [`Store`] that fetches missing objects on demand via a JS callback.
 ///
-/// Wraps an [`InMemoryStore`] cache (seeded with the framework packages) and a
+/// Wraps an [`InMemoryStore`] cache (starting empty, so framework packages are
+/// fetched like any other object and match the chain's versions) and a
 /// JS function `fetch_object(id_hex: string, version: number | null) ->
 /// string | null` returning the base-64 BCS of the full [`Object`] at the given
 /// version (latest when `version` is null), or null when the object doesn't
@@ -48,7 +49,7 @@ impl CallbackStore {
     /// Create a store that resolves misses through `fetch_object`.
     pub(super) fn new(fetch_object: Function) -> Self {
         Self {
-            cache: RefCell::new(InMemoryStore::with_framework()),
+            cache: RefCell::new(InMemoryStore::new()),
             unresolved: RefCell::new(HashSet::new()),
             fetch_object,
         }

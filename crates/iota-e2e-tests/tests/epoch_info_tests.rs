@@ -73,7 +73,9 @@ async fn assert_epoch_info_chain_complete(checkpoint_store: &CheckpointStore, cu
 }
 
 /// Every node — the fullnode and each validator — populates its `epoch_info`
-/// chain from its own executed boundaries, leaving a complete chain.
+/// chain from its own executed boundaries, leaving a complete chain. Validators
+/// load only the epoch-change transaction at a boundary while the fullnode
+/// loads the whole checkpoint, and both must write the same rows.
 #[sim_test]
 async fn epoch_info_chain_is_populated_live() {
     let test_cluster = TestClusterBuilder::new()
@@ -104,6 +106,32 @@ async fn epoch_info_chain_is_populated_live() {
             )
         });
         assert_epoch_info_chain_complete(&validator_store, validator_epoch).await;
+
+        for epoch in 0..validator_epoch.min(fullnode_epoch) {
+            // Nodes can hold different signature sets for the same
+            // checkpoint, so compare the summary without them.
+            let row = |store: &CheckpointStore| {
+                let row = store.get_epoch_info(epoch).unwrap().unwrap();
+                let proof = row.epoch_close_proof.unwrap();
+                bcs::to_bytes(&(
+                    row.epoch,
+                    row.start_checkpoint,
+                    row.start_timestamp_ms,
+                    row.system_state,
+                    proof.last_checkpoint_summary.data(),
+                    proof.last_checkpoint_contents,
+                    proof.end_of_epoch_tx_effects,
+                    proof.end_of_epoch_tx_events,
+                    proof.next_epoch_start_system_state_objects,
+                ))
+                .unwrap()
+            };
+            assert_eq!(
+                row(&validator_store),
+                row(&fullnode_store),
+                "closed epoch {epoch}'s row must match the fullnode's"
+            );
+        }
     }
 }
 
@@ -151,6 +179,7 @@ async fn epoch_info_restore_verifies_chain_before_seeding() {
     let ok_store = CheckpointStore::new(&ok_tmp.path().join("checkpoints"));
     let verified = iota_snapshot::verify_epoch_info_chain(
         real_epoch_info(source, current_epoch),
+        current_epoch - 1,
         genesis_committee.clone(),
         genesis_system_state.clone(),
         expected_chain_id,
@@ -184,6 +213,7 @@ async fn epoch_info_restore_verifies_chain_before_seeding() {
     assert_eq!(watermark, Some(current_epoch - 1));
     iota_snapshot::verify_epoch_info_chain(
         real_epoch_info(source, current_epoch),
+        current_epoch - 1,
         genesis_committee.clone(),
         genesis_system_state.clone(),
         expected_chain_id,
@@ -203,6 +233,7 @@ async fn epoch_info_restore_verifies_chain_before_seeding() {
     // NOTHING can be written.
     let err = iota_snapshot::verify_epoch_info_chain(
         real_epoch_info(source, current_epoch),
+        current_epoch - 1,
         genesis_committee.clone(),
         genesis_system_state.clone(),
         ChainIdentifier::default(),
@@ -225,6 +256,7 @@ async fn epoch_info_restore_verifies_chain_before_seeding() {
         .system_state;
     let err = iota_snapshot::verify_epoch_info_chain(
         real_epoch_info(source, current_epoch),
+        current_epoch - 1,
         genesis_committee.clone(),
         later_start_state,
         expected_chain_id,
@@ -241,6 +273,7 @@ async fn epoch_info_restore_verifies_chain_before_seeding() {
     // genesis one, after two reconfigurations) fails the chain walk.
     let err = iota_snapshot::verify_epoch_info_chain(
         real_epoch_info(source, current_epoch),
+        current_epoch - 1,
         state.clone_committee_for_testing(),
         genesis_system_state,
         expected_chain_id,
@@ -287,6 +320,7 @@ async fn epoch_info_proof_bundle_tampering_is_rejected() {
     // tamper's doing, not a fixture defect.
     iota_snapshot::verify_epoch_info_chain(
         real_epoch_info(source, current_epoch),
+        current_epoch - 1,
         genesis_committee.clone(),
         genesis_system_state.clone(),
         chain_id,
@@ -353,6 +387,7 @@ async fn epoch_info_proof_bundle_tampering_is_rejected() {
         mutate(&mut info.entries[idx]);
         let err = iota_snapshot::verify_epoch_info_chain(
             EpochInfo::V1(info),
+            current_epoch - 1,
             genesis_committee.clone(),
             genesis_system_state.clone(),
             chain_id,
@@ -455,6 +490,7 @@ async fn epoch_info_verifies_safe_mode_boundary() {
     tampered.entries[safe_mode_epoch].end_of_epoch_tx_events = normal_events;
     let err = iota_snapshot::verify_epoch_info_chain(
         EpochInfo::V1(tampered),
+        current_epoch - 1,
         genesis_committee.clone(),
         genesis_system_state.clone(),
         chain_id,
@@ -472,6 +508,7 @@ async fn epoch_info_verifies_safe_mode_boundary() {
     let target = CheckpointStore::new(&tmp.path().join("checkpoints"));
     iota_snapshot::verify_epoch_info_chain(
         epoch_info,
+        current_epoch - 1,
         genesis_committee,
         genesis_system_state,
         chain_id,

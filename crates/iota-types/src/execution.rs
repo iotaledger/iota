@@ -9,12 +9,15 @@ use std::{
 
 use iota_sdk_types::{
     Argument, Event, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, TransactionDigest,
-    TypeTag, Version,
+    TransactionEffects, TypeTag, Version,
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    error::{ExecutionError, ExecutionErrorKind},
+    gas::IotaGasStatus,
+    inner_temporary_store::InnerTemporaryStore,
     object::{MoveStructExt, Object},
     storage::BackingPackageStore,
 };
@@ -24,10 +27,10 @@ use crate::{
 /// transaction. This holds:
 /// 0. The object ID of the deleted shared object.
 /// 1. The version of the shared object.
-/// 2. Whether the object appeared as mutable (or owned) in the transaction, or
-///    as a read-only shared object.
-/// 3. The transaction digest of the previous transaction that used this shared
-///    object mutably or took it by value.
+/// 2. Whether the object appeared as mutable (or owned) in the transaction, or as a read-only
+///    shared object.
+/// 3. The transaction digest of the previous transaction that used this shared object mutably or
+///    took it by value.
 pub type DeletedSharedObjectInfo = (ObjectId, Version, bool, TransactionDigest);
 
 /// A sequence of information about deleted shared objects in the transaction's
@@ -87,6 +90,60 @@ pub type ExecutionResult = (
     // return_values
     Vec<(Vec<u8>, TypeTag)>,
 );
+
+/// What authenticating and then executing a transaction returns: the temporary
+/// store, the gas status, the effects, the timings and the execution result,
+/// plus the Move authentication error when that phase failed. The body's own
+/// checks may replace that error in the effects.
+pub type AuthenticateThenExecuteOutput<R> = (
+    InnerTemporaryStore,
+    IotaGasStatus,
+    TransactionEffects,
+    Vec<ExecutionTiming>,
+    Result<R, ExecutionError>,
+    Option<ExecutionErrorKind>,
+);
+
+/// Returns the error wrapped in an [`ExecutionErrorKind::MoveAuthentication`]
+/// status, the way the engine reports a failed authentication when the
+/// protocol feature flag `report_move_authentication_error` is on, so the
+/// authenticator's own failure can be matched. Any other kind is returned as
+/// it is.
+pub fn unwrap_move_authentication_error(kind: &ExecutionErrorKind) -> &ExecutionErrorKind {
+    match kind {
+        ExecutionErrorKind::MoveAuthentication { error } => error.as_ref(),
+        kind => kind,
+    }
+}
+
+/// Whether `kind` says the execution was canceled rather than failed: canceled
+/// at the consensus commit because of shared object congestion, execution
+/// worker congestion or unavailable randomness, or denied by
+/// [`is_certificate_denied()`]. A Move authentication never reports a denial:
+/// its input checks skip the deny list, which applies after authentication. A
+/// kind wrapped in an [`ExecutionErrorKind::MoveAuthentication`] status must
+/// be unwrapped first with [`unwrap_move_authentication_error()`].
+pub fn is_cancellation(kind: &ExecutionErrorKind) -> bool {
+    matches!(
+        kind,
+        ExecutionErrorKind::CertificateDenied
+            | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion { .. }
+            | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 { .. }
+            | ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion { .. }
+            | ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable
+    )
+}
+
+/// Whether `kind` is an invariant violation of the execution layer or of the
+/// Move VM: an internal error, not a failure the transaction caused. A kind
+/// wrapped in an [`ExecutionErrorKind::MoveAuthentication`] status must be
+/// unwrapped first with [`unwrap_move_authentication_error()`].
+pub fn is_any_invariant_violation(kind: &ExecutionErrorKind) -> bool {
+    matches!(
+        kind,
+        ExecutionErrorKind::InvariantViolation | ExecutionErrorKind::VmInvariantViolation
+    )
+}
 
 impl ExecutionResultsV1 {
     pub fn drop_writes(&mut self) {
@@ -187,28 +244,24 @@ pub type ResultWithTimings<R, E> = Result<(R, Vec<ExecutionTiming>), (E, Vec<Exe
 /// without executing it (but still do gas smashing). Because this list is not
 /// gated by protocol version, there are a few important criteria for adding a
 /// digest to this list:
-/// 1. The certificate must be causing all validators to either panic or hang
-///    forever deterministically.
-/// 2. If we ever ship a fix to make it no longer panic or hang when executing
-///    such transaction, we must make sure the transaction is already in this
-///    list. Otherwise nodes running the newer version without these
-///    transactions in the list will generate forked result.
+/// 1. The certificate must be causing all validators to either panic or hang forever
+///    deterministically.
+/// 2. If we ever ship a fix to make it no longer panic or hang when executing such transaction, we
+///    must make sure the transaction is already in this list. Otherwise nodes running the newer
+///    version without these transactions in the list will generate forked result.
 ///
 /// Below is a scenario of when we need to use this list:
-/// 1. We detect that a specific transaction is causing all validators to either
-///    panic or hang forever deterministically.
-/// 2. We push a CertificateDenyConfig to deny such transaction to all
-///    validators asap.
-/// 3. To make sure that all fullnodes are able to sync to the latest version,
-///    we need to add the transaction digest to this list as well asap, and ship
-///    this binary to all fullnodes, so that they can sync past this
-///    transaction.
+/// 1. We detect that a specific transaction is causing all validators to either panic or hang
+///    forever deterministically.
+/// 2. We push a CertificateDenyConfig to deny such transaction to all validators asap.
+/// 3. To make sure that all fullnodes are able to sync to the latest version, we need to add the
+///    transaction digest to this list as well asap, and ship this binary to all fullnodes, so that
+///    they can sync past this transaction.
 /// 4. We then can start fixing the issue, and ship the fix to all nodes.
-/// 5. Unfortunately, we can't remove the transaction digest from this list,
-///    because if we do so, any future node that sync from genesis will fork on
-///    this transaction. We may be able to remove it once we have stable
-///    snapshots and the binary has a minimum supported protocol version past
-///    the epoch.
+/// 5. Unfortunately, we can't remove the transaction digest from this list, because if we do so,
+///    any future node that sync from genesis will fork on this transaction. We may be able to
+///    remove it once we have stable snapshots and the binary has a minimum supported protocol
+///    version past the epoch.
 pub fn get_denied_certificates() -> &'static HashSet<TransactionDigest> {
     static DENIED_CERTIFICATES: Lazy<HashSet<TransactionDigest>> = Lazy::new(|| HashSet::from([]));
     Lazy::force(&DENIED_CERTIFICATES)

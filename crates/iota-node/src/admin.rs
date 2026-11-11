@@ -75,7 +75,7 @@ use crate::IotaNode;
 //
 // Reconfigure traffic control policy
 //
-//  $ curl 'http://127.0.0.1:1337/traffic-control?error_threshold=100&spam_threshold=100&dry_run=true'
+//  $ curl 'http://127.0.0.1:1337/traffic-control?error_threshold=100&spam_threshold=100&dry_run=true&connection_blocklist_ttl_sec=60&proxy_blocklist_ttl_sec=60'
 //
 // View the Prometheus metrics filter: the directives currently in effect and
 // the startup directives (config with the METRICS_FILTER env var merged over
@@ -604,8 +604,14 @@ async fn traffic_control(
                 "Traffic control configured with:\n\
                  Error threshold: {:?}\n\
                  Spam threshold: {:?}\n\
-                 Dry run: {:?}\n",
-                updated_state.error_threshold, updated_state.spam_threshold, updated_state.dry_run
+                 Dry run: {:?}\n\
+                 Connection blocklist TTL sec: {:?}\n\
+                 Proxy blocklist TTL sec: {:?}\n",
+                updated_state.error_threshold,
+                updated_state.spam_threshold,
+                updated_state.dry_run,
+                updated_state.connection_blocklist_ttl_sec,
+                updated_state.proxy_blocklist_ttl_sec,
             ),
         ),
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),

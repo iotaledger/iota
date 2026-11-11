@@ -33,43 +33,47 @@ impl Discovery for Server {
             .clone()
             .ok_or_else(|| anemo::rpc::Status::internal("own_info has not been initialized yet"))?;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
-        // Create a hashmap with all known peers that are not private
-        let non_private_peers: std::collections::HashMap<_, _> = state
-            .known_peers
-            .iter()
-            .filter_map(|(peer_id, peer_info)| {
-                (peer_info.access_type != AccessType::Private)
-                    .then_some((*peer_id, peer_info.inner().clone()))
-            })
-            .collect();
+        // All known peers that are not private
+        let non_private_peers = || {
+            state
+                .known_peers
+                .iter()
+                .filter(|(_, peer_info)| peer_info.access_type != AccessType::Private)
+        };
 
         let mut known_peers = Vec::new();
 
         // Step 1: Add connected peers (highest priority)
-        let mut connected_peers: Vec<_> = non_private_peers
-            .iter()
+        let connected_peers = non_private_peers()
             .filter_map(|(peer_id, peer_info)| {
                 state
                     .connected_peers
                     .contains_key(peer_id)
-                    .then_some(peer_info.clone())
+                    .then_some(peer_info)
             })
-            .choose_multiple(&mut rng, MAX_PEERS_TO_SEND);
-        known_peers.append(&mut connected_peers);
+            .sample(&mut rng, MAX_PEERS_TO_SEND);
+        known_peers.extend(
+            connected_peers
+                .into_iter()
+                .map(|peer_info| peer_info.inner().clone()),
+        );
 
         // Step 2: Add not connected peers with addresses (lower priority)
         if known_peers.len() < MAX_PEERS_TO_SEND {
-            let mut not_connected_with_addresses: Vec<_> = non_private_peers
-                .iter()
+            let not_connected_with_addresses = non_private_peers()
                 .filter_map(|(peer_id, peer_info)| {
                     (!state.connected_peers.contains_key(peer_id)
                         && !peer_info.addresses.is_empty())
-                    .then_some(peer_info.clone())
+                    .then_some(peer_info)
                 })
-                .choose_multiple(&mut rng, MAX_PEERS_TO_SEND - known_peers.len());
-            known_peers.append(&mut not_connected_with_addresses);
+                .sample(&mut rng, MAX_PEERS_TO_SEND - known_peers.len());
+            known_peers.extend(
+                not_connected_with_addresses
+                    .into_iter()
+                    .map(|peer_info| peer_info.inner().clone()),
+            );
         }
 
         // Shuffle the known peers to obfuscate network topology

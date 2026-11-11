@@ -14,13 +14,13 @@ use iota_json_rpc_types::{
     IotaSystemStateSummaryV1 as IotaSystemStateSummaryV1Schema, StakeStatus, ValidatorApys,
 };
 use iota_open_rpc::Module;
+use iota_sdk_move_types::iota_framework::object::ID;
 use iota_sdk_types::{Address, ObjectId, StructTag};
 use iota_types::{
     MoveTypeTagTrait,
     committee::EpochId,
     dynamic_field::DynamicFieldInfo,
     governance::StakedIota,
-    id::ID,
     iota_serde::BigInt,
     iota_system_state::{
         PoolTokenExchangeRate,
@@ -32,7 +32,7 @@ use jsonrpsee::{RpcModule, core::RpcResult};
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::sync::Mutex;
 
-use crate::{errors::IndexerError, read::IndexerReader};
+use crate::{apis::common, errors::IndexerError, read::IndexerReader};
 
 /// Maximum amount of staked objects for querying.
 const MAX_QUERY_STAKED_OBJECTS: usize = 1000;
@@ -88,9 +88,17 @@ impl GovernanceReadApi {
         }
     }
 
+    /// The latest system state summary, reporting the validator count limits
+    /// and stake thresholds that the protocol config enforces.
     async fn get_latest_iota_system_state(&self) -> Result<IotaSystemStateSummary, IndexerError> {
         self.inner
-            .spawn_blocking(|this| this.get_latest_iota_system_state())
+            .spawn_blocking(|this| {
+                let mut summary = this.get_latest_iota_system_state()?;
+                summary.apply_protocol_config_validator_parameters(
+                    this.get_chain_identifier()?.chain(),
+                );
+                Ok(summary)
+            })
             .await
     }
 
@@ -652,6 +660,8 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         &self,
         staked_iota_ids: Vec<ObjectId>,
     ) -> RpcResult<Vec<DelegatedStake>> {
+        common::validate_input_limit(staked_iota_ids.len())?;
+
         self.get_stakes_by_ids(staked_iota_ids)
             .await
             .map_err(Into::into)
@@ -665,6 +675,8 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         &self,
         timelocked_staked_iota_ids: Vec<ObjectId>,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>> {
+        common::validate_input_limit(timelocked_staked_iota_ids.len())?;
+
         let stakes = self
             .inner
             .multi_get_objects_in_blocking_task(timelocked_staked_iota_ids)
@@ -696,7 +708,11 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     }
 
     async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummarySchema> {
-        Ok(self.get_latest_iota_system_state().await?.into())
+        Ok(self
+            .get_latest_iota_system_state()
+            .await?
+            .try_into()
+            .map_err(IndexerError::from)?)
     }
 
     async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1Schema> {

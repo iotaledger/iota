@@ -5,8 +5,7 @@
 //! Here we select the cryptographic types that are used by default in the code
 //! base. The whole code base should only:
 //! - refer to those aliases and not use the individual scheme implementations
-//! - not use the schemes in a way that break genericity (e.g. using their
-//!   Struct impl functions)
+//! - not use the schemes in a way that break genericity (e.g. using their Struct impl functions)
 //! - swap one of those aliases to point to another type if necessary
 //!
 //! Beware: if you change those aliases to point to another scheme
@@ -27,55 +26,41 @@ use tracing::instrument;
 
 /// Network key is used for TLS and as the network identity of the authority.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct NetworkPublicKey(ed25519::Ed25519PublicKey);
-pub struct NetworkPrivateKey(ed25519::Ed25519PrivateKey);
-pub struct NetworkKeyPair(ed25519::Ed25519KeyPair);
+pub struct NetworkPublicKey(iota_sdk_types::Ed25519PublicKey);
+#[derive(Clone)]
+pub struct NetworkKeyPair(iota_sdk_crypto::ed25519::Ed25519PrivateKey);
 
 impl NetworkPublicKey {
-    pub fn new(key: ed25519::Ed25519PublicKey) -> Self {
+    pub fn new(key: iota_sdk_types::Ed25519PublicKey) -> Self {
         Self(key)
     }
 
-    pub fn into_inner(self) -> ed25519::Ed25519PublicKey {
+    pub fn into_inner(self) -> iota_sdk_types::Ed25519PublicKey {
         self.0
     }
 
     pub fn to_bytes(&self) -> [u8; 32] {
-        self.0.0.to_bytes()
-    }
-}
-
-impl NetworkPrivateKey {
-    pub fn into_inner(self) -> ed25519::Ed25519PrivateKey {
-        self.0
+        self.0.into_bytes()
     }
 }
 
 impl NetworkKeyPair {
-    pub fn new(keypair: ed25519::Ed25519KeyPair) -> Self {
-        Self(keypair)
+    pub fn new(private_key: iota_sdk_crypto::ed25519::Ed25519PrivateKey) -> Self {
+        Self(private_key)
     }
 
-    pub fn generate<R: rand::Rng + fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {
-        Self(ed25519::Ed25519KeyPair::generate(rng))
+    pub fn generate<R: rand08::RngCore + rand08::CryptoRng>(rng: &mut R) -> Self {
+        let mut seed = [0u8; 32];
+        rng.fill_bytes(&mut seed);
+        Self(iota_sdk_crypto::ed25519::Ed25519PrivateKey::new(seed))
     }
 
     pub fn public(&self) -> NetworkPublicKey {
-        NetworkPublicKey(self.0.public().clone())
+        NetworkPublicKey(self.0.public_key())
     }
 
-    pub fn private_key(self) -> NetworkPrivateKey {
-        NetworkPrivateKey(self.0.copy().private())
-    }
-
-    pub fn private_key_bytes(self) -> [u8; 32] {
-        self.0.private().0.to_bytes()
-    }
-}
-
-impl Clone for NetworkKeyPair {
-    fn clone(&self) -> Self {
-        Self(self.0.copy())
+    pub fn private_key(self) -> iota_sdk_crypto::ed25519::Ed25519PrivateKey {
+        self.0
     }
 }
 
@@ -88,6 +73,10 @@ pub struct ProtocolKeySignature(ed25519::Ed25519Signature);
 impl ProtocolPublicKey {
     pub fn new(key: ed25519::Ed25519PublicKey) -> Self {
         Self(key)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        Ok(Self(ed25519::Ed25519PublicKey::from_bytes(bytes)?))
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -109,7 +98,11 @@ impl ProtocolKeyPair {
         Self(keypair)
     }
 
-    pub fn generate<R: rand::Rng + fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        Ok(Self(ed25519::Ed25519KeyPair::from_bytes(bytes)?))
+    }
+
+    pub fn generate<R: fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {
         Self(ed25519::Ed25519KeyPair::generate(rng))
     }
 
@@ -164,7 +157,7 @@ impl AuthorityKeyPair {
         Self(keypair)
     }
 
-    pub fn generate<R: rand::Rng + fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {
+    pub fn generate<R: fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {
         Self(bls12381::min_sig::BLS12381KeyPair::generate(rng))
     }
 

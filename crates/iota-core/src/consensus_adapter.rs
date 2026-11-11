@@ -428,24 +428,21 @@ impl ConsensusAdapter {
         committee: &Committee,
         transactions: &[ConsensusTransaction],
     ) -> (impl Future<Output = ()>, usize, usize, usize) {
-        // Use the minimum digest to compute submit delay.
+        // Use the minimum digest to compute submit delay. P-COOL user
+        // transactions (`UserTransactionV1`) are excluded: no submit delay
+        // needed (number of submitting validators controlled through another
+        // mechanism).
         let min_digest = transactions
             .iter()
-            .filter_map(|tx| match &tx.kind {
-                ConsensusTransactionKind::CertifiedTransaction(certificate) => {
-                    Some(certificate.digest())
-                }
-                ConsensusTransactionKind::UserTransactionV1(_) => {
-                    // P-COOL: no submit delay needed (number of submitting validators
-                    // controlled through another mechanism)
-                    None
-                }
-                _ => None,
+            .filter_map(|tx| {
+                tx.is_user_certificate()
+                    .then(|| tx.kind.transaction_digest())
+                    .flatten()
             })
             .min();
 
         let (duration, position, positions_moved, preceding_disconnected) = match min_digest {
-            Some(digest) => self.await_submit_delay_user_transaction(committee, digest),
+            Some(digest) => self.await_submit_delay_user_transaction(committee, &digest),
             _ => (Duration::ZERO, 0, 0, 0),
         };
         (
@@ -627,20 +624,21 @@ impl ConsensusAdapter {
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<JoinHandle<()>> {
         if transactions.len() > 1 {
-            // Soft-bundle batches must be homogeneous: either all
-            // CertifiedTransaction (certificate flow) or all
-            // UserTransactionV1 (P-COOL flow). submit_and_wait_inner
-            // assumes a single transaction kind across the batch.
-            for transaction in transactions {
-                // Routed through the shared user-transaction helpers rather than an
-                // inline match, so a new user-transaction kind is classified in one
-                // place (`ConsensusTransactionKind::is_user_transaction`) and becomes
-                // soft-bundle eligible automatically.
-                fp_ensure!(
-                    transaction.is_user_certificate() || transaction.kind.is_user_transaction(),
-                    IotaError::InvalidTxKindInSoftBundle
-                );
-            }
+            // Soft-bundle batches must be homogeneous and limited to the kinds we
+            // actually bundle: user or certified transactions. submit_and_wait_inner
+            // assumes a single, known transaction kind across the batch, so
+            // reject any other kind defensively rather than letting it pass
+            // silently into consensus. Checking the first element's kind is
+            // sufficient because the homogeneity check guarantees the rest share it.
+            let first = &transactions[0].kind;
+            let first_kind = std::mem::discriminant(first);
+            fp_ensure!(
+                (transactions[0].is_user_certificate() || first.is_user_transaction())
+                    && transactions
+                        .iter()
+                        .all(|tx| std::mem::discriminant(&tx.kind) == first_kind),
+                IotaError::InvalidTxKindInSoftBundle
+            );
         }
 
         epoch_store.insert_pending_consensus_transactions(transactions, lock)?;
@@ -758,7 +756,8 @@ impl ConsensusAdapter {
         }
 
         // submit_batch enforces that multi-tx batches (soft bundles) are
-        // homogeneous: either all CertifiedTransaction or all UserTransactionV1.
+        // homogeneous: all transactions share the same `ConsensusTransactionKind`
+        // (in practice all CertifiedTransaction or all UserTransactionV1).
         // Single-tx submits can be any kind.
         let is_soft_bundle = transactions.len() > 1;
 
@@ -939,9 +938,10 @@ impl ConsensusAdapter {
 
         let is_user_tx = is_soft_bundle
             || if epoch_store.protocol_config().enable_pcool_flow() {
-                // In the P-COOL flow, `UserTransactionV1` kind corresponds
-                // to user transactions.  Routed through the shared predicate
-                // so a new user-transaction kind is classified in one place.
+                // In the P-COOL flow, the `UserTransactionV1` kind corresponds
+                // to user transactions. Routed through the
+                // shared predicate so a new user-transaction kind is
+                // classified in one place.
                 transactions[0].kind.is_user_transaction()
             } else {
                 // In the certificate mode, `CertifiedTransaction` kind corresponds
@@ -1140,7 +1140,7 @@ impl ConsensusAdapter {
                     }
                     _ = async move {
                         if let Some(d) = dropped_digest {
-                            let _err = epoch_store.notify_read_dropped_digests(d).await;
+                            let _err = epoch_store.notify_read_any_drop(d).await;
                         } else {
                             future::pending::<()>().await;
                         }
@@ -1502,13 +1502,15 @@ pub fn position_submit_certificate(
 mod adapter_tests {
     use std::{sync::Arc, time::Duration};
 
-    use fastcrypto::traits::KeyPair;
+    use fastcrypto::{
+        bls12381::min_sig::BLS12381PrivateKey,
+        traits::{KeyPair, ToFromBytes},
+    };
     use iota_sdk_types::TransactionDigest;
     use iota_types::{
         committee::Committee,
-        crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair_from_rng},
+        crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes},
     };
-    use rand::{Rng, SeedableRng, rngs::StdRng};
 
     use super::position_submit_certificate;
     use crate::{
@@ -1519,28 +1521,27 @@ mod adapter_tests {
         starfish_adapter::LazyStarfishClient,
     };
 
-    fn test_committee(rng: &mut StdRng, size: usize) -> Committee {
-        let authorities = (0..size)
-            .map(|_k| {
-                (
-                    AuthorityPublicKeyBytes::from(
-                        get_key_pair_from_rng::<AuthorityKeyPair, _>(rng).1.public(),
-                    ),
-                    rng.gen_range(0u64..10u64),
-                )
+    /// A committee built from fixed keys and stakes, so the submission order
+    /// these tests check depends only on the code under test, not on `rand`
+    /// or on how fastcrypto generates keys.
+    fn test_committee() -> Committee {
+        const STAKES: [u64; 10] = [3, 7, 1, 9, 4, 4, 2, 8, 5, 6];
+        let authorities = STAKES
+            .iter()
+            .enumerate()
+            .map(|(i, stake)| {
+                let key_pair = AuthorityKeyPair::from(
+                    BLS12381PrivateKey::from_bytes(&[i as u8 + 1; 32]).unwrap(),
+                );
+                (AuthorityPublicKeyBytes::from(key_pair.public()), *stake)
             })
-            .collect::<Vec<_>>();
-        Committee::new_for_testing_with_normalized_voting_power(
-            0,
-            authorities.iter().cloned().collect(),
-        )
+            .collect();
+        Committee::new_for_testing_with_normalized_voting_power(0, authorities)
     }
 
     #[tokio::test]
     async fn test_await_submit_delay_user_transaction() {
-        // grab a random committee and a random stake distribution
-        let mut rng = StdRng::from_seed([0; 32]);
-        let committee = test_committee(&mut rng, 10);
+        let committee = test_committee();
 
         // When we define max submit position and delay step
         let consensus_adapter = ConsensusAdapter::new(
@@ -1557,21 +1558,21 @@ mod adapter_tests {
         );
 
         // transaction to submit
-        let tx_digest = TransactionDigest::random_with(&mut rng);
+        let tx_digest = TransactionDigest::new([7; 32]);
 
         // Ensure that the original position is higher
         let (position, positions_moved, _) =
             consensus_adapter.submission_position(&committee, &tx_digest);
-        assert_eq!(position, 7);
-        assert!(!positions_moved > 0);
+        assert_eq!(position, 8);
+        assert_eq!(positions_moved, 0);
 
-        // Make sure that position is set to max value 0
+        // Make sure that position is set to max value 1
         let (delay_step, position, positions_moved, _) =
             consensus_adapter.await_submit_delay_user_transaction(&committee, &tx_digest);
 
         assert_eq!(position, 1);
         assert_eq!(delay_step, Duration::from_secs(2));
-        assert!(!positions_moved > 0);
+        assert_eq!(positions_moved, 0);
 
         // Without submit position and delay step
         let consensus_adapter = ConsensusAdapter::new(
@@ -1590,24 +1591,24 @@ mod adapter_tests {
         let (delay_step, position, positions_moved, _) =
             consensus_adapter.await_submit_delay_user_transaction(&committee, &tx_digest);
 
-        assert_eq!(position, 7);
+        assert_eq!(position, 8);
 
-        // delay_step * position * 2 = 1 * 7 * 2 = 14
-        assert_eq!(delay_step, Duration::from_secs(14));
-        assert!(!positions_moved > 0);
+        // delay_step * position * 2 = 1 * 8 * 2 = 16
+        assert_eq!(delay_step, Duration::from_secs(16));
+        assert_eq!(positions_moved, 0);
     }
 
     #[test]
     fn test_position_submit_certificate() {
-        // grab a random committee and a random stake distribution
-        let mut rng = StdRng::from_seed([0; 32]);
-        let committee = test_committee(&mut rng, 10);
+        let committee = test_committee();
 
-        // generate random transaction digests, and account for validator selection
-        const NUM_TEST_TRANSACTIONS: usize = 1000;
+        // many transaction digests, and account for validator selection
+        const NUM_TEST_TRANSACTIONS: u32 = 1000;
 
-        for _tx_idx in 0..NUM_TEST_TRANSACTIONS {
-            let tx_digest = TransactionDigest::random_with(&mut rng);
+        for tx_idx in 0..NUM_TEST_TRANSACTIONS {
+            let mut digest_bytes = [0u8; 32];
+            digest_bytes[..4].copy_from_slice(&tx_idx.to_le_bytes());
+            let tx_digest = TransactionDigest::new(digest_bytes);
 
             let mut zero_found = false;
             for (name, _) in committee.members() {

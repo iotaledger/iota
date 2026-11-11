@@ -29,7 +29,7 @@ use iota_genesis_builder::{Builder, validator_info::ValidatorInfo};
 use iota_multiaddr::Multiaddr;
 use iota_swarm_config::genesis_config::GenesisConfig;
 use iota_types::crypto::{
-    AccountPrivateKey, AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession,
+    AccountPrivateKey, AuthorityKeyPair, NetworkPrivateKey, generate_proof_of_possession,
     get_key_pair_from_rng,
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -56,16 +56,16 @@ fn populated_genesis_snapshot_matches() {
         .unwrap();
     let mut rng = StdRng::from_seed([0; 32]);
     let authority_key: AuthorityKeyPair = get_key_pair_from_rng(&mut rng).1;
-    let protocol_key: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
-    let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
+    let protocol_key: NetworkPrivateKey = get_key_pair_from_rng(&mut rng).1;
+    let network_key: NetworkPrivateKey = get_key_pair_from_rng(&mut rng).1;
     let account_key: AccountPrivateKey = get_key_pair_from_rng(&mut rng).1;
     let account_address = account_key.public_key().derive_address();
     let validator = ValidatorInfo {
         name: "0".into(),
         authority_key: authority_key.public().into(),
-        protocol_key: protocol_key.public().clone(),
+        protocol_key: protocol_key.public_key(),
         account_address,
-        network_key: network_key.public().clone(),
+        network_key: network_key.public_key(),
         gas_price: DEFAULT_VALIDATOR_GAS_PRICE,
         commission_rate: DEFAULT_COMMISSION_RATE,
         network_address: "/ip4/127.0.0.1/tcp/80".parse().unwrap(),

@@ -3,11 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     fs,
     io::Write,
     num::NonZeroUsize,
-    sync::{Arc, OnceLock},
+    sync::{
+        Arc, OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use byteorder::{BigEndian, ByteOrder};
@@ -15,14 +18,19 @@ use fastcrypto::{
     hash::{HashFunction, MultisetHash, Sha3_256},
     traits::KeyPair,
 };
-use futures::future::AbortHandle;
+use futures::{StreamExt, future::AbortHandle, stream::BoxStream};
 use indicatif::MultiProgress;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
     authority::authority_store_tables::AuthorityPerpetualTables,
     checkpoints::CheckpointStore,
+    epoch_end_db_snapshot::EpochEndDbSnapshotRequest,
     global_state_hasher::GlobalStateHasher,
-    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
+    rpc_indexes::{
+        RpcIndexesStore,
+        live_scan::RpcIndexesRestorer,
+        schema::{IndexGroup, RPC_INDEXES_DIR},
+    },
 };
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointContents, CheckpointDigest, CheckpointSummary,
@@ -44,17 +52,21 @@ use iota_types::{
     object::Object,
     storage::EpochInfoV2,
 };
+use object_store::{
+    CopyOptions, DynObjectStore, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta,
+    ObjectStore, PutMultipartOptions, PutOptions, PutPayload, PutResult, path::Path as ObjectPath,
+};
 use prometheus_filtered::Registry;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{Semaphore, mpsc, oneshot};
 
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FileCompression, FileMetadata,
     FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestV2, OBJECT_REF_BYTES,
     reader::{StateAccumulatorSender, StateSnapshotReaderV1},
-    restore::RestoreWithGrpcIndexes,
+    restore::RestoreWithIndexes,
     uploader::StateSnapshotUploader,
     verify_epoch_info_chain,
-    writer::StateSnapshotWriterV1,
+    writer::{BoundaryStoppedWaiting, StateSnapshotWriterV1},
 };
 
 /// A fresh `CheckpointStore` seeded with fully-populated `epoch_info` rows for
@@ -168,28 +180,150 @@ fn insert_end_of_epoch_zero_checkpoint(store: &CheckpointStore, digest: ECMHLive
         .expect("inserting end-of-epoch checkpoint");
 }
 
+/// The signal the epoch boundary waits on, with its receiver kept alive in a
+/// task: the writer abandons an epoch nobody is waiting for.
+fn db_snapshot_taken() -> oneshot::Sender<()> {
+    let (sender, receiver) = oneshot::channel();
+    tokio::spawn(async move {
+        let _ = receiver.await;
+    });
+    sender
+}
+
 /// An uploader over file-backed local and remote stores rooted in the given
 /// directories.
 fn test_uploader(
-    db_checkpoint_dir: &std::path::Path,
     staging_dir: &std::path::Path,
     remote_dir: &std::path::Path,
     checkpoint_store: Arc<CheckpointStore>,
+    perpetual_tables: Arc<AuthorityPerpetualTables>,
 ) -> Arc<StateSnapshotUploader> {
-    StateSnapshotUploader::new(
-        db_checkpoint_dir,
+    test_uploader_with_remote(
         staging_dir,
-        ObjectStoreConfig {
-            object_store: Some(ObjectStoreType::File),
-            directory: Some(remote_dir.to_path_buf()),
-            ..Default::default()
-        },
+        file_store(remote_dir),
+        checkpoint_store,
+        perpetual_tables,
+    )
+}
+
+/// An uploader over a file-backed local store and the given remote store.
+fn test_uploader_with_remote(
+    staging_dir: &std::path::Path,
+    remote: Arc<DynObjectStore>,
+    checkpoint_store: Arc<CheckpointStore>,
+    perpetual_tables: Arc<AuthorityPerpetualTables>,
+) -> Arc<StateSnapshotUploader> {
+    StateSnapshotUploader::with_snapshot_store(
+        staging_dir,
+        remote,
         1,
         60,
         &Registry::default(),
         checkpoint_store,
+        perpetual_tables,
     )
     .expect("constructing test uploader")
+}
+
+fn file_store(dir: &std::path::Path) -> Arc<DynObjectStore> {
+    ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(dir.to_path_buf()),
+        ..Default::default()
+    }
+    .make()
+    .expect("constructing a file-backed object store")
+}
+
+/// A remote store that passes every call through to `inner`, except that
+/// listing fails while `fail_listing` is set.
+#[derive(Debug)]
+struct ListingFailsStore {
+    inner: Arc<DynObjectStore>,
+    fail_listing: AtomicBool,
+}
+
+impl ListingFailsStore {
+    fn listing_error() -> object_store::Error {
+        object_store::Error::Generic {
+            store: "ListingFailsStore",
+            source: "listing refused by the test".into(),
+        }
+    }
+
+    fn fails_listing(&self) -> bool {
+        self.fail_listing.load(Ordering::Relaxed)
+    }
+}
+
+impl std::fmt::Display for ListingFailsStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ListingFailsStore({})", self.inner)
+    }
+}
+
+#[async_trait::async_trait]
+impl ObjectStore for ListingFailsStore {
+    async fn put_opts(
+        &self,
+        location: &ObjectPath,
+        payload: PutPayload,
+        opts: PutOptions,
+    ) -> object_store::Result<PutResult> {
+        self.inner.put_opts(location, payload, opts).await
+    }
+
+    async fn put_multipart_opts(
+        &self,
+        location: &ObjectPath,
+        opts: PutMultipartOptions,
+    ) -> object_store::Result<Box<dyn MultipartUpload>> {
+        self.inner.put_multipart_opts(location, opts).await
+    }
+
+    async fn get_opts(
+        &self,
+        location: &ObjectPath,
+        options: GetOptions,
+    ) -> object_store::Result<GetResult> {
+        self.inner.get_opts(location, options).await
+    }
+
+    fn delete_stream(
+        &self,
+        locations: BoxStream<'static, object_store::Result<ObjectPath>>,
+    ) -> BoxStream<'static, object_store::Result<ObjectPath>> {
+        self.inner.delete_stream(locations)
+    }
+
+    fn list(
+        &self,
+        prefix: Option<&ObjectPath>,
+    ) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
+        if self.fails_listing() {
+            return futures::stream::once(async { Err(Self::listing_error()) }).boxed();
+        }
+        self.inner.list(prefix)
+    }
+
+    async fn list_with_delimiter(
+        &self,
+        prefix: Option<&ObjectPath>,
+    ) -> object_store::Result<ListResult> {
+        if self.fails_listing() {
+            return Err(Self::listing_error());
+        }
+        self.inner.list_with_delimiter(prefix).await
+    }
+
+    async fn copy_opts(
+        &self,
+        from: &ObjectPath,
+        to: &ObjectPath,
+        options: CopyOptions,
+    ) -> object_store::Result<()> {
+        self.inner.copy_opts(from, to, options).await
+    }
 }
 
 /// Placeholder closing-checkpoint contents for the row/entry fixtures. These
@@ -238,8 +372,20 @@ pub fn insert_keys(
     db: &AuthorityPerpetualTables,
     total_unique_object_ids: u64,
 ) -> Result<(), anyhow::Error> {
-    let mut id = ObjectId::ZERO;
-    for _ in 0..total_unique_object_ids {
+    insert_keys_from(db, ObjectId::ZERO, total_unique_object_ids)?;
+    Ok(())
+}
+
+/// Inserts `count` immutable objects with consecutive ids starting at `from`,
+/// and returns the first id it did not use, so a caller can add a further
+/// block of objects that does not overlap this one.
+pub fn insert_keys_from(
+    db: &AuthorityPerpetualTables,
+    from: ObjectId,
+    count: u64,
+) -> Result<ObjectId, anyhow::Error> {
+    let mut id = from;
+    for _ in 0..count {
         let object = Object::immutable_with_id_for_testing(id);
         // Use a concrete `Some(0)` so the snapshot writer's V1-rejection
         // check passes. The exact value is irrelevant for the round-trip
@@ -247,7 +393,7 @@ pub fn insert_keys(
         db.insert_store_object_v2_test_only(object, Some(0))?;
         id = id.next_lexicographical();
     }
-    Ok(())
+    Ok(id)
 }
 
 fn compare_live_objects(
@@ -257,10 +403,10 @@ fn compare_live_objects(
     let mut object_set_1 = HashSet::new();
     let mut object_set_2 = HashSet::new();
     for live_object in db1.iter_live_object_set() {
-        object_set_1.insert(live_object.object_reference());
+        object_set_1.insert(live_object?.object_reference());
     }
     for live_object in db2.iter_live_object_set() {
-        object_set_2.insert(live_object.object_reference());
+        object_set_2.insert(live_object?.object_reference());
     }
     assert_eq!(object_set_1, object_set_2);
     Ok(())
@@ -269,7 +415,7 @@ fn compare_live_objects(
 fn accumulate_live_object_set(perpetual_db: &AuthorityPerpetualTables) -> GlobalStateHash {
     let mut acc = GlobalStateHash::default();
     perpetual_db.iter_live_object_set().for_each(|live_object| {
-        GlobalStateHasher::accumulate_live_object(&mut acc, &live_object);
+        GlobalStateHasher::accumulate_live_object(&mut acc, &live_object.unwrap());
     });
     acc
 }
@@ -307,7 +453,12 @@ async fn snapshot_round_trip(
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     snapshot_writer
-        .write_internal(0, perpetual_db.clone(), root_accumulator)
+        .write_internal(
+            0,
+            perpetual_db.clone(),
+            root_accumulator,
+            db_snapshot_taken(),
+        )
         .await?;
 
     // On-disk size assertion: with no compression the uploaded `.ref` file
@@ -443,8 +594,8 @@ async fn epoch_info_round_trip(
         ..Default::default()
     };
 
-    // 1. CREATE: write the EPOCH_INFO file for epochs `[0, snapshot_epoch]`. The
-    //    path is object-independent, so an empty perpetual DB suffices.
+    // 1. CREATE: write the EPOCH_INFO file for epochs `[0, snapshot_epoch]`. The path is
+    //    object-independent, so an empty perpetual DB suffices.
     let snapshot_writer = StateSnapshotWriterV1::new(
         &local_store_config,
         &remote_store_config,
@@ -459,12 +610,17 @@ async fn epoch_info_round_trip(
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     snapshot_writer
-        .write_internal(snapshot_epoch, perpetual_db, root_accumulator)
+        .write_internal(
+            snapshot_epoch,
+            perpetual_db,
+            root_accumulator,
+            db_snapshot_taken(),
+        )
         .await?;
 
-    // 2. LOAD via `read_epoch_info` (the formal-snapshot restore's EPOCH_INFO-first
-    //    step): the reader downloads only the MANIFEST, and `read_epoch_info` then
-    //    the one EPOCH_INFO file, verifying sha3 + magic.
+    // 2. LOAD via `read_epoch_info` (the formal-snapshot restore's EPOCH_INFO-first step): the
+    //    reader downloads only the MANIFEST, and `read_epoch_info` then the one EPOCH_INFO file,
+    //    verifying sha3 + magic.
     let local_store_read_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
         directory: Some(tmp_dir.join("local_dir_read")),
@@ -492,11 +648,10 @@ async fn epoch_info_round_trip(
         "EPOCH_INFO must carry one entry per epoch in [0, {snapshot_epoch}]"
     );
 
-    // 3. ASSERT the on-disk entries round-trip well-formed: one per epoch in order,
-    //    each carrying its summary and a populated proof bundle. The chain-verified
-    //    seed into the CheckpointStore's `epoch_info` (which derives each row's
-    //    start state from the previous entry) needs a real boundary and is
-    //    exercised in `iota-e2e-tests`.
+    // 3. ASSERT the on-disk entries round-trip well-formed: one per epoch in order, each carrying
+    //    its summary and a populated proof bundle. The chain-verified seed into the
+    //    CheckpointStore's `epoch_info` (which derives each row's start state from the previous
+    //    entry) needs a real boundary and is exercised in `iota-e2e-tests`.
     for (epoch, entry) in epoch_info.entries().iter().enumerate() {
         let epoch = epoch as EpochId;
         assert_eq!(
@@ -546,7 +701,12 @@ async fn writer_with_stub_returns_err(
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     snapshot_writer
-        .write_internal(snapshot_epoch, perpetual_db, root_accumulator)
+        .write_internal(
+            snapshot_epoch,
+            perpetual_db,
+            root_accumulator,
+            db_snapshot_taken(),
+        )
         .await
         .expect_err("snapshot writer must reject when watermark is insufficient")
 }
@@ -565,13 +725,13 @@ async fn snapshot_epoch_info_round_trip() -> Result<(), anyhow::Error> {
     epoch_info_round_trip(dir.path(), 2).await
 }
 
-/// Restoring through [`RestoreWithGrpcIndexes`] must build the gRPC
-/// live-state indexes from the same object stream that fills the perpetual
+/// Restoring through [`RestoreWithIndexes`] must build the RPC index store's
+/// live-state tables from the same object stream that fills the perpetual
 /// tables: the restored live object set matches the source, address-owned
-/// objects come back owner-indexed, and `finalize_restore` leaves the store
+/// objects come back owner-indexed, and the finalize step leaves the store
 /// initialized.
 #[tokio::test]
-async fn snapshot_restore_builds_grpc_indexes() -> Result<(), anyhow::Error> {
+async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     let dir = iota_common::tempdir();
     let tmp_dir = dir.path();
 
@@ -613,7 +773,12 @@ async fn snapshot_restore_builds_grpc_indexes() -> Result<(), anyhow::Error> {
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     snapshot_writer
-        .write_internal(0, perpetual_db.clone(), root_accumulator)
+        .write_internal(
+            0,
+            perpetual_db.clone(),
+            root_accumulator,
+            db_snapshot_taken(),
+        )
         .await?;
 
     let local_store_restore_config = ObjectStoreConfig {
@@ -632,32 +797,40 @@ async fn snapshot_restore_builds_grpc_indexes() -> Result<(), anyhow::Error> {
     .await?;
 
     let restored_perpetual_db = AuthorityPerpetualTables::open(&tmp_dir.join("restored_db"), None);
-    let restored_grpc = GrpcIndexesStore::new_without_init(tmp_dir.join(GRPC_INDEXES_DIR));
-    let grpc_restorer = restored_grpc.live_object_restorer(100);
+    let index_groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
+    let restorer = RpcIndexesRestorer::open(tmp_dir.join(RPC_INDEXES_DIR), index_groups.clone())?;
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     snapshot_reader
         .read_to_db(
-            &RestoreWithGrpcIndexes::new(&restored_perpetual_db, &grpc_restorer),
+            &RestoreWithIndexes::new(&restored_perpetual_db, Some(&restorer)),
             abort_registration,
             None,
         )
         .await?;
-    grpc_restorer.finish()?;
 
     // The tee must not disturb the perpetual-tables restore.
     compare_live_objects(&perpetual_db, &restored_perpetual_db)?;
 
-    // Every address-owned object is owner-indexed in the restored gRPC store.
-    let restored_ids: HashSet<ObjectId> = restored_grpc
-        .owner_iter(owner, None, OwnerTypeFilter::None)?
-        .map(|entry| entry.map(|(key, _)| key.object_id))
-        .collect::<Result<_, _>>()?;
-    assert_eq!(restored_ids, owned_ids);
+    restorer.finalize(0).await?;
 
-    // Finalize the restored store. The chain-verify + epoch-row seed step
-    // needs a real boundary's proof bundle and is exercised in
-    // `iota-e2e-tests`.
-    restored_grpc.finalize_restore(0)?;
+    // The restore tool's smoke test must accept a healthy restore.
+    RpcIndexesRestorer::verify_restored(
+        &tmp_dir.join(RPC_INDEXES_DIR),
+        None,
+        0,
+        owned_ids.len() as u64,
+    )
+    .await?;
+
+    let reopened =
+        RpcIndexesStore::new_without_init(tmp_dir.join(RPC_INDEXES_DIR), None, index_groups);
+    let restored_owned_ids: HashSet<ObjectId> = reopened
+        .get_owner_objects(owner, None, 10, None, usize::MAX, &restored_perpetual_db)?
+        .0
+        .into_iter()
+        .map(|(object, _)| object.id())
+        .collect();
+    assert_eq!(restored_owned_ids, owned_ids);
     Ok(())
 }
 
@@ -731,7 +904,12 @@ async fn snapshot_round_trip_per_object_checkpoint() -> Result<(), anyhow::Error
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     snapshot_writer
-        .write_internal(0, perpetual_db.clone(), root_accumulator)
+        .write_internal(
+            0,
+            perpetual_db.clone(),
+            root_accumulator,
+            db_snapshot_taken(),
+        )
         .await?;
 
     let local_store_restore_config = ObjectStoreConfig {
@@ -759,6 +937,7 @@ async fn snapshot_round_trip_per_object_checkpoint() -> Result<(), anyhow::Error
     let restored: HashMap<ObjectId, Option<u64>> = restored_perpetual_db
         .iter_live_object_set()
         .map(|live_object| {
+            let live_object = live_object.unwrap();
             (
                 live_object.object_id(),
                 live_object.previous_transaction_checkpoint,
@@ -825,7 +1004,7 @@ async fn snapshot_writer_rejects_lifted_v1_row() -> Result<(), anyhow::Error> {
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     let err = snapshot_writer
-        .write_internal(0, perpetual_db, root_accumulator)
+        .write_internal(0, perpetual_db, root_accumulator, db_snapshot_taken())
         .await
         .expect_err("writer must reject a DB containing a lifted V1 row");
     let msg = format!("{err:#}");
@@ -882,7 +1061,7 @@ async fn snapshot_writer_rejects_literal_v1_row() -> Result<(), anyhow::Error> {
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     let err = snapshot_writer
-        .write_internal(0, perpetual_db, root_accumulator)
+        .write_internal(0, perpetual_db, root_accumulator, db_snapshot_taken())
         .await
         .expect_err("writer must reject a DB containing a literal V1 row");
     let msg = format!("{err:#}");
@@ -1129,6 +1308,7 @@ fn signed_epoch_info(snapshot_epoch: EpochId) -> EpochInfo {
 fn verify_epoch_info_chain_rejects_wrong_chain_id() {
     let err = verify_epoch_info_chain(
         signed_epoch_info(1),
+        1,
         test_committee_at(0),
         test_system_state(),
         ChainIdentifier::default(),
@@ -1147,6 +1327,7 @@ fn verify_epoch_info_chain_rejects_non_contiguous_entries() {
     info.entries.remove(0); // entries now start at epoch 1, not 0
     let err = verify_epoch_info_chain(
         EpochInfo::V1(info),
+        1,
         test_committee_at(0),
         test_system_state(),
         ChainIdentifier::default(),
@@ -1157,6 +1338,54 @@ fn verify_epoch_info_chain_rejects_non_contiguous_entries() {
         err.to_string().contains("carries a summary for epoch"),
         "got: {err}"
     );
+}
+
+/// An empty `EPOCH_INFO` covers no epoch at all. It is rejected on the entry
+/// count, before any per-entry proof work, so it needs no valid proof bundle.
+#[test]
+fn verify_epoch_info_chain_rejects_empty_entries() {
+    let err = verify_epoch_info_chain(
+        EpochInfo::V1(EpochInfoV1 { entries: vec![] }),
+        0,
+        test_committee_at(0),
+        test_system_state(),
+        ChainIdentifier::default(),
+        ChainIdentifier::default(),
+    )
+    .expect_err("an empty EPOCH_INFO must be rejected");
+    assert!(err.to_string().contains("carries 0 entries"), "got: {err}");
+}
+
+/// Entries that stop before the requested epoch would restore an earlier epoch:
+/// they are rejected on the entry count, before any per-entry proof work.
+#[test]
+fn verify_epoch_info_chain_rejects_truncated_entries() {
+    let err = verify_epoch_info_chain(
+        signed_epoch_info(1),
+        2,
+        test_committee_at(0),
+        test_system_state(),
+        ChainIdentifier::default(),
+        ChainIdentifier::default(),
+    )
+    .expect_err("entries that stop before the requested epoch must be rejected");
+    assert!(err.to_string().contains("carries 2 entries"), "got: {err}");
+}
+
+/// Entries that run past the requested epoch would restore a later epoch: they
+/// are rejected on the entry count, before any per-entry proof work.
+#[test]
+fn verify_epoch_info_chain_rejects_entries_past_the_requested_epoch() {
+    let err = verify_epoch_info_chain(
+        signed_epoch_info(2),
+        1,
+        test_committee_at(0),
+        test_system_state(),
+        ChainIdentifier::default(),
+        ChainIdentifier::default(),
+    )
+    .expect_err("entries that run past the requested epoch must be rejected");
+    assert!(err.to_string().contains("carries 3 entries"), "got: {err}");
 }
 
 /// `epoch_info_v2_row` derives every non-stored `EpochInfoV2` field: the
@@ -1209,87 +1438,169 @@ fn open_row_has_no_end_fields() {
     assert_eq!(open.end_timestamp_ms(), None);
 }
 
-/// After a successful upload, the uploader writes the remote `_SUCCESS`
-/// marker and deletes the local db checkpoint directory it consumed.
+/// A remote epoch directory that cannot be cleared fails the epoch, and the
+/// same epoch writes cleanly on the next attempt.
 #[tokio::test]
-async fn uploader_removes_db_checkpoint_after_upload() -> Result<(), anyhow::Error> {
+async fn a_failed_remote_clear_fails_the_epoch_and_leaves_it_retryable() -> Result<(), anyhow::Error>
+{
     let dir = iota_common::tempdir();
-    let db_checkpoint_dir = dir.path().join("db_checkpoints");
-    let epoch_0_dir = db_checkpoint_dir.join("epoch_0");
+    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(
+        &dir.path().join("store"),
+        None,
+    ));
+    insert_keys(&perpetual_db, 10)?;
+    let ecmh_digest =
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
 
-    // An epoch-0 db checkpoint with a populated perpetual store, laid out as
-    // `checkpoint_perpetual_db` produces it (`epoch_0/store/perpetual`).
-    fs::create_dir_all(epoch_0_dir.join("store"))?;
-    let ecmh_digest = {
-        let perpetual_db = AuthorityPerpetualTables::open(&epoch_0_dir.join("store"), None);
-        insert_keys(&perpetual_db, 10)?;
-        // The db drops with this scope so the uploader can reopen it.
-        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest())
+    let checkpoint_store = checkpoint_store_with_epochs(0);
+    insert_end_of_epoch_zero_checkpoint(&checkpoint_store, ecmh_digest);
+
+    let remote_dir = dir.path().join("remote");
+    fs::create_dir_all(&remote_dir)?;
+    let remote = Arc::new(ListingFailsStore {
+        inner: file_store(&remote_dir),
+        fail_listing: AtomicBool::new(true),
+    });
+    let uploader = test_uploader_with_remote(
+        &dir.path().join("staging"),
+        remote.clone(),
+        checkpoint_store,
+        perpetual_db.clone(),
+    );
+    let request = || EpochEndDbSnapshotRequest {
+        epoch: 0,
+        db_snapshot_taken: db_snapshot_taken(),
+        permit: Arc::new(Semaphore::new(1))
+            .try_acquire_owned()
+            .expect("a fresh permit"),
     };
+
+    let err = uploader
+        .write_state_snapshot(request())
+        .await
+        .expect_err("a snapshot whose remote directory could not be cleared must fail");
+    assert!(
+        format!("{err:#}").contains("clear the remote dir"),
+        "{err:#}"
+    );
+
+    remote.fail_listing.store(false, Ordering::Relaxed);
+    uploader.write_state_snapshot(request()).await?;
+    assert!(
+        remote_dir.join("epoch_0").join(SUCCESS_MARKER).exists(),
+        "the retry must publish the snapshot",
+    );
+    Ok(())
+}
+
+/// The writer abandons an epoch whose boundary has stopped waiting for the
+/// database snapshot.
+#[tokio::test]
+async fn a_writer_abandons_an_epoch_no_boundary_is_waiting_for() -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(
+        &dir.path().join("store"),
+        None,
+    ));
+    insert_keys(&perpetual_db, 10)?;
+    let ecmh_digest =
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
+
+    let checkpoint_store = checkpoint_store_with_epochs(0);
+    insert_end_of_epoch_zero_checkpoint(&checkpoint_store, ecmh_digest);
+
+    // A snapshot of this epoch published earlier, for example by another run.
+    let remote_dir = dir.path().join("remote");
+    let published = remote_dir.join("epoch_0");
+    fs::create_dir_all(&published)?;
+    fs::write(published.join(SUCCESS_MARKER), b"from an earlier run")?;
+
+    let uploader = test_uploader(
+        &dir.path().join("staging"),
+        &remote_dir,
+        checkpoint_store,
+        perpetual_db.clone(),
+    );
+
+    // The boundary gave up: the receiver is gone before the writer starts.
+    let (db_snapshot_taken, db_snapshot_is_taken) = oneshot::channel();
+    drop(db_snapshot_is_taken);
+
+    let err = uploader
+        .write_state_snapshot(EpochEndDbSnapshotRequest {
+            epoch: 0,
+            db_snapshot_taken,
+            permit: Arc::new(Semaphore::new(1))
+                .try_acquire_owned()
+                .expect("a fresh permit"),
+        })
+        .await
+        .expect_err("a snapshot nobody is waiting for must not be written");
+    assert!(err.is::<BoundaryStoppedWaiting>(), "{err:#}");
+
+    assert_eq!(
+        fs::read(published.join(SUCCESS_MARKER))?,
+        b"from an earlier run",
+        "an abandoned epoch must leave the published snapshot alone",
+    );
+    Ok(())
+}
+
+/// The uploader writes and uploads the snapshot of the epoch it is handed,
+/// and signals the boundary once its database snapshot exists.
+#[tokio::test]
+async fn uploader_writes_the_snapshot_of_a_requested_epoch() -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(
+        &dir.path().join("store"),
+        None,
+    ));
+    let next_id = insert_keys_from(&perpetual_db, ObjectId::ZERO, 10)?;
+    let ecmh_digest =
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
 
     let checkpoint_store = checkpoint_store_with_epochs(0);
     insert_end_of_epoch_zero_checkpoint(&checkpoint_store, ecmh_digest);
 
     let remote_dir = dir.path().join("remote");
     let uploader = test_uploader(
-        &db_checkpoint_dir,
         &dir.path().join("staging"),
         &remote_dir,
         checkpoint_store,
+        perpetual_db.clone(),
     );
-    uploader
-        .upload_state_snapshot_to_object_store(vec![0])
-        .await?;
 
+    let (db_snapshot_taken, db_snapshot_is_taken) = oneshot::channel();
+    let writing = tokio::spawn({
+        let uploader = uploader.clone();
+        async move {
+            uploader
+                .write_state_snapshot(EpochEndDbSnapshotRequest {
+                    epoch: 0,
+                    db_snapshot_taken,
+                    permit: Arc::new(Semaphore::new(1))
+                        .try_acquire_owned()
+                        .expect("a fresh permit"),
+                })
+                .await
+        }
+    });
+
+    // Awaited while the write is still in flight, so it shows the signal is
+    // sent rather than only that the sender was not dropped.
+    db_snapshot_is_taken
+        .await
+        .expect("the writer must signal once the database snapshot exists");
+
+    // Writes made while the writer holds its snapshot must not reach the
+    // scan, which has to match the commitment taken before them. This races
+    // with the scan, so it is only a smoke test.
+    insert_keys_from(&perpetual_db, next_id, 10)?;
+
+    writing.await??;
     assert!(
         remote_dir.join("epoch_0").join(SUCCESS_MARKER).exists(),
         "snapshot upload must leave a _SUCCESS marker in the remote epoch dir"
-    );
-    assert!(
-        !epoch_0_dir.exists(),
-        "local db checkpoint dir must be deleted after its snapshot is uploaded"
-    );
-    Ok(())
-}
-
-/// A local db checkpoint whose epoch is already covered remotely is deleted
-/// without being re-uploaded.
-#[tokio::test]
-async fn uploader_removes_db_checkpoint_for_skipped_epoch() -> Result<(), anyhow::Error> {
-    let dir = iota_common::tempdir();
-    let db_checkpoint_dir = dir.path().join("db_checkpoints");
-    let epoch_0_dir = db_checkpoint_dir.join("epoch_0");
-    fs::create_dir_all(&epoch_0_dir)?;
-    fs::write(epoch_0_dir.join("some_file"), b"stale checkpoint contents")?;
-
-    // Only the genesis-checkpoint lookup runs on this path; the commitment
-    // digest is never read.
-    let checkpoint_store = empty_checkpoint_store();
-    insert_end_of_epoch_zero_checkpoint(
-        &checkpoint_store,
-        ECMHLiveObjectSetDigest::from(GlobalStateHash::default().digest()),
-    );
-
-    let remote_dir = dir.path().join("remote");
-    let uploader = test_uploader(
-        &db_checkpoint_dir,
-        &dir.path().join("staging"),
-        &remote_dir,
-        checkpoint_store,
-    );
-    // Epoch 0 is not missing remotely (only epoch 1 is), so its local dir is
-    // deleted without a new upload.
-    uploader
-        .upload_state_snapshot_to_object_store(vec![1])
-        .await?;
-
-    assert!(
-        !epoch_0_dir.exists(),
-        "local db checkpoint dir must be deleted when its epoch needs no upload"
-    );
-    assert!(
-        !remote_dir.join("epoch_0").exists(),
-        "skipped epoch must not be uploaded"
     );
     Ok(())
 }

@@ -135,11 +135,10 @@ impl PreConsensusSoftLocks {
     /// Attempts to soft-lock every `ObjectReference` in `owned_objects` for
     /// `tx_digest`.
     ///
-    /// - **Same digest, locks held**: returns `RecentlyResubmitted` — the
-    ///   transaction is already in flight on this validator and forwarding it
-    ///   again would only duplicate it in consensus.
-    /// - **Same digest, locks released or expired**: re-acquired with a fresh
-    ///   timestamp, so retrying a consensus-forgotten transaction works.
+    /// - **Same digest, locks held**: returns `RecentlyResubmitted` — the transaction is already in
+    ///   flight on this validator and forwarding it again would only duplicate it in consensus.
+    /// - **Same digest, locks released or expired**: re-acquired with a fresh timestamp, so
+    ///   retrying a consensus-forgotten transaction works.
     /// - **Different digest, unexpired**: returns `ObjectLockConflict`.
     /// - **Expired lock**: silently overwritten by the new transaction.
     ///

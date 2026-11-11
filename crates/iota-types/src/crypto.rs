@@ -24,7 +24,7 @@ use fastcrypto::{
         BLS12381AggregateSignature, BLS12381AggregateSignatureAsBytes, BLS12381KeyPair,
         BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
     },
-    ed25519::{Ed25519KeyPair, Ed25519PublicKey, Ed25519PublicKeyAsBytes, Ed25519Signature},
+    ed25519::{Ed25519PublicKey, Ed25519PublicKeyAsBytes, Ed25519Signature},
     encoding::{Base64, Encoding, Hex},
     error::{FastCryptoError, FastCryptoResult},
     hash::{Blake2b256, HashFunction},
@@ -42,8 +42,10 @@ use iota_sdk_types::{
 };
 use rand::{
     SeedableRng,
-    rngs::{OsRng, StdRng},
+    rand_core::UnwrapErr,
+    rngs::{StdRng, SysRng},
 };
+use rand08::SeedableRng as _;
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
@@ -70,8 +72,7 @@ mod intent_tests;
 // Here we select the types that are used by default in the code base.
 // The whole code base should only:
 // - refer to those aliases and not use the individual scheme implementations
-// - not use the schemes in a way that break genericity (e.g. using their Struct
-//   impl functions)
+// - not use the schemes in a way that break genericity (e.g. using their Struct impl functions)
 // - swap one of those aliases to point to another type if necessary
 //
 // Beware: if you change those aliases to point to another scheme
@@ -90,9 +91,8 @@ pub type AggregateAuthoritySignatureAsBytes = BLS12381AggregateSignatureAsBytes;
 
 pub type AccountPrivateKey = Ed25519PrivateKey;
 
-pub type NetworkKeyPair = Ed25519KeyPair;
-pub type NetworkPublicKey = Ed25519PublicKey;
 pub type NetworkPrivateKey = Ed25519PrivateKey;
+pub type NetworkPublicKey = iota_sdk_types::Ed25519PublicKey;
 
 pub type DefaultHash = Blake2b256;
 
@@ -140,27 +140,17 @@ pub fn verify_proof_of_possession(
     )
 }
 
-/// The validator network stacks keep using the fastcrypto ed25519 keypair
-/// type; this conversion lets those keys be stored in configs as
-/// [`SimpleKeypair`].
-pub fn network_to_simple_keypair(kp: &NetworkKeyPair) -> SimpleKeypair {
-    use iota_sdk_crypto::ToFromBytes as _;
+/// Parse an ed25519 network public key, rejecting bytes that do not encode a
+/// valid curve point.
+pub fn network_pubkey_from_bytes(
+    bytes: &[u8],
+) -> Result<NetworkPublicKey, iota_sdk_crypto::SignatureError> {
+    use iota_sdk_types::crypto::PublicKeyExt as _;
 
-    SimpleKeypair::from(
-        Ed25519PrivateKey::from_bytes(kp.as_bytes()).expect("valid ed25519 private key bytes"),
-    )
-}
-
-/// Convert a stored [`SimpleKeypair`] back into the fastcrypto ed25519 keypair
-/// consumed by the validator network stacks. Fails if the key is not ed25519.
-pub fn simple_to_network_keypair(kp: &SimpleKeypair) -> Result<NetworkKeyPair, Error> {
-    if kp.scheme() != SignatureScheme::Ed25519 {
-        return Err(anyhow!(
-            "invalid scheme for network keypair: {}",
-            kp.scheme()
-        ));
-    }
-    NetworkKeyPair::from_bytes(&kp.to_bytes()[1..]).map_err(|e| anyhow!(e))
+    let pubkey = NetworkPublicKey::from_bytes(bytes)
+        .map_err(iota_sdk_crypto::SignatureError::from_source)?;
+    iota_sdk_crypto::ed25519::Ed25519VerifyingKey::new(&pubkey)?;
+    Ok(pubkey)
 }
 
 impl From<&SimpleKeypair> for PublicKey {
@@ -473,14 +463,16 @@ impl IotaAuthoritySignature for AuthoritySignature {
 }
 
 /// Random key-pair generation for the `get_key_pair` helpers, implemented for
-/// the fastcrypto authority/network keypairs and the SDK account keys.
+/// the fastcrypto authority keypair and the SDK ed25519/secp keys.
 pub trait RandomKeyPair: Sized {
-    fn generate_with_address(rng: &mut StdRng) -> (Address, Self);
+    fn generate_with_address(seed: [u8; 32]) -> (Address, Self);
 }
 
 impl RandomKeyPair for BLS12381KeyPair {
-    fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
-        let kp = <BLS12381KeyPair as KeypairTraits>::generate(rng);
+    fn generate_with_address(seed: [u8; 32]) -> (Address, Self) {
+        let kp = <BLS12381KeyPair as KeypairTraits>::generate(
+            &mut rand08::rngs::StdRng::from_seed(seed),
+        );
         // Authority keys have no on-chain account; this address only labels
         // key files and `keytool` output.
         let mut hasher = DefaultHash::default();
@@ -490,24 +482,11 @@ impl RandomKeyPair for BLS12381KeyPair {
     }
 }
 
-impl RandomKeyPair for Ed25519KeyPair {
-    fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
-        let kp = <Ed25519KeyPair as KeypairTraits>::generate(rng);
-        let public = PublicKey::Ed25519(BytesRepresentation(
-            kp.public()
-                .as_ref()
-                .try_into()
-                .expect("ed25519 public keys are 32 bytes"),
-        ));
-        (Address::from(&public), kp)
-    }
-}
-
 macro_rules! random_key_pair_from_sdk {
     ($private_key:ty, $variant:ident) => {
         impl RandomKeyPair for $private_key {
-            fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
-                let key = <$private_key>::random_with(rng);
+            fn generate_with_address(seed: [u8; 32]) -> (Address, Self) {
+                let key = <$private_key>::random_with(StdRng::from_seed(seed));
                 let public =
                     PublicKey::$variant(BytesRepresentation(key.public_key().into_bytes()));
                 (Address::from(&public), key)
@@ -523,7 +502,7 @@ random_key_pair_from_sdk!(Secp256r1PrivateKey, Secp256r1);
 // TODO: get_key_pair() should return KeyPair only.
 // TODO: rename to random_key_pair
 pub fn get_key_pair<KP: RandomKeyPair>() -> (Address, KP) {
-    get_key_pair_from_rng(&mut OsRng)
+    get_key_pair_from_rng(&mut UnwrapErr(SysRng))
 }
 
 /// Generate a random committee key pairs with a given committee size
@@ -562,29 +541,11 @@ pub fn get_authority_key_pair() -> (Address, AuthorityKeyPair) {
 /// rngs).
 pub fn get_key_pair_from_rng<KP: RandomKeyPair, R>(csprng: &mut R) -> (Address, KP)
 where
-    R: rand::CryptoRng + rand::RngCore,
+    R: rand::CryptoRng,
 {
-    KP::generate_with_address(&mut StdRng::from_rng(csprng).unwrap())
-}
-
-// TODO: C-GETTER
-pub fn get_key_pair_from_bytes<KP: KeypairTraits>(bytes: &[u8]) -> IotaResult<KP> {
-    let priv_length = <KP as KeypairTraits>::PrivKey::LENGTH;
-    let pub_key_length = <KP as KeypairTraits>::PubKey::LENGTH;
-    if bytes.len() != priv_length + pub_key_length {
-        return Err(IotaError::KeyConversion(format!(
-            "Invalid input byte length, expected {}: {}",
-            priv_length + pub_key_length,
-            bytes.len()
-        )));
-    }
-    let sk = <KP as KeypairTraits>::PrivKey::from_bytes(
-        bytes
-            .get(..priv_length)
-            .ok_or(IotaError::InvalidPrivateKey)?,
-    )
-    .map_err(|_| IotaError::InvalidPrivateKey)?;
-    Ok(sk.into())
+    let mut seed = [0u8; 32];
+    csprng.fill_bytes(&mut seed);
+    KP::generate_with_address(seed)
 }
 
 /// An all-zero ed25519 [`SimpleSignature`] placeholder, used for system

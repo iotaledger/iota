@@ -33,14 +33,12 @@ pub enum Network {
 /// Downloads the formal snapshot metadata for the given network and epoch, and
 /// instantiates a [`StateSnapshotReaderV1`] staged at `staging_path`.
 ///
-/// 1. Builds a [`FormalSnapshotStore`] over the network's public snapshot
-///    bucket and the local store configuration for the staging directory.
-/// 2. Resolves the target epoch: the given one, or the latest epoch available
-///    in the bucket.
+/// 1. Builds a [`FormalSnapshotStore`] over the network's public snapshot bucket and the local
+///    store configuration for the staging directory.
+/// 2. Resolves the target epoch: the given one, or the latest epoch available in the bucket.
 /// 3. Verifies that the snapshot upload for that epoch has completed.
-/// 4. Instantiates the reader, which downloads the snapshot's MANIFEST into the
-///    staging directory. The reference and object files follow when the caller
-///    reads the snapshot.
+/// 4. Instantiates the reader, which downloads the snapshot's MANIFEST into the staging directory.
+///    The reference and object files follow when the caller reads the snapshot.
 ///
 /// Returns the reader and the resolved epoch.
 ///

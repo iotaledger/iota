@@ -3,30 +3,30 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus_filtered::{
-    IntCounter, IntCounterVec, IntGauge, Registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry, register_int_gauge_with_registry,
+    IntCounter, IntCounterVec, IntGauge, MetricLevel, Registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
 
 #[derive(Clone)]
 pub struct TrafficControllerMetrics {
     pub tallies: IntCounter,
+    pub unresolved_client_requests: IntCounter,
     pub connection_ip_blocklist_len: IntGauge,
     pub proxy_ip_blocklist_len: IntGauge,
     pub requests_blocked_at_protocol: IntCounter,
-    pub blocks_delegated_to_firewall: IntCounter,
-    pub firewall_delegation_request_fail: IntCounter,
-    pub firewall_delegation_overflow: IntCounter,
     pub rate_limiter_evictions: IntCounter,
     pub num_dry_run_blocked_requests: IntCounter,
     pub tally_handled: IntCounter,
     pub error_tally_handled: IntCounter,
     pub tally_error_types: IntCounterVec,
-    pub deadmans_switch_enabled: IntGauge,
     pub spam_client_threshold: IntGauge,
     pub error_client_threshold: IntGauge,
     pub spam_proxied_client_threshold: IntGauge,
     pub error_proxied_client_threshold: IntGauge,
     pub dry_run_enabled: IntGauge,
+    pub connection_blocklist_ttl_sec: IntGauge,
+    pub proxy_blocklist_ttl_sec: IntGauge,
 }
 
 impl TrafficControllerMetrics {
@@ -34,6 +34,13 @@ impl TrafficControllerMetrics {
         Self {
             tallies: register_int_counter_with_registry!("tallies", "Number of tallies", registry)
                 .unwrap(),
+            unresolved_client_requests: register_int_counter_with_registry!(
+                "traffic_control_unresolved_client_requests",
+                "Number of requests whose client IP the node could not resolve",
+                registry;
+                MetricLevel::Warn
+            )
+            .unwrap(),
             connection_ip_blocklist_len: register_int_gauge_with_registry!(
                 "connection_ip_blocklist_len",
                 // make the below a multiline string
@@ -55,24 +62,6 @@ impl TrafficControllerMetrics {
             requests_blocked_at_protocol: register_int_counter_with_registry!(
                 "requests_blocked_at_protocol",
                 "Number of requests blocked by this node at the protocol level",
-                registry
-            )
-            .unwrap(),
-            blocks_delegated_to_firewall: register_int_counter_with_registry!(
-                "blocks_delegated_to_firewall",
-                "Number of delegation requests to firewall to add to blocklist",
-                registry
-            )
-            .unwrap(),
-            firewall_delegation_request_fail: register_int_counter_with_registry!(
-                "firewall_delegation_request_fail",
-                "Number of failed http requests to firewall for blocklist delegation",
-                registry
-            )
-            .unwrap(),
-            firewall_delegation_overflow: register_int_counter_with_registry!(
-                "firewall_delegation_overflow",
-                "Number of blocks applied locally because the firewall delegation queue was full",
                 registry
             )
             .unwrap(),
@@ -108,13 +97,6 @@ impl TrafficControllerMetrics {
                 registry
             )
             .unwrap(),
-            deadmans_switch_enabled: register_int_gauge_with_registry!(
-                "deadmans_switch_enabled",
-                "If 1, the deadman's switch is enabled and all traffic control
-                should be getting bypassed",
-                registry
-            )
-            .unwrap(),
             spam_client_threshold: register_int_gauge_with_registry!(
                 "spam_client_threshold",
                 "Spam client threshold",
@@ -142,6 +124,18 @@ impl TrafficControllerMetrics {
             dry_run_enabled: register_int_gauge_with_registry!(
                 "dry_run_enabled",
                 "If 1, dry run mode is enabled and traffic will not be blocked",
+                registry
+            )
+            .unwrap(),
+            connection_blocklist_ttl_sec: register_int_gauge_with_registry!(
+                "connection_blocklist_ttl_sec",
+                "Seconds a blocked direct client stays in the blocklist",
+                registry
+            )
+            .unwrap(),
+            proxy_blocklist_ttl_sec: register_int_gauge_with_registry!(
+                "proxy_blocklist_ttl_sec",
+                "Seconds a blocked proxied client stays in the blocklist",
                 registry
             )
             .unwrap(),

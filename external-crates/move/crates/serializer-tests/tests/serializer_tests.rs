@@ -3,7 +3,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::file_format::CompiledModule;
+use move_binary_format::{binary_config::BinaryConfig, file_format::CompiledModule};
 use proptest::prelude::*;
 
 proptest! {
@@ -12,7 +12,8 @@ proptest! {
         let mut serialized = Vec::with_capacity(2048);
         module.serialize(&mut serialized).expect("serialization should work");
 
-        let deserialized_module = CompiledModule::deserialize_with_defaults(&serialized)
+        let config = BinaryConfig::legacy_with_flags(false, false);
+        let deserialized_module = CompiledModule::deserialize_with_config(&serialized, &config)
             .expect("deserialization should work");
 
         prop_assert_eq!(module, deserialized_module);

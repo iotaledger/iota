@@ -11,7 +11,8 @@ use std::{num::NonZeroUsize, time::Duration};
 
 use fastcrypto::encoding::Base64;
 use iota_core::authority_client::{
-    make_network_authority_clients_with_network_config, validator::ValidatorAPI,
+    NetworkAuthorityClient, make_network_authority_clients_with_network_config,
+    validator::ValidatorAPI, validator_v2::ValidatorV2API,
 };
 use iota_json_rpc_api::TRANSACTION_NOT_FOUND_ERROR_CODE;
 use iota_json_rpc_types::{
@@ -23,16 +24,14 @@ use iota_network::default_iota_network_config;
 use iota_sdk_types::{TransactionDigest, UserSignature};
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
-use iota_traffic_controller::{
-    TrafficController, nodefw_test_server::NodeFwTestServer, sim::TrafficSim,
-};
+use iota_traffic_controller::sim::TrafficSim;
 use iota_types::{
+    error::IotaError,
     quorum_driver_types::ExecuteTransactionRequestType,
     traffic_control::{
-        FreqThresholdConfig, PolicyConfig, PolicyType, RemoteFirewallConfig,
-        TrafficControlReconfigParams, Weight,
+        FreqThresholdConfig, PolicyConfig, PolicyType, TrafficControlReconfigParams, Weight,
     },
-    transaction::SenderSignedTransactionAPI,
+    transaction::{SenderSignedTransactionAPI, TransactionEnvelope},
 };
 use jsonrpsee::{core::client::ClientT, rpc_params};
 use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
@@ -204,18 +203,43 @@ async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+/// Sends `tx` to a validator through the endpoint the flow uses:
+/// `handle_transaction` without the P-COOL flow, `submit_tx` with it.
+async fn send_to_validator(
+    client: &NetworkAuthorityClient,
+    tx: &TransactionEnvelope,
+    pcool: bool,
+) -> Result<(), IotaError> {
+    if pcool {
+        client.submit_tx(vec![tx.clone()], None).await.map(|_| ())
+    } else {
+        client
+            .handle_transaction(tx.clone(), None)
+            .await
+            .map(|_| ())
+    }
+}
+
 #[tokio::test]
-async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Error> {
+async fn test_validator_traffic_control_error_blocked_pre_consensus_flow()
+-> Result<(), anyhow::Error> {
+    test_validator_traffic_control_error_blocked(false).await
+}
+
+#[tokio::test]
+async fn test_validator_traffic_control_error_blocked_pcool_flow() -> Result<(), anyhow::Error> {
+    test_validator_traffic_control_error_blocked(true).await
+}
+
+async fn test_validator_traffic_control_error_blocked(pcool: bool) -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
-    // Under the P-COOL flow `handle_transaction` is rejected before signature
-    // verification, so the errors this policy counts never reach the tally.
-    let _pcool_guard = override_pcool_flow(false);
+    let _pcool_guard = override_pcool_flow(pcool);
     let n = 5;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 120,
         // Test that any N requests to the gRPC API of the validator will cause an IP to be added to
-        // the blocklist. In this test we're directly calling
-        // `/iota.validator.Validator/Transaction` gRPC method to go above the limit.
+        // the blocklist. In this test we're directly calling the validator's
+        // transaction submission gRPC method to go above the limit.
         error_policy_type: PolicyType::TestNConnIP(n - 1),
         dry_run: false,
         ..Default::default()
@@ -246,7 +270,7 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
     // The error policy blocks after n - 1 error tallies, so the block must be
     // observed within n requests.
     for _ in 0..n {
-        let response = auth_client.handle_transaction(tx.clone(), None).await;
+        let response = send_to_validator(auth_client, &tx, pcool).await;
         if let Err(err) = response {
             if err.to_string().contains("Too many requests") {
                 return Ok(());
@@ -257,12 +281,22 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
 }
 
 #[tokio::test]
-async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
+async fn test_validator_traffic_control_error_blocked_with_policy_reconfig_pre_consensus_flow()
 -> Result<(), anyhow::Error> {
+    test_validator_traffic_control_error_blocked_with_policy_reconfig(false).await
+}
+
+#[tokio::test]
+async fn test_validator_traffic_control_error_blocked_with_policy_reconfig_pcool_flow()
+-> Result<(), anyhow::Error> {
+    test_validator_traffic_control_error_blocked_with_policy_reconfig(true).await
+}
+
+async fn test_validator_traffic_control_error_blocked_with_policy_reconfig(
+    pcool: bool,
+) -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
-    // Under the P-COOL flow `handle_transaction` is rejected before signature
-    // verification, so the errors this policy counts never reach the tally.
-    let _pcool_guard = override_pcool_flow(false);
+    let _pcool_guard = override_pcool_flow(pcool);
     let n = 5;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 100,
@@ -297,7 +331,7 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
     // run mode, even after far exceeding the threshold. However the blocklist
     // should be updated.
     for _ in 0..(2 * n) {
-        let response = auth_client.handle_transaction(tx.clone(), None).await;
+        let response = send_to_validator(auth_client, &tx, pcool).await;
         if let Err(err) = response {
             assert!(
                 !err.to_string().contains("Too many requests"),
@@ -312,6 +346,8 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
                 error_threshold: None,
                 spam_threshold: None,
                 dry_run: Some(false),
+                connection_blocklist_ttl_sec: None,
+                proxy_blocklist_ttl_sec: None,
             })
             .await
             .unwrap();
@@ -319,7 +355,7 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
     // If Node and TrafficController has not crashed, blocklist and policy freq
     // state should still be intact. A single additional erroneous request from
     // the client should trigger enforcement.
-    let response = auth_client.handle_transaction(tx.clone(), None).await;
+    let response = send_to_validator(auth_client, &tx, pcool).await;
     if let Err(err) = response {
         if err.to_string().contains("Too many requests") {
             return Ok(());
@@ -485,247 +521,6 @@ async fn unknown_transaction_does_not_trigger_fullnode_error_policy() {
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
     }
-}
-
-#[tokio::test]
-async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::Error> {
-    telemetry_subscribers::init_for_testing();
-    // Under the P-COOL flow `handle_transaction` is rejected before signature
-    // verification, so the errors this policy counts never reach the tally.
-    let _pcool_guard = override_pcool_flow(false);
-    let n = 5;
-    let port = 65000;
-    let policy_config = PolicyConfig {
-        connection_blocklist_ttl_sec: 120,
-        proxy_blocklist_ttl_sec: 120,
-        // Test that any N - 1 requests will cause an IP to be added to the blocklist.
-        error_policy_type: PolicyType::TestNConnIP(n - 1),
-        dry_run: false,
-        ..Default::default()
-    };
-    // enable remote firewall delegation
-    let tmp_dir = iota_common::tempdir();
-    let firewall_config = RemoteFirewallConfig {
-        remote_fw_url: format!("http://127.0.0.1:{port}"),
-        delegate_spam_blocking: false,
-        delegate_error_blocking: true,
-        destination_port: 8080,
-        drain_path: tmp_dir.path().join("drain"),
-        drain_timeout_secs: 300,
-    };
-    let network_config = ConfigBuilder::new_with_temp_dir()
-        .committee_size(NonZeroUsize::new(4).unwrap())
-        .with_policy_config(Some(policy_config))
-        .with_firewall_config(Some(firewall_config))
-        .build();
-    let committee = network_config.committee_with_network();
-    let test_cluster = TestClusterBuilder::new()
-        .set_network_config(network_config)
-        .build()
-        .await;
-    let local_clients = make_network_authority_clients_with_network_config(
-        &committee,
-        &default_iota_network_config(),
-    );
-    let (_, auth_client) = local_clients.first_key_value().unwrap();
-
-    let mut txns = batch_make_transfer_transactions(&test_cluster.wallet, n as usize).await;
-    let mut tx = txns.swap_remove(0);
-    let signatures = tx.tx_signatures_mut_for_testing();
-    signatures.pop();
-    signatures.push(UserSignature::Simple(
-        iota_types::crypto::zero_ed25519_signature(),
-    ));
-
-    // start test firewall server
-    let mut server = NodeFwTestServer::new();
-    server.start(port).await;
-    // await for the server to start
-    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-
-    // The error policy blocks on the fourth tally, thus the firewall gets the
-    // block before the loop ends.
-    for _ in 0..n {
-        // The firewall holds the block, thus the node never rejects the request
-        // itself.
-        let err = auth_client
-            .handle_transaction(tx.clone(), None)
-            .await
-            .expect_err("Expected the bad signature to be rejected");
-        assert!(
-            !err.to_string().contains("Too many requests"),
-            "Expected the firewall to hold the block, not the node: {err}"
-        );
-    }
-    // The delegation request to the firewall server is asynchronous.
-    let mut fw_blocklist = Vec::new();
-    for _ in 0..50 {
-        fw_blocklist = server.list_addresses_rpc().await;
-        if !fw_blocklist.is_empty() {
-            break;
-        }
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-    }
-    assert!(
-        !fw_blocklist.is_empty(),
-        "Expected blocklist to be non-empty"
-    );
-    server.stop().await;
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Error> {
-    telemetry_subscribers::init_for_testing();
-    let txn_count = 10;
-    let port = 65001;
-    let policy_config = PolicyConfig {
-        connection_blocklist_ttl_sec: 120,
-        proxy_blocklist_ttl_sec: 120,
-        // Test that any N - 1 requests will cause an IP to be added to the blocklist.
-        spam_policy_type: PolicyType::TestNConnIP(txn_count - 1),
-        spam_sample_rate: Weight::one(),
-        dry_run: false,
-        ..Default::default()
-    };
-    // enable remote firewall delegation
-    let tmp_dir = iota_common::tempdir();
-    let firewall_config = RemoteFirewallConfig {
-        remote_fw_url: format!("http://127.0.0.1:{port}"),
-        delegate_spam_blocking: true,
-        delegate_error_blocking: false,
-        destination_port: 9000,
-        drain_path: tmp_dir.path().join("drain"),
-        drain_timeout_secs: 300,
-    };
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_policy_config(Some(policy_config))
-        .with_fullnode_fw_config(Some(firewall_config.clone()))
-        .build()
-        .await;
-
-    // start test firewall server
-    let mut server = NodeFwTestServer::new();
-    server.start(port).await;
-    // await for the server to start
-    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-    let context = test_cluster.wallet;
-    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
-    let mut txns = batch_make_transfer_transactions(&context, txn_count as usize).await;
-    assert!(
-        txns.len() >= txn_count as usize,
-        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
-    );
-
-    let txn = txns.swap_remove(0);
-    let tx_digest = txn.digest();
-    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
-    let params = rpc_params![
-        tx_bytes,
-        signatures,
-        IotaTransactionBlockResponseOptions::new(),
-        ExecuteTransactionRequestType::WaitForLocalExecution
-    ];
-
-    let response: IotaTransactionBlockResponse = jsonrpc_client
-        .request("iota_executeTransactionBlock", params.clone())
-        .await
-        .unwrap();
-    let IotaTransactionBlockResponse {
-        digest,
-        confirmed_local_execution,
-        ..
-    } = response;
-    assert_eq!(&digest, tx_digest);
-    assert!(confirmed_local_execution.unwrap());
-
-    // The spam policy blocks after txn_count - 1 tallies. Blocking is
-    // delegated to the firewall, so requests are never rejected locally.
-    for _ in 0..txn_count {
-        let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
-            .request("iota_getTransactionBlock", rpc_params![*tx_digest])
-            .await;
-        assert!(response.is_ok(), "Expected request to succeed");
-    }
-    // Allow time for the async HTTP delegation to the firewall server to complete.
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-    let fw_blocklist = server.list_addresses_rpc().await;
-    assert!(
-        !fw_blocklist.is_empty(),
-        "Expected blocklist to be non-empty"
-    );
-    server.stop().await;
-    Ok(())
-}
-
-/// The dead man's switch drains the firewall when tallies stop arriving, keeps
-/// the drain file across a restart, and stops with its controller.
-#[sim_test]
-async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
-    telemetry_subscribers::init_for_testing();
-    let policy_config = PolicyConfig {
-        connection_blocklist_ttl_sec: 3,
-        spam_policy_type: PolicyType::TestNConnIP(10),
-        spam_sample_rate: Weight::one(),
-        dry_run: false,
-        ..Default::default()
-    };
-    let tmp_dir = iota_common::tempdir();
-    let drain_path = tmp_dir.path().join("drain");
-    assert!(!drain_path.exists(), "Expected drain file to not yet exist");
-    let firewall_config = RemoteFirewallConfig {
-        remote_fw_url: String::from("http://127.0.0.1:65000"),
-        delegate_spam_blocking: true,
-        delegate_error_blocking: false,
-        destination_port: 9000,
-        drain_path: drain_path.clone(),
-        drain_timeout_secs: 6,
-    };
-
-    // No traffic at all, so the switch engages once the timeout elapses.
-    let tc = TrafficController::init_for_test(policy_config.clone(), Some(firewall_config.clone()));
-    let mut drain_enabled = false;
-    for _ in 0..4 {
-        if drain_path.exists() {
-            drain_enabled = true;
-            break;
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-    }
-    assert!(drain_enabled, "Expected drain file to be enabled");
-
-    // A controller starting against a drained path leaves it drained.
-    drop(tc);
-    let _tc = TrafficController::init_for_test(policy_config.clone(), Some(firewall_config));
-    assert!(
-        drain_path.exists(),
-        "Expected drain file to remain set across a restart",
-    );
-
-    // A dropped controller takes its switch with it, rather than draining a
-    // firewall on behalf of a node that no longer exists.
-    let stopped_dir = iota_common::tempdir();
-    let stopped_drain_path = stopped_dir.path().join("drain");
-    drop(TrafficController::init_for_test(
-        policy_config,
-        Some(RemoteFirewallConfig {
-            remote_fw_url: String::from("http://127.0.0.1:65002"),
-            delegate_spam_blocking: true,
-            delegate_error_blocking: false,
-            destination_port: 9000,
-            drain_path: stopped_drain_path.clone(),
-            drain_timeout_secs: 2,
-        }),
-    ));
-    // Well past the drain timeout: a switch still running would have created
-    // the drain file by now, as it sees no tallies at all.
-    tokio::time::sleep(tokio::time::Duration::from_secs(6)).await;
-    assert!(
-        !stopped_drain_path.exists(),
-        "Expected the dead man's switch to stop with the controller",
-    );
-
-    Ok(())
 }
 
 #[sim_test]

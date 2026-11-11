@@ -31,11 +31,12 @@ http-body-util.workspace = true
 hyper.workspace = true
 once_cell.workspace = true
 reqwest.workspace = true
+rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tap.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "sync"] }
 tokio-stream.workspace = true
 tokio-util = { workspace = true, features = ["rt"] }
 toml.workspace = true
@@ -64,6 +65,7 @@ iota-network-stack.workspace = true
 iota-node-storage.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 iota-sdk-types.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true
@@ -81,6 +83,7 @@ expect-test.workspace = true
 hyper.workspace = true
 insta.workspace = true
 rand.workspace = true
+semver = "1.0"
 serde_json.workspace = true
 serial_test.workspace = true
 tower.workspace = true

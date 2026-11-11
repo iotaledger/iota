@@ -15,7 +15,6 @@ use itertools::Itertools as _;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 use tokio::{
-    runtime::Handle,
     sync::oneshot,
     task::JoinSet,
     time::{MissedTickBehavior, sleep},
@@ -27,7 +26,7 @@ use crate::{
     block_verifier::BlockVerifier,
     commit::{CertifiedCommit, CertifiedCommits, CommitAPI as _, CommitRange},
     commit_syncer::{
-        CommitSyncType, CommitSyncerHandle, Inner,
+        CommitSyncType, CommitSyncerHandle, Inner, REGULAR_FETCH_ATTEMPT_MULTIPLIER,
         fast::{FastSyncPauseSource, paused_by_fast_sync},
         fetch_loop as shared_fetch_loop, handle_fetch_join_error, requeue_partial_range,
         schedule_commit_ranges, try_start_fetches as shared_try_start_fetches,
@@ -41,7 +40,8 @@ use crate::{
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
     network::{NetworkClient, SerializedTransactionsV2},
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
+    task::spawn_blocking,
+    transaction_ref::TransactionRef,
 };
 
 pub(crate) struct RegularCommitSyncer<C: NetworkClient> {
@@ -342,15 +342,13 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
 
             for certified_commit in commits.commits() {
                 // Collect committed_transactions from the TrustedCommit
-                for gen_tx_ref in certified_commit.committed_transactions() {
-                    expected_transactions.insert(gen_tx_ref);
+                for tx_ref in certified_commit.committed_transactions() {
+                    expected_transactions.insert(*tx_ref);
                 }
 
                 // Collect available transactions from CommitmentVerifiedTransactions
                 for verified_txns in certified_commit.transactions() {
-                    let gen_tx_ref =
-                        GenericTransactionRef::TransactionRef(verified_txns.transaction_ref());
-                    available_transactions.insert(gen_tx_ref);
+                    available_transactions.insert(verified_txns.transaction_ref());
                 }
             }
 
@@ -410,12 +408,12 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                                 .map(|b| b.to_string())
                                 .join(","),
                         );
-                        for (gen_tran_ref, _ack_authorities) in missing_committed_txns {
+                        for (tx_ref, _ack_authorities) in missing_committed_txns {
                             let hostname = &self
                                 .inner
                                 .context
                                 .committee
-                                .authority(gen_tran_ref.author())
+                                .authority(tx_ref.author)
                                 .hostname;
                             metrics
                                 .commit_sync_fetch_missing_transactions
@@ -492,7 +490,13 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         // - Fetching block headers referenced by the commits
         // - Time spent on pipelining requests
         // - Headroom to allow fetch_once() to timeout gracefully
-        shared_fetch_loop(inner, commit_range, 4, Self::fetch_once).await
+        shared_fetch_loop(
+            inner,
+            commit_range,
+            REGULAR_FETCH_ATTEMPT_MULTIPLIER,
+            Self::fetch_once,
+        )
+        .await
     }
 
     // Fetches commits and blocks from a single authority. At a high level, first
@@ -520,28 +524,30 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         let (serialized_commits, serialized_voting_block_headers) = inner
             .network_client
             .fetch_commits(target_authority, commit_range.clone(), timeout)
-            .await?;
+            .await
+            .inspect_err(|e| {
+                inner
+                    .misbehavior_store
+                    .record_fetch_fault(target_authority, e);
+            })?;
 
-        // 2. Verify the response contains block headers that can certify the last
-        //    returned commit,
+        // 2. Verify the response contains block headers that can certify the last returned commit,
         // and the returned commits are chained by digest, so earlier commits are
         // certified as well.
-        let max_commits = inner.sync_type.max_commits_per_response(&inner.context);
-        let (commits, _) = Handle::current()
-            .spawn_blocking({
-                let inner = inner.clone();
-                move || {
-                    inner.verify_commits(
-                        target_authority,
-                        commit_range,
-                        serialized_commits,
-                        serialized_voting_block_headers,
-                        max_commits,
-                    )
-                }
-            })
-            .await
-            .expect("Spawn blocking should not fail")?;
+        let max_commits = inner.sync_type.max_commits_per_response(&commit_range);
+        let (commits, _) = spawn_blocking({
+            let inner = inner.clone();
+            move || {
+                inner.verify_commits(
+                    target_authority,
+                    commit_range,
+                    serialized_commits,
+                    serialized_voting_block_headers,
+                    max_commits,
+                )
+            }
+        })
+        .await??;
 
         // 3. Fetch block headers referenced by the commits, from the same authority.
         let block_refs: Vec<_> = commits
@@ -550,18 +556,11 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             .cloned()
             .collect();
 
-        // 3a. Collect the committed transaction refs of each commit. Commits
-        //     passing verify_commits are V2/V3, which only carry
-        //     `TransactionRef`s, so the legacy `BlockRef` variant is an error.
+        // 3a. Collect the committed transaction refs of each commit.
         let commits_tx_refs: Vec<Vec<TransactionRef>> = commits
             .iter()
-            .map(|c| {
-                c.committed_transactions()
-                    .into_iter()
-                    .map(GenericTransactionRef::expect_transaction_ref)
-                    .collect()
-            })
-            .collect::<ConsensusResult<_>>()?;
+            .map(|c| c.committed_transactions().to_vec())
+            .collect();
         let committed_tx_refs: Vec<TransactionRef> =
             commits_tx_refs.iter().flatten().copied().collect();
 
@@ -588,7 +587,12 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                             vec![],
                             timeout,
                         )
-                        .await?;
+                        .await
+                        .inspect_err(|e| {
+                            inner
+                                .misbehavior_store
+                                .record_fetch_fault(target_authority, e);
+                        })?;
                     // 5. Verify the returned headers are the requested ones.
                     verify_fetched_headers(
                         target_authority,
@@ -606,8 +610,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             })
             .collect();
 
-        // 8. Create transaction fetch requests (will be processed concurrently with
-        //    headers)
+        // 8. Create transaction fetch requests (will be processed concurrently with headers)
         let mut transaction_requests: FuturesOrdered<_> = if !committed_tx_refs.is_empty() {
             let num_tx_chunks = committed_tx_refs.len().div_ceil(
                 inner
@@ -634,7 +637,12 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         let serialized_transactions = inner
                             .network_client
                             .fetch_transactions(target_authority, request_tx_refs.to_vec(), timeout)
-                            .await?;
+                            .await
+                            .inspect_err(|e| {
+                                inner
+                                    .misbehavior_store
+                                    .record_fetch_fault(target_authority, e);
+                            })?;
 
                         // 10. Verify that the number of returned transactions is not greater than
                         //     the number of requested transactions. It's OK if not all requested
@@ -721,35 +729,33 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
 
         // 13. Verify the transactions against their commitments
         let mut transactions_map = if !fetched_transactions.is_empty() {
-            Handle::current()
-                .spawn_blocking({
-                    let context = inner.context.clone();
+            spawn_blocking({
+                let context = inner.context.clone();
 
-                    move || {
-                        verify_transactions_commitments(
-                            &context,
-                            target_authority,
-                            fetched_transactions,
-                        )
-                    }
-                })
-                .await
-                .expect("Spawn blocking should not fail")
-                .inspect_err(|_| {
-                    // Not provable against the author, whose commitment the
-                    // peer may have forged.
-                    inner.misbehavior_store.record_faulty_transactions(
+                move || {
+                    verify_transactions_commitments(
+                        &context,
                         target_authority,
-                        false,
-                        [target_authority],
-                    );
-                })?
+                        fetched_transactions,
+                    )
+                }
+            })
+            .await?
+            .inspect_err(|_| {
+                // Not provable against the author, whose commitment the
+                // peer may have forged.
+                inner.misbehavior_store.record_faulty_transactions(
+                    target_authority,
+                    false,
+                    [target_authority],
+                );
+            })?
         } else {
             BTreeMap::new()
         };
 
-        // 14. Now create the Certified commits by assigning the block headers and
-        //     transactions to each commit and retaining the commit votes history.
+        // 14. Now create the Certified commits by assigning the block headers and transactions to
+        //     each commit and retaining the commit votes history.
         let mut certified_commits = Vec::new();
         for (commit, commit_tx_refs) in commits.iter().zip(&commits_tx_refs) {
             let block_headers = commit
@@ -1079,7 +1085,7 @@ mod tests {
             misbehavior_store::MisbehaviorStore,
             network::SerializedTransactionsV2,
             storage::{Store, mem_store::MemStore},
-            transaction_ref::{GenericTransactionRef, TransactionRef},
+            transaction_ref::TransactionRef,
             transactions_synchronizer::TransactionsSynchronizer,
         };
 
@@ -1160,22 +1166,20 @@ mod tests {
             let leader_header_2 =
                 VerifiedBlockHeader::new_for_test(TestBlockHeader::new(2, 1).build());
             let commit_1 = TrustedCommit::new_for_test(
-                context,
                 1,
                 CommitDigest::MIN,
                 0,
                 leader_header_1.reference(),
                 vec![leader_header_1.reference()],
-                vec![GenericTransactionRef::TransactionRef(transaction_refs[0])],
+                vec![transaction_refs[0]],
             );
             let commit_2 = TrustedCommit::new_for_test(
-                context,
                 2,
                 commit_1.digest(),
                 0,
                 leader_header_2.reference(),
                 vec![leader_header_2.reference()],
-                vec![GenericTransactionRef::TransactionRef(transaction_refs[1])],
+                vec![transaction_refs[1]],
             );
 
             let vote_headers: Vec<Bytes> = (0..3)

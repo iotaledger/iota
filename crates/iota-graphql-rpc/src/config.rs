@@ -2,15 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, fmt::Display};
+use std::{collections::BTreeSet, fmt::Display, num::NonZeroU32};
 
 use async_graphql::*;
 use iota_graphql_config::GraphQLConfig;
+use iota_indexer::db::DbUrl;
 use iota_names::config::IotaNamesConfig;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::{functional_group::FunctionalGroup, types::int::try_into_int};
+
+const DEFAULT_DB_URL: &str = "postgres://postgres:postgrespw@localhost:5432/iota_indexer";
 
 pub(crate) const DEFAULT_PAGE_SIZE: u32 = 20;
 pub(crate) const MAX_PAGE_SIZE: u32 = 50;
@@ -41,8 +44,8 @@ pub struct ConnectionConfig {
     #[arg(long, default_value_t = ConnectionConfig::default().host)]
     pub host: String,
     /// DB URL for data fetching
-    #[arg(short, long, default_value_t = ConnectionConfig::default().db_url)]
-    pub db_url: String,
+    #[arg(short, long, default_value = DEFAULT_DB_URL)]
+    pub db_url: DbUrl,
     /// Pool size for DB connections
     #[arg(long, default_value_t = ConnectionConfig::default().db_pool_size)]
     pub db_pool_size: u32,
@@ -102,12 +105,21 @@ pub struct HistoricFallbackOptions {
         help = "Experimental: Cache size for historic fallback."
     )]
     pub fallback_kv_cache_size: u64,
+
+    #[arg(
+        long,
+        default_value_t = HistoricFallbackOptions::DEFAULT_MAX_RESPONSE_SIZE_BYTES,
+        env = "FALLBACK_KV_MAX_RESPONSE_SIZE_BYTES",
+        help = "Experimental: Maximum size in bytes of a single response body accepted from the fallback KV store. Larger responses are rejected."
+    )]
+    pub fallback_kv_max_response_size_bytes: usize,
 }
 
 impl HistoricFallbackOptions {
     pub const DEFAULT_MULTI_FETCH_BATCH_SIZE: usize = 100;
     pub const DEFAULT_CONCURRENT_FETCHES: usize = 10;
     pub const DEFAULT_CACHE_SIZE: u64 = 100_000;
+    pub const DEFAULT_MAX_RESPONSE_SIZE_BYTES: usize = 128 * 1024 * 1024;
 }
 
 impl Default for HistoricFallbackOptions {
@@ -117,6 +129,7 @@ impl Default for HistoricFallbackOptions {
             fallback_kv_multi_fetch_batch_size: Self::DEFAULT_MULTI_FETCH_BATCH_SIZE,
             fallback_kv_concurrent_fetches: Self::DEFAULT_CONCURRENT_FETCHES,
             fallback_kv_cache_size: Self::DEFAULT_CACHE_SIZE,
+            fallback_kv_max_response_size_bytes: Self::DEFAULT_MAX_RESPONSE_SIZE_BYTES,
         }
     }
 }
@@ -187,6 +200,15 @@ pub struct Limits {
     pub max_transaction_ids: u32,
     /// Maximum number of candidates to scan when gathering a page of results.
     pub max_scan_limit: u32,
+    /// Maximum number of checkpoints a subscription may replay from the
+    /// database when resuming from `startAfter`, measured as the difference
+    /// between the sequence number of the latest indexed checkpoint and that
+    /// of the checkpoint containing the `startAfter` digest. A digest further
+    /// behind is rejected.
+    pub max_subscription_recovery_checkpoints: NonZeroU32,
+    /// Maximum number of subscriptions that may be active at the same time
+    /// across all connections.
+    pub max_active_subscriptions: NonZeroU32,
 }
 
 #[GraphQLConfig]
@@ -430,7 +452,7 @@ impl ConnectionConfig {
         Self {
             port: port.unwrap_or(default.port),
             host: host.unwrap_or(default.host),
-            db_url: db_url.unwrap_or(default.db_url),
+            db_url: db_url.map_or(default.db_url, DbUrl::from),
             db_pool_size: db_pool_size.unwrap_or(default.db_pool_size),
             prom_host: prom_host.unwrap_or(default.prom_host),
             prom_port: prom_port.unwrap_or(default.prom_port),
@@ -443,7 +465,8 @@ impl ConnectionConfig {
     pub fn ci_integration_test_cfg() -> Self {
         Self {
             db_url: "postgres://postgres:postgrespw@localhost:5432/iota_graphql_rpc_e2e_tests"
-                .to_string(),
+                .to_string()
+                .into(),
             ..Default::default()
         }
     }
@@ -454,7 +477,7 @@ impl ConnectionConfig {
         prom_port: u16,
     ) -> Self {
         Self {
-            db_url: format!("postgres://postgres:postgrespw@localhost:5432/{db_name}"),
+            db_url: format!("postgres://postgres:postgrespw@localhost:5432/{db_name}").into(),
             port,
             prom_port,
             ..Default::default()
@@ -462,11 +485,16 @@ impl ConnectionConfig {
     }
 
     pub fn db_name(&self) -> String {
-        self.db_url.split('/').next_back().unwrap().to_string()
+        self.db_url
+            .as_str()
+            .split('/')
+            .next_back()
+            .unwrap()
+            .to_string()
     }
 
     pub fn db_url(&self) -> String {
-        self.db_url.clone()
+        self.db_url.as_str().to_string()
     }
 
     pub fn db_pool_size(&self) -> u32 {
@@ -536,7 +564,7 @@ impl Default for ConnectionConfig {
         Self {
             port: 8000,
             host: "127.0.0.1".to_string(),
-            db_url: "postgres://postgres:postgrespw@localhost:5432/iota_indexer".to_string(),
+            db_url: DEFAULT_DB_URL.to_string().into(),
             db_pool_size: 10,
             prom_host: "0.0.0.0".to_string(),
             prom_port: 9184,
@@ -582,6 +610,9 @@ impl Default for Limits {
             //
             // <https://github.com/iotaledger/iota/blob/29c410ac809dd7c71dbf0237a96f08d72b406e52/crates/iota-protocol-config/src/lib.rs#L1566>
             max_tx_payload_size: (128u32 * 1024u32 * 4u32).div_ceil(3),
+            max_subscription_recovery_checkpoints: NonZeroU32::new(20_000)
+                .expect("value must be non zero"),
+            max_active_subscriptions: NonZeroU32::new(1000).expect("value must be non zero"),
         }
     }
 }
@@ -647,6 +678,8 @@ mod tests {
                 max-move-value-depth = 256
                 max-transaction-ids = 11
                 max-scan-limit = 50
+                max-subscription-recovery-checkpoints = 500
+                max-active-subscriptions = 20
             "#,
         )
         .unwrap();
@@ -669,6 +702,8 @@ mod tests {
                 max_move_value_depth: 256,
                 max_transaction_ids: 11,
                 max_scan_limit: 50,
+                max_subscription_recovery_checkpoints: NonZeroU32::new(500).unwrap(),
+                max_active_subscriptions: NonZeroU32::new(20).unwrap(),
             },
             ..Default::default()
         };
@@ -734,6 +769,8 @@ mod tests {
                 max-move-value-depth = 256
                 max-transaction-ids = 42
                 max-scan-limit = 420
+                max-subscription-recovery-checkpoints = 4200
+                max-active-subscriptions = 42
 
                 [experiments]
                 test-flag = true
@@ -759,6 +796,8 @@ mod tests {
                 max_move_value_depth: 256,
                 max_transaction_ids: 42,
                 max_scan_limit: 420,
+                max_subscription_recovery_checkpoints: NonZeroU32::new(4200).unwrap(),
+                max_active_subscriptions: NonZeroU32::new(42).unwrap(),
             },
             disabled_features: BTreeSet::from([FunctionalGroup::Analytics]),
             experiments: Experiments { test_flag: true },
@@ -793,5 +832,22 @@ mod tests {
         };
 
         assert_eq!(actual, expect);
+    }
+
+    #[test]
+    fn test_server_config_debug_hides_db_password() {
+        let config = ServerConfig {
+            connection: ConnectionConfig {
+                db_url: "postgres://user:hunter2@localhost:5432/iota_indexer"
+                    .to_string()
+                    .into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let printed = format!("{config:#?}");
+        assert!(!printed.contains("hunter2"), "{printed}");
+        assert!(printed.contains("****"), "{printed}");
     }
 }

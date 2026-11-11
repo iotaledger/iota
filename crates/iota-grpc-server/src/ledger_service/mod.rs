@@ -18,7 +18,7 @@ use iota_types::digests::ChainIdentifier;
 use tokio_util::sync::CancellationToken;
 use tonic::{Code, Request, Response, Status};
 
-use crate::{traffic_control::TallyHandle, types::*};
+use crate::{metrics::RequestMetrics, traffic_control::TallyHandle, types::*};
 
 pub struct LedgerGrpcService {
     pub config: GrpcApiConfig,
@@ -68,7 +68,9 @@ fn validate_read_batch_size(item_count: usize, max: u32) -> Result<(), Status> {
 /// traffic control. The request is marked as accounted so the layer skips its
 /// default per-request tally, and is instead charged one request per produced
 /// item, so batching cannot dilute the spam rate; an empty batch produces no
-/// per-item tallies and is charged as one request up front instead. Per-item
+/// per-item tallies and is charged as one request up front instead. A stream
+/// that tallies nothing, such as one the client cancels before its first item,
+/// is charged as one request by the [`TallyHandle`]. Per-item
 /// read failures ride inside `Ok` responses and are tallied as `Ok`: a client
 /// cannot know an object or transaction was pruned, so they must not feed the
 /// error policy. A stream-level error terminates the stream and is tallied by
@@ -135,14 +137,15 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         request: tonic::Request<grpc_ledger_service::GetObjectsRequest>,
     ) -> std::result::Result<tonic::Response<Self::GetObjectsStream>, tonic::Status> {
         let tally_handle = request.extensions().get::<TallyHandle>().cloned();
+        let metrics = RequestMetrics::from_extensions(request.extensions());
         let request = request.into_inner();
         let item_count = request
             .requests
             .as_ref()
             .map_or(0, |batch| batch.requests.len());
         validate_read_batch_size(item_count, self.config.max_get_objects_batch_size)?;
-        let stream =
-            get_objects::get_objects(self.reader.clone(), request).map_err(tonic::Status::from)?;
+        let stream = get_objects::get_objects(self.reader.clone(), metrics, request)
+            .map_err(tonic::Status::from)?;
         let stream = tally_read_stream(stream, tally_handle, item_count, |response| {
             response.objects.len()
         });
@@ -155,15 +158,20 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         request: tonic::Request<grpc_ledger_service::GetTransactionsRequest>,
     ) -> std::result::Result<tonic::Response<Self::GetTransactionsStream>, tonic::Status> {
         let tally_handle = request.extensions().get::<TallyHandle>().cloned();
+        let metrics = RequestMetrics::from_extensions(request.extensions());
         let request = request.into_inner();
         let item_count = request
             .requests
             .as_ref()
             .map_or(0, |batch| batch.requests.len());
         validate_read_batch_size(item_count, self.config.max_get_transactions_batch_size)?;
-        let stream =
-            get_transactions::get_transactions(self.reader.clone(), self.config.clone(), request)
-                .map_err(tonic::Status::from)?;
+        let stream = get_transactions::get_transactions(
+            self.reader.clone(),
+            self.config.clone(),
+            metrics,
+            request,
+        )
+        .map_err(tonic::Status::from)?;
         let stream = tally_read_stream(stream, tally_handle, item_count, |response| {
             response.transaction_results.len()
         });
@@ -198,5 +206,66 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
     ) -> Result<Response<grpc_ledger_service::GetEpochResponse>, Status> {
         let response = get_epoch::get_epoch(self, request.into_inner()).map(Response::new)?;
         Ok(append_info_headers!(response, self.reader.clone()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        net::{IpAddr, Ipv4Addr},
+        sync::Arc,
+    };
+
+    use futures::stream;
+    use iota_traffic_controller::TrafficController;
+    use iota_types::traffic_control::{PolicyConfig, PolicyType, Weight};
+
+    use super::*;
+
+    const CLIENT: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
+
+    /// How many requests a read stream of `request_item_count` items is charged
+    /// for when `read` of its `responses` are read and it is then dropped. Each
+    /// response is the number of items it carries. Counts up to 5.
+    async fn charges(
+        request_item_count: usize,
+        responses: Vec<Result<usize, Status>>,
+        read: usize,
+    ) -> u64 {
+        let mut charges = 0;
+        for threshold in 1..=5 {
+            // Blocks a client on its `threshold`-th request.
+            let traffic_controller = Arc::new(TrafficController::init_for_test(PolicyConfig {
+                connection_blocklist_ttl_sec: 120,
+                spam_policy_type: PolicyType::TestNConnIP(threshold),
+                error_policy_type: PolicyType::NoOp,
+                spam_sample_rate: Weight::one(),
+                dry_run: false,
+                ..Default::default()
+            }));
+            let tally_handle = TallyHandle::new(traffic_controller.clone(), Some(CLIENT));
+            let read_stream = tally_read_stream(
+                stream::iter(responses.clone()),
+                Some(tally_handle),
+                request_item_count,
+                |item_count| *item_count,
+            );
+            drop(read_stream.take(read).collect::<Vec<_>>().await);
+            // Charged at least `threshold` times.
+            if !traffic_controller.check(&Some(CLIENT), &None) {
+                charges = threshold;
+            }
+        }
+        charges
+    }
+
+    /// A read stream dropped before its first item, as when the client cancels
+    /// it, is charged as one request; a drained stream once per item; an empty
+    /// batch once.
+    #[tokio::test]
+    async fn read_stream_charges() {
+        assert_eq!(charges(2, vec![Ok(1), Ok(1)], 0).await, 1);
+        assert_eq!(charges(2, vec![Ok(1), Ok(1)], 2).await, 2);
+        assert_eq!(charges(0, vec![], 1).await, 1);
     }
 }

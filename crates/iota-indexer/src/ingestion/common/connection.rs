@@ -7,7 +7,7 @@ use backoff::{self, ExponentialBackoff};
 use iota_data_ingestion_core::{
     create_remote_store_client, history::manifest::Manifest, reader::v2::RemoteUrl,
 };
-use iota_grpc_client::Client as GrpcClient;
+use iota_grpc_client::GrpcClient;
 use object_store::ObjectStoreExt;
 use tracing::{debug, info};
 
@@ -16,6 +16,9 @@ use crate::{
     errors::{IndexerError, IndexerResult},
 };
 
+/// Maximum timeout for resolving the remote checkpoint source.
+pub const MAX_URL_RESOLUTION_TIMEOUT: Duration = Duration::from_secs(30);
+
 /// Resolves the remote checkpoint source from the provided
 /// [`remote_store_url`](IngestionSources::remote_store_url).
 ///
@@ -23,11 +26,11 @@ use crate::{
 /// object store URL for historical checkpoint data, this function probes the
 /// URL to determine which type it is:
 ///
-/// 1. **gRPC health check**: attempts to connect and call `GetHealth`. If
-///    successful, the URL is treated as a fullnode gRPC endpoint.
-/// 2. **Historical manifest fetch**: if gRPC fails, attempts to fetch the
-///    MANIFEST file from the URL as an S3-compatible object store. If
-///    successful, the URL is treated as a historical checkpoint store.
+/// 1. **gRPC health check**: attempts to connect and call `GetHealth`. If successful, the URL is
+///    treated as a fullnode gRPC endpoint.
+/// 2. **Historical manifest fetch**: if gRPC fails, attempts to fetch the MANIFEST file from the
+///    URL as an S3-compatible object store. If successful, the URL is treated as a historical
+///    checkpoint store.
 ///
 /// Both probes are retried with exponential backoff within the given timeout.
 /// If neither succeeds, returns an error.
@@ -72,7 +75,7 @@ pub async fn resolve_remote_url(
         async move {
             let grpc_result = async {
                 let client = GrpcClient::new(url.clone())?;
-                client.health(None).await
+                client.health().await
             }
             .await
             .inspect_err(|e| debug!("gRPC health check failed: {e}"));

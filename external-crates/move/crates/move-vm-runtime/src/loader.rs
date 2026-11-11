@@ -1011,7 +1011,7 @@ impl Loader {
         data_store: &impl DataStore,
     ) -> VMResult<()> {
         let module_cache = self.module_cache.read();
-        cyclic_dependencies::verify_module(module, |runtime_id| {
+        cyclic_dependencies::verify_module(&self.vm_config.verifier, module, |runtime_id| {
             let module = if let Some(bundled) = bundle_verified.get(runtime_id) {
                 Some(*bundled)
             } else {

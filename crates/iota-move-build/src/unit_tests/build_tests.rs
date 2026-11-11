@@ -4,6 +4,7 @@
 
 use std::path::Path;
 
+use move_binary_format::file_format_common::IOTA_METADATA_KEY;
 use move_compiler::editions::Edition;
 
 use crate::BuildConfig;
@@ -67,11 +68,9 @@ fn published_size_matches_move_package_size() {
             ObjectId::new([0; 32]),
             Version::default(),
             BTreeMap::new(),
-            u64::MAX,
             vec![],
             linkage,
         )
-        .unwrap()
     };
     let per_dep = make_pkg(BTreeMap::from([(
         ObjectId::new([1; 32]),
@@ -102,5 +101,46 @@ fn development_mode_not_allowed() {
     assert!(
         err.to_string()
             .contains(&Edition::DEVELOPMENT.unknown_edition_error().to_string())
+    );
+}
+
+#[test]
+fn bundled_unpublished_dependencies_carry_metadata() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("unit_tests")
+        .join("data")
+        .join("unpublished_dep")
+        .join("root");
+    let package = BuildConfig::new_for_testing().build(&path).unwrap();
+
+    let modules = package.get_dependency_sorted_modules(/* with_unpublished_deps */ true);
+    let dep = modules
+        .iter()
+        .find(|module| module.name().as_str() == "dep")
+        .expect("the publish bundles the unpublished dependency");
+    assert!(
+        dep.metadata
+            .iter()
+            .any(|metadata| metadata.key == IOTA_METADATA_KEY),
+        "the bundled dependency module keeps its authenticator metadata"
+    );
+}
+
+#[test]
+fn bundled_unpublished_dependencies_are_verified() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("unit_tests")
+        .join("data")
+        .join("unpublished_dep_invalid")
+        .join("root");
+    let err = BuildConfig::new_for_testing()
+        .build(&path)
+        .expect_err("the bundled dependency's authenticator function is invalid")
+        .to_string();
+    assert!(
+        err.contains("Authenticator function 'authenticate'"),
+        "unexpected error: {err}"
     );
 }

@@ -60,7 +60,7 @@ async fn test_apy() {
     // We need a large stake for low enough APY values such that they are not
     // filtered out by the APY calculation function.
     let pool_stake = 3_500_000_000 * NANOS_PER_IOTA / 4;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut genesis_config = GenesisConfig::for_local_testing();
     let (address, key): (_, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
     genesis_config.accounts.extend([AccountConfig {

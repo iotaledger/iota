@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
-
+use bytes::Bytes;
 use rstest::rstest;
 use starfish_config::AuthorityIndex;
 use tempfile::TempDir;
@@ -11,11 +10,11 @@ use tempfile::TempDir;
 use super::{Store, WriteBatch, mem_store::MemStore, rocksdb_store::RocksDBStore};
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, Slot, TestBlockHeader, VerifiedBlock,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, Slot, TestBlockHeader, TransactionsCommitment,
+        VerifiedBlock,
     },
     commit::{CommitDigest, CommitRef, TrustedCommit},
-    context::Context,
-    transaction_ref::GenericTransactionRef,
+    transaction_ref::TransactionRef,
 };
 
 /// Test fixture for store tests. Wraps around various store implementations.
@@ -303,7 +302,7 @@ async fn read_and_contain_transactions(
     // Test reading all transactions
     let refs: Vec<_> = written_blocks
         .iter()
-        .map(|b| GenericTransactionRef::TransactionRef(b.verified_block_header.transaction_ref()))
+        .map(|b| b.verified_block_header.transaction_ref())
         .collect();
     let read_txs = store
         .read_verified_transactions(&refs)
@@ -347,11 +346,11 @@ async fn read_and_contain_transactions(
     assert_eq!(contains, vec![true; refs.len()]);
 
     // Test with missing reference
-    let missing_ref = GenericTransactionRef::from(BlockRef::new(
-        99,
-        AuthorityIndex::new_for_test(99),
-        BlockHeaderDigest::default(),
-    ));
+    let missing_ref = TransactionRef {
+        round: 99,
+        author: AuthorityIndex::new_for_test(99),
+        transactions_commitment: TransactionsCommitment::default(),
+    };
     let read_missing = store
         .read_verified_transactions(&[missing_ref])
         .expect("Read missing should not fail");
@@ -370,8 +369,6 @@ async fn read_and_scan_commits(
     #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
     let store = test_store.store();
-    let (context, _) = Context::new_for_test(4);
-    let context = Arc::new(context);
 
     {
         let last_commit = store
@@ -382,7 +379,6 @@ async fn read_and_scan_commits(
 
     let written_commits = vec![
         TrustedCommit::new_for_test(
-            &context,
             1,
             CommitDigest::MIN,
             1,
@@ -395,7 +391,6 @@ async fn read_and_scan_commits(
             vec![],
         ),
         TrustedCommit::new_for_test(
-            &context,
             2,
             CommitDigest::MIN,
             2,
@@ -408,7 +403,6 @@ async fn read_and_scan_commits(
             vec![],
         ),
         TrustedCommit::new_for_test(
-            &context,
             3,
             CommitDigest::MIN,
             3,
@@ -421,7 +415,6 @@ async fn read_and_scan_commits(
             vec![],
         ),
         TrustedCommit::new_for_test(
-            &context,
             4,
             CommitDigest::MIN,
             4,
@@ -726,4 +719,104 @@ async fn scan_misbehavior_counts(
     .into_iter()
     .collect();
     assert_eq!(scanned, expected);
+}
+
+#[rstest]
+#[tokio::test]
+async fn scan_serialized_transactions(
+    #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
+) {
+    use std::collections::BTreeSet;
+
+    use crate::{
+        Transaction,
+        block_header::{CommitmentVerifiedTransactions, VerifiedBlockHeader},
+        transaction_ref::TransactionRef,
+    };
+
+    let store = test_store.store();
+
+    let written_blocks: Vec<VerifiedBlock> = [(9, 0), (10, 0), (10, 1), (11, 1)]
+        .into_iter()
+        .map(|(round, author)| {
+            let header =
+                VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
+            let transactions = CommitmentVerifiedTransactions::new_for_test(
+                &header,
+                vec![Transaction::new(vec![author; 100])],
+            );
+            VerifiedBlock::new(header, transactions)
+        })
+        .collect();
+    let payload_bytes =
+        written_blocks[0].verified_transactions.serialized().len() + size_of::<Bytes>();
+
+    store
+        .write(
+            WriteBatch::default().transactions(
+                written_blocks
+                    .iter()
+                    .map(|b| b.verified_transactions.clone())
+                    .collect(),
+            ),
+        )
+        .unwrap();
+
+    let all_refs: BTreeSet<TransactionRef> = written_blocks
+        .iter()
+        .map(|b| b.verified_block_header.transaction_ref())
+        .collect();
+
+    let scanned = store
+        .scan_serialized_transactions(&all_refs, usize::MAX)
+        .expect("scan should not fail");
+    assert_eq!(scanned.len(), written_blocks.len());
+    for block in &written_blocks {
+        let transaction_ref = block.verified_block_header.transaction_ref();
+        assert_eq!(
+            scanned.get(&transaction_ref),
+            Some(block.verified_transactions.serialized())
+        );
+    }
+
+    // A budget covering two payloads returns the two lowest refs.
+    let scanned = store
+        .scan_serialized_transactions(&all_refs, 2 * payload_bytes)
+        .expect("scan should not fail");
+    let expected: Vec<_> = all_refs.iter().take(2).copied().collect();
+    assert_eq!(scanned.keys().copied().collect::<Vec<_>>(), expected);
+
+    // A budget below a single payload still returns the lowest ref, so an
+    // oversized payload cannot starve the caller.
+    let scanned = store
+        .scan_serialized_transactions(&all_refs, 0)
+        .expect("scan should not fail");
+    let expected: Vec<_> = all_refs.iter().take(1).copied().collect();
+    assert_eq!(scanned.keys().copied().collect::<Vec<_>>(), expected);
+
+    // A requested ref the store does not hold is passed over without
+    // disturbing the refs around it.
+    let mut with_absent = all_refs.clone();
+    with_absent.insert(TransactionRef {
+        round: 10,
+        author: written_blocks[0].verified_block_header.author(),
+        transactions_commitment: written_blocks[0]
+            .verified_block_header
+            .transactions_commitment(),
+    });
+    let scanned = store
+        .scan_serialized_transactions(&with_absent, usize::MAX)
+        .expect("scan should not fail");
+    assert_eq!(scanned.keys().copied().collect::<BTreeSet<_>>(), all_refs);
+
+    // Stored refs outside the requested set are skipped rather than returned.
+    let requested: BTreeSet<TransactionRef> = all_refs
+        .iter()
+        .filter(|r| **r != written_blocks[1].verified_block_header.transaction_ref())
+        .copied()
+        .collect();
+    let scanned = store
+        .scan_serialized_transactions(&requested, usize::MAX)
+        .expect("scan should not fail");
+    assert_eq!(scanned.keys().copied().collect::<BTreeSet<_>>(), requested);
 }

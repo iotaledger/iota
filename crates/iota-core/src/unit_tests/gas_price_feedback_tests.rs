@@ -468,7 +468,7 @@ async fn per_object_congestion_control_mode_is_none() {
     }
     // Shuffle certificates so that they do not have any specific order in
     // terms of gas price.
-    certificates.shuffle(&mut rand::thread_rng());
+    certificates.shuffle(&mut rand::rng());
     assert_eq!(certificates.len(), num_gas_objects);
 
     let (scheduled_transactions, assigned_versions) = tester
@@ -546,7 +546,7 @@ async fn max_execution_duration_per_commit_is_none() {
     }
     // Shuffle certificates so that they do not have any specific order in
     // terms of gas price.
-    certificates.shuffle(&mut rand::thread_rng());
+    certificates.shuffle(&mut rand::rng());
     assert_eq!(certificates.len(), num_gas_objects);
 
     let (scheduled_transactions, assigned_versions) = tester
@@ -877,7 +877,7 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
     }
     // Shuffle certificates so that they do not have any specific order in
     // terms of gas price.
-    certificates.shuffle(&mut rand::thread_rng());
+    certificates.shuffle(&mut rand::rng());
     assert_eq!(certificates.len(), num_gas_objects);
 
     let (scheduled_transactions, assigned_versions) = tester
@@ -1040,7 +1040,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
     }
     // Shuffle certificates so that they do not have any specific order in
     // terms of gas price.
-    certificates.shuffle(&mut rand::thread_rng());
+    certificates.shuffle(&mut rand::rng());
     assert_eq!(certificates.len(), num_gas_objects);
 
     let (scheduled_transactions, assigned_versions) = tester
@@ -1208,7 +1208,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
 
     // Shuffle certificates so that they do not have any specific order in
     // terms of gas price.
-    certificates.shuffle(&mut rand::thread_rng());
+    certificates.shuffle(&mut rand::rng());
     assert_eq!(certificates.len(), num_gas_objects);
 
     let (scheduled_transactions, assigned_versions) = tester
@@ -1291,7 +1291,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
 
     // Shuffle certificates so that they do not have any specific order in
     // terms of gas price.
-    certificates.shuffle(&mut rand::thread_rng());
+    certificates.shuffle(&mut rand::rng());
     assert_eq!(certificates.len(), 1);
 
     let (scheduled_transactions, assigned_versions) = tester
@@ -1436,7 +1436,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
     // Shuffle certificates so that they do not have any specific order in
     // terms of gas price.
     let mut shuffled_certificates = certificates.clone();
-    shuffled_certificates.shuffle(&mut rand::thread_rng());
+    shuffled_certificates.shuffle(&mut rand::rng());
 
     let (scheduled_transactions, assigned_versions) = tester
         .send_certificates_to_consensus_for_scheduling(&shuffled_certificates)
@@ -1758,7 +1758,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
     // Shuffle certificates so that they do not have any specific order in
     // terms of gas price.
     let mut shuffled_certificates = certificates.clone();
-    shuffled_certificates.shuffle(&mut rand::thread_rng());
+    shuffled_certificates.shuffle(&mut rand::rng());
 
     let (scheduled_transactions, assigned_versions) = tester
         .send_certificates_to_consensus_for_scheduling(&shuffled_certificates)

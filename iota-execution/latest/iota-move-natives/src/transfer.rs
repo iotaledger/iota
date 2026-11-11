@@ -4,9 +4,9 @@
 
 use std::collections::VecDeque;
 
+use iota_sdk_move_types::iota_framework::account::AuthenticatorFunctionRefV1Key;
 use iota_sdk_types::{Address, ObjectId, Owner, StructTag, Version};
 use iota_types::{
-    account_abstraction::account::AuthenticatorFunctionRefV1Key,
     dynamic_field::derive_dynamic_field_id, iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -94,7 +94,8 @@ pub fn receive_object_internal(
         let authenticator_fun_ref_id = derive_dynamic_field_id(
             parent,
             &StructTag::new_authenticator_function_ref_v1_key().into(),
-            &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+            &bcs::to_bytes(&AuthenticatorFunctionRefV1Key::default())
+                .expect("BCS of a struct with one bool field cannot fail"),
         )
         .expect("should not fail this serialization");
         if object_runtime.child_object_exists(parent, authenticator_fun_ref_id)? {

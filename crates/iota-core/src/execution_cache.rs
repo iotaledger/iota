@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, path::Path, sync::Arc};
+use std::{collections::HashSet, sync::Arc};
 
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
@@ -12,6 +12,7 @@ use iota_sdk_types::{
     TransactionEvents, Version,
 };
 use iota_types::{
+    attestation::AttestationRecord,
     base_types::{EpochId, VerifiedExecutionData},
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
@@ -310,6 +311,17 @@ pub trait ObjectCacheRead: Send + Sync {
             .expect("storage access failed")
     }
 
+    /// [`Self::try_get_object_by_key`], or else the version `epoch`'s
+    /// historic objects bucket holds, where the commit moves every version a
+    /// transaction of that epoch superseded. Reads no other epoch's bucket, so
+    /// the answer does not depend on how many epochs the node retains.
+    fn try_get_object_by_key_with_historic_fallback(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> IotaResult<Option<Object>>;
+
     fn try_multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],
@@ -568,6 +580,17 @@ pub trait ObjectCacheRead: Send + Sync {
             .expect("storage access failed")
     }
 
+    /// Whether `version` of `object_id` stopped being the current version
+    /// during `epoch`, that is a transaction of that epoch consumed it. Reads
+    /// only `epoch`'s records, so the answer does not depend on how many
+    /// epochs the node retains.
+    fn try_object_superseded_in_epoch(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> IotaResult<bool>;
+
     // Marker methods
 
     /// Get the marker at a specific version
@@ -704,16 +727,6 @@ pub trait ObjectCacheRead: Send + Sync {
             .expect("storage access failed")
     }
 
-    /// Return the watermark for the highest checkpoint for which we've pruned
-    /// objects.
-    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<Option<CheckpointSequenceNumber>>;
-
-    /// Non-fallible version of `try_get_highest_pruned_checkpoint`.
-    fn get_highest_pruned_checkpoint(&self) -> Option<CheckpointSequenceNumber> {
-        self.try_get_highest_pruned_checkpoint()
-            .expect("storage access failed")
-    }
-
     /// Given a list of input and receiving objects for a transaction,
     /// wait until all of them become available, so that the transaction
     /// can start execution.
@@ -742,6 +755,18 @@ pub trait TransactionCacheRead: Send + Sync {
     ) -> Vec<Option<Arc<VerifiedTransaction>>> {
         self.try_multi_get_transaction_blocks(digests)
             .expect("storage access failed")
+    }
+
+    /// [`Self::try_multi_get_transaction_blocks`] for transactions that can
+    /// only be stored under `epoch`, such as those of a checkpoint of that
+    /// epoch. A store may answer from that epoch's records alone, so a
+    /// transaction stored under another epoch can be reported as absent.
+    fn try_multi_get_transaction_blocks_in_epoch(
+        &self,
+        _epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
+        self.try_multi_get_transaction_blocks(digests)
     }
 
     fn try_get_transaction_block(
@@ -808,6 +833,30 @@ pub trait TransactionCacheRead: Send + Sync {
         digests: &[TransactionDigest],
     ) -> Vec<Option<TransactionEffectsDigest>> {
         self.try_multi_get_executed_effects_digests(digests)
+            .expect("storage access failed")
+    }
+
+    /// [`Self::try_multi_get_executed_effects_digests`] for transactions that
+    /// can only have been executed in `epoch`, such as those of a checkpoint
+    /// of that epoch. A store may answer from that epoch's records alone, so
+    /// a transaction executed in another epoch can be reported as not
+    /// executed.
+    fn try_multi_get_executed_effects_digests_in_epoch(
+        &self,
+        _epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
+        self.try_multi_get_executed_effects_digests(digests)
+    }
+
+    /// Non-fallible version of
+    /// `try_multi_get_executed_effects_digests_in_epoch`.
+    fn multi_get_executed_effects_digests_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<TransactionEffectsDigest>> {
+        self.try_multi_get_executed_effects_digests_in_epoch(epoch, digests)
             .expect("storage access failed")
     }
 
@@ -894,6 +943,18 @@ pub trait TransactionCacheRead: Send + Sync {
             .expect("storage access failed")
     }
 
+    /// [`Self::try_multi_get_effects`] for effects that can only be stored
+    /// under `epoch`, such as those of a checkpoint of that epoch. A store may
+    /// answer from that epoch's records alone, so effects stored under
+    /// another epoch can be reported as absent.
+    fn try_multi_get_effects_in_epoch(
+        &self,
+        _epoch: EpochId,
+        digests: &[TransactionEffectsDigest],
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+        self.try_multi_get_effects(digests)
+    }
+
     fn try_get_effects(
         &self,
         digest: &TransactionEffectsDigest,
@@ -908,6 +969,25 @@ pub trait TransactionCacheRead: Send + Sync {
     /// Non-fallible version of `try_get_effects`.
     fn get_effects(&self, digest: &TransactionEffectsDigest) -> Option<TransactionEffects> {
         self.try_get_effects(digest).expect("storage access failed")
+    }
+
+    /// The attestation records of `digests`, which can only have been executed
+    /// in `epoch`: `None` for an unattested transaction or one executed in
+    /// another epoch.
+    fn try_multi_get_attestation_records_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<AttestationRecord>>>;
+
+    /// Non-fallible version of `try_multi_get_attestation_records_in_epoch`.
+    fn multi_get_attestation_records_in_epoch(
+        &self,
+        epoch: EpochId,
+        digests: &[TransactionDigest],
+    ) -> Vec<Option<AttestationRecord>> {
+        self.try_multi_get_attestation_records_in_epoch(epoch, digests)
+            .expect("storage access failed")
     }
 
     fn try_multi_get_events(
@@ -1163,6 +1243,15 @@ pub trait ExecutionCacheReconfigAPI: Send + Sync {
 
     fn clear_state_end_of_epoch(&self, execution_guard: &ExecutionLockWriteGuard<'_>);
 
+    /// Drops the marker buckets of every epoch below `new_epoch`. Call once
+    /// the scheduler and the execution lock are on `new_epoch`, so that no
+    /// read of an earlier epoch's markers can still follow.
+    fn expire_epoch_markers(
+        &self,
+        new_epoch: EpochId,
+        execution_guard: &ExecutionLockWriteGuard<'_>,
+    ) -> IotaResult<()>;
+
     fn try_expensive_check_iota_conservation(
         &self,
         old_epoch_store: &AuthorityPerEpochStore,
@@ -1177,13 +1266,6 @@ pub trait ExecutionCacheReconfigAPI: Send + Sync {
     ) {
         self.try_expensive_check_iota_conservation(old_epoch_store, epoch_supply_change)
             .expect("storage access failed")
-    }
-
-    fn try_checkpoint_db(&self, path: &Path) -> IotaResult;
-
-    /// Non-fallible version of `try_checkpoint_db`.
-    fn checkpoint_db(&self, path: &Path) {
-        self.try_checkpoint_db(path).expect("storage access failed")
     }
 }
 
@@ -1225,6 +1307,19 @@ pub trait StateSyncAPI: Send + Sync {
 
 pub trait TestingAPI: Send + Sync {
     fn database_for_testing(&self) -> Arc<AuthorityStore>;
+
+    /// Drops the committed versions of `id` held in memory, so the next read
+    /// of a committed version goes to the database.
+    #[cfg(test)]
+    fn evict_committed_object_for_testing(&self, id: &ObjectId);
+
+    /// Drops the cached copies of committed data, so that reads issued
+    /// afterwards answer from the store.
+    fn clear_caches_for_testing(&self);
+
+    /// The executed transactions whose outputs are not committed yet.
+    #[cfg(test)]
+    fn uncommitted_transactions_for_testing(&self) -> Vec<TransactionDigest>;
 }
 
 pub trait ExecutionCacheAPI:

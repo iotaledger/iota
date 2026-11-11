@@ -163,6 +163,7 @@ impl EpochState {
             &self.bytecode_verifier_metrics,
             VerifierLimitsSource::NodeConfig(verifier_signing_config),
             authenticator_gas_budget,
+            false,
         )?;
 
         let transaction = transaction.data().transaction();
@@ -189,8 +190,7 @@ impl EpochState {
 
     /// Simulate a transaction without committing changes.
     /// This is similar to execute_transaction but:
-    /// - Takes Transaction instead of VerifiedTransaction (no signature
-    ///   required)
+    /// - Takes Transaction instead of VerifiedTransaction (no signature required)
     /// - Takes VmChecks parameter to control validation strictness
     /// - Returns SimulateTransactionResult with input/output objects
     /// - Creates a mock gas object if none provided
@@ -202,6 +202,8 @@ impl EpochState {
         mut transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
+        transaction.check_serialized_size(&self.protocol_config)?;
+
         // Cheap validity checks for a transaction, including input size limits.
         transaction.validity_check_no_gas_check(&self.protocol_config)?;
 
@@ -264,6 +266,7 @@ impl EpochState {
                 &self.bytecode_verifier_metrics,
                 VerifierLimitsSource::NodeConfig(verifier_signing_config),
                 authenticator_gas_budget,
+                false,
             )?
         } else {
             // Execution smashes the gas coins and reserves the whole budget from them

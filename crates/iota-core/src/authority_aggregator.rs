@@ -470,12 +470,20 @@ struct ProcessCertificateState {
 
     // collection of extended data returned from the validators.
     // Not all validators will be asked to return this data so we need to hold onto it when one
-    // validator has provided it
+    // validator has provided it. It is kept per effects digest, since each response is checked
+    // only against its own validator's effects, and only the data of the certified effects is
+    // used.
+    extended_data: HashMap<TransactionEffectsDigest, ExtendedData>,
+    request: HandleCertificateRequestV1,
+}
+
+/// The extended data validators returned with one set of effects.
+#[derive(Default)]
+struct ExtendedData {
     events: Option<TransactionEvents>,
     input_objects: Option<Vec<Object>>,
     output_objects: Option<Vec<Object>>,
     auxiliary_data: Option<Vec<u8>>,
-    request: HandleCertificateRequestV1,
 }
 
 /// The result of processing a transaction.
@@ -836,10 +844,10 @@ where
             // So, this process is designed as a compromise between these two extremes.
             // - We start one request, and schedule another request to begin after
             //   serial_authority_request_interval.
-            // - Whenever a request finishes, if it succeeded, we return. if it failed, we
-            //   start a new request.
-            // - If serial_authority_request_interval elapses, we begin a new request even
-            //   if the previous one is not finished, and schedule another future request.
+            // - Whenever a request finishes, if it succeeded, we return. if it failed, we start a
+            //   new request.
+            // - If serial_authority_request_interval elapses, we begin a new request even if the
+            //   previous one is not finished, and schedule another future request.
 
             let name = authorities_shuffled.next().ok_or_else(|| {
                 error!(
@@ -1550,10 +1558,7 @@ where
             non_retryable_errors: vec![],
             retryable_errors: vec![],
             retryable: true,
-            events: None,
-            input_objects: None,
-            output_objects: None,
-            auxiliary_data: None,
+            extended_data: HashMap::new(),
             request: request.clone(),
         };
 
@@ -1775,23 +1780,25 @@ where
                     "Validator handled certificate successfully",
                 );
 
-                if events.is_some() && state.events.is_none() {
-                    state.events = events;
-                }
-
-                if input_objects.is_some() && state.input_objects.is_none() {
-                    state.input_objects = input_objects;
-                }
-
-                if output_objects.is_some() && state.output_objects.is_none() {
-                    state.output_objects = output_objects;
-                }
-
-                if auxiliary_data.is_some() && state.auxiliary_data.is_none() {
-                    state.auxiliary_data = auxiliary_data;
-                }
-
                 let effects_digest = *signed_effects.digest();
+                let extended_data = state.extended_data.entry(effects_digest).or_default();
+
+                if events.is_some() && extended_data.events.is_none() {
+                    extended_data.events = events;
+                }
+
+                if input_objects.is_some() && extended_data.input_objects.is_none() {
+                    extended_data.input_objects = input_objects;
+                }
+
+                if output_objects.is_some() && extended_data.output_objects.is_none() {
+                    extended_data.output_objects = output_objects;
+                }
+
+                if auxiliary_data.is_some() && extended_data.auxiliary_data.is_none() {
+                    extended_data.auxiliary_data = auxiliary_data;
+                }
+
                 // Note: here we aggregate votes by the hash of the effects structure
                 match state.effects_map.insert(
                     (signed_effects.epoch(), effects_digest),
@@ -1820,9 +1827,15 @@ where
                             cert_sig,
                         );
 
-                        if (state.request.include_input_objects && state.input_objects.is_none())
+                        let extended_data = state
+                            .extended_data
+                            .remove(&effects_digest)
+                            .unwrap_or_default();
+
+                        if (state.request.include_input_objects
+                            && extended_data.input_objects.is_none())
                             || (state.request.include_output_objects
-                                && state.output_objects.is_none())
+                                && extended_data.output_objects.is_none())
                         {
                             metrics.quorum_reached_without_requested_objects.inc();
                             debug!(
@@ -1835,10 +1848,10 @@ where
                             debug!(?tx_digest, "Got quorum for validators handle_certificate.");
                             Some(QuorumDriverResponse {
                                 effects_cert: ct,
-                                events: state.events.take(),
-                                input_objects: state.input_objects.take(),
-                                output_objects: state.output_objects.take(),
-                                auxiliary_data: state.auxiliary_data.take(),
+                                events: extended_data.events,
+                                input_objects: extended_data.input_objects,
+                                output_objects: extended_data.output_objects,
+                                auxiliary_data: extended_data.auxiliary_data,
                             })
                         })
                     }

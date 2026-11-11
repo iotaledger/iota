@@ -21,6 +21,7 @@ futures.workspace = true
 governor.workspace = true
 prost.workspace = true
 rand.workspace = true
+rand08.workspace = true
 serde.workspace = true
 tap.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "sync", "time"] }
@@ -37,7 +38,8 @@ iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-multiaddr.workspace = true
 iota-network-stack.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-crypto = { workspace = true, features = ["ed25519", "rand"] }
+iota-sdk-types = { workspace = true, features = ["serde"] }
 iota-storage.workspace = true
 iota-types.workspace = true
 prometheus-filtered.workspace = true
@@ -49,7 +51,6 @@ tonic-prost-build = "0.14"
 
 [dev-dependencies]
 # external dependencies
-ed25519-consensus = { version = "2.0.1", features = ["serde"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 

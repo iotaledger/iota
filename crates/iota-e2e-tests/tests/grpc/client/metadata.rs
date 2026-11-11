@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_grpc_client::{HeadersInterceptor, ResponseExt};
-use iota_grpc_types::read_mask_fields::ServiceInfoReadMask;
 use iota_macros::sim_test;
 
 use super::super::utils::setup_grpc_test;
@@ -52,16 +51,13 @@ async fn metadata_envelope_headers() {
     let (_test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     let service_info = client
-        .service_info(ServiceInfoReadMask::default())
+        .service_info()
         .await
-        .expect("get_service_info should succeed");
-    assert_standard_headers(&service_info, "get_service_info");
+        .expect("service_info should succeed");
+    assert_standard_headers(&service_info, "service_info");
 
-    let health = client
-        .health(None)
-        .await
-        .expect("get_health should succeed");
-    assert_standard_headers(&health, "get_health");
+    let health = client.health().await.expect("health should succeed");
+    assert_standard_headers(&health, "health");
 }
 
 /// Verify that the client successfully attaches HTTP auth credentials and the
@@ -87,9 +83,9 @@ async fn metadata_envelope_with_auth() {
         let authed_client = client.clone().with_headers(interceptor);
 
         let service_info = authed_client
-            .service_info(ServiceInfoReadMask::default())
+            .service_info()
             .await
-            .unwrap_or_else(|e| panic!("get_service_info should succeed with {label}: {e}"));
-        assert_standard_headers(&service_info, &format!("get_service_info ({label})"));
+            .unwrap_or_else(|e| panic!("service_info should succeed with {label}: {e}"));
+        assert_standard_headers(&service_info, &format!("service_info ({label})"));
     }
 }

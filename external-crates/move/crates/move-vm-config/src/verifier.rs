@@ -31,6 +31,15 @@ pub struct VerifierConfig {
     pub max_variants_in_enum: Option<u64>,
     pub additional_borrow_checks: bool,
     pub sanity_check_with_regex_reference_safety: Option</* meter limit */ u128>,
+    pub check_cyclic_dependencies: bool,
+    /// When set, the instantiation-loop checker charges the verifier meter for
+    /// every graph node and edge it considers.
+    pub meter_instantiation_loops: bool,
+    /// Upper bound on the number of edges in the instantiation-loop graph. When
+    /// exceeded the checker fails with `PROGRAM_TOO_COMPLEX`. `None` means no
+    /// bound.
+    pub max_instantiation_loop_graph_edges: Option<usize>,
+    pub deprecate_global_storage_ops: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -76,6 +85,10 @@ impl Default for VerifierConfig {
             max_variants_in_enum: Some(DEFAULT_MAX_VARIANTS),
             additional_borrow_checks: true,
             sanity_check_with_regex_reference_safety: Some(8_000_000),
+            check_cyclic_dependencies: true,
+            meter_instantiation_loops: false,
+            max_instantiation_loop_graph_edges: None,
+            deprecate_global_storage_ops: true,
         }
     }
 }

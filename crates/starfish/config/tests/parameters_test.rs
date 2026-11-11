@@ -15,7 +15,7 @@ fn operator_config_overrides_defaults() {
         r#"
 tonic:
   max_concurrent_streams: 128
-  max_inbound_message_size: 4194304
+  max_request_message_size: 4194304
   admission:
     max_header_fetches_per_peer: 5
     max_subscriptions_per_peer: 0
@@ -26,7 +26,7 @@ enable_block_stream_reset_on_fast_sync_exit: false
     let defaults = starfish_config::Parameters::default();
 
     assert_eq!(parameters.tonic.max_concurrent_streams, 128);
-    assert_eq!(parameters.tonic.max_inbound_message_size, 4 << 20);
+    assert_eq!(parameters.tonic.max_request_message_size, 4 << 20);
     assert_eq!(parameters.tonic.admission.max_header_fetches_per_peer, 5);
     // A cap set to `0` disables admission for that group.
     assert_eq!(parameters.tonic.admission.max_subscriptions_per_peer, 0);
@@ -69,8 +69,8 @@ tonic:
         defaults.tonic.request_timeout
     );
     assert_eq!(
-        parameters.tonic.max_inbound_message_size,
-        defaults.tonic.max_inbound_message_size
+        parameters.tonic.max_request_message_size,
+        defaults.tonic.max_request_message_size
     );
     assert_eq!(
         parameters.tonic.admission.max_subscriptions_per_peer,
@@ -129,4 +129,107 @@ fn validate_rejects_zero_values() {
     };
     let error = parameters.validate().unwrap_err();
     assert!(error.contains("excessive_message_size"));
+}
+
+#[test]
+fn validate_rejects_bundle_caps_above_the_decoding_ceiling() {
+    let parameters = starfish_config::Parameters {
+        max_headers_per_bundle: starfish_config::MAX_HEADERS_OR_SHARDS_PER_BUNDLE + 1,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("max_headers_per_bundle"));
+
+    let parameters = starfish_config::Parameters {
+        max_shards_per_bundle: starfish_config::MAX_HEADERS_OR_SHARDS_PER_BUNDLE + 1,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("max_shards_per_bundle"));
+
+    starfish_config::Parameters {
+        max_headers_per_bundle: starfish_config::MAX_HEADERS_OR_SHARDS_PER_BUNDLE,
+        max_shards_per_bundle: starfish_config::MAX_HEADERS_OR_SHARDS_PER_BUNDLE,
+        ..Default::default()
+    }
+    .validate()
+    .unwrap();
+}
+
+#[test]
+fn validate_rejects_header_fetch_caps_above_the_response_ceiling() {
+    let parameters = starfish_config::Parameters {
+        max_headers_per_header_sync_fetch: starfish_config::HEADERS_PER_FETCH_CEILING + 1,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("max_headers_per_header_sync_fetch"));
+
+    let parameters = starfish_config::Parameters {
+        max_headers_per_commit_sync_fetch: starfish_config::HEADERS_PER_FETCH_CEILING + 1,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("max_headers_per_commit_sync_fetch"));
+
+    starfish_config::Parameters {
+        max_headers_per_header_sync_fetch: starfish_config::HEADERS_PER_FETCH_CEILING,
+        max_headers_per_commit_sync_fetch: starfish_config::HEADERS_PER_FETCH_CEILING,
+        ..Default::default()
+    }
+    .validate()
+    .unwrap();
+}
+
+#[test]
+fn validate_rejects_transaction_fetch_caps_above_the_response_ceiling() {
+    let parameters = starfish_config::Parameters {
+        max_transactions_per_transaction_sync_fetch: starfish_config::TRANSACTIONS_PER_FETCH_CEILING
+            + 1,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("max_transactions_per_transaction_sync_fetch"));
+
+    let parameters = starfish_config::Parameters {
+        max_transactions_per_commit_sync_fetch: starfish_config::TRANSACTIONS_PER_FETCH_CEILING + 1,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("max_transactions_per_commit_sync_fetch"));
+
+    starfish_config::Parameters {
+        max_transactions_per_transaction_sync_fetch:
+            starfish_config::TRANSACTIONS_PER_FETCH_CEILING,
+        max_transactions_per_commit_sync_fetch: starfish_config::TRANSACTIONS_PER_FETCH_CEILING,
+        ..Default::default()
+    }
+    .validate()
+    .unwrap();
+}
+
+#[test]
+fn validate_rejects_commit_batch_sizes_above_the_response_ceiling() {
+    let ceiling = starfish_config::COMMITS_PER_FETCH_CEILING as u32;
+    let parameters = starfish_config::Parameters {
+        commit_sync_batch_size: ceiling + 1,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("commit_sync_batch_size"));
+
+    let parameters = starfish_config::Parameters {
+        fast_commit_sync_batch_size: ceiling + 1,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("fast_commit_sync_batch_size"));
+
+    starfish_config::Parameters {
+        commit_sync_batch_size: ceiling,
+        fast_commit_sync_batch_size: ceiling,
+        ..Default::default()
+    }
+    .validate()
+    .unwrap();
 }

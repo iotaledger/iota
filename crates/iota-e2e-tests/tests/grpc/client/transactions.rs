@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_grpc_client::read_mask_fields::TransactionField;
-use iota_grpc_types::read_mask_fields::TransactionReadMask;
 use iota_macros::sim_test;
 use iota_sdk_types::TransactionDigest;
 
@@ -22,7 +21,7 @@ async fn get_transactions_scenarios() {
 
     // Test: get single transaction
     let transactions = client
-        .transactions([digest1], TransactionReadMask::default())
+        .transactions([digest1])
         .await
         .expect("Failed to get transaction");
     assert_eq!(
@@ -51,7 +50,7 @@ async fn get_transactions_scenarios() {
 
     // Test: get batch of transactions
     let transactions = client
-        .transactions([digest1, digest2], TransactionReadMask::default())
+        .transactions([digest1, digest2])
         .await
         .expect("Failed to get transactions");
     assert_eq!(
@@ -84,7 +83,7 @@ async fn get_transactions_scenarios() {
 
     // Test: empty input returns an error
     let err = client
-        .transactions([], TransactionReadMask::default())
+        .transactions([])
         .await
         .expect_err("Empty input should return an error");
     assert!(
@@ -96,7 +95,7 @@ async fn get_transactions_scenarios() {
     // for it, not as a failure of the call
     let fake_digest = TransactionDigest::new([0u8; 32]);
     let mut results = client
-        .transactions([fake_digest], TransactionReadMask::default())
+        .transactions([fake_digest])
         .await
         .expect("The call itself should succeed")
         .into_inner();
@@ -107,7 +106,7 @@ async fn get_transactions_scenarios() {
     // transactions the node could serve intact
     let fake_digest = TransactionDigest::new([0u8; 32]);
     let mut results = client
-        .transactions([digest1, fake_digest], TransactionReadMask::default())
+        .transactions([digest1, fake_digest])
         .await
         .expect("The call itself should succeed")
         .into_inner();
@@ -123,7 +122,7 @@ async fn get_transactions_scenarios() {
     // Test: response fields match the default mask (transaction, signatures,
     // checkpoint, timestamp).
     let transactions = client
-        .transactions([digest1], TransactionReadMask::default())
+        .transactions([digest1])
         .await
         .expect("Failed to get transaction");
     let tx = transactions.body()[0]
@@ -157,7 +156,8 @@ async fn get_transactions_scenarios() {
 
     // Test: invalid read mask causes deserialization error
     let result = client
-        .transactions([digest1], TransactionField::TRANSACTION_DIGEST)
+        .transactions([digest1])
+        .read_mask(TransactionField::TRANSACTION_DIGEST)
         .await;
 
     let transactions = result.expect("request should work");
