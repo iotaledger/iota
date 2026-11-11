@@ -22,7 +22,7 @@ use move_compiler::{
 };
 use move_coverage::coverage_map::{CoverageMap, TraceConsumer, output_map_to_file};
 use move_package::{BuildConfig, compilation::build_plan::BuildPlan};
-use move_unit_test::{TRACE_DIR, UnitTestingConfig};
+use move_unit_test::{TRACE_DIR, TraceType, UnitTestingConfig};
 use move_vm_test_utils::gas_schedule::CostTable;
 
 use super::reroot_path;
@@ -77,9 +77,9 @@ pub struct Test {
     #[clap(name = "rand-num-iters", long = "rand-num-iters")]
     pub rand_num_iters: Option<u64>,
 
-    // Enable tracing for tests
-    #[clap(long = "trace-execution")]
-    pub trace_execution: bool,
+    /// Enable tracing for tests.
+    #[clap(long = "trace-execution", default_missing_value = "full", num_args = 0..=1)]
+    pub trace_execution: Option<TraceType>,
 }
 
 impl Test {
@@ -93,7 +93,7 @@ impl Test {
         let rerooted_path = reroot_path(path)?;
         let compute_coverage = self.compute_coverage;
         // save disassembly if trace execution is enabled
-        let save_disassembly = self.trace_execution;
+        let save_disassembly = self.trace_execution.is_some();
         let result = run_move_unit_tests(
             &rerooted_path,
             config,
@@ -206,7 +206,9 @@ pub fn run_move_unit_tests<W: Write + Send>(
     // If we are computing coverage, then we need to enable tracing, since the
     // coverage information is derived from the trace. If the user explicitly
     // set the trace config, then we respect that and don't override it.
-    unit_test_config.trace_execution = unit_test_config.trace_execution || compute_coverage;
+    if compute_coverage && unit_test_config.trace_execution.is_none() {
+        unit_test_config.trace_execution = Some(TraceType::InstructionOnly);
+    }
 
     // Compile the package. We need to intercede in the compilation, process being
     // performed by the Move package system, to first grab the compilation env,

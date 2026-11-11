@@ -19,7 +19,8 @@ use move_core_types::language_storage::{ModuleId, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    interface::{NopTracer, Tracer, Writer},
+    interface::{Tracer, Writer},
+    tracers::nop::NopTracer,
     value::SerializableMoveValue,
 };
 

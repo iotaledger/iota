@@ -131,8 +131,16 @@ pub struct UnitTestingConfig {
     pub deterministic_generation: bool,
 
     // Enable tracing for tests
-    #[clap(long = TRACE_FLAG)]
-    pub trace_execution: bool,
+    #[clap(long = TRACE_FLAG, default_missing_value = "full", num_args = 0..=1)]
+    pub trace_execution: Option<TraceType>,
+}
+
+#[derive(Debug, Clone, Default, clap::ValueEnum)]
+pub enum TraceType {
+    #[default]
+    Full,
+    InstructionOnly,
+    FunctionOnly,
 }
 
 fn format_module_id(
@@ -164,7 +172,7 @@ impl UnitTestingConfig {
             rand_num_iters: Some(DEFAULT_RAND_ITERS),
             seed: None,
             deterministic_generation: false,
-            trace_execution: false,
+            trace_execution: None,
         }
     }
 
@@ -276,11 +284,10 @@ impl UnitTestingConfig {
         }
 
         writeln!(shared_writer.lock().unwrap(), "Running Move unit tests")?;
-        let trace_location = if self.trace_execution {
-            Some(TRACE_DIR.to_string())
-        } else {
-            None
-        };
+        let trace_location = self
+            .trace_execution
+            .as_ref()
+            .map(|trace_type| (trace_type.clone(), TRACE_DIR.to_string()));
         let mut test_runner = TestRunner::new(
             self.gas_limit.unwrap_or(DEFAULT_EXECUTION_BOUND),
             self.num_threads,
