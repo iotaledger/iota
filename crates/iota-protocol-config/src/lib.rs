@@ -758,12 +758,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     disallow_self_identifier_in_transactions: bool,
 
-    // If true, `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
-    // restored x-coordinate `r + n` is not below the field modulus, instead
-    // of wrapping it at 2^256.
-    #[serde(skip_serializing_if = "is_false")]
-    secp256r1_ecrecover_checks_x_below_p: bool,
-
     // If true, the version field of a published module header must be the encoding
     // the serializer produces for the version it decodes to. Below binary format
     // version 7 the flavor byte is not part of the header, and without this check
@@ -851,6 +845,12 @@ struct FeatureFlags {
     // shared-object scheduling.
     #[serde(skip_serializing_if = "is_false")]
     enable_validator_attestation: bool,
+
+    // If true, `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
+    // restored x-coordinate `r + n` is not below the field modulus, instead
+    // of wrapping it at 2^256.
+    #[serde(skip_serializing_if = "is_false")]
+    secp256r1_ecrecover_checks_x_below_p: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2382,10 +2382,6 @@ impl ProtocolConfig {
         self.feature_flags.disallow_self_identifier_in_transactions
     }
 
-    pub fn secp256r1_ecrecover_checks_x_below_p(&self) -> bool {
-        self.feature_flags.secp256r1_ecrecover_checks_x_below_p
-    }
-
     pub fn consensus_dedup_only_recorded_messages(&self) -> bool {
         self.feature_flags.consensus_dedup_only_recorded_messages
     }
@@ -2419,6 +2415,10 @@ impl ProtocolConfig {
     /// Its prerequisites are checked once, in [`Self::get_for_version`].
     pub fn enable_validator_attestation(&self) -> bool {
         self.feature_flags.enable_validator_attestation
+    }
+
+    pub fn secp256r1_ecrecover_checks_x_below_p(&self) -> bool {
+        self.feature_flags.secp256r1_ecrecover_checks_x_below_p
     }
 }
 

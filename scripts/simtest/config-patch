@@ -16,8 +16,8 @@ index 1a337b0f..9a72817a 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
 @@ -522,3 +522,5 @@ iota-sdk-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev
- iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9228910c470c6f9d088f319ee379cda6bf5b62ce" }
- iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9228910c470c6f9d088f319ee379cda6bf5b62ce" }
- iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9228910c470c6f9d088f319ee379cda6bf5b62ce" }
+ iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
+ iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
+ iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9be66f5538f5fcadab94bab0b0c4df61d743922f" }
 +tokio = { git = "https://github.com/iotaledger/iota-sim.git", rev = "c1614cba95bde47819471ae90ed9207182548a40" }
 +futures-timer = { git = "https://github.com/iotaledger/iota-sim.git", rev = "c1614cba95bde47819471ae90ed9207182548a40" }
