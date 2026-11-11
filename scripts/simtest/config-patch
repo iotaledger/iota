@@ -1,5 +1,5 @@
 diff --git a/.cargo/config.toml b/.cargo/config.toml
-index ec820b1c10..0224df9fde 100644
+index 05c824d1..e0a5b62e 100644
 --- a/.cargo/config.toml
 +++ b/.cargo/config.toml
 @@ -8,7 +8,7 @@ ci-deny-bans = "deny --manifest-path ./Cargo.toml check bans licenses sources --
@@ -12,14 +12,12 @@ index ec820b1c10..0224df9fde 100644
  # 64 bit MSVC, override default 1M stack with 8M stack
  [target.x86_64-pc-windows-msvc]
 diff --git a/Cargo.toml b/Cargo.toml
-index 9701e17bf1..515b760349 100644
+index 1a337b0f..9a72817a 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
-@@ -507,3 +507,7 @@ typed-store-error = { path = "crates/typed-store-error" }
- # so the workspace shares a single fastcrypto instead of two conflicting copies.
- [patch."https://github.com/MystenLabs/fastcrypto"]
- fastcrypto = "=0.1.11"
-+
-+[patch.crates-io]
+@@ -522,3 +522,5 @@ iota-sdk-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev
+ iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9228910c470c6f9d088f319ee379cda6bf5b62ce" }
+ iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9228910c470c6f9d088f319ee379cda6bf5b62ce" }
+ iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9228910c470c6f9d088f319ee379cda6bf5b62ce" }
 +tokio = { git = "https://github.com/iotaledger/iota-sim.git", rev = "c1614cba95bde47819471ae90ed9207182548a40" }
 +futures-timer = { git = "https://github.com/iotaledger/iota-sim.git", rev = "c1614cba95bde47819471ae90ed9207182548a40" }

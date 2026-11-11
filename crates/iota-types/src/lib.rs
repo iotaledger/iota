@@ -62,7 +62,7 @@ pub mod layout_resolver;
 pub mod message_envelope;
 pub mod messages_checkpoint;
 // Consensus message types (and the gRPC API types that carry them) are
-// node-only and pull in fastcrypto-tbls / tonic, which don't build on wasm32.
+// node-only and pull in fastcrypto-threshold / tonic, which don't build on wasm32.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod messages_consensus;
 #[cfg(not(target_arch = "wasm32"))]

@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 
 use dashmap::DashMap;
-use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
+use fastcrypto_threshold::{dkg_v1, nodes::PartyId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_sdk_types::{
     CheckpointContents, ObjectId, ObjectReference, RandomnessRound, TransactionDigest,

@@ -31,12 +31,6 @@ ignored = [
   "time", # declared only to pin the version of a transitive dep (see above)
 ]
 
-# fastcrypto-tbls/-vdf/-zkp (pulled transitively via the monorepo crates) fetch
-# fastcrypto through an in-repo path dep. Redirect it to the crates.io release
-# so this workspace shares a single fastcrypto instead of two conflicting copies.
-[patch."https://github.com/MystenLabs/fastcrypto"]
-fastcrypto = "=0.1.12"
-
 [patch.crates-io]
 iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9228910c470c6f9d088f319ee379cda6bf5b62ce" }
 iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "9228910c470c6f9d088f319ee379cda6bf5b62ce" }

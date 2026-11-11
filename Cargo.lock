@@ -1980,15 +1980,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bitmaps"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "031043d04099746d8db04daf1fa424b2bc8bd69d92b25962dcde24da39ab64a2"
-dependencies = [
- "typenum",
-]
-
-[[package]]
 name = "bitvec"
 version = "0.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4265,15 +4256,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "fastcrypto-tbls"
-version = "0.1.0"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a#47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a"
+name = "fastcrypto-threshold"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a33a294889d5efe579a2609a12a8a5d70afccc7ea3e46e9275cb0962d3b6310"
 dependencies = [
  "bcs 0.1.6",
  "digest 0.10.7",
  "fastcrypto",
  "hex",
- "itertools 0.10.5",
+ "itertools 0.12.1",
  "rand 0.8.6",
  "reed-solomon-erasure",
  "serde",
@@ -4286,8 +4278,9 @@ dependencies = [
 
 [[package]]
 name = "fastcrypto-vdf"
-version = "0.1.0"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a#47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "926db460f57ece69612a1ed6bb8404682e943c01eb232379469fe083904e8497"
 dependencies = [
  "bcs 0.1.6",
  "fastcrypto",
@@ -4303,8 +4296,9 @@ dependencies = [
 
 [[package]]
 name = "fastcrypto-zkp"
-version = "0.1.4"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a#47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "238495b6bc04b0464380e792a16bea699f105fdc248eb91c23e2d5bc5d7adc30"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -4318,7 +4312,7 @@ dependencies = [
  "derive_more 0.99.18",
  "fastcrypto",
  "ff 0.13.0",
- "im",
+ "imbl",
  "itertools 0.12.1",
  "lazy_static",
  "neptune",
@@ -4329,6 +4323,7 @@ dependencies = [
  "schemars 0.8.21",
  "serde",
  "serde_json",
+ "tracing",
  "typenum",
 ]
 
@@ -5484,20 +5479,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb56e1aa765b4b4f3aadfab769793b7087bb03a4ea4920644a6d238e2df5b9ed"
 
 [[package]]
-name = "im"
-version = "15.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0acd33ff0285af998aaf9b57342af478078f53492322fafc47450e09397e0e9"
-dependencies = [
- "bitmaps",
- "rand_core 0.6.4",
- "rand_xoshiro 0.6.0",
- "sized-chunks",
- "typenum",
- "version_check",
-]
-
-[[package]]
 name = "imbl"
 version = "7.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5507,7 +5488,7 @@ dependencies = [
  "equivalent",
  "imbl-sized-chunks",
  "rand_core 0.9.3",
- "rand_xoshiro 0.7.0",
+ "rand_xoshiro",
  "version_check",
  "wide",
 ]
@@ -6047,7 +6028,7 @@ dependencies = [
  "expect-test",
  "eyre",
  "fastcrypto",
- "fastcrypto-tbls",
+ "fastcrypto-threshold",
  "fs_extra",
  "futures",
  "iota-authority-aggregation",
@@ -7359,7 +7340,7 @@ dependencies = [
  "bytes",
  "dashmap",
  "fastcrypto",
- "fastcrypto-tbls",
+ "fastcrypto-threshold",
  "futures",
  "governor",
  "iota-common",
@@ -8522,7 +8503,7 @@ dependencies = [
  "expect-test",
  "eyre",
  "fastcrypto",
- "fastcrypto-tbls",
+ "fastcrypto-threshold",
  "futures",
  "hex",
  "indexmap 2.11.0",
@@ -12486,15 +12467,6 @@ dependencies = [
 
 [[package]]
 name = "rand_xoshiro"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f97cdb2a36ed4183de61b2f824cc45c9f1037f28afe0a322e9fff4c108b5aaa"
-dependencies = [
- "rand_core 0.6.4",
-]
-
-[[package]]
-name = "rand_xoshiro"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f703f4665700daf5512dcca5f43afa6af89f09db47fb56be587f80636bda2d41"
@@ -12641,7 +12613,6 @@ checksum = "7263373d500d4d4f505d43a2a662d475a894aa94503a1ee28e9188b5f3960d4f"
 dependencies = [
  "libm",
  "lru 0.7.8",
- "parking_lot 0.11.2",
  "smallvec",
  "spin",
 ]
@@ -13906,16 +13877,6 @@ name = "siphasher"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
-
-[[package]]
-name = "sized-chunks"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16d69225bde7a69b235da73377861095455d298f2b970996eec25ddbb42b3d1e"
-dependencies = [
- "bitmaps",
- "typenum",
-]
 
 [[package]]
 name = "slab"

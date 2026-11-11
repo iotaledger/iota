@@ -5,7 +5,7 @@
 use std::collections::BTreeSet;
 
 use fastcrypto::{groups::bls12381, serde_helpers::ToFromByteArray};
-use fastcrypto_tbls::{mocked_dkg, nodes};
+use fastcrypto_threshold::{mocked_dkg, nodes};
 use iota_macros::sim_test;
 use iota_swarm_config::test_utils::CommitteeFixture;
 use iota_types::{
@@ -602,9 +602,9 @@ fn node_from_committee(
             .expect("key length should match"),
     )
     .expect("should work to convert BLS key to G2Element");
-    fastcrypto_tbls::nodes::Node::<EncG> {
+    fastcrypto_threshold::nodes::Node::<EncG> {
         id,
-        pk: fastcrypto_tbls::ecies_v1::PublicKey::from(pk),
+        pk: fastcrypto_threshold::ecies_v1::PublicKey::from(pk),
         weight: stake.try_into().unwrap(),
     }
 }

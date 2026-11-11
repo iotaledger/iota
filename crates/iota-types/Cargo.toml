@@ -69,7 +69,7 @@ typed-store-error.workspace = true
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # external dependencies
 anemo.workspace = true
-fastcrypto-tbls.workspace = true
+fastcrypto-threshold.workspace = true
 tonic.workspace = true
 
 # internal dependencies
