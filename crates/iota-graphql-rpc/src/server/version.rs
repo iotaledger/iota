@@ -24,7 +24,8 @@ pub(crate) static MIN_SDK_VERSION_HEADER: HeaderName =
 ///
 /// Bump this alongside SDK releases containing wire-visible changes (e.g., new enum variants or
 /// renamed fields) to force older clients to reject the service and fail safely rather than
-/// panicking on un-decodable values.
+/// panicking on un-decodable values. `scripts/check_min_sdk_version.py` fails in CI when a change
+/// to the BCS schema of `iota-sdk-types` requires raising it.
 pub(crate) const MIN_SDK_VERSION: &str = "1.0.0-rc.1";
 
 #[expect(unused)]

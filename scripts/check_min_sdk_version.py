@@ -2,23 +2,28 @@
 # Copyright (c) 2026 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-"""Fails when `MIN_IOTA_SDK_GRPC_CLIENT_VERSION` has to be raised.
+"""Fails when a minimum SDK client version of the node has to be raised.
 
-The node tells gRPC clients the lowest `iota-sdk-grpc-client` version it
-supports, `MIN_IOTA_SDK_GRPC_CLIENT_VERSION` in
-crates/iota-grpc-server/src/constants.rs. A client at that version must be
-able to decode every BCS value the node sends, so the value has to be raised
-when the `iota-sdk-types` the node is built against changes its BCS schema,
-the `bcs-schema.abnf` file of that crate.
+The gRPC and GraphQL services each tell their clients the lowest version of
+the SDK client crate they support:
 
-Two copies of that file are compared:
+- `MIN_IOTA_SDK_GRPC_CLIENT_VERSION` in
+  crates/iota-grpc-server/src/constants.rs, for `iota-sdk-grpc-client`;
+- `MIN_SDK_VERSION` in crates/iota-graphql-rpc/src/server/version.rs, for
+  `iota-sdk-graphql-client`.
+
+A client at that version must be able to decode every BCS value the node
+sends, so the value has to be raised when the `iota-sdk-types` the node is
+built against changes its BCS schema, the `bcs-schema.abnf` file of that
+crate.
+
+For each constant, two copies of that file are compared:
 
 - the one of the `iota-sdk-types` release in Cargo.lock;
 - the one of the oldest `iota-sdk-types` release that the published client at
-  `MIN_IOTA_SDK_GRPC_CLIENT_VERSION` accepts, taken from its dependency
-  requirement.
+  the version of the constant accepts, taken from its dependency requirement.
 
-The check fails when they differ, and also when the constant names a client
+The check fails when they differ, and also when a constant names a client
 version that is not on crates.io.
 
 Only a crates.io release of `iota-sdk-types` is checked. While Cargo.lock pins
@@ -30,6 +35,7 @@ Usage: ./scripts/check_min_sdk_version.py
 """
 
 import difflib
+import functools
 import io
 import re
 import sys
@@ -38,13 +44,37 @@ import time
 import tomllib
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCKFILE = ROOT / "Cargo.lock"
-CONSTANTS = ROOT / "crates/iota-grpc-server/src/constants.rs"
 
-CLIENT_CRATE = "iota-sdk-grpc-client"
+
+@dataclass(frozen=True)
+class Minimum:
+    """A constant holding the lowest version of an SDK client crate that a
+    service of the node supports."""
+
+    constant: str
+    # Relative to the repository root.
+    file: str
+    client_crate: str
+
+
+MINIMUMS = [
+    Minimum(
+        "MIN_IOTA_SDK_GRPC_CLIENT_VERSION",
+        "crates/iota-grpc-server/src/constants.rs",
+        "iota-sdk-grpc-client",
+    ),
+    Minimum(
+        "MIN_SDK_VERSION",
+        "crates/iota-graphql-rpc/src/server/version.rs",
+        "iota-sdk-graphql-client",
+    ),
+]
+
 TYPES_CRATE = "iota-sdk-types"
 SCHEMA = "bcs-schema.abnf"
 
@@ -53,8 +83,6 @@ CRATES_IO = "https://static.crates.io/crates"
 CRATES_IO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 USER_AGENT = "iota/scripts/check_min_sdk_version.py"
 
-CONSTANT = "MIN_IOTA_SDK_GRPC_CLIENT_VERSION"
-CONSTANT_VALUE = re.compile(rf'pub const {CONSTANT}: &str = "([^"]+)";')
 # A requirement with a lower bound, such as `1.0.0-rc.2`, `^1.2` or `>=1`.
 REQUIREMENT = re.compile(
     r"\s*(?:\^|=|~|>=)?\s*(\d+)(?:\.(\d+))?(?:\.(\d+))?(-[0-9A-Za-z.-]+)?\s*"
@@ -84,6 +112,7 @@ def fetch(url: str) -> bytes | None:
     fail(f"could not download {url}: {last_error}")
 
 
+@functools.cache
 def crate_file(crate: str, version: str, path: str) -> str | None:
     """A file of a crates.io release, or `None` when the release does not
     exist."""
@@ -131,10 +160,10 @@ def node_schemas(lockfile: Path) -> list[tuple[str, str]]:
     return schemas
 
 
-def oldest_types_version(client_version: str) -> str | None:
+def oldest_types_version(client_crate: str, client_version: str) -> str | None:
     """The oldest `iota-sdk-types` version the published client accepts, or
     `None` when that client version is not on crates.io."""
-    manifest = crate_file(CLIENT_CRATE, client_version, "Cargo.toml")
+    manifest = crate_file(client_crate, client_version, "Cargo.toml")
     if manifest is None:
         return None
     dependencies = tomllib.loads(manifest).get("dependencies", {})
@@ -147,37 +176,39 @@ def oldest_types_version(client_version: str) -> str | None:
         match = REQUIREMENT.fullmatch(requirement)
         if match is None:
             fail(
-                f"{CLIENT_CRATE} {client_version} requires {TYPES_CRATE} "
+                f"{client_crate} {client_version} requires {TYPES_CRATE} "
                 f"`{requirement}`, which has no oldest version this check can read"
             )
         major, minor, patch, pre_release = match.groups()
         return f"{major}.{minor or 0}.{patch or 0}{pre_release or ''}"
-    fail(f"{CLIENT_CRATE} {client_version} does not depend on {TYPES_CRATE}")
+    fail(f"{client_crate} {client_version} does not depend on {TYPES_CRATE}")
 
 
-def locked_client_version(lockfile: Path) -> str | None:
+def locked_client_version(lockfile: Path, client_crate: str) -> str | None:
     """The crates.io version of the client in Cargo.lock, if it has one."""
     for package in tomllib.loads(lockfile.read_text())["package"]:
-        if package["name"] == CLIENT_CRATE and package.get("source") == CRATES_IO_SOURCE:
+        if package["name"] == client_crate and package.get("source") == CRATES_IO_SOURCE:
             return package["version"]
     return None
 
 
-def advice(lockfile: Path, node_schema: str) -> str:
+def advice(lockfile: Path, minimum: Minimum, node_schema: str) -> str:
     """What to set the constant to so that `node_schema` is covered."""
+    client_crate = minimum.client_crate
     no_release = (
-        f"No {CLIENT_CRATE} release found that covers it. Release the client "
-        f"from iota-rust-sdk first, then set {CONSTANT} to that release."
+        f"No {client_crate} release found that covers it. Release the client "
+        f"from iota-rust-sdk first, then set {minimum.constant} to that release."
     )
-    locked = locked_client_version(lockfile)
+    locked = locked_client_version(lockfile, client_crate)
     if locked is None:
         return no_release
-    types_version = oldest_types_version(locked)
+    types_version = oldest_types_version(client_crate, locked)
     if types_version is None or released_schema(types_version) != node_schema:
         return no_release
     return (
-        f"{CLIENT_CRATE} {locked} from Cargo.lock covers it. Set {CONSTANT} "
-        f"to {locked}, or to an older release that this check also accepts."
+        f"{client_crate} {locked} from Cargo.lock covers it. Set "
+        f"{minimum.constant} to {locked}, or to an older release that this "
+        "check also accepts."
     )
 
 
@@ -193,40 +224,52 @@ def schema_diff(old: str, new: str, old_name: str, new_name: str) -> str:
     return "\n".join(lines)
 
 
-def main():
-    match = CONSTANT_VALUE.search(CONSTANTS.read_text())
+def check(minimum: Minimum, node: list[tuple[str, str]]) -> list[str]:
+    """The reasons the constant of `minimum` has to change, given the BCS
+    schemas of the node."""
+    constant, client_crate = minimum.constant, minimum.client_crate
+    pattern = rf'const {re.escape(constant)}: &str = "([^"]+)";'
+    match = re.search(pattern, (ROOT / minimum.file).read_text())
     if match is None:
-        fail(f"{CONSTANT} not found in {CONSTANTS.relative_to(ROOT)}")
-    minimum = match.group(1)
+        fail(f"{constant} not found in {minimum.file}")
+    version = match.group(1)
 
+    types_version = oldest_types_version(client_crate, version)
+    if types_version is None:
+        return [
+            f"{constant} in {minimum.file} is {version}, but {client_crate} "
+            f"{version} is not on crates.io"
+        ]
+    types_name = f"{TYPES_CRATE} {types_version}"
+    types_schema = released_schema(types_version)
+
+    errors = []
+    for node_name, node_schema in node:
+        if node_schema == types_schema:
+            print(
+                f"{constant} {version}: the BCS schema of its {types_name} "
+                f"matches the node's {node_name} — OK"
+            )
+            continue
+        errors.append(
+            f"{constant} has to be raised in {minimum.file}.\n"
+            f"It is {version}, and {client_crate} {version} accepts "
+            f"{types_name}, whose BCS schema differs from the node's "
+            f"{node_name}:\n"
+            f"{schema_diff(types_schema, node_schema, types_name, node_name)}\n"
+            "Such a client cannot decode everything this node sends.\n"
+            + advice(LOCKFILE, minimum, node_schema)
+        )
+    return errors
+
+
+def main():
     node = node_schemas(LOCKFILE)
     if not node:
         return
-
-    types_version = oldest_types_version(minimum)
-    if types_version is None:
-        fail(
-            f"{CONSTANT} is {minimum}, but {CLIENT_CRATE} {minimum} is not on "
-            "crates.io"
-        )
-    minimum_name = f"{TYPES_CRATE} {types_version}"
-    minimum_schema = released_schema(types_version)
-
-    for node_name, node_schema in node:
-        if node_schema == minimum_schema:
-            print(
-                f"{CONSTANT} {minimum}: the BCS schema of its "
-                f"{minimum_name} matches the node's {node_name} — OK"
-            )
-            continue
-        print(schema_diff(minimum_schema, node_schema, minimum_name, node_name))
-        fail(
-            f"{CONSTANT} has to be raised in {CONSTANTS.relative_to(ROOT)}.\n"
-            f"It is {minimum}, and {CLIENT_CRATE} {minimum} accepts "
-            f"{minimum_name}, whose BCS schema differs from the node's "
-            f"{node_name} (diff above). Such a client cannot decode everything "
-            "this node sends.\n" + advice(LOCKFILE, node_schema)
-        )
+    errors = [error for minimum in MINIMUMS for error in check(minimum, node)]
+    if errors:
+        fail("\n\nerror: ".join(errors))
 
 
 if __name__ == "__main__":

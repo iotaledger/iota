@@ -126,7 +126,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Check the minimum SDK version covers the BCS schema of iota-sdk-types
+      - name: Check the minimum SDK client versions cover the BCS schema of iota-sdk-types
         run: ./scripts/check_min_sdk_version.py
 
   min-sdk-version-cancel:
