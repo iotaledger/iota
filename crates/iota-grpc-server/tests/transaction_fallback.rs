@@ -1283,7 +1283,7 @@ async fn local_and_store_input_objects_keep_the_effects_order() {
 }
 
 #[tokio::test]
-async fn failing_store_only_fails_its_own_item() {
+async fn a_failed_objects_call_fails_only_the_transactions_that_needed_it() {
     let local = test_transaction(true);
     let objects_missing = [test_transaction(true), test_transaction(true)];
     let local_state = Node {
@@ -1479,11 +1479,12 @@ async fn results_keep_the_request_order_with_local_unknown_and_pruned_transactio
 }
 
 #[tokio::test]
-async fn a_transaction_requested_twice_shares_its_summary_and_object_reads() {
+async fn a_transaction_requested_twice_is_read_from_the_store_once() {
     let test = test_transaction(false);
     let (state, store) = node_and_store(PRUNED, std::slice::from_ref(&test));
-    let (requests, requested_objects, requested_checkpoints) = (
+    let (requests, requested_digests, requested_objects, requested_checkpoints) = (
         store.requests.clone(),
+        store.requested_digests.clone(),
         store.requested_objects.clone(),
         store.requested_checkpoints.clone(),
     );
@@ -1506,6 +1507,10 @@ async fn a_transaction_requested_twice_shares_its_summary_and_object_reads() {
     assert_eq!(
         *requests.lock().unwrap(),
         [LOOKUP, "multi_get(effects)", READ_SUMMARY, READ_OBJECTS]
+    );
+    assert_eq!(
+        *requested_digests.lock().unwrap(),
+        [[test.digest()], [test.digest()]]
     );
     assert_eq!(*requested_checkpoints.lock().unwrap(), [[CHECKPOINT_SEQ]]);
     let mut input_keys = input_object_keys(&test.effects);

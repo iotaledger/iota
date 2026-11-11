@@ -324,6 +324,9 @@ impl GrpcReader {
 
     /// Reads data the node has pruned from `store`; `None` turns the fallback
     /// off.
+    ///
+    /// `store` must time out its own requests: a read is limited only by the
+    /// store read time the request has left.
     pub fn with_transaction_fallback(
         mut self,
         store: Option<Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>>,
@@ -1869,13 +1872,16 @@ fn pending_indexes(
         .collect()
 }
 
+/// The digests of the reads at `indexes` that have not failed, each once, in order.
 fn digests_at(
     reads: &[Result<PendingRead, RpcError>],
     indexes: &[usize],
 ) -> Vec<TransactionDigest> {
+    let mut seen = std::collections::HashSet::new();
     indexes
         .iter()
         .filter_map(|&index| Some(reads[index].as_ref().ok()?.data.digest))
+        .filter(|digest| seen.insert(*digest))
         .collect()
 }
 
