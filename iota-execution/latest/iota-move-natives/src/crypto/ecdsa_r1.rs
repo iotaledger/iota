@@ -137,11 +137,11 @@ pub fn ecrecover(
         return Ok(NativeResult::err(cost, INVALID_SIGNATURE));
     };
 
-    let reject_x_overflow = get_extension!(context, ObjectRuntime)?
+    let strict = get_extension!(context, ObjectRuntime)?
         .protocol_config
-        .secp256r1_ecrecover_reject_x_overflow();
+        .secp256r1_ecrecover_checks_x_below_p();
 
-    let pk = match (hash, reject_x_overflow) {
+    let pk = match (hash, strict) {
         (KECCAK256, true) => sig.recover_with_hash::<Keccak256>(&msg_ref),
         (KECCAK256, false) => sig.recover_with_hash_legacy::<Keccak256>(&msg_ref),
         (SHA256, true) => sig.recover_with_hash::<Sha256>(&msg_ref),

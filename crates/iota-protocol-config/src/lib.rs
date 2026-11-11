@@ -762,7 +762,7 @@ struct FeatureFlags {
     // restored x-coordinate `r + n` is not below the field modulus, instead
     // of wrapping it at 2^256.
     #[serde(skip_serializing_if = "is_false")]
-    secp256r1_ecrecover_reject_x_overflow: bool,
+    secp256r1_ecrecover_checks_x_below_p: bool,
 
     // If true, the version field of a published module header must be the encoding
     // the serializer produces for the version it decodes to. Below binary format
@@ -2382,8 +2382,8 @@ impl ProtocolConfig {
         self.feature_flags.disallow_self_identifier_in_transactions
     }
 
-    pub fn secp256r1_ecrecover_reject_x_overflow(&self) -> bool {
-        self.feature_flags.secp256r1_ecrecover_reject_x_overflow
+    pub fn secp256r1_ecrecover_checks_x_below_p(&self) -> bool {
+        self.feature_flags.secp256r1_ecrecover_checks_x_below_p
     }
 
     pub fn consensus_dedup_only_recorded_messages(&self) -> bool {
@@ -3956,7 +3956,7 @@ impl ProtocolConfig {
                     // `ecdsa_r1::secp256r1_ecrecover` rejects a signature
                     // whose restored x-coordinate is not below the field
                     // modulus.
-                    cfg.feature_flags.secp256r1_ecrecover_reject_x_overflow = true;
+                    cfg.feature_flags.secp256r1_ecrecover_checks_x_below_p = true;
                 }
                 // Use this template when making changes:
                 //
