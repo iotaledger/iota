@@ -418,31 +418,6 @@ impl AuthorityStore {
         &self.epoch_markers
     }
 
-    /// Records the one-time passes over the pre-bucket tables as done, for a
-    /// database that has nothing for them to find. See
-    /// [`AuthorityPerpetualTables::mark_object_backlog_swept`] and
-    /// [`AuthorityPerpetualTables::mark_ledger_backlog_migrated`].
-    // TODO(https://github.com/iotaledger/iota/issues/12712): remove with the passes.
-    pub fn mark_pre_bucket_passes_done(&self) -> IotaResult<()> {
-        self.perpetual_tables.mark_object_backlog_swept()?;
-        self.historic_objects.mark_backlog_swept();
-        self.perpetual_tables.mark_ledger_backlog_migrated()
-    }
-
-    /// See [`AuthorityPerpetualTables::retire_objects_pruner_watermark`].
-    // TODO(https://github.com/iotaledger/iota/issues/12712): remove with the sweep.
-    pub fn retire_objects_pruner_watermark(&self) -> IotaResult<()> {
-        Ok(self.perpetual_tables.retire_objects_pruner_watermark()?)
-    }
-
-    /// Moves the markers in the flat marker table into their epoch's bucket.
-    /// See [`EpochMarkers::migrate_flat_markers`].
-    // TODO(https://github.com/iotaledger/iota/issues/12712): remove after the migration.
-    pub fn migrate_flat_markers(&self, epoch: EpochId) -> IotaResult<()> {
-        self.epoch_markers
-            .migrate_flat_markers(&self.perpetual_tables.object_per_epoch_marker_table, epoch)
-    }
-
     pub fn get_recovery_epoch_at_restart(&self) -> IotaResult<EpochId> {
         self.perpetual_tables.get_recovery_epoch_at_restart()
     }
@@ -904,8 +879,8 @@ impl AuthorityStore {
     /// that wrote them is not committed, or else the live table.
     ///
     /// Left in the live table, such a version would be read as the newest one
-    /// at or below a bound once the backlog sweep is done, instead of a newer
-    /// version that went into a bucket.
+    /// at or below a bound, instead of a newer version that went into a
+    /// bucket.
     fn missed_pre_images(
         &self,
         outputs: &TransactionOutputs,
@@ -1305,13 +1280,13 @@ impl AuthorityStore {
         object_id: ObjectId,
         version: Version,
     ) -> IotaResult<Option<Object>> {
-        let live = match self
+        let live_tombstone = match self
             .perpetual_tables
             .find_object_lt_or_eq_version(object_id, version)?
         {
             Some((key, row)) => match self.perpetual_tables.object(&key, row)? {
-                Some(object) if self.historic_objects.backlog_swept() => return Ok(Some(object)),
-                object => Some((key.1, object)),
+                Some(object) => return Ok(Some(object)),
+                None => Some(key.1),
             },
             None => None,
         };
@@ -1321,13 +1296,12 @@ impl AuthorityStore {
         let relocated = self
             .historic_objects
             .find_lt_or_eq_version(object_id, version)?;
-        match live {
-            Some((live_version, object)) => match relocated {
-                Some(relocated) if live_version < relocated.version() => Ok(Some(relocated)),
-                _ => Ok(object),
-            },
-            None => Ok(relocated),
-        }
+        Ok(match live_tombstone {
+            Some(tombstone_version) => {
+                relocated.filter(|relocated| tombstone_version < relocated.version())
+            }
+            None => relocated,
+        })
     }
 
     /// Returns the latest object reference we have for this object_id in the

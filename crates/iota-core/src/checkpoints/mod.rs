@@ -92,7 +92,6 @@ use crate::{
         attestation::apply_fault_penalties,
         authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
         historic_ledger::HistoricLedger,
-        ledger_backlog_migration::CheckpointBacklogMigrationProgress,
     },
     authority_client::{
         make_network_authority_clients_with_network_config, validator_peer::ValidatorPeerAPI,
@@ -183,27 +182,15 @@ pub struct BuilderCheckpointSummary {
 
 #[derive(DBMapUtils)]
 pub struct CheckpointStoreTables {
-    /// Maps checkpoint contents digest to checkpoint contents.
-    ///
-    /// Superseded by [`HistoricCheckpoints`]; the rows still here are read
-    /// only by the one-time migration into the buckets.
-    pub(crate) checkpoint_content: DBMap<CheckpointContentsDigest, CheckpointContents>,
-
-    /// Deprecated: the contents-digest to sequence-number mapping moved to
-    /// the in-memory [`FullCheckpointContentsCache`]. Dropped on open; not
-    /// migrated (entries were a short-lived cache).
-    #[allow(dead_code)]
+    /// The flat checkpoint tables [`HistoricCheckpoints`] replaced; dropped
+    /// when the database is opened.
+    // TODO(https://github.com/iotaledger/iota/issues/13576): remove these tables.
+    #[rename = "checkpoint_content"]
     #[deprecated_db_map]
-    checkpoint_sequence_by_contents_digest: Option<DBMap<(), ()>>,
-
-    /// Deprecated: full checkpoint contents moved to the in-memory
-    /// [`FullCheckpointContentsCache`]. Dropped on open; not migrated
-    /// (entries were a short-lived cache, and readers can reconstruct full
-    /// contents from `checkpoint_content` plus the transaction and effects
-    /// stores).
-    #[allow(dead_code)]
+    _checkpoint_content: Option<DBMap<(), ()>>,
+    #[rename = "checkpoint_by_digest"]
     #[deprecated_db_map]
-    full_checkpoint_content: Option<DBMap<(), ()>>,
+    _checkpoint_by_digest: Option<DBMap<(), ()>>,
 
     /// Certified checkpoint summaries, keyed by sequence number.
     ///
@@ -211,12 +198,6 @@ pub struct CheckpointStoreTables {
     /// `contents_digest` for a checkpoint that does not close an epoch, which
     /// is what an inclusion proof is checked against.
     pub(crate) certified_checkpoints: DBMap<CheckpointSequenceNumber, TrustedCheckpoint>,
-    /// Map from checkpoint digest to certified checkpoint.
-    ///
-    /// Superseded by [`HistoricCheckpoints`], like `checkpoint_content`, so a
-    /// summary stops being readable by digest once its epoch expires, while
-    /// `certified_checkpoints` keeps it by sequence number.
-    pub(crate) checkpoint_by_digest: DBMap<CheckpointDigest, TrustedCheckpoint>,
 
     /// Store locally computed checkpoint summaries so that we can detect forks
     /// and log useful information. Can be pruned as soon as we verify that
@@ -255,11 +236,12 @@ pub struct CheckpointStoreTables {
     /// fully executed checkpoints
     pub(crate) watermarks: DBMap<CheckpointWatermark, (CheckpointSequenceNumber, CheckpointDigest)>,
 
-    /// Which of the two flat checkpoint tables the one-time migration into the
-    /// per-epoch buckets is draining, and how far through it. Empty until the
-    /// migration first writes a slice.
-    // TODO(https://github.com/iotaledger/iota/issues/12763): remove this table.
-    pub(crate) checkpoint_backlog_migration_progress: DBMap<(), CheckpointBacklogMigrationProgress>,
+    /// The progress of the one-time move into the per-epoch buckets; dropped
+    /// when the database is opened.
+    // TODO(https://github.com/iotaledger/iota/issues/13576): remove this table.
+    #[rename = "checkpoint_backlog_migration_progress"]
+    #[deprecated_db_map]
+    _checkpoint_backlog_migration_progress: Option<DBMap<(), ()>>,
 }
 
 impl CheckpointStoreTables {
@@ -406,18 +388,6 @@ impl CheckpointStore {
         historic_db_path: Option<&Path>,
     ) -> CheckpointStoreTablesReadOnly {
         CheckpointStoreTables::open_readonly(path, historic_db_path)
-    }
-
-    /// Marks the one-time migration of the flat checkpoint tables into the
-    /// per-epoch buckets as done, so that a later node start skips it.
-    ///
-    /// Call this only on a database with no rows in the flat checkpoint
-    /// tables, such as one just restored from a formal snapshot.
-    // TODO(https://github.com/iotaledger/iota/issues/12763): remove with the migration.
-    pub fn mark_checkpoint_backlog_migrated(&self) -> Result<(), TypedStoreError> {
-        self.tables
-            .checkpoint_backlog_migration_progress
-            .insert(&(), &CheckpointBacklogMigrationProgress::Done)
     }
 
     #[instrument(level = "info", skip_all)]
@@ -1394,7 +1364,7 @@ impl CheckpointStore {
             .map(|(checkpoint, full_contents)| (checkpoint, full_contents.into_inner()))
             .collect();
 
-        let mut batch = self.tables.checkpoint_content.batch();
+        let mut batch = self.tables.watermarks.batch();
         for (checkpoint, full_contents) in &checkpoints {
             let contents = full_contents.checkpoint_contents();
             assert_eq!(checkpoint.contents_digest, contents.digest());
@@ -1497,38 +1467,25 @@ impl CheckpointStore {
     /// The lowest checkpoint whose superseded object versions this node still
     /// holds, given the epoch of its oldest historic-object bucket: that
     /// epoch's first checkpoint. When there is no bucket, or that checkpoint
-    /// is unknown, returns one past the highest executed checkpoint. Never
-    /// below one past `objects_pruned_through`, the checkpoint through which
-    /// the objects pruner of earlier releases deleted superseded versions.
-    ///
-    /// While the oldest bucket is that of `backlog_sweep_epoch`, the epoch
-    /// whose bucket the one-time sweep moved the versions superseded before
-    /// the upgrade into, it holds every version since `objects_pruned_through`,
-    /// or all of them where that pruner never ran.
+    /// is unknown, returns one past the highest executed checkpoint.
     pub fn lowest_checkpoint_with_retained_objects(
         &self,
         earliest_bucket_epoch: Option<EpochId>,
-        objects_pruned_through: Option<CheckpointSequenceNumber>,
-        backlog_sweep_epoch: Option<EpochId>,
     ) -> Result<CheckpointSequenceNumber, TypedStoreError> {
         let lowest = match earliest_bucket_epoch {
-            Some(epoch) if Some(epoch) == backlog_sweep_epoch => {
-                Some(objects_pruned_through.map_or(0, |pruned| pruned + 1))
-            }
             Some(0) => Some(0),
             Some(epoch) => self
                 .get_epoch_last_checkpoint_seq_number(epoch - 1)?
                 .map(|seq| seq + 1),
             None => None,
         };
-        let lowest = match lowest {
-            Some(lowest) => lowest,
-            None => self
+        match lowest {
+            Some(lowest) => Ok(lowest),
+            None => Ok(self
                 .get_highest_executed_checkpoint_seq_number()?
                 .map(|seq| seq + 1)
-                .unwrap_or(0),
-        };
-        Ok(objects_pruned_through.map_or(lowest, |pruned| lowest.max(pruned + 1)))
+                .unwrap_or(0)),
+        }
     }
 
     pub fn insert_epoch_last_checkpoint(
@@ -3827,49 +3784,23 @@ mod tests {
     };
 
     /// The lowest checkpoint with retained objects starts after the oldest
-    /// bucket's previous epoch, and never at or below the checkpoint the
-    /// objects pruner of earlier releases deleted through.
+    /// bucket's previous epoch, at genesis for a bucket of epoch 0, and past
+    /// the highest executed checkpoint when there is no bucket.
     #[tokio::test]
-    async fn the_lowest_checkpoint_with_objects_respects_the_old_pruner() {
+    async fn the_lowest_checkpoint_with_objects_follows_the_oldest_bucket() {
         let store = CheckpointStore::new_for_tests();
         store
             .insert_epoch_last_checkpoint(0, &crate::test_utils::executed_checkpoint(0, 9))
             .unwrap();
 
-        let lowest = |pruned_through| {
+        let lowest = |earliest_bucket_epoch| {
             store
-                .lowest_checkpoint_with_retained_objects(Some(1), pruned_through, None)
+                .lowest_checkpoint_with_retained_objects(earliest_bucket_epoch)
                 .unwrap()
         };
-        assert_eq!(lowest(None), 10);
-        assert_eq!(lowest(Some(3)), 10);
-        assert_eq!(lowest(Some(14)), 15);
-    }
-
-    /// While the oldest bucket is the one the backlog sweep filled, objects
-    /// are available from where the objects pruner of earlier releases
-    /// stopped, or from the start where it never ran, not just from that
-    /// bucket's epoch.
-    #[tokio::test]
-    async fn the_swept_bucket_holds_objects_back_to_the_old_pruner() {
-        let store = CheckpointStore::new_for_tests();
-        store
-            .insert_epoch_last_checkpoint(0, &crate::test_utils::executed_checkpoint(0, 9))
-            .unwrap();
-
-        let lowest = |pruned_through, backlog_sweep_epoch| {
-            store
-                .lowest_checkpoint_with_retained_objects(
-                    Some(1),
-                    pruned_through,
-                    backlog_sweep_epoch,
-                )
-                .unwrap()
-        };
-        assert_eq!(lowest(None, Some(1)), 0);
-        assert_eq!(lowest(Some(3), Some(1)), 4);
-        // Once that bucket has expired, the oldest one's epoch decides again.
-        assert_eq!(lowest(Some(3), Some(0)), 10);
+        assert_eq!(lowest(Some(1)), 10);
+        assert_eq!(lowest(Some(0)), 0);
+        assert_eq!(lowest(None), 0);
     }
 
     #[tokio::test]
