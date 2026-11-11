@@ -17,10 +17,6 @@ use iota::hex;
 const ENoLease: vector<u8> = b"The transaction has no lease.";
 
 #[error(code = 1)]
-const ELeaseEndsBeforeExpiry: vector<u8> =
-    b"The last valid epoch of the transaction is before the expiry of the nonce.";
-
-#[error(code = 2)]
 const ENonceKeyAlreadyTaken: vector<u8> =
     b"The nonce key was already taken in this transaction.";
 
@@ -34,8 +30,6 @@ public struct VerifiedNonce<phantom Check> {
     /// The lines the source adds to the signed message: where the nonce comes
     /// from and its value.
     lines: vector<u8>,
-    /// The last epoch in which a signature over this nonce is accepted.
-    valid_until_epoch: u64,
 }
 
 // === Sources ===
@@ -47,25 +41,20 @@ public struct VerifiedNonce<phantom Check> {
 /// and stays taken if the transaction aborts. A signature over this nonce is
 /// therefore used up by the first transaction that carries it.
 ///
-/// Aborts with `ENoLease` if the transaction has no lease, with
-/// `ELeaseEndsBeforeExpiry` if its last valid epoch is before
-/// `valid_until_epoch`, and with `ENonceKeyAlreadyTaken` if `nonce_key` was
-/// already taken in this transaction.
-public fun verify_lease_nonce<Check>(
-    nonce_key: u64,
-    valid_until_epoch: u64,
-    ctx: &mut TxContext,
-): VerifiedNonce<Check> {
+/// The lease is held until the last valid epoch of the transaction,
+/// `ctx.last_valid()`. A signature over this nonce must not be accepted after
+/// that epoch, so a check that uses it takes that epoch as the expiry of the
+/// signed message.
+///
+/// Aborts with `ENoLease` if the transaction has no lease, and with
+/// `ENonceKeyAlreadyTaken` if `nonce_key` was already taken in this
+/// transaction.
+public fun verify_lease_nonce<Check>(nonce_key: u64, ctx: &mut TxContext): VerifiedNonce<Check> {
     let lease = ctx.lease();
     assert!(lease.is_some(), ENoLease);
-    // A transaction with a lease has a valid window.
-    assert!(ctx.last_valid().destroy_some() >= valid_until_epoch, ELeaseEndsBeforeExpiry);
     assert!(take_lease_nonce_key(nonce_key), ENonceKeyAlreadyTaken);
 
-    VerifiedNonce {
-        lines: lease_lines(lease.destroy_some(), ctx.sender(), nonce_key),
-        valid_until_epoch,
-    }
+    VerifiedNonce { lines: lease_lines(lease.destroy_some(), ctx.sender(), nonce_key) }
 }
 
 // === Internal ===
@@ -89,8 +78,8 @@ native fun take_lease_nonce_key(nonce_key: u64): bool;
 // === Test only ===
 
 #[test_only]
-/// Destroys the nonce and returns its message lines and its expiry.
-public fun destroy_for_testing<Check>(self: VerifiedNonce<Check>): (vector<u8>, u64) {
-    let VerifiedNonce { lines, valid_until_epoch } = self;
-    (lines, valid_until_epoch)
+/// Destroys the nonce and returns its message lines.
+public fun destroy_for_testing<Check>(self: VerifiedNonce<Check>): vector<u8> {
+    let VerifiedNonce { lines } = self;
+    lines
 }

@@ -87,13 +87,12 @@ async fn unused_lease_nonce(
     let rgp = test_cluster.get_reference_gas_price().await;
     let mut builder = ProgrammableTransactionBuilder::new();
     let nonce_key = builder.pure(0u64).unwrap();
-    let valid_until_epoch = builder.pure(window.last_valid).unwrap();
     builder.programmable_move_call(
         ObjectId::FRAMEWORK,
         Identifier::new("verified_nonce").unwrap(),
         Identifier::new("verify_lease_nonce").unwrap(),
         vec![TypeTag::U64],
-        vec![nonce_key, valid_until_epoch],
+        vec![nonce_key],
     );
     let mut data = Transaction::new_programmable(
         test_cluster.get_address_0(),
