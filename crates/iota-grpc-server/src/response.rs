@@ -9,7 +9,7 @@ use std::sync::Arc;
 use iota_grpc_types::headers;
 use tonic::metadata::MetadataValue;
 
-use crate::{GrpcReader, constants::MIN_SDK_VERSION};
+use crate::{GrpcReader, constants::MIN_IOTA_SDK_GRPC_CLIENT_VERSION};
 
 /// Helper struct to add IOTA-specific metadata headers to responses
 /// Use this in service handlers to add checkpoint and blockchain metadata
@@ -76,8 +76,8 @@ pub fn append_info_headers<T>(
     }
 
     headers.insert(
-        headers::X_IOTA_MIN_SDK_VERSION,
-        MetadataValue::from_static(MIN_SDK_VERSION),
+        headers::X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION,
+        MetadataValue::from_static(MIN_IOTA_SDK_GRPC_CLIENT_VERSION),
     );
 
     response

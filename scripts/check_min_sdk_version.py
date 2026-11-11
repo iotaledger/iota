@@ -2,22 +2,24 @@
 # Copyright (c) 2026 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-"""Fails when `MIN_SDK_VERSION` has to be raised.
+"""Fails when `MIN_IOTA_SDK_GRPC_CLIENT_VERSION` has to be raised.
 
 The node tells gRPC clients the lowest `iota-sdk-grpc-client` version it
-supports, `MIN_SDK_VERSION` in crates/iota-grpc-server/src/constants.rs. A
-client at that version must be able to decode every BCS value the node sends,
-so the value has to be raised when the `iota-sdk-types` the node is built
-against changes its BCS schema, the `bcs-schema.abnf` file of that crate.
+supports, `MIN_IOTA_SDK_GRPC_CLIENT_VERSION` in
+crates/iota-grpc-server/src/constants.rs. A client at that version must be
+able to decode every BCS value the node sends, so the value has to be raised
+when the `iota-sdk-types` the node is built against changes its BCS schema,
+the `bcs-schema.abnf` file of that crate.
 
 Two copies of that file are compared:
 
 - the one of the `iota-sdk-types` release in Cargo.lock;
 - the one of the oldest `iota-sdk-types` release that the published client at
-  `MIN_SDK_VERSION` accepts, taken from its dependency requirement.
+  `MIN_IOTA_SDK_GRPC_CLIENT_VERSION` accepts, taken from its dependency
+  requirement.
 
-The check fails when they differ, and also when `MIN_SDK_VERSION` names a
-client version that is not on crates.io.
+The check fails when they differ, and also when the constant names a client
+version that is not on crates.io.
 
 Only a crates.io release of `iota-sdk-types` is checked. While Cargo.lock pins
 it to a commit of iota-rust-sdk or to a local path, there may be no client
@@ -51,7 +53,8 @@ CRATES_IO = "https://static.crates.io/crates"
 CRATES_IO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 USER_AGENT = "iota/scripts/check_min_sdk_version.py"
 
-MIN_SDK_VERSION = re.compile(r'pub const MIN_SDK_VERSION: &str = "([^"]+)";')
+CONSTANT = "MIN_IOTA_SDK_GRPC_CLIENT_VERSION"
+CONSTANT_VALUE = re.compile(rf'pub const {CONSTANT}: &str = "([^"]+)";')
 # A requirement with a lower bound, such as `1.0.0-rc.2`, `^1.2` or `>=1`.
 REQUIREMENT = re.compile(
     r"\s*(?:\^|=|~|>=)?\s*(\d+)(?:\.(\d+))?(?:\.(\d+))?(-[0-9A-Za-z.-]+)?\s*"
@@ -161,10 +164,10 @@ def locked_client_version(lockfile: Path) -> str | None:
 
 
 def advice(lockfile: Path, node_schema: str) -> str:
-    """What to set `MIN_SDK_VERSION` to so that `node_schema` is covered."""
+    """What to set the constant to so that `node_schema` is covered."""
     no_release = (
         f"No {CLIENT_CRATE} release found that covers it. Release the client "
-        "from iota-rust-sdk first, then set MIN_SDK_VERSION to that release."
+        f"from iota-rust-sdk first, then set {CONSTANT} to that release."
     )
     locked = locked_client_version(lockfile)
     if locked is None:
@@ -173,9 +176,8 @@ def advice(lockfile: Path, node_schema: str) -> str:
     if types_version is None or released_schema(types_version) != node_schema:
         return no_release
     return (
-        f"{CLIENT_CRATE} {locked} from Cargo.lock covers it. Set "
-        f"MIN_SDK_VERSION to {locked}, or to an older release that this "
-        "check also accepts."
+        f"{CLIENT_CRATE} {locked} from Cargo.lock covers it. Set {CONSTANT} "
+        f"to {locked}, or to an older release that this check also accepts."
     )
 
 
@@ -192,9 +194,9 @@ def schema_diff(old: str, new: str, old_name: str, new_name: str) -> str:
 
 
 def main():
-    match = MIN_SDK_VERSION.search(CONSTANTS.read_text())
+    match = CONSTANT_VALUE.search(CONSTANTS.read_text())
     if match is None:
-        fail(f"MIN_SDK_VERSION not found in {CONSTANTS.relative_to(ROOT)}")
+        fail(f"{CONSTANT} not found in {CONSTANTS.relative_to(ROOT)}")
     minimum = match.group(1)
 
     node = node_schemas(LOCKFILE)
@@ -204,8 +206,8 @@ def main():
     types_version = oldest_types_version(minimum)
     if types_version is None:
         fail(
-            f"MIN_SDK_VERSION is {minimum}, but {CLIENT_CRATE} {minimum} is "
-            "not on crates.io"
+            f"{CONSTANT} is {minimum}, but {CLIENT_CRATE} {minimum} is not on "
+            "crates.io"
         )
     minimum_name = f"{TYPES_CRATE} {types_version}"
     minimum_schema = released_schema(types_version)
@@ -213,13 +215,13 @@ def main():
     for node_name, node_schema in node:
         if node_schema == minimum_schema:
             print(
-                f"MIN_SDK_VERSION {minimum}: the BCS schema of its "
+                f"{CONSTANT} {minimum}: the BCS schema of its "
                 f"{minimum_name} matches the node's {node_name} — OK"
             )
             continue
         print(schema_diff(minimum_schema, node_schema, minimum_name, node_name))
         fail(
-            f"MIN_SDK_VERSION has to be raised in {CONSTANTS.relative_to(ROOT)}.\n"
+            f"{CONSTANT} has to be raised in {CONSTANTS.relative_to(ROOT)}.\n"
             f"It is {minimum}, and {CLIENT_CRATE} {minimum} accepts "
             f"{minimum_name}, whose BCS schema differs from the node's "
             f"{node_name} (diff above). Such a client cannot decode everything "

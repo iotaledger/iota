@@ -7,7 +7,7 @@ use crate::error::RpcError;
 
 /// Lowest `iota-sdk-grpc-client` version able to decode this node's gRPC
 /// responses, sent in the
-/// [`X_IOTA_MIN_SDK_VERSION`](iota_grpc_types::headers::X_IOTA_MIN_SDK_VERSION)
+/// [`X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION`](iota_grpc_types::headers::X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION)
 /// header of every successful response.
 ///
 /// Raise it to the SDK release that ships a wire-visible change (a new enum
@@ -15,7 +15,7 @@ use crate::error::RpcError;
 /// an older SDK fail their calls instead of choking on values they cannot
 /// decode. `scripts/check_min_sdk_version.py` fails in CI when a change to
 /// the BCS schema of `iota-sdk-types` requires raising it.
-pub const MIN_SDK_VERSION: &str = "1.0.0-rc.1";
+pub const MIN_IOTA_SDK_GRPC_CLIENT_VERSION: &str = "1.0.0-rc.1";
 
 /// Maximum number of nested `All`, `Any` and `Not` filters in a transaction or
 /// event filter. The event filter of a transaction filter adds one level.
@@ -90,19 +90,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn min_sdk_version_is_valid_semver() {
-        Version::parse(MIN_SDK_VERSION).unwrap();
+    fn min_iota_sdk_grpc_client_version_is_valid_semver() {
+        Version::parse(MIN_IOTA_SDK_GRPC_CLIENT_VERSION).unwrap();
     }
 
     /// The e2e tests reach the node through the bundled SDK client, so a
     /// minimum above its version would fail every one of them.
     #[test]
-    fn min_sdk_version_is_satisfied_by_the_bundled_client() {
-        let minimum = Version::parse(MIN_SDK_VERSION).unwrap();
+    fn min_iota_sdk_grpc_client_version_is_satisfied_by_the_bundled_client() {
+        let minimum = Version::parse(MIN_IOTA_SDK_GRPC_CLIENT_VERSION).unwrap();
         let bundled = Version::parse(iota_grpc_client::VERSION).unwrap();
         assert!(
             minimum <= bundled,
-            "MIN_SDK_VERSION {minimum} exceeds the bundled iota-sdk-grpc-client {bundled}"
+            "MIN_IOTA_SDK_GRPC_CLIENT_VERSION {minimum} exceeds the bundled iota-sdk-grpc-client {bundled}"
         );
     }
 }
