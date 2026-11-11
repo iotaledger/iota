@@ -47,7 +47,7 @@ use crate::{
     network::{FetchedCommitsAndTransactions, NetworkClient, SerializedTransactionsV2},
     sliding_window_schedule::SlidingWindowSchedule,
     task::spawn_blocking,
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 /// Timeout for fetching block headers during close-to-quorum finalization.
@@ -653,18 +653,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         })
         .await??;
 
-        // 3. Collect the committed transaction refs of each commit. Commits passing verify_commits
-        //    are V2/V3, which only carry `TransactionRef`s, so the legacy `BlockRef` variant is an
-        //    error.
+        // 3. Collect the committed transaction refs of each commit.
         let mut commits_tx_refs: Vec<Vec<TransactionRef>> = commits
             .iter()
-            .map(|c| {
-                c.committed_transactions()
-                    .into_iter()
-                    .map(GenericTransactionRef::expect_transaction_ref)
-                    .collect()
-            })
-            .collect::<ConsensusResult<_>>()?;
+            .map(|c| c.committed_transactions().to_vec())
+            .collect();
         let mut committed_tx_refs: BTreeSet<TransactionRef> =
             commits_tx_refs.iter().flatten().copied().collect();
 
@@ -1132,7 +1125,7 @@ fn fill_missing_empty_transactions(
     fetched_transactions: &mut BTreeMap<TransactionRef, CommitmentVerifiedTransactions>,
 ) {
     committed_tx_refs.retain(|transaction_ref| {
-        let Some(empty) = context.empty_transactions_for_ref((*transaction_ref).into()) else {
+        let Some(empty) = context.empty_transactions_for_ref(*transaction_ref) else {
             return true;
         };
         fetched_transactions.insert(*transaction_ref, empty);
@@ -1240,7 +1233,7 @@ mod tests {
             misbehavior_store::MisbehaviorStore,
             network::SerializedTransactionsV2,
             storage::{Store, mem_store::MemStore},
-            transaction_ref::{GenericTransactionRef, TransactionRef},
+            transaction_ref::TransactionRef,
             transactions_synchronizer::TransactionsSynchronizer,
         };
 
@@ -1340,7 +1333,7 @@ mod tests {
                 }
                 listings.push(transaction_refs);
             }
-            chained_response(context, listings, response_transactions)
+            chained_response(listings, response_transactions)
         }
 
         /// A complete response for commit range 1..=N in which commit `i`
@@ -1362,7 +1355,7 @@ mod tests {
                 .map(|listing| listing.into_iter().map(|p| refs[p]).collect())
                 .collect();
             let entries = sent.into_iter().map(|p| entries[p].clone()).collect();
-            chained_response(context, listings, entries)
+            chained_response(listings, entries)
         }
 
         /// The ref of one block payload and the response entry carrying it.
@@ -1372,7 +1365,7 @@ mod tests {
             round: u32,
             author: u8,
             transactions: &[Transaction],
-        ) -> (GenericTransactionRef, Bytes) {
+        ) -> (TransactionRef, Bytes) {
             let serialized = Transaction::serialize(transactions).unwrap();
             let transaction_ref = TransactionRef {
                 round,
@@ -1390,17 +1383,13 @@ mod tests {
             })
             .unwrap()
             .into();
-            (
-                GenericTransactionRef::TransactionRef(transaction_ref),
-                entry,
-            )
+            (transaction_ref, entry)
         }
 
         /// A response of one chained commit per element of `listings`, each
         /// committing the refs it holds, carrying `response_transactions`.
         fn chained_response(
-            context: &Arc<Context>,
-            listings: Vec<Vec<GenericTransactionRef>>,
+            listings: Vec<Vec<TransactionRef>>,
             response_transactions: Vec<Bytes>,
         ) -> (Vec<Bytes>, Vec<Bytes>, Vec<Bytes>) {
             let mut commits: Vec<TrustedCommit> = Vec::new();
@@ -1416,7 +1405,6 @@ mod tests {
                     .last()
                     .map_or(CommitDigest::MIN, |commit| commit.digest());
                 commits.push(TrustedCommit::new_for_test(
-                    context,
                     index,
                     previous_digest,
                     0,
@@ -2006,7 +1994,6 @@ mod tests {
             {
                 let mut dag_state = inner.dag_state.write();
                 dag_state.add_commit(TrustedCommit::new_for_test(
-                    &context,
                     1,
                     CommitDigest::MIN,
                     0,
@@ -2061,7 +2048,6 @@ mod tests {
             {
                 let mut dag_state = inner.dag_state.write();
                 dag_state.add_commit(TrustedCommit::new_for_test(
-                    &context,
                     1,
                     CommitDigest::MIN,
                     0,
@@ -2302,10 +2288,7 @@ mod tests {
     }
 
     mod fetch_response_processing {
-        use std::{
-            collections::{BTreeMap, BTreeSet},
-            sync::Arc,
-        };
+        use std::collections::{BTreeMap, BTreeSet};
 
         use bytes::Bytes;
         use starfish_config::AuthorityIndex;
@@ -2317,30 +2300,24 @@ mod tests {
             commit_syncer::fast::{
                 process_serialized_transactions, truncate_to_fully_fetched_prefix,
             },
-            context::Context,
             error::ConsensusError,
             network::SerializedTransactionsV2,
             transaction_ref::TransactionRef,
         };
 
-        fn commit(
-            context: &Arc<Context>,
-            index: u32,
-            transactions: &[TransactionRef],
-        ) -> TrustedCommit {
+        fn commit(index: u32, transactions: &[TransactionRef]) -> TrustedCommit {
             let leader = BlockRef::new(
                 index,
                 AuthorityIndex::new_for_test(0),
                 BlockHeaderDigest::MIN,
             );
             TrustedCommit::new_for_test(
-                context,
                 index,
                 CommitDigest::MIN,
                 0,
                 leader,
                 vec![leader],
-                transactions.iter().copied().map(Into::into).collect(),
+                transactions.to_vec(),
             )
         }
 
@@ -2350,13 +2327,8 @@ mod tests {
 
         #[tokio::test]
         async fn keeps_all_commits_when_all_transactions_fetched() {
-            let (context, _) = Context::new_for_test(4);
-            let context = Arc::new(context);
             let (tx_a, tx_b, tx_c) = (plain_ref(1), plain_ref(2), plain_ref(3));
-            let mut commits = vec![
-                commit(&context, 1, &[tx_a]),
-                commit(&context, 2, &[tx_b, tx_c]),
-            ];
+            let mut commits = vec![commit(1, &[tx_a]), commit(2, &[tx_b, tx_c])];
             let mut commits_tx_refs = vec![vec![tx_a], vec![tx_b, tx_c]];
             let mut transactions = fetched(&[tx_a, tx_b, tx_c]);
 
@@ -2374,15 +2346,13 @@ mod tests {
 
         #[tokio::test]
         async fn truncates_to_prefix_and_drops_unreferenced_transactions() {
-            let (context, _) = Context::new_for_test(4);
-            let context = Arc::new(context);
             let (tx_a, tx_b, tx_c, tx_d) = (plain_ref(1), plain_ref(2), plain_ref(3), plain_ref(4));
-            let first = commit(&context, 1, &[tx_a]);
+            let first = commit(1, &[tx_a]);
             let mut commits = vec![
                 first.clone(),
                 // tx_b was not fetched, so the prefix ends before this commit.
-                commit(&context, 2, &[tx_b, tx_c]),
-                commit(&context, 3, &[tx_d]),
+                commit(2, &[tx_b, tx_c]),
+                commit(3, &[tx_d]),
             ];
             let mut commits_tx_refs = vec![vec![tx_a], vec![tx_b, tx_c], vec![tx_d]];
             let mut transactions = fetched(&[tx_a, tx_c, tx_d]);
@@ -2402,11 +2372,9 @@ mod tests {
 
         #[tokio::test]
         async fn errors_when_first_commit_transactions_missing() {
-            let (context, _) = Context::new_for_test(4);
-            let context = Arc::new(context);
             let (tx_a, tx_b) = (plain_ref(1), plain_ref(2));
             let peer = AuthorityIndex::new_for_test(1);
-            let mut commits = vec![commit(&context, 1, &[tx_a]), commit(&context, 2, &[tx_b])];
+            let mut commits = vec![commit(1, &[tx_a]), commit(2, &[tx_b])];
             let mut commits_tx_refs = vec![vec![tx_a], vec![tx_b]];
             let mut transactions = fetched(&[tx_b]);
 
@@ -2429,11 +2397,9 @@ mod tests {
 
         #[tokio::test]
         async fn commit_without_transactions_counts_toward_prefix() {
-            let (context, _) = Context::new_for_test(4);
-            let context = Arc::new(context);
             let tx_a = plain_ref(1);
-            let empty = commit(&context, 1, &[]);
-            let mut commits = vec![empty.clone(), commit(&context, 2, &[tx_a])];
+            let empty = commit(1, &[]);
+            let mut commits = vec![empty.clone(), commit(2, &[tx_a])];
             let mut commits_tx_refs = vec![vec![], vec![tx_a]];
             let mut transactions = fetched(&[]);
 

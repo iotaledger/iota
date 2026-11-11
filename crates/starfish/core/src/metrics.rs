@@ -1483,14 +1483,14 @@ impl NodeMetrics {
             ).unwrap(),
             strong_vote_extra_wait_seconds: register_histogram_with_registry!(
                 "strong_vote_extra_wait_seconds",
-                "Extra wait at block proposal time imposed by the StarfishSpeed strong-vote condition: time between when the ordinary (base Starfish) propose condition first became satisfiable for the current clock round and when the proposal actually happened. Observed only when consensus_starfish_speed is enabled.",
+                "Extra wait at block proposal time imposed by the StarfishSpeed strong-vote condition: time between when the ordinary (base Starfish) propose condition first became satisfiable for the current clock round and when the proposal actually happened.",
                 FINE_GRAINED_LATENCY_SEC_BUCKETS.to_vec(),
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
             strong_vote_missing_authorities: register_histogram_with_registry!(
                 "strong_vote_missing_authorities",
-                "Size of the `missing` set in the strong-vote payload of each proposed block: authorities whose transactions are not locally available among the leader and its acknowledgments. 0 means a clean strong vote; >0 means strong blame. Observed only when consensus_starfish_speed is enabled.",
+                "Size of the `missing` set in the strong-vote payload of each proposed block: authorities whose transactions are not locally available among the leader and its acknowledgments. 0 means a clean strong vote; >0 means strong blame.",
                 COMMITTEE_COUNT_BUCKETS.to_vec(),
                 registry;
                 MetricLevel::Warn,
@@ -1517,14 +1517,14 @@ impl NodeMetrics {
             ).unwrap(),
             strong_vote_missing_by_author: register_int_counter_vec_with_registry!(
                 "strong_vote_missing_by_author",
-                "Number of times an authority's transactions were not locally available when a strong-vote payload was built, labeled by that authority. Observed only when consensus_starfish_speed is enabled.",
+                "Number of times an authority's transactions were not locally available when a strong-vote payload was built, labeled by that authority.",
                 &["author"],
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
             strong_blames_received_for_author: register_int_counter_vec_with_registry!(
                 "strong_blames_received_for_author",
-                "Number of times an authority appeared in the `missing` set of a strong blame received against this node (when acting as leader), labeled by that authority. Observed only when consensus_starfish_speed is enabled.",
+                "Number of times an authority appeared in the `missing` set of a strong blame received against this node (when acting as leader), labeled by that authority.",
                 &["author"],
                 registry;
                 MetricLevel::Warn,

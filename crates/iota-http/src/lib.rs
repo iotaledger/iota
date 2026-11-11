@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc};
 
-use connection_handler::{OnConnectionClose, sleep_or_pending};
+use connection_handler::{OnConnectionClose, SHUTDOWN_GRACE_PERIOD, sleep_or_pending};
 pub use http;
 use http::{Request, Response};
 use hyper_util::service::TowerToHyperService;
 use io::ServerIo;
-use metrics::{HandshakeResult, TrackRequests, TrackedIo};
+use metrics::{HandshakeResult, RefusedReason, TrackRequests, TrackedIo};
 use tokio::task::JoinSet;
 use tokio_rustls::{TlsAcceptor, rustls};
 use tower::{Service, ServiceBuilder, ServiceExt};
@@ -17,7 +17,8 @@ use tracing::trace;
 
 use self::{
     body::BoxBody,
-    connection_info::{ActiveConnections, PeerConnectionCounts},
+    connection_info::{ActiveConnections, ConnectionCountGuard, ConnectionCounts},
+    idle_timer::{IdleHandle, IdleTimer},
 };
 
 pub mod body;
@@ -25,19 +26,33 @@ mod config;
 mod connection_handler;
 mod connection_info;
 mod fuse;
+mod idle_timer;
 mod io;
 mod listener;
 pub mod metrics;
 
-pub use config::{Config, PeerConnectionEvent};
+pub use config::{
+    Config, DEFAULT_HANDSHAKE_TIMEOUT, DEFAULT_HTTP1_HEADER_READ_TIMEOUT,
+    DEFAULT_MAX_PENDING_CONNECTIONS, PeerConnectionEvent,
+};
 pub use connection_info::{ConnectInfo, ConnectionId, ConnectionInfo, PeerCertificates};
-pub use listener::{Listener, ListenerExt};
+pub use listener::{DEFAULT_IPV6_PREFIX_LEN, Listener, ListenerExt};
 
 pub(crate) type BoxError = Box<dyn std::error::Error + Send + Sync>;
 /// h2 alpn in plain format for rustls.
 const ALPN_H2: &[u8] = b"h2";
 /// h1 alpn in plain format for rustls.
 const ALPN_H1: &[u8] = b"http/1.1";
+
+/// Replaces the protocols a caller advertised with the ones this crate serves.
+fn with_alpn_protocols(mut tls: rustls::ServerConfig, accept_http1: bool) -> rustls::ServerConfig {
+    tls.alpn_protocols = if accept_http1 {
+        vec![ALPN_H2.into(), ALPN_H1.into()]
+    } else {
+        vec![ALPN_H2.into()]
+    };
+    tls
+}
 
 #[derive(Default)]
 pub struct Builder {
@@ -91,7 +106,11 @@ impl Builder {
             + 'static,
         ResponseBody: http_body::Body<Data = bytes::Bytes, Error: Into<BoxError>> + Send + 'static,
     {
-        let listener = listener::TcpListenerWithOptions::new(addr, self.config.tcp_keepalive)?;
+        let listener = listener::TcpListenerWithOptions::new(
+            addr,
+            self.config.tcp_keepalive,
+            self.config.ipv6_prefix_len,
+        )?;
 
         Self::serve_with_listener(self, listener, service)
     }
@@ -119,21 +138,16 @@ impl Builder {
         let graceful_shutdown_token = tokio_util::sync::CancellationToken::new();
         let connections = ActiveConnections::default();
 
-        let tls_config = self.tls_config.map(|mut tls| {
-            tls.alpn_protocols.push(ALPN_H2.into());
-            if self.config.accept_http1 {
-                tls.alpn_protocols.push(ALPN_H1.into());
-            }
-            Arc::new(tls)
-        });
+        let tls_config = self
+            .tls_config
+            .map(|tls| Arc::new(with_alpn_protocols(tls, self.config.accept_http1)));
 
         if let (Some(metrics), Some(_)) = (&self.config.metrics, &tls_config) {
             metrics.enable_tls();
         }
 
         let (watch_sender, watch_receiver) = tokio::sync::watch::channel(());
-        let peer_connection_counts =
-            PeerConnectionCounts::new(self.config.on_peer_connection_event.clone());
+        let connection_counts = ConnectionCounts::new(self.config.on_peer_connection_event.clone());
         let server = Server {
             config: self.config,
             tls_config,
@@ -149,7 +163,7 @@ impl Builder {
             connections: connections.clone(),
             graceful_shutdown_token: graceful_shutdown_token.clone(),
             _watch_receiver: watch_receiver,
-            peer_connection_counts,
+            connection_counts,
         };
 
         let handle = ServerHandle(Arc::new(HandleInner {
@@ -184,7 +198,9 @@ impl<A> ServerHandle<A> {
     }
 
     /// Trigger a graceful shutdown of the server, but don't wait till the
-    /// server has completed shutting down
+    /// server has completed shutting down. Every connection is asked to close,
+    /// and those still open after a short grace are dropped, cutting any
+    /// request they are still serving.
     pub fn trigger_shutdown(&self) {
         self.0.graceful_shutdown_token.cancel();
     }
@@ -228,7 +244,10 @@ impl<A> Clone for ServerHandle<A> {
     }
 }
 
-type ConnectingOutput<Io, Addr> = Result<(ServerIo<TrackedIo<Io>>, Addr), crate::BoxError>;
+/// A connection that completed its handshake, with the places it holds under
+/// the per-client limits.
+type ConnectingOutput<Io, Addr> =
+    Result<(ServerIo<TrackedIo<Io>>, Addr, ConnectionCountGuard), crate::BoxError>;
 
 struct Server<L: Listener> {
     config: Config,
@@ -244,7 +263,7 @@ struct Server<L: Listener> {
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
     // Used to signal to a ServerHandle when the server has completed shutting down
     _watch_receiver: tokio::sync::watch::Receiver<()>,
-    peer_connection_counts: PeerConnectionCounts,
+    connection_counts: ConnectionCounts,
 }
 
 impl<L> Server<L>
@@ -260,15 +279,16 @@ where
                 },
                 // While the handshake limit is reached, leave new connections in the kernel
                 // backlog rather than accepting them into an unbounded set of pending tasks.
-                (io, remote_addr) = self.listener.accept(), if self.accepts_more_connections() => {
+                (io, remote_addr) = self.listener.accept(),
+                    if !self.at_max_pending_connections() => {
                     self.handle_incoming(io, remote_addr);
                 },
                 // A failed task affects only its own connection, so the loop keeps serving
                 // the others.
                 Some(maybe_connection) = self.pending_connections.join_next() => {
-                    let (io, remote_addr) = match maybe_connection {
-                        Ok(Ok((io, remote_addr))) => {
-                            (io, remote_addr)
+                    let (io, remote_addr, count_guard) = match maybe_connection {
+                        Ok(Ok((io, remote_addr, count_guard))) => {
+                            (io, remote_addr, count_guard)
                         }
                         Ok(Err(e)) => {
                             tracing::debug!(error = %e, "error accepting connection");
@@ -281,7 +301,7 @@ where
                     };
 
                     trace!("connection accepted");
-                    self.handle_connection(io, remote_addr);
+                    self.handle_connection(io, remote_addr, count_guard);
                 },
                 Some(connection_handler_output) = self.connection_handlers.join_next() => {
                     if let Err(e) = connection_handler_output {
@@ -297,16 +317,38 @@ where
         Ok(())
     }
 
-    /// Whether another connection may be accepted, or the limit on concurrent
-    /// TLS handshakes is currently reached.
-    fn accepts_more_connections(&self) -> bool {
+    /// Whether the connections still in their TLS handshake have reached
+    /// `max_pending_connections`.
+    fn at_max_pending_connections(&self) -> bool {
         self.config
             .max_pending_connections
-            .is_none_or(|max| self.pending_connections.len() < max)
+            .is_some_and(|max| self.pending_connections.len() >= max.get())
     }
 
     fn handle_incoming(&mut self, io: L::Io, remote_addr: L::Addr) {
         let io = TrackedIo::new(io, self.config.metrics.as_ref(), remote_addr);
+        // Closed rather than left in the kernel backlog, and before any
+        // handshake, which a full listener would only waste.
+        if self.at_max_connections() {
+            // Dropping the connection closes it, releasing its file descriptor.
+            trace!("listener is already serving its maximum connections, closing the new one");
+            if let Some(metrics) = &self.config.metrics {
+                metrics.record_refused(RefusedReason::ListenerFull);
+            }
+            return;
+        }
+        let mut count_guard = self.connection_counts.guard();
+        if let Some(max) = self.config.max_connections_per_client_ip {
+            let client_ip = self.listener.client_prefix(&remote_addr).into_boxed_slice();
+            if !count_guard.add_client_ip(client_ip, max.get()) {
+                // Dropping the connection closes it, releasing its file descriptor.
+                trace!("client address already holds {max} connections, closing the new one");
+                if let Some(metrics) = &self.config.metrics {
+                    metrics.record_refused(RefusedReason::ClientIpLimit);
+                }
+                return;
+            }
+        }
         if let Some(tls) = self.tls_config.clone() {
             let tls_acceptor = TlsAcceptor::from(tls);
             let handshake_timeout = self.config.handshake_timeout;
@@ -324,33 +366,55 @@ where
                         None => HandshakeResult::TimedOut,
                     });
                 }
-                result.unwrap_or_else(|| {
-                    Err(std::io::Error::new(
-                        std::io::ErrorKind::TimedOut,
-                        "TLS handshake timed out",
-                    )
-                    .into())
-                })
+                result
+                    .unwrap_or_else(|| {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::TimedOut,
+                            "TLS handshake timed out",
+                        )
+                        .into())
+                    })
+                    // A failed handshake gives its places back with the task.
+                    .map(|(io, remote_addr)| (io, remote_addr, count_guard))
             });
         } else {
-            self.handle_connection(ServerIo::new_io(io), remote_addr);
+            self.handle_connection(ServerIo::new_io(io), remote_addr, count_guard);
         }
     }
 
-    fn handle_connection(&mut self, io: ServerIo<TrackedIo<L::Io>>, remote_addr: L::Addr) {
-        let mut peer_connection_guard = None;
+    /// Whether the connections being served and those still in their
+    /// handshake have reached `max_connections`.
+    fn at_max_connections(&self) -> bool {
+        self.config.max_connections.is_some_and(|max| {
+            self.connection_handlers.len() + self.pending_connections.len() >= max.get()
+        })
+    }
+
+    fn handle_connection(
+        &mut self,
+        io: ServerIo<TrackedIo<L::Io>>,
+        remote_addr: L::Addr,
+        mut count_guard: ConnectionCountGuard,
+    ) {
         if let (Some(max), Some(peer)) =
             (self.config.max_connections_per_peer, peer_public_key(&io))
         {
-            let Some(guard) = self.peer_connection_counts.register(&peer, max) else {
+            if !count_guard.add_peer_public_key(peer, max.get()) {
                 // Dropping the connection closes it, releasing its file descriptor.
                 trace!("peer already holds {max} connections, closing the new one");
+                if let Some(metrics) = &self.config.metrics {
+                    metrics.record_refused(RefusedReason::PeerLimit);
+                }
                 return;
-            };
-            peer_connection_guard = Some(guard);
+            }
         }
 
         let connection_shutdown_token = self.graceful_shutdown_token.child_token();
+        let idle_timer = self
+            .config
+            .max_connection_idle
+            .map(idle_timer::idle_timeout);
+        let idle_handle = idle_timer.as_ref().map(IdleTimer::handle);
         let connection_info = ConnectionInfo::new(
             remote_addr,
             io.peer_certs(),
@@ -366,26 +430,38 @@ where
         let hyper_io = hyper_util::rt::TokioIo::new(io);
 
         let service = TrackRequests::new(self.service.clone(), connection_metrics);
-        let hyper_svc = TowerToHyperService::new(service.map_request(
-            move |mut request: Request<hyper::body::Incoming>| {
-                request.extensions_mut().insert(connect_info.clone());
-                if let Some(peer_certificates) = peer_certificates.clone() {
-                    request.extensions_mut().insert(peer_certificates);
-                }
+        let hyper_svc = TowerToHyperService::new(
+            service
+                .map_request(move |mut request: Request<hyper::body::Incoming>| {
+                    request.extensions_mut().insert(connect_info.clone());
+                    if let Some(peer_certificates) = peer_certificates.clone() {
+                        request.extensions_mut().insert(peer_certificates);
+                    }
 
-                request.map(body::boxed)
-            },
-        ));
+                    request.map(body::boxed)
+                })
+                .map_future(move |future| {
+                    // Held by the response body rather than dropped here, so a
+                    // streaming response counts as work until its last frame.
+                    let guard = idle_handle.as_ref().map(IdleHandle::guard);
+                    async move {
+                        let response = future.await;
+                        response.map(|response| {
+                            response.map(|inner| match guard {
+                                Some(guard) => body::boxed(body::GuardedBody::new(inner, guard)),
+                                None => body::boxed(inner),
+                            })
+                        })
+                    }
+                }),
+        );
 
         self.connections
             .write()
             .unwrap()
             .insert(connection_id, connection_info);
-        let on_connection_close = OnConnectionClose::new(
-            connection_id,
-            self.connections.clone(),
-            peer_connection_guard,
-        );
+        let on_connection_close =
+            OnConnectionClose::new(connection_id, self.connections.clone(), count_guard);
 
         self.connection_handlers
             .spawn(connection_handler::serve_connection(
@@ -394,15 +470,13 @@ where
                 self.config.connection_builder(),
                 connection_shutdown_token,
                 self.config.max_connection_age,
+                idle_timer,
+                self.config.metrics.clone(),
                 on_connection_close,
             ));
     }
 
     async fn shutdown(mut self) {
-        // The time we are willing to wait for a connection to get gracefully shutdown
-        // before we attempt to forcefully shutdown all active connections
-        const CONNECTION_SHUTDOWN_GRACE_PERIOD: Duration = Duration::from_secs(1);
-
         // Just to be careful make sure the token is canceled
         self.graceful_shutdown_token.cancel();
 
@@ -418,13 +492,16 @@ where
         let graceful_shutdown =
             async { while self.connection_handlers.join_next().await.is_some() {} };
 
-        if tokio::time::timeout(CONNECTION_SHUTDOWN_GRACE_PERIOD, graceful_shutdown)
+        // A single grace, not extended for connections still serving as when
+        // one connection is closed: stopping the server must not wait on
+        // long-lived streams, which are always serving.
+        if tokio::time::timeout(SHUTDOWN_GRACE_PERIOD, graceful_shutdown)
             .await
             .is_err()
         {
             tracing::warn!(
                 "Failed to stop all connection handlers in {:?}. Forcing shutdown.",
-                CONNECTION_SHUTDOWN_GRACE_PERIOD
+                SHUTDOWN_GRACE_PERIOD
             );
             self.connection_handlers.shutdown().await;
         }
@@ -436,7 +513,7 @@ async fn handshake<Io, Addr>(
     io: TrackedIo<Io>,
     remote_addr: Addr,
     tls_acceptor: TlsAcceptor,
-) -> ConnectingOutput<Io, Addr>
+) -> Result<(ServerIo<TrackedIo<Io>>, Addr), crate::BoxError>
 where
     Io: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 {
@@ -447,7 +524,7 @@ where
 
 /// Identifies the peer by the public key of the single certificate it
 /// authenticated with, or `None` if it presented no certificate.
-fn peer_public_key<Io>(io: &ServerIo<Io>) -> Option<Vec<u8>> {
+fn peer_public_key<Io>(io: &ServerIo<Io>) -> Option<Box<[u8]>> {
     let certs = io.peer_certs()?;
     let [certificate] = certs.as_slice() else {
         trace!("unexpected number of peer certificates: {}", certs.len());
@@ -455,7 +532,7 @@ fn peer_public_key<Io>(io: &ServerIo<Io>) -> Option<Vec<u8>> {
     };
 
     match iota_tls::public_key_from_certificate(certificate) {
-        Ok(public_key) => Some(AsRef::<[u8]>::as_ref(&public_key).to_vec()),
+        Ok(public_key) => Some(AsRef::<[u8]>::as_ref(&public_key).into()),
         Err(e) => {
             trace!("failed to extract the public key from the peer certificate: {e:?}");
             None
@@ -465,9 +542,24 @@ fn peer_public_key<Io>(io: &ServerIo<Io>) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        num::{NonZeroU32, NonZeroUsize},
+        time::Duration,
+    };
+
     use axum::Router;
 
     use super::*;
+
+    /// The client connection preface: the fixed string and an empty SETTINGS
+    /// frame (RFC 9113, section 3.4).
+    const HTTP2_CLIENT_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n\0\0\0\x04\0\0\0\0\0";
+    /// An empty SETTINGS frame (RFC 9113, section 6.5).
+    const HTTP2_EMPTY_SETTINGS: &[u8] = b"\0\0\0\x04\0\0\0\0\0";
+    /// The types of HTTP/2 SETTINGS and GOAWAY frames (RFC 9113, sections 6.5
+    /// and 6.8).
+    const HTTP2_SETTINGS_FRAME: u8 = 0x4;
+    const HTTP2_GOAWAY_FRAME: u8 = 0x7;
 
     #[tokio::test]
     async fn simple() {
@@ -526,6 +618,24 @@ mod tests {
             iota_tls::create_rustls_server_config(private_key, SERVER_NAME.to_string()),
             iota_tls::create_rustls_client_config(public_key, SERVER_NAME.to_string(), None),
         )
+    }
+
+    /// A caller may hand over a `ServerConfig` that already advertises
+    /// protocols; what this listener serves is not up to them.
+    #[test]
+    fn the_listener_decides_which_protocols_it_advertises() {
+        let (server_tls_config, _) = test_tls_configs();
+        let mut caller_set_h2 = server_tls_config;
+        caller_set_h2.alpn_protocols = vec![ALPN_H2.into(), b"spdy/3".to_vec()];
+
+        let http2_only = with_alpn_protocols(caller_set_h2.clone(), false);
+        assert_eq!(http2_only.alpn_protocols, vec![ALPN_H2.to_vec()]);
+
+        let with_http1 = with_alpn_protocols(caller_set_h2, true);
+        assert_eq!(
+            with_http1.alpn_protocols,
+            vec![ALPN_H2.to_vec(), ALPN_H1.to_vec()]
+        );
     }
 
     /// The peer is unauthenticated until its handshake completes, so a peer
@@ -743,9 +853,6 @@ mod tests {
     ) {
         use tokio::io::AsyncWriteExt as _;
 
-        // The type of an HTTP/2 SETTINGS frame (RFC 9113, section 6.5).
-        const HTTP2_SETTINGS_FRAME: u8 = 0x4;
-
         connection
             .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
             .await
@@ -768,14 +875,6 @@ mod tests {
     #[tokio::test]
     async fn an_http2_connection_gets_goaway_on_shutdown_and_at_its_maximum_age() {
         use tokio::io::AsyncWriteExt as _;
-
-        // The client connection preface: the fixed string and an empty
-        // SETTINGS frame (RFC 9113, section 3.4).
-        const HTTP2_CLIENT_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n\0\0\0\x04\0\0\0\0\0";
-        // The types of HTTP/2 SETTINGS and GOAWAY frames (RFC 9113, sections
-        // 6.5 and 6.8).
-        const HTTP2_SETTINGS_FRAME: u8 = 0x4;
-        const HTTP2_GOAWAY_FRAME: u8 = 0x7;
 
         for accept_http1 in [true, false] {
             for max_connection_age in [None, Some(Duration::from_millis(500))] {
@@ -912,7 +1011,7 @@ mod tests {
                     // Long enough that the stalled peer below is released by the test
                     // rather than by the deadline.
                     .handshake_timeout(Some(Duration::from_secs(60)))
-                    .max_pending_connections(Some(1)),
+                    .max_pending_connections(Some(NonZeroUsize::MIN)),
             )
             .tls_config(server_tls_config)
             .serve(("localhost", 0), Router::new())
@@ -974,7 +1073,7 @@ mod tests {
         let handle = Builder::new()
             .config(
                 Config::default()
-                    .max_connections_per_peer(Some(MAX_PER_PEER))
+                    .max_connections_per_peer(NonZeroUsize::new(MAX_PER_PEER))
                     .on_peer_connection_event({
                         let events = events.clone();
                         move |peer, event| events.lock().unwrap().push((peer.to_vec(), event))
@@ -1081,6 +1180,126 @@ mod tests {
         drop((peer, other_peer, reconnected));
     }
 
+    /// An authenticated connection counts under its client's address from
+    /// accept and under its peer's key from the end of its handshake, and
+    /// gives both back when it closes. Only the key is reported to
+    /// `on_peer_connection_event`.
+    #[tokio::test]
+    async fn a_connection_is_counted_under_its_address_and_its_key() {
+        use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
+        use tokio::io::AsyncReadExt as _;
+
+        const MAX_PER_CLIENT: usize = 2;
+
+        let client_key = |seed: u8| Ed25519PrivateKey::new([seed; 32]);
+        let server_private_key = client_key(1);
+        let server_public_key = server_private_key.public_key();
+        let server_config = iota_tls::create_rustls_server_config_with_client_verifier(
+            server_private_key,
+            SERVER_NAME.to_string(),
+            iota_tls::AllowPublicKeys::new(
+                [2, 3, 4].map(|seed| client_key(seed).public_key()).into(),
+            ),
+        );
+
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .max_connections_per_client_ip(NonZeroUsize::new(MAX_PER_CLIENT))
+                    .max_connections_per_peer(Some(NonZeroUsize::MIN))
+                    .on_peer_connection_event({
+                        let events = events.clone();
+                        move |peer, event| events.lock().unwrap().push((peer.to_vec(), event))
+                    }),
+            )
+            .tls_config(server_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+        let addr = *handle.local_addr();
+
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        let connect = |seed: u8| {
+            let connector =
+                tokio_rustls::TlsConnector::from(Arc::new(iota_tls::create_rustls_client_config(
+                    server_public_key,
+                    SERVER_NAME.to_string(),
+                    Some(client_key(seed)),
+                )));
+            let server_name = server_name.clone();
+            async move {
+                let io = tokio::net::TcpStream::connect(addr).await.unwrap();
+                tokio::time::timeout(Duration::from_secs(10), connector.connect(server_name, io))
+                    .await
+                    .expect("the server must answer")
+            }
+        };
+        let events_of = |seed: u8| -> Vec<PeerConnectionEvent> {
+            let peer = client_key(seed).public_key().bytes().to_vec();
+            events
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(reported, _)| *reported == peer)
+                .map(|(_, event)| *event)
+                .collect()
+        };
+
+        let first = connect(2).await.expect("the first peer must be served");
+        wait_for_connections(&handle, 1, "the first peer must be counted").await;
+
+        // Refused for its key after the handshake, so the client sees the
+        // handshake complete and then the connection close.
+        let mut refused = connect(2)
+            .await
+            .expect("a peer at its own limit is refused only after its handshake");
+        let mut buf = [0u8; 1];
+        let read = tokio::time::timeout(Duration::from_secs(10), refused.read(&mut buf))
+            .await
+            .expect("the server must close a connection past the peer's limit");
+        assert!(
+            matches!(read, Ok(0) | Err(_)),
+            "the server must close the connection, got {read:?}"
+        );
+
+        // Takes the address's second place, which the refused connection
+        // must have given back.
+        let second = connect(3)
+            .await
+            .expect("a connection refused for its key must give its address's place back");
+        wait_for_connections(&handle, 2, "the second peer must be counted").await;
+
+        assert!(
+            connect(4).await.is_err(),
+            "an address at its limit must be refused before the handshake"
+        );
+
+        drop(first);
+        wait_for_connections(&handle, 1, "the first peer's connection must close").await;
+        let third = connect(4)
+            .await
+            .expect("a closed connection must give its address's place back");
+        wait_for_connections(&handle, 2, "the third peer must be counted").await;
+
+        assert_eq!(
+            events_of(2),
+            [
+                PeerConnectionEvent::Established { held: 1 },
+                PeerConnectionEvent::RefusedAtLimit { held: 1 },
+                PeerConnectionEvent::Closed { held: 0 },
+            ]
+        );
+        assert_eq!(events_of(3), [PeerConnectionEvent::Established { held: 1 }]);
+        assert_eq!(events_of(4), [PeerConnectionEvent::Established { held: 1 }]);
+        assert_eq!(
+            events.lock().unwrap().len(),
+            5,
+            "only the peers' keys must be reported, never the client's address"
+        );
+
+        drop((second, third));
+    }
+
     /// The cap identifies a peer by its single certificate, so a peer sending
     /// a longer chain is refused at the handshake and never holds a
     /// connection.
@@ -1098,7 +1317,7 @@ mod tests {
             iota_tls::AllowPublicKeys::new([client_public_key].into()),
         );
         let handle = Builder::new()
-            .config(Config::default().max_connections_per_peer(Some(1)))
+            .config(Config::default().max_connections_per_peer(Some(NonZeroUsize::MIN)))
             .tls_config(server_config)
             .serve(("localhost", 0), Router::new())
             .unwrap();
@@ -1138,8 +1357,9 @@ mod tests {
         assert_eq!(handle.number_of_connections(), 0);
     }
 
-    /// A limit the accept loop can never fall below, and a limit whose slots
-    /// nothing releases, both leave the server unable to accept.
+    /// A zero deadline or interval, an HTTP/2 size outside what the protocol
+    /// allows, or a limit whose slots nothing releases would leave the server
+    /// unable to serve, so it refuses to start and names the setting.
     #[tokio::test]
     async fn unrecoverable_limits_are_rejected() {
         let served = |config| {
@@ -1148,28 +1368,791 @@ mod tests {
                 .tls_config(test_tls_configs().0)
                 .serve(("localhost", 0), Router::new())
         };
+        let zero = Some(Duration::ZERO);
+        let size = |size| NonZeroU32::new(size);
+
+        for (setting, config) in [
+            ("tcp_keepalive", Config::default().tcp_keepalive(zero)),
+            (
+                "http2_keepalive_interval",
+                Config::default().http2_keepalive_interval(zero),
+            ),
+            (
+                "http2_keepalive_timeout",
+                Config::default().http2_keepalive_timeout(zero),
+            ),
+            (
+                "http1_header_read_timeout",
+                Config::default().http1_header_read_timeout(zero),
+            ),
+            (
+                "max_connection_age",
+                Config::default().max_connection_age(Duration::ZERO),
+            ),
+            (
+                "handshake_timeout",
+                Config::default().handshake_timeout(zero),
+            ),
+            (
+                "max_connection_idle",
+                Config::default().max_connection_idle(zero),
+            ),
+            (
+                "initial_stream_window_size",
+                Config::default().initial_stream_window_size(size(1 << 31)),
+            ),
+            (
+                "initial_connection_window_size",
+                Config::default().initial_connection_window_size(size(1 << 31)),
+            ),
+            (
+                "max_frame_size",
+                Config::default().max_frame_size(size((1 << 14) - 1)),
+            ),
+            (
+                "max_frame_size",
+                Config::default().max_frame_size(size(1 << 24)),
+            ),
+            (
+                "max_pending_connections",
+                Config::default()
+                    .handshake_timeout(None)
+                    .max_pending_connections(NonZeroUsize::new(8)),
+            ),
+            (
+                "ipv6_prefix_len",
+                Config::default().ipv6_prefix_len(listener::MIN_IPV6_PREFIX_LEN - 1),
+            ),
+            ("ipv6_prefix_len", Config::default().ipv6_prefix_len(129)),
+        ] {
+            let error = served(config).err().map(|error| error.to_string());
+            assert!(
+                error.as_ref().is_some_and(|error| error.contains(setting)),
+                "'{setting}' must be rejected naming it, got {error:?}"
+            );
+        }
+
+        for config in [
+            Config::default()
+                .initial_stream_window_size(size((1 << 31) - 1))
+                .initial_connection_window_size(size((1 << 31) - 1)),
+            Config::default().max_frame_size(size(1 << 14)),
+            Config::default().max_frame_size(size((1 << 24) - 1)),
+            Config::default()
+                .handshake_timeout(None)
+                .max_pending_connections(None),
+            Config::default().ipv6_prefix_len(listener::MIN_IPV6_PREFIX_LEN),
+            Config::default().ipv6_prefix_len(128),
+        ] {
+            assert!(
+                served(config.clone()).is_ok(),
+                "the largest and smallest allowed values, and removing both \
+                 handshake bounds, must be accepted: {config:?}"
+            );
+        }
+    }
+
+    /// An id derived from the connection's address in memory comes back as
+    /// soon as the allocator reuses that address, so two live connections can
+    /// share one. The listener's table is keyed by it: the second insertion
+    /// would replace the first, and the first connection's own close would
+    /// then remove the newcomer's entry.
+    #[test]
+    fn a_connection_id_is_never_reused() {
+        let connection = || {
+            ConnectionInfo::new(
+                "127.0.0.1:1".parse::<std::net::SocketAddr>().unwrap(),
+                None,
+                tokio_util::sync::CancellationToken::new(),
+            )
+        };
+
+        // Dropped before the next is made, which is what frees the address for
+        // the next allocation to be handed.
+        let first = connection();
+        let first_id = first.id();
+        drop(first);
+
+        let second = connection();
+        assert_ne!(
+            first_id,
+            second.id(),
+            "an id must not be reused once its connection has gone"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_peer_that_never_picks_a_protocol_is_closed_when_idle() {
+        use tokio::io::AsyncReadExt as _;
+
+        const IDLE: Duration = Duration::from_millis(200);
+
+        let handle = Builder::new()
+            .config(Config::default().max_connection_idle(Some(IDLE)))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+
+        let mut buf = [0u8; 1];
+        let read = tokio::time::timeout(IDLE * 50, connection.read(&mut buf))
+            .await
+            .expect("an idle connection must be closed by its deadline");
+        assert!(
+            matches!(read, Ok(0) | Err(_)),
+            "the server must close the connection, got {read:?}"
+        );
+    }
+
+    /// A connection goes idle, serves another request and goes idle again any
+    /// number of times, and each time it is given a full deadline from the end
+    /// of its last request. Each request is held for several deadlines, so a
+    /// timer that merely ticks would fire while it is served.
+    #[tokio::test(start_paused = true)]
+    async fn a_connection_goes_idle_again_after_each_request() {
+        const IDLE: Duration = Duration::from_millis(50);
+
+        let timer = idle_timer::idle_timeout(IDLE);
+        let handle = timer.handle();
+
+        tokio::time::timeout(IDLE * 10, timer.wait())
+            .await
+            .expect("a connection that is never used must go idle");
+
+        for request in 0..3 {
+            let guard = handle.guard();
+            let mut wait = std::pin::pin!(timer.wait());
+            assert!(
+                tokio::time::timeout(IDLE * 3, &mut wait).await.is_err(),
+                "request {request}: a connection serving a request must not be considered idle"
+            );
+            let became_idle = tokio::time::Instant::now();
+            drop(guard);
+
+            tokio::time::timeout(IDLE * 10, &mut wait)
+                .await
+                .unwrap_or_else(|_| panic!("request {request}: the connection must go idle again"));
+            assert!(
+                became_idle.elapsed() >= IDLE,
+                "request {request}: the deadline must run from the end of the request, elapsed only {:?}",
+                became_idle.elapsed()
+            );
+        }
+    }
+
+    /// A request can start and finish between two polls of the timer. It must
+    /// still push the deadline back to a full period from its end.
+    #[tokio::test(start_paused = true)]
+    async fn a_request_shorter_than_a_poll_pushes_the_deadline_back() {
+        const IDLE: Duration = Duration::from_millis(100);
+
+        let timer = idle_timer::idle_timeout(IDLE);
+        let handle = timer.handle();
+        let mut wait = std::pin::pin!(timer.wait());
+
+        // Polled once, so it is waiting on the deadline counted from creation.
+        assert!(
+            tokio::time::timeout(IDLE / 2, &mut wait).await.is_err(),
+            "the deadline must not be reached early"
+        );
+
+        let became_idle = tokio::time::Instant::now();
+        drop(handle.guard());
+
+        tokio::time::timeout(IDLE * 10, &mut wait)
+            .await
+            .expect("the connection must go idle after the request");
+        assert!(
+            became_idle.elapsed() >= IDLE,
+            "the deadline must run from the end of the request, elapsed only {:?}",
+            became_idle.elapsed()
+        );
+    }
+
+    /// A response body with a frame still to come: what a streaming response
+    /// looks like between its headers and its last frame.
+    struct NeverEnds;
+
+    impl http_body::Body for NeverEnds {
+        type Data = bytes::Bytes;
+        type Error = BoxError;
+
+        fn poll_frame(
+            self: std::pin::Pin<&mut Self>,
+            _cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
+            std::task::Poll::Pending
+        }
+    }
+
+    /// A streaming response resolves its future as soon as the headers are
+    /// ready, while the work continues for as long as frames are produced.
+    /// Dropping the guard when the future resolves would call such a
+    /// connection idle while it is still sending.
+    #[tokio::test(start_paused = true)]
+    async fn a_streaming_response_holds_its_connection() {
+        const IDLE: Duration = Duration::from_millis(100);
+
+        let timer = idle_timer::idle_timeout(IDLE);
+        let idle = timer.handle();
+        let mut wait = std::pin::pin!(timer.wait());
+
+        // What the server does per request: take a guard and hand it to the
+        // response body.
+        let guard = idle.guard();
+        let streaming = body::GuardedBody::new(NeverEnds, guard);
 
         assert!(
-            served(Config::default().max_pending_connections(Some(0))).is_err(),
-            "a zero limit must be rejected"
+            tokio::time::timeout(IDLE * 10, &mut wait).await.is_err(),
+            "a connection still sending its response must not be considered idle"
+        );
+
+        // The response ends when its body is dropped.
+        drop(streaming);
+        assert!(
+            tokio::time::timeout(IDLE * 10, &mut wait).await.is_ok(),
+            "the connection must go idle once the body ends"
+        );
+    }
+
+    /// Protocol traffic is not work. A peer that keeps the bytes flowing
+    /// without ever sending a request must still be closed, which is why
+    /// idleness is measured in requests rather than in bytes.
+    #[tokio::test]
+    async fn protocol_traffic_alone_does_not_keep_a_connection_alive() {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        const IDLE: Duration = Duration::from_millis(200);
+
+        let handle = Builder::new()
+            .config(Config::default().max_connection_idle(Some(IDLE)))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        // Taken before the connection is made, so the idle deadline counts
+        // from later.
+        let started = tokio::time::Instant::now();
+        let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        connection.write_all(HTTP2_CLIENT_PREFACE).await.unwrap();
+
+        // The server's SETTINGS show it is serving HTTP/2, so the clock can be
+        // paused without the deadline passing while it picks a protocol.
+        let mut received = Vec::new();
+        read_until_done_or_closed(&mut connection, &mut received, |received| {
+            !frame_types(received).is_empty()
+        })
+        .await;
+        assert_eq!(
+            frame_types(&received).first(),
+            Some(&HTTP2_SETTINGS_FRAME),
+            "the server must serve the connection as HTTP/2"
+        );
+        tokio::time::pause();
+
+        // Send frames the server must read and answer, but never a request,
+        // for twice the deadline: a deadline counted in bytes would end no
+        // sooner than a deadline after the last of them.
+        for _ in 0..20 {
+            connection.write_all(HTTP2_EMPTY_SETTINGS).await.unwrap();
+            tokio::time::sleep(IDLE / 10).await;
+        }
+
+        // Then read until the connection ends. The peer never acknowledges the
+        // shutdown, so that is when the grace after the deadline ends. Nothing
+        // here sleeps, so the paused clock cannot run ahead of the socket.
+        let mut buf = [0u8; 1024];
+        while connection.read(&mut buf).await.is_ok_and(|read| read != 0) {}
+        let closed_after = started.elapsed();
+        let grace_ends = IDLE + SHUTDOWN_GRACE_PERIOD;
+        assert!(
+            closed_after >= grace_ends,
+            "the connection must be given the grace, closed after only {closed_after:?}"
         );
         assert!(
-            served(
-                Config::default()
-                    .handshake_timeout(None)
-                    .max_pending_connections(Some(8))
-            )
-            .is_err(),
-            "a limit without a handshake deadline must be rejected"
+            closed_after < IDLE * 2 + SHUTDOWN_GRACE_PERIOD,
+            "traffic without requests must not hold a connection open, closed after {closed_after:?}"
+        );
+    }
+
+    /// A connection past its age is dropped even if the peer ignores the
+    /// shutdown, because the grace that follows it is bounded.
+    #[tokio::test]
+    async fn a_connection_past_its_age_is_dropped_even_if_it_ignores_the_request() {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        const AGE: Duration = Duration::from_millis(200);
+
+        let handle = Builder::new()
+            .config(Config::default().max_connection_age(AGE))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        // Taken before the connection is made, so the age counts from later.
+        let started = tokio::time::Instant::now();
+        let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        // Started HTTP/2, so the server's shutdown waits for the peer to
+        // acknowledge it, which this one never does. A peer that has not
+        // picked a protocol yet would be closed at once.
+        connection.write_all(HTTP2_CLIENT_PREFACE).await.unwrap();
+
+        // The server's SETTINGS show it is serving HTTP/2, so the clock can be
+        // paused without the age passing while it picks a protocol.
+        let mut received = Vec::new();
+        read_until_done_or_closed(&mut connection, &mut received, |received| {
+            !frame_types(received).is_empty()
+        })
+        .await;
+        assert_eq!(
+            frame_types(&received).first(),
+            Some(&HTTP2_SETTINGS_FRAME),
+            "the server must serve the connection as HTTP/2"
+        );
+        tokio::time::pause();
+
+        // Then comes the shutdown, so read until the connection ends. Not
+        // through `read_until_done_or_closed`, whose own timeout would be
+        // reached on the paused clock before the grace ends.
+        let mut buf = [0u8; 1024];
+        while connection.read(&mut buf).await.is_ok_and(|read| read != 0) {}
+        let dropped_after = started.elapsed();
+        let grace_ends = AGE + SHUTDOWN_GRACE_PERIOD;
+        assert!(
+            dropped_after >= grace_ends,
+            "the connection must be given the grace, dropped after only {dropped_after:?}"
         );
         assert!(
-            served(
-                Config::default()
-                    .handshake_timeout(None)
-                    .max_pending_connections(None)
-            )
-            .is_ok(),
-            "removing both bounds stays allowed"
+            dropped_after < grace_ends + SHUTDOWN_GRACE_PERIOD,
+            "the connection must be dropped once the grace ends, dropped after {dropped_after:?}"
         );
+    }
+
+    /// A request in flight when the age expires is finished if it ends within
+    /// the grace, so the response the client is waiting for is not discarded.
+    #[tokio::test]
+    async fn a_request_in_flight_when_the_age_expires_is_finished() {
+        const AGE: Duration = Duration::from_millis(300);
+        let handler = SHUTDOWN_GRACE_PERIOD / 2;
+        const MESSAGE: &str = "finished anyway";
+
+        let serving = Arc::new(tokio::sync::Notify::new());
+        let app = Router::new().route(
+            "/",
+            axum::routing::get({
+                let serving = serving.clone();
+                move || {
+                    let serving = serving.clone();
+                    async move {
+                        serving.notify_one();
+                        tokio::time::sleep(handler).await;
+                        MESSAGE
+                    }
+                }
+            }),
+        );
+        let handle = Builder::new()
+            .config(Config::default().max_connection_age(AGE).accept_http1(true))
+            .serve(("localhost", 0), app)
+            .unwrap();
+
+        let url = format!("http://{}", handle.local_addr());
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        // No client timeout: once the clock is paused it would be skipped to
+        // while the response is still on its way.
+        let request = tokio::spawn(async move { reqwest::get(&url).await?.bytes().await });
+
+        // Paused only once the request is being served, as in
+        // `a_request_that_never_finishes_is_cut_after_the_grace`, so the age
+        // and the handler pass at once.
+        serving.notified().await;
+        tokio::time::pause();
+
+        let body = request
+            .await
+            .unwrap()
+            .expect("the response must arrive in full, not be cut by the connection closing");
+        assert_eq!(body, MESSAGE.as_bytes());
+    }
+
+    /// A connection that reaches its age while serving a request that never
+    /// finishes is dropped when the grace ends, and not before.
+    ///
+    /// Runs on real time until the request is being served, then pauses the
+    /// clock. A paused clock skips ahead whenever the runtime has nothing ready,
+    /// even while a socket still has data on the way, so it is paused only once
+    /// the server is left waiting on its own timers alone.
+    #[tokio::test]
+    async fn a_request_that_never_finishes_is_cut_after_the_grace() {
+        /// Sends the time it is dropped. Held by the handler, whose future
+        /// HTTP/1 keeps inside the connection, so it is dropped when the
+        /// connection is.
+        struct SendWhenDropped(Option<tokio::sync::oneshot::Sender<tokio::time::Instant>>);
+
+        impl Drop for SendWhenDropped {
+            fn drop(&mut self) {
+                if let Some(sender) = self.0.take() {
+                    let _ = sender.send(tokio::time::Instant::now());
+                }
+            }
+        }
+
+        const AGE: Duration = Duration::from_millis(200);
+        let grace_ends = AGE + SHUTDOWN_GRACE_PERIOD;
+
+        let (serving_tx, serving_rx) = tokio::sync::oneshot::channel();
+        let (dropped_tx, dropped_rx) = tokio::sync::oneshot::channel();
+        // The handler is cloned for every request, so the one-shot senders are
+        // handed out from behind a lock to the single request this sends.
+        let senders = Arc::new(std::sync::Mutex::new(Some((serving_tx, dropped_tx))));
+        let app = Router::new().route(
+            "/",
+            axum::routing::get(move || {
+                let senders = senders.lock().unwrap().take();
+                async move {
+                    let (serving, dropped) = senders.expect("only one request is sent");
+                    let _dropped = SendWhenDropped(Some(dropped));
+                    let _ = serving.send(());
+                    std::future::pending::<&'static str>().await
+                }
+            }),
+        );
+        let handle = Builder::new()
+            .config(Config::default().max_connection_age(AGE).accept_http1(true))
+            .serve(("localhost", 0), app)
+            .unwrap();
+
+        let url = format!("http://{}", handle.local_addr());
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        // Taken before the connection is made, so the age counts from later.
+        let started = tokio::time::Instant::now();
+        let request = tokio::spawn(async move { reqwest::Client::new().get(&url).send().await });
+
+        serving_rx
+            .await
+            .expect("the request must reach the handler");
+        tokio::time::pause();
+
+        let cut_after = dropped_rx
+            .await
+            .expect("the handler must be dropped with its connection")
+            - started;
+        assert!(
+            cut_after >= grace_ends,
+            "the request must be given the grace, cut after only {cut_after:?}"
+        );
+        assert!(
+            cut_after < grace_ends + SHUTDOWN_GRACE_PERIOD,
+            "the request must be cut once the grace ends, cut after {cut_after:?}"
+        );
+
+        let response = request.await.unwrap();
+        assert!(
+            response.is_err(),
+            "a request that never finishes must not get a response, got {response:?}"
+        );
+    }
+
+    /// The listener's own limit is what bounds the connections it serves. A
+    /// per-peer limit cannot: it permits one peer's worth per peer, and the
+    /// peers are whoever connects.
+    #[tokio::test]
+    async fn connections_are_capped_for_the_whole_listener() {
+        use tokio::io::AsyncReadExt as _;
+
+        const MAX_CONNECTIONS: usize = 4;
+        const ATTEMPTS: usize = MAX_CONNECTIONS * 4;
+
+        let handle = Builder::new()
+            .config(Config::default().max_connections(NonZeroUsize::new(MAX_CONNECTIONS)))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        // Each connection waits for the server to close it, which only the
+        // refused ones see. The served ones stay open while their tasks wait.
+        let mut closed_by_server = tokio::task::JoinSet::new();
+        for _ in 0..ATTEMPTS {
+            let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+                .await
+                .unwrap();
+            closed_by_server.spawn(async move {
+                let mut buf = [0u8; 1];
+                let _ = connection.read(&mut buf).await;
+            });
+        }
+
+        tokio::time::timeout(Duration::from_secs(10), async {
+            for _ in 0..ATTEMPTS - MAX_CONNECTIONS {
+                closed_by_server.join_next().await;
+            }
+        })
+        .await
+        .expect("every connection past the limit must be refused");
+
+        assert_eq!(
+            handle.number_of_connections(),
+            MAX_CONNECTIONS,
+            "the listener must fill to its limit and never past it"
+        );
+    }
+
+    /// A full listener refuses a new connection before its TLS handshake, so
+    /// it spends nothing on a connection it will not serve.
+    #[tokio::test]
+    async fn a_full_listener_refuses_before_the_tls_handshake() {
+        let (server_tls_config, client_tls_config) = test_tls_configs();
+        let handle = Builder::new()
+            .config(Config::default().max_connections(Some(NonZeroUsize::MIN)))
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+        let addr = *handle.local_addr();
+
+        let connector = tokio_rustls::TlsConnector::from(Arc::new(client_tls_config));
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        let connect = || async {
+            let io = tokio::net::TcpStream::connect(addr).await.unwrap();
+            connector.connect(server_name.clone(), io).await
+        };
+
+        let _served = connect()
+            .await
+            .expect("the first connection must be served");
+        // The listener counts it only once the accept loop has taken it from
+        // its handshake.
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while handle.number_of_connections() < 1 {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the first connection must be counted"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        // Refused after its handshake, the client would see the handshake
+        // complete and only then the connection close.
+        let refused = tokio::time::timeout(Duration::from_secs(10), connect())
+            .await
+            .expect("a full listener must answer a new peer");
+        assert!(
+            refused.is_err(),
+            "a full listener must not complete a TLS handshake"
+        );
+    }
+
+    /// A connection still in its TLS handshake counts toward the limit, so
+    /// peers connecting at the same moment cannot all be served.
+    #[tokio::test]
+    async fn a_connection_in_its_handshake_counts_toward_the_limit() {
+        let (server_tls_config, client_tls_config) = test_tls_configs();
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .max_connections(Some(NonZeroUsize::MIN))
+                    // Long enough that the stalled peer below keeps its slot
+                    // for the whole test.
+                    .handshake_timeout(Some(Duration::from_secs(60))),
+            )
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+        let addr = *handle.local_addr();
+
+        // Takes the only slot by never starting its handshake. The listener
+        // accepts in the order peers connected, so it is taken first.
+        let _stalled = tokio::net::TcpStream::connect(addr).await.unwrap();
+
+        let connector = tokio_rustls::TlsConnector::from(Arc::new(client_tls_config));
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        let refused = tokio::time::timeout(Duration::from_secs(10), async {
+            let io = tokio::net::TcpStream::connect(addr).await.unwrap();
+            connector.connect(server_name, io).await
+        })
+        .await
+        .expect("a full listener must answer a new peer");
+        assert!(
+            refused.is_err(),
+            "a connection must be refused while another holds the only slot in its handshake"
+        );
+    }
+
+    /// Waits until the listener counts `expected` connections.
+    async fn wait_for_connections(handle: &ServerHandle, expected: usize, what: &str) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while handle.number_of_connections() != expected {
+            assert!(std::time::Instant::now() < deadline, "{what}");
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
+
+    /// Every connection in this test comes from the same loopback address.
+    #[tokio::test]
+    async fn connections_per_client_ip_are_capped() {
+        use tokio::io::AsyncReadExt as _;
+
+        const MAX_PER_CLIENT: usize = 2;
+        const ATTEMPTS: usize = MAX_PER_CLIENT * 4;
+
+        let handle = Builder::new()
+            .config(
+                Config::default().max_connections_per_client_ip(NonZeroUsize::new(MAX_PER_CLIENT)),
+            )
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        // Each connection waits for the server to close it, which only the
+        // refused ones see. The served ones stay open while their tasks wait.
+        let mut closed_by_server = tokio::task::JoinSet::new();
+        for _ in 0..ATTEMPTS {
+            let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+                .await
+                .unwrap();
+            closed_by_server.spawn(async move {
+                let mut buf = [0u8; 1];
+                let _ = connection.read(&mut buf).await;
+            });
+        }
+
+        tokio::time::timeout(Duration::from_secs(10), async {
+            for _ in 0..ATTEMPTS - MAX_PER_CLIENT {
+                closed_by_server.join_next().await;
+            }
+        })
+        .await
+        .expect("every connection past the client's limit must be refused");
+        assert_eq!(
+            handle.number_of_connections(),
+            MAX_PER_CLIENT,
+            "the client must hold its limit and never more"
+        );
+
+        // Closing the served connections gives their slots back.
+        closed_by_server.shutdown().await;
+        wait_for_connections(&handle, 0, "the closed connections must leave the listener").await;
+        let mut held = Vec::new();
+        for _ in 0..MAX_PER_CLIENT {
+            held.push(
+                tokio::net::TcpStream::connect(handle.local_addr())
+                    .await
+                    .unwrap(),
+            );
+        }
+        wait_for_connections(
+            &handle,
+            MAX_PER_CLIENT,
+            "a client whose connections closed must be served again",
+        )
+        .await;
+    }
+
+    /// A client at its limit is refused before its TLS handshake, and a
+    /// connection still in its handshake holds a slot until the handshake
+    /// ends.
+    #[tokio::test]
+    async fn a_client_ip_at_its_limit_is_refused_before_the_tls_handshake() {
+        use tokio::io::AsyncReadExt as _;
+
+        let (server_tls_config, client_tls_config) = test_tls_configs();
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .max_connections_per_client_ip(Some(NonZeroUsize::MIN))
+                    .handshake_timeout(Some(Duration::from_millis(500))),
+            )
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+        let addr = *handle.local_addr();
+
+        let connector = tokio_rustls::TlsConnector::from(Arc::new(client_tls_config));
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        let connect = || async {
+            let io = tokio::net::TcpStream::connect(addr).await.unwrap();
+            connector.connect(server_name.clone(), io).await
+        };
+
+        // Takes the client's only slot by never starting its handshake. The
+        // listener accepts in the order peers connected, so it is taken first.
+        let mut stalled = tokio::net::TcpStream::connect(addr).await.unwrap();
+
+        // Refused after its handshake, the client would see the handshake
+        // complete and only then the connection close.
+        let refused = tokio::time::timeout(Duration::from_secs(10), connect())
+            .await
+            .expect("a client at its limit must be answered");
+        assert!(
+            refused.is_err(),
+            "a client at its limit must not complete a TLS handshake"
+        );
+
+        let mut buf = [0u8; 1];
+        tokio::time::timeout(Duration::from_secs(10), stalled.read(&mut buf))
+            .await
+            .expect("the stalled handshake must time out")
+            .ok();
+        let _served = tokio::time::timeout(Duration::from_secs(10), connect())
+            .await
+            .expect("the listener must answer")
+            .expect("a handshake that timed out must give its slot back");
+
+        // The served connection keeps its slot once its handshake is done.
+        let refused = tokio::time::timeout(Duration::from_secs(10), connect())
+            .await
+            .expect("a client at its limit must be answered");
+        assert!(
+            refused.is_err(),
+            "a connection past its handshake must still hold its slot"
+        );
+    }
+
+    /// Counts each connection as a client of its own.
+    struct ClientPerPort(tokio::net::TcpListener);
+
+    impl Listener for ClientPerPort {
+        type Io = tokio::net::TcpStream;
+        type Addr = std::net::SocketAddr;
+
+        async fn accept(&mut self) -> (Self::Io, Self::Addr) {
+            Listener::accept(&mut self.0).await
+        }
+
+        fn local_addr(&self) -> std::io::Result<Self::Addr> {
+            Listener::local_addr(&self.0)
+        }
+
+        fn client_prefix(&self, client: &Self::Addr) -> Vec<u8> {
+            client.port().to_be_bytes().to_vec()
+        }
+    }
+
+    #[tokio::test]
+    async fn the_listener_decides_which_connections_are_one_client() {
+        const CONNECTIONS: usize = 4;
+
+        let listener = ClientPerPort(tokio::net::TcpListener::bind("localhost:0").await.unwrap());
+        let handle = Builder::new()
+            .config(Config::default().max_connections_per_client_ip(Some(NonZeroUsize::MIN)))
+            .serve_with_listener(listener, Router::new())
+            .unwrap();
+
+        let mut held = Vec::new();
+        for _ in 0..CONNECTIONS {
+            held.push(
+                tokio::net::TcpStream::connect(handle.local_addr())
+                    .await
+                    .unwrap(),
+            );
+        }
+        wait_for_connections(
+            &handle,
+            CONNECTIONS,
+            "connections the listener names as different clients must all be served",
+        )
+        .await;
     }
 }

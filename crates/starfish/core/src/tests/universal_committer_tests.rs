@@ -5,7 +5,6 @@
 use std::sync::Arc;
 
 use parking_lot::RwLock;
-use rstest::rstest;
 use starfish_config::AuthorityIndex;
 
 use crate::{
@@ -27,10 +26,9 @@ use crate::{
 // TODO: use one same mechanism for constructing a DAG
 
 /// Directly commit 5 leader blocks.
-#[rstest]
 #[tokio::test]
-async fn direct_commit(#[values(false, true)] starfish_speed: bool) {
-    let mut test_setup = basic_dag_builder_test_setup(starfish_speed);
+async fn direct_commit() {
+    let mut test_setup = basic_dag_builder_test_setup();
 
     // Build fully connected dag with empty blocks adding up to round 7
     // such that we can commit all leader block up to round 5
@@ -68,11 +66,8 @@ async fn direct_commit(#[values(false, true)] starfish_speed: bool) {
     };
 }
 
-#[rstest]
 #[tokio::test]
-async fn indirect_commit_with_missing_old_own_ancestor(
-    #[values(false, true)] starfish_speed: bool,
-) {
+async fn indirect_commit_with_missing_old_own_ancestor() {
     use crate::{
         authority_set::AuthoritySet,
         block_header::{
@@ -86,9 +81,6 @@ async fn indirect_commit_with_missing_old_own_ancestor(
 
     let (mut context, keypairs) = Context::new_for_test(4);
     context.protocol_config.set_gc_depth_for_testing(5);
-    context
-        .protocol_config
-        .set_consensus_starfish_speed_for_testing(starfish_speed);
     let context = Arc::new(context);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -124,22 +116,21 @@ async fn indirect_commit_with_missing_old_own_ancestor(
             }
             ancestors.sort_by_key(|ancestor| ancestor.author.value() != author as usize);
             let leader_authority = committer.get_leaders(round - 1)[0];
-            let strong_vote = (starfish_speed
-                && ancestors.iter().any(|ancestor| {
-                    ancestor.round == round - 1 && ancestor.author == leader_authority
-                }))
-            .then(|| {
-                let mut missing = AuthoritySet::new();
-                if round > 1 {
-                    missing.insert(leader_authority);
-                }
-                StrongVote {
-                    leader_authority,
-                    missing,
-                }
-            });
+            let strong_vote = ancestors
+                .iter()
+                .any(|ancestor| ancestor.round == round - 1 && ancestor.author == leader_authority)
+                .then(|| {
+                    let mut missing = AuthoritySet::new();
+                    if round > 1 {
+                        missing.insert(leader_authority);
+                    }
+                    StrongVote {
+                        leader_authority,
+                        missing,
+                    }
+                });
             let header = TestBlockHeader::new(round, author)
-                .set_version(TestBlockHeaderVersion::from_context(&context))
+                .set_version(TestBlockHeaderVersion::V2)
                 .set_ancestors(ancestors)
                 .set_strong_vote(strong_vote)
                 .build();
@@ -157,7 +148,6 @@ async fn indirect_commit_with_missing_old_own_ancestor(
 
         if round == 14 {
             let commit = TrustedCommit::new_for_test(
-                &context,
                 1,
                 CommitDigest::MIN,
                 0,
@@ -194,10 +184,9 @@ async fn indirect_commit_with_missing_old_own_ancestor(
 }
 
 /// Ensure idempotent replies.
-#[rstest]
 #[tokio::test]
-async fn idempotence(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
+async fn idempotence() {
+    let (context, dag_state, mut committer) = basic_test_setup();
 
     // note: waves & rounds are zero-indexed.
     let first_non_genesis_leader_round = 1;
@@ -271,10 +260,9 @@ async fn idempotence(#[values(false, true)] starfish_speed: bool) {
 }
 
 /// Commit one by one each leader as the dag progresses in ideal conditions.
-#[rstest]
 #[tokio::test]
-async fn multiple_direct_commit(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
+async fn multiple_direct_commit() {
+    let (context, dag_state, mut committer) = basic_test_setup();
 
     let mut ancestors = None;
     let mut last_finalized = Slot::new(0, 0);
@@ -311,10 +299,9 @@ async fn multiple_direct_commit(#[values(false, true)] starfish_speed: bool) {
 
 /// Commit leaders from 10 waves in a row (calling the committer after adding
 /// them).
-#[rstest]
 #[tokio::test]
-async fn direct_commit_late_call(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
+async fn direct_commit_late_call() {
+    let (context, dag_state, mut committer) = basic_test_setup();
 
     // note: waves & rounds are zero-indexed.
     let num_waves = 11;
@@ -340,10 +327,9 @@ async fn direct_commit_late_call(#[values(false, true)] starfish_speed: bool) {
 }
 
 /// Do not commit anything if we are still in the first wave.
-#[rstest]
 #[tokio::test]
-async fn no_genesis_commit(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
+async fn no_genesis_commit() {
+    let (context, dag_state, mut committer) = basic_test_setup();
 
     // note: waves & rounds are zero-indexed.
     let certifying_round = 3;
@@ -359,9 +345,8 @@ async fn no_genesis_commit(#[values(false, true)] starfish_speed: bool) {
 }
 
 /// We directly skip the leader if there are enough non-votes (blames).
-#[rstest]
 #[tokio::test]
-async fn direct_skip_no_leader_votes(#[values(false, true)] starfish_speed: bool) {
+async fn direct_skip_no_leader_votes() {
     telemetry_subscribers::init_for_testing();
     // Dag Notes:
     // Pipeline is enabled
@@ -381,7 +366,7 @@ async fn direct_skip_no_leader_votes(#[values(false, true)] starfish_speed: bool
     let first_leader = AuthorityIndex::new_for_test(1);
     let first_round = 1 as Round;
 
-    let dag_builder = parse_dag(dag_str, starfish_speed).expect("Invalid dag");
+    let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
@@ -414,10 +399,9 @@ async fn direct_skip_no_leader_votes(#[values(false, true)] starfish_speed: bool
 }
 
 /// We directly skip the leader if it is missing.
-#[rstest]
 #[tokio::test]
-async fn direct_skip_missing_leader_block(#[values(false, true)] starfish_speed: bool) {
-    let mut test_setup = basic_dag_builder_test_setup(starfish_speed);
+async fn direct_skip_missing_leader_block() {
+    let mut test_setup = basic_dag_builder_test_setup();
 
     // Add enough blocks to reach the certifying round of genesis leader
     // note: waves & rounds are zero-indexed.
@@ -466,9 +450,8 @@ async fn direct_skip_missing_leader_block(#[values(false, true)] starfish_speed:
 }
 
 /// Indirect-commit of the leader of round 3.
-#[rstest]
 #[tokio::test]
-async fn indirect_commit(#[values(false, true)] starfish_speed: bool) {
+async fn indirect_commit() {
     telemetry_subscribers::init_for_testing();
     // Dag Notes:
     // Pipeline is enabled
@@ -501,7 +484,7 @@ async fn indirect_commit(#[values(false, true)] starfish_speed: bool) {
         Round 8 : { * },
      }";
 
-    let dag_builder = parse_dag(dag_str, starfish_speed).expect("Invalid dag");
+    let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
@@ -542,9 +525,8 @@ async fn indirect_commit(#[values(false, true)] starfish_speed: bool) {
 }
 
 /// Skip indirectly the leader of round 4.
-#[rstest]
 #[tokio::test]
-async fn indirect_skip(#[values(false, true)] starfish_speed: bool) {
+async fn indirect_skip() {
     telemetry_subscribers::init_for_testing();
     // Dag Notes:
     // Pipeline is enabled
@@ -582,7 +564,7 @@ async fn indirect_skip(#[values(false, true)] starfish_speed: bool) {
         Round 9 : { * },
      }";
 
-    let dag_builder = parse_dag(dag_str, starfish_speed).expect("Invalid dag");
+    let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
@@ -625,9 +607,8 @@ async fn indirect_skip(#[values(false, true)] starfish_speed: bool) {
 }
 
 /// If there is no leader with enough support nor blame, we commit nothing.
-#[rstest]
 #[tokio::test]
-async fn undecided(#[values(false, true)] starfish_speed: bool) {
+async fn undecided() {
     telemetry_subscribers::init_for_testing();
     // Dag Notes:
     // Pipeline is enabled
@@ -665,7 +646,7 @@ async fn undecided(#[values(false, true)] starfish_speed: bool) {
         },
      }";
 
-    let dag_builder = parse_dag(dag_str, starfish_speed).expect("Invalid dag");
+    let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
@@ -697,11 +678,10 @@ async fn undecided(#[values(false, true)] starfish_speed: bool) {
 // will be sending multiple different blocks to different validators for a
 // round. The commit rule should handle this and correctly commit the expected
 // blocks.
-#[rstest]
 #[tokio::test]
-async fn test_byzantine_direct_commit(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
-    let version = TestBlockHeaderVersion::from_context(&context);
+async fn test_byzantine_direct_commit() {
+    let (context, dag_state, mut committer) = basic_test_setup();
+    let version = TestBlockHeaderVersion::V2;
 
     // Add enough blocks to reach first leader of wave 4
     // note: waves & rounds are zero-indexed.
@@ -859,20 +839,14 @@ async fn test_byzantine_direct_commit(#[values(false, true)] starfish_speed: boo
 // TODO: Add byzantine variant of tests for indirect/direct
 // commit/skip/undecided decisions
 
-fn basic_test_setup(
-    starfish_speed: bool,
-) -> (
+fn basic_test_setup() -> (
     Arc<Context>,
     Arc<RwLock<DagState>>,
     super::UniversalCommitter,
 ) {
     telemetry_subscribers::init_for_testing();
     // Committee of 4 with even stake
-    let mut context = Context::new_for_test(4).0;
-    context
-        .protocol_config
-        .set_consensus_starfish_speed_for_testing(starfish_speed);
-    let context = Arc::new(context);
+    let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
         Arc::new(MemStore::new()),
@@ -900,13 +874,9 @@ struct TestSetup {
 }
 
 // TODO: Make this the basic_test_setup()
-fn basic_dag_builder_test_setup(starfish_speed: bool) -> TestSetup {
+fn basic_dag_builder_test_setup() -> TestSetup {
     telemetry_subscribers::init_for_testing();
-    let mut context = Context::new_for_test(4).0;
-    context
-        .protocol_config
-        .set_consensus_starfish_speed_for_testing(starfish_speed);
-    let context = Arc::new(context);
+    let context = Arc::new(Context::new_for_test(4).0);
     let dag_builder = DagBuilder::new(context);
 
     let dag_state = Arc::new(RwLock::new(DagState::new(

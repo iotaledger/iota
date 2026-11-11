@@ -4,7 +4,10 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, RwLock},
+    sync::{
+        Arc, Mutex, RwLock,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 use tokio_rustls::rustls::pki_types::CertificateDer;
@@ -14,7 +17,13 @@ use crate::config::{OnPeerConnectionEvent, PeerConnectionEvent};
 pub(crate) type ActiveConnections<A = std::net::SocketAddr> =
     Arc<RwLock<HashMap<ConnectionId, ConnectionInfo<A>>>>;
 
+/// Identifies one connection for as long as this process runs. Never reused,
+/// so an entry in a table of live connections cannot be taken for a different
+/// connection than the one that put it there.
 pub type ConnectionId = usize;
+
+/// Handed out by [`ConnectionInfo::new`], one per connection.
+static NEXT_CONNECTION_ID: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug)]
 pub struct ConnectionInfo<A>(Arc<Inner<A>>);
@@ -35,6 +44,7 @@ impl<A> ConnectionInfo<A> {
         graceful_shutdown_token: tokio_util::sync::CancellationToken,
     ) -> Self {
         Self(Arc::new(Inner {
+            id: NEXT_CONNECTION_ID.fetch_add(1, Ordering::Relaxed),
             address,
             time_established: std::time::Instant::now(),
             peer_certificates: peer_certificates.map(PeerCertificates),
@@ -56,9 +66,10 @@ impl<A> ConnectionInfo<A> {
         self.0.peer_certificates.as_ref()
     }
 
-    /// A stable identifier for this connection
+    /// A stable identifier for this connection, unique for the life of the
+    /// process.
     pub fn id(&self) -> ConnectionId {
-        &*self.0 as *const _ as usize
+        self.0.id
     }
 
     /// Trigger a graceful shutdown of this connection
@@ -69,6 +80,8 @@ impl<A> ConnectionInfo<A> {
 
 #[derive(Debug)]
 struct Inner<A = std::net::SocketAddr> {
+    id: ConnectionId,
+
     address: A,
 
     // Time that the connection was established
@@ -98,77 +111,125 @@ impl<A> ConnectInfo<A> {
     }
 }
 
-/// Number of established connections held by each authenticated peer, keyed by
-/// the peer's public key.
+/// A client's address prefix or a peer's public key, as connections are
+/// counted under it. The two never collide: an address prefix is 4 or 16
+/// bytes long, a public key 32.
+pub(crate) type ConnectionKey = Box<[u8]>;
+
+/// Number of connections held under each [`ConnectionKey`].
 #[derive(Clone, Debug)]
-pub(crate) struct PeerConnectionCounts {
-    counts: Arc<Mutex<HashMap<Vec<u8>, usize>>>,
-    on_event: Option<OnPeerConnectionEvent>,
+pub(crate) struct ConnectionCounts {
+    counts: Arc<Mutex<HashMap<ConnectionKey, usize>>>,
+    on_peer_event: Option<OnPeerConnectionEvent>,
 }
 
-impl PeerConnectionCounts {
-    pub(crate) fn new(on_event: Option<OnPeerConnectionEvent>) -> Self {
+impl ConnectionCounts {
+    /// `on_peer_event` is told about the connections counted under a peer's
+    /// public key, and only those.
+    pub(crate) fn new(on_peer_event: Option<OnPeerConnectionEvent>) -> Self {
         Self {
             counts: Arc::default(),
-            on_event,
+            on_peer_event,
         }
     }
 
-    /// Counts one more connection for `peer`, or returns `None` if the peer
-    /// already holds `max` of them.
-    pub(crate) fn register(&self, peer: &[u8], max: usize) -> Option<PeerConnectionGuard> {
-        let held = {
-            let mut counts = self.counts.lock().unwrap();
-            // A zero `max` is rejected by `Config::validate`, so a peer with no
-            // entry yet is always below the limit.
-            if counts.get(peer).is_some_and(|count| *count >= max) {
-                None
-            } else {
-                let count = counts.entry(peer.to_vec()).or_insert(0);
-                *count += 1;
-                Some(*count)
-            }
-        };
-
-        let Some(held) = held else {
-            self.notify(peer, PeerConnectionEvent::RefusedAtLimit { held: max });
-            return None;
-        };
-        self.notify(peer, PeerConnectionEvent::Established { held });
-        Some(PeerConnectionGuard {
+    /// A guard for a new connection, counted under nothing until one of its
+    /// `add_*` methods is called.
+    pub(crate) fn guard(&self) -> ConnectionCountGuard {
+        ConnectionCountGuard {
             counts: self.clone(),
-            peer: peer.to_vec(),
-        })
+            client_ip: None,
+            peer_public_key: None,
+        }
     }
 
-    fn notify(&self, peer: &[u8], event: PeerConnectionEvent) {
-        if let Some(on_event) = &self.on_event {
+    /// Counts one more connection under `key` and returns how many it holds,
+    /// or returns `None` if it already holds `max`.
+    fn increment(&self, key: &ConnectionKey, max: usize) -> Option<usize> {
+        let mut counts = self.counts.lock().unwrap();
+        // A zero `max` is rejected by `Config::validate`, so a key with no
+        // entry yet is always below the limit.
+        if counts.get(key).is_some_and(|count| *count >= max) {
+            return None;
+        }
+        let count = counts.entry(key.clone()).or_insert(0);
+        *count += 1;
+        Some(*count)
+    }
+
+    fn notify_peer(&self, peer: &[u8], event: PeerConnectionEvent) {
+        if let Some(on_event) = &self.on_peer_event {
             on_event.call(peer, event);
         }
     }
 }
 
-/// Gives the peer its connection back when dropped.
-pub(crate) struct PeerConnectionGuard {
-    counts: PeerConnectionCounts,
-    peer: Vec<u8>,
+/// Counts one connection under its client's address and its peer's public
+/// key, and gives both back when dropped.
+pub(crate) struct ConnectionCountGuard {
+    counts: ConnectionCounts,
+    client_ip: Option<ConnectionKey>,
+    peer_public_key: Option<ConnectionKey>,
 }
 
-impl Drop for PeerConnectionGuard {
-    fn drop(&mut self) {
-        let held = {
-            let mut counts = self.counts.counts.lock().unwrap();
-            let Some(count) = counts.get_mut(&self.peer) else {
-                return;
-            };
-            *count -= 1;
-            let held = *count;
-            if held == 0 {
-                counts.remove(&self.peer);
-            }
-            held
+impl ConnectionCountGuard {
+    /// Counts the connection under its client's address, or returns `false`
+    /// if the address already holds `max` connections.
+    pub(crate) fn add_client_ip(&mut self, client_ip: ConnectionKey, max: usize) -> bool {
+        if self.counts.increment(&client_ip, max).is_none() {
+            return false;
+        }
+        self.client_ip = Some(client_ip);
+        true
+    }
+
+    /// Counts the connection under its peer's public key, or returns `false`
+    /// if the peer already holds `max` connections.
+    pub(crate) fn add_peer_public_key(&mut self, peer: ConnectionKey, max: usize) -> bool {
+        let Some(held) = self.counts.increment(&peer, max) else {
+            self.counts
+                .notify_peer(&peer, PeerConnectionEvent::RefusedAtLimit { held: max });
+            return false;
         };
         self.counts
-            .notify(&self.peer, PeerConnectionEvent::Closed { held });
+            .notify_peer(&peer, PeerConnectionEvent::Established { held });
+        self.peer_public_key = Some(peer);
+        true
     }
+}
+
+impl Drop for ConnectionCountGuard {
+    fn drop(&mut self) {
+        if self.client_ip.is_none() && self.peer_public_key.is_none() {
+            return;
+        }
+
+        let peer_held = {
+            let mut counts = self.counts.counts.lock().unwrap();
+            if let Some(client_ip) = &self.client_ip {
+                decrement(&mut counts, client_ip);
+            }
+            self.peer_public_key
+                .as_ref()
+                .map(|peer| (peer, decrement(&mut counts, peer)))
+        };
+        if let Some((peer, held)) = peer_held {
+            self.counts
+                .notify_peer(peer, PeerConnectionEvent::Closed { held });
+        }
+    }
+}
+
+/// Counts one connection fewer under `key`, and returns how many it holds
+/// afterwards.
+fn decrement(counts: &mut HashMap<ConnectionKey, usize>, key: &[u8]) -> usize {
+    let Some(count) = counts.get_mut(key) else {
+        return 0;
+    };
+    *count -= 1;
+    let held = *count;
+    if held == 0 {
+        counts.remove(key);
+    }
+    held
 }

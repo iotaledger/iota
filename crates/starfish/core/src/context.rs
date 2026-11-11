@@ -20,7 +20,7 @@ use crate::{
     },
     metrics::Metrics,
     peer_responsiveness::PeerResponsiveness,
-    transaction_ref::GenericTransactionRef,
+    transaction_ref::TransactionRef,
 };
 
 /// Context contains per-epoch configuration and metrics shared by all
@@ -81,11 +81,8 @@ impl Context {
 
     pub(crate) fn empty_transactions_for_ref(
         &self,
-        transaction_ref: GenericTransactionRef,
+        transaction_ref: TransactionRef,
     ) -> Option<CommitmentVerifiedTransactions> {
-        let GenericTransactionRef::TransactionRef(transaction_ref) = transaction_ref else {
-            return None;
-        };
         (transaction_ref.transactions_commitment == self.empty_transactions_commitment)
             .then(|| CommitmentVerifiedTransactions::new_empty_from_ref(transaction_ref, None))
     }
@@ -99,10 +96,8 @@ impl Context {
     /// Whether leader blocks choose their acknowledgments by what the voters
     /// are expected to hold.
     pub(crate) fn adaptive_acknowledgments_enabled(&self) -> bool {
-        self.protocol_config.consensus_starfish_speed()
-            && self
-                .parameters
-                .enable_starfish_speed_adaptive_acknowledgments
+        self.parameters
+            .enable_starfish_speed_adaptive_acknowledgments
     }
 
     /// Create a test context with a committee of given size and even stake

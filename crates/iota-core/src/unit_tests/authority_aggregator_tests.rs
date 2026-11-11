@@ -3132,3 +3132,332 @@ async fn test_send_capability_notification_3_success_7_non_retryable() {
     assert_eq!(agg.metrics.capability_notification_success.get(), 0);
     assert_eq!(agg.metrics.capability_notification_errors.get(), 1);
 }
+
+/// Builds a 4-validator committee and a certificate of an `object_basics::update`
+/// call, which emits one event, executed on every validator. The returned
+/// aggregator's clients replay each validator's real `handle_certificate_v1`
+/// response after `honest_delay`, except one validator, which answers at once
+/// with effects it signed itself, made to match the events and the gas coin it
+/// returns alongside. Also returns the honest effects and the transaction.
+async fn aggregator_with_one_validator_forging_extended_data(
+    honest_delay: Duration,
+) -> (
+    AuthorityAggregator<HandleTransactionTestAuthorityClient>,
+    HandleCertificateRequestV1,
+    TransactionEffects,
+    TransactionEnvelope,
+) {
+    use iota_types::{effects::TransactionEffectsAPI, object::MoveStructExt};
+
+    use crate::authority_client::validator::ValidatorAPI;
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.extend(["src", "unit_tests", "data", "object_basics"]);
+    let modules: Vec<_> = BuildConfig::new_for_testing()
+        .build(&path)
+        .unwrap()
+        .get_modules()
+        .cloned()
+        .collect();
+    let pkg = Object::new_package_for_testing(
+        &modules,
+        TransactionDigest::GENESIS_MARKER,
+        BuiltInFramework::genesis_move_packages(),
+    )
+    .unwrap();
+    let (addr1, key1): (_, AccountPrivateKey) = get_key_pair();
+    let gas1 = Object::with_owner_for_testing(addr1);
+    let gas2 = Object::with_owner_for_testing(addr1);
+    let gas3 = Object::with_owner_for_testing(addr1);
+    let (authorities, states, genesis, _) = init_local_authorities(
+        4,
+        vec![pkg.clone(), gas1.clone(), gas2.clone(), gas3.clone()],
+    )
+    .await;
+    let rgp = reference_gas_price(&authorities);
+    let pkg_id = genesis.object(pkg.id()).unwrap().id();
+    let gas_ref = |o: &Object| genesis.object(o.id()).unwrap().object_ref();
+
+    let tx1 = create_object_move_transaction(addr1, &key1, addr1, 1, pkg_id, gas_ref(&gas1), rgp);
+    let o1 = *authorities
+        .execute_transaction_block(&tx1, None)
+        .await
+        .unwrap()
+        .data()
+        .created()[0]
+        .reference();
+    let tx2 = create_object_move_transaction(addr1, &key1, addr1, 2, pkg_id, gas_ref(&gas2), rgp);
+    let o2 = *authorities
+        .execute_transaction_block(&tx2, None)
+        .await
+        .unwrap()
+        .data()
+        .created()[0]
+        .reference();
+
+    let tx3 = to_sender_signed_transaction(
+        Transaction::new_move_call(
+            addr1,
+            pkg_id,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("update"),
+            Vec::new(),
+            gas_ref(&gas3),
+            vec![CallArg::ImmutableOrOwned(o1), CallArg::ImmutableOrOwned(o2)],
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
+            rgp,
+        )
+        .unwrap(),
+        &key1,
+    );
+    let cert = authorities
+        .process_transaction(tx3.clone(), None)
+        .await
+        .unwrap()
+        .into_cert_for_testing();
+    let request = HandleCertificateRequestV1 {
+        certificate: cert.clone(),
+        include_events: true,
+        include_input_objects: true,
+        include_output_objects: true,
+        include_auxiliary_data: false,
+    };
+
+    let names: Vec<AuthorityName> = authorities.committee.names().copied().collect();
+    let forger = names[0];
+    let mut honest_effects = None;
+    let mut clients = BTreeMap::new();
+    for name in &names {
+        // A validator outside the quorum of an earlier transaction may still be
+        // executing it.
+        let mut attempts = 0;
+        let signed = loop {
+            match authorities.authority_clients[name]
+                .authority_client()
+                .handle_transaction(tx3.clone(), None)
+                .await
+            {
+                Ok(response) => break response,
+                Err(_) if attempts < 50 => {
+                    attempts += 1;
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+                Err(err) => panic!("{err:?}"),
+            }
+        };
+        let real = authorities.authority_clients[name]
+            .handle_certificate_v1(request.clone(), None)
+            .await
+            .unwrap();
+        let mut client = HandleTransactionTestAuthorityClient::new();
+        client.set_tx_info_response(signed);
+        if *name == forger {
+            let mut forged_event = real.events.clone().unwrap().0[0].clone();
+            forged_event.contents = bcs::to_bytes(&1_000_000u64).unwrap();
+            let forged_events = TransactionEvents(vec![forged_event]);
+            let real_gas = real
+                .output_objects
+                .clone()
+                .unwrap()
+                .into_iter()
+                .find(|o| o.id() == gas3.id())
+                .unwrap();
+            let forged_gas = Object::new_move(
+                iota_sdk_types::MoveStruct::new_gas_coin(
+                    real_gas.version(),
+                    gas3.id(),
+                    1_000_000_000_000_000,
+                ),
+                *real_gas.owner(),
+                *cert.digest(),
+            );
+            let mut forged_effects = real.signed_effects.data().clone();
+            let TransactionEffects::V1(v1) = &mut forged_effects else {
+                unreachable!()
+            };
+            v1.events_digest = Some(forged_events.digest());
+            for changed in v1.changed_objects.iter_mut() {
+                if changed.object_id == gas3.id() {
+                    if let iota_sdk_types::ObjectOut::ObjectWrite { digest, .. } =
+                        &mut changed.output_state
+                    {
+                        *digest = forged_gas.object_ref().digest;
+                    }
+                }
+            }
+            let state = states.iter().find(|s| s.name == forger).unwrap();
+            client.set_cert_resp_to_return(HandleCertificateResponseV1 {
+                signed_effects: sign_tx_effects(
+                    forged_effects,
+                    cert.epoch(),
+                    forger,
+                    &*state.secret,
+                ),
+                events: Some(forged_events),
+                input_objects: None,
+                output_objects: Some(
+                    real.output_objects
+                        .clone()
+                        .unwrap()
+                        .into_iter()
+                        .map(|o| {
+                            if o.id() == gas3.id() {
+                                forged_gas.clone()
+                            } else {
+                                o
+                            }
+                        })
+                        .collect(),
+                ),
+                auxiliary_data: None,
+            });
+        } else {
+            honest_effects = Some(real.signed_effects.data().clone());
+            client.set_cert_resp_to_return(real);
+            client.set_sleep_duration_before_responding(honest_delay);
+        }
+        clients.insert(*name, client);
+    }
+
+    let agg = AuthorityAggregatorBuilder::from_genesis(&genesis)
+        .with_timeouts_config(TimeoutConfig {
+            pre_quorum_timeout: Duration::from_secs(5),
+            post_quorum_timeout: Duration::from_secs(5),
+            serial_authority_request_interval: Duration::from_secs(1),
+        })
+        .build_custom_clients(clients);
+    (agg, request, honest_effects.unwrap(), tx3)
+}
+
+/// Asserts that the events and output objects match the certified effects.
+fn assert_extended_data_of(
+    effects: &TransactionEffects,
+    events: Option<TransactionEvents>,
+    output_objects: Option<Vec<Object>>,
+) {
+    use iota_types::effects::{TransactionEffectsAPI, TransactionEffectsExt};
+
+    assert_eq!(events.unwrap().digest(), *effects.events_digest().unwrap());
+    let certified_refs: HashSet<ObjectReference> = effects
+        .all_changed_objects()
+        .into_iter()
+        .map(|(changed, _)| *changed.reference())
+        .collect();
+    let output_objects = output_objects.unwrap();
+    assert!(!output_objects.is_empty());
+    for object in output_objects {
+        assert!(
+            certified_refs.contains(&object.object_ref()),
+            "output object {:?} is not in the certified effects",
+            object.object_ref()
+        );
+    }
+}
+
+/// The events and objects returned with the certified effects are those of
+/// the certified effects, also when another validator answers first with
+/// events and objects of effects it signed itself.
+#[tokio::test]
+async fn certified_effects_carry_their_own_events_and_objects() {
+    let (agg, request, honest_effects, _) =
+        aggregator_with_one_validator_forging_extended_data(Duration::from_millis(200)).await;
+
+    let response = agg.process_certificate(request, None).await.unwrap();
+
+    assert_eq!(*response.effects_cert.digest(), honest_effects.digest());
+    assert_extended_data_of(
+        response.effects_cert.data(),
+        response.events,
+        response.output_objects,
+    );
+}
+
+/// The same through the quorum driver, with the flags the transaction
+/// orchestrator sets for a JSON-RPC call that shows events and balance
+/// changes.
+#[tokio::test]
+async fn quorum_driver_returns_the_events_and_objects_of_the_certified_effects() {
+    use iota_types::quorum_driver_types::ExecuteTransactionRequestV1;
+
+    use crate::quorum_driver::{
+        QuorumDriverHandlerBuilder, QuorumDriverMetrics, reconfig_observer::DummyReconfigObserver,
+    };
+
+    let (agg, _, honest_effects, tx) =
+        aggregator_with_one_validator_forging_extended_data(Duration::from_millis(200)).await;
+    let quorum_driver = QuorumDriverHandlerBuilder::new(
+        Arc::new(agg),
+        Arc::new(QuorumDriverMetrics::new_for_tests()),
+    )
+    .with_reconfig_observer(Arc::new(DummyReconfigObserver {}))
+    .start();
+
+    let response = quorum_driver
+        .submit_transaction(ExecuteTransactionRequestV1 {
+            transaction: tx,
+            include_events: true,
+            include_input_objects: true,
+            include_output_objects: true,
+            include_auxiliary_data: false,
+        })
+        .await
+        .unwrap()
+        .await
+        .unwrap();
+
+    assert_eq!(*response.effects_cert.digest(), honest_effects.digest());
+    assert_extended_data_of(
+        response.effects_cert.data(),
+        response.events,
+        response.output_objects,
+    );
+}
+
+/// An already-executed transaction is answered with the events its certified
+/// effects record, also when the validator that completes the quorum returns
+/// other events with the same effects.
+#[tokio::test(start_paused = true)]
+async fn executed_effects_carry_their_own_events() {
+    let (authorities, mut clients, authority_keys) = make_fake_authorities();
+    let tx = create_fake_transaction();
+    let event = |value: u64| iota_sdk_types::Event {
+        package_id: ObjectId::ZERO,
+        module: Identifier::from_static("object_basics"),
+        sender: Address::ZERO,
+        struct_tag: iota_sdk_types::StructTag::new_gas(),
+        contents: bcs::to_bytes(&value).unwrap(),
+    };
+    let events = TransactionEvents(vec![event(1)]);
+    let effects = TestEffectsBuilder::new(tx.data())
+        .with_events_digest(events.digest())
+        .build();
+    // Two validators answer at once, the third sends other events with the
+    // same effects, and the fourth answers last.
+    let delays_ms = [0, 0, 100, 300];
+    for (i, (name, key)) in authority_keys.iter().enumerate() {
+        let returned_events = if i == 2 {
+            TransactionEvents(vec![event(1_000_000)])
+        } else {
+            events.clone()
+        };
+        let client = clients.get_mut(name).unwrap();
+        client.set_tx_info_response(HandleTransactionResponse {
+            status: TransactionStatus::Executed(
+                None,
+                sign_tx_effects(effects.clone(), 0, *name, key),
+                returned_events,
+            ),
+        });
+        client.set_sleep_duration_before_responding(Duration::from_millis(delays_ms[i]));
+    }
+    let agg = get_genesis_agg(authorities, clients);
+
+    let ProcessTransactionResult::Executed(certified_effects, returned_events) =
+        agg.process_transaction(tx, None).await.unwrap()
+    else {
+        panic!("expected the executed effects");
+    };
+
+    assert_eq!(*certified_effects.digest(), effects.digest());
+    assert_eq!(returned_events, events);
+}

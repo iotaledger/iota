@@ -3,9 +3,15 @@
 
 //! Shared gRPC server utilities
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::SocketAddr,
+    num::{NonZeroU32, NonZeroUsize},
+    sync::Arc,
+    time::Duration,
+};
 
 use anyhow::Result;
+use iota_config::node::ListenerLimitsConfig;
 use iota_grpc_types::v1::{
     ledger_service as grpc_ledger_service, move_package_service as grpc_move_package_service,
     service_methods, state_service as grpc_state_service,
@@ -68,6 +74,7 @@ pub async fn start_grpc_server(
     grpc_reader: Arc<GrpcReader>,
     executor: Option<Arc<dyn TransactionExecutor>>,
     config: iota_config::node::GrpcApiConfig,
+    listener_limits: &ListenerLimitsConfig,
     shutdown_token: CancellationToken,
     chain_id: iota_types::digests::ChainIdentifier,
     metrics: Option<GrpcServerMetrics>,
@@ -111,11 +118,71 @@ pub async fn start_grpc_server(
     let state_service = StateGrpcService::new(grpc_reader.clone());
     let move_package_service = MovePackageGrpcService::new(grpc_reader);
 
+    // The listener is public, so its connection count is bounded only by this,
+    // well inside the process fd limit it shares with RocksDB and the other
+    // listeners.
+    const MAX_CONNECTIONS: NonZeroUsize = NonZeroUsize::new(4096).unwrap();
+    // A reverse proxy in front of the node shows as one address, so one
+    // address may hold a quarter of the listener; it then takes four to fill
+    // it.
+    const MAX_CONNECTIONS_PER_CLIENT_IP: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
+    // Frees the connections of clients that stopped sending requests. A
+    // checkpoint subscription counts as a request for as long as it streams.
+    const MAX_CONNECTION_IDLE: Duration = Duration::from_secs(300);
+    // The smallest value RFC 9113 recommends. Subscriptions are streams too,
+    // and are also capped across all connections by
+    // `max_concurrent_stream_subscribers`.
+    const MAX_CONCURRENT_STREAMS: NonZeroU32 = NonZeroU32::new(100).unwrap();
+    // Closes a connection whose peer has gone while a subscription is still
+    // streaming to it, which the idle deadline does not.
+    const HTTP2_KEEPALIVE: Duration = Duration::from_secs(60);
+
     // gRPC runs over HTTP/2 only, and no route of this API uses the extended
     // CONNECT protocol.
     let http_config = iota_http::Config::default()
         .accept_http1(false)
         .enable_connect_protocol(false)
+        .handshake_timeout(
+            listener_limits
+                .handshake_timeout
+                .resolve(iota_http::DEFAULT_HANDSHAKE_TIMEOUT),
+        )
+        .max_pending_connections(
+            listener_limits
+                .max_pending_connections
+                .resolve(iota_http::DEFAULT_MAX_PENDING_CONNECTIONS),
+        )
+        .max_connections(listener_limits.max_connections.resolve(MAX_CONNECTIONS))
+        .max_connections_per_client_ip(
+            listener_limits
+                .max_connections_per_client_ip
+                .resolve(MAX_CONNECTIONS_PER_CLIENT_IP),
+        )
+        .ipv6_prefix_len(
+            listener_limits
+                .ipv6_prefix_len
+                .unwrap_or(iota_http::DEFAULT_IPV6_PREFIX_LEN),
+        )
+        .max_connection_idle(
+            listener_limits
+                .max_connection_idle
+                .resolve(MAX_CONNECTION_IDLE),
+        )
+        .max_concurrent_streams(
+            listener_limits
+                .max_concurrent_streams
+                .resolve(MAX_CONCURRENT_STREAMS),
+        )
+        .http2_keepalive_interval(
+            listener_limits
+                .http2_keepalive_interval
+                .resolve(HTTP2_KEEPALIVE),
+        )
+        .http1_header_read_timeout(
+            listener_limits
+                .http1_header_read_timeout
+                .resolve(iota_http::DEFAULT_HTTP1_HEADER_READ_TIMEOUT),
+        )
         .metrics(metrics.as_ref().map(GrpcServerMetrics::listener_metrics));
     let mut http_builder = iota_http::Builder::new().config(http_config);
 
