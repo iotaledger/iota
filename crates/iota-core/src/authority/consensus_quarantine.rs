@@ -98,12 +98,6 @@ pub(crate) struct ConsensusCommitOutput {
     // P-COOL owned object locks acquired in this commit
     owned_object_locks: HashMap<ObjectReference, LockDetails>,
 
-    // Kept claims (`ClaimAccount`) scheduled for execution in this commit,
-    // normally or in cancelled mode. Once the horizon reaches this commit,
-    // post-consensus validation reads their addresses at the horizon instead
-    // of treating their locks as held.
-    scheduled_claims: Vec<TransactionDigest>,
-
     // Latest overload-shed percentage advertised by each authority via
     // OverloadNotificationV1 during this commit. Flushed to
     // `authority_overload_notifications` atomically with `last_consensus_stats`
@@ -269,10 +263,6 @@ impl ConsensusCommitOutput {
 
     pub fn set_owned_object_locks(&mut self, locks: HashMap<ObjectReference, LockDetails>) {
         self.owned_object_locks = locks;
-    }
-
-    pub fn record_scheduled_claim(&mut self, digest: TransactionDigest) {
-        self.scheduled_claims.push(digest);
     }
 
     pub fn record_overload_notification(&mut self, authority: AuthorityName, percentage: u8) {
@@ -455,15 +445,6 @@ impl ConsensusCommitOutput {
                     .map(|(obj_ref, lock)| (obj_ref, LockDetailsWrapper::from(lock))),
             )?;
         }
-        if !self.scheduled_claims.is_empty() {
-            let commit_index = self.commit_index;
-            batch.insert_batch(
-                &tables.scheduled_claims,
-                self.scheduled_claims
-                    .into_iter()
-                    .map(|digest| (digest, commit_index)),
-            )?;
-        }
         batch.insert_batch(
             &tables.authority_overload_notifications,
             self.overload_notifications,
@@ -607,15 +588,8 @@ pub(crate) struct ConsensusOutputQuarantine {
 
     processed_consensus_messages: RefCountedHashMap<SequencedConsensusTransactionKey, ()>,
 
-    // P-COOL owned object locks (aggregate across all quarantined commits).
-    // Counted, because a claim lock can be taken again by a later claim once
-    // the horizon shows how the claim holding it ended, so two quarantined
-    // commits can hold the same reference.
-    owned_object_locks: RefCountedHashMap<ObjectReference, LockDetails>,
-
-    // The commit at which each quarantined claim was scheduled (see
-    // `ConsensusCommitOutput::scheduled_claims`).
-    scheduled_claims: HashMap<TransactionDigest, CommitIndex>,
+    // P-COOL owned object locks (aggregate across all quarantined commits)
+    owned_object_locks: HashMap<ObjectReference, LockDetails>,
 
     // In-memory cache of the `authority_overload_notifications` table: the most
     // recent load-shedding percentage each authority has broadcast, for the
@@ -653,8 +627,7 @@ impl ConsensusOutputQuarantine {
             congestion_control_object_debts: RefCountedHashMap::new(),
             congestion_control_randomness_object_debts: RefCountedHashMap::new(),
             processed_consensus_messages: RefCountedHashMap::new(),
-            owned_object_locks: RefCountedHashMap::new(),
-            scheduled_claims: HashMap::new(),
+            owned_object_locks: HashMap::new(),
             cached_overload_notifications,
             cached_deny_rule_proposals,
             metrics: authority_metrics,
@@ -675,7 +648,6 @@ impl ConsensusOutputQuarantine {
         self.insert_congestion_control_debts(&output);
         self.insert_processed_consensus_messages(&output);
         self.insert_owned_object_locks(&output);
-        self.insert_scheduled_claims(&output);
         let has_deny_rule_proposals = !output.deny_rule_proposals.is_empty();
         self.output_queue.push_back(output);
 
@@ -840,7 +812,6 @@ impl ConsensusOutputQuarantine {
                 self.remove_processed_consensus_messages(&output);
                 self.remove_congestion_control_debts(&output);
                 self.remove_owned_object_locks(&output);
-                self.remove_scheduled_claims(&output);
                 // Advance the in-memory caches in lockstep with the table
                 // writes below, so they stay equal to the persisted state once
                 // this commit leaves the queue.
@@ -962,27 +933,8 @@ impl ConsensusOutputQuarantine {
         }
     }
 
-    fn insert_scheduled_claims(&mut self, output: &ConsensusCommitOutput) {
-        for digest in &output.scheduled_claims {
-            self.scheduled_claims.insert(*digest, output.commit_index);
-        }
-    }
-
-    fn remove_scheduled_claims(&mut self, output: &ConsensusCommitOutput) {
-        for digest in &output.scheduled_claims {
-            self.scheduled_claims.remove(digest);
-        }
-    }
-
     pub(super) fn get_owned_object_lock(&self, obj_ref: &ObjectReference) -> Option<LockDetails> {
         self.owned_object_locks.get(obj_ref).copied()
-    }
-
-    pub(super) fn get_scheduled_claim_commit(
-        &self,
-        digest: &TransactionDigest,
-    ) -> Option<CommitIndex> {
-        self.scheduled_claims.get(digest).copied()
     }
 
     // Read methods - all methods in this block return data from the quarantine

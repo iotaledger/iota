@@ -878,14 +878,6 @@ pub struct AuthorityEpochTables {
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
     owned_object_locked_transactions: DBMap<ObjectReference, LockDetailsWrapper>,
 
-    /// The commit at which each kept `ClaimAccount` was scheduled for
-    /// execution, normally or in cancelled mode. Once the horizon reaches
-    /// that commit every validator has executed the claim, so post-consensus
-    /// validation reads the claimed address at the horizon instead of
-    /// treating the claim's lock as held. Written by each commit's quarantine
-    /// flush.
-    pub(crate) scheduled_claims: DBMap<TransactionDigest, CommitIndex>,
-
     /// The rows of the handler object state, for P-COOL deterministic
     /// post-consensus validation (see [`handler_object_state`]): every object
     /// version produced by a commit the handler assigned. Written by each
@@ -2603,39 +2595,6 @@ impl AuthorityPerEpochStore {
         index: CommitIndex,
         roots: &[TransactionDigest],
     ) -> IotaResult {
-        let output = self.commit_with_one_pending_checkpoint_for_testing(index, roots)?;
-        self.push_consensus_output_for_tests(output);
-        Ok(())
-    }
-
-    /// Pushes commit `index` into the consensus quarantine with one pending
-    /// checkpoint and no roots, holding the owned-object `locks` and recording
-    /// `claims` as scheduled in it, as a commit that keeps and schedules
-    /// claims does. Flush it with [`Self::flush_pushed_commits_for_testing`].
-    #[cfg(test)]
-    pub fn push_commit_with_claims_for_testing(
-        &self,
-        index: CommitIndex,
-        locks: HashMap<ObjectReference, LockDetails>,
-        claims: &[TransactionDigest],
-    ) -> IotaResult {
-        let mut output = self.commit_with_one_pending_checkpoint_for_testing(index, &[])?;
-        output.set_owned_object_locks(locks);
-        for claim in claims {
-            output.record_scheduled_claim(*claim);
-        }
-        self.push_consensus_output_for_tests(output);
-        Ok(())
-    }
-
-    /// The output of commit `index` with one pending checkpoint of `roots` at
-    /// height `index`, not yet pushed.
-    #[cfg(test)]
-    fn commit_with_one_pending_checkpoint_for_testing(
-        &self,
-        index: CommitIndex,
-        roots: &[TransactionDigest],
-    ) -> IotaResult<ConsensusCommitOutput> {
         let checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
             roots: roots.iter().copied().map(TransactionKey::Digest).collect(),
             details: PendingCheckpointInfo {
@@ -2656,7 +2615,8 @@ impl AuthorityPerEpochStore {
             },
             ..Default::default()
         });
-        Ok(output)
+        self.push_consensus_output_for_tests(output);
+        Ok(())
     }
 
     /// Builds checkpoint `sequence` of `roots` at checkpoint height `height`,
@@ -4367,22 +4327,6 @@ impl AuthorityPerEpochStore {
             .get_owned_object_lock(obj_ref)
     }
 
-    /// The commit at which the kept claim `digest` was scheduled for
-    /// execution, normally or in cancelled mode; `None` while it is deferred.
-    pub fn get_claim_scheduled_commit(
-        &self,
-        digest: &TransactionDigest,
-    ) -> IotaResult<Option<CommitIndex>> {
-        if let Some(index) = self
-            .consensus_quarantine
-            .read()
-            .get_scheduled_claim_commit(digest)
-        {
-            return Ok(Some(index));
-        }
-        Ok(self.tables()?.scheduled_claims.get(digest)?)
-    }
-
     pub(crate) fn get_randomness_last_round_timestamp(
         &self,
     ) -> IotaResult<Option<CheckpointTimestamp>> {
@@ -6078,7 +6022,6 @@ impl AuthorityPerEpochStore {
                     start_time,
                 } => {
                     notifications.push(key.clone());
-                    record_if_claim(output, &transaction);
                     // Transactions using randomness execute in the separate
                     // randomness phase and checkpoint, whichever list they
                     // were scheduled from.
@@ -6107,7 +6050,6 @@ impl AuthorityPerEpochStore {
                 }
                 ConsensusTransactionResult::Cancelled((transaction, reason)) => {
                     notifications.push(key.clone());
-                    record_if_claim(output, &transaction);
                     assert!(
                         cancelled_txns
                             .insert(*transaction.digest(), reason)
@@ -7448,17 +7390,6 @@ impl From<LockDetails> for LockDetailsWrapper {
     fn from(details: LockDetails) -> Self {
         // always use latest version.
         LockDetailsWrapper::V1(details)
-    }
-}
-
-/// Records `transaction` in `output` as scheduled at its commit when it is a
-/// `ClaimAccount`, whether it runs normally or in cancelled mode.
-fn record_if_claim(
-    output: &mut ConsensusCommitOutput,
-    transaction: &VerifiedExecutableTransaction,
-) {
-    if post_consensus_validation::claimed_address_lock(transaction.data().transaction()).is_some() {
-        output.record_scheduled_claim(*transaction.digest());
     }
 }
 

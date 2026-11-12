@@ -47,9 +47,7 @@
 //!    A `ClaimAccount` also probes the lock on the address it claims (see
 //!    [`claimed_address_lock`]); a lock held by another claim drops it with
 //!    `AccountAlreadyExplicit`. Every address that signs with a plain signature is probed the same
-//!    way; a held lock drops the copy with `PlainSignatureForExplicitAccount`. A claim lock counts
-//!    only until the horizon reaches the commit at which its claim was scheduled; from then on step
-//!    7 reads the address at the horizon, which shows how the claim ended.
+//!    way; a held lock drops the copy with `PlainSignatureForExplicitAccount`.
 //! 7. `handle_transaction_validation_checks_at_commit()` — drop with error. An attested transaction
 //!    runs the input checks execution runs, gas included, and the checks on receiving objects; the
 //!    publish verifier stays at execution. Only reached when all locks are free.
@@ -64,8 +62,7 @@
 //! version, so its lock would hold until the epoch ends. Step 8 filters via
 //! the loaded objects, step 3 via the executed transaction's effects. A kept
 //! `ClaimAccount` also locks the address it claims, in step 8 and in step 3
-//! alike, whether its execution succeeded or not. A claim kept once the lock
-//! no longer counts takes the lock over from the claim that held it.
+//! alike, whether its execution succeeded or not.
 
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
@@ -302,7 +299,6 @@ pub async fn validate_and_resolve_conflicts(
     }
     let mut saved_decisions = HashMap::new();
 
-    let horizon_commit = horizon(epoch_store.protocol_config(), commit_index);
     // One reader for the whole commit, so every transaction in it is read as
     // of the same commit index.
     let reader = CommitIndexedReader::new(
@@ -442,21 +438,10 @@ pub async fn validate_and_resolve_conflicts(
                 // every reference here was consumed by this transaction, so a
                 // lock held by a different tx is a consistency violation, not
                 // a conflict. (Flag off, immutable references, which are not
-                // consumed, stay in the set and weaken this invariant.) A
-                // claim's lock is not consumed: the claim may have taken it
-                // over from an earlier claim whose lock no longer counted, so
-                // only a holder that still counts is a violation.
-                let holder = if claim_lock.as_ref() == Some(obj_ref) {
-                    find_claim_lock_holder(
-                        obj_ref,
-                        &current_commit_locks,
-                        epoch_store,
-                        horizon_commit,
-                    )?
-                } else {
+                // consumed, stay in the set and weaken this invariant.)
+                if let Some(other) =
                     find_existing_lock(obj_ref, &current_commit_locks, epoch_store)?
-                };
-                if let Some(other) = holder {
+                {
                     if other != digest {
                         fatal!(
                             "already-executed transaction {:?} has owned input {:?} \
@@ -658,12 +643,9 @@ pub async fn validate_and_resolve_conflicts(
         // epoch, holds the lock on. The lock follows from the transaction
         // data alone, so the drop is final for every copy.
         if let Some(claim_lock) = &claim_lock {
-            if let Some(locked_by) = find_claim_lock_holder(
-                claim_lock,
-                &current_commit_locks,
-                epoch_store,
-                horizon_commit,
-            )? {
+            if let Some(locked_by) =
+                find_existing_lock(claim_lock, &current_commit_locks, epoch_store)?
+            {
                 if locked_by != digest {
                     let address = transaction.data().transaction().sender();
                     debug!(
@@ -693,11 +675,10 @@ pub async fn validate_and_resolve_conflicts(
         {
             let mut explicit = None;
             for address in plain_signed_addresses(transaction.data()) {
-                if find_claim_lock_holder(
+                if find_existing_lock(
                     &claim_lock_reference(address),
                     &current_commit_locks,
                     epoch_store,
-                    horizon_commit,
                 )?
                 .is_some_and(|locked_by| locked_by != digest)
                 {
@@ -1138,10 +1119,8 @@ fn filter_locked_inputs_by_effects(
 /// has that reference: objects start at version 1, and the only object with
 /// that id is the shared account the claim creates. So a transaction naming
 /// it as an owned input never loads it and never takes the lock. Taken with
-/// the owned-object locks at the commit that keeps the claim, it counts until
-/// the horizon reaches the commit at which the claim was scheduled (see
-/// [`find_claim_lock_holder`]), and no later claim of the address is kept
-/// meanwhile.
+/// the owned-object locks at the commit that keeps the claim, it holds until
+/// the epoch ends, so no later claim of the address is kept in that epoch.
 pub(crate) fn claimed_address_lock(transaction: &Transaction) -> Option<ObjectReference> {
     matches!(transaction.kind(), TransactionKind::ClaimAccount(_))
         .then(|| claim_lock_reference(transaction.sender()))
@@ -1197,27 +1176,6 @@ fn find_existing_lock(
         return Ok(Some(locker));
     }
     epoch_store.tables()?.get_locked_transaction(obj_ref)
-}
-
-/// The claim holding the lock `claim_lock` (see [`claimed_address_lock`]),
-/// unless every validator has already executed it: once the horizon reaches
-/// the commit at which that claim was scheduled, normally or in cancelled
-/// mode, the address read at the horizon shows whether the claim created the
-/// account, so the lock no longer counts. A deferred claim has no such commit
-/// yet and keeps the lock.
-fn find_claim_lock_holder(
-    claim_lock: &ObjectReference,
-    current_commit_locks: &HashMap<ObjectReference, LockDetails>,
-    epoch_store: &Arc<AuthorityPerEpochStore>,
-    horizon_commit: CommitIndex,
-) -> IotaResult<Option<LockDetails>> {
-    let Some(holder) = find_existing_lock(claim_lock, current_commit_locks, epoch_store)? else {
-        return Ok(None);
-    };
-    Ok(match epoch_store.get_claim_scheduled_commit(&holder)? {
-        Some(scheduled) if scheduled <= horizon_commit => None,
-        _ => Some(holder),
-    })
 }
 
 /// Extracts the `ImmOrOwnedMoveObject` input references of a
