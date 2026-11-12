@@ -431,6 +431,11 @@ pub struct TxContext {
     /// Whether the `TxContext` is native or not (i.e., Move reads values via
     /// native functions instead of struct fields).
     is_native: bool,
+    /// First gas coin of the transaction, as listed in it, from which gas
+    /// coin nonces are taken. `None` when no nonce can be taken.
+    gas_coin: Option<ObjectReference>,
+    /// Number of gas coin nonces taken so far from `gas_coin`
+    gas_coin_nonces_taken: u64,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -489,6 +494,8 @@ impl TxContext {
             gas_budget,
             sponsor: sponsor.map(|s| AccountAddress::new(s.into_bytes())),
             is_native: protocol_config.move_native_tx_context(),
+            gas_coin: None,
+            gas_coin_nonces_taken: 0,
         }
     }
 
@@ -563,6 +570,23 @@ impl TxContext {
         Address::new(self.sender.into_bytes())
     }
 
+    /// Sets the gas coin that nonces are taken from, and restarts their index
+    /// at 0. With `None`, no nonce can be taken.
+    pub fn set_gas_coin(&mut self, gas_coin: Option<ObjectReference>) {
+        self.gas_coin = gas_coin;
+        self.gas_coin_nonces_taken = 0;
+    }
+
+    /// Returns the gas coin and the index of this nonce among those taken
+    /// from it, then moves the index on. Returns `None` when there is no gas
+    /// coin.
+    pub fn take_gas_coin_nonce(&mut self) -> Option<(ObjectReference, u64)> {
+        let gas_coin = self.gas_coin?;
+        let index = self.gas_coin_nonces_taken;
+        self.gas_coin_nonces_taken += 1;
+        Some((gas_coin, index))
+    }
+
     pub fn to_vec(&self) -> Vec<u8> {
         bcs::to_bytes(&self).unwrap()
     }
@@ -583,6 +607,8 @@ impl TxContext {
                 gas_budget: 0,
                 sponsor: None,
                 is_native: true,
+                gas_coin: None,
+                gas_coin_nonces_taken: 0,
             };
             tx_context.into()
         } else {

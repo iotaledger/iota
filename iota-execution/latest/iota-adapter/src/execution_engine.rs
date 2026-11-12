@@ -20,9 +20,10 @@ mod checked {
         AccountClaimKind, Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
         ChangeEpochV4, ClaimAccountTransaction, Command, EndOfEpochTransactionKind,
         ExecutionStatus, GasCostSummary, GasPayment, GenesisTransaction, Identifier,
-        MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
-        SharedObjectReference, StructTag, SystemPackage, TransactionDenyRulesUpdate,
-        TransactionDigest, TransactionEffects, TransactionKind, TypeTag, Version,
+        MoveAuthenticator, ObjectId, ObjectReference, ProgrammableTransaction,
+        RandomnessStateUpdate, SharedObjectReference, StructTag, SystemPackage,
+        TransactionDenyRulesUpdate, TransactionDigest, TransactionEffects, TransactionKind,
+        TypeTag, Version,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -136,6 +137,7 @@ mod checked {
         );
 
         let sponsor = resolve_sponsor(&gas_data, &transaction_signer);
+        let gas_coin = first_gas_coin(&gas_data);
         let gas_price = gas_status.gas_price();
         let rgp = gas_status.reference_gas_price();
         let gas_charger = GasCharger::new(
@@ -145,7 +147,7 @@ mod checked {
             protocol_config,
         );
 
-        let tx_ctx = TxContext::new_from_components(
+        let mut tx_ctx = TxContext::new_from_components(
             &transaction_signer,
             &transaction_digest,
             epoch_id,
@@ -156,6 +158,7 @@ mod checked {
             sponsor,
             protocol_config,
         );
+        tx_ctx.set_gas_coin(gas_coin);
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
         execute_transaction_to_effects_inner::<Mode>(
@@ -375,6 +378,7 @@ mod checked {
         // Prepare the gas charger.
         let sponsor = resolve_sponsor(&gas_data, &transaction_signer);
         let gas_owner = gas_data.owner;
+        let gas_coin = first_gas_coin(&gas_data);
         let gas_price = gas_status.gas_price();
         let rgp = gas_status.reference_gas_price();
         let mut gas_charger = GasCharger::new(
@@ -384,7 +388,8 @@ mod checked {
             protocol_config,
         );
 
-        // Prepare the transaction context.
+        // Prepare the transaction context. It gets the gas coin only once the
+        // authenticators have run, so that they cannot take gas coin nonces.
         let tx_ctx = TxContext::new_from_components(
             &transaction_signer,
             &transaction_digest,
@@ -646,6 +651,8 @@ mod checked {
         // We can now start the creation of the transaction effects, either for an
         // authentication failure or for a normal execution of the transaction.
 
+        tx_ctx.borrow_mut().set_gas_coin(gas_coin);
+
         // Run the transaction execution and return the effects.
         let (inner_temp_store, gas_status, effects, timings, execution_result) =
             execute_transaction_to_effects_inner::<Mode>(
@@ -817,7 +824,8 @@ mod checked {
             GasCharger::new(transaction_digest, vec![], gas_status, protocol_config);
 
         // Prepare the transaction context, equal for both authentication and
-        // transaction execution.
+        // transaction execution. It gets no gas coin, so that authenticators
+        // cannot take gas coin nonces.
         let tx_ctx = TxContext::new_from_components(
             &transaction_signer,
             &transaction_digest,
@@ -2676,6 +2684,17 @@ mod checked {
         );
 
         Ok(builder.finish())
+    }
+
+    /// The gas coin that gas coin nonces are taken from: the first one listed,
+    /// which the others are merged into. System transactions list a single
+    /// coin with the zero ID, which is not a gas coin.
+    fn first_gas_coin(gas_data: &GasPayment) -> Option<ObjectReference> {
+        gas_data
+            .objects
+            .first()
+            .copied()
+            .filter(|gas_coin| gas_coin.object_id != ObjectId::ZERO)
     }
 
     fn resolve_sponsor(gas_data: &GasPayment, transaction_signer: &Address) -> Option<Address> {
