@@ -40,6 +40,9 @@ impl std::fmt::Display for DataDownloadError {
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum IndexerError {
+    #[error(transparent)]
+    IntegerCast(#[from] std::num::TryFromIntError),
+
     #[error("Stream closed unexpectedly with error: `{0}`")]
     ChannelClosed(String),
 
