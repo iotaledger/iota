@@ -1771,7 +1771,9 @@ pub struct ProtocolConfig {
     /// `Some` activates execution-worker congestion control, under which
     /// owned-object-only transactions are also scheduled, deferred and shed
     /// by the congestion tracker; `None` disables it. Must be positive when
-    /// set. Requires `enable_pcool_flow`.
+    /// set. Requires `enable_pcool_flow`. A version that sets it where
+    /// `ClaimAccount` is accepted must first decide what a cancelled claim
+    /// means, as the claim's lock on its address holds until the epoch ends.
     max_concurrent_execution_workers: Option<u16>,
 
     /// How many consensus commits back post-consensus validation reads object
@@ -5028,6 +5030,57 @@ mod test {
                     !config.enable_claim_account_transaction() || config.enable_pcool_flow(),
                     "version {version} on {chain:?} accepts ClaimAccount without the P-COOL flow"
                 );
+            }
+        }
+    }
+
+    /// No version and chain accepts `ClaimAccount` together with the execution
+    /// worker limit, and every one that accepts it sets the costs of the
+    /// natives the claim calls. A claim has no shared input, so only that limit
+    /// can defer or cancel it, and a kept claim that does not create its
+    /// account would leave the address unable to claim again or to sign with a
+    /// plain signature until the epoch ends. Overrides in tests are not
+    /// covered.
+    #[test]
+    fn every_kept_claim_account_can_execute() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                if !config.enable_claim_account_transaction() {
+                    continue;
+                }
+                assert!(
+                    config.concurrent_execution_workers().is_none(),
+                    "version {version} on {chain:?} accepts ClaimAccount with an execution \
+                     worker limit, which can cancel a kept claim"
+                );
+                for (name, cost) in [
+                    (
+                        "ed25519_ed25519_validate_pubkey_cost_base",
+                        config.ed25519_ed25519_validate_pubkey_cost_base_as_option(),
+                    ),
+                    (
+                        "ecdsa_k1_secp256k1_validate_pubkey_cost_base",
+                        config.ecdsa_k1_secp256k1_validate_pubkey_cost_base_as_option(),
+                    ),
+                    (
+                        "ecdsa_r1_secp256r1_validate_pubkey_cost_base",
+                        config.ecdsa_r1_secp256r1_validate_pubkey_cost_base_as_option(),
+                    ),
+                    (
+                        "multisig_multisig_validate_pubkey_cost_base",
+                        config.multisig_multisig_validate_pubkey_cost_base_as_option(),
+                    ),
+                    (
+                        "public_key_to_iota_address_impl_cost_base",
+                        config.public_key_to_iota_address_impl_cost_base_as_option(),
+                    ),
+                ] {
+                    assert!(
+                        cost.is_some(),
+                        "version {version} on {chain:?} accepts ClaimAccount without {name}"
+                    );
+                }
             }
         }
     }
