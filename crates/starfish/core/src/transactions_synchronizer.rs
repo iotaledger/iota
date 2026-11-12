@@ -26,7 +26,7 @@ use tokio::{
 use tracing::{debug, info, warn};
 
 use crate::{
-    block_header::CommitmentVerifiedTransactions,
+    block_header::{CommitmentVerifiedTransactions, Slot},
     block_verifier::BlockVerifier,
     commit_syncer::verify_transactions_commitments,
     context::Context,
@@ -1079,7 +1079,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // allowed returned transactions
         if serialized_transactions_vec.len() > requested_transactions_guard.transactions_refs.len()
         {
-            misbehavior_store.record_faulty_transactions(peer_index, false, [peer_index]);
+            misbehavior_store.record_faulty_transactions(None, [peer_index]);
             return Err(ConsensusError::TooManyFetchedTransactionsReturned(
                 peer_index,
             ));
@@ -1154,11 +1154,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             let serialized_transactions: SerializedTransactionsV2 =
                 bcs::from_bytes(serialized_transaction_bytes)
                     .inspect_err(|_| {
-                        misbehavior_store.record_faulty_transactions(
-                            peer_index,
-                            false,
-                            [peer_index],
-                        )
+                        misbehavior_store.record_faulty_transactions(None, [peer_index])
                     })
                     .map_err(ConsensusError::MalformedTransactions)?;
             let committed_transaction_ref = serialized_transactions.transaction_ref;
@@ -1168,7 +1164,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             // cannot serve correctly-committed transactions we never
             // requested (which need not correspond to any real header).
             if !requested_transactions_refs.contains(&committed_transaction_ref) {
-                misbehavior_store.record_faulty_transactions(peer_index, false, [peer_index]);
+                misbehavior_store.record_faulty_transactions(None, [peer_index]);
                 return Err(ConsensusError::UnrequestedTransactionFetched {
                     peer: peer_index,
                     transaction_ref: serialized_transactions.transaction_ref,
@@ -1197,7 +1193,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                             err.name(),
                         ])
                         .inc();
-                    misbehavior_store.record_faulty_transactions(peer_index, false, [peer_index]);
+                    misbehavior_store.record_faulty_transactions(None, [peer_index]);
                     return Err(err);
                 }
             };
@@ -1224,7 +1220,10 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 // payload is provably the author's. `peer_index` served a full
                 // payload it could have verified before relaying, so it is also
                 // charged an unprovable fault.
-                misbehavior_store.record_faulty_transactions(author, true, [peer_index]);
+                misbehavior_store.record_faulty_transactions(
+                    Some(Slot::new(verified_transactions.round(), author)),
+                    [peer_index],
+                );
                 return Err(err);
             }
         }

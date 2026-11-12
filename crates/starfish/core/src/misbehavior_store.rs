@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use starfish_config::{AuthorityIndex, Committee};
 
 use crate::{
-    block_header::{BlockRef, Round},
+    block_header::{BlockRef, Round, Slot},
     context::Context,
     error::ConsensusError,
     metrics::NodeMetrics,
@@ -21,27 +21,35 @@ use crate::{
 /// Per-authority misbehavior counters.
 ///
 /// Two buckets track different lifecycle stages:
-/// - `persisted`: missing proposals and equivocations in rounds at or below the GC round of the
-///   last commit at the last flush, plus flushed block faults. No header at or below that round can
-///   be accepted any more. Flush stores these counts in the same batch as the commits, so after a
-///   restart the GC round of the last stored commit is the round they reach.
-/// - `in_memory`: missing proposals and equivocations in rounds above that GC round, recomputed on
-///   each flush from cached headers and equivocating rounds, plus block faults not yet flushed.
+/// - `persisted`: missing proposals, equivocations and provable faults in rounds at or below the GC
+///   round of the last commit at the last flush, plus flushed unprovable and bundle-part faults. No
+///   header at or below that round can be accepted any more. Flush stores these counts in the same
+///   batch as the commits, so after a restart the GC round of the last stored commit is the round
+///   they reach.
+/// - `in_memory`: missing proposals, equivocations and provable faults in rounds above that GC
+///   round, recomputed on each flush from cached headers and recorded rounds, plus unprovable and
+///   bundle-part faults not yet flushed.
 pub(crate) struct MisbehaviorStore {
     in_memory: CommitteeMisbehaviorCounts,
     persisted: CommitteeMisbehaviorCounts,
     dag_fault_rounds: Vec<Mutex<DagFaultRounds>>,
 }
 
-/// The GC round and equivocating rounds of one authority. Kept under one lock,
-/// so no equivocating round is added at or below the GC round.
+/// The GC round and fault rounds of one authority. Kept under one lock, so no
+/// fault round is added at or below the GC round.
 #[derive(Default)]
 struct DagFaultRounds {
     /// GC round of the last commit at the last flush.
     gc_round: Round,
+    /// Far-future ceiling at the last flush. Provable faults in rounds above
+    /// it are not recorded, so their set stays bounded.
+    round_ceiling: Round,
     /// Rounds above `gc_round` in which a second verified header for an
     /// occupied slot was dropped at ingest.
     equivocating_rounds: BTreeSet<Round>,
+    /// Rounds above `gc_round` in which a header signed by the authority, or
+    /// the payload it commits to, failed a check.
+    provable_fault_rounds: BTreeSet<Round>,
 }
 
 impl MisbehaviorStore {
@@ -51,7 +59,12 @@ impl MisbehaviorStore {
             in_memory: CommitteeMisbehaviorCounts::new(&context.committee, metrics, "in_memory"),
             persisted: CommitteeMisbehaviorCounts::new(&context.committee, metrics, "persisted"),
             dag_fault_rounds: (0..context.committee.size())
-                .map(|_| Mutex::new(DagFaultRounds::default()))
+                .map(|_| {
+                    Mutex::new(DagFaultRounds {
+                        round_ceiling: context.parameters.far_future_round_ceiling(0),
+                        ..Default::default()
+                    })
+                })
                 .collect(),
         }
     }
@@ -72,6 +85,24 @@ impl MisbehaviorStore {
         let mut rounds = rounds.lock().unwrap();
         if round > rounds.gc_round && round <= ceiling {
             rounds.equivocating_rounds.insert(round);
+        }
+    }
+
+    /// Records that the author of `slot` signed a header, or a payload
+    /// commitment, that failed a check. Counted once per round. Rounds at or
+    /// below the GC round or above the far-future ceiling are ignored.
+    fn record_provable_fault(&self, slot: Slot) {
+        let author = slot.authority;
+        let Some(rounds) = self.dag_fault_rounds.get(author.value()) else {
+            debug_fatal!("author {author} of a verified header is outside the committee");
+            return;
+        };
+        let mut rounds = rounds.lock().unwrap();
+        if slot.round > rounds.gc_round
+            && slot.round <= rounds.round_ceiling
+            && rounds.provable_fault_rounds.insert(slot.round)
+        {
+            self.in_memory.record_block_fault_provable(author.value());
         }
     }
 
@@ -123,10 +154,14 @@ impl MisbehaviorStore {
                 }
             }
 
-            // Flags are not persisted, so only rounds with more than one cached
-            // header count as equivocations after a restart.
+            // Recorded rounds are not persisted, so after a restart only rounds
+            // with more than one cached header count as equivocations, and no
+            // provable fault is counted above the GC round.
             let mut rounds = self.dag_fault_rounds[idx].lock().unwrap();
             rounds.gc_round = gc_round;
+            rounds.round_ceiling = context
+                .parameters
+                .far_future_round_ceiling(threshold_clock_round);
             self.set_in_memory_dag_faults(
                 authority_index,
                 &recent_refs_by_authority[idx],
@@ -162,6 +197,9 @@ impl MisbehaviorStore {
         let mut persisted_changed = self.flush_faulty_block_buffer(idx);
 
         let mut rounds = self.dag_fault_rounds[idx].lock().unwrap();
+        rounds.round_ceiling = context
+            .parameters
+            .far_future_round_ceiling(threshold_clock_round);
         if gc_round > rounds.gc_round {
             // Only fast sync moves the GC round to the threshold clock or
             // beyond, while the node does not follow the DAG. Its view of those
@@ -174,10 +212,13 @@ impl MisbehaviorStore {
                     start,
                     gc_round,
                 );
-                persisted_changed |= eq > 0 || missing > 0;
+                let provable = rounds.provable_fault_rounds.range(..=gc_round).count() as u64;
+                persisted_changed |= eq > 0 || missing > 0 || provable > 0;
                 self.persisted.add_dag_faults(idx, missing, eq);
+                self.persisted.add_block_faults(idx, provable, 0, 0);
             }
             rounds.equivocating_rounds = rounds.equivocating_rounds.split_off(&(gc_round + 1));
+            rounds.provable_fault_rounds = rounds.provable_fault_rounds.split_off(&(gc_round + 1));
             rounds.gc_round = gc_round;
         }
         self.set_in_memory_dag_faults(authority_index, recent_refs, &rounds, threshold_clock_round);
@@ -194,8 +235,9 @@ impl MisbehaviorStore {
         }
     }
 
-    /// Sets the in-memory missing proposals and equivocations of one authority
-    /// from the rounds above its GC round and below the threshold clock.
+    /// Sets the in-memory counts of one authority: missing proposals and
+    /// equivocations in the rounds above its GC round and below the threshold
+    /// clock, and its recorded provable faults.
     fn set_in_memory_dag_faults(
         &self,
         authority_index: AuthorityIndex,
@@ -211,18 +253,20 @@ impl MisbehaviorStore {
             start,
             end,
         );
+        let idx = authority_index.value();
+        self.in_memory.set_dag_faults(idx, missing, eq);
         self.in_memory
-            .set_dag_faults(authority_index.value(), missing, eq);
+            .set_provable_faults(idx, rounds.provable_fault_rounds.len() as u64);
     }
 
-    /// Flush buffered faulty block counts from in_memory to persisted
-    /// for one authority. Returns true if any counts were moved.
+    /// Flush buffered unprovable and bundle-part counts from in_memory to
+    /// persisted for one authority. Returns true if any counts were moved.
     fn flush_faulty_block_buffer(&self, idx: usize) -> bool {
-        let (prov, unprov, bundle) = self.in_memory.drain_block_faults(idx);
-        if prov == 0 && unprov == 0 && bundle == 0 {
+        let (unprov, bundle) = self.in_memory.drain_block_faults(idx);
+        if unprov == 0 && bundle == 0 {
             return false;
         }
-        self.persisted.add_block_faults(idx, prov, unprov, bundle);
+        self.persisted.add_block_faults(idx, 0, unprov, bundle);
         true
     }
 
@@ -250,47 +294,42 @@ impl MisbehaviorStore {
             .collect()
     }
 
-    /// Records a faulty block event detected during ingest validation — a
-    /// rejected block header, or a corrupt part of a relayed bundle (framing,
-    /// metadata, or shard). Events are buffered in the in_memory bucket and
-    /// moved to persisted on the next flush.
+    /// Records a fault found while checking data from `peer`: a rejected block
+    /// header, or a corrupt part of a relayed bundle. `header_slot` is the slot
+    /// of the parsed header the error is about, if there is one.
     ///
-    /// `peer` is the authority that sent us the block (always known from the
-    /// network connection). `author` is the claimed block author (from the
-    /// header's author field, only trustworthy if the signature is valid).
-    ///
-    /// Attribution rules:
-    /// - Provable faults (valid signature, protocol violation): charged to `author` — cryptographic
-    ///   proof they produced an invalid block. If `peer != author`, the peer is also charged
-    ///   (unprovable) for distributing a block they could have verified themselves.
-    /// - Unprovable faults (bad/missing signature): charged to `peer` only — we can't verify the
-    ///   author field, but we know who sent it to us.
-    /// - Bundle-part faults (corrupt framing, metadata, or shard, or a shard the peer had no right
-    ///   to relay): charged to `peer` only, under the dedicated bundle-part counter.
+    /// A provable error (valid signature, protocol violation) is charged to the
+    /// header's author once per round, and to `peer` as an unprovable fault on
+    /// every delivery when `peer` is not the author. Other errors charge
+    /// `peer` only.
     pub(crate) fn record_faulty_block(
         &self,
         peer: AuthorityIndex,
-        author: AuthorityIndex,
+        header_slot: Option<Slot>,
         error: &ConsensusError,
     ) {
-        // `peer` is trusted (authenticated connection); `author` is
+        // `peer` is trusted (authenticated connection); the header's author is
         // attacker-controlled and may be out of committee range.
         let committee_size = self.in_memory.authorities.len();
         let peer_idx = peer.value();
-        let author_idx = author.value();
         if peer_idx >= committee_size {
             debug_fatal!("peer {peer} is outside the committee");
             return;
         }
         match classify_block_error(error) {
             FaultType::Provable => {
-                if author_idx >= committee_size {
+                let Some(slot) = header_slot else {
+                    debug_fatal!("provable error {error} recorded without its header");
+                    self.in_memory.record_block_fault_unprovable(peer_idx);
+                    return;
+                };
+                if slot.authority.value() >= committee_size {
                     // Can't credit a bogus author; charge the serving peer instead.
                     self.in_memory.record_block_fault_unprovable(peer_idx);
                     return;
                 }
-                self.in_memory.record_block_fault_provable(author_idx);
-                if peer != author {
+                self.record_provable_fault(slot);
+                if peer != slot.authority {
                     self.in_memory.record_block_fault_unprovable(peer_idx);
                 }
             }
@@ -307,25 +346,21 @@ impl MisbehaviorStore {
     /// Attributes a transaction payload that failed the commitment check or
     /// the transaction validity check.
     ///
-    /// `author` is charged with a provable fault only when `authored` is true,
-    /// i.e. a verified, author-signed block header commits to this payload, so
-    /// the invalid transactions are provably the author's. Each peer in
-    /// `relayers` is charged an unprovable fault for handing us a payload it
-    /// should not have relayed; a relayer that is also the author is not
-    /// double-charged when the author is already charged provably.
+    /// `authored` is the slot of a verified, author-signed block header that
+    /// commits to this payload, if there is one. Only then are the invalid
+    /// transactions provably the author's, and the author is charged a
+    /// provable fault, counted once per round. Each peer in `relayers` is
+    /// charged an unprovable fault for handing us a payload it should not have
+    /// relayed; a relayer that is also the author is not double-charged when
+    /// the author is charged provably.
     pub(crate) fn record_faulty_transactions(
         &self,
-        author: AuthorityIndex,
-        authored: bool,
+        authored: Option<Slot>,
         relayers: impl IntoIterator<Item = AuthorityIndex>,
     ) {
         let committee_size = self.in_memory.authorities.len();
-        if authored {
-            if author.value() < committee_size {
-                self.in_memory.record_block_fault_provable(author.value());
-            } else {
-                debug_fatal!("author {author} of a verified header is outside the committee");
-            }
+        if let Some(slot) = authored {
+            self.record_provable_fault(slot);
         }
         for peer in relayers {
             let idx = peer.value();
@@ -333,7 +368,7 @@ impl MisbehaviorStore {
                 debug_fatal!("relaying peer {peer} is outside the committee");
                 continue;
             }
-            if authored && peer == author {
+            if authored.is_some_and(|slot| slot.authority == peer) {
                 continue;
             }
             self.in_memory.record_block_fault_unprovable(idx);
@@ -345,7 +380,7 @@ impl MisbehaviorStore {
     /// block classifier decides the fault type, leaving transport failures
     /// untracked.
     pub(crate) fn record_fetch_fault(&self, peer: AuthorityIndex, error: &ConsensusError) {
-        self.record_faulty_block(peer, peer, error);
+        self.record_faulty_block(peer, None, error);
     }
 }
 
@@ -569,22 +604,19 @@ impl CommitteeMisbehaviorCounts {
         self.gauges[idx].invalid_bundle_parts.inc();
     }
 
-    /// Atomically take all block-fault counters AND zero the matching gauges.
-    /// The caller transfers the returned `(provable, unprovable,
+    /// Atomically take the unprovable and bundle-part counters AND zero the
+    /// matching gauges. The caller transfers the returned `(unprovable,
     /// bundle_parts)` into the persisted bucket via `add_block_faults`.
-    fn drain_block_faults(&self, idx: usize) -> (u64, u64, u64) {
+    fn drain_block_faults(&self, idx: usize) -> (u64, u64) {
         let mut c = self.authorities[idx].lock().unwrap();
-        let prov = std::mem::take(&mut c.faulty_blocks_provable);
         let unprov = std::mem::take(&mut c.faulty_blocks_unprovable);
         let bundle = std::mem::take(&mut c.invalid_bundle_parts);
-        self.gauges[idx].block_fault_provable.set(0);
         self.gauges[idx].block_fault_unprovable.set(0);
         self.gauges[idx].invalid_bundle_parts.set(0);
-        (prov, unprov, bundle)
+        (unprov, bundle)
     }
 
-    /// Receive a `drain_block_faults` payload — additive on counters and
-    /// gauges.
+    /// Additive on block-fault counters and gauges.
     fn add_block_faults(&self, idx: usize, prov: u64, unprov: u64, bundle: u64) {
         let mut c = self.authorities[idx].lock().unwrap();
         c.faulty_blocks_provable += prov;
@@ -605,6 +637,14 @@ impl CommitteeMisbehaviorCounts {
         self.gauges[idx].block_fault_provable.set(prov as i64);
         self.gauges[idx].block_fault_unprovable.set(unprov as i64);
         self.gauges[idx].invalid_bundle_parts.set(bundle as i64);
+    }
+
+    /// Overwrite the provable-fault counter and its gauge. Used on `in_memory`,
+    /// where it is the number of recorded rounds above the GC round.
+    fn set_provable_faults(&self, idx: usize, prov: u64) {
+        let mut c = self.authorities[idx].lock().unwrap();
+        c.faulty_blocks_provable = prov;
+        self.gauges[idx].block_fault_provable.set(prov as i64);
     }
 
     /// Overwrite the DAG-observed faults (`missing_proposals` +
@@ -1034,7 +1074,7 @@ mod tests {
 
         store.record_faulty_block(
             authority,
-            authority,
+            None,
             &ConsensusError::WrongEpoch {
                 expected: 1,
                 actual: 2,
@@ -1042,7 +1082,7 @@ mod tests {
         );
         store.record_faulty_block(
             authority,
-            authority,
+            None,
             &ConsensusError::MalformedShard(bcs::Error::Custom("bad".to_string())),
         );
 
@@ -1306,7 +1346,7 @@ mod tests {
         let context = Arc::new(Context::new_for_test(4).0);
         let store = MisbehaviorStore::new(&context);
         let authority = AuthorityIndex::new_for_test(0);
-        store.record_faulty_block(authority, authority, error);
+        store.record_faulty_block(authority, Some(Slot::new(1, authority)), error);
         let counts = store.in_memory.snapshot(0);
         (
             counts.faulty_blocks_provable,
@@ -1585,17 +1625,18 @@ mod tests {
         let provable = ConsensusError::TooManyAncestors(10, 5);
 
         // Seed in_memory provable counts for authority 0 (2) and 1 (1).
-        store.record_faulty_block(a0, a0, &provable);
-        store.record_faulty_block(a0, a0, &provable);
-        store.record_faulty_block(a1, a1, &provable);
+        for round in [1, 2] {
+            store.record_faulty_block(a0, Some(Slot::new(round, a0)), &provable);
+        }
+        store.record_faulty_block(a1, Some(Slot::new(1, a1)), &provable);
 
-        // Flush faulty buffer for authority 0 into persisted; leave authority 1
-        // unflushed so the snapshot must sum across both buckets.
-        let _ = store.update_misbehavior_counts(a0, &BTreeSet::new(), 0, 1, &context);
+        // Move authority 0's rounds into persisted; leave authority 1 in memory
+        // so the snapshot must sum across both buckets.
+        let _ = store.update_misbehavior_counts(a0, &BTreeSet::new(), 2, 3, &context);
 
         // Record 3 more provable faults on authority 0 — these stay in_memory.
-        for _ in 0..3 {
-            store.record_faulty_block(a0, a0, &provable);
+        for round in [3, 4, 5] {
+            store.record_faulty_block(a0, Some(Slot::new(round, a0)), &provable);
         }
 
         let snapshot = store.snapshot_totals();
@@ -1664,13 +1705,71 @@ mod tests {
         let store = MisbehaviorStore::new(&context);
         let author = AuthorityIndex::new_for_test(0);
         let peer = AuthorityIndex::new_for_test(1);
-        store.record_faulty_block(peer, author, &e);
+        store.record_faulty_block(peer, Some(Slot::new(1, author)), &e);
         let author_counts = store.in_memory.snapshot(0);
         let peer_counts = store.in_memory.snapshot(1);
         assert_eq!(author_counts.faulty_blocks_provable, 1);
         assert_eq!(author_counts.faulty_blocks_unprovable, 0);
         assert_eq!(peer_counts.faulty_blocks_provable, 0);
         assert_eq!(peer_counts.faulty_blocks_unprovable, 1);
+    }
+
+    #[tokio::test]
+    async fn test_provable_faults_count_once_per_round() {
+        let context = Arc::new(Context::new_for_test(4).0);
+        let store = MisbehaviorStore::new(&context);
+        let author = AuthorityIndex::new_for_test(0);
+        let peer = AuthorityIndex::new_for_test(1);
+        let e = ConsensusError::TooManyAncestors(10, 5);
+        let ceiling = context.parameters.far_future_round_ceiling(0);
+        let provable = |store: &MisbehaviorStore| {
+            let idx = author.value();
+            (
+                store.persisted.snapshot(idx).faulty_blocks_provable,
+                store.in_memory.snapshot(idx).faulty_blocks_provable,
+            )
+        };
+
+        for _ in 0..3 {
+            store.record_faulty_block(peer, Some(Slot::new(5, author)), &e);
+        }
+        store.record_faulty_transactions(Some(Slot::new(5, author)), [peer]);
+        store.record_faulty_block(peer, Some(Slot::new(6, author)), &e);
+        store.record_faulty_block(peer, Some(Slot::new(ceiling + 1, author)), &e);
+        assert_eq!(provable(&store), (0, 2));
+        assert_eq!(
+            store
+                .in_memory
+                .snapshot(peer.value())
+                .faulty_blocks_unprovable,
+            6
+        );
+
+        // The GC round passes round 5: it is stored and not counted again.
+        let stored = store
+            .update_misbehavior_counts(author, &BTreeSet::new(), 5, 7, &context)
+            .unwrap();
+        store.record_faulty_block(peer, Some(Slot::new(5, author)), &e);
+        assert_eq!(provable(&store), (1, 1));
+
+        // After a restart, round 6 was never stored, so it counts once.
+        let store = MisbehaviorStore::new(&context);
+        store.initialize_misbehavior_counts(
+            BTreeMap::from([(author, stored)]),
+            &vec![BTreeSet::new(); 4],
+            5,
+            7,
+            &context,
+        );
+        for round in [5, 6, 6] {
+            store.record_faulty_block(peer, Some(Slot::new(round, author)), &e);
+        }
+        assert_eq!(provable(&store), (1, 1));
+
+        // Rounds that fast sync passes are dropped without being counted.
+        store.record_faulty_block(peer, Some(Slot::new(8, author)), &e);
+        store.update_misbehavior_counts(author, &BTreeSet::new(), 20, 20, &context);
+        assert_eq!(provable(&store), (1, 0));
     }
 
     #[tokio::test]
@@ -1684,13 +1783,13 @@ mod tests {
         let bogus_author = AuthorityIndex::new_for_test(99);
 
         let provable = ConsensusError::TooManyAncestors(10, 5);
-        store.record_faulty_block(peer, bogus_author, &provable);
+        store.record_faulty_block(peer, Some(Slot::new(1, bogus_author)), &provable);
 
         let unprovable = ConsensusError::InvalidAuthorityIndex {
             index: bogus_author,
             max: 3,
         };
-        store.record_faulty_block(peer, bogus_author, &unprovable);
+        store.record_faulty_block(peer, Some(Slot::new(1, bogus_author)), &unprovable);
 
         let peer_counts = store.in_memory.snapshot(1);
         assert_eq!(peer_counts.faulty_blocks_provable, 0);
