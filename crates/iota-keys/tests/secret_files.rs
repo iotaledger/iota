@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #![cfg(unix)]
-
 use std::{fs, os::unix::fs::PermissionsExt};
 
 use fastcrypto::traits::EncodeDecodeBase64;
