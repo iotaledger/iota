@@ -836,7 +836,6 @@ async fn test_reconfig_with_same_validator() {
     use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
     use iota_types::crypto::AuthorityPublicKeyBytes;
 
-    // ValidatorGenesisConfig doesn't impl Clone
     // generate the same config with the same rng seed
     let node_ip = iota_config::local_ip_utils::get_new_ip();
     let build_node_config = || {
