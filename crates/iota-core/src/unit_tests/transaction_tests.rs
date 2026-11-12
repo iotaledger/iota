@@ -17,7 +17,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::{dbg_addr, random_object_ref},
-    crypto::{AccountPrivateKey, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair, to_aggregate_signature},
     error::{IotaError, UserInputError},
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
     signature::VerifyParams,
@@ -626,7 +626,7 @@ async fn test_very_large_certificate() {
 
     let sigs: Vec<_> = signatures
         .values()
-        .map(iota_types::crypto::to_aggregate_signature)
+        .map(to_aggregate_signature)
         .collect::<Result<Vec<_>, _>>()
         .expect("validator returned invalid signature");
 

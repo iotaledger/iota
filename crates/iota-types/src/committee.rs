@@ -323,11 +323,7 @@ impl Committee {
             key_pairs
                 .iter()
                 .map(|key| {
-                    (
-                        AuthorityName::from(key),
-                        // voting right
-                        1,
-                    )
+                    (AuthorityName::from(key), /* voting right */ 1)
                 })
                 .collect(),
         );

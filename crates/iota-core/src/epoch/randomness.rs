@@ -21,6 +21,7 @@ use futures::{StreamExt, stream::FuturesUnordered};
 use iota_common::{debug_fatal, fatal};
 use iota_macros::{fail_point, fail_point_if};
 use iota_network::randomness;
+use iota_sdk_crypto::ToFromBytes as _;
 use iota_sdk_types::RandomnessRound;
 use iota_types::{
     base_types::{AuthorityName, CommitRound},
@@ -275,10 +276,9 @@ impl RandomnessManager {
             Hex::encode(epoch_store.get_chain_identifier().as_bytes()),
             committee.epoch()
         );
-        let randomness_private_key = bls12381::Scalar::from_byte_array(
-            &iota_sdk_crypto::ToFromBytes::to_bytes(authority_key_pair),
-        )
-        .expect("should work to convert BLS key to Scalar");
+        let randomness_private_key =
+            bls12381::Scalar::from_byte_array(&authority_key_pair.to_bytes())
+                .expect("should work to convert BLS key to Scalar");
         let party = dkg_v1::Party::<PkG, EncG>::new(
             fastcrypto_tbls::ecies_v1::PrivateKey::<bls12381::G2Element>::from(
                 randomness_private_key,

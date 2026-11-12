@@ -23,7 +23,7 @@ derive_more = { workspace = true, default-features = true, features = ["as_ref",
 either.workspace = true
 enum_dispatch.workspace = true
 eyre.workspace = true
-fastcrypto = { workspace = true, features = ["copy_key"] }
+fastcrypto.workspace = true
 futures.workspace = true
 hex.workspace = true
 indexmap.workspace = true
