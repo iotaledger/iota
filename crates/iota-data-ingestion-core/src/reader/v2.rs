@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cmp::Ordering,
     num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
@@ -39,7 +38,8 @@ use crate::{
         ReaderOptions,
         common::DataLimiter,
         fetch::{
-            GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES, LocalRead, ReadSource, fetch_from_object_store,
+            GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES, LocalCheckpoints, LocalRead, ReadSource,
+            fetch_from_object_store,
         },
         filters::fullnode::TransactionFilter,
     },
@@ -230,10 +230,8 @@ impl LocalRead for CheckpointReaderActor {
 }
 
 impl CheckpointReaderActor {
-    fn should_fetch_from_remote(&self, checkpoints: &[Arc<CheckpointData>]) -> bool {
-        self.remote_store.is_some()
-            && (checkpoints.is_empty()
-                || self.is_checkpoint_ahead(&checkpoints[0], self.current_checkpoint_number))
+    fn should_fetch_from_remote(&self, checkpoints: &LocalCheckpoints) -> bool {
+        self.remote_store.is_some() && checkpoints.is_empty()
     }
 
     /// Fetches checkpoints from the historical object store and streams them to
@@ -489,30 +487,17 @@ impl CheckpointReaderActor {
         self.send_checkpoint_to_channel(checkpoint).await
     }
 
-    /// Sends a batch of local checkpoints to the channel in order. Stops at the first checkpoint
-    /// whose sequence number is not the current checkpoint number.
+    /// Sends a batch of local checkpoints to the channel in order.
     ///
     /// # Errors
     ///
     /// Fails if sending to the channel fails.
     async fn send_local_checkpoints_to_channel(
         &mut self,
-        checkpoints: Vec<Arc<CheckpointData>>,
+        checkpoints: LocalCheckpoints,
     ) -> IngestionResult<()> {
-        for checkpoint in checkpoints {
-            let sequence_number = checkpoint.checkpoint_summary.sequence_number;
-            match sequence_number.cmp(&self.current_checkpoint_number) {
-                // A missing local file is expected, so stop without an error.
-                Ordering::Greater => break,
-                Ordering::Less => {
-                    error!(
-                        "expected checkpoint {}, a local file holds {sequence_number}",
-                        self.current_checkpoint_number
-                    );
-                    break;
-                }
-                Ordering::Equal => self.send_checkpoint_to_channel(checkpoint).await?,
-            }
+        for checkpoint in checkpoints.into_iter() {
+            self.send_checkpoint_to_channel(checkpoint).await?;
         }
         Ok(())
     }
