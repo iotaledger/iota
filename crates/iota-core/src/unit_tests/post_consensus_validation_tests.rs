@@ -13118,6 +13118,63 @@ async fn a_replayed_commit_and_a_deferred_transaction_read_nothing_ahead() {
     assert_eq!(input_reads(&authority, "unused"), 0);
 }
 
+/// With every thread of the blocking pool busy, no other reader starts. The
+/// commit is validated by the handler's own reader and does not wait for a
+/// free thread.
+#[test]
+fn validation_does_not_wait_for_a_reader_the_blocking_pool_has_not_started() {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .max_blocking_threads(1)
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+        let objects = [ObjectId::random(), ObjectId::random()];
+        let gas = [ObjectId::random(), ObjectId::random()];
+        let authority =
+            authority_with_readers(4, sender, &[objects[0], objects[1], gas[0], gas[1]]).await;
+        let reference = |id: &ObjectId| authority.get_object(id).unwrap().object_ref();
+        let rgp = authority.reference_gas_price_for_testing().unwrap();
+        let transfers: Vec<_> = (0..2)
+            .map(|i| {
+                make_transfer_object_transaction(
+                    reference(&objects[i]),
+                    reference(&gas[i]),
+                    sender,
+                    &sender_key,
+                    Address::random(),
+                    rgp,
+                )
+            })
+            .collect();
+
+        // Hold the pool's only thread until the commit is validated.
+        let (running, is_running) = tokio::sync::oneshot::channel();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let holder = tokio::task::spawn_blocking(move || {
+            running.send(()).unwrap();
+            released.recv().unwrap();
+        });
+        is_running.await.unwrap();
+
+        let outcome = tokio::time::timeout(
+            Duration::from_secs(60),
+            validation_outcome(&authority, &transfers),
+        )
+        .await
+        .expect("validation waited for a thread of the blocking pool");
+        let (dropped, _, _, kept) = outcome;
+        assert!(dropped.is_empty());
+        assert_eq!(kept.len(), 2);
+        assert_eq!(input_reads(&authority, "ahead"), 2);
+
+        release.send(()).unwrap();
+        holder.await.unwrap();
+    });
+}
+
 #[test]
 fn validation_readers_are_a_quarter_of_the_cores_between_one_and_eight() {
     use super::validation_readers_for;

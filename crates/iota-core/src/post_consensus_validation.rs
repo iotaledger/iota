@@ -65,7 +65,7 @@ use std::{
     num::NonZeroUsize,
     sync::{
         Arc, OnceLock,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 
@@ -1025,28 +1025,34 @@ impl ReadAhead {
                 let epoch_store = epoch_store.clone();
                 let reader = reader.clone();
                 let deny_rules = deny_rules.clone();
-                tokio::task::spawn_blocking(move || {
-                    this.read(&authority_state, &epoch_store, &reader, deny_rules.as_ref())
-                })
+                let started = Arc::new(AtomicBool::new(false));
+                let handle = tokio::task::spawn_blocking({
+                    let started = started.clone();
+                    move || {
+                        // Set before the first transaction is taken.
+                        started.store(true, Ordering::SeqCst);
+                        this.read(&authority_state, &epoch_store, &reader, deny_rules.as_ref())
+                    }
+                });
+                (started, handle)
             })
             .collect();
         let mut results: HashMap<_, _> = this
             .read(authority_state, epoch_store, reader, deny_rules.as_ref())
             .into_iter()
             .collect();
-        // Every transaction is taken by now. A reader that has not started
-        // would find none, so the commit does not wait for a free thread of
-        // the blocking pool to start it. A reader that is running is not
-        // affected and returns what it read.
-        for other in &others {
-            other.abort();
-        }
-        for other in others {
+        // Every transaction is taken by now, so a reader that has not started
+        // took none and would find none. Its handle completes only once a
+        // thread of the blocking pool is free, so the commit does not await
+        // it.
+        for (started, other) in others {
+            if !started.load(Ordering::SeqCst) {
+                other.abort();
+                continue;
+            }
             match other.await {
                 Ok(read) => results.extend(read),
                 Err(error) => {
-                    // A cancelled reader never started, so it took no
-                    // transaction.
                     if let Ok(panic) = error.try_into_panic() {
                         std::panic::resume_unwind(panic);
                     }
@@ -1067,7 +1073,7 @@ impl ReadAhead {
         let mut results = Vec::new();
         while let Some((i, transaction, attested)) = self
             .transactions
-            .get(self.next.fetch_add(1, Ordering::Relaxed))
+            .get(self.next.fetch_add(1, Ordering::SeqCst))
         {
             results.push((
                 *i,
