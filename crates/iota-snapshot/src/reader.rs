@@ -12,6 +12,7 @@ use std::{
         Arc,
         atomic::{AtomicU64, Ordering},
     },
+    time::{Duration, Instant},
 };
 
 use anyhow::{Context, Result, bail};
@@ -44,7 +45,7 @@ use tokio::{
     sync::{Mutex, mpsc, oneshot},
     task::JoinSet,
 };
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC,
@@ -57,8 +58,9 @@ use crate::{
     restore::Restore,
 };
 
-/// Downloads one object file. Returns its bytes and metadata, and the sha3
-/// digest of its partition from `sha3_digests`.
+/// Downloads one object file. Returns its bytes and metadata, the sha3 digest
+/// of its partition from `sha3_digests`, and the time the download
+/// took.
 ///
 /// # Panics
 ///
@@ -71,7 +73,8 @@ async fn download_object_file(
     bucket: u32,
     part_num: u32,
     file_metadata: FileMetadata,
-) -> Result<(Bytes, FileMetadata, [u8; 32])> {
+) -> Result<(Bytes, FileMetadata, [u8; 32], Duration)> {
+    let download_started = Instant::now();
     // Downloads object file with retries
     let bytes = get_with_progress(&remote_object_store, &file_path, &obj_progress)
         .await
@@ -86,7 +89,12 @@ async fn download_object_file(
     let sha3_digest = *bucket_map
         .get(&part_num)
         .expect("sha3 digest not in bucket map");
-    Ok::<(Bytes, FileMetadata, [u8; 32]), anyhow::Error>((bytes, file_metadata, sha3_digest))
+    Ok::<_, anyhow::Error>((
+        bytes,
+        file_metadata,
+        sha3_digest,
+        download_started.elapsed(),
+    ))
 }
 
 /// Computes the state hash of the objects that one reference file lists.
@@ -467,7 +475,12 @@ impl StateSnapshotReaderV1 {
         // The reference files have to be local before their checksums can be
         // computed. Their download shares a bar with the object files, which
         // `sync_live_objects` downloads onto it below.
+        let ref_download_started = Instant::now();
         let download_progress = self.download_reference_files().await?;
+        info!(
+            "Downloaded the .ref files in {:?}",
+            ref_download_started.elapsed()
+        );
 
         // This computes and stores the sha3 digest of object references in REFERENCE
         // file for each bucket partition. When downloading objects, we will
@@ -487,6 +500,7 @@ impl StateSnapshotReaderV1 {
             .sum::<usize>();
 
         info!("Computing checksums");
+        let checksum_started = Instant::now();
         // Creates a progress bar for checksumming
         let checksum_ticker = ProgressTicker::spawn(
             self.multi_progress_bar.add(
@@ -554,6 +568,7 @@ impl StateSnapshotReaderV1 {
             .await?;
 
         checksum_ticker.finish_with_message("Checksumming complete");
+        info!("Computed the checksums in {:?}", checksum_started.elapsed());
 
         let accum_handle = accumulator.map(|accumulator| {
             let this = self.clone();
@@ -620,6 +635,7 @@ impl StateSnapshotReaderV1 {
         let ref_files = self.ref_files.clone();
         let epoch_dir = self.epoch_dir();
         let local_staging_dir_root = self.local_staging_dir_root.clone();
+        let accumulation_started = Instant::now();
         for part_files in ref_files.values() {
             futures::stream::iter(part_files.values())
                 .map(|file_metadata| {
@@ -642,6 +658,10 @@ impl StateSnapshotReaderV1 {
                 .await;
         }
         accum_ticker.finish_with_message("Accumulation complete");
+        info!(
+            "Accumulated the .ref files in {:?}",
+            accumulation_started.elapsed()
+        );
         let _ = completion.send(());
     }
 
@@ -693,13 +713,16 @@ impl StateSnapshotReaderV1 {
                 // Each download is its own task, so that it keeps running while a
                 // partition is inserted. The next download starts before the insert.
                 // Dropping the set aborts the downloads.
+                let phase_started = Instant::now();
+                let mut insert_time = Duration::ZERO;
+                let num_partitions = input_files.len();
                 let mut files_to_download = input_files.into_iter();
                 let mut downloads = JoinSet::new();
                 for file in files_to_download.by_ref().take(concurrency.get()) {
                     downloads.spawn(download_input_file(file));
                 }
                 while let Some(task_result) = downloads.join_next().await {
-                    let (bytes, file_metadata, sha3_digest) = match task_result {
+                    let (bytes, file_metadata, sha3_digest, download_time) = match task_result {
                         Ok(download_result) => download_result?,
                         Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
                         // Returning Ok here would skip a partition.
@@ -708,11 +731,24 @@ impl StateSnapshotReaderV1 {
                     if let Some(file) = files_to_download.next() {
                         downloads.spawn(download_input_file(file));
                     }
+                    let (bucket, part) = (file_metadata.bucket_num, file_metadata.part_num);
+                    let insert_started = Instant::now();
                     database
                         .insert_partition(file_metadata, bytes, &sha3_digest)
                         .await?;
+                    let partition_insert_time = insert_started.elapsed();
+                    insert_time += partition_insert_time;
+                    debug!(
+                        "Object file {bucket}_{part}: downloaded in {download_time:?}, inserted \
+                         in {partition_insert_time:?}"
+                    );
                     obj_progress_insert.file_done();
                 }
+                info!(
+                    "Downloaded and inserted {num_partitions} object files in {:?}, of which \
+                     {insert_time:?} inserting",
+                    phase_started.elapsed()
+                );
                 Ok(())
             },
             abort_registration,
