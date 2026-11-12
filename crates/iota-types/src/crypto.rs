@@ -86,10 +86,7 @@ mod intent_tests;
 // Authority Objects
 pub type AuthorityKeyPair = Bls12381PrivateKey;
 pub type AuthorityPublicKey = Bls12381VerifyingKey;
-pub type AuthorityPrivateKey = Bls12381PrivateKey;
 pub type AuthoritySignature = Bls12381Signature;
-// Aggregation and batch verification use fastcrypto; authority signatures
-// convert to it by bytes.
 pub type AggregateAuthorityPublicKey = BLS12381PublicKey;
 pub type AggregateAuthoritySignature = BLS12381AggregateSignature;
 pub type AggregateAuthoritySignatureAsBytes = BLS12381AggregateSignatureAsBytes;
@@ -142,6 +139,7 @@ pub fn verify_proof_of_possession(
 /// Serializes an authority keypair as base64 of the raw private key in
 /// human-readable formats, and as the raw bytes otherwise.
 pub mod authority_keypair_serde {
+    use iota_sdk_crypto::{ToFromBase64 as _, ToFromBytes as _};
     use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 
     use super::AuthorityKeyPair;
@@ -150,8 +148,6 @@ pub mod authority_keypair_serde {
         value: &AuthorityKeyPair,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        use iota_sdk_crypto::{ToFromBase64 as _, ToFromBytes as _};
-
         if serializer.is_human_readable() {
             serializer.serialize_str(&value.to_base64())
         } else {
@@ -162,8 +158,6 @@ pub mod authority_keypair_serde {
     pub fn deserialize<'de, D: Deserializer<'de>>(
         deserializer: D,
     ) -> Result<AuthorityKeyPair, D::Error> {
-        use iota_sdk_crypto::ToFromBase64 as _;
-
         if deserializer.is_human_readable() {
             let encoded = String::deserialize(deserializer)?;
             AuthorityKeyPair::from_base64(&encoded).map_err(D::Error::custom)
@@ -383,12 +377,6 @@ impl TryFrom<AuthorityPublicKeyBytes> for AggregateAuthorityPublicKey {
         bytes: AuthorityPublicKeyBytes,
     ) -> Result<AggregateAuthorityPublicKey, Self::Error> {
         AggregateAuthorityPublicKey::from_bytes(bytes.as_ref())
-    }
-}
-
-impl From<&AuthorityPublicKey> for AuthorityPublicKeyBytes {
-    fn from(pk: &AuthorityPublicKey) -> AuthorityPublicKeyBytes {
-        AuthorityPublicKeyBytes(pk.public_key().into_bytes())
     }
 }
 

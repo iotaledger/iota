@@ -645,7 +645,7 @@ impl KeyToolCommand {
                         alias: None,
                         iota_address,
                         source: "keypair".to_string(),
-                        public_base64_key: Some(Base64::encode(kp.public_key().bytes())),
+                        public_base64_key: Some(kp.public_key().to_string()),
                         public_base64_key_with_flag: Some(public_base64_key_with_flag),
                         key_scheme: Some(lowercase_key_scheme(key_scheme)),
                         flag: Some(SignatureScheme::Bls12381.to_u8()),
@@ -796,7 +796,7 @@ impl KeyToolCommand {
                     }
                     Err(_) => match read_authority_keypair_from_file(&file) {
                         Ok(keypair) => {
-                            let public_base64_key = Base64::encode(keypair.public_key().bytes());
+                            let public_base64_key = keypair.public_key().to_string();
                             let public_base64_key_with_flag = encode_public_key_with_flag_base64(
                                 SignatureScheme::Bls12381.to_u8(),
                                 keypair.public_key().bytes(),
