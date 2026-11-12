@@ -14,7 +14,7 @@ use iota_sdk_types::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    attestation::AttestationData,
+    attestation::{Attestation, AttestationData},
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
@@ -261,6 +261,27 @@ fn assert_dependency_failed(effects: &TransactionEffects, dependency: Transactio
     assert!(effects.created().is_empty());
 }
 
+/// Submits `failing`, a transaction that fails at execution, and `dependent`,
+/// which depends on it, in one commit, and returns the effects of
+/// `dependent`.
+async fn submit_with_failing_dependency(
+    env: &AbstractAccountTestEnv,
+    failing: TransactionEnvelope,
+    dependent: TransactionEnvelope,
+    attestation: Option<Attestation>,
+) -> TransactionEffects {
+    let [failing_effects, effects]: [TransactionEffects; 2] = env
+        .submit_in_one_commit(vec![(failing, None, None), (dependent, attestation, None)])
+        .await
+        .try_into()
+        .expect("the effects of both transactions");
+    assert!(
+        !failing_effects.status().is_success(),
+        "{failing_effects:?}"
+    );
+    effects
+}
+
 /// A Move account that pays for its own dependent of a failed transaction
 /// authorizes it through its authenticator, which runs before the failed
 /// dependency is reported, so the account pays like a gas owner that signs
@@ -274,9 +295,8 @@ async fn move_account_pays_for_its_dependent_of_a_failed_transaction() {
     let failing_digest = *failing.digest();
     let dependent = env.dependent_account_transaction(failing_digest);
     let attestation = env.attest(&dependent);
-    assert!(!env.confirm(failing).await.status().is_success());
 
-    let effects = env.submit(dependent, Some(attestation)).await;
+    let effects = submit_with_failing_dependency(&env, failing, dependent, Some(attestation)).await;
 
     assert_dependency_failed(&effects, failing_digest);
     assert!(
@@ -300,9 +320,8 @@ async fn move_account_pays_nothing_for_a_dependent_it_did_not_authorize() {
     // Signed with a key the account has never held.
     let (_, unrelated_key): (_, AccountPrivateKey) = get_key_pair();
     let dependent = env.dependent_account_transaction_signed_with(failing_digest, &unrelated_key);
-    assert!(!env.confirm(failing).await.status().is_success());
 
-    let effects = env.submit(dependent, None).await;
+    let effects = submit_with_failing_dependency(&env, failing, dependent, None).await;
 
     assert_dependency_failed(&effects, failing_digest);
     assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
