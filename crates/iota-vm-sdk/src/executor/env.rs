@@ -29,12 +29,12 @@ use crate::{
 /// The Move engine and debug wiring for a single `execute*` call.
 pub(super) struct ExecutionEnv {
     pub(super) protocol_config: ProtocolConfig,
-    pub(super) reference_gas_price: u64,
+    reference_gas_price: u64,
     pub(super) epoch_id: u64,
     pub(super) epoch_timestamp_ms: u64,
     pub(super) executor: Arc<dyn Executor + Send + Sync>,
     pub(super) limits_metrics: Arc<LimitsMetrics>,
-    pub(super) bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
+    bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
     /// Offline default: the verifier-signing limits may differ from those a
     /// live validator enforces.
     verifier_signing_config: VerifierSigningConfig,

@@ -5,12 +5,11 @@
 //!
 //! These helpers turn a [`Transaction`] into a checked, ready-to-run
 //! [`PreparedSimulation`], drive it through the Move engine via a
-//! [`MoveAuthenticator`], and decode emitted events. They operate on an
-//! [`ExecutionEnv`] and a [`BackingStore`] and never touch the [`LocalVm`]'s
-//! store directly.
+//! [`MoveAuthenticator`], and decode emitted events. They operate on a
+//! [`SimulationEnv`] or an [`ExecutionEnv`] and a [`BackingStore`] and never
+//! touch the [`LocalVm`]'s store directly.
 
-use std::collections::HashSet;
-
+use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Digest, Event, MoveAuthenticator, ObjectReference, Transaction, UserSignature,
@@ -53,6 +52,11 @@ pub(super) fn prepare_transaction(
     tx_signatures: &[UserSignature],
     check_coin_deny_list: bool,
 ) -> Result<PreparedSimulation, VmSdkError> {
+    // Reject an invalid transaction before fetching its gas objects, which
+    // can mean a network round trip per gas coin.
+    iota_transaction_checks::check_user_transaction_validity(&transaction, env.protocol_config)
+        .map_err(|e| ValidationError::new("transaction validity check", e))?;
+
     // Update gas payment references to match actual object versions in the store.
     let mut updated_gas = Vec::with_capacity(transaction.gas().len());
     for gas_ref in transaction.gas() {
@@ -71,13 +75,14 @@ pub(super) fn prepare_transaction(
     };
     // `Execute` commits its effects, so it holds a transaction to its own
     // declared gas the way a validator would.
+    let fill_in_gas = !matches!(mode, ExecutionMode::Execute);
     let prepared = simulate::prepare_simulation(
         env,
         store,
         transaction,
         checks,
         tx_signatures,
-        !matches!(mode, ExecutionMode::Execute),
+        fill_in_gas,
         |input_object_kinds, receiving_object_refs| {
             Ok::<_, VmSdkError>((
                 load_input_objects(store, input_object_kinds)?,
@@ -112,7 +117,8 @@ pub(super) fn prepare_transaction(
 /// error: `Err` if any rejected, `Ok` if they all passed, even when the body
 /// failed.
 pub(super) fn execute_with_move_authenticators(
-    env: &ExecutionEnv,
+    env: &SimulationEnv<'_>,
+    executor: &dyn Executor,
     store: &dyn BackingStore,
     prepared: PreparedSimulation,
     authenticators: Vec<MoveAuthenticator>,
@@ -138,7 +144,7 @@ pub(super) fn execute_with_move_authenticators(
     // transaction's checked inputs, enforcing consistency (matching object read
     // results, compatible shared-object kinds) for ids that appear in more than
     // one set.
-    let prepared_auths = prepare_authenticators(store, authenticators, &env.protocol_config)?;
+    let prepared_auths = prepare_authenticators(store, authenticators, env.protocol_config)?;
     let mut union_checked = checked_input_objects;
     for (_, _, inputs) in &prepared_auths {
         let auth_checked = CheckedInputObjects::new_with_checked_transaction_inputs(inputs.clone());
@@ -182,14 +188,13 @@ pub(super) fn execute_with_move_authenticators(
         })
         .collect::<Vec<_>>();
 
-    let (inner_temp_store, _, effects, _timings, execution_result, authentication_error) = env
-        .executor
+    let (inner_temp_store, _, effects, _timings, execution_result, authentication_error) = executor
         .authenticate_then_execute_transaction_to_effects(
             store,
-            &env.protocol_config,
+            env.protocol_config,
             env.limits_metrics.clone(),
             false,
-            &HashSet::new(),
+            env.certificate_deny_set,
             &env.epoch_id,
             env.epoch_timestamp_ms,
             gas_data,

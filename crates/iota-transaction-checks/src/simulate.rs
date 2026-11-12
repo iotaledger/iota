@@ -48,6 +48,7 @@ pub struct SimulationEnv<'a> {
 
 /// A check in [`prepare_simulation`] rejected the transaction.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct SimulationCheckError {
     /// The check that rejected the transaction, e.g. `"deny-list check"`.
     pub check: &'static str,
@@ -72,9 +73,9 @@ impl From<SimulationCheckError> for IotaError {
 /// A transaction that passed the checks of [`prepare_simulation`], ready for
 /// [`execute_simulation`].
 pub struct PreparedSimulation {
-    /// The transaction with its gas filled in.
+    /// The transaction, with any gas [`prepare_simulation`] filled in.
     pub transaction: Transaction,
-    pub checks: VmChecks,
+    checks: VmChecks,
     pub gas_status: IotaGasStatus,
     pub checked_input_objects: CheckedInputObjects,
     pub receiving_objects: ReceivingObjects,
@@ -84,46 +85,36 @@ pub struct PreparedSimulation {
 /// Check `transaction` and fill in its gas, ready for [`execute_simulation`]
 /// to simulate it without committing it.
 ///
-/// `checks` selects the Move VM semantics: `VmChecks::Enabled` runs the
-/// transaction as it would run on chain (a dry run), while
-/// `VmChecks::Disabled` relaxes the checks around entry functions and
-/// argument values and drops the input checks named in
-/// [`InputCheckRules::RELAXED_UNSAFE`] (a dev inspect). Both report the
-/// per-command return values in
-/// [`SimulateTransactionResult::execution_result`]. System transactions are
-/// rejected.
+/// `checks` selects the input checks here and the Move VM semantics
+/// [`execute_simulation`] runs with: `VmChecks::Enabled` runs the transaction
+/// as it would run on chain (a dry run), while `VmChecks::Disabled` drops the
+/// input checks named in [`InputCheckRules::RELAXED_UNSAFE`] and relaxes the
+/// checks around entry functions and argument values (a dev inspect). System
+/// transactions are rejected.
 ///
-/// Under either `checks`, the simulation fills in whatever gas the
-/// transaction leaves unset, so that a caller with no gas to declare can
-/// leave all of it out: no gas payment mints a mock gas coin, whose ID is
-/// reported back in [`SimulateTransactionResult::mock_gas_id`]; a zero gas
-/// price becomes `env.reference_gas_price`; and a zero gas budget becomes as
-/// much as the gas coins can back, up to
-/// [`max_tx_gas`](ProtocolConfig::max_tx_gas). Anything the transaction does
-/// declare is metered as given, so a dry run still rejects the gas a validator
-/// would.
+/// With `fill_in_gas`, whatever gas the transaction leaves unset is filled
+/// in, so that a caller with no gas to declare can leave all of it out: no gas
+/// payment mints a mock gas coin, whose ID is reported back in
+/// [`SimulateTransactionResult::mock_gas_id`]; a zero gas price becomes
+/// `env.reference_gas_price`; and a zero gas budget becomes as much as the gas
+/// coins can back, up to [`max_tx_gas`](ProtocolConfig::max_tx_gas). Without
+/// it, a transaction without a gas payment is rejected. Anything the
+/// transaction does declare is metered as given, so a dry run still rejects
+/// the gas a validator would.
 ///
-/// Under either `checks`, the packages the transaction publishes are run
-/// through the bytecode verifier with the limits in
-/// `env.verifier_signing_config`, so a package those limits reject at signing
-/// is rejected here too, with
-/// [`UserInputError::PackageVerificationTimedout`](iota_types::error::UserInputError::PackageVerificationTimedout).
+/// The gas coins have to cover the resolved budget for the whole run, as on
+/// chain, so a transaction that also pays out of its gas coin has to declare a
+/// budget leaving room for that. A balance too small for the minimum budget is
+/// rejected with [`UserInputError::GasBalanceTooLow`].
 ///
-/// Whatever the budget resolves to, the gas coins have to cover it, since
-/// execution reserves the whole budget from them before running any command
-/// and refunds it afterwards. A caller leaving the budget at zero to have the
-/// cost estimated therefore gets an estimate whatever its coins hold, but the
-/// reserved budget is off limits for the duration of the programmable
-/// transaction: a transaction that also pays out of its gas coin has to
-/// declare a budget leaving room for that, exactly as it would on chain. A
-/// balance too small to declare the minimum budget at all is rejected with
-/// [`UserInputError::GasBalanceTooLow`](iota_types::error::UserInputError::GasBalanceTooLow).
+/// The packages the transaction publishes are run through the bytecode
+/// verifier with the limits in `env.verifier_signing_config`, so a package
+/// those limits reject at signing is rejected here too, with
+/// [`UserInputError::PackageVerificationTimedout`].
 ///
 /// `signatures` are deny-checked along with the transaction, and so are the
-/// input objects of the `MoveAuthenticator`s among them. With `fill_in_gas`
-/// set to `false`, a transaction without a gas payment is rejected and its gas
-/// is metered as declared, as on chain. `load_objects` loads the transaction's
-/// input and receiving objects.
+/// input objects of the `MoveAuthenticator`s among them. `load_objects` loads
+/// the transaction's input and receiving objects.
 pub fn prepare_simulation<E: From<SimulationCheckError>>(
     env: &SimulationEnv<'_>,
     store: &dyn BackingStore,
@@ -152,10 +143,9 @@ pub fn prepare_simulation<E: From<SimulationCheckError>>(
     // checks the input objects of the `MoveAuthenticator`s.
     let mut deny_check_input_kinds = input_object_kinds.clone();
     merge_authenticator_input_objects(
-        signatures.iter().filter_map(|signature| match signature {
-            UserSignature::MoveAuthenticator(authenticator) => Some(authenticator),
-            _ => None,
-        }),
+        signatures
+            .iter()
+            .filter_map(UserSignature::as_opt_move_authenticator),
         protocol_config.move_authenticator_type_arg_packages_as_inputs(),
         &mut deny_check_input_kinds,
     )
@@ -173,7 +163,6 @@ pub fn prepare_simulation<E: From<SimulationCheckError>>(
     let (mut input_objects, receiving_objects) =
         load_objects(&input_object_kinds, &receiving_object_refs)?;
 
-    // Create a mock gas object if one was not provided
     let mock_gas_id = if transaction.gas().is_empty() {
         if !fill_in_gas {
             return Err(SimulationCheckError::new(
@@ -236,8 +225,12 @@ pub fn prepare_simulation<E: From<SimulationCheckError>>(
 }
 
 /// Execute a transaction [`prepare_simulation`] prepared, without committing
-/// it, returning the result along with the transaction as it ran. The
-/// result's `suggested_gas_price` is `None`.
+/// it, under the Move VM semantics of its `checks`. `env` and `store` must be
+/// the ones it was prepared with.
+///
+/// Returns the result along with the transaction as it ran. The result's
+/// [`execution_result`](SimulateTransactionResult::execution_result) holds the
+/// per-command return values, and its `suggested_gas_price` is `None`.
 pub fn execute_simulation(
     env: &SimulationEnv<'_>,
     executor: &dyn Executor,

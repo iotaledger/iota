@@ -257,7 +257,8 @@ impl LocalVm {
                 let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
 
                 let (sim, authenticator_outcome, executed) = execute_with_move_authenticators(
-                    &env,
+                    &sim_env,
+                    env.executor.as_ref(),
                     &backend,
                     prepared,
                     move_authenticators,
