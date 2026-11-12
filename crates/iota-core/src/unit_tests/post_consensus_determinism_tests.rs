@@ -1386,6 +1386,15 @@ impl ObjectCacheRead for FakeStore {
         Ok(self.lock().by_key_with_history(object_id, version, epoch))
     }
 
+    fn try_find_lowest_version_above_in_epoch(
+        &self,
+        _object_id: &ObjectId,
+        _version: Version,
+        _epoch: EpochId,
+    ) -> IotaResult<Option<Version>> {
+        unreachable!("post-consensus validation does not judge attestations")
+    }
+
     fn try_multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],

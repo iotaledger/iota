@@ -560,6 +560,15 @@ mod tests {
             unreachable!("not read when loading shared inputs")
         }
 
+        fn try_find_lowest_version_above_in_epoch(
+            &self,
+            _: &ObjectId,
+            _: Version,
+            _: EpochId,
+        ) -> IotaResult<Option<Version>> {
+            unreachable!("not read when loading shared inputs")
+        }
+
         fn try_get_marker_value(
             &self,
             _: &ObjectId,
