@@ -843,7 +843,7 @@ fn mock_checkpoint_data_with_opt(
     let sign_infos: Vec<_> = keys
         .iter()
         .map(|k| {
-            let name = (&k.verifying_key()).into();
+            let name = k.into();
             SignedCheckpointSummary::sign(committee.epoch, &summary, k, name)
         })
         .collect();

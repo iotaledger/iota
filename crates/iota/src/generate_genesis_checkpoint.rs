@@ -27,7 +27,7 @@ async fn main() {
             get_key_pair_from_rng(&mut rand::rand_core::UnwrapErr(rand::rngs::SysRng)).1;
         let validator = ValidatorInfo {
             name: format!("Validator {i}"),
-            authority_key: (&authority_key.verifying_key()).into(),
+            authority_key: (&authority_key).into(),
             protocol_key: protocol_key.public_key(),
             account_address: account_key.public_key().derive_address(),
             network_key: network_key.public_key(),

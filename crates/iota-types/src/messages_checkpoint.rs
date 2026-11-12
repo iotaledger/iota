@@ -963,7 +963,7 @@ mod tests {
         let signed_checkpoints: Vec<_> = keys
             .iter()
             .map(|k| {
-                let name = (&k.verifying_key()).into();
+                let name = k.into();
 
                 SignedCheckpointSummary::new(
                     committee.epoch,
@@ -1023,7 +1023,7 @@ mod tests {
         let sign_infos: Vec<_> = keys
             .iter()
             .map(|k| {
-                let name = (&k.verifying_key()).into();
+                let name = k.into();
 
                 SignedCheckpointSummary::sign(committee.epoch, &summary, k, name)
             })
@@ -1043,7 +1043,7 @@ mod tests {
         let signed_checkpoints: Vec<_> = keys
             .iter()
             .map(|k| {
-                let name = (&k.verifying_key()).into();
+                let name = k.into();
                 let set = CheckpointContents::new_with_digests_only_for_tests([
                     ExecutionDigests::random(),
                 ]);
@@ -1109,14 +1109,7 @@ mod tests {
         let certify = |summary: CheckpointSummary| {
             let sign_infos = keys
                 .iter()
-                .map(|k| {
-                    SignedCheckpointSummary::sign(
-                        committee.epoch,
-                        &summary,
-                        k,
-                        (&k.verifying_key()).into(),
-                    )
-                })
+                .map(|k| SignedCheckpointSummary::sign(committee.epoch, &summary, k, k.into()))
                 .collect();
             CertifiedCheckpointSummary::new(summary, sign_infos, &committee).expect("cert is OK")
         };
@@ -1138,7 +1131,7 @@ mod tests {
                         committee.epoch,
                         &summary_for_sequence_number(4),
                         k,
-                        (&k.verifying_key()).into(),
+                        k.into(),
                     )
                 })
                 .collect();

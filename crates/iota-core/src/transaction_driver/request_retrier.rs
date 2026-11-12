@@ -253,8 +253,8 @@ mod tests {
         // Create validators that don't exist in the auth_agg
         let (_, key_pair1): (_, AuthorityKeyPair) = get_key_pair();
         let (_, key_pair2): (_, AuthorityKeyPair) = get_key_pair();
-        let unknown_validator1: AuthorityName = (&key_pair1.verifying_key()).into();
-        let unknown_validator2: AuthorityName = (&key_pair2.verifying_key()).into();
+        let unknown_validator1: AuthorityName = (&key_pair1).into();
+        let unknown_validator2: AuthorityName = (&key_pair2).into();
 
         // Mix of unknown validators and one known validator
         let authorities: Vec<_> = auth_agg.committee.names().copied().collect();

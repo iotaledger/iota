@@ -75,7 +75,7 @@ fn gen_ckpts(
     (0..count)
         .map(|i| {
             let k = &key_pairs[i % key_pairs.len()];
-            let name = (&k.verifying_key()).into();
+            let name = k.into();
             SignedCheckpointSummary::new(
                 committee.epoch,
                 CheckpointSummary::new_with_protocol_config(
@@ -250,7 +250,7 @@ fn certify(
                 committee.epoch(),
                 transaction.clone().into_data(),
                 key_pair,
-                AuthorityPublicKeyBytes::from(&key_pair.verifying_key()),
+                AuthorityPublicKeyBytes::from(key_pair),
             )
             .auth_sig()
             .clone()
@@ -330,7 +330,7 @@ fn test_authority_capabilities_cache_hit_still_checks_signature() {
     let epoch = committee.epoch();
     let (_, signer_key): (_, AuthorityKeyPair) = get_authority_key_pair();
     let (_, other_key): (_, AuthorityKeyPair) = get_authority_key_pair();
-    let signer = AuthorityName::from(&signer_key.verifying_key());
+    let signer = AuthorityName::from(&signer_key);
 
     let capabilities = AuthorityCapabilitiesV1::new(
         signer,

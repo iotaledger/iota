@@ -1679,7 +1679,7 @@ mod adapter_tests {
             .enumerate()
             .map(|(i, stake)| {
                 let key = AuthorityKeyPair::new([i as u8 + 1; 32]).unwrap();
-                (AuthorityPublicKeyBytes::from(&key.verifying_key()), *stake)
+                (AuthorityPublicKeyBytes::from(&key), *stake)
             })
             .collect();
         Committee::new_for_testing_with_normalized_voting_power(0, authorities)

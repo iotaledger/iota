@@ -206,7 +206,7 @@ impl RandomnessManager {
         let tables = epoch_store.tables()?;
         let protocol_config = epoch_store.protocol_config();
 
-        let name: AuthorityName = (&authority_key_pair.verifying_key()).into();
+        let name: AuthorityName = authority_key_pair.into();
         let committee = epoch_store.committee();
         let info = RandomnessManager::randomness_dkg_info_from_committee(committee);
         if tracing::enabled!(tracing::Level::DEBUG) {

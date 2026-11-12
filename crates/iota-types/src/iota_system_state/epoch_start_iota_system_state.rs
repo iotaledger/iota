@@ -490,7 +490,7 @@ mod test {
 
         let committee_validator = EpochStartValidatorInfoV1 {
             iota_address: iota_address1,
-            authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key1.verifying_key())
+            authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key1)
                 .try_into()
                 .unwrap(),
             network_pubkey: protocol_network_key1.public_key(),
@@ -510,7 +510,7 @@ mod test {
 
         let non_committee_validator = EpochStartValidatorInfoV1 {
             iota_address: iota_address2,
-            authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key2.verifying_key())
+            authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key2)
                 .try_into()
                 .unwrap(),
             network_pubkey: protocol_network_key2.public_key(),
@@ -622,7 +622,7 @@ mod test {
                 let network_key = NetworkPrivateKey::random();
                 EpochStartValidatorInfoV1 {
                     iota_address,
-                    authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key.verifying_key())
+                    authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key)
                         .try_into()
                         .unwrap(),
                     network_pubkey: network_key.public_key(),

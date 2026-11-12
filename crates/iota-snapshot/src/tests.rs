@@ -147,14 +147,7 @@ fn certify_summary(summary: CheckpointSummary) -> CertifiedCheckpointSummary {
     let committee = test_committee_at(summary.epoch);
     let signatures = keys
         .iter()
-        .map(|key| {
-            SignedCheckpointSummary::sign(
-                summary.epoch,
-                &summary,
-                key,
-                (&key.verifying_key()).into(),
-            )
-        })
+        .map(|key| SignedCheckpointSummary::sign(summary.epoch, &summary, key, key.into()))
         .collect();
     CertifiedCheckpointSummary::new(summary, signatures, &committee)
         .expect("test summary must certify under the test committee")

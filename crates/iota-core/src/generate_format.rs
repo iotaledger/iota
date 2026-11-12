@@ -151,7 +151,7 @@ fn get_registry() -> Result<Registry> {
         .unwrap();
 
     let (addr, kp): (_, AuthorityKeyPair) = get_key_pair();
-    let pk: AuthorityPublicKeyBytes = (&kp.verifying_key()).into();
+    let pk: AuthorityPublicKeyBytes = (&kp).into();
     tracer.trace_value(&mut samples, &addr).unwrap();
     tracer.trace_value(&mut samples, &pk).unwrap();
 

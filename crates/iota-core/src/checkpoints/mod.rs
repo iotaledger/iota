@@ -4146,7 +4146,7 @@ mod tests {
                     summary.epoch,
                     summary.clone(),
                     key,
-                    (&key.verifying_key()).into(),
+                    key.into(),
                 ),
             }
         };

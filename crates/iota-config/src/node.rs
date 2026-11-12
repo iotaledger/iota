@@ -862,7 +862,7 @@ impl NodeConfig {
     }
 
     pub fn authority_public_key(&self) -> AuthorityPublicKeyBytes {
-        (&self.authority_key_pair().verifying_key()).into()
+        self.authority_key_pair().into()
     }
 
     pub fn db_path(&self) -> PathBuf {

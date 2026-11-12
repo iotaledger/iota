@@ -77,7 +77,7 @@ mod test {
 
             committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
-                authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key.verifying_key())
+                authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key)
                     .try_into()
                     .unwrap(),
                 network_pubkey: protocol_network_key.public_key(),
@@ -148,7 +148,7 @@ mod test {
 
             committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
-                authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key.verifying_key())
+                authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key)
                     .try_into()
                     .unwrap(),
                 network_pubkey: protocol_network_key.public_key(),
@@ -165,7 +165,7 @@ mod test {
 
             non_committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
-                authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key.verifying_key())
+                authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key)
                     .try_into()
                     .unwrap(),
                 network_pubkey: protocol_network_key.public_key(),

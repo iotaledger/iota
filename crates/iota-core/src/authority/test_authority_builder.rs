@@ -298,7 +298,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         };
 
         let secret = Arc::pin(keypair.clone());
-        let name: AuthorityName = (&secret.verifying_key()).into();
+        let name: AuthorityName = (&*secret).into();
         let cache_metrics = Arc::new(ResolverMetrics::new(&registry));
         let signature_verifier_metrics = SignatureVerifierMetrics::new(&registry);
         let epoch_flags = EpochFlag::default_flags_for_new_epoch(&config);

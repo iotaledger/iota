@@ -7347,14 +7347,14 @@ async fn test_choose_next_system_packages() {
         .iter()
         .skip(4) // Skip the first 4 keys that are used by the committee
         .take(3) // Take the next 3 keys for zero-weight authorities
-        .map(|key| AuthorityName::from(&key.verifying_key()))
+        .map(AuthorityName::from)
         .collect();
 
     // Create expanded active_validators list including zero-weight authorities
     let mut all_active_validators = active_validators;
     for (i, _auth) in zero_weight_authorities.iter().enumerate() {
         all_active_validators.push(
-            AuthorityPublicKeyBytes::from(&all_keys[4 + i].verifying_key())
+            AuthorityPublicKeyBytes::from(&all_keys[4 + i])
                 .try_into()
                 .unwrap(),
         ); // Indices 4, 5, 6 for zero-weight authorities

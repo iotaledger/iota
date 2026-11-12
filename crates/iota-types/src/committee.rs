@@ -324,7 +324,7 @@ impl Committee {
                 .iter()
                 .map(|key| {
                     (
-                        AuthorityName::from(&key.verifying_key()),
+                        AuthorityName::from(key),
                         // voting right
                         1,
                     )
@@ -600,9 +600,9 @@ mod test {
         let (_, sec1): (_, AuthorityKeyPair) = get_key_pair();
         let (_, sec2): (_, AuthorityKeyPair) = get_key_pair();
         let (_, sec3): (_, AuthorityKeyPair) = get_key_pair();
-        let a1: AuthorityName = (&sec1.verifying_key()).into();
-        let a2: AuthorityName = (&sec2.verifying_key()).into();
-        let a3: AuthorityName = (&sec3.verifying_key()).into();
+        let a1: AuthorityName = (&sec1).into();
+        let a2: AuthorityName = (&sec2).into();
+        let a3: AuthorityName = (&sec3).into();
 
         let mut authorities = BTreeMap::new();
         authorities.insert(a1, 1);
@@ -669,9 +669,7 @@ mod test {
             };
             let signatures = keys
                 .iter()
-                .map(|k| {
-                    SignedCheckpointSummary::sign(epoch, &summary, k, (&k.verifying_key()).into())
-                })
+                .map(|k| SignedCheckpointSummary::sign(epoch, &summary, k, k.into()))
                 .collect();
             let committee_at_epoch =
                 Committee::new(epoch, committee.voting_rights.iter().cloned().collect());
@@ -718,7 +716,7 @@ mod test {
             };
             let signatures = other_keys
                 .iter()
-                .map(|k| SignedCheckpointSummary::sign(0, &summary, k, (&k.verifying_key()).into()))
+                .map(|k| SignedCheckpointSummary::sign(0, &summary, k, k.into()))
                 .collect();
             CertifiedCheckpointSummary::new(summary, signatures, &other_committee)
                 .expect("certifies under the foreign committee")

@@ -77,8 +77,7 @@ pub struct ValidatorGenesisConfig {
 
 impl ValidatorGenesisConfig {
     pub fn to_validator_info(&self, name: String) -> GenesisValidatorInfo {
-        let authority_key: AuthorityPublicKeyBytes =
-            (&self.authority_key_pair.verifying_key()).into();
+        let authority_key: AuthorityPublicKeyBytes = (&self.authority_key_pair).into();
         let account_key = PublicKey::from(&self.account_key_pair);
         let network_key: NetworkPublicKey = self.network_key_pair.public_key();
         let protocol_key: NetworkPublicKey = self.protocol_key_pair.public_key();

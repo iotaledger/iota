@@ -61,7 +61,7 @@ fn populated_genesis_snapshot_matches() {
     let account_address = account_key.public_key().derive_address();
     let validator = ValidatorInfo {
         name: "0".into(),
-        authority_key: (&authority_key.verifying_key()).into(),
+        authority_key: (&authority_key).into(),
         protocol_key: protocol_key.public_key(),
         account_address,
         network_key: network_key.public_key(),

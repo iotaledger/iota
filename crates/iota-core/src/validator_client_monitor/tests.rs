@@ -20,7 +20,7 @@ use crate::validator_client_monitor::stats::ClientObservedStats;
 
 fn gen_validator() -> AuthorityName {
     let (_, kp): (_, AuthorityKeyPair) = get_key_pair();
-    (&kp.verifying_key()).into()
+    (&kp).into()
 }
 
 fn gen_validators(n: usize) -> Vec<AuthorityName> {
