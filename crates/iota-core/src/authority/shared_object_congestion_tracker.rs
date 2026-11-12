@@ -641,24 +641,6 @@ impl SharedObjectCongestionTracker {
             return SequencingResult::Schedule(0);
         }
 
-        let shared_input_objects = transaction.shared_input_objects();
-        if shared_input_objects.is_empty() && self.worker_slots.is_none() {
-            // This is an owned-object-only transaction and execution-worker
-            // congestion control is disabled. No need to defer.
-            return SequencingResult::Schedule(0);
-        }
-
-        let congestion_limit = if let Some(congestion_limit) = self
-            .congestion_control_parameters
-            .get_effective_congestion_limit_per_commit()
-        {
-            congestion_limit
-        } else {
-            // If we don't have a congestion limit per commit, we don't need to check for
-            // congestion.
-            return SequencingResult::Schedule(0);
-        };
-
         // The end of the transaction this one depends on, when the tracker
         // scheduled it at this commit or carried its remaining time over from
         // an earlier one. A dependency the tracker does not know finished
@@ -673,6 +655,26 @@ impl SharedObjectCongestionTracker {
                     .copied()
             })
             .filter(|end_time| *end_time > 0);
+
+        let shared_input_objects = transaction.shared_input_objects();
+        if shared_input_objects.is_empty() && self.worker_slots.is_none() {
+            // This is an owned-object-only transaction and execution-worker
+            // congestion control is disabled. No need to defer. It starts when
+            // its dependency ends, so the transactions that depend on it start
+            // no earlier.
+            return SequencingResult::Schedule(dependency_end.unwrap_or(0));
+        }
+
+        let congestion_limit = if let Some(congestion_limit) = self
+            .congestion_control_parameters
+            .get_effective_congestion_limit_per_commit()
+        {
+            congestion_limit
+        } else {
+            // If we don't have a congestion limit per commit, we don't need to check for
+            // congestion.
+            return SequencingResult::Schedule(0);
+        };
 
         // Try to compute a scheduling start time that fits both the shared
         // objects and (when active) the execution-worker pool, after the
@@ -3106,14 +3108,22 @@ mod transaction_dependency_tests {
     }
 
     #[test]
-    fn owned_only_dependent_without_worker_control_schedules_at_zero() {
+    fn owned_only_dependent_without_worker_control_starts_when_its_dependency_ends() {
         let mut tracker = tracker(100);
         let dependency = build_transaction(&[(ObjectId::random(), true)], 10, TEST_ONLY_GAS_PRICE);
         schedule_and_bump(&mut tracker, &dependency);
 
-        let dependent =
+        let owned_only =
             build_transaction_with_dependency(&[], 5, TEST_ONLY_GAS_PRICE, *dependency.digest());
-        assert_eq!(start_time(schedule(&mut tracker, &dependent)), 0);
+        assert_eq!(schedule_and_bump(&mut tracker, &owned_only), 10);
+
+        let dependent = build_transaction_with_dependency(
+            &[(ObjectId::random(), true)],
+            5,
+            TEST_ONLY_GAS_PRICE,
+            *owned_only.digest(),
+        );
+        assert_eq!(start_time(schedule(&mut tracker, &dependent)), 15);
     }
 
     #[test]

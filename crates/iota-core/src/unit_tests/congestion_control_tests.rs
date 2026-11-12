@@ -2338,6 +2338,66 @@ async fn test_dependent_takes_no_free_gap_before_its_dependency() {
     assert_eq!(sequencing.dependency_deferrals(), 0);
 }
 
+/// A transaction on owned objects only, between two transactions on a common
+/// object in a chain of dependencies, starts when its dependency ends, so the
+/// last transaction takes no free gap on the common object before the first
+/// one. Otherwise the last one would hold the lower version of the common
+/// object while the first one, which it waits for, needs it.
+async fn chain_through_an_owned_object_transaction_takes_no_free_gap(workers: Option<u16>) {
+    let sequencing = SharedObjectSequencing::new(4, 4, workers).await;
+    let rgp = TEST_ONLY_GAS_PRICE;
+    let common = sequencing.shared_object();
+    let busy = sequencing.shared_object();
+    let first = sequencing.transaction(0, &[&busy], 4 * rgp, None, false);
+    let head = sequencing.transaction(1, &[&common, &busy], 3 * rgp, None, false);
+    let owned = sequencing.transaction(2, &[], 2 * rgp, Some(*head.digest()), false);
+    let tail = sequencing.transaction(3, &[&common], rgp, Some(*owned.digest()), false);
+
+    // `first` occupies `busy` until 1, so `head` runs from 1 to 2 and leaves a
+    // gap on `common` before its slot. `owned` runs from 2 to 3 and `tail`
+    // from 3 to 4.
+    let (scheduled, assigned) = sequencing
+        .sequence(
+            vec![
+                sequenced(&first),
+                sequenced(&head),
+                sequenced(&owned),
+                sequenced(&tail),
+            ],
+            vec![],
+            PreviouslyDeferredTransactions::default(),
+            1,
+            None,
+        )
+        .await;
+    assert_eq!(
+        scheduled,
+        vec![
+            *first.digest(),
+            *head.digest(),
+            *owned.digest(),
+            *tail.digest()
+        ]
+    );
+    assert!(
+        assigned_version(&assigned, &head, common.id()).unwrap()
+            < assigned_version(&assigned, &tail, common.id()).unwrap()
+    );
+    assert_eq!(sequencing.dependency_deferrals(), 0);
+}
+
+#[tokio::test]
+async fn test_chain_through_an_owned_object_transaction_takes_no_free_gap() {
+    telemetry_subscribers::init_for_testing();
+    chain_through_an_owned_object_transaction_takes_no_free_gap(None).await;
+}
+
+#[tokio::test]
+async fn test_chain_through_an_owned_object_transaction_takes_no_free_gap_with_workers() {
+    telemetry_subscribers::init_for_testing();
+    chain_through_an_owned_object_transaction_takes_no_free_gap(Some(4)).await;
+}
+
 /// With the combined tracker, a dependent outside the randomness phase is
 /// deferred when its dependency is a root of that phase at the same commit:
 /// the regular phase is assigned versions first, so the dependent would
