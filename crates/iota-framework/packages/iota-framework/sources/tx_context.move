@@ -90,6 +90,22 @@ public fun gas_budget(_self: &TxContext): u64 {
 // native function to retrieve gas budget, currently not exposed
 native fun native_gas_budget(): u64;
 
+/// Returns the ID of the transaction's first gas coin, the version the transaction lists for it,
+/// and an index that differs for each call in the transaction.
+///
+/// Temporary: the transaction context does not expose the gas coin yet. The ID and the version
+/// are fixed values, and the index is the number of IDs the transaction has created so far. The
+/// three values differ between calls in one transaction, but not between transactions.
+public(package) fun take_gas_coin_nonce(self: &mut TxContext): (address, u64, u64) {
+    let placeholder_gas_coin: address = @0xc01;
+
+    let placeholder_gas_coin_version: u64 = 412;
+
+    let index = native_ids_created();
+    self.fresh_object_address();
+    (placeholder_gas_coin, placeholder_gas_coin_version, index)
+}
+
 // ==== test-only functions ====
 #[test_only]
 /// Return the number of id's created by the current transaction.

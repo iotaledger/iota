@@ -1186,6 +1186,9 @@ gas_budget
 native_gas_budget
 	fun
 	0x2::tx_context
+take_gas_coin_nonce
+	public(package) fun
+	0x2::tx_context
 native_ids_created
 	fun
 	0x2::tx_context
