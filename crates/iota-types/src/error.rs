@@ -394,7 +394,7 @@ pub enum UserInputError {
         version: Option<Version>,
     },
     #[error(
-        "Account {address} is already explicit: its account object exists, or another claim of it was sequenced in this epoch"
+        "Account {address} is already explicit: the address has been claimed, or another claim of it was accepted earlier in this epoch"
     )]
     AccountAlreadyExplicit { address: Address },
     #[error(
