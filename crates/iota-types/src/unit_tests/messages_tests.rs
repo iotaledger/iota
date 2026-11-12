@@ -9,10 +9,7 @@ use std::{
     str::FromStr,
 };
 
-use fastcrypto::{
-    bls12381::min_sig::BLS12381Signature,
-    traits::{AggregateAuthenticator, ToFromBytes as _},
-};
+use fastcrypto::traits::AggregateAuthenticator;
 use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk_crypto::{
     Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
@@ -33,7 +30,7 @@ use crate::{
         AccountPrivateKey, AggregateAuthorityPublicKey, AuthorityKeyPair, AuthorityPublicKeyBytes,
         AuthoritySignInfoTrait, IotaAuthoritySignature, PublicKey, VerificationObligation,
         bcs_signable_test::{Foo, get_obligation_input},
-        get_key_pair,
+        get_key_pair, to_aggregate_signature,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPIForTesting},
     transaction::SenderSignedTransactionAPI,
@@ -303,7 +300,7 @@ fn test_handle_reject_malicious_signature() {
         );
         quorum
             .signature
-            .add_signature(BLS12381Signature::from_bytes(sig.bytes()).unwrap())
+            .add_signature(to_aggregate_signature(&sig).unwrap())
             .unwrap();
     }
     let (mut obligation, idx) = get_obligation_input(&message);

@@ -75,7 +75,7 @@ pub struct ValidatorMetadataV1 {
 #[derive(derive_more::Debug, Clone, Eq, PartialEq)]
 pub struct VerifiedValidatorMetadataV1 {
     pub iota_address: Address,
-    pub authority_pubkey: AuthorityPublicKey,
+    pub authority_pubkey: AggregateAuthorityPublicKey,
     pub network_pubkey: NetworkPublicKey,
     pub protocol_pubkey: NetworkPublicKey,
     #[debug(skip)]
@@ -87,7 +87,7 @@ pub struct VerifiedValidatorMetadataV1 {
     pub net_address: Multiaddr,
     pub p2p_address: Multiaddr,
     pub primary_address: Multiaddr,
-    pub next_epoch_authority_pubkey: Option<AuthorityPublicKey>,
+    pub next_epoch_authority_pubkey: Option<AggregateAuthorityPublicKey>,
     pub next_epoch_proof_of_possession: Option<Vec<u8>>,
     pub next_epoch_network_pubkey: Option<NetworkPublicKey>,
     pub next_epoch_protocol_pubkey: Option<NetworkPublicKey>,
@@ -102,23 +102,21 @@ impl VerifiedValidatorMetadataV1 {
     }
 }
 
-/// Checks a proof of possession on keys parsed the way this on-chain check
-/// always has: fastcrypto accepts compressed or uncompressed keys and leaves
-/// the group checks to the proof, so a bad key keeps aborting with
-/// `E_METADATA_INVALID_POP` and every node version agrees on the result.
+/// Checks a proof of possession for a key parsed with fastcrypto, which accepts
+/// compressed or uncompressed keys and leaves the group checks to this proof,
+/// so an invalid key fails with `E_METADATA_INVALID_POP`.
 fn verify_pop(
     authority_pubkey: &AggregateAuthorityPublicKey,
     pop: &BLS12381Signature,
     iota_address: Address,
-) -> Result<AuthorityPublicKey, u64> {
+) -> Result<(), u64> {
     let authority_pubkey = AuthorityPublicKeyBytes::from_bytes(authority_pubkey.as_bytes())
         .ok()
         .and_then(|bytes| AuthorityPublicKey::try_from(bytes).ok())
         .ok_or(E_METADATA_INVALID_POP)?;
     let pop = AuthoritySignature::from_bytes(pop.as_bytes()).map_err(|_| E_METADATA_INVALID_POP)?;
     verify_proof_of_possession(&pop, &authority_pubkey, iota_address)
-        .map_err(|_| E_METADATA_INVALID_POP)?;
-    Ok(authority_pubkey)
+        .map_err(|_| E_METADATA_INVALID_POP)
 }
 
 impl ValidatorMetadataV1 {
@@ -132,7 +130,7 @@ impl ValidatorMetadataV1 {
         // Verify proof of possession for the authority key
         let pop = BLS12381Signature::from_bytes(self.proof_of_possession_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_POP)?;
-        let authority_pubkey = verify_pop(&authority_pubkey, &pop, self.iota_address)?;
+        verify_pop(&authority_pubkey, &pop, self.iota_address)?;
 
         let network_pubkey = network_pubkey_from_bytes(self.network_pubkey_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?;
@@ -179,19 +177,20 @@ impl ValidatorMetadataV1 {
             )),
         }?;
         // Verify proof of possession for the next epoch authority key
-        let next_epoch_authority_pubkey = match next_epoch_authority_pubkey {
-            Some(next_epoch_authority_pubkey) => match next_epoch_pop {
-                Some(next_epoch_pop) => Some(verify_pop(
-                    &next_epoch_authority_pubkey,
-                    &next_epoch_pop,
-                    self.iota_address,
-                )?),
+        if let Some(ref next_epoch_authority_pubkey) = next_epoch_authority_pubkey {
+            match next_epoch_pop {
+                Some(next_epoch_pop) => {
+                    verify_pop(
+                        next_epoch_authority_pubkey,
+                        &next_epoch_pop,
+                        self.iota_address,
+                    )?;
+                }
                 None => {
                     return Err(E_METADATA_INVALID_POP);
                 }
-            },
-            None => None,
-        };
+            }
+        }
 
         let next_epoch_network_pubkey = match self.next_epoch_network_pubkey_bytes.clone() {
             None => Ok::<Option<NetworkPublicKey>, u64>(None),

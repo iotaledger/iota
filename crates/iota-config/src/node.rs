@@ -21,7 +21,7 @@ use iota_types::{
     committee::EpochId,
     crypto::{
         AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkPrivateKey,
-        get_key_pair_from_rng,
+        authority_keypair_serde, get_key_pair_from_rng,
     },
     messages_checkpoint::CheckpointSequenceNumber,
     supported_protocol_versions::{Chain, SupportedProtocolVersions},
@@ -1749,44 +1749,23 @@ pub struct AuthorityKeyPairWithPath {
 #[serde(untagged)]
 enum AuthorityKeyPairLocation {
     InPlace {
-        #[serde(with = "authority_keypair_bytes")]
-        value: Arc<AuthorityKeyPair>,
+        #[serde(with = "authority_keypair_serde")]
+        value: AuthorityKeyPair,
     },
     File {
         path: PathBuf,
     },
 }
 
-mod authority_keypair_bytes {
-    use std::sync::Arc;
-
-    use iota_types::crypto::{AuthorityKeyPair, authority_keypair_serde};
-    use serde::{Deserializer, Serializer};
-
-    pub(super) fn serialize<S: Serializer>(
-        value: &Arc<AuthorityKeyPair>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        authority_keypair_serde::serialize(value, serializer)
-    }
-
-    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Arc<AuthorityKeyPair>, D::Error> {
-        authority_keypair_serde::deserialize(deserializer).map(Arc::new)
-    }
-}
-
 impl AuthorityKeyPairWithPath {
     pub fn new(kp: AuthorityKeyPair) -> Self {
         let cell: OnceCell<Arc<AuthorityKeyPair>> = OnceCell::new();
-        let arc_kp = Arc::new(kp);
         // OK to unwrap panic because authority should not start without all keypairs
         // loaded.
-        cell.set(arc_kp.clone())
+        cell.set(Arc::new(kp.clone()))
             .expect("failed to set authority keypair");
         Self {
-            location: AuthorityKeyPairLocation::InPlace { value: arc_kp },
+            location: AuthorityKeyPairLocation::InPlace { value: kp },
             keypair: cell,
         }
     }
@@ -1809,7 +1788,7 @@ impl AuthorityKeyPairWithPath {
     pub fn authority_keypair(&self) -> &AuthorityKeyPair {
         self.keypair
             .get_or_init(|| match &self.location {
-                AuthorityKeyPairLocation::InPlace { value } => value.clone(),
+                AuthorityKeyPairLocation::InPlace { value } => Arc::new(value.clone()),
                 AuthorityKeyPairLocation::File { path } => {
                     // OK to unwrap panic because authority should not start without all keypairs
                     // loaded.

@@ -43,9 +43,8 @@ use iota_sdk_types::{
 };
 use iota_types::{
     crypto::{
-        AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
-        NetworkPrivateKey, NetworkPublicKey, Signable, generate_proof_of_possession,
-        get_authority_key_pair,
+        AuthorityKeyPair, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID, NetworkPrivateKey,
+        NetworkPublicKey, Signable, generate_proof_of_possession, get_authority_key_pair,
     },
     dynamic_field::DynamicFieldName,
     iota_system_state::{
@@ -1042,12 +1041,9 @@ async fn update_metadata(
             can_validator_mutate_all_data(context).await?;
             let iota_address = context.active_address()?;
             let authority_key_pair: AuthorityKeyPair = read_authority_keypair_from_file(file)?;
-            let authority_pub_key: AuthorityPublicKey = authority_key_pair.verifying_key();
             let pop = generate_proof_of_possession(&authority_key_pair, iota_address);
             let args = vec![
-                CallArg::pure(&AuthorityPublicKeyBytes::from_bytes(
-                    authority_pub_key.public_key().bytes(),
-                )?),
+                CallArg::pure(&AuthorityPublicKeyBytes::from(&authority_key_pair)),
                 CallArg::pure(&pop.bytes().to_vec()),
             ];
             call_0x5(

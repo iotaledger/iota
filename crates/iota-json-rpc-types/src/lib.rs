@@ -21,7 +21,7 @@ use iota_primitives::{
     TypeTag as TypeTagSchema,
 };
 pub use iota_protocol::*;
-use iota_sdk_types::{ObjectDigest, ObjectId, TypeTag};
+use iota_sdk_types::{Bls12381PublicKey, ObjectDigest, ObjectId, TypeTag};
 pub use iota_system_state_summary::*;
 pub use iota_transaction::*;
 use iota_types::{
@@ -374,7 +374,7 @@ impl From<MaybeTaggedBcsName> for BcsName {
 pub struct IotaAuthorityPublicKeyBytes(
     #[serde_as(as = "Base64")]
     #[schemars(with = "Base64Schema")]
-    pub [u8; iota_sdk_types::Bls12381PublicKey::LENGTH],
+    pub [u8; Bls12381PublicKey::LENGTH],
 );
 
 impl From<IotaAuthorityPublicKeyBytes> for AuthorityPublicKeyBytes {

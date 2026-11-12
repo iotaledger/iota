@@ -18,7 +18,7 @@ use tracing::warn;
 use crate::{
     base_types::{AuthorityName, EpochId},
     committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata, StakeUnit},
-    crypto::{AggregateAuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey},
+    crypto::{AggregateAuthorityPublicKey, NetworkPublicKey},
     iota_system_state::iota_system_state_inner_v1::ValidatorV1,
 };
 
@@ -451,9 +451,7 @@ pub fn convert_validator_to_epoch_start_info(validator: &ValidatorV1) -> EpochSt
     let metadata = validator.verified_metadata();
     EpochStartValidatorInfoV1 {
         iota_address: metadata.iota_address,
-        authority_pubkey: AuthorityPublicKeyBytes::from(&metadata.authority_pubkey)
-            .try_into()
-            .expect("verified metadata holds a valid authority public key"),
+        authority_pubkey: metadata.authority_pubkey.clone(),
         network_pubkey: metadata.network_pubkey,
         protocol_pubkey: metadata.protocol_pubkey,
         iota_net_address: metadata.net_address.clone(),

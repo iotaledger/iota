@@ -88,8 +88,8 @@ pub type AuthorityKeyPair = Bls12381PrivateKey;
 pub type AuthorityPublicKey = Bls12381VerifyingKey;
 pub type AuthorityPrivateKey = Bls12381PrivateKey;
 pub type AuthoritySignature = Bls12381Signature;
-// Aggregation and the batch check stay on fastcrypto, which owns the batch
-// multiplier policy; the two meet at byte conversions.
+// Aggregation and batch verification use fastcrypto; authority signatures
+// convert to it by bytes.
 pub type AggregateAuthorityPublicKey = BLS12381PublicKey;
 pub type AggregateAuthoritySignature = BLS12381AggregateSignature;
 pub type AggregateAuthoritySignatureAsBytes = BLS12381AggregateSignatureAsBytes;
@@ -139,8 +139,8 @@ pub fn verify_proof_of_possession(
         })
 }
 
-/// Reads and writes an authority keypair the way the node has always stored
-/// it: base64 of the raw private key in configs, the raw bytes elsewhere.
+/// Serializes an authority keypair as base64 of the raw private key in
+/// human-readable formats, and as the raw bytes otherwise.
 pub mod authority_keypair_serde {
     use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 
