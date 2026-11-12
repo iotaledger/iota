@@ -966,7 +966,7 @@ impl AuthorityMetrics {
 /// - Pin, i.e. confined to one place in memory (we don't want to copy private keys).
 /// - Sync, i.e. can be safely shared between threads.
 ///
-/// Typically instantiated with `Arc::pin(key)` where `key` is an `AuthorityKeyPair`
+/// Typically instantiated with Box::pin(keypair) where keypair is an `AuthorityKeyPair`
 pub type StableSyncAuthoritySigner = Pin<Arc<dyn Signer<AuthoritySignature> + Send + Sync>>;
 
 /// The checked transaction inputs and, per Move authenticator, its checked inputs.
