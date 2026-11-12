@@ -348,9 +348,7 @@ impl AbstractAccountTestEnv {
             .await
     }
 
-    /// Executes `tx`, which touches only owned objects, where consensus is not
-    /// involved.
-    pub(crate) async fn confirm(&self, tx: TransactionEnvelope) -> TransactionEffects {
+    async fn confirm(&self, tx: TransactionEnvelope) -> TransactionEffects {
         send_and_confirm_transaction(&self.authority, tx)
             .await
             .unwrap()
