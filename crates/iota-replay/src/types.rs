@@ -15,7 +15,7 @@ use iota_types::{
     base_types::VersionNumber,
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
-    transaction::InputObjectKind,
+    transaction::{InputObjectKind, TransactionDependencyReadResult},
 };
 use jsonrpsee::core::ClientError as JsonRpseeError;
 use move_binary_format::CompiledModule;
@@ -59,6 +59,9 @@ pub struct OnChainTransactionInfo {
     pub gas_price: u64,
     pub executed_epoch: u64,
     pub dependencies: Vec<TransactionDigest>,
+    /// The outcome of the transaction named by the transaction dependency
+    /// input, when execution read it.
+    pub transaction_dependency: Option<TransactionDependencyReadResult>,
     #[serde(skip)]
     pub receiving_objs: Vec<(ObjectId, Version)>,
     #[serde(skip)]

@@ -3368,7 +3368,7 @@ pub struct InputObjects {
 
 /// The outcome of the transaction named by a transaction dependency input, as
 /// read when the dependent is executed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TransactionDependencyReadResult {
     pub digest: TransactionDigest,
     pub succeeded: bool,
