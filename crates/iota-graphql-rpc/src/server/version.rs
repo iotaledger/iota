@@ -16,6 +16,10 @@ use crate::{
 };
 
 pub(crate) static VERSION_HEADER: HeaderName = HeaderName::from_static("x-iota-rpc-version");
+// TODO(https://github.com/iotaledger/iota/issues/13598): replace with
+// `iota_sdk_graphql_client::X_MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION` once an
+// `iota-sdk-graphql-client` release has it, and test that the bundled
+// `iota-sdk-graphql-client` accepts the minimum.
 pub(crate) static MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION_HEADER: HeaderName =
     HeaderName::from_static("x-min-iota-sdk-graphql-client-version");
 
