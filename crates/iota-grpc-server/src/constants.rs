@@ -20,8 +20,8 @@ pub const X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION: &str = "x-min-iota-sdk-grpc-client
 /// Raise it to the SDK release that ships a wire-visible change (a new enum
 /// variant, a new `oneof` case, ...) once that release is out, so clients on
 /// an older SDK fail their calls instead of choking on values they cannot
-/// decode. `scripts/check_min_sdk_version.py` fails in CI when a change to
-/// the BCS schema of `iota-sdk-types` requires raising it.
+/// decode. `scripts/check_min_iota_sdk_client_version.py` fails in CI when a
+/// change to the BCS schema of `iota-sdk-types` requires raising it.
 pub const MIN_IOTA_SDK_GRPC_CLIENT_VERSION: &str = "1.0.0-rc.1";
 
 /// Maximum number of nested `All`, `Any` and `Not` filters in a transaction or

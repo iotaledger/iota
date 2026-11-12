@@ -31,7 +31,7 @@ it to a commit of iota-rust-sdk or to a local path, there may be no client
 release to name yet, so the check passes; it applies again once a release is
 pinned.
 
-Usage: ./scripts/check_min_sdk_version.py
+Usage: ./scripts/check_min_iota_sdk_client_version.py
 """
 
 import difflib
@@ -83,7 +83,7 @@ CRATES_IO = "https://static.crates.io/crates"
 CRATES_IO_INDEX = "https://index.crates.io"
 # How Cargo.lock names crates.io as the source of a package.
 CRATES_IO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
-USER_AGENT = "iota/scripts/check_min_sdk_version.py"
+USER_AGENT = "iota/scripts/check_min_iota_sdk_client_version.py"
 
 # A requirement with a lower bound, such as `1.0.0-rc.2`, `^1.2` or `>=1`.
 REQUIREMENT = re.compile(
