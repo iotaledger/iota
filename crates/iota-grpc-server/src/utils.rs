@@ -4,9 +4,46 @@
 
 use std::sync::Arc;
 
-use iota_sdk_types::TypeTag;
+use iota_sdk_types::{Identifier, MAX_IDENTIFIER_LENGTH, TypeTag};
 
 use crate::GrpcReader;
+
+/// Parses the optional module or function name of a filter. `field` names it
+/// in the error, which shows at most [`MAX_IDENTIFIER_LENGTH`] bytes of the
+/// name.
+pub(crate) fn parse_filter_identifier(
+    name: Option<String>,
+    field: &str,
+) -> Result<Option<Identifier>, String> {
+    name.map(|name| {
+        // Checked before parsing because a parse error holds the rest of the input.
+        if name.len() > MAX_IDENTIFIER_LENGTH {
+            return Err(format!(
+                "invalid {field} name: {}",
+                quote_filter_input(&name)
+            ));
+        }
+        match Identifier::new(&name) {
+            // The parser accepts `<SELF>`, which never names a module or function.
+            Ok(identifier) if identifier.as_str() != "<SELF>" => Ok(identifier),
+            _ => Err(format!(
+                "invalid {field} name: {}",
+                quote_filter_input(&name)
+            )),
+        }
+    })
+    .transpose()
+}
+
+/// Quotes a filter value for an error message, shortened to
+/// [`MAX_IDENTIFIER_LENGTH`] bytes.
+pub(crate) fn quote_filter_input(value: &str) -> String {
+    if value.len() <= MAX_IDENTIFIER_LENGTH {
+        return format!("{value:?}");
+    }
+    let end = value.floor_char_boundary(MAX_IDENTIFIER_LENGTH);
+    format!("{:?}... ({} bytes)", &value[..end], value.len())
+}
 
 /// Per-item overhead when an item is placed in a protobuf `repeated`
 /// length-delimited field (field number 1-15):

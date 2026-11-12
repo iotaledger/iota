@@ -6,7 +6,10 @@ use iota_metrics::monitored_scope;
 use iota_sdk_types::{Address, Event, Identifier, ObjectId, StructTag};
 use serde::{Deserialize, Serialize};
 
-use crate::constants::count_filters;
+use crate::{
+    constants::count_filters,
+    utils::{parse_filter_identifier, quote_filter_input},
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EventFilter {
@@ -119,12 +122,7 @@ impl EventFilter {
                 let package_bytes = filter.package_id.ok_or("package_id is missing")?.object_id;
                 let package = ObjectId::from_bytes(&package_bytes)
                     .map_err(|e| format!("invalid package_id: {e}"))?;
-                let module = filter
-                    .module
-                    .map(|m| {
-                        Identifier::new(m.as_str()).map_err(|e| format!("invalid module name: {e}"))
-                    })
-                    .transpose()?;
+                let module = parse_filter_identifier(filter.module, "module")?;
                 Ok(EventFilter::MovePackageAndModule { package, module })
             }
             ProtoFilter::MoveEventPackageAndModule(filter) => {
@@ -132,19 +130,16 @@ impl EventFilter {
                 let package_bytes = filter.package_id.ok_or("package_id is missing")?.object_id;
                 let package = ObjectId::from_bytes(&package_bytes)
                     .map_err(|e| format!("invalid package_id: {e}"))?;
-                let module = filter
-                    .module
-                    .map(|m| {
-                        Identifier::new(m.as_str()).map_err(|e| format!("invalid module name: {e}"))
-                    })
-                    .transpose()?;
+                let module = parse_filter_identifier(filter.module, "module")?;
                 Ok(EventFilter::MoveEventPackageAndModule { package, module })
             }
             ProtoFilter::MoveEventType(filter) => {
-                let tag: StructTag = filter
-                    .struct_tag
-                    .parse()
-                    .map_err(|e| format!("invalid struct tag: {e}"))?;
+                let tag: StructTag = filter.struct_tag.parse().map_err(|_| {
+                    format!(
+                        "invalid struct tag: {}",
+                        quote_filter_input(&filter.struct_tag)
+                    )
+                })?;
                 Ok(EventFilter::MoveEventType(tag))
             }
             _ => Err("Unsupported event filter type".to_string()),
@@ -258,6 +253,25 @@ mod tests {
         let err = EventFilter::try_from(proto_all(vec![proto_event_type(); MAX_FILTER_NODES]))
             .unwrap_err();
         assert!(err.contains("nodes"), "{err}");
+    }
+
+    #[test]
+    fn proto_conversion_rejects_invalid_names_with_short_errors() {
+        let mut event_type = proto_filter::MoveEventTypeFilter::default();
+        event_type.struct_tag = "!".repeat(1_000_000);
+        let err = EventFilter::try_from(proto(ProtoFilter::MoveEventType(event_type))).unwrap_err();
+        assert!(err.starts_with("invalid struct tag"), "{err}");
+        assert!(err.len() < 200, "{} bytes", err.len());
+
+        let mut package_id = iota_grpc_types::v1::types::ObjectId::default();
+        package_id.object_id = ObjectId::random().as_bytes().to_vec().into();
+        let mut package_and_module = proto_filter::MovePackageAndModuleFilter::default();
+        package_and_module.package_id = Some(package_id);
+        package_and_module.module = Some("<SELF>".to_string());
+        let err =
+            EventFilter::try_from(proto(ProtoFilter::MovePackageAndModule(package_and_module)))
+                .unwrap_err();
+        assert!(err.contains("invalid module name"), "{err}");
     }
 
     #[test]

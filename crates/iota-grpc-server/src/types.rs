@@ -369,12 +369,12 @@ impl GrpcReader {
     pub(crate) fn get_checkpoint_data(
         &self,
         sequence_number: u64,
-        checkpoint_mask: FieldMaskTree,
-        transactions_mask: Option<FieldMaskTree>,
-        events_mask: Option<FieldMaskTree>,
+        checkpoint_mask: Arc<FieldMaskTree>,
+        transactions_mask: Option<Arc<FieldMaskTree>>,
+        events_mask: Option<Arc<FieldMaskTree>>,
         max_message_size_bytes: u32,
-        transaction_filter: Option<crate::transaction_filter::TransactionFilter>,
-        event_filter: Option<crate::event_filter::EventFilter>,
+        transaction_filter: Option<Arc<crate::transaction_filter::TransactionFilter>>,
+        event_filter: Option<Arc<crate::event_filter::EventFilter>>,
         metrics: RequestMetrics,
     ) -> std::pin::Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>> {
         let state_reader = self.state_reader.clone();
@@ -386,12 +386,12 @@ impl GrpcReader {
                         checkpoint_summary,
                         checkpoint_contents,
                         transaction_stream,
-                        &checkpoint_mask,
+                        checkpoint_mask,
                         transactions_mask,
                         events_mask,
                         max_message_size_bytes as usize,
-                        transaction_filter.map(Arc::new),
-                        event_filter.map(Arc::new),
+                        transaction_filter,
+                        event_filter,
                         metrics,
                     ));
 
@@ -424,9 +424,9 @@ impl GrpcReader {
         checkpoint_summary: CertifiedCheckpointSummary,
         checkpoint_contents: CheckpointContents,
         transaction_stream: S,
-        checkpoint_mask: &FieldMaskTree,
-        transactions_mask: Option<FieldMaskTree>,
-        events_mask: Option<FieldMaskTree>,
+        checkpoint_mask: Arc<FieldMaskTree>,
+        transactions_mask: Option<Arc<FieldMaskTree>>,
+        events_mask: Option<Arc<FieldMaskTree>>,
         max_message_size_bytes: usize,
         transaction_filter: Option<Arc<crate::transaction_filter::TransactionFilter>>,
         event_filter: Option<Arc<crate::event_filter::EventFilter>>,
@@ -436,9 +436,6 @@ impl GrpcReader {
         S: futures::Stream<Item = anyhow::Result<IotaTypesCheckpointTransaction>> + Send,
     {
         use grpc_ledger_service::checkpoint_data::EndMarker;
-
-        // Clone values needed across the async boundary
-        let checkpoint_mask = checkpoint_mask.clone();
 
         async_stream::stream! {
             let sequence_number = checkpoint_summary.data().sequence_number;
@@ -465,7 +462,9 @@ impl GrpcReader {
 
             // 2. Stream transactions and events if requested (interleaved)
             if transactions_mask.is_some() || events_mask.is_some() {
-                let tx_mask = transactions_mask.clone().unwrap_or_else(FieldMaskTree::new_wildcard);
+                let tx_mask = transactions_mask
+                    .clone()
+                    .unwrap_or_else(|| Arc::new(FieldMaskTree::new_wildcard()));
                 let should_collect_events = events_mask.is_some();
                 let events_submask = events_mask
                     .as_ref()
@@ -895,8 +894,8 @@ impl GrpcReader {
     /// Returns true on first match (OR semantics when both filters are set).
     async fn has_matching_data<S>(
         transaction_stream: S,
-        transaction_filter: &Option<Arc<crate::transaction_filter::TransactionFilter>>,
-        event_filter: &Option<Arc<crate::event_filter::EventFilter>>,
+        transaction_filter: Option<&crate::transaction_filter::TransactionFilter>,
+        event_filter: Option<&crate::event_filter::EventFilter>,
     ) -> Result<bool, Status>
     where
         S: futures::Stream<Item = anyhow::Result<IotaTypesCheckpointTransaction>> + Send,
@@ -906,13 +905,13 @@ impl GrpcReader {
             let checkpoint_transaction =
                 result.map_err(|e| Status::internal(format!("failed to read transaction: {e}")))?;
 
-            if let Some(ref tx_filter) = transaction_filter {
+            if let Some(tx_filter) = transaction_filter {
                 if tx_filter.matches_transaction(&checkpoint_transaction) {
                     return Ok(true);
                 }
             }
 
-            if let Some(ref evt_filter) = event_filter {
+            if let Some(evt_filter) = event_filter {
                 if let Some(ref tx_events) = checkpoint_transaction.events {
                     for event in &tx_events.0 {
                         if evt_filter.matches_event(event) {
@@ -935,8 +934,8 @@ impl GrpcReader {
     /// last emitted message.
     async fn match_checkpoint_filter_or_report_progress<S>(
         transaction_stream: S,
-        transaction_filter: &Option<Arc<crate::transaction_filter::TransactionFilter>>,
-        event_filter: &Option<Arc<crate::event_filter::EventFilter>>,
+        transaction_filter: Option<&crate::transaction_filter::TransactionFilter>,
+        event_filter: Option<&crate::event_filter::EventFilter>,
         last_msg_time: &std::sync::Mutex<tokio::time::Instant>,
         progress_interval: std::time::Duration,
         seq: u64,
@@ -971,13 +970,13 @@ impl GrpcReader {
         subscription: SubscribedReceiver,
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
-        checkpoint_mask: FieldMaskTree,
-        transactions_mask: Option<FieldMaskTree>,
-        events_mask: Option<FieldMaskTree>,
+        checkpoint_mask: Arc<FieldMaskTree>,
+        transactions_mask: Option<Arc<FieldMaskTree>>,
+        events_mask: Option<Arc<FieldMaskTree>>,
         max_message_size_bytes: u32,
         cancellation_token: CancellationToken,
-        transaction_filter: Option<crate::transaction_filter::TransactionFilter>,
-        event_filter: Option<crate::event_filter::EventFilter>,
+        transaction_filter: Option<Arc<crate::transaction_filter::TransactionFilter>>,
+        event_filter: Option<Arc<crate::event_filter::EventFilter>>,
         filter_checkpoints: bool,
         progress_interval: std::time::Duration,
         metrics: RequestMetrics,
@@ -993,8 +992,6 @@ impl GrpcReader {
         let checkpoint_mask_historical = checkpoint_mask.clone();
         let transactions_mask_historical = transactions_mask.clone();
         let events_mask_historical = events_mask.clone();
-        let transaction_filter = transaction_filter.map(Arc::new);
-        let event_filter = event_filter.map(Arc::new);
         let transaction_filter_historical = transaction_filter.clone();
         let event_filter_historical = event_filter.clone();
 
@@ -1039,8 +1036,8 @@ impl GrpcReader {
                                 let scan_stream = state_reader_inner.stream_checkpoint_transactions(checkpoint_contents.clone());
                                 match Self::match_checkpoint_filter_or_report_progress(
                                     scan_stream,
-                                    &tx_filter,
-                                    &ev_filter,
+                                    tx_filter.as_deref(),
+                                    ev_filter.as_deref(),
                                     &last_msg_time,
                                     progress_interval,
                                     seq,
@@ -1063,7 +1060,7 @@ impl GrpcReader {
                                 checkpoint_summary,
                                 checkpoint_contents,
                                 transaction_stream,
-                                &cp_mask,
+                                cp_mask,
                                 tx_mask,
                                 ev_mask,
                                 max_message_size_bytes as usize,
@@ -1101,8 +1098,8 @@ impl GrpcReader {
                             );
                             match Self::match_checkpoint_filter_or_report_progress(
                                 scan_stream,
-                                &tx_filter,
-                                &ev_filter,
+                                tx_filter.as_deref(),
+                                ev_filter.as_deref(),
                                 &last_msg_time,
                                 progress_interval,
                                 seq,
@@ -1131,7 +1128,7 @@ impl GrpcReader {
                             item.checkpoint_summary.clone(),
                             item.checkpoint_contents.clone(),
                             transaction_stream,
-                            &cp_mask,
+                            cp_mask,
                             tx_mask,
                             ev_mask,
                             max_message_size_bytes as usize,

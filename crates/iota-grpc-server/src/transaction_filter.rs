@@ -12,7 +12,7 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{constants::count_filters, event_filter::EventFilter};
+use crate::{constants::count_filters, event_filter::EventFilter, utils::parse_filter_identifier};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum TransactionKind {
@@ -143,18 +143,10 @@ impl TryFrom<proto_filter::CommandFilter> for CommandFilter {
                     .object_id;
                 let package = ObjectId::from_bytes(&package_bytes)
                     .map_err(|e| format!("invalid package_id: {e}"))?;
-                let module = call_filter
-                    .module
-                    .map(|m| Identifier::new(m).map_err(|e| format!("invalid module name: {e}")))
-                    .transpose()?;
-                let function = call_filter
-                    .function
-                    .map(|f| Identifier::new(f).map_err(|e| format!("invalid function name: {e}")))
-                    .transpose()?;
                 Ok(CommandFilter::MoveCall {
                     package,
-                    module,
-                    function,
+                    module: parse_filter_identifier(call_filter.module, "module")?,
+                    function: parse_filter_identifier(call_filter.function, "function")?,
                 })
             }
             ProtoCommandFilter::TransferObjects(_) => Ok(CommandFilter::TransferObjects),
@@ -512,13 +504,16 @@ mod tests {
         assert!(err.contains("nodes"), "{err}");
     }
 
-    fn proto_move_call(module: &str, function: &str) -> proto_filter::CommandFilter {
+    fn proto_move_call(
+        module: Option<&str>,
+        function: Option<&str>,
+    ) -> proto_filter::CommandFilter {
         let mut package_id = iota_grpc_types::v1::types::ObjectId::default();
         package_id.object_id = ObjectId::random().as_bytes().to_vec().into();
         let mut move_call = proto_filter::MoveCallCommandFilter::default();
         move_call.package_id = Some(package_id);
-        move_call.module = Some(module.to_string());
-        move_call.function = Some(function.to_string());
+        move_call.module = module.map(str::to_string);
+        move_call.function = function.map(str::to_string);
         let mut command = proto_filter::CommandFilter::default();
         command.filter = Some(proto_filter::command_filter::Filter::MoveCall(move_call));
         command
@@ -526,13 +521,42 @@ mod tests {
 
     #[test]
     fn proto_conversion_rejects_invalid_move_call_names() {
-        assert!(CommandFilter::try_from(proto_move_call("my_module", "my_func")).is_ok());
+        let filter =
+            CommandFilter::try_from(proto_move_call(Some("my_module"), Some("my_func"))).unwrap();
+        assert!(matches!(
+            filter,
+            CommandFilter::MoveCall {
+                module: Some(_),
+                function: Some(_),
+                ..
+            }
+        ));
+        let filter = CommandFilter::try_from(proto_move_call(None, None)).unwrap();
+        assert!(matches!(
+            filter,
+            CommandFilter::MoveCall {
+                module: None,
+                function: None,
+                ..
+            }
+        ));
 
         let too_long = "a".repeat(129);
-        let err = CommandFilter::try_from(proto_move_call(&too_long, "my_func")).unwrap_err();
-        assert!(err.contains("invalid module name"), "{err}");
-        let err = CommandFilter::try_from(proto_move_call("my_module", &too_long)).unwrap_err();
-        assert!(err.contains("invalid function name"), "{err}");
+        for name in ["", "my-module", "1abc", "_", "<SELF>", too_long.as_str()] {
+            let err = CommandFilter::try_from(proto_move_call(Some(name), None)).unwrap_err();
+            assert!(err.contains("invalid module name"), "{name}: {err}");
+            let err = CommandFilter::try_from(proto_move_call(None, Some(name))).unwrap_err();
+            assert!(err.contains("invalid function name"), "{name}: {err}");
+        }
+    }
+
+    #[test]
+    fn invalid_move_call_name_errors_are_shortened() {
+        for name in ["!".repeat(1_000_000), "a".repeat(1_000_000)] {
+            let err = CommandFilter::try_from(proto_move_call(Some(&name), None)).unwrap_err();
+            assert!(err.len() < 200, "{} bytes", err.len());
+            assert!(err.contains("(1000000 bytes)"), "{err}");
+        }
     }
 
     // --- CommandFilter matching tests ---

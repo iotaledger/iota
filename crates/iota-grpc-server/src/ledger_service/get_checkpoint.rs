@@ -72,6 +72,8 @@
 //!   - `events.bcs_contents` - the full BCS-encoded contents of the event
 //!   - `events.json_contents` - the JSON-encoded contents of the event
 
+use std::sync::Arc;
+
 use futures::Stream;
 use iota_grpc_types::{
     field::{FIELD_PATH_WILDCARD, FieldMaskTree, FieldMaskUtil},
@@ -92,22 +94,35 @@ use crate::{
     transaction_filter::TransactionFilter, types::CheckpointStreamResult,
 };
 
+/// The transaction and event filter of a checkpoint request.
+type CheckpointFilters = (Option<Arc<TransactionFilter>>, Option<Arc<EventFilter>>);
+
+/// The checkpoint, transactions and events parts of a checkpoint request's
+/// read mask.
+type CheckpointReadMasks = (
+    Arc<FieldMaskTree>,
+    Option<Arc<FieldMaskTree>>,
+    Option<Arc<FieldMaskTree>>,
+);
+
 /// Converts the proto filters to internal filters. Returns `invalid_argument`
 /// if a filter is malformed or exceeds the depth or size limits.
 fn convert_filters(
     transactions_filter: Option<iota_grpc_types::v1::filter::TransactionFilter>,
     events_filter: Option<iota_grpc_types::v1::filter::EventFilter>,
-) -> Result<(Option<TransactionFilter>, Option<EventFilter>), Status> {
+) -> Result<CheckpointFilters, Status> {
     // Convert proto filters to internal filters
     let transaction_filter = transactions_filter
         .map(TransactionFilter::try_from)
         .transpose()
-        .map_err(|e| Status::invalid_argument(format!("invalid transaction filter: {e}")))?;
+        .map_err(|e| Status::invalid_argument(format!("invalid transaction filter: {e}")))?
+        .map(Arc::new);
 
     let event_filter = events_filter
         .map(EventFilter::try_from)
         .transpose()
-        .map_err(|e| Status::invalid_argument(format!("invalid event filter: {e}")))?;
+        .map_err(|e| Status::invalid_argument(format!("invalid event filter: {e}")))?
+        .map(Arc::new);
 
     Ok((transaction_filter, event_filter))
 }
@@ -140,7 +155,7 @@ fn is_valid_checkpoint_data_path(path: &str) -> bool {
 /// transactions, and events.
 fn parse_checkpoint_read_mask(
     read_mask: Option<FieldMask>,
-) -> Result<(FieldMaskTree, Option<FieldMaskTree>, Option<FieldMaskTree>), RpcError> {
+) -> Result<CheckpointReadMasks, RpcError> {
     let read_mask = read_mask.unwrap_or_else(|| FieldMask::from_str(GET_CHECKPOINT_READ_MASK));
     if let Some(path) = read_mask
         .paths
@@ -154,13 +169,13 @@ fn parse_checkpoint_read_mask(
     let read_mask = FieldMaskTree::from(read_mask);
 
     // Extract checkpoint-related fields mask
-    let checkpoint_mask = read_mask.subtree("checkpoint").unwrap_or_default();
+    let checkpoint_mask = Arc::new(read_mask.subtree("checkpoint").unwrap_or_default());
 
     // Extract transactions mask if requested
-    let transactions_mask = read_mask.subtree("transactions");
+    let transactions_mask = read_mask.subtree("transactions").map(Arc::new);
 
     // Extract events mask if requested
-    let events_mask = read_mask.subtree("events");
+    let events_mask = read_mask.subtree("events").map(Arc::new);
 
     Ok((checkpoint_mask, transactions_mask, events_mask))
 }
@@ -421,6 +436,27 @@ mod tests {
         let status = convert_filters(Some(filter), None).unwrap_err();
         assert_eq!(status.code(), tonic::Code::InvalidArgument);
         assert!(status.message().contains("levels"), "{}", status.message());
+    }
+
+    #[test]
+    fn invalid_move_call_names_are_invalid_arguments() {
+        let mut package_id = iota_grpc_types::v1::types::ObjectId::default();
+        package_id.object_id = vec![0; 32].into();
+        let mut move_call = proto_filter::MoveCallCommandFilter::default();
+        move_call.package_id = Some(package_id);
+        move_call.module = Some("my-module".to_string());
+        let mut command = proto_filter::CommandFilter::default();
+        command.filter = Some(proto_filter::command_filter::Filter::MoveCall(move_call));
+        let mut filter = proto_filter::TransactionFilter::default();
+        filter.filter = Some(proto_filter::transaction_filter::Filter::Command(command));
+
+        let status = convert_filters(Some(filter), None).unwrap_err();
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+        assert!(
+            status.message().contains("invalid module name"),
+            "{}",
+            status.message()
+        );
     }
 
     #[test]
