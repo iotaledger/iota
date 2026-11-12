@@ -4,9 +4,11 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_types::{ObjectId, TransactionDigest};
-use move_binary_format::errors::PartialVMResult;
-use move_core_types::{account_address::AccountAddress, gas_algebra::InternalGas};
+use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version};
+use move_binary_format::errors::{PartialVMError, PartialVMResult};
+use move_core_types::{
+    account_address::AccountAddress, gas_algebra::InternalGas, vm_status::StatusCode,
+};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
@@ -420,6 +422,56 @@ pub fn ids_created(
     ))
 }
 
+/// Abort code of `iota::tx_context::native_take_gas_coin_nonce` when the
+/// transaction has no gas coin.
+const E_NO_GAS_COIN: u64 = 2;
+
+#[derive(Clone)]
+pub struct TxContextTakeGasCoinNonceCostParams {
+    pub tx_context_take_gas_coin_nonce_cost_base: Option<InternalGas>,
+}
+/// Implementation of the Move native function
+/// `fun native_take_gas_coin_nonce(): (address, u64, u64)`
+///
+/// Returns the ID and version, as listed in the transaction, of the first gas
+/// coin, and the index of this nonce among those taken from it, then moves the
+/// index on. Aborts with `E_NO_GAS_COIN` if the transaction has no gas coin.
+///
+/// gas cost: tx_context_take_gas_coin_nonce_cost_base
+pub fn take_gas_coin_nonce(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.is_empty());
+
+    let cost_base = context
+        .extensions()
+        .get::<NativesCostTable>()?
+        .tx_context_take_gas_coin_nonce_cost_params
+        .tx_context_take_gas_coin_nonce_cost_base
+        .ok_or_else(|| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message("Gas cost for take_gas_coin_nonce not available".to_string())
+        })?;
+    native_charge_gas_early_exit!(context, cost_base);
+
+    let transaction_context: &mut TransactionContext = context.extensions_mut().get_mut()?;
+    let Some((gas_coin, index)) = transaction_context.take_gas_coin_nonce() else {
+        return Ok(NativeResult::err(context.gas_used(), E_NO_GAS_COIN));
+    };
+
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![
+            Value::address(AccountAddress::new(gas_coin.object_id.into_bytes())),
+            Value::u64(gas_coin.version.as_u64()),
+            Value::u64(index),
+        ],
+    ))
+}
+
 // //
 // // Test only function
 // //
@@ -486,6 +538,46 @@ pub fn replace(
         gas_budget,
         sponsor.pop(),
     )?;
+
+    Ok(NativeResult::ok(context.gas_used(), smallvec![]))
+}
+
+/// Implementation of the Move test-only native function
+/// `fun replace_gas_coin(id: vector<address>, version: u64)`
+///
+/// Sets the gas coin to `id` at `version`, or removes it if `id` is empty, and
+/// restarts the index of its nonces at 0.
+///
+/// gas cost: tx_context_replace_cost_base
+pub fn replace_gas_coin(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.len() == 2);
+
+    let tx_context_replace_cost_params = context
+        .extensions_mut()
+        .get::<NativesCostTable>()?
+        .tx_context_replace_cost_params
+        .clone();
+    native_charge_gas_early_exit!(
+        context,
+        tx_context_replace_cost_params.tx_context_replace_cost_base
+    );
+
+    let version: u64 = pop_arg!(args, u64);
+    let mut id: Vec<AccountAddress> = pop_arg!(args, Vec<AccountAddress>);
+    let gas_coin = id.pop().map(|id| {
+        ObjectReference::new(
+            ObjectId::new(id.into_bytes()),
+            Version::from_u64(version),
+            ObjectDigest::MIN,
+        )
+    });
+    let transaction_context: &mut TransactionContext = context.extensions_mut().get_mut()?;
+    transaction_context.set_gas_coin(gas_coin)?;
 
     Ok(NativeResult::ok(context.gas_used(), smallvec![]))
 }

@@ -5624,6 +5624,124 @@ pub fn dev_inspect_with_budget(
     authority.simulate_transaction_in_epoch(&epoch_store, transaction, VmChecks::Disabled)
 }
 
+/// Simulates on `fullnode`, with the Move VM checks relaxed so that a PTB can
+/// call the package function `tx_context::take_gas_coin_nonce`, a transaction
+/// whose three commands each take a gas coin nonce. Returns the gas coin ID,
+/// version and index each command got, and the version of the gas coin after
+/// execution.
+fn take_three_gas_coin_nonces(
+    fullnode: &AuthorityState,
+    sender: Address,
+    gas_payment: GasPayment,
+) -> (Vec<(ObjectId, u64, u64)>, Version) {
+    let take_gas_coin_nonce = Command::new_move_call(
+        ObjectId::FRAMEWORK,
+        Identifier::from_static("tx_context"),
+        Identifier::from_static("take_gas_coin_nonce"),
+        vec![],
+        vec![],
+    );
+    let transaction = Transaction::V1(TransactionV1 {
+        kind: TransactionKind::new_programmable(ProgrammableTransaction {
+            inputs: vec![],
+            commands: vec![take_gas_coin_nonce; 3],
+        }),
+        sender,
+        gas_payment,
+        expiration: TransactionExpiration::None,
+    });
+    let result = fullnode
+        .simulate_transaction(transaction, VmChecks::Disabled)
+        .unwrap();
+    assert!(
+        result.effects.status().is_success(),
+        "{:?}",
+        result.effects.status()
+    );
+
+    let nonces = result
+        .execution_result
+        .unwrap()
+        .into_iter()
+        .map(|(_, return_values)| {
+            let [(id, _), (version, _), (index, _)] = <[_; 3]>::try_from(return_values).unwrap();
+            (
+                bcs::from_bytes(&id).unwrap(),
+                bcs::from_bytes(&version).unwrap(),
+                bcs::from_bytes(&index).unwrap(),
+            )
+        })
+        .collect();
+    (nonces, result.effects.gas_object().reference().version)
+}
+
+#[tokio::test]
+async fn test_take_gas_coin_nonce_across_commands() {
+    let sender = Address::random();
+    let gas_object = Object::with_id_owner_version_for_testing(
+        ObjectId::random(),
+        Version::from_u64(5),
+        Owner::Address(sender),
+    );
+    let gas_coin = gas_object.object_ref();
+    let (_, fullnode) = init_state_validator_with_fullnode().await;
+    fullnode.insert_genesis_object(gas_object);
+
+    let (nonces, version_after_execution) = take_three_gas_coin_nonces(
+        &fullnode,
+        sender,
+        GasPayment {
+            objects: vec![gas_coin],
+            owner: sender,
+            price: 0,
+            budget: 0,
+        },
+    );
+
+    // The index carries across the commands, and the version is the one the
+    // transaction lists, not the one the gas coin gets from the execution.
+    let listed_version = gas_coin.version.as_u64();
+    assert_eq!(
+        nonces,
+        vec![
+            (gas_coin.object_id, listed_version, 0),
+            (gas_coin.object_id, listed_version, 1),
+            (gas_coin.object_id, listed_version, 2),
+        ]
+    );
+    assert_ne!(version_after_execution, gas_coin.version);
+}
+
+#[tokio::test]
+async fn test_take_gas_coin_nonce_in_sponsored_transaction() {
+    let sender = Address::random();
+    let sponsor = Address::random();
+    let sponsor_gas_object = Object::with_id_owner_for_testing(ObjectId::random(), sponsor);
+    let sponsor_gas_coin = sponsor_gas_object.object_ref();
+    let (_, fullnode) = init_state_validator_with_fullnode().await;
+    fullnode.insert_genesis_object(sponsor_gas_object);
+
+    let (nonces, _) = take_three_gas_coin_nonces(
+        &fullnode,
+        sender,
+        GasPayment {
+            objects: vec![sponsor_gas_coin],
+            owner: sponsor,
+            price: 0,
+            budget: 0,
+        },
+    );
+
+    assert_eq!(
+        nonces[0],
+        (
+            sponsor_gas_coin.object_id,
+            sponsor_gas_coin.version.as_u64(),
+            0
+        )
+    );
+}
+
 /// Resolve a simulation's events for display the way the RPC layer does: over
 /// the objects the simulation wrote, falling back to the authority's store, so
 /// that events of a package published by the transaction itself resolve too.

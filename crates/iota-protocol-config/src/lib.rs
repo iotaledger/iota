@@ -1443,6 +1443,9 @@ pub struct ProtocolConfig {
     tx_context_gas_budget_cost_base: Option<u64>,
     tx_context_ids_created_cost_base: Option<u64>,
     tx_context_replace_cost_base: Option<u64>,
+    // Cost param for the Move native function `tx_context::native_take_gas_coin_nonce(): (address,
+    // u64, u64)`
+    tx_context_take_gas_coin_nonce_cost_base: Option<u64>,
 
     // Types
     // Cost params for the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
@@ -2925,6 +2928,7 @@ impl ProtocolConfig {
             tx_context_gas_budget_cost_base: None,
             tx_context_ids_created_cost_base: None,
             tx_context_replace_cost_base: None,
+            tx_context_take_gas_coin_nonce_cost_base: None,
 
             // `types` module
             // Cost params for the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
@@ -4055,6 +4059,7 @@ impl ProtocolConfig {
                     cfg.ecdsa_r1_secp256r1_validate_pubkey_cost_base = Some(52);
                     cfg.multisig_multisig_validate_pubkey_cost_base = Some(52);
                     cfg.public_key_to_iota_address_impl_cost_base = Some(52);
+                    cfg.tx_context_take_gas_coin_nonce_cost_base = Some(30);
                 }
                 // Use this template when making changes:
                 //

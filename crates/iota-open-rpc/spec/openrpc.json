@@ -2283,6 +2283,9 @@
                 "tx_context_sponsor_cost_base": {
                   "u64": "30"
                 },
+                "tx_context_take_gas_coin_nonce_cost_base": {
+                  "u64": "30"
+                },
                 "type_name_get_base_cost": {
                   "u64": "52"
                 },

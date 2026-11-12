@@ -1320,3 +1320,39 @@ fun test_tx_context_bad_epoch_timestamp() {
 
     scenario.end();
 }
+
+#[test]
+fun test_tx_context_with_gas_coin() {
+    use std::unit_test::assert_eq;
+
+    let ctx_builder = test_scenario::ctx_builder_from_sender(@0xB).set_gas_coin(@0xC0, 7);
+    let mut scenario = test_scenario::begin_with_context(ctx_builder);
+    let (id, version, index) = scenario.ctx().take_gas_coin_nonce();
+    assert_eq!(id, @0xC0);
+    assert_eq!(version, 7);
+    assert_eq!(index, 0);
+    let (_, _, index) = scenario.ctx().take_gas_coin_nonce();
+    assert_eq!(index, 1);
+
+    // the next transaction starts again at index 0
+    let ctx_builder = test_scenario::ctx_builder_from_sender(@0xB).set_gas_coin(@0xC0, 8);
+    scenario.next_with_context(ctx_builder);
+    let (id, version, index) = scenario.ctx().take_gas_coin_nonce();
+    assert_eq!(id, @0xC0);
+    assert_eq!(version, 8);
+    assert_eq!(index, 0);
+
+    scenario.end();
+}
+
+#[test]
+#[expected_failure(abort_code = 2, location = iota::tx_context)]
+fun test_next_tx_has_no_gas_coin() {
+    let ctx_builder = test_scenario::ctx_builder_from_sender(@0xB).set_gas_coin(@0xC0, 7);
+    let mut scenario = test_scenario::begin_with_context(ctx_builder);
+
+    scenario.next_tx(@0xB);
+    let (_, _, _) = scenario.ctx().take_gas_coin_nonce();
+
+    scenario.end();
+}
