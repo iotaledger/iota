@@ -37,6 +37,7 @@ Usage: ./scripts/check_min_sdk_version.py
 import difflib
 import functools
 import io
+import json
 import re
 import sys
 import tarfile
@@ -79,6 +80,7 @@ TYPES_CRATE = "iota-sdk-types"
 SCHEMA = "bcs-schema.abnf"
 
 CRATES_IO = "https://static.crates.io/crates"
+CRATES_IO_INDEX = "https://index.crates.io"
 # How Cargo.lock names crates.io as the source of a package.
 CRATES_IO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 USER_AGENT = "iota/scripts/check_min_sdk_version.py"
@@ -94,16 +96,16 @@ def fail(message: str):
     sys.exit(f"error: {message}")
 
 
-def fetch(url: str) -> bytes | None:
-    """The content at `url`, or `None` when nothing is published there."""
+def fetch(url: str, missing: tuple[int, ...] = (404,)) -> bytes | None:
+    """The content at `url`, or `None` when the server answers with one of the
+    `missing` statuses."""
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     for attempt in range(3):
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
                 return response.read()
         except urllib.error.HTTPError as error:
-            # static.crates.io answers 403 for a file that does not exist.
-            if error.code in (403, 404):
+            if error.code in missing:
                 return None
             last_error = error
         except urllib.error.URLError as error:
@@ -113,11 +115,36 @@ def fetch(url: str) -> bytes | None:
 
 
 @functools.cache
+def published_versions(crate: str) -> set[str]:
+    """The versions of `crate` listed in the crates.io index."""
+    name = crate.lower()
+    if len(name) <= 2:
+        directory = str(len(name))
+    elif len(name) == 3:
+        directory = f"3/{name[0]}"
+    else:
+        directory = f"{name[:2]}/{name[2:4]}"
+    index = fetch(f"{CRATES_IO_INDEX}/{directory}/{name}")
+    if index is None:
+        return set()
+    return {json.loads(line)["vers"] for line in index.decode().splitlines() if line}
+
+
+@functools.cache
 def crate_file(crate: str, version: str, path: str) -> str | None:
     """A file of a crates.io release, or `None` when the release does not
     exist."""
-    archive = fetch(f"{CRATES_IO}/{crate}/{crate}-{version}.crate")
+    url = f"{CRATES_IO}/{crate}/{crate}-{version}.crate"
+    # static.crates.io has answered 403 as well as 404 for a file that does
+    # not exist, so the index decides whether a refused download is a missing
+    # release.
+    archive = fetch(url, missing=(403, 404))
     if archive is None:
+        if version in published_versions(crate):
+            fail(
+                f"{crate} {version} is on crates.io, but {url} could not be "
+                "downloaded"
+            )
         return None
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as tar:
         try:
