@@ -7,7 +7,7 @@
 
 use std::str::FromStr;
 
-use fastcrypto::encoding::{Base58, Base64, Encoding};
+use fastcrypto::encoding::{Base58, Encoding};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::{Signer as _, ToFromBytes as _};
 use iota_sdk_types::{
@@ -328,7 +328,7 @@ fn test_authority_signature_serde_human_readable() {
         &key,
     );
     let serialized = serde_json::to_string(&sig).unwrap();
-    assert_eq!(format!("\"{}\"", Base64::encode(sig.bytes())), serialized);
+    assert_eq!(format!("\"{sig}\""), serialized);
     let deserialized: AuthoritySignature = serde_json::from_str(&serialized).unwrap();
     assert_eq!(deserialized.bytes(), sig.bytes());
 }

@@ -12,7 +12,9 @@ use iota_sdk_types::crypto::Intent;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, StakeUnit},
-    crypto::{AuthorityQuorumSignInfo, AuthoritySignInfo, AuthoritySignInfoTrait},
+    crypto::{
+        AuthorityQuorumSignInfo, AuthoritySignInfo, AuthoritySignInfoTrait, to_aggregate_signature,
+    },
     error::{IotaError, IotaResult},
     message_envelope::{Envelope, Message},
 };
@@ -138,73 +140,80 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                 },
             };
         }
+        // A signature that is not a curve point would make every aggregation of
+        // this quorum fail, so it is rejected before it is counted.
+        if let Err(error) = to_aggregate_signature(&sig.signature) {
+            return InsertResult::Failed { error };
+        }
         match self.insert_generic(sig.authority, sig) {
             InsertResult::QuorumReached(_) => {
-                // A signature that is not a curve point already fails aggregation, so it
-                // takes the same path as one that fails verification and is evicted below.
                 match AuthorityQuorumSignInfo::<STRENGTH>::new_from_auth_sign_infos(
                     self.data.values().cloned().collect(),
                     self.committee(),
-                )
-                .and_then(|aggregated| {
-                    aggregated
-                        .verify_secure(&data, Intent::iota_app(T::SCOPE), self.committee())
-                        .map(|()| aggregated)
-                }) {
-                    // In the happy path, the aggregated signature verifies ok and no need
-                    // to verify individual.
-                    Ok(aggregated) => InsertResult::QuorumReached(aggregated),
-                    Err(_) => {
-                        // If the aggregated signature fails to verify, fallback to
-                        // iterating through all signatures
-                        // and verify individually. Decrement total votes and continue
-                        // to find new authority for signature to reach the quorum.
-                        //
-                        // TODO(joyqvq): It is possible for the aggregated signature to fail
-                        // every time when the latest one
-                        // single signature fails to verify repeatedly, and trigger
-                        // this for loop to run. This can be optimized by caching single sig
-                        // verification result only verify
-                        // the net new ones.
-                        let mut bad_votes = 0;
-                        let mut bad_authorities = vec![];
-                        for (name, sig) in &self.data.clone() {
-                            if let Err(err) = sig.verify_secure(
-                                &data,
-                                Intent::iota_app(T::SCOPE),
-                                self.committee(),
-                            ) {
-                                // TODO(joyqvq): Currently, the aggregator cannot do much
-                                // with an authority that
-                                // always returns an invalid signature other than saving to
-                                // errors in state. It
-                                // is possible to add the authority to a denylist or  punish
-                                // the byzantine authority.
-                                warn!(name=?name.concise(), "Bad stake from validator: {:?}", err);
-                                self.data.remove(name);
-                                let votes = self.committee.weight(name);
-                                self.total_votes -= votes;
-                                bad_votes += votes;
-                                bad_authorities.push(*name);
-                            }
-                        }
-                        // After evicting invalid sigs, the remaining valid sigs may
-                        // still constitute a quorum on their own.
-                        if self.total_votes >= self.committee.threshold::<STRENGTH>() {
-                            match AuthorityQuorumSignInfo::<STRENGTH>::new_from_auth_sign_infos(
-                                self.data.values().cloned().collect(),
-                                self.committee(),
-                            ) {
-                                Ok(aggregated) => InsertResult::QuorumReached(aggregated),
-                                Err(error) => InsertResult::Failed { error },
-                            }
-                        } else {
-                            InsertResult::NotEnoughVotes {
-                                bad_votes,
-                                bad_authorities,
+                ) {
+                    Ok(aggregated) => {
+                        match aggregated.verify_secure(
+                            &data,
+                            Intent::iota_app(T::SCOPE),
+                            self.committee(),
+                        ) {
+                            // In the happy path, the aggregated signature verifies ok and no need
+                            // to verify individual.
+                            Ok(_) => InsertResult::QuorumReached(aggregated),
+                            Err(_) => {
+                                // If the aggregated signature fails to verify, fallback to
+                                // iterating through all signatures
+                                // and verify individually. Decrement total votes and continue
+                                // to find new authority for signature to reach the quorum.
+                                //
+                                // TODO(joyqvq): It is possible for the aggregated signature to fail
+                                // every time when the latest one
+                                // single signature fails to verify repeatedly, and trigger
+                                // this for loop to run. This can be optimized by caching single sig
+                                // verification result only verify
+                                // the net new ones.
+                                let mut bad_votes = 0;
+                                let mut bad_authorities = vec![];
+                                for (name, sig) in &self.data.clone() {
+                                    if let Err(err) = sig.verify_secure(
+                                        &data,
+                                        Intent::iota_app(T::SCOPE),
+                                        self.committee(),
+                                    ) {
+                                        // TODO(joyqvq): Currently, the aggregator cannot do much
+                                        // with an authority that
+                                        // always returns an invalid signature other than saving to
+                                        // errors in state. It
+                                        // is possible to add the authority to a denylist or  punish
+                                        // the byzantine authority.
+                                        warn!(name=?name.concise(), "Bad stake from validator: {:?}", err);
+                                        self.data.remove(name);
+                                        let votes = self.committee.weight(name);
+                                        self.total_votes -= votes;
+                                        bad_votes += votes;
+                                        bad_authorities.push(*name);
+                                    }
+                                }
+                                // After evicting invalid sigs, the remaining valid sigs may
+                                // still constitute a quorum on their own.
+                                if self.total_votes >= self.committee.threshold::<STRENGTH>() {
+                                    match AuthorityQuorumSignInfo::<STRENGTH>::new_from_auth_sign_infos(
+                                        self.data.values().cloned().collect(),
+                                        self.committee(),
+                                    ) {
+                                        Ok(aggregated) => InsertResult::QuorumReached(aggregated),
+                                        Err(error) => InsertResult::Failed { error },
+                                    }
+                                } else {
+                                    InsertResult::NotEnoughVotes {
+                                        bad_votes,
+                                        bad_authorities,
+                                    }
+                                }
                             }
                         }
                     }
+                    Err(error) => InsertResult::Failed { error },
                 }
             }
             // The following is necessary to change the template type of InsertResult.
@@ -345,10 +354,7 @@ mod stake_aggregator_insert_tests {
     use iota_types::{
         base_types::AuthorityName,
         committee::Committee,
-        crypto::{
-            AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature,
-            random_committee_key_pairs_of_size,
-        },
+        crypto::{AuthoritySignInfo, AuthoritySignature, random_committee_key_pairs_of_size},
         message_envelope::{Envelope, Message},
     };
     use serde::Serialize;
@@ -371,9 +377,13 @@ mod stake_aggregator_insert_tests {
         }
     }
 
-    /// A two-validator committee: the first sorted authority has ~7000 weight
-    /// (> QUORUM_THRESHOLD ~6667), the second ~3000.
-    fn two_validator_committee() -> (Arc<Committee>, [(AuthorityName, AuthorityKeyPair); 2]) {
+    /// Regression test: `StakeAggregator::insert` must not return
+    /// `NotEnoughVotes` when the remaining valid sigs (after bad-sig
+    /// eviction) still form a quorum.
+    #[test]
+    fn test_quorum_not_lost_after_bad_sig_eviction() {
+        // Two-validator committee: first sorted authority has ~7000 weight
+        // (> QUORUM_THRESHOLD ~6667), second has ~3000 weight.
         let key_pairs = random_committee_key_pairs_of_size(2);
         let mut names: Vec<AuthorityName> = key_pairs.iter().map(AuthorityName::from).collect();
         names.sort();
@@ -393,24 +403,9 @@ mod stake_aggregator_insert_tests {
                 .iter()
                 .find(|kp| &AuthorityName::from(*kp) == name)
                 .unwrap()
-                .clone()
         };
-        (
-            committee,
-            [
-                (names[0], find_kp(&names[0])),
-                (names[1], find_kp(&names[1])),
-            ],
-        )
-    }
-
-    /// Regression test: `StakeAggregator::insert` must not return
-    /// `NotEnoughVotes` when the remaining valid sigs (after bad-sig
-    /// eviction) still form a quorum.
-    #[test]
-    fn test_quorum_not_lost_after_bad_sig_eviction() {
-        let (committee, [(auth0, key0), (auth1, key1)]) = two_validator_committee();
-        let (key0, key1) = (&key0, &key1);
+        let (auth0, key0) = (names[0], find_kp(&names[0]));
+        let (auth1, key1) = (names[1], find_kp(&names[1]));
 
         let mut agg: StakeAggregator<AuthoritySignInfo, true> = StakeAggregator::new(committee);
 
@@ -440,33 +435,22 @@ mod stake_aggregator_insert_tests {
         );
     }
 
-    /// A signature that is not a curve point fails aggregation itself, so it
-    /// must be evicted like one that fails to verify instead of blocking the
-    /// quorum the other signatures reach.
     #[test]
-    fn test_quorum_not_lost_to_sig_that_is_not_a_curve_point() {
-        let (committee, [(auth0, key0), (auth1, _)]) = two_validator_committee();
+    fn test_sig_that_is_not_a_curve_point_is_rejected() {
+        let (committee, key_pairs) = Committee::new_simple_test_committee_of_size(4);
+        let mut agg: StakeAggregator<AuthoritySignInfo, true> =
+            StakeAggregator::new(Arc::new(committee));
 
-        let mut agg: StakeAggregator<AuthoritySignInfo, true> = StakeAggregator::new(committee);
-
-        let msg = TestMessage {
-            value: "real".to_string(),
-        };
-
-        let envelope_bad = Envelope::new_from_data_and_sig(
-            msg.clone(),
+        let envelope = Envelope::new_from_data_and_sig(
+            TestMessage {
+                value: "real".to_string(),
+            },
             AuthoritySignInfo {
                 epoch: 0,
-                authority: auth1,
+                authority: (&key_pairs[0]).into(),
                 signature: AuthoritySignature::new([0xff; AuthoritySignature::LENGTH]),
             },
         );
-        assert!(matches!(
-            agg.insert(envelope_bad),
-            InsertResult::NotEnoughVotes { .. }
-        ));
-
-        let envelope_good = Envelope::<TestMessage, AuthoritySignInfo>::new(0, msg, &key0, auth0);
-        assert!(agg.insert(envelope_good).is_quorum_reached());
+        assert!(matches!(agg.insert(envelope), InsertResult::Failed { .. }));
     }
 }

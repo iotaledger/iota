@@ -110,10 +110,9 @@ fn verify_pop(
     pop: &BLS12381Signature,
     iota_address: Address,
 ) -> Result<(), u64> {
-    let authority_pubkey = AuthorityPublicKeyBytes::from_bytes(authority_pubkey.as_bytes())
-        .ok()
-        .and_then(|bytes| AuthorityPublicKey::try_from(bytes).ok())
-        .ok_or(E_METADATA_INVALID_POP)?;
+    let authority_pubkey =
+        AuthorityPublicKey::try_from(AuthorityPublicKeyBytes::from(authority_pubkey))
+            .map_err(|_| E_METADATA_INVALID_POP)?;
     let pop = AuthoritySignature::from_bytes(pop.as_bytes()).map_err(|_| E_METADATA_INVALID_POP)?;
     verify_proof_of_possession(&pop, &authority_pubkey, iota_address)
         .map_err(|_| E_METADATA_INVALID_POP)
@@ -784,7 +783,7 @@ mod tests {
         infinity[0] = 0xc0;
 
         assert!(
-            metadata(address, compressed, pop.clone())
+            metadata(address, compressed.clone(), pop.clone())
                 .verify(true)
                 .is_ok()
         );
@@ -794,8 +793,33 @@ mod tests {
                 .is_ok()
         );
         assert_eq!(
-            metadata(address, infinity, pop).verify(true).unwrap_err(),
+            metadata(address, infinity, pop.clone())
+                .verify(true)
+                .unwrap_err(),
             E_METADATA_INVALID_POP
         );
+        assert_eq!(
+            metadata(address, vec![0xff; compressed.len()], pop.clone())
+                .verify(true)
+                .unwrap_err(),
+            E_METADATA_INVALID_AUTHORITY_PUBKEY
+        );
+        assert_eq!(
+            metadata(
+                Address::new([4; Address::LENGTH]),
+                compressed.clone(),
+                pop.clone()
+            )
+            .verify(true)
+            .unwrap_err(),
+            E_METADATA_INVALID_POP
+        );
+
+        let mut next_epoch = metadata(address, compressed.clone(), pop.clone());
+        next_epoch.next_epoch_authority_pubkey_bytes = Some(compressed);
+        next_epoch.next_epoch_proof_of_possession = Some(pop);
+        assert!(next_epoch.verify(true).is_ok());
+        next_epoch.next_epoch_proof_of_possession = None;
+        assert_eq!(next_epoch.verify(true).unwrap_err(), E_METADATA_INVALID_POP);
     }
 }
