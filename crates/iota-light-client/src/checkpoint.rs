@@ -4,7 +4,8 @@
 
 use std::{
     fs,
-    io::{Read, Write},
+    io::{self, Read, Write},
+    path::Path,
 };
 
 use anyhow::{Context, Result, bail};
@@ -13,7 +14,8 @@ use iota_data_ingestion_core::history::epoch_boundaries::EpochBoundaries;
 use iota_json_rpc_types::CheckpointId;
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
-    committee::CommitteeChainVerifier, messages_checkpoint::CertifiedCheckpointSummary,
+    committee::{Committee, CommitteeChainVerifier},
+    messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
 };
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
@@ -53,29 +55,96 @@ pub fn read_checkpoint_summary(config: &Config, seq: u64) -> Result<CertifiedChe
     let mut reader = fs::File::open(checkpoint_path)?;
     let mut buffer = Vec::new();
     reader.read_to_end(&mut buffer)?;
-    Ok(bcs::from_bytes(&buffer).expect("Unable to parse checkpoint file"))
+    bcs::from_bytes(&buffer).context("Unable to parse checkpoint file")
+}
+
+/// Authenticates the committee for `epoch` from the configured genesis.
+///
+/// Cached summaries and the checkpoint list are untrusted, including files left
+/// behind by a failed sync. Verify every preceding epoch's closing checkpoint
+/// before using its next committee. This works offline and does not depend on
+/// `sync_before_check`; syncing only determines which summaries are available.
+pub fn verified_committee_for_epoch(config: &Config, epoch: u64) -> Result<Committee> {
+    let mut verifier = CommitteeChainVerifier::new(load_genesis_committee(config)?);
+    if epoch == 0 {
+        return Ok(verifier.committee().clone());
+    }
+    let list = read_checkpoint_list(config)
+        .context("Checkpoint list not found. Please run the `sync` command first")?;
+    let epoch_count = usize::try_from(epoch).context("Epoch does not fit the checkpoint list")?;
+    let summaries = list.checkpoints.get(..epoch_count).ok_or_else(|| {
+        anyhow::anyhow!("Checkpoint list not synced. Please run the `sync` command first")
+    })?;
+    for &seq in summaries {
+        verify_summary_file(config, seq, &mut verifier)?;
+    }
+    Ok(verifier.committee().clone())
+}
+
+fn load_genesis_committee(config: &Config) -> Result<Committee> {
+    Genesis::load(config.genesis_blob_file_path())?
+        .committee()
+        .context("Failed to load genesis committee")
+}
+
+fn verify_summary_file(
+    config: &Config,
+    seq: u64,
+    verifier: &mut CommitteeChainVerifier,
+) -> Result<VerifiedCheckpoint> {
+    let summary = read_checkpoint_summary(config, seq)
+        .with_context(|| format!("Failed to read checkpoint {seq}"))?;
+    anyhow::ensure!(
+        summary.sequence_number() == seq,
+        "Checkpoint file {seq} contains a different sequence number"
+    );
+    verifier
+        .verify_epoch_close(summary)
+        .with_context(|| format!("Failed to verify checkpoint {seq}"))
 }
 
 pub fn write_checkpoint_list(config: &Config, checkpoints_list: &CheckpointList) -> Result<()> {
-    let checkpoints_path = config.checkpoints_list_file_path();
-    let mut writer = fs::File::create(checkpoints_path)?;
-    let bytes = serde_yaml::to_vec(checkpoints_list)?;
-    writer
-        .write_all(&bytes)
-        .context("Unable to serialize checkpoint list")
+    let bytes =
+        serde_yaml::to_vec(checkpoints_list).context("Unable to serialize checkpoint list")?;
+    write_file_atomically(&config.checkpoints_list_file_path(), &bytes)
 }
 
 pub fn write_checkpoint_summary(
     config: &Config,
     summary: &CertifiedCheckpointSummary,
 ) -> Result<()> {
-    let path = config.checkpoint_summary_file_path(summary.sequence_number());
-    bcs::serialize_into(
-        &mut fs::File::create(&path)
-            .context(format!("error writing summary file '{}'", path.display()))?,
-        &summary,
+    let bytes = bcs::to_bytes(summary).context("Unable to serialize checkpoint summary")?;
+    write_file_atomically(
+        &config.checkpoint_summary_file_path(summary.sequence_number()),
+        &bytes,
     )
-    .expect("error serializing to bcs");
+}
+
+/// Writes through a temporary file in the same directory and renames it over
+/// `path`, so that `path` never holds a partial write.
+fn write_file_atomically(path: &Path, bytes: &[u8]) -> Result<()> {
+    let directory = path
+        .parent()
+        .with_context(|| format!("'{}' has no parent directory", path.display()))?;
+    let mut builder = tempfile::Builder::new();
+    // The cache holds public data, so keep it readable by other users as a
+    // plainly created file would be: a temporary file is owner-only by default,
+    // and the rename below keeps the temporary file's access rights. The umask
+    // applies to the mode given here, as it does to a plain create.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        builder.permissions(fs::Permissions::from_mode(0o666));
+    }
+    let mut file = builder
+        .tempfile_in(directory)
+        .with_context(|| format!("Unable to create a file in '{}'", directory.display()))?;
+    file.write_all(bytes)?;
+    file.as_file().sync_all()?;
+    file.persist(path)
+        .map_err(|error| error.error)
+        .with_context(|| format!("Unable to write '{}'", path.display()))?;
     Ok(())
 }
 
@@ -209,22 +278,9 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
         .await
         .context("Failed to sync checkpoint list")?;
 
-    // Load the genesis committee
-    let genesis_committee = Genesis::load(config.genesis_blob_file_path())?
-        .committee()
-        .context("Failed to load genesis file")?;
+    let genesis_committee = load_genesis_committee(config)?;
 
-    // Create a list of summaries that need to be downloaded
-    let mut missing = Vec::new();
-    for seq in checkpoints_list.checkpoints.iter().copied() {
-        if !config.checkpoint_summary_file_path(seq).exists() {
-            // ensure the file is valid and can be parsed
-            if read_checkpoint_summary(config, seq).is_err() {
-                missing.push(seq);
-            }
-        }
-    }
-
+    let missing = missing_summaries(config, &checkpoints_list.checkpoints);
     if !missing.is_empty() {
         if config.checkpoint_store_config.is_some() {
             download_summaries_from_checkpoint_store(config, missing).await?;
@@ -237,45 +293,68 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
     }
 
     info!("Verifying summaries.");
+    verify_cached_summaries(config, &checkpoints_list.checkpoints, genesis_committee)
+}
 
-    // Walk the committee chain over the end-of-epoch checkpoints, anchored at
-    // the genesis committee.
+fn missing_summaries(config: &Config, checkpoints: &[u64]) -> Vec<u64> {
+    checkpoints
+        .iter()
+        .copied()
+        .filter(|&seq| read_checkpoint_summary(config, seq).is_err())
+        .collect()
+}
+
+/// A summary that cannot be read or verified is removed, so that the next sync
+/// downloads it again.
+fn verify_cached_summaries(
+    config: &Config,
+    checkpoints: &[u64],
+    genesis_committee: Committee,
+) -> Result<()> {
     let mut chain_verifier = CommitteeChainVerifier::new(genesis_committee);
-    for seq in checkpoints_list.checkpoints {
-        // Check if there is a corresponding checkpoint summary file in the checkpoints
-        // directory
-        let summary_path = config.checkpoint_summary_file_path(seq);
-
-        // If file exists read the file otherwise download it from the server
-        let summary = if summary_path.exists() {
-            read_checkpoint_summary(config, seq).context("Failed to read checkpoint summary")?
-        } else {
-            panic!("corrupted checkpoint directory");
+    for &seq in checkpoints {
+        let verified = match verify_summary_file(config, seq, &mut chain_verifier) {
+            Ok(verified) => verified,
+            Err(error) => {
+                remove_unusable_summary(config, seq);
+                return Err(error);
+            }
         };
-
-        let verified = chain_verifier
-            .verify_epoch_close(summary)
-            .with_context(|| format!("Failed to verify checkpoint {seq}"))?;
-
         info!(
             "Verified epoch: {}, checkpoint: {seq}, checkpoint digest: {}",
             verified.epoch(),
             verified.digest()
         );
     }
-
     Ok(())
+}
+
+fn remove_unusable_summary(config: &Config, seq: u64) {
+    let path = config.checkpoint_summary_file_path(seq);
+    match fs::remove_file(&path) {
+        Ok(()) => warn!(
+            "Removed unusable checkpoint summary '{}'; the next sync downloads it again",
+            path.display()
+        ),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => warn!(
+            "Failed to remove unusable checkpoint summary '{}': {error}",
+            path.display()
+        ),
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{CheckpointContents, CheckpointSummary, GasCostSummary};
+    use iota_sdk_types::{CheckpointContents, CheckpointSummary, EndOfEpochData, GasCostSummary};
     use iota_types::{
-        crypto::AuthorityQuorumSignInfo,
+        crypto::{AuthorityKeyPair, AuthorityQuorumSignInfo},
         message_envelope::Envelope,
         messages_checkpoint::{CheckpointContentsExt, CheckpointSummaryExt},
         supported_protocol_versions::ProtocolConfig,
+        utils::make_committee_key,
     };
+    use rand::{SeedableRng, rngs::StdRng};
     use roaring::RoaringBitmap;
     use tempfile::TempDir;
 
@@ -307,30 +386,53 @@ mod tests {
         assert_eq!(test_list.checkpoints, read_list.checkpoints);
     }
 
-    #[test]
-    fn test_checkpoint_read_write() {
-        let (config, _temp_dir) = create_test_config();
-        let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
-        let summary = CheckpointSummary::new_with_protocol_config(
+    fn summary(seq: u64, end_of_epoch_data: Option<EndOfEpochData>) -> CheckpointSummary {
+        CheckpointSummary::new_with_protocol_config(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             0,
+            seq,
             0,
-            0,
-            &contents,
+            &CheckpointContents::new_with_digests_only_for_tests(vec![]),
             None,
             GasCostSummary::default(),
-            None,
+            end_of_epoch_data,
             0,
             Vec::new(),
             Vec::new(),
             Default::default(),
-        );
+        )
+    }
+
+    fn unsigned_summary(seq: u64) -> CertifiedCheckpointSummary {
         let info = AuthorityQuorumSignInfo::<true> {
             epoch: 0,
             signature: Default::default(),
             signers_map: RoaringBitmap::new(),
         };
-        let test_summary = Envelope::new_from_data_and_sig(summary, info);
+        Envelope::new_from_data_and_sig(summary(seq, None), info)
+    }
+
+    fn closing_summary(
+        seq: u64,
+        committee: &Committee,
+        keypairs: &[AuthorityKeyPair],
+    ) -> CertifiedCheckpointSummary {
+        let summary = summary(
+            seq,
+            Some(EndOfEpochData {
+                next_epoch_committee: committee.committee_members(),
+                next_epoch_protocol_version: 1,
+                epoch_commitments: vec![],
+                epoch_supply_change: 0,
+            }),
+        );
+        CertifiedCheckpointSummary::new_from_keypairs_for_testing(summary, keypairs, committee)
+    }
+
+    #[test]
+    fn test_checkpoint_read_write() {
+        let (config, _temp_dir) = create_test_config();
+        let test_summary = unsigned_summary(0);
 
         write_checkpoint_summary(&config, &test_summary).unwrap();
         let read_summary = read_checkpoint_summary(&config, 0).unwrap();
@@ -339,6 +441,124 @@ mod tests {
             test_summary.sequence_number(),
             read_summary.sequence_number()
         );
+    }
+
+    #[test]
+    fn write_replaces_the_file_and_leaves_no_temporary_file() {
+        let (config, temp_dir) = create_test_config();
+        write_checkpoint_summary(&config, &unsigned_summary(10)).unwrap();
+        write_checkpoint_summary(&config, &unsigned_summary(10)).unwrap();
+        write_checkpoint_list(&config, &CheckpointList::default()).unwrap();
+
+        assert_eq!(fs::read_dir(temp_dir.path()).unwrap().count(), 2);
+        assert_eq!(
+            read_checkpoint_summary(&config, 10)
+                .unwrap()
+                .sequence_number(),
+            10
+        );
+    }
+
+    #[test]
+    fn unparsable_summary_counts_as_missing() {
+        let (config, _temp_dir) = create_test_config();
+        write_checkpoint_summary(&config, &unsigned_summary(10)).unwrap();
+        fs::write(config.checkpoint_summary_file_path(20), b"not a summary").unwrap();
+
+        assert_eq!(missing_summaries(&config, &[10, 20, 30]), vec![20, 30]);
+    }
+
+    #[test]
+    fn verified_summary_is_kept() {
+        let (config, _temp_dir) = create_test_config();
+        let (committee, keypairs) = Committee::new_simple_test_committee();
+        write_checkpoint_summary(&config, &closing_summary(10, &committee, &keypairs)).unwrap();
+
+        verify_cached_summaries(&config, &[10], committee).unwrap();
+
+        assert!(config.checkpoint_summary_file_path(10).exists());
+    }
+
+    #[test]
+    fn unreadable_summary_is_removed() {
+        let (config, _temp_dir) = create_test_config();
+        let path = config.checkpoint_summary_file_path(10);
+        fs::write(&path, b"not a summary").unwrap();
+        let (committee, _) = Committee::new_simple_test_committee();
+
+        assert!(verify_cached_summaries(&config, &[10], committee).is_err());
+
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn misnamed_summary_is_removed() {
+        let (config, _temp_dir) = create_test_config();
+        let (committee, keypairs) = Committee::new_simple_test_committee();
+        let path = config.checkpoint_summary_file_path(10);
+        fs::write(
+            &path,
+            bcs::to_bytes(&closing_summary(99, &committee, &keypairs)).unwrap(),
+        )
+        .unwrap();
+
+        assert!(verify_cached_summaries(&config, &[10], committee).is_err());
+
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn only_the_failing_summary_is_removed() {
+        let (config, _temp_dir) = create_test_config();
+        let (committee, keypairs) = Committee::new_simple_test_committee();
+        write_checkpoint_summary(&config, &closing_summary(10, &committee, &keypairs)).unwrap();
+        fs::write(config.checkpoint_summary_file_path(20), b"not a summary").unwrap();
+
+        assert!(verify_cached_summaries(&config, &[10, 20], committee).is_err());
+
+        assert!(config.checkpoint_summary_file_path(10).exists());
+        assert!(!config.checkpoint_summary_file_path(20).exists());
+    }
+
+    #[test]
+    fn walk_stops_at_the_first_failing_summary() {
+        let (config, _temp_dir) = create_test_config();
+        let (committee, _) = Committee::new_simple_test_committee();
+        fs::write(config.checkpoint_summary_file_path(10), b"not a summary").unwrap();
+        fs::write(config.checkpoint_summary_file_path(20), b"not a summary").unwrap();
+
+        assert!(verify_cached_summaries(&config, &[10, 20], committee).is_err());
+
+        assert!(!config.checkpoint_summary_file_path(10).exists());
+        assert!(config.checkpoint_summary_file_path(20).exists());
+    }
+
+    #[test]
+    fn summary_signed_by_another_committee_is_removed() {
+        let (config, _temp_dir) = create_test_config();
+        let (committee, _) = Committee::new_simple_test_committee();
+        // Any seed but the `[0; 32]` of `new_simple_test_committee`, so no member is shared.
+        let (other_keypairs, other_committee) = make_committee_key(&mut StdRng::from_seed([1; 32]));
+        write_checkpoint_summary(
+            &config,
+            &closing_summary(10, &other_committee, &other_keypairs),
+        )
+        .unwrap();
+
+        assert!(verify_cached_summaries(&config, &[10], committee).is_err());
+
+        assert!(!config.checkpoint_summary_file_path(10).exists());
+    }
+
+    #[test]
+    fn non_closing_summary_is_removed() {
+        let (config, _temp_dir) = create_test_config();
+        write_checkpoint_summary(&config, &unsigned_summary(10)).unwrap();
+        let (committee, _) = Committee::new_simple_test_committee();
+
+        assert!(verify_cached_summaries(&config, &[10], committee).is_err());
+
+        assert!(!config.checkpoint_summary_file_path(10).exists());
     }
 
     #[test]
