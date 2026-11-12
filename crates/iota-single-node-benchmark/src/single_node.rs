@@ -24,6 +24,7 @@ use iota_core::{
     mock_consensus::{ConsensusMode, MockConsensusClient},
 };
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_crypto::Signer;
 use iota_sdk_types::{Address, ObjectReference, TransactionDigest, TransactionEffects};
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::{
@@ -359,10 +360,7 @@ impl SingleValidator {
 }
 
 impl ValidatorKeypairProvider for SingleValidator {
-    fn get_validator_key(
-        &self,
-        name: &AuthorityName,
-    ) -> &dyn iota_sdk_crypto::Signer<AuthoritySignature> {
+    fn get_validator_key(&self, name: &AuthorityName) -> &dyn Signer<AuthoritySignature> {
         assert_eq!(name, &self.get_validator().name);
         &*self.get_validator().secret
     }

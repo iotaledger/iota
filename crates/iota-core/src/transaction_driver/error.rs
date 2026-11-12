@@ -497,6 +497,7 @@ impl AggregatedEffectsDigests {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::Bls12381PublicKey;
     use iota_types::crypto::AuthorityPublicKeyBytes;
 
     use super::*;
@@ -505,7 +506,7 @@ mod tests {
     /// low-stake outliers.
     #[test]
     fn aggregation_records_stake_per_retry_hint() {
-        let name = |i: u8| AuthorityPublicKeyBytes([i; iota_sdk_types::Bls12381PublicKey::LENGTH]);
+        let name = |i: u8| AuthorityPublicKeyBytes([i; Bls12381PublicKey::LENGTH]);
         let overloaded = |secs| {
             TransactionRequestError::RejectedAtValidator(IotaError::ValidatorOverloadedRetryAfter {
                 retry_after_secs: secs,
@@ -565,7 +566,7 @@ mod tests {
     /// combined.
     #[test]
     fn overload_dominance_sums_stake_per_category() {
-        let name = |i: u8| AuthorityPublicKeyBytes([i; iota_sdk_types::Bls12381PublicKey::LENGTH]);
+        let name = |i: u8| AuthorityPublicKeyBytes([i; Bls12381PublicKey::LENGTH]);
         let overloaded = |secs| {
             TransactionRequestError::RejectedAtValidator(IotaError::ValidatorOverloadedRetryAfter {
                 retry_after_secs: secs,

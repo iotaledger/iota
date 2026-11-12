@@ -38,6 +38,7 @@ use iota_macros::{fail_point, fail_point_async, fail_point_if};
 use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
+use iota_sdk_crypto::Signer;
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
     CheckpointSummary, Digest, EndOfEpochTransactionKind, Event, ExecutionStatus, GasCostSummary,
@@ -966,8 +967,7 @@ impl AuthorityMetrics {
 /// - Sync, i.e. can be safely shared between threads.
 ///
 /// Typically instantiated with `Arc::pin(key)` where `key` is an `AuthorityKeyPair`
-pub type StableSyncAuthoritySigner =
-    Pin<Arc<dyn iota_sdk_crypto::Signer<AuthoritySignature> + Send + Sync>>;
+pub type StableSyncAuthoritySigner = Pin<Arc<dyn Signer<AuthoritySignature> + Send + Sync>>;
 
 /// The checked transaction inputs and, per Move authenticator, its checked inputs.
 type CheckedValidationInputs = (CheckedInputObjects, Vec<CheckedInputObjects>);

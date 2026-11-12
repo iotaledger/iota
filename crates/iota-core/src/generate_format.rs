@@ -166,7 +166,7 @@ fn get_registry() -> Result<Registry> {
 
     // We have two signature types: one for Authority Signatures, which don't
     // include the PubKey ...
-    let sig: AuthoritySignature = iota_sdk_crypto::Signer::sign(&kp, b"hello world");
+    let sig: AuthoritySignature = kp.sign(b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
     let kp1 = Ed25519PrivateKey::random_with(StdRng::from_seed([0; 32]));

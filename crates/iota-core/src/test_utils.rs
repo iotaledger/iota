@@ -6,6 +6,7 @@ use std::{sync::Arc, time::Duration};
 
 use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_crypto::Signer;
 use iota_sdk_types::{
     Address, CheckpointSummary, EndOfEpochData, GasCostSummary, Identifier, ObjectId,
     ObjectReference, Transaction, TransactionDigest,
@@ -148,7 +149,7 @@ pub fn create_fake_cert_and_effect_digest<'a>(
     signers: impl Iterator<
         Item = (
             &'a AuthorityName,
-            &'a (dyn iota_sdk_crypto::Signer<AuthoritySignature> + Send + Sync),
+            &'a (dyn Signer<AuthoritySignature> + Send + Sync),
         ),
     >,
     committee: &Committee,

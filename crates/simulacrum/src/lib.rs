@@ -29,6 +29,7 @@ use iota_config::{
 };
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_crypto::Signer;
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
     EndOfEpochData, EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage,
@@ -607,10 +608,7 @@ impl CommitteeWithKeys {
 }
 
 impl ValidatorKeypairProvider for CommitteeWithKeys {
-    fn get_validator_key(
-        &self,
-        name: &AuthorityName,
-    ) -> &dyn iota_sdk_crypto::Signer<AuthoritySignature> {
+    fn get_validator_key(&self, name: &AuthorityName) -> &dyn Signer<AuthoritySignature> {
         self.keystore.validator(name).unwrap()
     }
 

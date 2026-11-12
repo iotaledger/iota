@@ -15,6 +15,7 @@ use iota_framework::BuiltInFramework;
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_protocol_config::Chain::Unknown;
+use iota_sdk_crypto::Signer;
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
     SenderSignedTransaction, StakeUnit, Transaction, TransactionDigest, TransactionEffects,
@@ -743,7 +744,7 @@ fn sign_tx(
     tx: VerifiedTransaction,
     epoch: EpochId,
     authority: AuthorityName,
-    secret: &dyn iota_sdk_crypto::Signer<AuthoritySignature>,
+    secret: &dyn Signer<AuthoritySignature>,
 ) -> SignedTransaction {
     SignedTransaction::new(epoch, tx.into_inner().into_data(), secret, authority)
 }
@@ -752,7 +753,7 @@ fn sign_tx_effects(
     effects: TransactionEffects,
     epoch: EpochId,
     authority: AuthorityName,
-    secret: &dyn iota_sdk_crypto::Signer<AuthoritySignature>,
+    secret: &dyn Signer<AuthoritySignature>,
 ) -> SignedTransactionEffects {
     SignedTransactionEffects::new(epoch, effects, secret, authority)
 }
