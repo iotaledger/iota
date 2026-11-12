@@ -2285,6 +2285,44 @@ async fn a_panic_in_a_download_reaches_the_caller() -> Result<(), anyhow::Error>
     Ok(())
 }
 
+/// The only partition of a snapshot of ten objects, with its correct checksum.
+struct SinglePartition {
+    snapshot: WrittenSnapshot,
+    file_metadata: FileMetadata,
+    bytes: bytes::Bytes,
+    partition_checksum: [u8; 32],
+}
+
+async fn write_single_partition_snapshot(
+    tmp_dir: &std::path::Path,
+) -> Result<SinglePartition, anyhow::Error> {
+    let snapshot = write_snapshot(tmp_dir, 10, FileCompression::None, usize::MAX).await?;
+    assert_eq!(snapshot.num_partitions, 1);
+    // The uncompressed object file of the only partition holds every object.
+    let bytes = bytes::Bytes::from(fs::read(
+        snapshot.remote_dir.join("epoch_0").join("1_1.obj"),
+    )?);
+    // `insert_partition` does not read the digest of the file.
+    let unchecked_file_digest = [0; 32];
+    let file_metadata = FileMetadata {
+        file_type: FileType::Object,
+        bucket_num: 1,
+        part_num: 1,
+        file_compression: FileCompression::None,
+        sha3_digest: unchecked_file_digest,
+    };
+    let mut hasher = Sha3_256::default();
+    for live_object in snapshot.source_db.iter_live_object_set() {
+        hasher.update(live_object?.object_reference().digest.bytes());
+    }
+    Ok(SinglePartition {
+        snapshot,
+        file_metadata,
+        bytes,
+        partition_checksum: hasher.finalize().digest,
+    })
+}
+
 /// `RestoreWithIndexes::insert_partition` must do its work on the blocking
 /// pool, not on a runtime thread. The runtime below has one blocking thread,
 /// which the test keeps busy, and the test yields to the runtime while it
@@ -2304,31 +2342,12 @@ fn restore_with_indexes_inserts_on_the_blocking_pool() -> Result<(), anyhow::Err
     // frees the blocking thread that the runtime waits for.
     let (release_blocker_sender, release_blocker_receiver) = std::sync::mpsc::channel::<()>();
 
-    let snapshot = runtime.block_on(write_snapshot(
-        dir.path(),
-        10,
-        FileCompression::None,
-        usize::MAX,
-    ))?;
-    assert_eq!(snapshot.num_partitions, 1);
-    // The uncompressed object file of the only partition holds every object.
-    let bytes = bytes::Bytes::from(fs::read(
-        snapshot.remote_dir.join("epoch_0").join("1_1.obj"),
-    )?);
-    // `insert_partition` does not read the digest of the file.
-    let unchecked_file_digest = [0; 32];
-    let file_metadata = FileMetadata {
-        file_type: FileType::Object,
-        bucket_num: 1,
-        part_num: 1,
-        file_compression: FileCompression::None,
-        sha3_digest: unchecked_file_digest,
-    };
-    let mut hasher = Sha3_256::default();
-    for live_object in snapshot.source_db.iter_live_object_set() {
-        hasher.update(live_object?.object_reference().digest.bytes());
-    }
-    let partition_checksum = hasher.finalize().digest;
+    let SinglePartition {
+        snapshot,
+        file_metadata,
+        bytes,
+        partition_checksum,
+    } = runtime.block_on(write_single_partition_snapshot(dir.path()))?;
 
     let restored_db = Arc::new(AuthorityPerpetualTables::open(
         &dir.path().join("restored_db"),
@@ -2462,5 +2481,78 @@ fn accumulation_runs_on_the_blocking_pool() -> Result<(), anyhow::Error> {
         partial_hashes.digest(),
         accumulate_live_object_set(&snapshot.source_db).digest()
     );
+    Ok(())
+}
+
+/// A partition that does not match its expected checksum is downloaded data
+/// that failed verification: an error, with nothing of it written to the
+/// perpetual tables. The same bytes with the right checksum are accepted.
+#[tokio::test]
+async fn a_wrong_checksum_is_an_error_and_writes_nothing_to_the_perpetual_tables()
+-> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let SinglePartition {
+        snapshot,
+        file_metadata,
+        bytes,
+        partition_checksum,
+    } = write_single_partition_snapshot(dir.path()).await?;
+    let wrong_checksum = [7u8; 32];
+    // A partition number that differs from the bucket number, so that a swap of
+    // the two in the message shows. The insert does not read the file by name.
+    let file_metadata = FileMetadata {
+        part_num: 2,
+        ..file_metadata
+    };
+
+    let plain_db = Arc::new(AuthorityPerpetualTables::open(
+        &dir.path().join("plain_db"),
+        None,
+    ));
+    let indexed_db = Arc::new(AuthorityPerpetualTables::open(
+        &dir.path().join("indexed_db"),
+        None,
+    ));
+    let restorer = Arc::new(RpcIndexesRestorer::open(
+        dir.path().join(RPC_INDEXES_DIR),
+        BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+    )?);
+    let restore_target_with_indexes = RestoreWithIndexes::new(indexed_db.clone(), Some(restorer));
+
+    let plain_error = plain_db
+        .insert_partition(file_metadata.clone(), bytes.clone(), &wrong_checksum)
+        .await
+        .expect_err("a wrong checksum must be an error");
+    let indexed_error = restore_target_with_indexes
+        .insert_partition(file_metadata.clone(), bytes.clone(), &wrong_checksum)
+        .await
+        .expect_err("a wrong checksum must be an error");
+    for error in [plain_error, indexed_error] {
+        let message = format!("{error:#}");
+        assert!(
+            message.contains("of bucket 1 partition 2:"),
+            "the error must name the partition: {message}"
+        );
+    }
+    for db in [&plain_db, &indexed_db] {
+        assert_eq!(
+            db.iter_live_object_set().count(),
+            0,
+            "nothing is written to the perpetual tables"
+        );
+    }
+
+    plain_db
+        .insert_partition(file_metadata.clone(), bytes.clone(), &partition_checksum)
+        .await?;
+    restore_target_with_indexes
+        .insert_partition(file_metadata, bytes, &partition_checksum)
+        .await?;
+    for db in [&plain_db, &indexed_db] {
+        assert_eq!(
+            db.iter_live_object_set().count() as u64,
+            snapshot.num_objects
+        );
+    }
     Ok(())
 }
