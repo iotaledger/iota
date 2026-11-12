@@ -108,7 +108,7 @@ proptest! {
     fn test_key_pair_from_bytes(
         bytes in collection::vec(any::<u8>(), 0..1024)
     ){
-        let _key = AuthorityKeyPair::from_bytes(&bytes);
+        let _key_pair = AuthorityKeyPair::from_bytes(&bytes);
         let _private_key = NetworkPrivateKey::from_bytes(&bytes);
         let _key = AccountPrivateKey::from_bytes(&bytes);
     }

@@ -15,7 +15,7 @@ use crate::{
     balance::Balance,
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{
-        AuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey, authority_pubkey_from_bytes,
+        AuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey, ToFromBytes,
         network_pubkey_from_bytes,
     },
     error::IotaError,
@@ -104,7 +104,10 @@ pub struct VerifiedSimTestValidatorMetadataV1 {
 impl SimTestValidatorMetadataV1 {
     pub fn verify(&self) -> VerifiedSimTestValidatorMetadataV1 {
         let authority_pubkey =
-            authority_pubkey_from_bytes(self.authority_pubkey_bytes.as_ref()).unwrap();
+            AuthorityPublicKeyBytes::from_bytes(self.authority_pubkey_bytes.as_ref())
+                .unwrap()
+                .try_into()
+                .unwrap();
         let network_pubkey = network_pubkey_from_bytes(self.network_pubkey_bytes.as_ref()).unwrap();
         let protocol_pubkey =
             network_pubkey_from_bytes(self.protocol_pubkey_bytes.as_ref()).unwrap();

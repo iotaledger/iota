@@ -174,13 +174,6 @@ pub mod authority_keypair_serde {
     }
 }
 
-/// Parse an authority public key, rejecting bytes that do not encode a valid
-/// group element.
-pub fn authority_pubkey_from_bytes(bytes: &[u8]) -> Result<AuthorityPublicKey, SignatureError> {
-    let bytes = AuthorityPublicKeyBytes::from_bytes(bytes).map_err(SignatureError::from_source)?;
-    AuthorityPublicKey::try_from(bytes)
-}
-
 /// Parse an ed25519 network public key, rejecting bytes that do not encode a
 /// valid curve point.
 pub fn network_pubkey_from_bytes(
