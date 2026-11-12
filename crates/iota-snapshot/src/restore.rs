@@ -106,16 +106,36 @@ fn bulk_insert_partition(
 pub struct RestoreWithIndexes {
     perpetual_tables: Arc<AuthorityPerpetualTables>,
     rpc_indexes_restorer: Option<Arc<RpcIndexesRestorer>>,
+    max_concurrent_inserts: NonZeroUsize,
 }
 
 impl RestoreWithIndexes {
+    /// `max_concurrent_inserts` is how many partitions the reader may insert
+    /// at the same time. Each insert in progress holds one downloaded
+    /// partition and its write batch in memory.
+    ///
+    /// # Panics
+    ///
+    /// If `rpc_indexes_restorer` was opened for fewer partitions at once than
+    /// `max_concurrent_inserts`.
     pub fn new(
         perpetual_tables: Arc<AuthorityPerpetualTables>,
         rpc_indexes_restorer: Option<Arc<RpcIndexesRestorer>>,
+        max_concurrent_inserts: NonZeroUsize,
     ) -> Self {
+        if let Some(restorer) = &rpc_indexes_restorer {
+            assert!(
+                restorer.partitions_at_once() >= max_concurrent_inserts,
+                "the RPC indexes restorer is opened for {} partitions at once, fewer than the {} \
+                 concurrent inserts",
+                restorer.partitions_at_once(),
+                max_concurrent_inserts
+            );
+        }
         Self {
             perpetual_tables,
             rpc_indexes_restorer,
+            max_concurrent_inserts,
         }
     }
 }
@@ -156,6 +176,10 @@ impl Restore for RestoreWithIndexes {
             Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
             Err(e) => Err(anyhow::Error::new(e).context("inserting a partition was cancelled")),
         }
+    }
+
+    fn max_concurrent_inserts(&self) -> NonZeroUsize {
+        self.max_concurrent_inserts
     }
 }
 

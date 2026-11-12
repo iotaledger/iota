@@ -36,8 +36,8 @@ use iota_core::{
 };
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointContents, CheckpointDigest, CheckpointSummary,
-    EndOfEpochData, GasCostSummary, ObjectId, TransactionDigest, TransactionEffects,
-    TransactionEvents,
+    EndOfEpochData, GasCostSummary, ObjectId, ObjectReference, TransactionDigest,
+    TransactionEffects, TransactionEvents,
 };
 use iota_storage::object_store::{ObjectStoreGetExt, util::SUCCESS_MARKER};
 use iota_types::{
@@ -705,7 +705,11 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     snapshot_reader
         .read_to_db(
-            &RestoreWithIndexes::new(restored_perpetual_db.clone(), Some(restorer.clone())),
+            &RestoreWithIndexes::new(
+                restored_perpetual_db.clone(),
+                Some(restorer.clone()),
+                NonZeroUsize::MIN,
+            ),
             abort_registration,
             None,
         )
@@ -2050,11 +2054,11 @@ impl InsertHook {
     }
 }
 
-/// Restores into the real perpetual tables, with a hook before the first
-/// inserts. It says it supports one insert at a time, unless
-/// [`Self::with_max_concurrent_inserts`] says otherwise.
-struct HookedRestore {
-    tables: Arc<AuthorityPerpetualTables>,
+/// Restores into a real restore target (by default the perpetual tables), with
+/// a hook before the first inserts. It reports what the restore target
+/// supports, unless [`Self::with_max_concurrent_inserts`] says otherwise.
+struct HookedRestore<R = AuthorityPerpetualTables> {
+    inner: Arc<R>,
     store: Arc<ObservedStore>,
     hook: InsertHook,
     max_concurrent_inserts: Option<NonZeroUsize>,
@@ -2071,10 +2075,10 @@ struct HookedRestore {
 }
 
 /// Counts an insert as in progress until dropped.
-struct InsertInProgress<'a>(&'a HookedRestore);
+struct InsertInProgress<'a, R>(&'a HookedRestore<R>);
 
-impl<'a> InsertInProgress<'a> {
-    fn start(restore_target: &'a HookedRestore) -> Self {
+impl<'a, R> InsertInProgress<'a, R> {
+    fn start(restore_target: &'a HookedRestore<R>) -> Self {
         let num_in_progress = restore_target
             .num_inserts_in_progress
             .fetch_add(1, Ordering::SeqCst)
@@ -2086,7 +2090,7 @@ impl<'a> InsertInProgress<'a> {
     }
 }
 
-impl Drop for InsertInProgress<'_> {
+impl<R> Drop for InsertInProgress<'_, R> {
     fn drop(&mut self) {
         self.0
             .num_inserts_in_progress
@@ -2094,14 +2098,10 @@ impl Drop for InsertInProgress<'_> {
     }
 }
 
-impl HookedRestore {
-    fn new(
-        tables: Arc<AuthorityPerpetualTables>,
-        store: Arc<ObservedStore>,
-        hook: InsertHook,
-    ) -> Self {
+impl<R: Restore> HookedRestore<R> {
+    fn new(inner: Arc<R>, store: Arc<ObservedStore>, hook: InsertHook) -> Self {
         Self {
-            tables,
+            inner,
             store,
             hook,
             max_concurrent_inserts: None,
@@ -2158,7 +2158,7 @@ impl HookedRestore {
     }
 }
 
-impl Restore for HookedRestore {
+impl<R: Restore + Send + Sync> Restore for HookedRestore<R> {
     async fn insert_partition(
         &self,
         file_metadata: FileMetadata,
@@ -2247,7 +2247,7 @@ impl Restore for HookedRestore {
                     anyhow::bail!("insert refused by the test");
                 }
             }
-            self.tables
+            self.inner
                 .insert_partition(file_metadata, bytes, expected_checksum)
                 .await
         }
@@ -2260,7 +2260,8 @@ impl Restore for HookedRestore {
     }
 
     fn max_concurrent_inserts(&self) -> NonZeroUsize {
-        self.max_concurrent_inserts.unwrap_or(NonZeroUsize::MIN)
+        self.max_concurrent_inserts
+            .unwrap_or_else(|| self.inner.max_concurrent_inserts())
     }
 }
 
@@ -2726,7 +2727,8 @@ fn restore_with_indexes_inserts_on_the_blocking_pool() -> Result<(), anyhow::Err
         BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
         NonZeroUsize::MIN,
     )?);
-    let restore_target = RestoreWithIndexes::new(restored_db.clone(), Some(restorer));
+    let restore_target =
+        RestoreWithIndexes::new(restored_db.clone(), Some(restorer), NonZeroUsize::MIN);
 
     let _blocker = runtime.spawn_blocking(move || {
         blocker_started_sender.send(()).ok();
@@ -2887,7 +2889,8 @@ async fn a_wrong_checksum_is_an_error_and_writes_nothing_to_the_perpetual_tables
         BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
         NonZeroUsize::MIN,
     )?);
-    let restore_target_with_indexes = RestoreWithIndexes::new(indexed_db.clone(), Some(restorer));
+    let restore_target_with_indexes =
+        RestoreWithIndexes::new(indexed_db.clone(), Some(restorer), NonZeroUsize::MIN);
 
     let plain_error = plain_db
         .insert_partition(file_metadata.clone(), bytes.clone(), &wrong_checksum)
@@ -2981,4 +2984,220 @@ async fn restored_live_owned_object_markers_match_the_source_objects() -> Result
             .all(|object| !markers.contains(object))
     );
     Ok(())
+}
+
+/// A restore through the real `RestoreWithIndexes` and a real
+/// `RpcIndexesRestorer`, both sized for `max_concurrent_inserts` partitions at
+/// once.
+struct IndexedRestore {
+    db: Arc<AuthorityPerpetualTables>,
+    index_dir: PathBuf,
+    partial_hashes: GlobalStateHash,
+    max_num_inserts_in_progress: usize,
+}
+
+/// With more than one insert at once, each of the first two inserts waits
+/// until two are in progress.
+async fn restore_with_indexes_at(
+    snapshot: &WrittenSnapshot,
+    tmp_dir: &std::path::Path,
+    max_concurrent_inserts: usize,
+) -> Result<IndexedRestore, anyhow::Error> {
+    const NUM_PARALLEL_DOWNLOADS: usize = 4;
+    let max_concurrent_inserts_nz = NonZeroUsize::new(max_concurrent_inserts).unwrap();
+    let store = Arc::new(snapshot.observed_store());
+    let mut reader = snapshot
+        .reader(store.clone(), NUM_PARALLEL_DOWNLOADS)
+        .await?;
+    let db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
+    let index_dir = tmp_dir.join(RPC_INDEXES_DIR);
+    let restorer = Arc::new(RpcIndexesRestorer::open(
+        index_dir.clone(),
+        BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+        max_concurrent_inserts_nz,
+    )?);
+    let restore_target = Arc::new(RestoreWithIndexes::new(
+        db.clone(),
+        Some(restorer.clone()),
+        max_concurrent_inserts_nz,
+    ));
+    assert_eq!(
+        restore_target.max_concurrent_inserts(),
+        max_concurrent_inserts_nz
+    );
+    let hook = if max_concurrent_inserts > 1 {
+        InsertHook::AwaitOverlap {
+            num_inserts: 2,
+            num_held_partitions: 0,
+        }
+    } else {
+        InsertHook::None
+    };
+    let hooked_restore_target = HookedRestore::new(restore_target, store, hook);
+    let (partial_hashes, _) = read_with_partial_hashes(&mut reader, &hooked_restore_target).await?;
+    let max_num_inserts_in_progress = hooked_restore_target.max_num_inserts_in_progress();
+    drop(hooked_restore_target);
+    Arc::into_inner(restorer)
+        .expect("the restore target is gone")
+        .finalize(0)
+        .await?;
+    Ok(IndexedRestore {
+        db,
+        index_dir,
+        partial_hashes,
+        max_num_inserts_in_progress,
+    })
+}
+
+/// The object ids that the owner index of the restored index store lists for
+/// each owner.
+fn owner_index_rows(
+    restored: &IndexedRestore,
+    owners: &[Address],
+) -> Result<Vec<(Address, BTreeSet<ObjectId>)>, anyhow::Error> {
+    let store = RpcIndexesStore::new_without_init(
+        restored.index_dir.clone(),
+        None,
+        BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+    );
+    owners
+        .iter()
+        .map(|owner| {
+            let ids = store
+                .get_owner_objects(*owner, None, 1000, None, usize::MAX, &restored.db)?
+                .0
+                .into_iter()
+                .map(|(object, _)| object.id())
+                .collect();
+            Ok((*owner, ids))
+        })
+        .collect()
+}
+
+fn marker_rows(restored: &IndexedRestore) -> Result<BTreeSet<ObjectReference>, anyhow::Error> {
+    Ok(restored
+        .db
+        .live_owned_object_markers_test_only()?
+        .into_iter()
+        .collect())
+}
+
+fn object_rows(restored: &IndexedRestore) -> Result<BTreeSet<ObjectReference>, anyhow::Error> {
+    restored
+        .db
+        .iter_live_object_set()
+        .map(|live_object| Ok(live_object?.object_reference()))
+        .collect()
+}
+
+/// Restoring with four inserts at once gives the same rows as restoring with
+/// one: objects, live object markers, state hash and owner index rows. Each
+/// side is also compared with what the test put into the source, because two
+/// restores that both miss a row would agree with each other.
+#[tokio::test]
+async fn restoring_four_partitions_at_once_gives_the_rows_of_one_at_a_time()
+-> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let owners = [1u16, 2, 3].map(Address::from_u16);
+    let mut expected_owner_rows: Vec<(Address, BTreeSet<ObjectId>)> = owners
+        .iter()
+        .map(|owner| (*owner, BTreeSet::new()))
+        .collect();
+    let mut expected_objects = BTreeSet::new();
+    let mut expected_markers = BTreeSet::new();
+    let snapshot = write_several_partitions_snapshot_of(dir.path(), |db| {
+        let mut id = ObjectId::ZERO;
+        for i in 0..60usize {
+            let object = if i % 10 == 5 {
+                // Owned by an object, so a child object without a marker.
+                Object::with_object_owner_for_testing(id, ObjectId::ZERO)
+            } else if i % 4 == 0 {
+                Object::immutable_with_id_for_testing(id)
+            } else {
+                let owner = i % 3;
+                expected_owner_rows[owner].1.insert(id);
+                Object::with_id_owner_for_testing(id, owners[owner])
+            };
+            db.insert_store_object_v2_test_only(object.clone(), Some(0))?;
+            expected_objects.insert(object.object_ref());
+            if i % 10 != 5 {
+                expected_markers.insert(object.object_ref());
+            }
+            id = id.next_lexicographical();
+        }
+        Ok(())
+    })
+    .await?;
+
+    let one_at_a_time = restore_with_indexes_at(&snapshot, &dir.path().join("k1"), 1).await?;
+    let four_at_once = restore_with_indexes_at(&snapshot, &dir.path().join("k4"), 4).await?;
+    assert_eq!(one_at_a_time.max_num_inserts_in_progress, 1);
+    assert!(
+        four_at_once.max_num_inserts_in_progress >= 2,
+        "no two inserts overlapped with four inserts at once"
+    );
+
+    let source_hash = accumulate_live_object_set(&snapshot.source_db).digest();
+    assert_eq!(one_at_a_time.partial_hashes.digest(), source_hash);
+    assert_eq!(four_at_once.partial_hashes.digest(), source_hash);
+
+    let one_at_a_time_rows = (
+        object_rows(&one_at_a_time)?,
+        marker_rows(&one_at_a_time)?,
+        owner_index_rows(&one_at_a_time, &owners)?,
+    );
+    let four_at_once_rows = (
+        object_rows(&four_at_once)?,
+        marker_rows(&four_at_once)?,
+        owner_index_rows(&four_at_once, &owners)?,
+    );
+    assert_eq!(one_at_a_time_rows, four_at_once_rows);
+    assert_eq!(one_at_a_time_rows.0, expected_objects);
+    assert_eq!(one_at_a_time_rows.2, expected_owner_rows);
+    assert!(expected_owner_rows.iter().all(|(_, ids)| !ids.is_empty()));
+    assert_eq!(one_at_a_time_rows.1, expected_markers);
+    assert!(!expected_markers.is_empty());
+    Ok(())
+}
+
+/// A restorer opened for fewer partitions at once than the inserts the restore
+/// target is asked for is a programming error.
+#[tokio::test]
+#[should_panic(expected = "partitions at once")]
+async fn a_restorer_opened_for_fewer_partitions_than_the_inserts_panics() {
+    let dir = iota_common::tempdir();
+    let db = Arc::new(AuthorityPerpetualTables::open(&dir.path().join("db"), None));
+    let restorer = Arc::new(
+        RpcIndexesRestorer::open(
+            dir.path().join(RPC_INDEXES_DIR),
+            BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+            NonZeroUsize::new(2).unwrap(),
+        )
+        .unwrap(),
+    );
+    RestoreWithIndexes::new(db, Some(restorer), NonZeroUsize::new(3).unwrap());
+}
+
+#[tokio::test]
+async fn the_restore_target_returns_the_number_of_inserts_it_was_given() {
+    let dir = iota_common::tempdir();
+    let db = Arc::new(AuthorityPerpetualTables::open(&dir.path().join("db"), None));
+    let restorer = Arc::new(
+        RpcIndexesRestorer::open(
+            dir.path().join(RPC_INDEXES_DIR),
+            BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+            NonZeroUsize::new(4).unwrap(),
+        )
+        .unwrap(),
+    );
+    let max_concurrent_inserts = NonZeroUsize::new(3).unwrap();
+    assert_eq!(
+        RestoreWithIndexes::new(db.clone(), Some(restorer), max_concurrent_inserts)
+            .max_concurrent_inserts(),
+        max_concurrent_inserts
+    );
+    assert_eq!(
+        RestoreWithIndexes::new(db, None, max_concurrent_inserts).max_concurrent_inserts(),
+        max_concurrent_inserts
+    );
 }

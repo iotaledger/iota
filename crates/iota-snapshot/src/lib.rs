@@ -192,9 +192,18 @@ const FILE_METADATA_BYTES: usize =
 
 pub fn default_download_concurrency() -> NonZeroUsize {
     const MAX_PARALLEL_DOWNLOADS: usize = 8;
+    logical_cores_minus_one_capped_at(MAX_PARALLEL_DOWNLOADS)
+}
+
+/// How many partitions to insert at the same time by default.
+pub fn default_insert_concurrency() -> NonZeroUsize {
+    const MAX_PARALLEL_INSERTS: usize = 4;
+    logical_cores_minus_one_capped_at(MAX_PARALLEL_INSERTS)
+}
+
+fn logical_cores_minus_one_capped_at(max: usize) -> NonZeroUsize {
     let cores = std::thread::available_parallelism().map_or(1, NonZeroUsize::get);
-    NonZeroUsize::new(cores.saturating_sub(1).clamp(1, MAX_PARALLEL_DOWNLOADS))
-        .unwrap_or(NonZeroUsize::MIN)
+    NonZeroUsize::new(cores.saturating_sub(1).clamp(1, max)).unwrap_or(NonZeroUsize::MIN)
 }
 
 #[derive(
