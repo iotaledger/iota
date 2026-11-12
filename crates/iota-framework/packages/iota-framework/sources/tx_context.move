@@ -61,6 +61,14 @@ public fun sponsor(_self: &TxContext): Option<address> {
     option_sponsor()
 }
 
+/// Returns the chain identifier: the 32-byte digest of the chain's genesis checkpoint.
+///
+/// Temporary: the transaction context does not expose the chain identifier yet. The value is
+/// all zeros on every network.
+public(package) fun chain_identifier(_self: &TxContext): vector<u8> {
+    x"0000000000000000000000000000000000000000000000000000000000000000"
+}
+
 /// Create an `address` that has not been used. As it is an object address, it will never
 /// occur as the address for a user.
 /// In other words, the generated address is a globally unique object ID.

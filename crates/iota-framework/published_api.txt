@@ -1162,6 +1162,9 @@ native_epoch_timestamp_ms
 sponsor
 	public fun
 	0x2::tx_context
+chain_identifier
+	public(package) fun
+	0x2::tx_context
 fresh_object_address
 	public fun
 	0x2::tx_context
@@ -1675,6 +1678,264 @@ create_account_v1_impl
 create_immutable_account_v1_impl
 	fun
 	0x2::account
+blake2b256
+	public fun
+	0x2::hash
+keccak256
+	public fun
+	0x2::hash
+BCS
+	public struct
+	0x2::bcs
+to_bytes
+	public fun
+	0x2::bcs
+new
+	public fun
+	0x2::bcs
+into_remainder_bytes
+	public fun
+	0x2::bcs
+peel_address
+	public fun
+	0x2::bcs
+peel_bool
+	public fun
+	0x2::bcs
+peel_u8
+	public fun
+	0x2::bcs
+peel_u16
+	public fun
+	0x2::bcs
+peel_u32
+	public fun
+	0x2::bcs
+peel_u64
+	public fun
+	0x2::bcs
+peel_u128
+	public fun
+	0x2::bcs
+peel_u256
+	public fun
+	0x2::bcs
+peel_vec_length
+	public fun
+	0x2::bcs
+peel_vec_address
+	public fun
+	0x2::bcs
+peel_vec_bool
+	public fun
+	0x2::bcs
+peel_vec_u8
+	public fun
+	0x2::bcs
+peel_vec_vec_u8
+	public fun
+	0x2::bcs
+peel_vec_u16
+	public fun
+	0x2::bcs
+peel_vec_u32
+	public fun
+	0x2::bcs
+peel_vec_u64
+	public fun
+	0x2::bcs
+peel_vec_u128
+	public fun
+	0x2::bcs
+peel_vec_u256
+	public fun
+	0x2::bcs
+peel_enum_tag
+	public fun
+	0x2::bcs
+peel_option_address
+	public fun
+	0x2::bcs
+peel_option_bool
+	public fun
+	0x2::bcs
+peel_option_u8
+	public fun
+	0x2::bcs
+peel_option_u16
+	public fun
+	0x2::bcs
+peel_option_u32
+	public fun
+	0x2::bcs
+peel_option_u64
+	public fun
+	0x2::bcs
+peel_option_u128
+	public fun
+	0x2::bcs
+peel_option_u256
+	public fun
+	0x2::bcs
+VerifiedNonce
+	public struct
+	0x2::verified_nonce
+take_from_tx_context
+	public fun
+	0x2::verified_nonce
+into_hash
+	public(package) fun
+	0x2::verified_nonce
+SignatureScheme
+	public struct
+	0x2::signature_scheme
+ed25519
+	public fun
+	0x2::signature_scheme
+secp256k1
+	public fun
+	0x2::signature_scheme
+secp256r1
+	public fun
+	0x2::signature_scheme
+multisig
+	public fun
+	0x2::signature_scheme
+passkey
+	public fun
+	0x2::signature_scheme
+from_flag
+	public fun
+	0x2::signature_scheme
+flag
+	public fun
+	0x2::signature_scheme
+multisig_validate_pubkey
+	public fun
+	0x2::multisig
+ed25519_validate_pubkey
+	public fun
+	0x2::ed25519
+ed25519_verify
+	public fun
+	0x2::ed25519
+secp256r1_ecrecover
+	public fun
+	0x2::ecdsa_r1
+secp256r1_validate_pubkey
+	public fun
+	0x2::ecdsa_r1
+secp256r1_verify
+	public fun
+	0x2::ecdsa_r1
+secp256k1_ecrecover
+	public fun
+	0x2::ecdsa_k1
+secp256k1_validate_pubkey
+	public fun
+	0x2::ecdsa_k1
+decompress_pubkey
+	public fun
+	0x2::ecdsa_k1
+secp256k1_verify
+	public fun
+	0x2::ecdsa_k1
+PublicKey
+	public struct
+	0x2::public_key
+from_prefixed_bytes
+	public fun
+	0x2::public_key
+create
+	public fun
+	0x2::public_key
+scheme
+	public fun
+	0x2::public_key
+raw_bytes
+	public fun
+	0x2::public_key
+to_iota_address
+	public fun
+	0x2::public_key
+validate_public_key
+	fun
+	0x2::public_key
+to_iota_address_impl
+	fun
+	0x2::public_key
+Intent
+	public struct
+	0x2::intent
+new
+	public fun
+	0x2::intent
+scope
+	public fun
+	0x2::intent
+version
+	public fun
+	0x2::intent
+app_id
+	public fun
+	0x2::intent
+scope_transaction_data
+	public fun
+	0x2::intent
+scope_transaction_effects
+	public fun
+	0x2::intent
+scope_checkpoint_summary
+	public fun
+	0x2::intent
+scope_personal_message
+	public fun
+	0x2::intent
+scope_sender_signed_transaction
+	public fun
+	0x2::intent
+scope_proof_of_possession
+	public fun
+	0x2::intent
+scope_bridge_event_deprecated
+	public fun
+	0x2::intent
+scope_consensus_block
+	public fun
+	0x2::intent
+scope_discovery_peers
+	public fun
+	0x2::intent
+scope_authority_capabilities
+	public fun
+	0x2::intent
+version_v0
+	public fun
+	0x2::intent
+app_id_iota
+	public fun
+	0x2::intent
+app_id_consensus
+	public fun
+	0x2::intent
+iota_transaction
+	public fun
+	0x2::intent
+iota_personal_message
+	public fun
+	0x2::intent
+to_bytes
+	public fun
+	0x2::intent
+verify_signature
+	public(package) fun
+	0x2::approval_message
+message
+	fun
+	0x2::approval_message
+verify_personal_message_signature
+	fun
+	0x2::approval_message
 ProgrammableMoveCall
 	public struct
 	0x2::ptb_command
@@ -1879,75 +2140,6 @@ sequence_number
 digest
 	public fun
 	0x2::ptb_call_arg
-Intent
-	public struct
-	0x2::intent
-new
-	public fun
-	0x2::intent
-scope
-	public fun
-	0x2::intent
-version
-	public fun
-	0x2::intent
-app_id
-	public fun
-	0x2::intent
-scope_transaction_data
-	public fun
-	0x2::intent
-scope_transaction_effects
-	public fun
-	0x2::intent
-scope_checkpoint_summary
-	public fun
-	0x2::intent
-scope_personal_message
-	public fun
-	0x2::intent
-scope_sender_signed_transaction
-	public fun
-	0x2::intent
-scope_proof_of_possession
-	public fun
-	0x2::intent
-scope_bridge_event_deprecated
-	public fun
-	0x2::intent
-scope_consensus_block
-	public fun
-	0x2::intent
-scope_discovery_peers
-	public fun
-	0x2::intent
-scope_authority_capabilities
-	public fun
-	0x2::intent
-version_v0
-	public fun
-	0x2::intent
-app_id_iota
-	public fun
-	0x2::intent
-app_id_consensus
-	public fun
-	0x2::intent
-iota_transaction
-	public fun
-	0x2::intent
-iota_personal_message
-	public fun
-	0x2::intent
-to_bytes
-	public fun
-	0x2::intent
-blake2b256
-	public fun
-	0x2::hash
-keccak256
-	public fun
-	0x2::hash
 AuthContext
 	public struct
 	0x2::auth_context
@@ -2113,99 +2305,6 @@ destroy_genesis_supply
 destroy_supply
 	public(package) fun
 	0x2::balance
-BCS
-	public struct
-	0x2::bcs
-to_bytes
-	public fun
-	0x2::bcs
-new
-	public fun
-	0x2::bcs
-into_remainder_bytes
-	public fun
-	0x2::bcs
-peel_address
-	public fun
-	0x2::bcs
-peel_bool
-	public fun
-	0x2::bcs
-peel_u8
-	public fun
-	0x2::bcs
-peel_u16
-	public fun
-	0x2::bcs
-peel_u32
-	public fun
-	0x2::bcs
-peel_u64
-	public fun
-	0x2::bcs
-peel_u128
-	public fun
-	0x2::bcs
-peel_u256
-	public fun
-	0x2::bcs
-peel_vec_length
-	public fun
-	0x2::bcs
-peel_vec_address
-	public fun
-	0x2::bcs
-peel_vec_bool
-	public fun
-	0x2::bcs
-peel_vec_u8
-	public fun
-	0x2::bcs
-peel_vec_vec_u8
-	public fun
-	0x2::bcs
-peel_vec_u16
-	public fun
-	0x2::bcs
-peel_vec_u32
-	public fun
-	0x2::bcs
-peel_vec_u64
-	public fun
-	0x2::bcs
-peel_vec_u128
-	public fun
-	0x2::bcs
-peel_vec_u256
-	public fun
-	0x2::bcs
-peel_enum_tag
-	public fun
-	0x2::bcs
-peel_option_address
-	public fun
-	0x2::bcs
-peel_option_bool
-	public fun
-	0x2::bcs
-peel_option_u8
-	public fun
-	0x2::bcs
-peel_option_u16
-	public fun
-	0x2::bcs
-peel_option_u32
-	public fun
-	0x2::bcs
-peel_option_u64
-	public fun
-	0x2::bcs
-peel_option_u128
-	public fun
-	0x2::bcs
-peel_option_u256
-	public fun
-	0x2::bcs
 Element
 	public struct
 	0x2::group_ops
@@ -2440,84 +2539,6 @@ put_back
 destroy
 	public fun
 	0x2::borrow
-SignatureScheme
-	public struct
-	0x2::signature_scheme
-ed25519
-	public fun
-	0x2::signature_scheme
-secp256k1
-	public fun
-	0x2::signature_scheme
-secp256r1
-	public fun
-	0x2::signature_scheme
-multisig
-	public fun
-	0x2::signature_scheme
-passkey
-	public fun
-	0x2::signature_scheme
-from_flag
-	public fun
-	0x2::signature_scheme
-flag
-	public fun
-	0x2::signature_scheme
-multisig_validate_pubkey
-	public fun
-	0x2::multisig
-ed25519_validate_pubkey
-	public fun
-	0x2::ed25519
-ed25519_verify
-	public fun
-	0x2::ed25519
-secp256r1_ecrecover
-	public fun
-	0x2::ecdsa_r1
-secp256r1_validate_pubkey
-	public fun
-	0x2::ecdsa_r1
-secp256r1_verify
-	public fun
-	0x2::ecdsa_r1
-secp256k1_ecrecover
-	public fun
-	0x2::ecdsa_k1
-secp256k1_validate_pubkey
-	public fun
-	0x2::ecdsa_k1
-decompress_pubkey
-	public fun
-	0x2::ecdsa_k1
-secp256k1_verify
-	public fun
-	0x2::ecdsa_k1
-PublicKey
-	public struct
-	0x2::public_key
-from_prefixed_bytes
-	public fun
-	0x2::public_key
-create
-	public fun
-	0x2::public_key
-scheme
-	public fun
-	0x2::public_key
-raw_bytes
-	public fun
-	0x2::public_key
-to_iota_address
-	public fun
-	0x2::public_key
-validate_public_key
-	fun
-	0x2::public_key
-to_iota_address_impl
-	fun
-	0x2::public_key
 PublicKeyAttached
 	public struct
 	0x2::builtin_authenticator_functions
@@ -4222,15 +4243,6 @@ update
 apply_delta
 	fun
 	0x2::transaction_deny_rules
-VerifiedNonce
-	public struct
-	0x2::verified_nonce
-take_from_tx_context
-	public fun
-	0x2::verified_nonce
-into_hash
-	public(package) fun
-	0x2::verified_nonce
 VerifiedID
 	public struct
 	0x2::zklogin_verified_id
