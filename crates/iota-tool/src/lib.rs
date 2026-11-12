@@ -974,8 +974,7 @@ pub async fn download_formal_snapshot(
             partials: sender,
             completion: accumulation_done_sender,
         });
-        let restore_target =
-            RestoreWithIndexes::new(&perpetual_db_clone, rpc_indexes_clone.as_deref());
+        let restore_target = RestoreWithIndexes::new(perpetual_db_clone, rpc_indexes_clone);
         reader
             .read_to_db(&restore_target, abort_registration, accumulator)
             .await

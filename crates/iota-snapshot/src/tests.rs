@@ -692,13 +692,19 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     .await?;
     let mut snapshot_reader = snapshot.reader(snapshot.store(), 1).await?;
 
-    let restored_perpetual_db = AuthorityPerpetualTables::open(&tmp_dir.join("restored_db"), None);
+    let restored_perpetual_db = Arc::new(AuthorityPerpetualTables::open(
+        &tmp_dir.join("restored_db"),
+        None,
+    ));
     let index_groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
-    let restorer = RpcIndexesRestorer::open(tmp_dir.join(RPC_INDEXES_DIR), index_groups.clone())?;
+    let restorer = Arc::new(RpcIndexesRestorer::open(
+        tmp_dir.join(RPC_INDEXES_DIR),
+        index_groups.clone(),
+    )?);
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     snapshot_reader
         .read_to_db(
-            &RestoreWithIndexes::new(&restored_perpetual_db, Some(&restorer)),
+            &RestoreWithIndexes::new(restored_perpetual_db.clone(), Some(restorer.clone())),
             abort_registration,
             None,
         )
@@ -707,7 +713,10 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     // The tee must not disturb the perpetual-tables restore.
     compare_live_objects(&snapshot.source_db, &restored_perpetual_db)?;
 
-    restorer.finalize(0).await?;
+    Arc::into_inner(restorer)
+        .expect("the restore target is gone")
+        .finalize(0)
+        .await?;
 
     // The restore tool's smoke test must accept a healthy restore.
     RpcIndexesRestorer::verify_restored(
@@ -2232,5 +2241,89 @@ async fn a_panic_in_a_download_reaches_the_caller() -> Result<(), anyhow::Error>
         message.contains("download panic injected by the test"),
         "unexpected panic payload: {message:?}"
     );
+    Ok(())
+}
+
+/// `RestoreWithIndexes::insert_partition` must do its work on the blocking
+/// pool, not on a runtime thread. The runtime below has one blocking thread,
+/// which the test keeps busy, and the test yields to the runtime while it
+/// polls the insert again: an insert on the blocking pool stays pending, while
+/// an insert in a task on the runtime finishes.
+#[cfg(not(msim))]
+#[test]
+fn restore_with_indexes_inserts_on_the_blocking_pool() -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .max_blocking_threads(1)
+        .build()?;
+    let _runtime_context = runtime.enter();
+    let (blocker_started_sender, blocker_started_receiver) = std::sync::mpsc::channel::<()>();
+    // Declared after the runtime, so a failed assertion drops it first and
+    // frees the blocking thread that the runtime waits for.
+    let (release_blocker_sender, release_blocker_receiver) = std::sync::mpsc::channel::<()>();
+
+    let snapshot = runtime.block_on(write_snapshot(
+        dir.path(),
+        10,
+        FileCompression::None,
+        usize::MAX,
+    ))?;
+    assert_eq!(snapshot.num_partitions, 1);
+    // The uncompressed object file of the only partition holds every object.
+    let bytes = bytes::Bytes::from(fs::read(
+        snapshot.remote_dir.join("epoch_0").join("1_1.obj"),
+    )?);
+    // `insert_partition` does not read the digest of the file.
+    let unchecked_file_digest = [0; 32];
+    let file_metadata = FileMetadata {
+        file_type: FileType::Object,
+        bucket_num: 1,
+        part_num: 1,
+        file_compression: FileCompression::None,
+        sha3_digest: unchecked_file_digest,
+    };
+    let mut hasher = Sha3_256::default();
+    for live_object in snapshot.source_db.iter_live_object_set() {
+        hasher.update(live_object?.object_reference().digest.bytes());
+    }
+    let partition_checksum = hasher.finalize().digest;
+
+    let restored_db = Arc::new(AuthorityPerpetualTables::open(
+        &dir.path().join("restored_db"),
+        None,
+    ));
+    let restorer = Arc::new(RpcIndexesRestorer::open(
+        dir.path().join(RPC_INDEXES_DIR),
+        BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+    )?);
+    let restore_target = RestoreWithIndexes::new(restored_db.clone(), Some(restorer));
+
+    let _blocker = runtime.spawn_blocking(move || {
+        blocker_started_sender.send(()).ok();
+        release_blocker_receiver.recv().ok();
+    });
+    runtime.block_on(async {
+        blocker_started_receiver
+            .recv_timeout(WAIT_LIMIT)
+            .expect("the blocking thread must start");
+        let mut insert = std::pin::pin!(restore_target.insert_partition(
+            file_metadata,
+            bytes,
+            &partition_checksum
+        ));
+        for _ in 0..10 {
+            assert!(
+                futures::poll!(insert.as_mut()).is_pending(),
+                "insert_partition finished on a runtime thread while the blocking pool was busy"
+            );
+            tokio::task::yield_now().await;
+        }
+        release_blocker_sender.send(()).unwrap();
+        tokio::time::timeout(WAIT_LIMIT, insert)
+            .await
+            .expect("insert_partition must finish once the blocking thread is free")
+    })?;
+    compare_live_objects(&snapshot.source_db, &restored_db)?;
     Ok(())
 }

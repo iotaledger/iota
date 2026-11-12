@@ -4,7 +4,7 @@
 //! Logic and abstractions for supporting different databases that the snapshot
 //! can restore.
 
-use std::future::Future;
+use std::{future::Future, sync::Arc};
 
 use anyhow::Result;
 use bytes::Bytes;
@@ -59,15 +59,20 @@ impl Restore for AuthorityPerpetualTables {
 ///
 /// After the read finishes, the caller must still call
 /// [`RpcIndexesRestorer::finalize`].
-pub struct RestoreWithIndexes<'a> {
-    perpetual_tables: &'a AuthorityPerpetualTables,
-    rpc_indexes_restorer: Option<&'a RpcIndexesRestorer>,
+///
+/// Dropping the future of [`Restore::insert_partition`], or of the read that
+/// polls it, does not stop an insert that was started, also when it still waits
+/// for a blocking thread. The insert finishes on the blocking pool and holds
+/// its `Arc`s until then.
+pub struct RestoreWithIndexes {
+    perpetual_tables: Arc<AuthorityPerpetualTables>,
+    rpc_indexes_restorer: Option<Arc<RpcIndexesRestorer>>,
 }
 
-impl<'a> RestoreWithIndexes<'a> {
+impl RestoreWithIndexes {
     pub fn new(
-        perpetual_tables: &'a AuthorityPerpetualTables,
-        rpc_indexes_restorer: Option<&'a RpcIndexesRestorer>,
+        perpetual_tables: Arc<AuthorityPerpetualTables>,
+        rpc_indexes_restorer: Option<Arc<RpcIndexesRestorer>>,
     ) -> Self {
         Self {
             perpetual_tables,
@@ -76,43 +81,75 @@ impl<'a> RestoreWithIndexes<'a> {
     }
 }
 
-impl Restore for RestoreWithIndexes<'_> {
+impl Restore for RestoreWithIndexes {
+    /// Inserts the partition on the blocking pool.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the partition cannot be decoded or indexed, or if
+    /// the insert was cancelled.
+    ///
+    /// # Panics
+    ///
+    /// Panics if there is no Tokio runtime. A panic of the insert is re-raised.
+    /// A partition that fails its checksum, or whose write fails, panics.
     async fn insert_partition(
         &self,
         file_metadata: FileMetadata,
         bytes: Bytes,
         expected_checksum: &[u8; SHA3_BYTES],
     ) -> Result<()> {
-        let mut partition_indexer = self
-            .rpc_indexes_restorer
-            .map(|restorer| restorer.partition_indexer());
-        // An index error must not cut the stream short: `bulk_insert_live_objects`
-        // has to consume every object to verify the partition's checksum.
-        let mut index_error: Option<StorageError> = None;
-        let live_objects = LiveObjectIter::new(&file_metadata, bytes)?.inspect(|live_object| {
-            if index_error.is_some() {
-                return;
-            }
-            if let Some(indexer) = &mut partition_indexer {
-                if let Err(e) = indexer.index_object(&live_object.object) {
-                    index_error = Some(e);
-                }
-            }
-        });
-        AuthorityStore::bulk_insert_live_objects(
-            self.perpetual_tables,
-            live_objects,
-            expected_checksum,
-        )
-        .expect("Failed to insert live objects");
-        if let Some(e) = index_error {
-            return Err(e.into());
+        let perpetual_tables = self.perpetual_tables.clone();
+        let rpc_indexes_restorer = self.rpc_indexes_restorer.clone();
+        let expected_checksum = *expected_checksum;
+        match tokio::task::spawn_blocking(move || {
+            insert_partition_blocking(
+                &perpetual_tables,
+                rpc_indexes_restorer.as_deref(),
+                file_metadata,
+                bytes,
+                &expected_checksum,
+            )
+        })
+        .await
+        {
+            Ok(result) => result,
+            Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
+            Err(e) => Err(anyhow::Error::new(e).context("inserting a partition was cancelled")),
         }
-        if let Some(indexer) = partition_indexer {
-            indexer.finish()?;
-        }
-        Ok(())
     }
+}
+
+fn insert_partition_blocking(
+    perpetual_tables: &AuthorityPerpetualTables,
+    rpc_indexes_restorer: Option<&RpcIndexesRestorer>,
+    file_metadata: FileMetadata,
+    bytes: Bytes,
+    expected_checksum: &[u8; SHA3_BYTES],
+) -> Result<()> {
+    let mut partition_indexer = rpc_indexes_restorer.map(|restorer| restorer.partition_indexer());
+    // An index error must not cut the stream short: `bulk_insert_live_objects`
+    // has to consume every object to verify the partition's checksum.
+    let mut index_error: Option<StorageError> = None;
+    let live_objects = LiveObjectIter::new(&file_metadata, bytes)?.inspect(|live_object| {
+        if index_error.is_some() {
+            return;
+        }
+        if let Some(indexer) = &mut partition_indexer {
+            if let Err(e) = indexer.index_object(&live_object.object) {
+                index_error = Some(e);
+            }
+        }
+    });
+    AuthorityStore::bulk_insert_live_objects(perpetual_tables, live_objects, expected_checksum)
+        .expect("Failed to insert live objects");
+    if let Some(e) = index_error {
+        return Err(e.into());
+    }
+    if let Some(indexer) = partition_indexer {
+        indexer.finish()?;
+    }
+    Ok(())
 }
 
 /// A database that can persist a snapshot's `EPOCH_INFO` rows.
