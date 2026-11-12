@@ -704,6 +704,7 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     let restorer = Arc::new(RpcIndexesRestorer::open(
         tmp_dir.join(RPC_INDEXES_DIR),
         index_groups.clone(),
+        NonZeroUsize::MIN,
     )?);
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     snapshot_reader
@@ -2720,6 +2721,7 @@ fn restore_with_indexes_inserts_on_the_blocking_pool() -> Result<(), anyhow::Err
     let restorer = Arc::new(RpcIndexesRestorer::open(
         dir.path().join(RPC_INDEXES_DIR),
         BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+        NonZeroUsize::MIN,
     )?);
     let restore_target = RestoreWithIndexes::new(restored_db.clone(), Some(restorer));
 
