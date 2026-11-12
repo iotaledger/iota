@@ -9,6 +9,7 @@
 
 use std::{
     collections::BTreeMap,
+    ops::Bound,
     path::Path,
     sync::{
         Arc, OnceLock,
@@ -391,6 +392,40 @@ impl HistoricObjects {
             Err(TypedStoreError::UnregisteredColumn(_)) => Ok(None),
             read => read.map_err(|e| IotaError::Storage(e.to_string())),
         }
+    }
+
+    /// The lowest version of `id` above `version` among those relocated into
+    /// `epoch`'s bucket and the tombstones written during `epoch`, `None`
+    /// when there is none or no bucket for `epoch`. Reads only that bucket.
+    pub fn lowest_version_above_in_epoch(
+        &self,
+        epoch: EpochId,
+        id: &ObjectId,
+        version: Version,
+    ) -> IotaResult<Option<Version>> {
+        let Some(bucket) = self.buckets.get(epoch) else {
+            return Ok(None);
+        };
+        let above = || {
+            (
+                Bound::Excluded(ObjectKey(*id, version)),
+                Bound::Included(ObjectKey::max_for_id(id)),
+            )
+        };
+        let relocated =
+            absent_if_dropped(bucket.objects.safe_range_iter(above()).next().transpose())
+                .map_err(|e| IotaError::Storage(e.to_string()))?
+                .map(|(key, _)| key.1);
+        let tombstone = absent_if_dropped(
+            bucket
+                .tombstones
+                .safe_range_iter(above())
+                .next()
+                .transpose(),
+        )
+        .map_err(|e| IotaError::Storage(e.to_string()))?
+        .map(|(key, _)| key.1);
+        Ok(relocated.into_iter().chain(tombstone).min())
     }
 
     /// Fills each `None` in `objects` — the live table's answers for `keys`, in

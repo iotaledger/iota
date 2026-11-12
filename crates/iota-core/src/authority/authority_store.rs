@@ -1281,6 +1281,28 @@ impl AuthorityStore {
         batch.write().unwrap();
     }
 
+    /// The lowest version of `object_id` above `version` among the newest row
+    /// of the live `objects` table and what `epoch`'s historic bucket holds.
+    pub fn find_lowest_version_above_in_epoch(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> IotaResult<Option<Version>> {
+        // Only the newest live row: a commit deletes the versions it
+        // supersedes from the live table, and a seek from an older version
+        // would step over every deletion. Read before the bucket.
+        let live = self
+            .perpetual_tables
+            .get_latest_object_or_tombstone(*object_id)?
+            .map(|(key, _)| key.1)
+            .filter(|live| *live > version);
+        let relocated = self
+            .historic_objects
+            .lowest_version_above_in_epoch(epoch, object_id, version)?;
+        Ok(live.into_iter().chain(relocated).min())
+    }
+
     /// The newest version of `object_id` at or below `version`, from the live
     /// `objects` table and the historic buckets together. `None` if the object
     /// was deleted or wrapped at or below the bound, or has no version in

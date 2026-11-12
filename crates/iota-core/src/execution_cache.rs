@@ -322,6 +322,18 @@ pub trait ObjectCacheRead: Send + Sync {
         epoch: EpochId,
     ) -> IotaResult<Option<Object>>;
 
+    /// The lowest version of `object_id` above `version` that is uncommitted,
+    /// the newest in the live table, relocated into `epoch`'s historic objects
+    /// bucket, or a tombstone written during `epoch`. Reads no other epoch's
+    /// bucket, so the answer does not depend on how many epochs the node
+    /// retains.
+    fn try_find_lowest_version_above_in_epoch(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> IotaResult<Option<Version>>;
+
     fn try_multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],
