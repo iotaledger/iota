@@ -176,8 +176,8 @@ impl LocalVm {
     /// Standard schemes are verified cryptographically first. Every
     /// [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator)
     /// — the sender's and, for a sponsored tx, the sponsor's — is verified by
-    /// running its function in the VM. On failure the authenticators are re-run
-    /// alone to tell a rejection from a body abort.
+    /// running its function in the VM. A body abort is not reported as a
+    /// rejection.
     ///
     /// `opts.mode` governs input-check relaxation
     /// ([`ExecutionMode::DevInspect`]) and commit
