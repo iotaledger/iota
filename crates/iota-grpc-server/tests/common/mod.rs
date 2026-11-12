@@ -171,8 +171,8 @@ pub fn build_checkpoint_transactions_with_events(
     count: usize,
     events_per_tx: usize,
 ) -> Vec<CheckpointTransaction> {
-    // Generating a key pair and signing dominated the tests that build
-    // thousands of transactions, so it is done once.
+    // Key generation and signing are slow, so build one transaction and copy
+    // it.
     let (sender, key): (_, AccountPrivateKey) = get_key_pair();
     let gas = random_object_ref();
     let transaction = TestTransactionBuilder::new(sender, gas, 1000)
@@ -403,11 +403,6 @@ pub struct MockGrpcStateReader {
 
     // -- Set-based checkpoint mode (for streaming tests) --
     pub checkpoints: Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
-    /// Sequence numbers whose `stream_checkpoint_transactions` should return
-    /// `large_checkpoint_transactions` instead of the default empty vec.
-    pub large_checkpoints: Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
-    /// Transactions returned for "large" checkpoints.
-    pub large_checkpoint_transactions: Vec<CheckpointTransaction>,
 
     // -- Objects --
     pub objects: HashMap<ObjectId, Object>,
@@ -462,15 +457,6 @@ impl MockGrpcStateReader {
     /// Whether we are in "set mode" (at least one checkpoint in the set).
     fn is_set_mode(&self) -> bool {
         !self.checkpoints.lock().unwrap().is_empty()
-    }
-
-    /// Mark a checkpoint sequence number as using large data.
-    pub fn mark_checkpoint_as_large(&self, seq: CheckpointSequenceNumber) {
-        self.large_checkpoints.lock().unwrap().insert(seq);
-    }
-
-    fn is_large_checkpoint(&self, seq: CheckpointSequenceNumber) -> bool {
-        self.large_checkpoints.lock().unwrap().contains(&seq)
     }
 
     /// Builder: set the lowest available checkpoint (for pruning tests).
@@ -635,19 +621,10 @@ impl iota_types::storage::ReadStore for MockGrpcStateReader {
         checkpoint: VerifiedCheckpoint,
         checkpoint_contents: CheckpointContents,
     ) -> CheckpointData {
-        let seq = checkpoint.sequence_number;
-        if self.is_large_checkpoint(seq) {
-            CheckpointData {
-                checkpoint_summary: checkpoint.into_inner(),
-                checkpoint_contents,
-                transactions: self.large_checkpoint_transactions.clone(),
-            }
-        } else {
-            CheckpointData {
-                checkpoint_summary: checkpoint.into_inner(),
-                checkpoint_contents,
-                transactions: self.checkpoint_transactions.clone(),
-            }
+        CheckpointData {
+            checkpoint_summary: checkpoint.into_inner(),
+            checkpoint_contents,
+            transactions: self.checkpoint_transactions.clone(),
         }
     }
 
