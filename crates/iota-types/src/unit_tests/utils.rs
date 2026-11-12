@@ -48,7 +48,7 @@ where
         let (_, inner_authority_key): (_, AuthorityKeyPair) = get_key_pair_from_rng(rand);
         authorities.insert(
             // address
-            AuthorityPublicKeyBytes::from(&inner_authority_key.verifying_key()),
+            AuthorityPublicKeyBytes::from(&inner_authority_key),
             // voting right
             1,
         );

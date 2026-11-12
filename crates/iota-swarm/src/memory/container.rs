@@ -53,7 +53,7 @@ impl Container {
     pub async fn spawn(config: NodeConfig, runtime: RuntimeType) -> Self {
         let (startup_sender, startup_receiver) = tokio::sync::oneshot::channel();
         let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();
-        let name = AuthorityPublicKeyBytes::from(&config.authority_key_pair().verifying_key())
+        let name = AuthorityPublicKeyBytes::from(config.authority_key_pair())
             .concise()
             .to_string();
 
@@ -68,7 +68,7 @@ impl Container {
                 Some(tracing::span!(
                     tracing::Level::INFO,
                     "node",
-                    name =% AuthorityPublicKeyBytes::from(&config.authority_key_pair().verifying_key()).concise(),
+                    name =% AuthorityPublicKeyBytes::from(config.authority_key_pair()).concise(),
                 ))
             };
 

@@ -64,13 +64,13 @@ fn test_signed_values() {
 
     authorities.insert(
         // address
-        AuthorityPublicKeyBytes::from(&sec1.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec1),
         // voting right
         1,
     );
     authorities.insert(
         // address
-        AuthorityPublicKeyBytes::from(&sec2.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec2),
         // voting right
         0,
     );
@@ -107,7 +107,7 @@ fn test_signed_values() {
         committee.epoch(),
         transaction.clone().into_message(),
         &sec1,
-        AuthorityPublicKeyBytes::from(&sec1.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec1),
     );
     assert!(
         v.try_into_verified_for_testing(&committee, &latest_verify_params())
@@ -118,7 +118,7 @@ fn test_signed_values() {
         committee.epoch(),
         transaction.clone().into_message(),
         &sec2,
-        AuthorityPublicKeyBytes::from(&sec2.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec2),
     );
     assert!(
         v.try_into_verified_for_testing(&committee, &latest_verify_params())
@@ -129,7 +129,7 @@ fn test_signed_values() {
         committee.epoch(),
         transaction.into_message(),
         &sec3,
-        AuthorityPublicKeyBytes::from(&sec3.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec3),
     );
     assert!(
         v.try_into_verified_for_testing(&committee, &latest_verify_params())
@@ -140,7 +140,7 @@ fn test_signed_values() {
         committee.epoch(),
         bad_transaction.into_message(),
         &sec1,
-        AuthorityPublicKeyBytes::from(&sec1.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec1),
     );
     assert!(
         v.try_into_verified_for_testing(&committee, &latest_verify_params())
@@ -158,13 +158,13 @@ fn test_certificates() {
     let mut authorities: BTreeMap<AuthorityPublicKeyBytes, u64> = BTreeMap::new();
     authorities.insert(
         // address
-        AuthorityPublicKeyBytes::from(&sec1.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec1),
         // voting right
         1,
     );
     authorities.insert(
         // address
-        AuthorityPublicKeyBytes::from(&sec2.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec2),
         // voting right
         1,
     );
@@ -188,19 +188,19 @@ fn test_certificates() {
         committee.epoch(),
         transaction.clone().into_message(),
         &sec1,
-        AuthorityPublicKeyBytes::from(&sec1.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec1),
     );
     let v2 = SignedTransaction::new(
         committee.epoch(),
         transaction.clone().into_message(),
         &sec2,
-        AuthorityPublicKeyBytes::from(&sec2.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec2),
     );
     let v3 = SignedTransaction::new(
         committee.epoch(),
         transaction.clone().into_message(),
         &sec3,
-        AuthorityPublicKeyBytes::from(&sec3.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec3),
     );
 
     let mut sigs = vec![v1.auth_sig().clone()];
@@ -229,7 +229,7 @@ fn test_new_with_signatures() {
 
     for _ in 0..5 {
         let (_, sec): (_, AuthorityKeyPair) = get_key_pair();
-        let name = AuthorityPublicKeyBytes::from(&sec.verifying_key());
+        let name = AuthorityPublicKeyBytes::from(&sec);
         signatures.push(AuthoritySignInfo::new(
             0,
             &message,
@@ -240,7 +240,7 @@ fn test_new_with_signatures() {
         authorities.insert(name, 1);
     }
     let (_, sec): (_, AuthorityKeyPair) = get_key_pair();
-    authorities.insert(AuthorityPublicKeyBytes::from(&sec.verifying_key()), 1);
+    authorities.insert(AuthorityPublicKeyBytes::from(&sec), 1);
 
     let committee = Committee::new_for_testing_with_normalized_voting_power(0, authorities.clone());
     let quorum =
@@ -278,7 +278,7 @@ fn test_handle_reject_malicious_signature() {
 
     for i in 0..5 {
         let (_, sec): (_, AuthorityKeyPair) = get_key_pair();
-        let name = AuthorityPublicKeyBytes::from(&sec.verifying_key());
+        let name = AuthorityPublicKeyBytes::from(&sec);
         authorities.insert(name, 1);
         if i < 4 {
             signatures.push(AuthoritySignInfo::new(
@@ -336,9 +336,7 @@ fn test_auth_sig_commit_to_wrong_epoch_id_fail() {
         &sec,
     );
     let public_key: AggregateAuthorityPublicKey =
-        AuthorityPublicKeyBytes::from(&sec.verifying_key())
-            .try_into()
-            .unwrap();
+        AuthorityPublicKeyBytes::from(&sec).try_into().unwrap();
     let res = obligation.add_signature_and_public_key(&sig, &public_key, idx);
     assert!(res.is_ok());
     assert!(obligation.verify_all().is_ok());
@@ -359,9 +357,7 @@ fn test_auth_sig_commit_to_wrong_epoch_id_fail() {
         &sec,
     );
     let public_key: AggregateAuthorityPublicKey =
-        AuthorityPublicKeyBytes::from(&sec.verifying_key())
-            .try_into()
-            .unwrap();
+        AuthorityPublicKeyBytes::from(&sec).try_into().unwrap();
     let res = obligation.add_signature_and_public_key(&sig1, &public_key, idx1);
     assert!(res.is_ok());
     assert!(obligation.verify_all().is_err());
@@ -374,7 +370,7 @@ fn test_bitmap_out_of_range() {
     let mut authorities: BTreeMap<AuthorityPublicKeyBytes, u64> = BTreeMap::new();
     for _ in 0..5 {
         let (_, sec): (_, AuthorityKeyPair) = get_key_pair();
-        let name = AuthorityPublicKeyBytes::from(&sec.verifying_key());
+        let name = AuthorityPublicKeyBytes::from(&sec);
         authorities.insert(name, 1);
         signatures.push(AuthoritySignInfo::new(
             0,
@@ -408,7 +404,7 @@ fn test_reject_extra_public_key() {
     // TODO: quite duplicated code in this file (4 times).
     for _ in 0..5 {
         let (_, sec): (_, AuthorityKeyPair) = get_key_pair();
-        let name = AuthorityPublicKeyBytes::from(&sec.verifying_key());
+        let name = AuthorityPublicKeyBytes::from(&sec);
         authorities.insert(name, 1);
         signatures.push(AuthoritySignInfo::new(
             0,
@@ -450,7 +446,7 @@ fn test_reject_reuse_signatures() {
     let mut authorities: BTreeMap<AuthorityPublicKeyBytes, u64> = BTreeMap::new();
     for _ in 0..5 {
         let (_, sec): (_, AuthorityKeyPair) = get_key_pair();
-        let name = AuthorityPublicKeyBytes::from(&sec.verifying_key());
+        let name = AuthorityPublicKeyBytes::from(&sec);
         authorities.insert(name, 1);
         signatures.push(AuthoritySignInfo::new(
             0,
@@ -488,7 +484,7 @@ fn test_empty_bitmap() {
     let mut authorities: BTreeMap<AuthorityPublicKeyBytes, u64> = BTreeMap::new();
     for _ in 0..5 {
         let (_, sec): (_, AuthorityKeyPair) = get_key_pair();
-        let name = AuthorityPublicKeyBytes::from(&sec.verifying_key());
+        let name = AuthorityPublicKeyBytes::from(&sec);
         authorities.insert(name, 1);
         signatures.push(AuthoritySignInfo::new(
             0,
@@ -523,8 +519,8 @@ fn test_digest_caching() {
     let sa1 = Address::random();
     let (sa2, ssec2): (_, AccountPrivateKey) = get_key_pair();
 
-    authorities.insert((&sec1.verifying_key()).into(), 1);
-    authorities.insert((&sec2.verifying_key()).into(), 0);
+    authorities.insert((&sec1).into(), 1);
+    authorities.insert((&sec2).into(), 0);
 
     let committee = Committee::new_for_testing_with_normalized_voting_power(0, authorities);
 
@@ -547,7 +543,7 @@ fn test_digest_caching() {
         committee.epoch(),
         transaction.clone().into_message(),
         &sec1,
-        AuthorityPublicKeyBytes::from(&sec1.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec1),
     );
     assert!(
         signed_tx
@@ -579,7 +575,7 @@ fn test_digest_caching() {
         committee.epoch(),
         effects,
         &sec1,
-        AuthorityPublicKeyBytes::from(&sec1.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec1),
     );
 
     let initial_effects_digest = *signed_effects.digest();
@@ -680,13 +676,13 @@ fn test_user_signature_committed_in_signed_transactions() {
         0,
         transaction_a.clone().into_message(),
         &sec1,
-        AuthorityPublicKeyBytes::from(&sec1.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec1),
     );
     let signed_tx_b = SignedTransaction::new(
         0,
         transaction_b.clone().into_message(),
         &sec1,
-        AuthorityPublicKeyBytes::from(&sec1.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec1),
     );
 
     let tx_digest_a = signed_tx_a.digest();
@@ -698,7 +694,7 @@ fn test_user_signature_committed_in_signed_transactions() {
     // Ensure that signed tx verifies against the transaction with a correct user
     // signature.
     let mut authorities: BTreeMap<AuthorityPublicKeyBytes, u64> = BTreeMap::new();
-    authorities.insert(AuthorityPublicKeyBytes::from(&sec1.verifying_key()), 1);
+    authorities.insert(AuthorityPublicKeyBytes::from(&sec1), 1);
     let committee =
         Committee::new_for_testing_with_normalized_voting_power(epoch, authorities.clone());
     assert!(
@@ -1793,8 +1789,8 @@ fn verify_sender_signature_correctly_with_flag() {
     let mut authorities: BTreeMap<AuthorityPublicKeyBytes, u64> = BTreeMap::new();
     let (_, sec1): (_, AuthorityKeyPair) = get_key_pair();
     let (_, sec2): (_, AuthorityKeyPair) = get_key_pair();
-    authorities.insert((&sec1.verifying_key()).into(), 1);
-    authorities.insert((&sec2.verifying_key()).into(), 0);
+    authorities.insert((&sec1).into(), 1);
+    authorities.insert((&sec2).into(), 0);
     let committee = Committee::new_for_testing_with_normalized_voting_power(0, authorities);
 
     // create a receiver keypair with Secp256k1
@@ -1835,7 +1831,7 @@ fn verify_sender_signature_correctly_with_flag() {
         committee.epoch(),
         transaction.clone().into_message(),
         &sec1,
-        AuthorityPublicKeyBytes::from(&sec1.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec1),
     );
 
     let s = match &transaction.data().signatures()[0] {
@@ -1865,7 +1861,7 @@ fn verify_sender_signature_correctly_with_flag() {
         committee.epoch(),
         transaction_1.clone().into_message(),
         &sec1,
-        AuthorityPublicKeyBytes::from(&sec1.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec1),
     );
     let s = match &transaction_1.data().signatures()[0] {
         UserSignature::Simple(s) => s,
@@ -1916,7 +1912,7 @@ fn verify_sender_signature_correctly_with_flag() {
         committee.epoch(),
         verified_tx_3.into_message(),
         &sec1,
-        AuthorityPublicKeyBytes::from(&sec1.verifying_key()),
+        AuthorityPublicKeyBytes::from(&sec1),
     );
     assert!(
         signed_tx_3
@@ -2239,7 +2235,7 @@ fn test_certificate_digest() {
                     committee.epoch(),
                     transaction.clone().into_message(),
                     key_pair,
-                    AuthorityPublicKeyBytes::from(&key_pair.verifying_key()),
+                    AuthorityPublicKeyBytes::from(key_pair),
                 )
                 .auth_sig()
                 .clone()

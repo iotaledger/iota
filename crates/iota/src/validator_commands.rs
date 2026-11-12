@@ -246,7 +246,7 @@ impl IotaValidatorCommand {
                 let validator_info = GenesisValidatorInfo {
                     info: iota_genesis_builder::validator_info::ValidatorInfo {
                         name,
-                        authority_key: (&authority_keypair.verifying_key()).into(),
+                        authority_key: (&authority_keypair).into(),
                         protocol_key: protocol_private_key.public_key(),
                         account_address,
                         network_key: network_private_key.public_key(),

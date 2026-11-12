@@ -108,6 +108,6 @@ fn test_authority_signature_intent() {
 
     // Let's ensure we can sign and verify intents.
     let s = AuthoritySignature::new_secure(&intent_message, &epoch, &kp);
-    let verification = s.verify_secure(&intent_message, 0, (&kp.verifying_key()).into());
+    let verification = s.verify_secure(&intent_message, 0, (&kp).into());
     assert!(verification.is_ok())
 }

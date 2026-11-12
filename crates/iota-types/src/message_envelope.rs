@@ -225,7 +225,7 @@ where
                     committee.epoch(),
                     &data,
                     Intent::iota_app(T::SCOPE),
-                    (&keypair.verifying_key()).into(),
+                    keypair.into(),
                     keypair,
                 )
             })

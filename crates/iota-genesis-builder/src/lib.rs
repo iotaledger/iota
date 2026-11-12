@@ -152,7 +152,7 @@ impl Builder {
     }
 
     pub fn add_validator_signature(mut self, keypair: &AuthorityKeyPair) -> Self {
-        let name = (&keypair.verifying_key()).into();
+        let name = keypair.into();
         assert!(
             self.validators.contains_key(&name),
             "provided keypair does not correspond to a validator in the validator set"
@@ -1224,7 +1224,7 @@ mod test {
             get_key_pair_from_rng(&mut rand::rand_core::UnwrapErr(rand::rngs::SysRng)).1;
         let validator = ValidatorInfo {
             name: "0".into(),
-            authority_key: (&authority_key.verifying_key()).into(),
+            authority_key: (&authority_key).into(),
             protocol_key: protocol_key.public_key(),
             account_address,
             network_key: network_key.public_key(),

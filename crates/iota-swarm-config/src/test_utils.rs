@@ -43,7 +43,7 @@ impl CommitteeFixture {
     ) -> Self {
         let validators = (0..committee_size)
             .map(|_| iota_types::crypto::get_key_pair_from_rng::<AuthorityKeyPair, _>(&mut rng).1)
-            .map(|keypair| ((&keypair.verifying_key()).into(), (keypair, 1)))
+            .map(|keypair| ((&keypair).into(), (keypair, 1)))
             .collect::<HashMap<_, _>>();
 
         let committee = Committee::new_for_testing_with_normalized_voting_power(

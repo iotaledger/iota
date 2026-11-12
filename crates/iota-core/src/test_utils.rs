@@ -303,7 +303,7 @@ pub fn make_cert_with_large_committee(
                 committee.epoch(),
                 transaction.clone().into_data(),
                 key_pair,
-                AuthorityPublicKeyBytes::from(&key_pair.verifying_key()),
+                AuthorityPublicKeyBytes::from(key_pair),
             )
             .auth_sig()
             .clone()

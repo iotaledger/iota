@@ -399,6 +399,12 @@ impl From<&AuthorityPublicKey> for AuthorityPublicKeyBytes {
     }
 }
 
+impl From<&AuthorityKeyPair> for AuthorityPublicKeyBytes {
+    fn from(kp: &AuthorityKeyPair) -> AuthorityPublicKeyBytes {
+        AuthorityPublicKeyBytes(kp.public_key().into_bytes())
+    }
+}
+
 impl From<&AggregateAuthorityPublicKey> for AuthorityPublicKeyBytes {
     fn from(pk: &AggregateAuthorityPublicKey) -> AuthorityPublicKeyBytes {
         AuthorityPublicKeyBytes::from_bytes(pk.as_ref()).unwrap()

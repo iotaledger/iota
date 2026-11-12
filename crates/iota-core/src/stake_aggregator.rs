@@ -375,10 +375,7 @@ mod stake_aggregator_insert_tests {
     /// (> QUORUM_THRESHOLD ~6667), the second ~3000.
     fn two_validator_committee() -> (Arc<Committee>, [(AuthorityName, AuthorityKeyPair); 2]) {
         let key_pairs = random_committee_key_pairs_of_size(2);
-        let mut names: Vec<AuthorityName> = key_pairs
-            .iter()
-            .map(|kp| AuthorityName::from(&kp.verifying_key()))
-            .collect();
+        let mut names: Vec<AuthorityName> = key_pairs.iter().map(AuthorityName::from).collect();
         names.sort();
 
         let voting_rights: BTreeMap<AuthorityName, u64> = names
@@ -394,7 +391,7 @@ mod stake_aggregator_insert_tests {
         let find_kp = |name: &AuthorityName| {
             key_pairs
                 .iter()
-                .find(|kp| &AuthorityName::from(&kp.verifying_key()) == name)
+                .find(|kp| &AuthorityName::from(*kp) == name)
                 .unwrap()
                 .clone()
         };

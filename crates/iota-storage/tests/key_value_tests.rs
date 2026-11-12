@@ -107,7 +107,7 @@ impl MockTxStore {
             committee.epoch,
             summary.clone(),
             &keys[0],
-            (&keys[0].verifying_key()).into(),
+            (&keys[0]).into(),
         );
         let sign_info = signed.into_sig();
 
