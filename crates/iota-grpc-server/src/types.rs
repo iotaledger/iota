@@ -478,11 +478,6 @@ impl GrpcReader {
             // 2. Stream transactions and events if requested (interleaved)
             if transactions_mask.is_some() || events_mask.is_some() {
                 let tx_mask = transactions_mask.clone().unwrap_or_else(FieldMaskTree::new_wildcard);
-                let should_collect_events = events_mask.is_some();
-                let events_submask = events_mask
-                    .as_ref()
-                    .and_then(|m| m.subtree("events"))
-                    .unwrap_or_else(FieldMaskTree::new_wildcard);
 
                 let mut transaction_stream = Box::pin(transaction_stream);
                 let mut current_batch: Vec<grpc_transaction::ExecutedTransaction> = Vec::new();
@@ -496,7 +491,7 @@ impl GrpcReader {
                     match result {
                         Ok(checkpoint_transaction) => {
                             // Collect and yield events as they reach size limits
-                            if should_collect_events {
+                            if let Some(events_mask) = &events_mask {
                                 if let Some(ref tx_events) = checkpoint_transaction.events {
                                     // Filter raw events before SDK conversion
                                     for raw_event in &tx_events.0 {
@@ -506,7 +501,7 @@ impl GrpcReader {
                                                 continue; // Skip non-matching events
                                             }
                                         }
-                                        let grpc_event = grpc_event::Event::merge_from(raw_event, &events_submask)
+                                        let grpc_event = grpc_event::Event::merge_from(raw_event, events_mask)
                                             .map_err(|e| e.with_context("failed to merge event"))?;
                                         let event_encoded_len = grpc_event.encoded_len();
                                         let event_size = event_encoded_len + crate::utils::repeated_field_item_overhead(event_encoded_len);
@@ -606,7 +601,7 @@ impl GrpcReader {
                 }
 
                 // Send final batch of events if any
-                if should_collect_events && !events_batch.is_empty() {
+                if events_mask.is_some() && !events_batch.is_empty() {
                     checkpoint_size_tracker.add_batch_size(events_batch_size);
                     yield Ok(grpc_ledger_service::CheckpointData::default()
                         .with_events(grpc_event::Events::default().with_events(events_batch)));
