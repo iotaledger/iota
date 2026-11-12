@@ -13,6 +13,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::VersionNumber,
+    digests::ChainIdentifier,
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
     transaction::InputObjectKind,
@@ -75,6 +76,8 @@ pub struct OnChainTransactionInfo {
     pub reference_gas_price: u64,
     #[serde(default = "unspecified_chain")]
     pub chain: Chain,
+    #[serde(default)]
+    pub chain_identifier: ChainIdentifier,
 }
 
 fn unspecified_chain() -> Chain {

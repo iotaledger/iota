@@ -28,6 +28,7 @@ pub use crate::committee::EpochId;
 use crate::{
     IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
     crypto::{AuthorityPublicKeyBytes, DefaultHash, PublicKey},
+    digests::ChainIdentifier,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind},
@@ -428,6 +429,8 @@ pub struct TxContext {
     gas_budget: u64,
     /// Address of the sponsor if any (gas owner != sender)
     sponsor: Option<AccountAddress>,
+    /// Identifier of the chain: the digest of its genesis checkpoint
+    chain_identifier: ChainIdentifier,
     /// Whether the `TxContext` is native or not (i.e., Move reads values via
     /// native functions instead of struct fields).
     is_native: bool,
@@ -452,6 +455,7 @@ impl TxContext {
         gas_price: u64,
         gas_budget: u64,
         sponsor: Option<Address>,
+        chain_identifier: ChainIdentifier,
         protocol_config: &ProtocolConfig,
     ) -> Self {
         Self::new_from_components(
@@ -463,6 +467,7 @@ impl TxContext {
             gas_price,
             gas_budget,
             sponsor,
+            chain_identifier,
             protocol_config,
         )
     }
@@ -476,6 +481,7 @@ impl TxContext {
         gas_price: u64,
         gas_budget: u64,
         sponsor: Option<Address>,
+        chain_identifier: ChainIdentifier,
         protocol_config: &ProtocolConfig,
     ) -> Self {
         Self {
@@ -488,6 +494,7 @@ impl TxContext {
             gas_price,
             gas_budget,
             sponsor: sponsor.map(|s| AccountAddress::new(s.into_bytes())),
+            chain_identifier,
             is_native: protocol_config.move_native_tx_context(),
         }
     }
@@ -533,6 +540,10 @@ impl TxContext {
 
     pub fn sponsor(&self) -> Option<Address> {
         self.sponsor.map(|a| Address::from(a.into_bytes()))
+    }
+
+    pub fn chain_identifier(&self) -> ChainIdentifier {
+        self.chain_identifier
     }
 
     pub fn rgp(&self) -> u64 {
@@ -582,6 +593,7 @@ impl TxContext {
                 gas_price: 0,
                 gas_budget: 0,
                 sponsor: None,
+                chain_identifier: ChainIdentifier::default(),
                 is_native: true,
             };
             tx_context.into()
@@ -635,6 +647,11 @@ impl TxContext {
         self.sponsor = sponsor;
     }
 
+    /// Replace the chain identifier. Used by Move test-only native functions.
+    pub fn set_chain_identifier(&mut self, chain_identifier: ChainIdentifier) {
+        self.chain_identifier = chain_identifier;
+    }
+
     // Generate a random TxContext for testing.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn random_for_testing_only() -> Self {
@@ -646,6 +663,7 @@ impl TxContext {
             0,
             0,
             None,
+            ChainIdentifier::default(),
             &ProtocolConfig::get_for_max_version_UNSAFE(),
         )
     }

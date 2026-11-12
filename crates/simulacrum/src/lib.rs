@@ -44,6 +44,7 @@ use iota_types::{
     base_types::{AuthorityName, EpochId, VersionNumber},
     committee::Committee,
     crypto::AuthoritySignature,
+    digests::ChainIdentifier,
     error::ExecutionError,
     gas_coin::{GasCoin, NANOS_PER_IOTA},
     inner_temporary_store::InnerTemporaryStore,
@@ -86,6 +87,7 @@ struct SimulacrumInner<R, Store: SimulatorStore> {
     keystore: KeyStore,
     #[expect(unused)]
     genesis: genesis::Genesis,
+    chain_identifier: ChainIdentifier,
     store: Store,
     checkpoint_builder: MockCheckpointBuilder,
 
@@ -161,7 +163,9 @@ where
 impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     pub fn new_with_network_config_store(config: &NetworkConfig, rng: R, store: S) -> Self {
         let keystore = KeyStore::from_network_config(config);
-        let checkpoint_builder = MockCheckpointBuilder::new(config.genesis.checkpoint());
+        let genesis_checkpoint = config.genesis.checkpoint();
+        let chain_identifier = ChainIdentifier::from(*genesis_checkpoint.digest());
+        let checkpoint_builder = MockCheckpointBuilder::new(genesis_checkpoint);
 
         let genesis = &config.genesis;
         let epoch_state = EpochState::new(genesis.iota_system_object());
@@ -173,6 +177,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
                 rng,
                 keystore,
                 genesis: genesis.clone(),
+                chain_identifier,
                 store,
                 checkpoint_builder,
                 epoch_state,
@@ -206,6 +211,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let (inner_temporary_store, _, effects, execution_error_opt) =
             inner.epoch_state.execute_transaction(
                 &inner.store,
+                inner.chain_identifier,
                 &self.deny_config,
                 &self.verifier_signing_config,
                 &transaction,
@@ -240,6 +246,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let inner = self.inner.read().unwrap();
         inner.epoch_state.simulate_transaction(
             &inner.store,
+            inner.chain_identifier,
             &self.deny_config,
             &self.verifier_signing_config,
             transaction,

@@ -16,7 +16,7 @@ use iota_package_management::system_package_versions::latest_system_packages;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, TransactionDigest};
 use iota_types::{
-    auth_context::AuthContext, base_types::TxContext,
+    auth_context::AuthContext, base_types::TxContext, digests::ChainIdentifier,
     gas_model::tables::initial_cost_schedule_for_unit_tests, in_memory_storage::InMemoryStorage,
     metrics::LimitsMetrics,
 };
@@ -156,6 +156,7 @@ fn new_testing_object_and_natives_cost_runtime(ext: &mut NativeContextExtensions
             0,
             0,
             None,
+            ChainIdentifier::default(),
             &protocol_config,
         ),
     ))));

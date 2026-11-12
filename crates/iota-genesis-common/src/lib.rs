@@ -88,6 +88,9 @@ pub fn execute_genesis_transaction(
             metrics,
             expensive_checks,
             &certificate_deny_set,
+            // The chain identifier is the digest of the genesis checkpoint,
+            // which doesn't exist yet.
+            ChainIdentifier::default(),
             &epoch_data.epoch_id(),
             epoch_data.epoch_start_timestamp(),
             input_objects,

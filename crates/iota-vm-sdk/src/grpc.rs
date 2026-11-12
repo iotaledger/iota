@@ -83,13 +83,15 @@ impl GrpcStore {
             .protocol_config()
             .and_then(|pc| pc.version())
             .map_err(|e| StoreError::new("protocol version", e))?;
-        let chain = service_info_response
+        let chain_identifier = service_info_response
             .map_err(|e| StoreError::new("fetch service info", e))?
             .body()
             .chain_id
             .as_ref()
             .and_then(|d| Digest::try_from(d).ok())
-            .map(|digest| ChainIdentifier::from(CheckpointDigest::from(digest)).chain())
+            .map(|digest| ChainIdentifier::from(CheckpointDigest::from(digest)));
+        let chain = chain_identifier
+            .map(|id| id.chain())
             .unwrap_or(iota_protocol_config::Chain::Unknown);
         Ok(ChainContext {
             protocol_version: iota_protocol_config::ProtocolVersion::new(protocol_version),
@@ -97,6 +99,7 @@ impl GrpcStore {
             epoch_id,
             epoch_timestamp_ms,
             chain,
+            chain_identifier: chain_identifier.unwrap_or_default(),
         })
     }
 }

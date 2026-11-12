@@ -8,6 +8,7 @@ use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk_types::{OwnedObjectReference, SenderSignedTransaction, Transaction, UserSignature};
 use iota_types::{
+    digests::{ChainIdentifier, get_mainnet_chain_identifier, get_testnet_chain_identifier},
     effects::TransactionEffectsAPI,
     object::{Object, ObjectInner},
 };
@@ -52,10 +53,10 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
     }
     store.seed(seed);
 
-    let chain = match req.chain.as_deref() {
-        None => Chain::Unknown,
-        Some("mainnet") => Chain::Mainnet,
-        Some("testnet") => Chain::Testnet,
+    let (chain, chain_identifier) = match req.chain.as_deref() {
+        None => (Chain::Unknown, ChainIdentifier::default()),
+        Some("mainnet") => (Chain::Mainnet, get_mainnet_chain_identifier()),
+        Some("testnet") => (Chain::Testnet, get_testnet_chain_identifier()),
         Some(other) => {
             return Err(JsError::new(&format!(
                 "unknown chain \"{other}\": expected \"mainnet\" or \"testnet\", or omit it"
@@ -68,6 +69,7 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
         epoch_id: req.epoch_id,
         epoch_timestamp_ms: req.epoch_timestamp_ms,
         chain,
+        chain_identifier,
     };
     let mut vm = LocalVm::new(ctx, store).map_err(err_to_js)?;
 

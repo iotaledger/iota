@@ -711,6 +711,7 @@ fn create_genesis_context(
         0,
         0,
         None,
+        ChainIdentifier::default(),
         protocol_config,
     );
 

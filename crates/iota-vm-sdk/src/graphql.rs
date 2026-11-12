@@ -5,7 +5,7 @@
 //! [`GraphQLStore`], which mirrors `GrpcStore` but fetches over GraphQL.
 
 use iota_sdk_graphql_client::GraphQLClient;
-use iota_sdk_types::{ObjectId, Version};
+use iota_sdk_types::{CheckpointDigest, ObjectId, Version};
 use iota_types::{digests::ChainIdentifier, object::Object};
 
 use crate::{
@@ -64,7 +64,8 @@ impl GraphQLStore {
     /// # Errors
     ///
     /// Returns [`VmSdkError::Store`] if a query fails or epoch fields are
-    /// missing.
+    /// missing, or if the node no longer serves the genesis checkpoint of a
+    /// chain other than mainnet or testnet.
     pub async fn fetch_chain_context(&self) -> Result<ChainContext, VmSdkError> {
         let query = r#"{
             epoch {
@@ -73,6 +74,7 @@ impl GraphQLStore {
                 startTimestamp
                 protocolConfigs { protocolVersion }
             }
+            checkpoint(id: { sequenceNumber: 0 }) { digest }
         }"#;
         let fetcher = self.cache.fetcher();
         let (data, chain_id) = tokio::join!(
@@ -108,15 +110,29 @@ impl GraphQLStore {
             .and_then(|v| v.as_u64())
             .ok_or_else(|| StoreError::new("GraphQL epoch", "missing protocolVersion"))?;
         let chain_id = chain_id.map_err(|e| StoreError::new("fetch chain identifier", e))?;
-        let chain = ChainIdentifier::from_chain_short_id(&chain_id)
+        let known_chain_identifier = ChainIdentifier::from_chain_short_id(&chain_id);
+        let chain = known_chain_identifier
             .map(|id| id.chain())
             .unwrap_or(iota_protocol_config::Chain::Unknown);
+        // The genesis checkpoint is missing once the indexer has pruned it.
+        let chain_identifier = match data.pointer("/checkpoint/digest").and_then(|v| v.as_str()) {
+            Some(digest) => CheckpointDigest::from_base58(digest)
+                .map(ChainIdentifier::from)
+                .map_err(|e| StoreError::new("GraphQL genesis checkpoint digest", e))?,
+            None => known_chain_identifier.ok_or_else(|| {
+                StoreError::new(
+                    "GraphQL genesis checkpoint",
+                    format!("missing for chain {chain_id}"),
+                )
+            })?,
+        };
         Ok(ChainContext {
             protocol_version: iota_protocol_config::ProtocolVersion::new(protocol_version),
             reference_gas_price,
             epoch_id,
             epoch_timestamp_ms,
             chain,
+            chain_identifier,
         })
     }
 }
