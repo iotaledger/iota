@@ -4,7 +4,7 @@
 //! Logic and abstractions for supporting different databases that the snapshot
 //! can restore.
 
-use std::{future::Future, sync::Arc};
+use std::{future::Future, num::NonZeroUsize, sync::Arc};
 
 use anyhow::Result;
 use bytes::Bytes;
@@ -34,6 +34,15 @@ pub trait Restore {
         bytes: Bytes,
         expected_checksum: &[u8; SHA3_BYTES],
     ) -> impl Future<Output = Result<()>> + Send;
+
+    /// How many partitions the reader may insert at the same time. Each
+    /// insert in progress holds one downloaded partition in memory.
+    ///
+    /// A value above one helps only if `insert_partition` does not block its
+    /// thread.
+    fn max_concurrent_inserts(&self) -> NonZeroUsize {
+        NonZeroUsize::MIN
+    }
 }
 
 impl Restore for AuthorityPerpetualTables {
