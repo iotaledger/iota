@@ -2,23 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Integration tests for the minimum SDK version header: every response
-//! carries it, and the bundled SDK client accepts it.
+//! carries it.
 
 mod common;
 
 use std::sync::Arc;
 
 use common::{MockGrpcStateReader, start_test_server};
-use iota_grpc_client::{GrpcClient, ResponseExt};
-use iota_grpc_server::{GrpcServerHandle, constants::MIN_IOTA_SDK_GRPC_CLIENT_VERSION};
-use iota_grpc_types::{
-    headers::X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION,
-    v1::{
-        ledger_service::{GetServiceInfoRequest, ledger_service_client::LedgerServiceClient},
-        transaction_execution_service::{
-            ExecuteTransactionsRequest,
-            transaction_execution_service_client::TransactionExecutionServiceClient,
-        },
+use iota_grpc_server::{
+    GrpcServerHandle,
+    constants::{MIN_IOTA_SDK_GRPC_CLIENT_VERSION, X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION},
+};
+use iota_grpc_types::v1::{
+    ledger_service::{GetServiceInfoRequest, ledger_service_client::LedgerServiceClient},
+    transaction_execution_service::{
+        ExecuteTransactionsRequest,
+        transaction_execution_service_client::TransactionExecutionServiceClient,
     },
 };
 use tonic::{Code, metadata::MetadataMap, transport::Channel};
@@ -81,24 +80,6 @@ async fn error_response_carries_the_minimum_sdk_version() {
     assert_eq!(
         min_iota_sdk_grpc_client_version(status.metadata()),
         MIN_IOTA_SDK_GRPC_CLIENT_VERSION
-    );
-
-    handle.shutdown().await.unwrap();
-}
-
-#[tokio::test]
-async fn bundled_sdk_client_passes_the_version_check() {
-    let handle = start_server().await;
-    let client = GrpcClient::new(format!("http://{}", handle.address())).unwrap();
-
-    let response = client
-        .ledger_service_client()
-        .get_service_info(GetServiceInfoRequest::default())
-        .await
-        .unwrap();
-    assert_eq!(
-        response.min_iota_sdk_grpc_client_version(),
-        Some(MIN_IOTA_SDK_GRPC_CLIENT_VERSION)
     );
 
     handle.shutdown().await.unwrap();

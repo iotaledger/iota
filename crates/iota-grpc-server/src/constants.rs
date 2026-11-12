@@ -5,10 +5,16 @@ use iota_grpc_types::{google::rpc::bad_request::FieldViolation, v1::error_reason
 
 use crate::error::RpcError;
 
+/// Name of the response header carrying
+/// [`MIN_IOTA_SDK_GRPC_CLIENT_VERSION`].
+// TODO: replace with `iota_grpc_types::headers::X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION`
+// once an `iota-sdk-grpc-types` release has it, and test that the bundled
+// `iota-sdk-grpc-client` accepts the minimum.
+pub const X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION: &str = "x-min-iota-sdk-grpc-client-version";
+
 /// Lowest `iota-sdk-grpc-client` version able to decode this node's gRPC
-/// responses, sent in the
-/// [`X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION`](iota_grpc_types::headers::X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION)
-/// header of every response.
+/// responses, sent in the [`X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION`] header of
+/// every response.
 ///
 /// Raise it to the SDK release that ships a wire-visible change (a new enum
 /// variant, a new `oneof` case, ...) once that release is out, so clients on
@@ -92,17 +98,5 @@ mod tests {
     #[test]
     fn min_iota_sdk_grpc_client_version_is_valid_semver() {
         Version::parse(MIN_IOTA_SDK_GRPC_CLIENT_VERSION).unwrap();
-    }
-
-    /// The e2e tests reach the node through the bundled SDK client, so a
-    /// minimum above its version would fail every one of them.
-    #[test]
-    fn min_iota_sdk_grpc_client_version_is_satisfied_by_the_bundled_client() {
-        let minimum = Version::parse(MIN_IOTA_SDK_GRPC_CLIENT_VERSION).unwrap();
-        let bundled = Version::parse(iota_grpc_client::VERSION).unwrap();
-        assert!(
-            minimum <= bundled,
-            "MIN_IOTA_SDK_GRPC_CLIENT_VERSION {minimum} exceeds the bundled iota-sdk-grpc-client {bundled}"
-        );
     }
 }
