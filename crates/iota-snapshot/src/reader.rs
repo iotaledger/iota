@@ -110,8 +110,28 @@ impl StateSnapshotReaderV1 {
         multi_progress_bar: MultiProgress,
         skip_reset_local_store: bool,
     ) -> Result<Self> {
-        let epoch_dir = format!("epoch_{epoch}");
         let remote_object_store = make_remote_store(remote_store_config)?;
+        Self::new_from_store(
+            epoch,
+            remote_object_store,
+            local_store_config,
+            download_concurrency,
+            multi_progress_bar,
+            skip_reset_local_store,
+        )
+        .await
+    }
+
+    /// [`Self::new`] with the remote store already built.
+    pub(crate) async fn new_from_store(
+        epoch: u64,
+        remote_object_store: Arc<dyn ObjectStoreGetExt>,
+        local_store_config: &ObjectStoreConfig,
+        download_concurrency: NonZeroUsize,
+        multi_progress_bar: MultiProgress,
+        skip_reset_local_store: bool,
+    ) -> Result<Self> {
+        let epoch_dir = format!("epoch_{epoch}");
         let local_object_store: Arc<dyn ObjectStorePutExt> =
             local_store_config.make().map(Arc::new)?;
         let local_object_store_list: Arc<dyn ObjectStoreListExt> =

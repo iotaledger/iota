@@ -5,8 +5,9 @@
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     fs,
-    io::Write,
+    io::{Read, Write},
     num::NonZeroUsize,
+    path::PathBuf,
     sync::{
         Arc, OnceLock,
         atomic::{AtomicBool, Ordering},
@@ -37,7 +38,7 @@ use iota_sdk_types::{
     EndOfEpochData, GasCostSummary, ObjectId, TransactionDigest, TransactionEffects,
     TransactionEvents,
 };
-use iota_storage::object_store::util::SUCCESS_MARKER;
+use iota_storage::object_store::{ObjectStoreGetExt, util::SUCCESS_MARKER};
 use iota_types::{
     committee::{Committee, EpochId},
     crypto::AuthorityKeyPair,
@@ -60,10 +61,11 @@ use prometheus_filtered::Registry;
 use tokio::sync::{Semaphore, mpsc, oneshot};
 
 use crate::{
-    EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FileCompression, FileMetadata,
-    FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestV2, OBJECT_REF_BYTES,
+    EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FILE_MAX_BYTES,
+    FileCompression, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest,
+    ManifestV2, OBJECT_REF_BYTES,
     reader::{StateAccumulatorSender, StateSnapshotReaderV1},
-    restore::RestoreWithIndexes,
+    restore::{Restore, RestoreWithIndexes},
     uploader::StateSnapshotUploader,
     verify_epoch_info_chain,
     writer::{BoundaryStoppedWaiting, StateSnapshotWriterV1},
@@ -428,38 +430,7 @@ async fn snapshot_round_trip(
     num_objects: u64,
     file_compression: FileCompression,
 ) -> Result<(), anyhow::Error> {
-    let local_store_config = ObjectStoreConfig {
-        object_store: Some(ObjectStoreType::File),
-        directory: Some(tmp_dir.join("local_dir")),
-        ..Default::default()
-    };
-    let remote_store_config = ObjectStoreConfig {
-        object_store: Some(ObjectStoreType::File),
-        directory: Some(tmp_dir.join("remote_dir")),
-        ..Default::default()
-    };
-
-    let snapshot_writer = StateSnapshotWriterV1::new(
-        &local_store_config,
-        &remote_store_config,
-        checkpoint_store_with_epochs(0),
-        ChainIdentifier::default(),
-        file_compression,
-        NonZeroUsize::new(1).unwrap(),
-    )
-    .await?;
-    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
-    insert_keys(&perpetual_db, num_objects)?;
-    let root_accumulator =
-        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
-    snapshot_writer
-        .write_internal(
-            0,
-            perpetual_db.clone(),
-            root_accumulator,
-            db_snapshot_taken(),
-        )
-        .await?;
+    let snapshot = write_snapshot(tmp_dir, num_objects, file_compression, FILE_MAX_BYTES).await?;
 
     // On-disk size assertion: with no compression the uploaded `.ref` file
     // is exactly `MAGIC_BYTES + num_objects * OBJECT_REF_BYTES`. A bug that
@@ -467,7 +438,7 @@ async fn snapshot_round_trip(
     // writer and reader agreed on the wrong size. Reads from the remote
     // store, since `sync_file_to_remote` removes the local copy after upload.
     if file_compression == FileCompression::None && num_objects > 0 {
-        let ref_file = tmp_dir.join("remote_dir").join("epoch_0").join("1_1.ref");
+        let ref_file = snapshot.remote_dir.join("epoch_0").join("1_1.ref");
         let actual_size = fs::metadata(&ref_file)?.len() as usize;
         let expected_size = MAGIC_BYTES + (num_objects as usize) * OBJECT_REF_BYTES;
         assert_eq!(
@@ -482,10 +453,7 @@ async fn snapshot_round_trip(
     // otherwise only surface post-deploy. Gated on `None` compression so the
     // raw on-disk bytes are readable directly.
     if file_compression == FileCompression::None {
-        let epoch_info_file = tmp_dir
-            .join("remote_dir")
-            .join("epoch_0")
-            .join("EPOCH_INFO");
+        let epoch_info_file = snapshot.remote_dir.join("epoch_0").join("EPOCH_INFO");
         let bytes = fs::read(&epoch_info_file)?;
         assert!(
             bytes.len() >= MAGIC_BYTES,
@@ -520,44 +488,12 @@ async fn snapshot_round_trip(
         );
     }
 
-    let local_store_restore_config = ObjectStoreConfig {
-        object_store: Some(ObjectStoreType::File),
-        directory: Some(tmp_dir.join("local_dir_restore")),
-        ..Default::default()
-    };
-    let mut snapshot_reader = StateSnapshotReaderV1::new(
-        0,
-        &remote_store_config,
-        &local_store_restore_config,
-        NonZeroUsize::new(1).unwrap(),
-        MultiProgress::new(),
-        false, // skip_reset_local_store
-    )
-    .await?;
+    let mut snapshot_reader = snapshot.reader(snapshot.store(), 1).await?;
     let restored_perpetual_db = AuthorityPerpetualTables::open(&tmp_dir.join("restored_db"), None);
-    let (_abort_handle, abort_registration) = AbortHandle::new_pair();
-    let (partials_sender, mut partials_receiver) = mpsc::channel(1);
-    let (completion_sender, completion_receiver) = oneshot::channel();
-    let accumulator = tokio::spawn(async move {
-        let mut accumulated_objects = 0u64;
-        while let Some((_, partial_num_objects)) = partials_receiver.recv().await {
-            accumulated_objects += partial_num_objects;
-        }
-        accumulated_objects
-    });
-    snapshot_reader
-        .read(
-            &restored_perpetual_db,
-            abort_registration,
-            Some(StateAccumulatorSender {
-                partials: partials_sender,
-                completion: completion_sender,
-            }),
-        )
-        .await?;
-    completion_receiver.await?;
-    assert_eq!(accumulator.await?, num_objects);
-    compare_live_objects(&perpetual_db, &restored_perpetual_db)?;
+    let (_, accumulated_objects) =
+        read_with_partial_hashes(&mut snapshot_reader, &restored_perpetual_db).await?;
+    assert_eq!(accumulated_objects, num_objects);
+    compare_live_objects(&snapshot.source_db, &restored_perpetual_db)?;
 
     // Snapshot is at epoch 0, so EPOCH_INFO has exactly one entry, which must
     // round-trip into an `EpochInfoV2`.
@@ -735,66 +671,25 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     let dir = iota_common::tempdir();
     let tmp_dir = dir.path();
 
-    let local_store_config = ObjectStoreConfig {
-        object_store: Some(ObjectStoreType::File),
-        directory: Some(tmp_dir.join("local_dir")),
-        ..Default::default()
-    };
-    let remote_store_config = ObjectStoreConfig {
-        object_store: Some(ObjectStoreType::File),
-        directory: Some(tmp_dir.join("remote_dir")),
-        ..Default::default()
-    };
-    let snapshot_writer = StateSnapshotWriterV1::new(
-        &local_store_config,
-        &remote_store_config,
-        checkpoint_store_with_epochs(0),
-        ChainIdentifier::default(),
-        FileCompression::Zstd,
-        NonZeroUsize::new(1).unwrap(),
-    )
-    .await?;
-
     // A handful of address-owned objects, so the owner index has something
     // to prove (the immutable objects of the other round-trip tests are
     // intentionally not owner-indexed).
-    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
     let owner = Address::from_u16(7);
     let mut owned_ids = HashSet::new();
-    let mut id = ObjectId::ZERO;
-    for _ in 0..4 {
-        perpetual_db.insert_store_object_v2_test_only(
-            Object::with_id_owner_for_testing(id, owner),
-            Some(0),
-        )?;
-        owned_ids.insert(id);
-        id = id.next_lexicographical();
-    }
-    let root_accumulator =
-        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
-    snapshot_writer
-        .write_internal(
-            0,
-            perpetual_db.clone(),
-            root_accumulator,
-            db_snapshot_taken(),
-        )
-        .await?;
-
-    let local_store_restore_config = ObjectStoreConfig {
-        object_store: Some(ObjectStoreType::File),
-        directory: Some(tmp_dir.join("local_dir_restore")),
-        ..Default::default()
-    };
-    let mut snapshot_reader = StateSnapshotReaderV1::new(
-        0,
-        &remote_store_config,
-        &local_store_restore_config,
-        NonZeroUsize::new(1).unwrap(),
-        MultiProgress::new(),
-        false, // skip_reset_local_store
-    )
+    let snapshot = write_snapshot_of(tmp_dir, FileCompression::Zstd, FILE_MAX_BYTES, |db| {
+        let mut id = ObjectId::ZERO;
+        for _ in 0..4 {
+            db.insert_store_object_v2_test_only(
+                Object::with_id_owner_for_testing(id, owner),
+                Some(0),
+            )?;
+            owned_ids.insert(id);
+            id = id.next_lexicographical();
+        }
+        Ok(())
+    })
     .await?;
+    let mut snapshot_reader = snapshot.reader(snapshot.store(), 1).await?;
 
     let restored_perpetual_db = AuthorityPerpetualTables::open(&tmp_dir.join("restored_db"), None);
     let index_groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
@@ -809,7 +704,7 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
         .await?;
 
     // The tee must not disturb the perpetual-tables restore.
-    compare_live_objects(&perpetual_db, &restored_perpetual_db)?;
+    compare_live_objects(&snapshot.source_db, &restored_perpetual_db)?;
 
     restorer.finalize(0).await?;
 
@@ -1603,4 +1498,208 @@ async fn uploader_writes_the_snapshot_of_a_requested_epoch() -> Result<(), anyho
         "snapshot upload must leave a _SUCCESS marker in the remote epoch dir"
     );
     Ok(())
+}
+
+/// A snapshot written to a file-backed remote store.
+struct WrittenSnapshot {
+    remote_dir: PathBuf,
+    restore_dir: PathBuf,
+    source_db: Arc<AuthorityPerpetualTables>,
+    num_objects: u64,
+    num_partitions: usize,
+}
+
+impl WrittenSnapshot {
+    /// The remote store the snapshot was written to.
+    fn store(&self) -> Arc<dyn ObjectStoreGetExt> {
+        Arc::new(file_store(&self.remote_dir))
+    }
+
+    /// A reader that downloads the snapshot from `remote`, with
+    /// `num_parallel_downloads` downloads at once.
+    async fn reader(
+        &self,
+        remote: Arc<dyn ObjectStoreGetExt>,
+        num_parallel_downloads: usize,
+    ) -> Result<StateSnapshotReaderV1, anyhow::Error> {
+        let local_store_restore_config = ObjectStoreConfig {
+            object_store: Some(ObjectStoreType::File),
+            directory: Some(self.restore_dir.clone()),
+            ..Default::default()
+        };
+        StateSnapshotReaderV1::new_from_store(
+            0,
+            remote,
+            &local_store_restore_config,
+            NonZeroUsize::new(num_parallel_downloads).unwrap(),
+            MultiProgress::new(),
+            false, // skip_reset_local_store
+        )
+        .await
+    }
+}
+
+/// Writes a snapshot of `num_objects` immutable objects, cutting object files
+/// at `file_max_bytes`, into `tmp_dir/remote_dir`.
+async fn write_snapshot(
+    tmp_dir: &std::path::Path,
+    num_objects: u64,
+    file_compression: FileCompression,
+    file_max_bytes: usize,
+) -> Result<WrittenSnapshot, anyhow::Error> {
+    write_snapshot_of(tmp_dir, file_compression, file_max_bytes, |db| {
+        insert_keys(db, num_objects)
+    })
+    .await
+}
+
+/// Like [`write_snapshot`], with the objects put into the source tables by
+/// `populate`.
+async fn write_snapshot_of(
+    tmp_dir: &std::path::Path,
+    file_compression: FileCompression,
+    file_max_bytes: usize,
+    populate: impl FnOnce(&AuthorityPerpetualTables) -> Result<(), anyhow::Error>,
+) -> Result<WrittenSnapshot, anyhow::Error> {
+    let local_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("local_dir")),
+        ..Default::default()
+    };
+    let remote_dir = tmp_dir.join("remote_dir");
+    let remote_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(remote_dir.clone()),
+        ..Default::default()
+    };
+    let snapshot_writer = StateSnapshotWriterV1::new(
+        &local_store_config,
+        &remote_store_config,
+        checkpoint_store_with_epochs(0),
+        ChainIdentifier::default(),
+        file_compression,
+        NonZeroUsize::new(1).unwrap(),
+    )
+    .await?
+    .with_file_max_bytes(file_max_bytes);
+    let source_db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
+    populate(&source_db)?;
+    let root_accumulator =
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&source_db).digest());
+    snapshot_writer
+        .write_internal(0, source_db.clone(), root_accumulator, db_snapshot_taken())
+        .await?;
+
+    Ok(WrittenSnapshot {
+        num_objects: source_db.iter_live_object_set().count() as u64,
+        num_partitions: object_file_paths(&remote_dir)?.len(),
+        remote_dir,
+        restore_dir: tmp_dir.join("local_dir_restore"),
+        source_db,
+    })
+}
+
+/// The paths of the object files of the snapshot in `remote_dir`.
+fn object_file_paths(remote_dir: &std::path::Path) -> Result<Vec<PathBuf>, anyhow::Error> {
+    let mut paths = Vec::new();
+    for entry in fs::read_dir(remote_dir.join("epoch_0"))? {
+        let path = entry?.path();
+        if path.extension().is_some_and(|ext| ext == "obj") {
+            paths.push(path);
+        }
+    }
+    Ok(paths)
+}
+
+/// Writes a snapshot of several partitions, none of them without objects.
+async fn write_several_partitions_snapshot(
+    tmp_dir: &std::path::Path,
+) -> Result<WrittenSnapshot, anyhow::Error> {
+    /// Small enough that a few dozen test objects span several object files.
+    const SMALL_FILE_MAX_BYTES: usize = 1024;
+    let snapshot = write_snapshot(tmp_dir, 60, FileCompression::Zstd, SMALL_FILE_MAX_BYTES).await?;
+    assert!(
+        snapshot.num_partitions >= 6,
+        "the fixture must span several partitions, got {}",
+        snapshot.num_partitions
+    );
+    // A file with nothing but its header has no digest entry, which the
+    // reader does not handle. The size is checked after decompression.
+    for path in object_file_paths(&snapshot.remote_dir)? {
+        let mut contents = Vec::new();
+        FileCompression::Zstd
+            .decompress(&path)?
+            .read_to_end(&mut contents)?;
+        assert!(
+            contents.len() > MAGIC_BYTES,
+            "the fixture wrote an object file without objects: {path:?}"
+        );
+    }
+    Ok(snapshot)
+}
+
+/// Reads the snapshot into `restore_target` and returns the union of the
+/// partial state hashes the reader reported, with the number of objects they
+/// cover.
+async fn read_with_partial_hashes(
+    reader: &mut StateSnapshotReaderV1,
+    restore_target: &impl Restore,
+) -> Result<(GlobalStateHash, u64), anyhow::Error> {
+    let (_abort_handle, abort_registration) = AbortHandle::new_pair();
+    let (partials_sender, mut partials_receiver) = mpsc::channel(1);
+    let (completion_sender, completion_receiver) = oneshot::channel();
+    let accumulator = tokio::spawn(async move {
+        let mut union = GlobalStateHash::default();
+        let mut num_objects = 0u64;
+        while let Some((partial, partial_num_objects)) = partials_receiver.recv().await {
+            union.union(&partial);
+            num_objects += partial_num_objects;
+        }
+        (union, num_objects)
+    });
+    reader
+        .read_to_db(
+            restore_target,
+            abort_registration,
+            Some(StateAccumulatorSender {
+                partials: partials_sender,
+                completion: completion_sender,
+            }),
+        )
+        .await?;
+    completion_receiver.await?;
+    Ok(accumulator.await?)
+}
+
+/// Restores a snapshot of several partitions with `num_parallel_downloads`
+/// downloads at once, and checks the restored objects and the partial state
+/// hashes.
+async fn several_partitions_round_trip(num_parallel_downloads: usize) -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let snapshot = write_several_partitions_snapshot(dir.path()).await?;
+    let mut reader = snapshot
+        .reader(snapshot.store(), num_parallel_downloads)
+        .await?;
+    let restored_db = AuthorityPerpetualTables::open(&dir.path().join("restored_db"), None);
+    let (partial_hashes, partial_num_objects) =
+        read_with_partial_hashes(&mut reader, &restored_db).await?;
+
+    compare_live_objects(&snapshot.source_db, &restored_db)?;
+    assert_eq!(partial_num_objects, snapshot.num_objects);
+    assert_eq!(
+        partial_hashes.digest(),
+        accumulate_live_object_set(&snapshot.source_db).digest(),
+        "the union of the partial hashes must equal the hash of the live object set"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn several_partitions_round_trip_with_one_download() -> Result<(), anyhow::Error> {
+    several_partitions_round_trip(1).await
+}
+
+#[tokio::test]
+async fn several_partitions_round_trip_with_three_downloads() -> Result<(), anyhow::Error> {
+    several_partitions_round_trip(3).await
 }

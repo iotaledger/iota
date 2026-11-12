@@ -62,6 +62,7 @@ struct LiveObjectSetWriterV1 {
     obj_wbuf: BufWriter<File>,
     ref_wbuf: BufWriter<File>,
     object_file_size: usize,
+    file_max_bytes: usize,
     files: Vec<FileMetadata>,
     sender: Option<Sender<FileMetadata>>,
     file_compression: FileCompression,
@@ -73,6 +74,7 @@ impl LiveObjectSetWriterV1 {
         bucket_num: u32,
         file_compression: FileCompression,
         sender: Sender<FileMetadata>,
+        file_max_bytes: usize,
     ) -> Result<Self> {
         let part_num = 1;
         let (n, obj_file) = Self::object_file(dir_path.clone(), bucket_num, part_num)?;
@@ -84,6 +86,7 @@ impl LiveObjectSetWriterV1 {
             obj_wbuf: BufWriter::new(obj_file),
             ref_wbuf: BufWriter::new(ref_file),
             object_file_size: n,
+            file_max_bytes,
             files: vec![],
             sender: Some(sender),
             file_compression,
@@ -243,7 +246,7 @@ impl LiveObjectSetWriterV1 {
         let mut blob_size = blob.data.len().required_space();
         blob_size += BLOB_ENCODING_BYTES;
         blob_size += blob.data.len();
-        let cut_new_part_file = (self.object_file_size + blob_size) > FILE_MAX_BYTES;
+        let cut_new_part_file = (self.object_file_size + blob_size) > self.file_max_bytes;
         if cut_new_part_file {
             self.cut()?;
             self.cut_reference_file()?;
@@ -295,6 +298,7 @@ pub struct StateSnapshotWriterV1 {
     /// Chain identifier written into the `ManifestV2`.
     chain_id: ChainIdentifier,
     concurrency: NonZeroUsize,
+    file_max_bytes: usize,
 }
 
 impl StateSnapshotWriterV1 {
@@ -315,6 +319,7 @@ impl StateSnapshotWriterV1 {
             checkpoint_store,
             chain_id,
             concurrency,
+            file_max_bytes: FILE_MAX_BYTES,
         })
     }
 
@@ -341,7 +346,20 @@ impl StateSnapshotWriterV1 {
             checkpoint_store,
             chain_id,
             concurrency,
+            file_max_bytes: FILE_MAX_BYTES,
         })
+    }
+
+    /// Cuts object files at `file_max_bytes` instead of [`FILE_MAX_BYTES`].
+    ///
+    /// `file_max_bytes` must hold the file header and the first object of each
+    /// bucket. If that object does not fit, the first object file of the bucket
+    /// holds only its header and has no digest entry, and the reader panics on
+    /// it.
+    #[cfg(test)]
+    pub(crate) fn with_file_max_bytes(mut self, file_max_bytes: usize) -> Self {
+        self.file_max_bytes = file_max_bytes;
+        self
     }
 
     /// Retrieves the system state object from the perpetual database, writes
@@ -540,6 +558,7 @@ impl StateSnapshotWriterV1 {
                     bucket_num,
                     self.file_compression,
                     sender.clone(),
+                    self.file_max_bytes,
                 )?);
             }
             let writer = object_writers
