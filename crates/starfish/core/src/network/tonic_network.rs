@@ -2885,7 +2885,7 @@ mod tests {
 
     /// A pooled channel whose peer comes back without answering the TLS
     /// handshake fails each call once the connect timeout passes, instead of
-    /// hanging.
+    /// hanging, and connects again once the peer serves.
     #[cfg(not(msim))]
     #[tokio::test]
     async fn pooled_channel_gives_up_on_a_peer_that_stalls_the_tls_handshake() {
@@ -2896,7 +2896,7 @@ mod tests {
         use super::{TonicManager, to_socket_addr};
         use crate::network::{NetworkClient as _, test_network::TestService};
 
-        const CONNECT_TIMEOUT: Duration = Duration::from_millis(500);
+        const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
         /// How long the test waits for a call before deciding that no deadline
         /// ended it. Far longer than `CONNECT_TIMEOUT`, so a slow machine does
         /// not fail the test.
@@ -2904,13 +2904,17 @@ mod tests {
 
         let (context, keys) = Context::new_for_test(4);
         let server_index = context.committee.to_authority_index(0).unwrap();
-        let mut server = TonicManager::new(
-            Arc::new(context.clone().with_authority_index(server_index)),
-            keys[0].0.clone(),
-        );
-        server
-            .install_service(Arc::new(Mutex::new(TestService::new())))
-            .await;
+        let server_context = Arc::new(context.clone().with_authority_index(server_index));
+        let start_server = || {
+            let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
+            async move {
+                server
+                    .install_service(Arc::new(Mutex::new(TestService::new())))
+                    .await;
+                server
+            }
+        };
+        let mut server = start_server().await;
 
         let client_context = Arc::new(
             context
@@ -2932,7 +2936,7 @@ mod tests {
         server.stop().await;
         // Never accepted, so the TLS handshake of the next connection attempt
         // gets no answer.
-        let _listener = TcpListener::bind(
+        let listener = TcpListener::bind(
             to_socket_addr(&context.committee.authority(server_index).address).unwrap(),
         )
         .unwrap();
@@ -2961,6 +2965,18 @@ mod tests {
                 );
             }
         }
+
+        drop(listener);
+        let _server = start_server().await;
+        // Only a call makes the pooled channel connect; taking it from the
+        // pool does not.
+        tokio::time::timeout(
+            GIVE_UP,
+            client.fetch_commits(server_index, (1..=2).into(), GIVE_UP),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("the call was still pending after {GIVE_UP:?}"))
+        .expect("the pooled channel connects again once the peer serves");
     }
 
     /// A header fetch whose request message never arrives is charged to its
