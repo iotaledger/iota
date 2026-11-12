@@ -225,13 +225,12 @@ pub async fn start_grpc_server(
 
     // Order matters:
     // - the address copy before traffic control, which reads it;
-    // - the minimum client version outside every layer that can answer a
-    //   request itself, so those responses carry it too;
+    // - the minimum client version outside every layer that can answer a request itself, so those
+    //   responses carry it too;
     // - metrics before traffic control, to count blocked requests;
-    // - `GrpcTimeout` inside metrics and traffic control, so they see the
-    //   status of a call that ends at its deadline;
-    // - server-timing innermost, to time only the requests that traffic
-    //   control lets through.
+    // - `GrpcTimeout` inside metrics and traffic control, so they see the status of a call that
+    //   ends at its deadline;
+    // - server-timing innermost, to time only the requests that traffic control lets through.
     let service = tower::ServiceBuilder::new()
         .map_request(insert_tonic_connect_info)
         .map_response(insert_min_client_version)
