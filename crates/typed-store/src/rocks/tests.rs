@@ -2481,6 +2481,31 @@ async fn a_prefix_extractor_installed_on_reopen_keeps_every_scan_exact() {
     assert_every_scan_exact(&db, &reference);
 }
 
+/// A table whose extractor was installed on the RocksDB options directly, so
+/// its read options hold no prefix length, still returns every row from every
+/// kind of scan.
+#[tokio::test]
+async fn a_prefix_extractor_without_a_prefix_length_keeps_every_scan_exact() {
+    let tmp_dir = iota_common::tempdir();
+    let mut options = default_db_options();
+    options
+        .options
+        .set_prefix_extractor(rocksdb::SliceTransform::create_fixed_prefix(PREFIX_LEN));
+    assert_eq!(options.rw_options.prefix_len, None);
+    let db = open_cf_opts(
+        tmp_dir.path(),
+        None,
+        MetricConf::default(),
+        &[("prefixed", options.options.clone())],
+    )
+    .expect("Failed to open rocksdb");
+    let map: DBMap<PrefixedKey, u64> =
+        DBMap::reopen(&db, Some("prefixed"), &options.rw_options, true)
+            .expect("Failed to open storage");
+    let reference = populate_prefixed_map(&map);
+    assert_every_scan_exact(&map, &reference);
+}
+
 /// A forward prefix scan consults a file's prefix bloom filter: the file is
 /// skipped when it holds no row of the id and read when it does. A reverse
 /// prefix scan seeks to the next prefix, so it consults no file's filter.

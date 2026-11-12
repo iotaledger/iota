@@ -82,11 +82,13 @@ impl ReadWriteOptions {
     /// a seek outside total order may skip memtables and files whose prefix
     /// bloom filter rejects the seek key's prefix, which is wrong for a scan
     /// that crosses prefixes. Bounded iterators decide per scan.
+    ///
+    /// Total order is set whether or not `prefix_len` is, so a table whose
+    /// extractor was installed some other way is read correctly too. It has
+    /// no effect on a table without an extractor.
     pub fn readopts(&self) -> ReadOptions {
         let mut read_options = ReadOptions::default();
-        if self.prefix_len.is_some() {
-            read_options.set_total_order_seek(true);
-        }
+        read_options.set_total_order_seek(true);
         read_options
     }
 
