@@ -302,6 +302,7 @@ impl PTB {
             dry_run: program_metadata.dry_run_set,
             dev_inspect: program_metadata.dev_inspect_set,
             local: program_metadata.local_set,
+            gas_profile: None,
             serialize_unsigned_transaction: program_metadata.serialize_unsigned_set,
             serialize_signed_transaction: program_metadata.serialize_signed_set,
             sender: program_metadata

@@ -636,6 +636,11 @@ pub struct TxProcessingArgs {
     /// locally.
     #[arg(long, requires = "simulation")]
     pub local: bool,
+    /// Write a gas profile of the local run in Speedscope format to <PATH>,
+    /// or by default to `gas_profile_<DIGEST>.speedscope.json` in the current
+    /// directory. Requires --local.
+    #[arg(long, value_name = "PATH", requires = "local", require_equals = true)]
+    pub gas_profile: Option<Option<PathBuf>>,
     /// Instead of executing the transaction, serialize the bcs bytes of the
     /// unsigned transaction data (Transaction) using base64 encoding,
     /// and print out the string <TX_BYTES>. The string can be used to
@@ -3316,6 +3321,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         dry_run,
         dev_inspect,
         local,
+        gas_profile,
         serialize_unsigned_transaction,
         serialize_signed_transaction,
         sender,
@@ -3329,6 +3335,14 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
         "Cannot specify both flags: --serialize-unsigned-transaction and --serialize-signed-transaction."
     );
+    if gas_profile.is_some() {
+        ensure!(local, "--gas-profile requires --local");
+        ensure!(
+            cfg!(feature = "tracing"),
+            "The --gas-profile flag is only supported in builds with the `tracing` feature enabled. \
+            Please build the IOTA CLI from source with `--features tracing` to use this flag."
+        );
+    }
     let signer = sender.unwrap_or(signer);
 
     ensure!(
@@ -3349,6 +3363,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             gas_price,
             gas_payment,
             gas_sponsor,
+            gas_profile,
         )
         .await;
     }
@@ -3362,6 +3377,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             gas_price,
             gas_payment,
             gas_sponsor,
+            gas_profile,
         )
         .await?;
         warn_if_budget_took_the_gas_coins(&result, gas_budget, takes_from_given_gas_coins);

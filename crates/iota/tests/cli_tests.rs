@@ -5269,6 +5269,33 @@ async fn test_local_dev_inspect_matches_node_dev_inspect() -> Result<(), anyhow:
     Ok(())
 }
 
+#[cfg(all(feature = "tracing", not(msim)))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_local_dry_run_writes_gas_profile() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, _, _, _, _, _) = test_cluster_helper().await;
+    let dir = TempDir::new()?;
+    let path = dir.path().join("profile.json");
+
+    move_call(
+        ObjectId::STD,
+        "hash",
+        "sha3_256",
+        vec![IotaJsonValue::from_str("0x616263")?],
+        vec![],
+        GasDataArgs::default(),
+        TxProcessingArgs {
+            gas_profile: Some(Some(path.clone())),
+            ..dry_run(true)
+        },
+    )
+    .execute(&mut test_cluster.wallet)
+    .await?;
+
+    let profile: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
+    assert!(!profile["profiles"].as_array().unwrap().is_empty());
+    Ok(())
+}
+
 #[test]
 fn local_requires_a_simulation_mode() {
     use clap::{Parser, error::ErrorKind};
