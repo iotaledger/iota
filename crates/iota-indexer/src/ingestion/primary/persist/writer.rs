@@ -102,15 +102,15 @@ impl PrimaryWriter {
         let first_checkpoint_seq = checkpoint_batch.first().as_ref().unwrap().sequence_number;
 
         let committer_watermark = CommitterWatermark::from(checkpoint_batch.last().unwrap());
-        let mut committer_tables = Vec::from_iter(CommitterTables::basic());
+        let mut committer_tables = Vec::from_iter(CommitterTables::BASIC);
         if objects_history.is_some() {
-            committer_tables.extend(CommitterTables::objects_history());
+            committer_tables.extend(CommitterTables::OBJECTS_HISTORY);
         }
         if filtered_queries.is_some() {
-            committer_tables.extend(CommitterTables::filtered_queries());
+            committer_tables.extend(CommitterTables::FILTERED_QUERIES);
         }
         if combined_event_filters.is_some() {
-            committer_tables.extend(CommitterTables::combined_event_filters());
+            committer_tables.extend(CommitterTables::COMBINED_EVENT_FILTERS);
         }
 
         let guard = self.metrics.checkpoint_db_commit_latency.start_timer();
@@ -229,7 +229,7 @@ impl PrimaryWriter {
             // Its partitions already exist.
             if let Some(last_epoch) = last_epoch {
                 self.state
-                    .advance_epoch(last_epoch, new_epoch)
+                    .advance_epoch(last_epoch, new_epoch, committer_tables.clone())
                     .await
                     .tap_err(|e| {
                         error!("failed to advance epoch with error: {e}");
