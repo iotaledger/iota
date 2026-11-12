@@ -25,6 +25,13 @@ pub trait Restore {
     /// The checksum of the partition can be computed as the SHA3 hash of all
     /// objects' digests included. Then it can be verified against the given
     /// expected value.
+    ///
+    /// While this future runs, `read_to_db` does not poll the downloads: they
+    /// run as tasks of the runtime. An implementation that blocks its thread
+    /// stops the downloads that this thread would run: all of them on a
+    /// current-thread runtime, and the download started just before the insert
+    /// when the read runs on a worker of a multi-thread runtime. Such an
+    /// implementation should move its work to the blocking pool.
     fn insert_partition(
         &self,
         file_metadata: FileMetadata,

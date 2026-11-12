@@ -10,8 +10,9 @@ use std::{
     path::PathBuf,
     sync::{
         Arc, OnceLock,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
+    time::Duration,
 };
 
 use byteorder::{BigEndian, ByteOrder};
@@ -58,7 +59,7 @@ use object_store::{
     ObjectStore, PutMultipartOptions, PutOptions, PutPayload, PutResult, path::Path as ObjectPath,
 };
 use prometheus_filtered::Registry;
-use tokio::sync::{Semaphore, mpsc, oneshot};
+use tokio::sync::{Semaphore, mpsc, oneshot, watch};
 
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FILE_MAX_BYTES,
@@ -1515,6 +1516,11 @@ impl WrittenSnapshot {
         Arc::new(file_store(&self.remote_dir))
     }
 
+    /// Like [`Self::store`], observed and shaped by the test.
+    fn observed_store(&self) -> ObservedStore {
+        ObservedStore::new(file_store(&self.remote_dir))
+    }
+
     /// A reader that downloads the snapshot from `remote`, with
     /// `num_parallel_downloads` downloads at once.
     async fn reader(
@@ -1702,4 +1708,529 @@ async fn several_partitions_round_trip_with_one_download() -> Result<(), anyhow:
 #[tokio::test]
 async fn several_partitions_round_trip_with_three_downloads() -> Result<(), anyhow::Error> {
     several_partitions_round_trip(3).await
+}
+
+/// How long a test waits for something before it fails.
+const WAIT_LIMIT: Duration = Duration::from_secs(10);
+
+/// How often a test checks whether what it waits for has happened.
+const POLL_INTERVAL: Duration = Duration::from_millis(5);
+
+/// A remote store that serves every file from `inner`, and counts and shapes
+/// the downloads of object files (`.obj`): it can delay them, hold every
+/// download after the first `gate_after` ones until [`Self::open_gate`], fail
+/// one of them, or panic in every one of them.
+struct ObservedStore {
+    inner: Arc<DynObjectStore>,
+    delay: Duration,
+    gate_after: Option<usize>,
+    gate: watch::Sender<bool>,
+    fail_download: Option<usize>,
+    panic_on_download: bool,
+    num_downloads_started: AtomicUsize,
+    num_downloads_finished: AtomicUsize,
+    num_downloads_in_flight: AtomicUsize,
+    max_num_downloads_in_flight: AtomicUsize,
+    // Downloaded, and not yet through `Restore::insert_partition`.
+    num_held_partitions: AtomicUsize,
+    max_num_held_partitions: AtomicUsize,
+}
+
+impl ObservedStore {
+    fn new(inner: Arc<DynObjectStore>) -> Self {
+        Self {
+            inner,
+            delay: Duration::ZERO,
+            gate_after: None,
+            gate: watch::Sender::new(true),
+            fail_download: None,
+            panic_on_download: false,
+            num_downloads_started: AtomicUsize::new(0),
+            num_downloads_finished: AtomicUsize::new(0),
+            num_downloads_in_flight: AtomicUsize::new(0),
+            max_num_downloads_in_flight: AtomicUsize::new(0),
+            num_held_partitions: AtomicUsize::new(0),
+            max_num_held_partitions: AtomicUsize::new(0),
+        }
+    }
+
+    fn with_delay(mut self, delay: Duration) -> Self {
+        self.delay = delay;
+        self
+    }
+
+    fn with_gate_after(mut self, num_downloads: usize) -> Self {
+        self.gate_after = Some(num_downloads);
+        self.gate = watch::Sender::new(false);
+        self
+    }
+
+    /// The download that starts as number `index` (from 0) fails with a
+    /// permanent error.
+    fn with_failing_download(mut self, index: usize) -> Self {
+        self.fail_download = Some(index);
+        self
+    }
+
+    fn with_panic_on_download(mut self) -> Self {
+        self.panic_on_download = true;
+        self
+    }
+
+    fn open_gate(&self) {
+        self.gate.send_replace(true);
+    }
+
+    fn num_downloads_finished(&self) -> usize {
+        self.num_downloads_finished.load(Ordering::SeqCst)
+    }
+
+    fn num_held_partitions(&self) -> usize {
+        self.num_held_partitions.load(Ordering::SeqCst)
+    }
+
+    fn num_downloads_in_flight(&self) -> usize {
+        self.num_downloads_in_flight.load(Ordering::SeqCst)
+    }
+
+    fn max_num_downloads_in_flight(&self) -> usize {
+        self.max_num_downloads_in_flight.load(Ordering::SeqCst)
+    }
+
+    fn max_num_held_partitions(&self) -> usize {
+        self.max_num_held_partitions.load(Ordering::SeqCst)
+    }
+
+    fn partition_inserted(&self) {
+        self.num_held_partitions.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+impl std::fmt::Display for ObservedStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ObservedStore({})", self.inner)
+    }
+}
+
+#[async_trait::async_trait]
+impl ObjectStoreGetExt for ObservedStore {
+    async fn get_bytes(&self, src: &ObjectPath) -> anyhow::Result<bytes::Bytes> {
+        self.get_bytes_with_progress(src, &|_| {}).await
+    }
+
+    async fn get_bytes_with_progress(
+        &self,
+        src: &ObjectPath,
+        on_bytes: &(dyn Fn(u64) + Send + Sync),
+    ) -> anyhow::Result<bytes::Bytes> {
+        let inner: &dyn ObjectStoreGetExt = &self.inner;
+        if !src.as_ref().ends_with(".obj") {
+            return inner.get_bytes_with_progress(src, on_bytes).await;
+        }
+        let _in_flight = DownloadInFlight::start(self);
+        assert!(
+            !self.panic_on_download,
+            "download panic injected by the test"
+        );
+        let started = self.num_downloads_started.fetch_add(1, Ordering::SeqCst);
+        if self.fail_download == Some(started) {
+            return Err(not_found_error(src));
+        }
+        if self.gate_after.is_some_and(|after| started >= after) {
+            self.gate
+                .subscribe()
+                .wait_for(|open| *open)
+                .await
+                .expect("the gate sender lives as long as the store");
+        }
+        tokio::time::sleep(self.delay).await;
+        let bytes = inner.get_bytes_with_progress(src, on_bytes).await?;
+        self.num_downloads_finished.fetch_add(1, Ordering::SeqCst);
+        let num_held = self.num_held_partitions.fetch_add(1, Ordering::SeqCst) + 1;
+        self.max_num_held_partitions
+            .fetch_max(num_held, Ordering::SeqCst);
+        Ok(bytes)
+    }
+
+    async fn exists(&self, src: &ObjectPath) -> anyhow::Result<bool> {
+        let inner: &dyn ObjectStoreGetExt = &self.inner;
+        inner.exists(src).await
+    }
+
+    async fn object_size(&self, src: &ObjectPath) -> anyhow::Result<u64> {
+        let inner: &dyn ObjectStoreGetExt = &self.inner;
+        inner.object_size(src).await
+    }
+}
+
+/// Counts a download as in flight until dropped, also when the download is
+/// cancelled.
+struct DownloadInFlight<'a>(&'a ObservedStore);
+
+impl<'a> DownloadInFlight<'a> {
+    fn start(store: &'a ObservedStore) -> Self {
+        let num_in_flight = store.num_downloads_in_flight.fetch_add(1, Ordering::SeqCst) + 1;
+        store
+            .max_num_downloads_in_flight
+            .fetch_max(num_in_flight, Ordering::SeqCst);
+        Self(store)
+    }
+}
+
+impl Drop for DownloadInFlight<'_> {
+    fn drop(&mut self) {
+        self.0
+            .num_downloads_in_flight
+            .fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+/// The error of a download of a file that the server does not have. The retry
+/// of the download gives up on it at once.
+fn not_found_error(src: &ObjectPath) -> anyhow::Error {
+    let response = reqwest::Response::from(
+        http::Response::builder()
+            .status(http::StatusCode::NOT_FOUND)
+            .body("")
+            .unwrap(),
+    );
+    let status_error = response.error_for_status().unwrap_err();
+    anyhow::Error::new(status_error).context(format!("failed to get file {src}"))
+}
+
+async fn wait_until(what: &str, condition: impl Fn() -> bool) {
+    wait_until_described(what, String::new, condition).await;
+}
+
+/// Like [`wait_until`]; `describe_state` adds what the test sees when the wait
+/// times out.
+async fn wait_until_described(
+    what: &str,
+    describe_state: impl Fn() -> String,
+    condition: impl Fn() -> bool,
+) {
+    tokio::time::timeout(WAIT_LIMIT, async {
+        while !condition() {
+            tokio::time::sleep(POLL_INTERVAL).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("timed out waiting for {what}{}", describe_state()));
+}
+
+/// Like [`wait_until`], for a thread that must not yield to the runtime.
+#[cfg(not(msim))]
+fn wait_until_blocking(what: &str, condition: impl Fn() -> bool) {
+    let deadline = std::time::Instant::now() + WAIT_LIMIT;
+    while !condition() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "timed out waiting for {what}"
+        );
+        std::thread::sleep(POLL_INTERVAL);
+    }
+}
+
+/// What [`HookedRestore`] does before its first insert.
+#[derive(Clone, Copy)]
+enum InsertHook {
+    None,
+    /// Opens the store's gate, then waits for an object file download to
+    /// finish.
+    OpenGateAndAwaitDownload,
+    /// Like `OpenGateAndAwaitDownload`, but blocks the thread instead of
+    /// awaiting.
+    #[cfg(not(msim))]
+    OpenGateAndBlockForDownload,
+    /// Waits until this many downloaded partitions are held, the one in the
+    /// insert included.
+    AwaitHeldPartitions(usize),
+    /// The insert fails.
+    FailFirst,
+}
+
+/// Restores into the real perpetual tables, with a hook before the first
+/// insert.
+struct HookedRestore {
+    tables: Arc<AuthorityPerpetualTables>,
+    store: Arc<ObservedStore>,
+    hook: InsertHook,
+    num_inserts: AtomicUsize,
+    num_downloads_in_flight_at_first_insert: AtomicUsize,
+}
+
+impl HookedRestore {
+    fn new(
+        tables: Arc<AuthorityPerpetualTables>,
+        store: Arc<ObservedStore>,
+        hook: InsertHook,
+    ) -> Self {
+        Self {
+            tables,
+            store,
+            hook,
+            num_inserts: AtomicUsize::new(0),
+            num_downloads_in_flight_at_first_insert: AtomicUsize::new(0),
+        }
+    }
+}
+
+impl Restore for HookedRestore {
+    async fn insert_partition(
+        &self,
+        file_metadata: FileMetadata,
+        bytes: bytes::Bytes,
+        expected_checksum: &[u8; 32],
+    ) -> anyhow::Result<()> {
+        let first = self.num_inserts.fetch_add(1, Ordering::SeqCst) == 0;
+        let result = async {
+            if first {
+                self.num_downloads_in_flight_at_first_insert
+                    .store(self.store.num_downloads_in_flight(), Ordering::SeqCst);
+                match self.hook {
+                    InsertHook::None => {}
+                    InsertHook::OpenGateAndAwaitDownload => {
+                        let num_finished_before = self.store.num_downloads_finished();
+                        self.store.open_gate();
+                        wait_until("a download to finish during the insert", || {
+                            self.store.num_downloads_finished() > num_finished_before
+                        })
+                        .await;
+                    }
+                    #[cfg(not(msim))]
+                    InsertHook::OpenGateAndBlockForDownload => {
+                        let num_finished_before = self.store.num_downloads_finished();
+                        self.store.open_gate();
+                        wait_until_blocking(
+                            "a download to finish while the insert blocks its thread",
+                            || self.store.num_downloads_finished() > num_finished_before,
+                        );
+                    }
+                    InsertHook::AwaitHeldPartitions(num_partitions) => {
+                        wait_until_described(
+                            &format!("{num_partitions} partitions to be held"),
+                            || format!(", only {} are held", self.store.num_held_partitions()),
+                            || self.store.num_held_partitions() >= num_partitions,
+                        )
+                        .await;
+                    }
+                    InsertHook::FailFirst => anyhow::bail!("insert refused by the test"),
+                }
+            }
+            self.tables
+                .insert_partition(file_metadata, bytes, expected_checksum)
+                .await
+        }
+        .await;
+        self.store.partition_inserted();
+        result
+    }
+}
+
+/// A snapshot of several partitions, a reader that downloads it through an
+/// [`ObservedStore`], and an empty database to restore into.
+struct RestoreFixture {
+    snapshot: WrittenSnapshot,
+    store: Arc<ObservedStore>,
+    reader: StateSnapshotReaderV1,
+    restored_db: Arc<AuthorityPerpetualTables>,
+    // Last, so that the temporary directory is removed after the databases in
+    // the other fields have closed.
+    _dir: tempfile::TempDir,
+}
+
+impl RestoreFixture {
+    /// `configure_store` sets up the store the reader downloads from.
+    async fn new(
+        configure_store: impl FnOnce(ObservedStore) -> ObservedStore,
+        num_parallel_downloads: usize,
+    ) -> Result<Self, anyhow::Error> {
+        let dir = iota_common::tempdir();
+        let snapshot = write_several_partitions_snapshot(dir.path()).await?;
+        let store = Arc::new(configure_store(snapshot.observed_store()));
+        let reader = snapshot
+            .reader(store.clone(), num_parallel_downloads)
+            .await?;
+        let restored_db = Arc::new(AuthorityPerpetualTables::open(
+            &dir.path().join("restored_db"),
+            None,
+        ));
+        Ok(Self {
+            snapshot,
+            store,
+            reader,
+            restored_db,
+            _dir: dir,
+        })
+    }
+
+    fn restore_target(&self, hook: InsertHook) -> HookedRestore {
+        HookedRestore::new(self.restored_db.clone(), self.store.clone(), hook)
+    }
+
+    async fn read(&mut self, restore_target: &impl Restore) -> Result<(), anyhow::Error> {
+        let (_abort_handle, abort_registration) = AbortHandle::new_pair();
+        self.reader
+            .read_to_db(restore_target, abort_registration, None)
+            .await
+    }
+
+    fn assert_restored(&self) -> Result<(), anyhow::Error> {
+        compare_live_objects(&self.snapshot.source_db, &self.restored_db)
+    }
+}
+
+async fn downloads_progress_while_inserting(hook: InsertHook) -> Result<(), anyhow::Error> {
+    // The first download passes; the others wait until the first insert
+    // starts, so they cannot have finished before it.
+    let mut fixture = RestoreFixture::new(|store| store.with_gate_after(1), 2).await?;
+    let restore_target = fixture.restore_target(hook);
+    fixture.read(&restore_target).await?;
+    fixture.assert_restored()
+}
+
+/// While a partition is inserted, the other downloads must keep running; the
+/// insert waits with an `.await`.
+#[tokio::test]
+async fn downloads_progress_while_a_partition_is_inserted() -> Result<(), anyhow::Error> {
+    downloads_progress_while_inserting(InsertHook::OpenGateAndAwaitDownload).await
+}
+
+/// Same, but the insert blocks the thread that polls `read_to_db` (the
+/// `block_on` thread of the runtime) instead of awaiting, while the downloads
+/// run on the worker threads. It does not cover an insert that runs on a
+/// worker thread.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn downloads_progress_while_a_partition_is_inserted_on_a_blocked_thread()
+-> Result<(), anyhow::Error> {
+    downloads_progress_while_inserting(InsertHook::OpenGateAndBlockForDownload).await
+}
+
+/// At most N downloads run at once, and at most N + 1 downloaded partitions
+/// are held in memory (N waiting, one in the insert). The first insert waits
+/// until N + 1 are held, so the bound is reached, and a larger count would
+/// show in `max_num_held_partitions`.
+#[tokio::test]
+async fn n_downloads_run_and_n_plus_one_partitions_are_held() -> Result<(), anyhow::Error> {
+    const NUM_PARALLEL_DOWNLOADS: usize = 2;
+    let mut fixture = RestoreFixture::new(
+        |store| store.with_delay(Duration::from_millis(5)),
+        NUM_PARALLEL_DOWNLOADS,
+    )
+    .await?;
+    let restore_target =
+        fixture.restore_target(InsertHook::AwaitHeldPartitions(NUM_PARALLEL_DOWNLOADS + 1));
+    fixture.read(&restore_target).await?;
+    fixture.assert_restored()?;
+    assert_eq!(
+        fixture.store.max_num_downloads_in_flight(),
+        NUM_PARALLEL_DOWNLOADS,
+        "downloads in flight"
+    );
+    assert_eq!(
+        fixture.store.max_num_held_partitions(),
+        NUM_PARALLEL_DOWNLOADS + 1,
+        "held partitions"
+    );
+    Ok(())
+}
+
+/// Dropping the `read_to_db` future must stop the downloads.
+#[tokio::test]
+async fn dropping_the_read_future_stops_the_downloads() -> Result<(), anyhow::Error> {
+    const NUM_PARALLEL_DOWNLOADS: usize = 3;
+    // Every download waits at the closed gate.
+    let mut fixture =
+        RestoreFixture::new(|store| store.with_gate_after(0), NUM_PARALLEL_DOWNLOADS).await?;
+    let store = fixture.store.clone();
+    let restore_target = fixture.restore_target(InsertHook::None);
+    let mut read = Box::pin(fixture.read(&restore_target));
+    tokio::select! {
+        result = &mut read => panic!("the restore ended while the downloads were held: {result:?}"),
+        () = wait_until("the downloads to start", || {
+            store.num_downloads_in_flight() == NUM_PARALLEL_DOWNLOADS
+        }) => {}
+    }
+    drop(read);
+    wait_until(
+        "the downloads to stop after the read future was dropped",
+        || store.num_downloads_in_flight() == 0,
+    )
+    .await;
+    Ok(())
+}
+
+/// A failed insert must stop the downloads that are still running.
+#[tokio::test]
+async fn a_failed_insert_stops_the_downloads() -> Result<(), anyhow::Error> {
+    // The first download passes, the others stay at the closed gate.
+    let mut fixture = RestoreFixture::new(|store| store.with_gate_after(1), 3).await?;
+    let restore_target = fixture.restore_target(InsertHook::FailFirst);
+    let error = fixture
+        .read(&restore_target)
+        .await
+        .expect_err("the insert fails");
+    assert!(format!("{error:#}").contains("insert refused by the test"));
+    assert!(
+        restore_target
+            .num_downloads_in_flight_at_first_insert
+            .load(Ordering::SeqCst)
+            > 0,
+        "other downloads must have been running when the insert failed"
+    );
+    wait_until("the downloads to stop after the failed insert", || {
+        fixture.store.num_downloads_in_flight() == 0
+    })
+    .await;
+    Ok(())
+}
+
+/// A download that fails with a permanent error ends the restore with that
+/// error and stops the other downloads. The restore must not go on without the
+/// partition.
+#[tokio::test]
+async fn a_failed_download_ends_the_restore_and_stops_the_other_downloads()
+-> Result<(), anyhow::Error> {
+    // The first download passes, the second fails, the third stays at the
+    // closed gate.
+    let mut fixture =
+        RestoreFixture::new(|store| store.with_gate_after(2).with_failing_download(1), 3).await?;
+    let restore_target = fixture.restore_target(InsertHook::None);
+    let error = tokio::time::timeout(WAIT_LIMIT, fixture.read(&restore_target))
+        .await
+        .expect("the restore must end after a failed download")
+        .expect_err("a failed download ends the restore with an error");
+    let message = format!("{error:#}");
+    assert!(
+        message.contains("Failed to download object file") && message.contains("404"),
+        "unexpected error: {message}"
+    );
+    wait_until("the downloads to stop after the failed download", || {
+        fixture.store.num_downloads_in_flight() == 0
+    })
+    .await;
+    Ok(())
+}
+
+/// A panic in a download reaches the caller of `read_to_db`.
+#[tokio::test]
+async fn a_panic_in_a_download_reaches_the_caller() -> Result<(), anyhow::Error> {
+    use futures::FutureExt;
+    let mut fixture = RestoreFixture::new(|store| store.with_panic_on_download(), 2).await?;
+    let restore_target = fixture.restore_target(InsertHook::None);
+    let outcome = std::panic::AssertUnwindSafe(fixture.read(&restore_target))
+        .catch_unwind()
+        .await;
+    let payload = outcome.expect_err("the panic must reach the caller");
+    let message = payload
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| payload.downcast_ref::<&str>().copied())
+        .unwrap_or_default();
+    assert!(
+        message.contains("download panic injected by the test"),
+        "unexpected panic payload: {message:?}"
+    );
+    Ok(())
 }

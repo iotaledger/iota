@@ -19,7 +19,7 @@ use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
 use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::{
-    StreamExt, TryStreamExt,
+    StreamExt,
     future::{AbortRegistration, Abortable},
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -42,7 +42,7 @@ use iota_types::{digests::ChainIdentifier, global_state_hash::GlobalStateHash};
 use object_store::path::Path;
 use tokio::{
     sync::{Mutex, mpsc, oneshot},
-    task::JoinHandle,
+    task::{JoinHandle, JoinSet},
 };
 use tracing::info;
 
@@ -633,65 +633,79 @@ impl StateSnapshotReaderV1 {
                 parts
                     .clone()
                     .into_iter()
-                    .map(|entry| (bucket, entry))
+                    .map(|entry| (*bucket, entry))
                     .collect::<Vec<_>>()
             })
             .collect();
         // Continues the bar the reference files were downloaded on, whose
         // totals already include these object files.
         let obj_progress = download_progress;
-        let obj_progress_clone = obj_progress.clone();
         let obj_progress_download = obj_progress.clone();
+        let obj_progress_insert = obj_progress.clone();
 
         let ret = Abortable::new(
             async move {
-                // Downloads all object files from remote store to local store in parallel
-                // and inserts the objects into the AuthorityPerpetualTables
-                futures::stream::iter(input_files.iter())
-                    .map(|(bucket, (part_num, file_metadata))| {
-                        let epoch_dir = epoch_dir.clone();
-                        let file_path = file_metadata.file_path(&epoch_dir);
-                        let remote_object_store = remote_object_store.clone();
-                        let sha3_digests_cloned = sha3_digests.clone();
-                        let obj_progress = obj_progress_download.clone();
-                        async move {
-                            // Downloads object file with retries
-                            let bytes =
-                                get_with_progress(&remote_object_store, &file_path, &obj_progress)
-                                    .await
-                                    .with_context(|| {
-                                        format!("Failed to download object file {file_path}")
-                                    })?;
+                // Each download is its own task, so that it keeps running while a
+                // partition is inserted. At most `concurrency` downloads exist at
+                // once, and the next one starts before the insert. Dropping the
+                // set aborts the downloads.
+                //
+                // An insert that blocks the thread that polls this future stops the
+                // downloads that this thread would run. When this future runs on a
+                // worker of a multi-thread runtime, that is the download spawned just
+                // before the insert: it waits in the LIFO slot of this worker, which
+                // other workers do not take tasks from. See
+                // `Restore::insert_partition`.
+                let mut files_to_download = input_files.into_iter();
+                let mut downloads = JoinSet::new();
+                let mut start_next_download = |downloads: &mut JoinSet<_>| {
+                    let Some((bucket, (part_num, file_metadata))) = files_to_download.next() else {
+                        return;
+                    };
+                    let file_path = file_metadata.file_path(&epoch_dir);
+                    let remote_object_store = remote_object_store.clone();
+                    let sha3_digests = sha3_digests.clone();
+                    let obj_progress = obj_progress_download.clone();
+                    downloads.spawn(async move {
+                        // Downloads object file with retries
+                        let bytes =
+                            get_with_progress(&remote_object_store, &file_path, &obj_progress)
+                                .await
+                                .with_context(|| {
+                                    format!("Failed to download object file {file_path}")
+                                })?;
 
-                            // Gets the sha3 digest of the partition
-                            let sha3_digest = sha3_digests_cloned.lock().await;
-                            let bucket_map = sha3_digest
-                                .get(bucket)
-                                .expect("Bucket not in digest map")
-                                .clone();
-                            let sha3_digest = *bucket_map
-                                .get(part_num)
-                                .expect("sha3 digest not in bucket map");
-                            Ok::<(Bytes, FileMetadata, [u8; 32]), anyhow::Error>((
-                                bytes,
-                                (*file_metadata).clone(),
-                                sha3_digest,
-                            ))
-                        }
-                    })
-                    .boxed()
-                    .buffer_unordered(concurrency.into())
-                    .try_for_each(|(bytes, file_metadata, sha3_digest)| {
-                        let obj_progress = &obj_progress_clone;
-                        async move {
-                            database
-                                .insert_partition(file_metadata, bytes, &sha3_digest)
-                                .await?;
-                            obj_progress.file_done();
-                            Ok(())
-                        }
-                    })
-                    .await
+                        // Gets the sha3 digest of the partition
+                        let sha3_digest = sha3_digests.lock().await;
+                        let sha3_digest = *sha3_digest
+                            .get(&bucket)
+                            .expect("Bucket not in digest map")
+                            .get(&part_num)
+                            .expect("sha3 digest not in bucket map");
+                        Ok::<(Bytes, FileMetadata, [u8; 32]), anyhow::Error>((
+                            bytes,
+                            file_metadata,
+                            sha3_digest,
+                        ))
+                    });
+                };
+                for _ in 0..concurrency.get() {
+                    start_next_download(&mut downloads);
+                }
+                while let Some(joined) = downloads.join_next().await {
+                    let (bytes, file_metadata, sha3_digest) = match joined {
+                        Ok(download) => download?,
+                        Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
+                        // Returning Ok here would skip a partition.
+                        Err(e) => return Err(anyhow::Error::new(e).context("download cancelled")),
+                    };
+                    start_next_download(&mut downloads);
+                    database
+                        .insert_partition(file_metadata, bytes, &sha3_digest)
+                        .await?;
+                    obj_progress_insert.file_done();
+                }
+                Ok(())
             },
             abort_registration,
         )

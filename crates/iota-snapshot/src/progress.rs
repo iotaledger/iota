@@ -389,11 +389,12 @@ impl DownloadProgressBar {
     /// doesn't count them twice.
     pub fn remove_bytes(&self, n: u64) {
         if self.byte_denominated {
-            // The read-modify-write races with concurrent `add_bytes` calls
-            // from other in-flight downloads (indicatif has no atomic
-            // decrement); a lost increment only skews the displayed position
-            // slightly, which is acceptable for a progress bar.
-            self.bar.set_position(self.bar.position().saturating_sub(n));
+            // `dec` is atomic, so it does not race with the `add_bytes` and
+            // `remove_bytes` calls of other downloads, but it wraps below zero.
+            // The bound guards a caller that removes more than it added. It is not
+            // a guard against concurrent misuse: the position can drop between
+            // the read and the `dec`.
+            self.bar.dec(n.min(self.bar.position()));
         }
     }
 
@@ -740,6 +741,56 @@ mod tests {
             b"12345"
         );
         Ok(())
+    }
+
+    /// Removing more bytes than the bar holds leaves the position at zero
+    /// instead of wrapping around.
+    #[tokio::test]
+    async fn test_remove_bytes_stops_at_zero() {
+        let progress =
+            DownloadProgressBar::new(&hidden_multi_progress(), "Downloading", 1, Some(10));
+        progress.add_bytes(3);
+        progress.remove_bytes(5);
+        assert_eq!(progress.bar().position(), 0);
+        progress.add_bytes(4);
+        progress.remove_bytes(1);
+        assert_eq!(progress.bar().position(), 3);
+    }
+
+    /// Downloads on several threads add and remove bytes at the same time. No
+    /// update is lost, so the position ends where it started. It starts above
+    /// zero: at zero a lost update would be masked when the position is
+    /// clamped, and only the last updates would count.
+    #[tokio::test]
+    async fn test_remove_bytes_does_not_lose_concurrent_updates() {
+        const NUM_THREADS: u64 = 8;
+        const NUM_ROUNDS: usize = 200_000;
+        const START_POSITION: u64 = 1 << 30;
+        let progress = Arc::new(DownloadProgressBar::new(
+            &hidden_multi_progress(),
+            "Downloading",
+            1,
+            Some(1 << 40),
+        ));
+        progress.add_bytes(START_POSITION);
+        let start = Arc::new(std::sync::Barrier::new(NUM_THREADS as usize));
+        let threads: Vec<_> = (1..=NUM_THREADS)
+            .map(|num_bytes| {
+                let progress = progress.clone();
+                let start = start.clone();
+                std::thread::spawn(move || {
+                    start.wait();
+                    for _ in 0..NUM_ROUNDS {
+                        progress.add_bytes(num_bytes);
+                        progress.remove_bytes(num_bytes);
+                    }
+                })
+            })
+            .collect();
+        for thread in threads {
+            thread.join().unwrap();
+        }
+        assert_eq!(progress.bar().position(), START_POSITION);
     }
 
     /// An empty response is retried like a failed attempt instead of failing
