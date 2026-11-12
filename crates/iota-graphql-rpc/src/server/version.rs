@@ -29,7 +29,8 @@ pub(crate) static MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION_HEADER: HeaderName =
 /// Bump this alongside SDK releases containing wire-visible changes (e.g., new enum variants or
 /// renamed fields) to force older clients to reject the service and fail safely rather than
 /// panicking on un-decodable values. `scripts/check_min_iota_sdk_client_version.py` fails in CI
-/// when a change to the BCS schema of `iota-sdk-types` requires raising it.
+/// when a change to the BCS schema of `iota-sdk-types` requires raising it. A change to the
+/// GraphQL schema is not checked and has to be raised by hand.
 pub(crate) const MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION: &str = "1.0.0-rc.1";
 
 #[expect(unused)]
