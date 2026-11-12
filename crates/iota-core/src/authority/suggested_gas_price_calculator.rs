@@ -226,11 +226,13 @@ impl SuggestedGasPriceCalculator {
                     // Transactions are processed in descending gas-price order and the
                     // congestion info only holds transactions scheduled before the shed
                     // one, so any clearing price is at least the shed transaction's own
-                    // price.
+                    // price. A transaction with a transaction dependency is processed
+                    // after its dependency instead, so it may follow cheaper ones.
                     debug_assert!(
                         self.congestion_control_parameters
                             .max_concurrent_execution_workers()
                             .is_none()
+                            || transaction.transaction().transaction_dependency().is_some()
                             || clearing_gas_price >= transaction.transaction().gas_price(),
                         "clearing gas price below the shed transaction's own price"
                     );
