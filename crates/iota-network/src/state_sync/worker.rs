@@ -7,6 +7,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use anemo::async_trait;
 use anyhow::{Context, anyhow, ensure};
 use iota_data_ingestion_core::{Reducer, Worker};
+use iota_sdk_types::CheckpointDigest;
 use iota_storage::verify_checkpoint_linkage;
 use iota_types::{
     committee::{Committee, EpochId},
@@ -19,7 +20,7 @@ use iota_types::{
 };
 use tracing::debug;
 
-use crate::state_sync::metrics::Metrics;
+use crate::state_sync::{metrics::Metrics, pinned_checkpoint_digest};
 
 /// A checkpoint downloaded from the archive whose content digests — and,
 /// unless deferred, authority signatures — have been verified by a
@@ -31,6 +32,7 @@ pub(crate) struct VerifiedArchiveCheckpoint {
     /// False when the committee for the checkpoint's epoch was not yet in the
     /// store, because the previous epoch's last checkpoint had not been
     /// committed; the reducer verifies the signatures for those instead.
+    /// True for a pinned checkpoint, whose signatures are not verified.
     signatures_verified: bool,
 }
 
@@ -41,7 +43,14 @@ pub(crate) struct VerifiedArchiveCheckpoint {
 /// authority signatures and content digests. The [`StateSyncReducer`] receives
 /// the results ordered by sequence number and performs the chain-linkage check
 /// and the store insertion.
-pub(crate) struct StateSyncWorker<S>(pub(crate) S);
+///
+/// At a pinned sequence number, takes only the checkpoint with the pinned
+/// digest, and without verifying its signatures.
+pub(crate) struct StateSyncWorker<S> {
+    pub(crate) store: S,
+    /// Must be sorted by sequence number.
+    pub(crate) pinned_checkpoints: Vec<(CheckpointSequenceNumber, CheckpointDigest)>,
+}
 
 #[async_trait]
 impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S> {
@@ -53,20 +62,31 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
         checkpoint: Arc<CheckpointData>,
     ) -> anyhow::Result<Self::Message> {
         let summary = checkpoint.checkpoint_summary.clone();
-        let committee = self.0.get_committee(summary.epoch());
+        let pinned_digest =
+            pinned_checkpoint_digest(&self.pinned_checkpoints, summary.sequence_number);
+        let committee = self.store.get_committee(summary.epoch());
         // As many workers run as there are cores, so keep their CPU-bound
         // verification off the runtime's worker threads, where it would hold up
         // checkpoint execution — which in turn gates how far sync may run
         // ahead.
         tokio::task::spawn_blocking(move || {
-            let signatures_verified = match committee {
-                Some(committee) => {
+            let signatures_verified = match (pinned_digest, committee) {
+                (Some(pinned_digest), _) => {
+                    ensure!(
+                        *summary.digest() == pinned_digest,
+                        "checkpoint {} has digest {}, not the pinned digest {pinned_digest}",
+                        summary.sequence_number,
+                        summary.digest()
+                    );
+                    true
+                }
+                (None, Some(committee)) => {
                     summary
                         .verify_authority_signatures(&committee)
                         .map_err(|e| anyhow!("checkpoint signature verification failed: {e}"))?;
                     true
                 }
-                None => false,
+                (None, None) => false,
             };
             let contents = FullCheckpointContents::from_contents_and_execution_data(
                 checkpoint.checkpoint_contents.clone(),

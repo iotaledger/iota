@@ -13,9 +13,12 @@ use anemo::{PeerId, Request, Response, rpc::Status};
 use anyhow::anyhow;
 use bytes::Bytes;
 use iota_config::{node::CheckpointArchiveConfig, p2p::StateSyncConfig};
-use iota_data_ingestion_core::history::{
-    CHECKPOINT_FILE_MAGIC,
-    manifest::{Manifest, create_file_metadata_from_bytes, finalize_manifest},
+use iota_data_ingestion_core::{
+    Worker,
+    history::{
+        CHECKPOINT_FILE_MAGIC,
+        manifest::{Manifest, create_file_metadata_from_bytes, finalize_manifest},
+    },
 };
 use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, EndOfEpochData};
 use iota_storage::{
@@ -46,7 +49,7 @@ use crate::{
         PeerBalancer, PeerCheckpointRequestType, PeerStateSyncInfo, StateSync, StateSyncEventLoop,
         StateSyncHandshake, StateSyncMessage, StateSyncServer, UnstartedStateSync,
         get_or_fetch_checkpoint_summary, pinned_checkpoint_digest, server::Server,
-        verify_checkpoint_summary,
+        verify_checkpoint_summary, worker::StateSyncWorker,
     },
     utils::build_network,
 };
@@ -2069,6 +2072,93 @@ async fn verify_checkpoint_summary_returns_an_error_for_a_digest_other_than_the_
         None,
     );
     assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn archive_checkpoint_with_a_digest_other_than_the_pinned_one_is_not_taken() {
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 2, None, empty_contents);
+    let genesis_checkpoint = &ordered_checkpoints[0];
+    let pinned_digest = *ordered_checkpoints[1].digest();
+    let other_checkpoint =
+        end_of_epoch_checkpoint_with_new_committee(&committee, genesis_checkpoint);
+    assert_ne!(*other_checkpoint.digest(), pinned_digest);
+
+    let store = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    let unpinned_worker = StateSyncWorker {
+        store: store.clone(),
+        pinned_checkpoints: vec![],
+    };
+    let pinned_worker = StateSyncWorker {
+        store,
+        pinned_checkpoints: vec![(1, pinned_digest)],
+    };
+    // It passes verification, so only the pin makes the error.
+    assert!(
+        unpinned_worker
+            .process_checkpoint(archive_checkpoint_data(other_checkpoint.clone()))
+            .await
+            .is_ok()
+    );
+    assert!(
+        pinned_worker
+            .process_checkpoint(archive_checkpoint_data(other_checkpoint))
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn archive_checkpoint_with_the_pinned_digest_is_taken_without_verifying_signatures() {
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 2, None, empty_contents);
+    let genesis_checkpoint = &ordered_checkpoints[0];
+    let pinned_digest = *ordered_checkpoints[1].digest();
+
+    // The same summary, signed by a committee the node does not know.
+    let (_, (unverifiable_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 1, Some(genesis_checkpoint.clone()), empty_contents);
+    let unverifiable_checkpoint = unverifiable_checkpoints[0].clone().into_inner();
+    assert_eq!(*unverifiable_checkpoint.digest(), pinned_digest);
+
+    let store = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    let unpinned_worker = StateSyncWorker {
+        store: store.clone(),
+        pinned_checkpoints: vec![],
+    };
+    let pinned_worker = StateSyncWorker {
+        store,
+        pinned_checkpoints: vec![(1, pinned_digest)],
+    };
+    assert!(
+        unpinned_worker
+            .process_checkpoint(archive_checkpoint_data(unverifiable_checkpoint.clone()))
+            .await
+            .is_err()
+    );
+    assert!(
+        pinned_worker
+            .process_checkpoint(archive_checkpoint_data(unverifiable_checkpoint))
+            .await
+            .is_ok()
+    );
+}
+
+/// Returns `summary` with empty contents, as the archive serves it.
+fn archive_checkpoint_data(summary: CertifiedCheckpointSummary) -> Arc<CheckpointData> {
+    Arc::new(CheckpointData {
+        checkpoint_summary: summary,
+        checkpoint_contents: empty_contents().into_checkpoint_contents(),
+        transactions: vec![],
+    })
 }
 
 /// A peer that answers every request for a checkpoint summary with the same

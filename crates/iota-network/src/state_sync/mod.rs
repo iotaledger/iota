@@ -563,6 +563,7 @@ where
             self.network.clone(),
             self.checkpoint_archive_config.clone(),
             self.config.max_checkpoints_ahead_of_execution(),
+            self.config.pinned_checkpoints.clone(),
             self.store.clone(),
             self.peer_heights.clone(),
             self.metrics.clone(),
@@ -1621,6 +1622,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive<S>(
     network: anemo::Network,
     checkpoint_archive_config: Option<CheckpointArchiveConfig>,
     max_checkpoints_ahead_of_execution: u64,
+    pinned_checkpoints: Vec<(CheckpointSequenceNumber, CheckpointDigest)>,
     store: S,
     peer_heights: Arc<RwLock<PeerHeights>>,
     metrics: Metrics,
@@ -1632,6 +1634,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive<S>(
             &network,
             &checkpoint_archive_config,
             max_checkpoints_ahead_of_execution,
+            &pinned_checkpoints,
             store.clone(),
             peer_heights.clone(),
             metrics.clone(),
@@ -1645,6 +1648,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
     network: &anemo::Network,
     checkpoint_archive_config: &Option<CheckpointArchiveConfig>,
     max_checkpoints_ahead_of_execution: u64,
+    pinned_checkpoints: &[(CheckpointSequenceNumber, CheckpointDigest)],
     store: S,
     peer_heights: Arc<RwLock<PeerHeights>>,
     metrics: Metrics,
@@ -1710,7 +1714,10 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
         // Workers verify signatures and content digests in parallel; the
         // reducer chain-checks and inserts the results in sequence order.
         let worker_pool = WorkerPool::new_with_reducer(
-            StateSyncWorker(store.clone()),
+            StateSyncWorker {
+                store: store.clone(),
+                pinned_checkpoints: pinned_checkpoints.to_vec(),
+            },
             "data_ingestion_executor".to_string(),
             checkpoint_archive_config.verify_concurrency.get(),
             Default::default(),
