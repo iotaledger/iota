@@ -24,7 +24,9 @@ For each constant, two copies of that file are compared:
   the version of the constant accepts, taken from its dependency requirement.
 
 The check fails when they differ, and also when a constant names a client
-version that is not on crates.io.
+version that is not on crates.io. The constant has to be raised when its
+`iota-sdk-types` is the older of the two, and lowered, or Cargo.lock updated,
+when it is the newer one.
 
 Only a crates.io release of `iota-sdk-types` is checked. While Cargo.lock pins
 it to a commit of iota-rust-sdk or to a local path, there may be no client
@@ -163,8 +165,25 @@ def released_schema(version: str) -> str:
     return schema
 
 
+def version_key(version: str) -> tuple:
+    """A key that orders versions as semantic versioning does."""
+    core, _, pre_release = version.partition("+")[0].partition("-")
+    # A release is newer than its pre-releases, and a numeric pre-release
+    # identifier is older than an alphanumeric one.
+    identifiers = [
+        (0, int(identifier), "") if identifier.isdigit() else (1, 0, identifier)
+        for identifier in pre_release.split(".")
+        if identifier
+    ]
+    return (
+        [int(number) for number in core.split(".")],
+        0 if pre_release else 1,
+        identifiers,
+    )
+
+
 def node_schemas(lockfile: Path) -> list[tuple[str, str]]:
-    """A description and the BCS schema of every crates.io release of
+    """The version and the BCS schema of every crates.io release of
     `iota-sdk-types` the node resolves to. A package from any other source is
     reported and left out."""
     packages = [
@@ -178,7 +197,7 @@ def node_schemas(lockfile: Path) -> list[tuple[str, str]]:
     for package in packages:
         version, source = package["version"], package.get("source")
         if source == CRATES_IO_SOURCE:
-            schemas.append((f"{TYPES_CRATE} {version}", released_schema(version)))
+            schemas.append((version, released_schema(version)))
         else:
             print(
                 f"{TYPES_CRATE} {version} comes from {source or 'a local path'}, "
@@ -219,24 +238,46 @@ def locked_client_version(lockfile: Path, client_crate: str) -> str | None:
     return None
 
 
-def advice(lockfile: Path, minimum: Minimum, node_schema: str) -> str:
-    """What to set the constant to so that `node_schema` is covered."""
-    client_crate = minimum.client_crate
-    no_release = (
-        f"No {client_crate} release found that covers it. Release the client "
-        f"from iota-rust-sdk first, then set {minimum.constant} to that release."
-    )
+def covering_locked_client(
+    lockfile: Path, client_crate: str, node_schema: str
+) -> str | None:
+    """The version of the client in Cargo.lock, if it covers `node_schema`."""
     locked = locked_client_version(lockfile, client_crate)
     if locked is None:
-        return no_release
+        return None
     types_version = oldest_types_version(client_crate, locked)
     if types_version is None or released_schema(types_version) != node_schema:
-        return no_release
+        return None
+    return locked
+
+
+def advice_to_raise(lockfile: Path, minimum: Minimum, node_schema: str) -> str:
+    """What to raise the constant to so that `node_schema` is covered."""
+    client_crate = minimum.client_crate
+    locked = covering_locked_client(lockfile, client_crate, node_schema)
+    if locked is None:
+        return (
+            f"No {client_crate} release found that covers it. Release the "
+            f"client from iota-rust-sdk first, then set {minimum.constant} to "
+            "that release."
+        )
     return (
         f"{client_crate} {locked} from Cargo.lock covers it. Set "
         f"{minimum.constant} to {locked}, or to an older release that this "
         "check also accepts."
     )
+
+
+def advice_to_lower(
+    lockfile: Path, minimum: Minimum, node_schema: str, types_version: str
+) -> str:
+    """What to do when the constant names a client newer than the node."""
+    client_crate = minimum.client_crate
+    locked = covering_locked_client(lockfile, client_crate, node_schema)
+    lower = f"Lower {minimum.constant} to a release that this check accepts"
+    if locked is not None:
+        lower += f", such as {client_crate} {locked} from Cargo.lock"
+    return f"{lower}, or update {TYPES_CRATE} in Cargo.lock to {types_version}."
 
 
 def schema_diff(old: str, new: str, old_name: str, new_name: str) -> str:
@@ -271,21 +312,34 @@ def check(minimum: Minimum, node: list[tuple[str, str]]) -> list[str]:
     types_schema = released_schema(types_version)
 
     errors = []
-    for node_name, node_schema in node:
+    for node_version, node_schema in node:
+        node_name = f"{TYPES_CRATE} {node_version}"
         if node_schema == types_schema:
             print(
                 f"{constant} {version}: the BCS schema of its {types_name} "
                 f"matches the node's {node_name} — OK"
             )
             continue
+        diff = schema_diff(types_schema, node_schema, types_name, node_name)
+        if version_key(types_version) > version_key(node_version):
+            errors.append(
+                f"{constant} has to be lowered in {minimum.file}, or "
+                f"{TYPES_CRATE} updated in Cargo.lock.\n"
+                f"It is {version}, and {client_crate} {version} needs at least "
+                f"{types_name}, which is newer than the node's {node_name} and "
+                f"has a different BCS schema:\n{diff}\n"
+                "The node would turn away older clients that can decode what "
+                "it sends.\n"
+                + advice_to_lower(LOCKFILE, minimum, node_schema, types_version)
+            )
+            continue
         errors.append(
             f"{constant} has to be raised in {minimum.file}.\n"
             f"It is {version}, and {client_crate} {version} accepts "
             f"{types_name}, whose BCS schema differs from the node's "
-            f"{node_name}:\n"
-            f"{schema_diff(types_schema, node_schema, types_name, node_name)}\n"
+            f"{node_name}:\n{diff}\n"
             "Such a client cannot decode everything this node sends.\n"
-            + advice(LOCKFILE, minimum, node_schema)
+            + advice_to_raise(LOCKFILE, minimum, node_schema)
         )
     return errors
 
