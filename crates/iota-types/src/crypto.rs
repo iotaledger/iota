@@ -33,7 +33,7 @@ use fastcrypto::{
     serde_helpers::BytesRepresentation,
 };
 use iota_sdk_crypto::{
-    Verifier as _,
+    SignatureError, Signer, Verifier as _,
     bls12381::{Bls12381PrivateKey, Bls12381VerifyingKey},
     ed25519::Ed25519PrivateKey,
     secp256k1::Secp256k1PrivateKey,
@@ -41,7 +41,7 @@ use iota_sdk_crypto::{
     simple::SimpleKeypair,
 };
 use iota_sdk_types::{
-    Address, SignatureScheme,
+    Address, Bls12381PublicKey, Bls12381Signature, SignatureScheme,
     crypto::{Intent, IntentMessage, SimpleSignature},
 };
 use rand::{
@@ -87,7 +87,7 @@ mod intent_tests;
 pub type AuthorityKeyPair = Bls12381PrivateKey;
 pub type AuthorityPublicKey = Bls12381VerifyingKey;
 pub type AuthorityPrivateKey = Bls12381PrivateKey;
-pub type AuthoritySignature = iota_sdk_types::Bls12381Signature;
+pub type AuthoritySignature = Bls12381Signature;
 // Aggregation and the batch check stay on fastcrypto, which owns the batch
 // multiplier policy; the two meet at byte conversions.
 pub type AggregateAuthorityPublicKey = BLS12381PublicKey;
@@ -176,11 +176,8 @@ pub mod authority_keypair_serde {
 
 /// Parse an authority public key, rejecting bytes that do not encode a valid
 /// group element.
-pub fn authority_pubkey_from_bytes(
-    bytes: &[u8],
-) -> Result<AuthorityPublicKey, iota_sdk_crypto::SignatureError> {
-    let bytes = AuthorityPublicKeyBytes::from_bytes(bytes)
-        .map_err(iota_sdk_crypto::SignatureError::from_source)?;
+pub fn authority_pubkey_from_bytes(bytes: &[u8]) -> Result<AuthorityPublicKey, SignatureError> {
+    let bytes = AuthorityPublicKeyBytes::from_bytes(bytes).map_err(SignatureError::from_source)?;
     AuthorityPublicKey::try_from(bytes)
 }
 
@@ -317,7 +314,7 @@ impl PublicKey {
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, AsRef)]
 #[as_ref(forward)]
 pub struct AuthorityPublicKeyBytes(
-    #[serde_as(as = "Readable<Base64, Bytes>")] pub [u8; iota_sdk_types::Bls12381PublicKey::LENGTH],
+    #[serde_as(as = "Readable<Base64, Bytes>")] pub [u8; Bls12381PublicKey::LENGTH],
 );
 
 impl AuthorityPublicKeyBytes {
@@ -379,10 +376,10 @@ impl Display for ConciseAuthorityPublicKeyBytes {
 }
 
 impl TryFrom<AuthorityPublicKeyBytes> for AuthorityPublicKey {
-    type Error = iota_sdk_crypto::SignatureError;
+    type Error = SignatureError;
 
     fn try_from(bytes: AuthorityPublicKeyBytes) -> Result<AuthorityPublicKey, Self::Error> {
-        AuthorityPublicKey::new(&iota_sdk_types::Bls12381PublicKey::new(bytes.0))
+        AuthorityPublicKey::new(&Bls12381PublicKey::new(bytes.0))
     }
 }
 
@@ -422,7 +419,7 @@ impl Display for AuthorityPublicKeyBytes {
 
 impl ToFromBytes for AuthorityPublicKeyBytes {
     fn from_bytes(bytes: &[u8]) -> Result<Self, fastcrypto::error::FastCryptoError> {
-        let bytes: [u8; iota_sdk_types::Bls12381PublicKey::LENGTH] = bytes
+        let bytes: [u8; Bls12381PublicKey::LENGTH] = bytes
             .try_into()
             .map_err(|_| fastcrypto::error::FastCryptoError::InvalidInput)?;
         Ok(AuthorityPublicKeyBytes(bytes))
@@ -430,13 +427,11 @@ impl ToFromBytes for AuthorityPublicKeyBytes {
 }
 
 impl AuthorityPublicKeyBytes {
-    pub const ZERO: Self = Self::new([0u8; iota_sdk_types::Bls12381PublicKey::LENGTH]);
+    pub const ZERO: Self = Self::new([0u8; Bls12381PublicKey::LENGTH]);
 
     /// This ensures it's impossible to construct an instance with other than
     /// registered lengths
-    pub const fn new(
-        bytes: [u8; iota_sdk_types::Bls12381PublicKey::LENGTH],
-    ) -> AuthorityPublicKeyBytes
+    pub const fn new(bytes: [u8; Bls12381PublicKey::LENGTH]) -> AuthorityPublicKeyBytes
 where {
         AuthorityPublicKeyBytes(bytes)
     }
@@ -473,7 +468,7 @@ pub trait IotaAuthoritySignature {
     fn new_secure<T>(
         value: &IntentMessage<T>,
         epoch_id: &EpochId,
-        secret: &dyn iota_sdk_crypto::Signer<Self>,
+        secret: &dyn Signer<Self>,
     ) -> Self
     where
         T: Serialize;
@@ -481,11 +476,7 @@ pub trait IotaAuthoritySignature {
 
 impl IotaAuthoritySignature for AuthoritySignature {
     #[instrument(level = "trace", skip_all)]
-    fn new_secure<T>(
-        value: &IntentMessage<T>,
-        epoch: &EpochId,
-        secret: &dyn iota_sdk_crypto::Signer<Self>,
-    ) -> Self
+    fn new_secure<T>(value: &IntentMessage<T>, epoch: &EpochId, secret: &dyn Signer<Self>) -> Self
     where
         T: Serialize,
     {
@@ -755,7 +746,7 @@ impl AuthoritySignInfo {
         value: &T,
         intent: Intent,
         name: AuthorityName,
-        secret: &dyn iota_sdk_crypto::Signer<AuthoritySignature>,
+        secret: &dyn Signer<AuthoritySignature>,
     ) -> Self
     where
         T: Serialize,

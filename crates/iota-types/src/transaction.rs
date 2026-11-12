@@ -16,6 +16,7 @@ use std::{
 use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_crypto::Signer;
 use iota_sdk_types::{
     Address, Argument, CanceledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
     ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
@@ -2766,7 +2767,7 @@ impl VerifiedSignedTransaction {
         epoch: EpochId,
         transaction: VerifiedTransaction,
         authority: AuthorityName,
-        secret: &dyn iota_sdk_crypto::Signer<AuthoritySignature>,
+        secret: &dyn Signer<AuthoritySignature>,
     ) -> Self {
         Self::new_from_verified(SignedTransaction::new(
             epoch,

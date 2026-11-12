@@ -7,6 +7,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use iota_sdk_crypto::Signer;
 use iota_sdk_types::{
     SenderSignedTransaction,
     crypto::{Intent, IntentScope},
@@ -156,7 +157,7 @@ where
     pub fn new(
         epoch: EpochId,
         data: T,
-        secret: &dyn iota_sdk_crypto::Signer<AuthoritySignature>,
+        secret: &dyn Signer<AuthoritySignature>,
         authority: AuthorityName,
     ) -> Self {
         let auth_signature = Self::sign(epoch, &data, secret, authority);
@@ -170,7 +171,7 @@ where
     pub fn sign(
         epoch: EpochId,
         data: &T,
-        secret: &dyn iota_sdk_crypto::Signer<AuthoritySignature>,
+        secret: &dyn Signer<AuthoritySignature>,
         authority: AuthorityName,
     ) -> AuthoritySignInfo {
         AuthoritySignInfo::new(epoch, &data, Intent::iota_app(T::SCOPE), authority, secret)

@@ -4,6 +4,7 @@
 
 use std::mem;
 
+use iota_sdk_crypto::Signer;
 use iota_sdk_types::{
     CheckpointContents, CheckpointSummary, EndOfEpochData, GasCostSummary, TransactionEffects,
 };
@@ -21,10 +22,7 @@ use crate::{
 };
 
 pub trait ValidatorKeypairProvider {
-    fn get_validator_key(
-        &self,
-        name: &AuthorityName,
-    ) -> &dyn iota_sdk_crypto::Signer<AuthoritySignature>;
+    fn get_validator_key(&self, name: &AuthorityName) -> &dyn Signer<AuthoritySignature>;
     fn get_committee(&self) -> &Committee;
 }
 
