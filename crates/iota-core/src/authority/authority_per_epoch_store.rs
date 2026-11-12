@@ -818,6 +818,8 @@ pub struct AuthorityPerEpochStore {
     /// MutexTable for transaction locks (prevent concurrent execution of same
     /// transaction)
     mutex_table: MutexTable<TransactionDigest>,
+    /// MutexTable for signing, so concurrent requests sign a transaction once
+    signing_mutex_table: MutexTable<TransactionDigest>,
     /// Mutex table for shared version assignment
     version_assignment_mutex_table: MutexTable<ObjectId>,
 
@@ -1478,6 +1480,7 @@ impl AuthorityPerEpochStore {
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
+            signing_mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
             version_assignment_mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
             epoch_open_time: current_time,
             epoch_close_time: Default::default(),
@@ -1885,6 +1888,12 @@ impl AuthorityPerEpochStore {
     /// Acquire the lock for a tx without writing to the WAL.
     pub fn acquire_tx_lock(&self, digest: &TransactionDigest) -> TxLockGuard {
         TxLockGuard(self.mutex_table.acquire_lock(*digest))
+    }
+
+    /// Acquire the lock for signing a tx, held from the check for an earlier
+    /// signature until the signed tx is written.
+    pub(crate) fn acquire_signing_lock(&self, digest: &TransactionDigest) -> MutexGuard {
+        self.signing_mutex_table.acquire_lock(*digest)
     }
 
     pub fn store_reconfig_state(&self, new_state: &ReconfigState) -> IotaResult {
