@@ -7,7 +7,8 @@ use crate::error::RpcError;
 
 /// Name of the response header carrying
 /// [`MIN_IOTA_SDK_GRPC_CLIENT_VERSION`].
-// TODO: replace with `iota_grpc_types::headers::X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION`
+// TODO(https://github.com/iotaledger/iota/issues/13598): replace with
+// `iota_grpc_types::headers::X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION`
 // once an `iota-sdk-grpc-types` release has it, and test that the bundled
 // `iota-sdk-grpc-client` accepts the minimum.
 pub const X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION: &str = "x-min-iota-sdk-grpc-client-version";
