@@ -27,6 +27,7 @@ use iota_sdk_move_types::iota_framework::{
     dynamic_field::Field,
     vec_map::{Entry, VecMap},
 };
+use iota_sdk_transaction_builder::{SharedMut, unresolved};
 use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TransactionDigest, TypeTag};
 use iota_types::{digests::ChainIdentifier, iota_sdk_types_conversions::struct_tag_sdk_to_core};
 use move_core_types::{
@@ -45,8 +46,8 @@ use crate::{
     PrintableResult,
     client_commands::{
         GasDataArgs, IotaClientCommandResult, IotaClientCommands, PaymentArgs, TxProcessingArgs,
+        dry_run_or_execute_or_serialize,
     },
-    client_ptb::ptb::PTB,
     key_identity::{KeyIdentity, get_identity_address},
 };
 
@@ -401,42 +402,52 @@ impl NameCommand {
 
                 let sender = processing.sender;
                 let name_str = name.to_string();
-                let coin =
-                    select_coin_arg_for_payment(name_str.as_str(), coin, price, sender, context)
-                        .await?;
-                let mut args = vec![
-                    "--move-call iota::tx_context::sender".to_string(),
-                    "--assign sender".to_string(),
-                    format!("--split-coins {coin} [{price}]"),
-                    "--assign coins".to_string(),
-                    format!(
-                        "--move-call {}::payment::init_registration @{} '{name_str}'",
-                        iota_names_config.package_address, iota_names_config.object_id
-                    ),
-                    "--assign register_intent".to_string(),
-                ];
+                let coin = select_coin_for_payment(name_str.as_str(), coin, price, sender, context)
+                    .await?;
+                let signer = match sender {
+                    Some(sender) => sender,
+                    None => context.infer_sender(&payment.gas).await?,
+                };
+                let client = context.get_grpc_client().await?;
+                let mut builder = client.transaction_builder(signer);
+                let iota_names = SharedMut(iota_names_config.object_id);
+                let coin = match coin {
+                    Some(coin) => builder.apply_argument(coin),
+                    None => builder.apply_argument(unresolved::Argument::Gas),
+                };
+                let coins = builder.split_coins(coin, [price]).result();
+                let intent = builder
+                    .move_call(
+                        iota_names_config.package_address,
+                        "payment",
+                        "init_registration",
+                    )
+                    .arguments((&iota_names, name_str.clone()))
+                    .result();
 
                 if !coupons.is_empty() {
                     let coupons_package_address = get_coupons_package_address(&iota_client).await?;
 
                     for coupon in coupons {
-                        args.push(format!("--move-call {coupons_package_address}::coupon_house::apply_coupon register_intent @{} '{coupon}' @{}", iota_names_config.object_id, ObjectId::CLOCK,
-                        ));
+                        builder
+                            .move_call(coupons_package_address, "coupon_house", "apply_coupon")
+                            .arguments((intent, &iota_names, coupon, ObjectId::CLOCK));
                     }
                 }
 
-                args.extend_from_slice(&[
-                    format!(
-                        "--move-call {}::payments::handle_base_payment <{}> @{} register_intent coins.0",
-                        iota_names_config.payments_package_address, StructTag::new_gas(), iota_names_config.object_id
-                    ),
-                    "--assign receipt".to_string(),
-                    format!(
-                        "--move-call {}::payment::register receipt @{} @{}",
-                        iota_names_config.package_address, iota_names_config.object_id, ObjectId::CLOCK
-                    ),
-                    "--assign nft".to_string(),
-                ]);
+                let receipt = builder
+                    .move_call(
+                        iota_names_config.payments_package_address,
+                        "payments",
+                        "handle_base_payment",
+                    )
+                    .type_tags([TypeTag::Struct(Box::new(StructTag::new_gas()))])
+                    .arguments((&iota_names, intent, coins))
+                    .result();
+                let nft = builder
+                    .move_call(iota_names_config.package_address, "payment", "register")
+                    .arguments((receipt, &iota_names, ObjectId::CLOCK))
+                    .result();
 
                 if let Some(identity) = &set_target_address {
                     let target_address =
@@ -446,25 +457,39 @@ impl NameCommand {
                     if set_reverse_lookup && target_address != sender {
                         bail!("cannot set reverse lookup if target address is not the sender");
                     }
-                    args.push(format!(
-                        "--move-call {}::controller::set_target_address @{} nft some(@{target_address}) @{}",
-                        iota_names_config.package_address, iota_names_config.object_id, ObjectId::CLOCK
-                    ));
+                    builder
+                        .move_call(
+                            iota_names_config.package_address,
+                            "controller",
+                            "set_target_address",
+                        )
+                        .arguments((&iota_names, nft, Some(target_address), ObjectId::CLOCK));
                 }
                 if set_reverse_lookup {
                     if set_target_address.is_none() {
                         bail!("cannot set reverse lookup without first setting the target address");
                     }
-                    args.push(format!(
-                        "--move-call {}::controller::set_reverse_lookup @{} '{name_str}'",
-                        iota_names_config.package_address, iota_names_config.object_id,
-                    ));
+                    builder
+                        .move_call(
+                            iota_names_config.package_address,
+                            "controller",
+                            "set_reverse_lookup",
+                        )
+                        .arguments((&iota_names, name_str));
                 }
-                args.push("--transfer-objects [nft] sender".to_string());
-                let res = PTB::execute_commands(args, context, payment.gas, gas_data, processing)
-                    .await?
-                    .prerender_clever_errors(context)
-                    .await;
+                builder.transfer_objects(signer, [nft]);
+                let tx_kind = builder.finish_kind().await?;
+                let res = dry_run_or_execute_or_serialize(
+                    signer,
+                    tx_kind,
+                    context,
+                    payment.gas,
+                    gas_data,
+                    processing,
+                )
+                .await?
+                .prerender_clever_errors(context)
+                .await;
 
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::Register {
@@ -504,49 +529,62 @@ impl NameCommand {
 
                 let sender = processing.sender;
                 let name_str = name.to_string();
-                let coin =
-                    select_coin_arg_for_payment(name_str.as_str(), coin, price, sender, context)
-                        .await?;
+                let coin = select_coin_for_payment(name_str.as_str(), coin, price, sender, context)
+                    .await?;
                 let nft_id = get_owned_nft_by_name::<NameRegistration>(&name, sender, context)
                     .await?
                     .id();
-                let mut args = vec![
-                    "--move-call iota::tx_context::sender".to_string(),
-                    "--assign sender".to_string(),
-                    format!("--split-coins {coin} [{price}]"),
-                    "--assign coins".to_string(),
-                    format!(
-                        "--move-call {}::payment::init_renewal @{} @{nft_id} {years}",
-                        iota_names_config.package_address, iota_names_config.object_id,
-                    ),
-                    "--assign renew_intent".to_string(),
-                ];
+                let signer = match sender {
+                    Some(sender) => sender,
+                    None => context.infer_sender(&payment.gas).await?,
+                };
+                let client = context.get_grpc_client().await?;
+                let mut builder = client.transaction_builder(signer);
+                let iota_names = SharedMut(iota_names_config.object_id);
+                let coin = match coin {
+                    Some(coin) => builder.apply_argument(coin),
+                    None => builder.apply_argument(unresolved::Argument::Gas),
+                };
+                let coins = builder.split_coins(coin, [price]).result();
+                let intent = builder
+                    .move_call(iota_names_config.package_address, "payment", "init_renewal")
+                    .arguments((&iota_names, nft_id, years))
+                    .result();
 
                 if !coupons.is_empty() {
                     let coupons_package_address = get_coupons_package_address(&iota_client).await?;
 
                     for coupon in coupons {
-                        args.push(format!("--move-call {coupons_package_address}::coupon_house::apply_coupon renew_intent @{} '{coupon}' @{}", iota_names_config.object_id, ObjectId::CLOCK,
-                        ));
+                        builder
+                            .move_call(coupons_package_address, "coupon_house", "apply_coupon")
+                            .arguments((intent, &iota_names, coupon, ObjectId::CLOCK));
                     }
                 }
 
-                args.extend_from_slice(&[
-                    format!(
-                        "--move-call {}::payments::handle_base_payment <{}> @{} renew_intent coins.0",
-                        iota_names_config.payments_package_address, StructTag::new_gas(), iota_names_config.object_id
-                    ),
-                    "--assign receipt".to_string(),
-                    format!(
-                        "--move-call {}::payment::renew receipt @{} @{nft_id} @{}",
-                        iota_names_config.package_address, iota_names_config.object_id, ObjectId::CLOCK
-                    ),
-                ]);
-
-                let res = PTB::execute_commands(args, context, payment.gas, gas_data, processing)
-                    .await?
-                    .prerender_clever_errors(context)
-                    .await;
+                let receipt = builder
+                    .move_call(
+                        iota_names_config.payments_package_address,
+                        "payments",
+                        "handle_base_payment",
+                    )
+                    .type_tags([TypeTag::Struct(Box::new(StructTag::new_gas()))])
+                    .arguments((&iota_names, intent, coins))
+                    .result();
+                builder
+                    .move_call(iota_names_config.package_address, "payment", "renew")
+                    .arguments((receipt, &iota_names, nft_id, ObjectId::CLOCK));
+                let tx_kind = builder.finish_kind().await?;
+                let res = dry_run_or_execute_or_serialize(
+                    signer,
+                    tx_kind,
+                    context,
+                    payment.gas,
+                    gas_data,
+                    processing,
+                )
+                .await?
+                .prerender_clever_errors(context)
+                .await;
 
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::Renew {
@@ -1051,23 +1089,37 @@ impl SubnameCommand {
                 let expiration_timestamp = expiration_timestamp.0;
                 let parent_id = parent.id();
 
-                let args = vec![
-                    "--move-call iota::tx_context::sender".to_owned(),
-                    "--assign sender".to_owned(),
-                    format!(
-                        "--move-call {package_id}::{module_name}::new \
-                        @{} @{parent_id} @{} \
-                        '{name}' {expiration_timestamp} {allow_creation} {allow_time_extension}",
-                        iota_names_config.object_id,
+                let signer = match sender {
+                    Some(sender) => sender,
+                    None => context.infer_sender(&payment.gas).await?,
+                };
+                let client = context.get_grpc_client().await?;
+                let mut builder = client.transaction_builder(signer);
+                let nft = builder
+                    .move_call(package_id, module_name, "new")
+                    .arguments((
+                        SharedMut(iota_names_config.object_id),
+                        parent_id,
                         ObjectId::CLOCK,
-                    ),
-                    "--assign nft".to_owned(),
-                    "--transfer-objects [nft] sender".to_owned(),
-                ];
-                let res = PTB::execute_commands(args, context, payment.gas, gas_data, processing)
-                    .await?
-                    .prerender_clever_errors(context)
-                    .await;
+                        name.to_string(),
+                        expiration_timestamp,
+                        allow_creation,
+                        allow_time_extension,
+                    ))
+                    .result();
+                builder.transfer_objects(signer, [nft]);
+                let tx_kind = builder.finish_kind().await?;
+                let res = dry_run_or_execute_or_serialize(
+                    signer,
+                    tx_kind,
+                    context,
+                    payment.gas,
+                    gas_data,
+                    processing,
+                )
+                .await?
+                .prerender_clever_errors(context)
+                .await;
 
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::RegisterNodeSubname {
@@ -1959,16 +2011,16 @@ impl PricingConfig {
     }
 }
 
-// Returns "@<coin id>" or "gas" to be used as coin payment argument in a PTB
-async fn select_coin_arg_for_payment(
+// Returns the coin to pay `price` with, or `None` to pay out of the gas coin
+async fn select_coin_for_payment(
     name: &str,
     coin: Option<ObjectId>,
     price: u64,
     sender: Option<Address>,
     context: &mut WalletContext,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<Option<ObjectId>> {
     Ok(match coin {
-        Some(coin) => format!("@{coin}"),
+        Some(coin) => Some(coin),
         None => {
             let gas_result = IotaClientCommands::Gas {
                 address: sender.map(Into::into),
@@ -1984,11 +2036,11 @@ async fn select_coin_arg_for_payment(
                     .count()
                     == 1
                 {
-                    return Ok("gas".to_string());
+                    return Ok(None);
                 }
                 for coin in coins {
                     if coin.value() >= price {
-                        return Ok(format!("@{}", coin.id()));
+                        return Ok(Some(*coin.id()));
                     }
                     balance += coin.value();
                 }
