@@ -4593,180 +4593,183 @@ impl AuthorityPerEpochStore {
         }
         // Signatures are verified as part of the consensus payload verification in
         // IotaTxValidator
-        match &transaction.transaction {
-            SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
-                ConsensusTransactionKind::CertifiedTransaction(_certificate) => {}
-                ConsensusTransactionKind::UserTransactionV1(user_transaction) => {
-                    if !self.protocol_config().enable_pcool_flow() {
-                        debug!(
-                            "Ignoring UserTransactionV1 {:?}: the P-COOL flow is disabled",
-                            user_transaction.digest()
-                        );
-                        return None;
-                    }
-                    // Once the epoch no longer accepts consensus transactions, such
-                    // a transaction is ignored when scheduled, so it never
-                    // executes. Under the P-COOL flow it is skipped here instead:
-                    // kept at validation, it would hold its owned-object locks
-                    // until the epoch ends, and it would hide a later copy of the
-                    // same transaction in this commit. A transaction from an author
-                    // that sent EndOfPublish was already dropped above. A deferred
-                    // transaction is reloaded without passing through here, so it
-                    // stays eligible.
-                    if self.protocol_config().enable_pcool_flow()
-                        && !self
-                            .get_reconfig_state_read_lock_guard()
-                            .should_accept_consensus_certs()
-                    {
-                        debug!(
-                            "Ignoring UserTransactionV1 {:?}: the epoch no longer accepts consensus \
-                             transactions",
-                            user_transaction.digest()
-                        );
-                        // An ignored copy is not recorded as processed, so the
-                        // consensus adapter that submitted it would hold its submit
-                        // permit, which checkpoint signatures also need, until the
-                        // epoch ends. Only the adapter is told: another copy may
-                        // still be kept.
-                        self.dropped_tx_status_cache.notify_dropped_copies(&[(
-                            *user_transaction.digest(),
-                            IotaError::ValidatorHaltedAtEpochEnd,
-                        )]);
-                        return None;
-                    }
-                }
-                ConsensusTransactionKind::CheckpointSignature(data) => {
-                    if transaction.sender_authority() != data.summary.auth_sig().authority {
-                        warn!(
-                            "CheckpointSignature authority {} does not match its author from consensus {}",
-                            data.summary.auth_sig().authority,
-                            transaction.certificate_author_index
-                        );
-                        return None;
-                    }
-                }
-                ConsensusTransactionKind::EndOfPublish(authority) => {
-                    if &transaction.sender_authority() != authority {
-                        warn!(
-                            "EndOfPublish authority {} does not match its author from consensus {}",
-                            authority, transaction.certificate_author_index
-                        );
-                        return None;
-                    }
-                }
-                ConsensusTransactionKind::MisbehaviorReport(report) => {
-                    if transaction.sender_authority() != report.authority {
-                        warn!(
-                            "MisbehaviorReport authority {} does not match its author from consensus {}",
-                            report.authority, transaction.certificate_author_index
-                        );
-                        self.report_aggregator
-                            .increment_invalid_reports_count(transaction.certificate_author_index);
-                        return None;
-                    }
-                    if !self.protocol_config().calculate_validator_scores() {
-                        warn!(
-                            "Received misbehavior report from {:?} but validator scores are disabled, so the report is ignored",
-                            report.authority.concise()
-                        );
-                        return None;
-                    }
-                    // Check validity of the report.
-                    if let Err(reason) = self.report_aggregator.validate_report(report) {
-                        warn!(
-                            "Received invalid misbehavior report from {:?}: {reason}",
-                            report.authority.concise()
-                        );
-                        self.report_aggregator
-                            .increment_invalid_reports_count(transaction.certificate_author_index);
-                        return None;
-                    }
-                }
-                ConsensusTransactionKind::CapabilityNotificationV1(AuthorityCapabilitiesV1 {
-                    authority,
-                    ..
-                }) => {
-                    if transaction.sender_authority() != *authority {
-                        warn!(
-                            "CapabilityNotificationV1 authority {} does not match its author from consensus {}",
-                            authority, transaction.certificate_author_index
-                        );
-                        return None;
-                    }
-                }
-                ConsensusTransactionKind::SignedCapabilityNotificationV1(_) => {
-                    // Signatures are verified as part of the consensus payload
-                    // verification in IotaTxValidator. We don't need to check the
-                    // sender_authority as it's correct that it's different from the
-                    // authority in the notification.
-                }
-                #[allow(deprecated)]
-                ConsensusTransactionKind::NewJWKFetchedDeprecated => {
-                    // Deprecated: Authenticator state (JWK) is deprecated and
-                    // was never enabled. These consensus transaction kinds are retained
-                    // only for BCS enum variant compatibility.
+        let ext = match &transaction.transaction {
+            SequencedConsensusTransactionKind::External(ext) => ext,
+            SequencedConsensusTransactionKind::System(_) => {
+                return Some(VerifiedSequencedConsensusTransaction(transaction));
+            }
+        };
+        match &ext.kind {
+            ConsensusTransactionKind::CertifiedTransaction(_certificate) => {}
+            ConsensusTransactionKind::UserTransactionV1(user_transaction) => {
+                if !self.protocol_config().enable_pcool_flow() {
+                    debug!(
+                        "Ignoring UserTransactionV1 {:?}: the P-COOL flow is disabled",
+                        user_transaction.digest()
+                    );
                     return None;
                 }
-                ConsensusTransactionKind::RandomnessDkgMessage(authority, _bytes) => {
-                    if transaction.sender_authority() != *authority {
-                        warn!(
-                            "RandomnessDkgMessage authority {} does not match its author from consensus {}",
-                            authority, transaction.certificate_author_index
-                        );
-                        return None;
-                    }
+                // Once the epoch no longer accepts consensus transactions, such
+                // a transaction is ignored when scheduled, so it never
+                // executes. Under the P-COOL flow it is skipped here instead:
+                // kept at validation, it would hold its owned-object locks
+                // until the epoch ends, and it would hide a later copy of the
+                // same transaction in this commit. A transaction from an author
+                // that sent EndOfPublish was already dropped above. A deferred
+                // transaction is reloaded without passing through here, so it
+                // stays eligible.
+                if self.protocol_config().enable_pcool_flow()
+                    && !self
+                        .get_reconfig_state_read_lock_guard()
+                        .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Ignoring UserTransactionV1 {:?}: the epoch no longer accepts consensus \
+                         transactions",
+                        user_transaction.digest()
+                    );
+                    // An ignored copy is not recorded as processed, so the
+                    // consensus adapter that submitted it would hold its submit
+                    // permit, which checkpoint signatures also need, until the
+                    // epoch ends. Only the adapter is told: another copy may
+                    // still be kept.
+                    self.dropped_tx_status_cache.notify_dropped_copies(&[(
+                        *user_transaction.digest(),
+                        IotaError::ValidatorHaltedAtEpochEnd,
+                    )]);
+                    return None;
                 }
-                ConsensusTransactionKind::RandomnessDkgConfirmation(authority, _bytes) => {
-                    if transaction.sender_authority() != *authority {
-                        warn!(
-                            "RandomnessDkgConfirmation authority {} does not match its author from consensus {}",
-                            authority, transaction.certificate_author_index
-                        );
-                        return None;
-                    }
+            }
+            ConsensusTransactionKind::CheckpointSignature(data) => {
+                if transaction.sender_authority() != data.summary.auth_sig().authority {
+                    warn!(
+                        "CheckpointSignature authority {} does not match its author from consensus {}",
+                        data.summary.auth_sig().authority,
+                        transaction.certificate_author_index
+                    );
+                    return None;
                 }
-                ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage) => {
-                    if !self.protocol_config().enable_pcool_flow() {
-                        debug!(
-                            "Ignoring OverloadNotificationV1 from {:?}: the P-COOL flow is disabled",
-                            authority.concise()
-                        );
-                        return None;
-                    }
-                    if &transaction.sender_authority() != authority {
-                        warn!(
-                            "OverloadNotificationV1 authority {} does not match its author from consensus {}",
-                            authority, transaction.certificate_author_index
-                        );
-                        return None;
-                    }
-                    if *percentage > 100 {
-                        warn!(
-                            "OverloadNotificationV1 from {:?} has invalid percentage {}",
-                            authority.concise(),
-                            percentage
-                        );
-                        return None;
-                    }
+            }
+            ConsensusTransactionKind::EndOfPublish(authority) => {
+                if &transaction.sender_authority() != authority {
+                    warn!(
+                        "EndOfPublish authority {} does not match its author from consensus {}",
+                        authority, transaction.certificate_author_index
+                    );
+                    return None;
                 }
-                ConsensusTransactionKind::TransactionDenyRuleProposal(proposal) => {
-                    if !self.protocol_config().enable_pcool_flow() {
-                        debug!(
-                            "Ignoring TransactionDenyRuleProposal from {:?}: deny rule governance is disabled",
-                            proposal.authority.concise()
-                        );
-                        return None;
-                    }
-                    if transaction.sender_authority() != proposal.authority {
-                        warn!(
-                            "TransactionDenyRuleProposal authority {} does not match its author from consensus {}",
-                            proposal.authority, transaction.certificate_author_index
-                        );
-                        return None;
-                    }
+            }
+            ConsensusTransactionKind::MisbehaviorReport(report) => {
+                if transaction.sender_authority() != report.authority {
+                    warn!(
+                        "MisbehaviorReport authority {} does not match its author from consensus {}",
+                        report.authority, transaction.certificate_author_index
+                    );
+                    self.report_aggregator
+                        .increment_invalid_reports_count(transaction.certificate_author_index);
+                    return None;
                 }
-            },
-            SequencedConsensusTransactionKind::System(_) => {}
+                if !self.protocol_config().calculate_validator_scores() {
+                    warn!(
+                        "Received misbehavior report from {:?} but validator scores are disabled, so the report is ignored",
+                        report.authority.concise()
+                    );
+                    return None;
+                }
+                // Check validity of the report.
+                if let Err(reason) = self.report_aggregator.validate_report(report) {
+                    warn!(
+                        "Received invalid misbehavior report from {:?}: {reason}",
+                        report.authority.concise()
+                    );
+                    self.report_aggregator
+                        .increment_invalid_reports_count(transaction.certificate_author_index);
+                    return None;
+                }
+            }
+            ConsensusTransactionKind::CapabilityNotificationV1(AuthorityCapabilitiesV1 {
+                authority,
+                ..
+            }) => {
+                if transaction.sender_authority() != *authority {
+                    warn!(
+                        "CapabilityNotificationV1 authority {} does not match its author from consensus {}",
+                        authority, transaction.certificate_author_index
+                    );
+                    return None;
+                }
+            }
+            ConsensusTransactionKind::SignedCapabilityNotificationV1(_) => {
+                // Signatures are verified as part of the consensus payload
+                // verification in IotaTxValidator. We don't need to check the
+                // sender_authority as it's correct that it's different from the
+                // authority in the notification.
+            }
+            #[allow(deprecated)]
+            ConsensusTransactionKind::NewJWKFetchedDeprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // was never enabled. These consensus transaction kinds are retained
+                // only for BCS enum variant compatibility.
+                return None;
+            }
+            ConsensusTransactionKind::RandomnessDkgMessage(authority, _bytes) => {
+                if transaction.sender_authority() != *authority {
+                    warn!(
+                        "RandomnessDkgMessage authority {} does not match its author from consensus {}",
+                        authority, transaction.certificate_author_index
+                    );
+                    return None;
+                }
+            }
+            ConsensusTransactionKind::RandomnessDkgConfirmation(authority, _bytes) => {
+                if transaction.sender_authority() != *authority {
+                    warn!(
+                        "RandomnessDkgConfirmation authority {} does not match its author from consensus {}",
+                        authority, transaction.certificate_author_index
+                    );
+                    return None;
+                }
+            }
+            ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage) => {
+                if !self.protocol_config().enable_pcool_flow() {
+                    debug!(
+                        "Ignoring OverloadNotificationV1 from {:?}: the P-COOL flow is disabled",
+                        authority.concise()
+                    );
+                    return None;
+                }
+                if &transaction.sender_authority() != authority {
+                    warn!(
+                        "OverloadNotificationV1 authority {} does not match its author from consensus {}",
+                        authority, transaction.certificate_author_index
+                    );
+                    return None;
+                }
+                if *percentage > 100 {
+                    warn!(
+                        "OverloadNotificationV1 from {:?} has invalid percentage {}",
+                        authority.concise(),
+                        percentage
+                    );
+                    return None;
+                }
+            }
+            ConsensusTransactionKind::TransactionDenyRuleProposal(proposal) => {
+                if !self.protocol_config().enable_pcool_flow() {
+                    debug!(
+                        "Ignoring TransactionDenyRuleProposal from {:?}: deny rule governance is disabled",
+                        proposal.authority.concise()
+                    );
+                    return None;
+                }
+                if transaction.sender_authority() != proposal.authority {
+                    warn!(
+                        "TransactionDenyRuleProposal authority {} does not match its author from consensus {}",
+                        proposal.authority, transaction.certificate_author_index
+                    );
+                    return None;
+                }
+            }
         }
         Some(VerifiedSequencedConsensusTransaction(transaction))
     }
@@ -6368,364 +6371,362 @@ impl AuthorityPerEpochStore {
         }) = transaction;
         let tracking_id = transaction.get_tracking_id();
 
-        match &transaction {
-            SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
-                ConsensusTransactionKind::CertifiedTransaction(certificate) => {
-                    if certificate.epoch() != self.epoch() {
-                        // Epoch has changed after this certificate was sequenced, ignore it.
-                        debug!(
-                            "Certificate epoch ({:?}) doesn't match the current epoch ({:?})",
-                            certificate.epoch(),
-                            self.epoch()
-                        );
-                        return Ok(ConsensusTransactionResult::Ignored);
-                    }
-                    // TODO(#13170): remove with the flag. With it on,
-                    // `verify_consensus_transaction` already dropped this copy.
-                    if self.has_sent_end_of_publish(certificate_author)?
-                        && !previously_deferred_tx_digests.contains_key(certificate.digest())
-                    {
-                        // This can not happen with valid authority
-                        // With some edge cases consensus might sometimes resend previously seen
-                        // certificate after EndOfPublish However this certificate
-                        // will be filtered out before this line by `consensus_message_processed`
-                        // call in `verify_consensus_transaction` If we see
-                        // some new certificate here it means authority is
-                        // byzantine and sent certificate after EndOfPublish
-                        // (or we have some bug in ConsensusAdapter)
-                        warn!(
-                            "[Byzantine authority] Authority {:?} sent a new, previously unseen
-                                certificate {:?} after it sent EndOfPublish message to consensus",
-                            certificate_author.concise(),
-                            certificate.digest()
-                        );
-                        return Ok(ConsensusTransactionResult::Ignored);
-                    }
-                    // Safe because signatures are verified when consensus called into
-                    // IotaTxValidator::validate_batch.
-                    let certificate = VerifiedCertificate::new_unchecked(*certificate.clone());
-                    let transaction =
-                        VerifiedExecutableTransaction::new_from_certificate(certificate);
-
-                    debug!(
-                        ?tracking_id,
-                        tx_digest = ?transaction.digest(),
-                        "handle_consensus_transaction UserTransaction",
-                    );
-
-                    if !self
-                        .get_reconfig_state_read_lock_guard()
-                        .should_accept_consensus_certs()
-                        && !previously_deferred_tx_digests.contains_key(transaction.digest())
-                    {
-                        debug!(
-                            "Ignoring consensus certificate for transaction {:?} because of end of epoch",
-                            transaction.digest()
-                        );
-                        return Ok(ConsensusTransactionResult::Ignored);
-                    }
-
-                    let attested_transaction =
-                        VerifiedExecutableAttestedTransaction::new(transaction, None);
-
-                    let scheduling_result = self.try_schedule(
-                        &attested_transaction,
-                        commit_round,
-                        dkg_failed,
-                        generating_randomness,
-                        previously_deferred_tx_digests,
-                        shared_object_congestion_tracker,
-                    );
-
-                    self.handle_scheduling_result(
-                        scheduling_result,
-                        attested_transaction,
-                        previously_deferred_tx_digests,
-                        dkg_failed,
-                        shared_object_congestion_tracker,
-                        suggested_gas_price_calculator,
-                        authority_metrics,
-                    )
-                }
-                ConsensusTransactionKind::CheckpointSignature(info) => {
-                    // We usually call notify_checkpoint_signature in IotaTxValidator, but that step
-                    // can be skipped when a batch is already part of a certificate,
-                    // so we must also notify here.
-                    checkpoint_service.notify_checkpoint_signature(self, info)?;
-                    Ok(ConsensusTransactionResult::ConsensusMessage)
-                }
-                ConsensusTransactionKind::EndOfPublish(_) => {
-                    // these are partitioned earlier
-                    panic!("process_consensus_transaction called with end-of-publish transaction");
-                }
-                ConsensusTransactionKind::MisbehaviorReport(report) => {
-                    if !self.protocol_config().calculate_validator_scores() {
-                        warn!(
-                            "Received misbehavior report from {:?} but validator scores are disabled, so the report is ignored",
-                            report.authority.concise()
-                        );
-                        return Ok(ConsensusTransactionResult::ConsensusMessage);
-                    }
-                    if !self
-                        .get_reconfig_state_read_lock_guard()
-                        .should_accept_consensus_certs()
-                    {
-                        debug!(
-                            "Ignoring misbehavior report from {:?} because of end of epoch",
-                            report.authority.concise()
-                        );
-                        return Ok(ConsensusTransactionResult::ConsensusMessage);
-                    }
-
-                    // Safe: verify_consensus_transaction already validated the
-                    // report and confirmed the sender matches the consensus block
-                    // author (a committee member). The reconfig guard above
-                    // covers the end-of-epoch lock-out.
-                    let authority_index = self
-                        .committee
-                        .authority_index(&report.authority)
-                        .expect("authority in committee");
-                    let snapshot = self
-                        .report_aggregator
-                        .process_report(authority_index, report);
-                    output.record_report_state_snapshot(authority_index, snapshot);
-
-                    Ok(ConsensusTransactionResult::ConsensusMessage)
-                }
-                ConsensusTransactionKind::CapabilityNotificationV1(capabilities) => {
-                    // Records capabilities for the authority.
-                    let authority = capabilities.authority;
-                    if self
-                        .get_reconfig_state_read_lock_guard()
-                        .should_accept_consensus_certs()
-                    {
-                        debug!(
-                            "Received CapabilityNotificationV1 from {:?}",
-                            authority.concise()
-                        );
-                        self.record_capabilities_v1(capabilities)?;
-                    } else {
-                        debug!(
-                            "Ignoring CapabilityNotificationV1 from {:?} because of end of epoch",
-                            authority.concise()
-                        );
-                    }
-                    Ok(ConsensusTransactionResult::ConsensusMessage)
-                }
-                ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_capabilities) => {
-                    // Records capabilities for the authority.
-                    // The signature is checked in a previous step, so we can safely access data
-                    let capabilities = signed_capabilities.data();
-                    let authority = capabilities.authority;
-                    if self
-                        .get_reconfig_state_read_lock_guard()
-                        .should_accept_consensus_certs()
-                    {
-                        debug!(
-                            "Received SignedCapabilityNotificationV1 from {:?}",
-                            authority.concise()
-                        );
-                        self.record_capabilities_v1(capabilities)?;
-                    } else {
-                        debug!(
-                            "Ignoring SignedCapabilityNotificationV1 from {:?} because of end of epoch",
-                            authority.concise()
-                        );
-                    }
-                    Ok(ConsensusTransactionResult::ConsensusMessage)
-                }
-                #[allow(deprecated)]
-                ConsensusTransactionKind::NewJWKFetchedDeprecated => {
-                    // Deprecated: Authenticator state (JWK) is deprecated and
-                    // was never enabled. These consensus transaction kinds are retained
-                    // only for BCS enum variant compatibility.
-                    debug!("Ignoring NewJWKFetchedDeprecated transaction");
-                    Ok(ConsensusTransactionResult::ConsensusMessage)
-                }
-                ConsensusTransactionKind::RandomnessDkgMessage(authority, bytes) => {
-                    if self.get_reconfig_state_read_lock_guard().should_accept_tx() {
-                        if let Some(randomness_manager) = randomness_manager.as_mut() {
-                            debug!(
-                                "Received RandomnessDkgMessage from {:?}",
-                                authority.concise()
-                            );
-                            match bcs::from_bytes(bytes) {
-                                Ok(message) => {
-                                    randomness_manager.add_message(authority, message)?
-                                }
-                                Err(e) => {
-                                    warn!(
-                                        "Failed to deserialize RandomnessDkgMessage from {:?}: {e:?}",
-                                        authority.concise()
-                                    );
-                                }
-                            }
-                        } else {
-                            debug!(
-                                "Ignoring RandomnessDkgMessage from {:?} because randomness is not enabled",
-                                authority.concise()
-                            );
-                        }
-                    } else {
-                        debug!(
-                            "Ignoring RandomnessDkgMessage from {:?} because of end of epoch",
-                            authority.concise()
-                        );
-                    }
-                    Ok(ConsensusTransactionResult::RandomnessConsensusMessage)
-                }
-                ConsensusTransactionKind::RandomnessDkgConfirmation(authority, bytes) => {
-                    if self.get_reconfig_state_read_lock_guard().should_accept_tx() {
-                        if let Some(randomness_manager) = randomness_manager.as_mut() {
-                            debug!(
-                                "Received RandomnessDkgConfirmation from {:?}",
-                                authority.concise()
-                            );
-                            match bcs::from_bytes(bytes) {
-                                Ok(message) => randomness_manager
-                                    .add_confirmation(output, authority, message)?,
-                                Err(e) => {
-                                    warn!(
-                                        "Failed to deserialize RandomnessDkgConfirmation from {:?}: {e:?}",
-                                        authority.concise(),
-                                    );
-                                }
-                            }
-                        } else {
-                            debug!(
-                                "Ignoring RandomnessDkgMessage from {:?} because randomness is not enabled",
-                                authority.concise()
-                            );
-                        }
-                    } else {
-                        debug!(
-                            "Ignoring RandomnessDkgMessage from {:?} because of end of epoch",
-                            authority.concise()
-                        );
-                    }
-                    Ok(ConsensusTransactionResult::RandomnessConsensusMessage)
-                }
-                ConsensusTransactionKind::UserTransactionV1(attested_tx) => {
-                    let transaction = &attested_tx.transaction;
-                    if transaction.is_system_tx() {
-                        warn!("UserTransactionV1 contains system transaction, ignoring");
-                        return Ok(ConsensusTransactionResult::Ignored);
-                    }
-                    // TODO(#13170): remove with the flag. With it on,
-                    // `verify_consensus_transaction` already dropped this copy.
-                    if self.has_sent_end_of_publish(certificate_author)?
-                        && !previously_deferred_tx_digests.contains_key(transaction.digest())
-                    {
-                        // A validator that has sent EndOfPublish must not inject new user
-                        // transactions. Previously-deferred transactions are excluded because
-                        // consensus may replay them and they should still be processed.
-                        warn!(
-                            "[Byzantine authority] Authority {:?} sent a new UserTransactionV1 \
-                             {:?} after it sent EndOfPublish message to consensus",
-                            certificate_author.concise(),
-                            transaction.digest()
-                        );
-                        return Ok(ConsensusTransactionResult::Ignored);
-                    }
-                    // TODO: re-think the epoch-switching flow
-                    if !self
-                        .get_reconfig_state_read_lock_guard()
-                        .should_accept_consensus_certs()
-                        && !previously_deferred_tx_digests.contains_key(transaction.digest())
-                    {
-                        debug!(
-                            "Ignoring P-COOL transaction {:?} because of end of epoch",
-                            transaction.digest()
-                        );
-                        return Ok(ConsensusTransactionResult::Ignored);
-                    }
-                    // TODO: verify that all the same validation actions are performed as for a
-                    // Certificate. Possibly extract common code to a separate
-                    // function to avoid code duplication.
-
-                    // Create `VerifiedExecutableTransaction` with `ConsensusOrdered` proof.
-                    // In contrast to `new_from_certificate` (the proof was authorized by 2f+1
-                    // pre-consensus signatures), the `ConsensusOrdered` certificate proof
-                    // is authorized by consensus ordering post owned-object conflict resolution.
-                    let executable_tx = VerifiedExecutableAttestedTransaction::new(
-                        VerifiedExecutableTransaction::new_unchecked(
-                            ExecutableTransaction::new_from_data_and_sig(
-                                transaction.data().clone(),
-                                CertificateProof::ConsensusOrdered(self.epoch()),
-                            ),
-                        ),
-                        attested_tx.attestation.clone(),
-                    );
-
-                    let scheduling_result = self.try_schedule(
-                        &executable_tx,
-                        commit_round,
-                        dkg_failed,
-                        generating_randomness,
-                        previously_deferred_tx_digests,
-                        shared_object_congestion_tracker,
-                    );
-
-                    self.handle_scheduling_result(
-                        scheduling_result,
-                        executable_tx,
-                        previously_deferred_tx_digests,
-                        dkg_failed,
-                        shared_object_congestion_tracker,
-                        suggested_gas_price_calculator,
-                        authority_metrics,
-                    )
-                }
-                ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage) => {
-                    if self
-                        .get_reconfig_state_read_lock_guard()
-                        .should_accept_consensus_certs()
-                    {
-                        debug!(
-                            "Received OverloadNotificationV1 from {:?} with percentage {}",
-                            authority.concise(),
-                            percentage
-                        );
-                        output.record_overload_notification(*authority, *percentage);
-                    } else {
-                        debug!(
-                            "Ignoring OverloadNotificationV1 from {:?} because of end of epoch",
-                            authority.concise()
-                        );
-                    }
-                    Ok(ConsensusTransactionResult::ConsensusMessage)
-                }
-                ConsensusTransactionKind::TransactionDenyRuleProposal(proposal) => {
-                    // The `enable_pcool_flow` feature gate is enforced in
-                    // `verify_consensus_transaction`, which filters every
-                    // sequenced transaction before it reaches this point.
-                    if !self
-                        .get_reconfig_state_read_lock_guard()
-                        .should_accept_consensus_certs()
-                    {
-                        debug!(
-                            "Ignoring TransactionDenyRuleProposal from {:?} because of end of epoch",
-                            proposal.authority.concise()
-                        );
-                    } else if self.should_record_deny_rule_proposal(proposal) {
-                        debug!(
-                            "Received TransactionDenyRuleProposal from {:?} with generation {}",
-                            proposal.authority.concise(),
-                            proposal.generation
-                        );
-                        output.record_deny_rule_proposal(proposal.clone());
-                    } else {
-                        debug!(
-                            "Ignoring TransactionDenyRuleProposal from {:?} with stale generation {}",
-                            proposal.authority.concise(),
-                            proposal.generation
-                        );
-                    }
-                    Ok(ConsensusTransactionResult::ConsensusMessage)
-                }
-            },
+        let ext = match &transaction {
+            SequencedConsensusTransactionKind::External(ext) => ext,
             SequencedConsensusTransactionKind::System(system_transaction) => {
-                Ok(self.process_consensus_system_transaction(system_transaction))
+                return Ok(self.process_consensus_system_transaction(system_transaction));
+            }
+        };
+        match &ext.kind {
+            ConsensusTransactionKind::CertifiedTransaction(certificate) => {
+                if certificate.epoch() != self.epoch() {
+                    // Epoch has changed after this certificate was sequenced, ignore it.
+                    debug!(
+                        "Certificate epoch ({:?}) doesn't match the current epoch ({:?})",
+                        certificate.epoch(),
+                        self.epoch()
+                    );
+                    return Ok(ConsensusTransactionResult::Ignored);
+                }
+                // TODO(#13170): remove with the flag. With it on, `verify_consensus_transaction`
+                // already dropped this copy.
+                if self.has_sent_end_of_publish(certificate_author)?
+                    && !previously_deferred_tx_digests.contains_key(certificate.digest())
+                {
+                    // This can not happen with valid authority
+                    // With some edge cases consensus might sometimes resend previously seen
+                    // certificate after EndOfPublish However this certificate
+                    // will be filtered out before this line by `consensus_message_processed` call
+                    // in `verify_consensus_transaction` If we see some new
+                    // certificate here it means authority is byzantine and sent certificate after
+                    // EndOfPublish (or we have some bug in ConsensusAdapter)
+                    warn!(
+                        "[Byzantine authority] Authority {:?} sent a new, previously unseen
+                            certificate {:?} after it sent EndOfPublish message to consensus",
+                        certificate_author.concise(),
+                        certificate.digest()
+                    );
+                    return Ok(ConsensusTransactionResult::Ignored);
+                }
+                // Safe because signatures are verified when consensus called into
+                // IotaTxValidator::validate_batch.
+                let certificate = VerifiedCertificate::new_unchecked(*certificate.clone());
+                let transaction = VerifiedExecutableTransaction::new_from_certificate(certificate);
+
+                debug!(
+                    ?tracking_id,
+                    tx_digest = ?transaction.digest(),
+                    "handle_consensus_transaction UserTransaction",
+                );
+
+                if !self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                    && !previously_deferred_tx_digests.contains_key(transaction.digest())
+                {
+                    debug!(
+                        "Ignoring consensus certificate for transaction {:?} because of end of epoch",
+                        transaction.digest()
+                    );
+                    return Ok(ConsensusTransactionResult::Ignored);
+                }
+
+                let attested_transaction =
+                    VerifiedExecutableAttestedTransaction::new(transaction, None);
+
+                let scheduling_result = self.try_schedule(
+                    &attested_transaction,
+                    commit_round,
+                    dkg_failed,
+                    generating_randomness,
+                    previously_deferred_tx_digests,
+                    shared_object_congestion_tracker,
+                );
+
+                self.handle_scheduling_result(
+                    scheduling_result,
+                    attested_transaction,
+                    previously_deferred_tx_digests,
+                    dkg_failed,
+                    shared_object_congestion_tracker,
+                    suggested_gas_price_calculator,
+                    authority_metrics,
+                )
+            }
+            ConsensusTransactionKind::CheckpointSignature(info) => {
+                // We usually call notify_checkpoint_signature in IotaTxValidator, but that step
+                // can be skipped when a batch is already part of a certificate,
+                // so we must also notify here.
+                checkpoint_service.notify_checkpoint_signature(self, info)?;
+                Ok(ConsensusTransactionResult::ConsensusMessage)
+            }
+            ConsensusTransactionKind::EndOfPublish(_) => {
+                // these are partitioned earlier
+                panic!("process_consensus_transaction called with end-of-publish transaction");
+            }
+            ConsensusTransactionKind::MisbehaviorReport(report) => {
+                if !self.protocol_config().calculate_validator_scores() {
+                    warn!(
+                        "Received misbehavior report from {:?} but validator scores are disabled, so the report is ignored",
+                        report.authority.concise()
+                    );
+                    return Ok(ConsensusTransactionResult::ConsensusMessage);
+                }
+                if !self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Ignoring misbehavior report from {:?} because of end of epoch",
+                        report.authority.concise()
+                    );
+                    return Ok(ConsensusTransactionResult::ConsensusMessage);
+                }
+
+                // Safe: verify_consensus_transaction already validated the
+                // report and confirmed the sender matches the consensus block
+                // author (a committee member). The reconfig guard above
+                // covers the end-of-epoch lock-out.
+                let authority_index = self
+                    .committee
+                    .authority_index(&report.authority)
+                    .expect("authority in committee");
+                let snapshot = self
+                    .report_aggregator
+                    .process_report(authority_index, report);
+                output.record_report_state_snapshot(authority_index, snapshot);
+
+                Ok(ConsensusTransactionResult::ConsensusMessage)
+            }
+            ConsensusTransactionKind::CapabilityNotificationV1(capabilities) => {
+                // Records capabilities for the authority.
+                let authority = capabilities.authority;
+                if self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Received CapabilityNotificationV1 from {:?}",
+                        authority.concise()
+                    );
+                    self.record_capabilities_v1(capabilities)?;
+                } else {
+                    debug!(
+                        "Ignoring CapabilityNotificationV1 from {:?} because of end of epoch",
+                        authority.concise()
+                    );
+                }
+                Ok(ConsensusTransactionResult::ConsensusMessage)
+            }
+            ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_capabilities) => {
+                // Records capabilities for the authority.
+                // The signature is checked in a previous step, so we can safely access data
+                let capabilities = signed_capabilities.data();
+                let authority = capabilities.authority;
+                if self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Received SignedCapabilityNotificationV1 from {:?}",
+                        authority.concise()
+                    );
+                    self.record_capabilities_v1(capabilities)?;
+                } else {
+                    debug!(
+                        "Ignoring SignedCapabilityNotificationV1 from {:?} because of end of epoch",
+                        authority.concise()
+                    );
+                }
+                Ok(ConsensusTransactionResult::ConsensusMessage)
+            }
+            #[allow(deprecated)]
+            ConsensusTransactionKind::NewJWKFetchedDeprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // was never enabled. These consensus transaction kinds are retained
+                // only for BCS enum variant compatibility.
+                debug!("Ignoring NewJWKFetchedDeprecated transaction");
+                Ok(ConsensusTransactionResult::ConsensusMessage)
+            }
+            ConsensusTransactionKind::RandomnessDkgMessage(authority, bytes) => {
+                if self.get_reconfig_state_read_lock_guard().should_accept_tx() {
+                    if let Some(randomness_manager) = randomness_manager.as_mut() {
+                        debug!(
+                            "Received RandomnessDkgMessage from {:?}",
+                            authority.concise()
+                        );
+                        match bcs::from_bytes(bytes) {
+                            Ok(message) => randomness_manager.add_message(authority, message)?,
+                            Err(e) => {
+                                warn!(
+                                    "Failed to deserialize RandomnessDkgMessage from {:?}: {e:?}",
+                                    authority.concise()
+                                );
+                            }
+                        }
+                    } else {
+                        debug!(
+                            "Ignoring RandomnessDkgMessage from {:?} because randomness is not enabled",
+                            authority.concise()
+                        );
+                    }
+                } else {
+                    debug!(
+                        "Ignoring RandomnessDkgMessage from {:?} because of end of epoch",
+                        authority.concise()
+                    );
+                }
+                Ok(ConsensusTransactionResult::RandomnessConsensusMessage)
+            }
+            ConsensusTransactionKind::RandomnessDkgConfirmation(authority, bytes) => {
+                if self.get_reconfig_state_read_lock_guard().should_accept_tx() {
+                    if let Some(randomness_manager) = randomness_manager.as_mut() {
+                        debug!(
+                            "Received RandomnessDkgConfirmation from {:?}",
+                            authority.concise()
+                        );
+                        match bcs::from_bytes(bytes) {
+                            Ok(message) => {
+                                randomness_manager.add_confirmation(output, authority, message)?
+                            }
+                            Err(e) => {
+                                warn!(
+                                    "Failed to deserialize RandomnessDkgConfirmation from {:?}: {e:?}",
+                                    authority.concise(),
+                                );
+                            }
+                        }
+                    } else {
+                        debug!(
+                            "Ignoring RandomnessDkgMessage from {:?} because randomness is not enabled",
+                            authority.concise()
+                        );
+                    }
+                } else {
+                    debug!(
+                        "Ignoring RandomnessDkgMessage from {:?} because of end of epoch",
+                        authority.concise()
+                    );
+                }
+                Ok(ConsensusTransactionResult::RandomnessConsensusMessage)
+            }
+            ConsensusTransactionKind::UserTransactionV1(attested_tx) => {
+                let transaction = &attested_tx.transaction;
+                if transaction.is_system_tx() {
+                    warn!("UserTransactionV1 contains system transaction, ignoring");
+                    return Ok(ConsensusTransactionResult::Ignored);
+                }
+                // TODO(#13170): remove with the flag. With it on, `verify_consensus_transaction`
+                // already dropped this copy.
+                if self.has_sent_end_of_publish(certificate_author)?
+                    && !previously_deferred_tx_digests.contains_key(transaction.digest())
+                {
+                    // A validator that has sent EndOfPublish must not inject new user
+                    // transactions. Previously-deferred transactions are excluded because
+                    // consensus may replay them and they should still be processed.
+                    warn!(
+                        "[Byzantine authority] Authority {:?} sent a new UserTransactionV1 \
+                         {:?} after it sent EndOfPublish message to consensus",
+                        certificate_author.concise(),
+                        transaction.digest()
+                    );
+                    return Ok(ConsensusTransactionResult::Ignored);
+                }
+                // TODO: re-think the epoch-switching flow
+                if !self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                    && !previously_deferred_tx_digests.contains_key(transaction.digest())
+                {
+                    debug!(
+                        "Ignoring P-COOL transaction {:?} because of end of epoch",
+                        transaction.digest()
+                    );
+                    return Ok(ConsensusTransactionResult::Ignored);
+                }
+                // TODO: verify that all the same validation actions are performed as for a
+                // Certificate. Possibly extract common code to a separate
+                // function to avoid code duplication.
+
+                // Create `VerifiedExecutableTransaction` with `ConsensusOrdered` proof.
+                // In contrast to `new_from_certificate` (the proof was authorized by 2f+1
+                // pre-consensus signatures), the `ConsensusOrdered` certificate proof
+                // is authorized by consensus ordering post owned-object conflict resolution.
+                let executable_tx = VerifiedExecutableAttestedTransaction::new(
+                    VerifiedExecutableTransaction::new_unchecked(
+                        ExecutableTransaction::new_from_data_and_sig(
+                            transaction.data().clone(),
+                            CertificateProof::ConsensusOrdered(self.epoch()),
+                        ),
+                    ),
+                    attested_tx.attestation.clone(),
+                );
+
+                let scheduling_result = self.try_schedule(
+                    &executable_tx,
+                    commit_round,
+                    dkg_failed,
+                    generating_randomness,
+                    previously_deferred_tx_digests,
+                    shared_object_congestion_tracker,
+                );
+
+                self.handle_scheduling_result(
+                    scheduling_result,
+                    executable_tx,
+                    previously_deferred_tx_digests,
+                    dkg_failed,
+                    shared_object_congestion_tracker,
+                    suggested_gas_price_calculator,
+                    authority_metrics,
+                )
+            }
+            ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage) => {
+                if self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Received OverloadNotificationV1 from {:?} with percentage {}",
+                        authority.concise(),
+                        percentage
+                    );
+                    output.record_overload_notification(*authority, *percentage);
+                } else {
+                    debug!(
+                        "Ignoring OverloadNotificationV1 from {:?} because of end of epoch",
+                        authority.concise()
+                    );
+                }
+                Ok(ConsensusTransactionResult::ConsensusMessage)
+            }
+            ConsensusTransactionKind::TransactionDenyRuleProposal(proposal) => {
+                // The `enable_pcool_flow` feature gate is enforced in
+                // `verify_consensus_transaction`, which filters every
+                // sequenced transaction before it reaches this point.
+                if !self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Ignoring TransactionDenyRuleProposal from {:?} because of end of epoch",
+                        proposal.authority.concise()
+                    );
+                } else if self.should_record_deny_rule_proposal(proposal) {
+                    debug!(
+                        "Received TransactionDenyRuleProposal from {:?} with generation {}",
+                        proposal.authority.concise(),
+                        proposal.generation
+                    );
+                    output.record_deny_rule_proposal(proposal.clone());
+                } else {
+                    debug!(
+                        "Ignoring TransactionDenyRuleProposal from {:?} with stale generation {}",
+                        proposal.authority.concise(),
+                        proposal.generation
+                    );
+                }
+                Ok(ConsensusTransactionResult::ConsensusMessage)
             }
         }
     }
