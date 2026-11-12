@@ -1077,7 +1077,7 @@ impl IotaNode {
         state_sync::Handle,
         randomness::Handle,
     )> {
-        let (state_sync, state_sync_server) = state_sync::Builder::new()
+        let (state_sync, state_sync_router) = state_sync::Builder::new()
             .config(config.p2p_config.state_sync.clone().unwrap_or_default())
             .store(state_sync_store)
             .checkpoint_archive_config(config.checkpoint_archive_config().cloned())
@@ -1098,7 +1098,7 @@ impl IotaNode {
         let p2p_network = {
             let routes = anemo::Router::new()
                 .add_rpc_service(discovery_server)
-                .add_rpc_service(state_sync_server);
+                .merge(state_sync_router);
             let routes = routes.merge(randomness_router);
 
             let inbound_network_metrics =

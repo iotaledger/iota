@@ -9,7 +9,7 @@ use std::{
     time::Duration,
 };
 
-use anemo::{PeerId, Request};
+use anemo::{PeerId, Request, types::response::StatusCode};
 use anyhow::anyhow;
 use bytes::Bytes;
 use iota_config::{node::CheckpointArchiveConfig, p2p::StateSyncConfig};
@@ -29,7 +29,8 @@ use iota_types::{
     committee::{Committee, EpochId},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{
-        CheckpointSequenceNumber, VerifiedCheckpoint, VerifiedCheckpointContents,
+        CertifiedCheckpointSummary, CheckpointSequenceNumber, VerifiedCheckpoint,
+        VerifiedCheckpointContents,
     },
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };
@@ -40,8 +41,8 @@ use tokio::{
 
 use crate::{
     state_sync::{
-        Builder, GetCheckpointSummaryRequest, PeerStateSyncInfo, StateSync, StateSyncEventLoop,
-        StateSyncHandshake, StateSyncMessage, UnstartedStateSync,
+        Builder, GetCheckpointSummaryRequest, PeerStateSyncInfo, StateSync, StateSyncClient,
+        StateSyncEventLoop, StateSyncHandshake, StateSyncMessage, UnstartedStateSync,
     },
     utils::build_network,
 };
@@ -83,7 +84,7 @@ fn store_with_genesis_state(
 // sync job.
 async fn server_push_checkpoint() {
     let (committee, (ordered_checkpoints, _, _, _)) =
-        make_committee_and_checkpoints(0, 4, 2, None, empty_contents);
+        make_committee_and_checkpoints(0, 4, 4, None, empty_contents);
     let store = store_with_genesis_state(
         ordered_checkpoints.first().cloned().unwrap(),
         empty_contents(),
@@ -98,7 +99,13 @@ async fn server_push_checkpoint() {
             ..
         },
         server,
-    ) = Builder::new().store(store).build_internal();
+    ) = Builder::new()
+        .store(store)
+        .config(StateSyncConfig {
+            max_checkpoint_lookahead: Some(2),
+            ..Default::default()
+        })
+        .build_internal();
     let peer_id = PeerId([9; 32]); // fake PeerId
 
     peer_heights.write().unwrap().peers.insert(
@@ -138,15 +145,47 @@ async fn server_push_checkpoint() {
         peer_heights
             .read()
             .unwrap()
-            .highest_known_checkpoint()
-            .unwrap()
-            .data(),
-        checkpoint.data(),
+            .highest_known_checkpoint_sequence_number(),
+        Some(checkpoint.sequence_number()),
     );
     assert!(matches!(
         mailbox.try_recv().unwrap(),
         StateSyncMessage::StartSyncJob
     ));
+
+    // A summary with the sequence number of a stored one but a different
+    // digest is dropped.
+    let (mut data, sig) = checkpoint.clone().into_data_and_sig();
+    data.timestamp_ms += 1;
+    let conflicting = CertifiedCheckpointSummary::new_from_data_and_sig(data, sig);
+    assert_ne!(conflicting.digest(), checkpoint.digest());
+    // The summary of the verified genesis checkpoint, one beyond the lookahead
+    // and one larger than the size limit once decompressed are dropped as
+    // well, but the peer's height still counts.
+    let (mut data, sig) = ordered_checkpoints[2]
+        .inner()
+        .to_owned()
+        .into_data_and_sig();
+    data.version_specific_data = vec![0; StateSyncConfig::default().max_checkpoint_summary_size()];
+    let oversized = CertifiedCheckpointSummary::new_from_data_and_sig(data, sig);
+    for pushed in [
+        conflicting,
+        ordered_checkpoints[0].inner().to_owned(),
+        ordered_checkpoints[3].inner().to_owned(),
+        oversized,
+    ] {
+        let request = Request::new(pushed).with_extension(peer_id);
+        server.push_checkpoint_summary(request).await.unwrap();
+    }
+    let peer_heights = peer_heights.read().unwrap();
+    assert_eq!(peer_heights.peers.get(&peer_id).unwrap().height, 3);
+    assert_eq!(peer_heights.unprocessed_checkpoints.len(), 1);
+    assert_eq!(peer_heights.sequence_number_to_digest.len(), 1);
+    assert!(
+        peer_heights
+            .unprocessed_checkpoints
+            .contains_key(checkpoint.digest())
+    );
 }
 
 #[tokio::test]
@@ -245,10 +284,10 @@ async fn isolated_sync_job() {
         committee.committee().to_owned(),
     );
     let (builder, server) = Builder::new().store(store_1).build();
-    let network_1 = build_network(|router| router.add_rpc_service(server));
+    let network_1 = build_network(|router| router.merge(server));
     let (mut event_loop_1, _handle_1) = builder.build(network_1.clone());
     let (builder, server) = Builder::new().store(store_2).build();
-    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let network_2 = build_network(|router| router.merge(server));
     let (event_loop_2, _handle_2) = builder.build(network_2.clone());
     network_1.connect(network_2.local_addr()).await.unwrap();
 
@@ -307,6 +346,34 @@ async fn isolated_sync_job() {
             &sequence_number_to_digest
         );
     }
+
+    // Node 2 rejects a request larger than the state sync size limit before
+    // handling it, and still handles one within the limit. Requests are
+    // compressed, so the padding must not compress.
+    let mut client = StateSyncClient::new(network_1.peer(network_2.peer_id()).unwrap());
+    let (mut data, sig) = ordered_checkpoints[1]
+        .clone()
+        .into_inner()
+        .into_data_and_sig();
+    let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+    data.version_specific_data = (0..StateSyncConfig::default().max_checkpoint_summary_size())
+        .map(|_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state as u8
+        })
+        .collect();
+    let oversized = CertifiedCheckpointSummary::new_from_data_and_sig(data, sig);
+    let status = client
+        .push_checkpoint_summary(Request::new(oversized))
+        .await
+        .unwrap_err();
+    assert_eq!(status.status(), StatusCode::BadRequest);
+    client
+        .push_checkpoint_summary(Request::new(ordered_checkpoints[1].clone().into_inner()))
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -372,7 +439,7 @@ async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
         })
         .checkpoint_archive_config(Some(checkpoint_archive_config))
         .build();
-    let network_1 = build_network(|router| router.add_rpc_service(state_sync_router));
+    let network_1 = build_network(|router| router.merge(state_sync_router));
     let (event_loop_1, _handle_1) = builder.build(network_1.clone());
     let store_2 = store_with_genesis_state(
         ordered_checkpoints.first().cloned().unwrap(),
@@ -383,7 +450,7 @@ async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
         .store(store_2)
         .config(StateSyncConfig::randomized_for_testing())
         .build();
-    let network_2 = build_network(|router| router.add_rpc_service(state_sync_router));
+    let network_2 = build_network(|router| router.merge(state_sync_router));
     let (event_loop_2, _handle_2) = builder.build(network_2.clone());
     network_1.connect(network_2.local_addr()).await.unwrap();
 
@@ -499,10 +566,10 @@ async fn sync_with_checkpoints_being_inserted() {
         committee.committee().to_owned(),
     );
     let (builder, server) = Builder::new().store(store_1).build();
-    let network_1 = build_network(|router| router.add_rpc_service(server));
+    let network_1 = build_network(|router| router.merge(server));
     let (event_loop_1, handle_1) = builder.build(network_1.clone());
     let (builder, server) = Builder::new().store(store_2).build();
-    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let network_2 = build_network(|router| router.merge(server));
     let (event_loop_2, handle_2) = builder.build(network_2.clone());
 
     // Get handles to each node's stores
@@ -633,10 +700,10 @@ async fn sync_with_checkpoints_watermark() {
         committee.committee().to_owned(),
     );
     let (builder, server) = Builder::new().store(store_1).build();
-    let network_1 = build_network(|router| router.add_rpc_service(server));
+    let network_1 = build_network(|router| router.merge(server));
     let (event_loop_1, handle_1) = builder.build(network_1.clone());
     let (builder, server) = Builder::new().store(store_2).build();
-    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let network_2 = build_network(|router| router.merge(server));
     let (event_loop_2, handle_2) = builder.build(network_2.clone());
 
     // Get handles to each node's stores
@@ -729,6 +796,7 @@ async fn sync_with_checkpoints_watermark() {
         peer_id_1,
         checkpoint_1.clone().into(),
         Some(a_very_high_checkpoint_seq),
+        1,
     ));
 
     // Inject all the checkpoints to Peer 1
@@ -789,7 +857,7 @@ async fn sync_with_checkpoints_watermark() {
         committee.committee().to_owned(),
     );
     let (builder, server) = Builder::new().store(store_3).build();
-    let network_3 = build_network(|router| router.add_rpc_service(server));
+    let network_3 = build_network(|router| router.merge(server));
     let (event_loop_3, handle_3) = builder.build(network_3.clone());
 
     let mut subscriber_3 = handle_3.subscribe_to_synced_checkpoints();
@@ -904,7 +972,7 @@ async fn sync_with_checkpoints_watermark() {
         committee.committee().to_owned(),
     );
     let (builder, server) = Builder::new().store(store_4).build();
-    let network_4 = build_network(|router| router.add_rpc_service(server));
+    let network_4 = build_network(|router| router.merge(server));
     let (event_loop_4, handle_4) = builder.build(network_4.clone());
 
     let mut subscriber_4 = handle_4.subscribe_to_synced_checkpoints();
@@ -974,7 +1042,7 @@ async fn sync_with_checkpoints_gap() -> anyhow::Result<()> {
     );
 
     let (builder_1, server_1) = Builder::new().store(store_1.clone()).build();
-    let network_1 = build_network(|router| router.add_rpc_service(server_1));
+    let network_1 = build_network(|router| router.merge(server_1));
     let (event_loop_1, _handle_1) = builder_1.build(network_1.clone());
 
     // Shorten the retry back-off so checkpoint 1's failure loop cycles quickly
@@ -987,7 +1055,7 @@ async fn sync_with_checkpoints_gap() -> anyhow::Result<()> {
         .config(config_2)
         .store(store_2.clone())
         .build();
-    let network_2 = build_network(|router| router.add_rpc_service(server_2));
+    let network_2 = build_network(|router| router.merge(server_2));
     let (event_loop_2, _handle_2) = builder_2.build(network_2.clone());
 
     // Node 1: insert all summaries and contents (sequences 0–5), synced
@@ -1147,7 +1215,7 @@ async fn a_checkpoint_from_consensus_waits_for_the_contents_before_it() {
             ..Default::default()
         })
         .build();
-    let network_1 = build_network(|router| router.add_rpc_service(server));
+    let network_1 = build_network(|router| router.merge(server));
     let (event_loop_1, handle_1) = builder.build(network_1.clone());
     let store_1 = event_loop_1.store.clone();
 
@@ -1164,7 +1232,7 @@ async fn a_checkpoint_from_consensus_waits_for_the_contents_before_it() {
         store_2.update_highest_synced_checkpoint(checkpoint);
     }
     let (builder, server) = Builder::new().store(store_2).build();
-    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let network_2 = build_network(|router| router.merge(server));
     let (event_loop_2, _handle_2) = builder.build(network_2.clone());
 
     tokio::spawn(event_loop_1.start());
@@ -1267,7 +1335,7 @@ async fn verified_checkpoints_with_stored_contents_are_synced_after_a_restart() 
         })
         .sync_summaries_to_epoch_end(Arc::new(AtomicBool::new(true)))
         .build();
-    let network = build_network(|router| router.add_rpc_service(server));
+    let network = build_network(|router| router.merge(server));
     let (event_loop, _handle) = builder.build(network.clone());
     tokio::spawn(event_loop.start());
 
@@ -1310,7 +1378,7 @@ async fn stored_checkpoints_above_the_verified_watermark_are_verified_after_a_re
         })
         .sync_summaries_to_epoch_end(Arc::new(AtomicBool::new(true)))
         .build();
-    let network = build_network(|router| router.add_rpc_service(server));
+    let network = build_network(|router| router.merge(server));
     let (event_loop, _handle) = builder.build(network.clone());
     tokio::spawn(event_loop.start());
 
@@ -1333,7 +1401,7 @@ async fn peer_sync_pauses_while_too_far_ahead_of_execution() {
         committee.committee().to_owned(),
     );
     let (builder, server) = Builder::new().store(store_1).build();
-    let network_1 = build_network(|router| router.add_rpc_service(server));
+    let network_1 = build_network(|router| router.merge(server));
     let (event_loop_1, handle_1) = builder.build(network_1.clone());
     let store_1 = event_loop_1.store.clone();
 
@@ -1354,7 +1422,7 @@ async fn peer_sync_pauses_while_too_far_ahead_of_execution() {
             ..Default::default()
         })
         .build();
-    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let network_2 = build_network(|router| router.merge(server));
     let (event_loop_2, _handle_2) = builder.build(network_2.clone());
     let store_2 = event_loop_2.store.clone();
 
@@ -1409,7 +1477,7 @@ async fn peer_content_sync_pauses_when_summaries_run_ahead() {
         committee.committee().to_owned(),
     );
     let (builder, server) = Builder::new().store(store_1).build();
-    let network_1 = build_network(|router| router.add_rpc_service(server));
+    let network_1 = build_network(|router| router.merge(server));
     let (event_loop_1, handle_1) = builder.build(network_1.clone());
     let store_1 = event_loop_1.store.clone();
     for (checkpoint, contents) in ordered_checkpoints
@@ -1444,7 +1512,7 @@ async fn peer_content_sync_pauses_when_summaries_run_ahead() {
             ..Default::default()
         })
         .build();
-    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let network_2 = build_network(|router| router.merge(server));
     let (event_loop_2, _handle_2) = builder.build(network_2.clone());
     let store_2 = event_loop_2.store.clone();
 
@@ -1481,7 +1549,7 @@ async fn pushed_summaries_above_the_sync_target_are_dropped() {
         committee.committee().to_owned(),
     );
     let (builder, server) = Builder::new().store(store_1).build();
-    let network_1 = build_network(|router| router.add_rpc_service(server));
+    let network_1 = build_network(|router| router.merge(server));
     let (event_loop_1, handle_1) = builder.build(network_1.clone());
     let store_1 = event_loop_1.store.clone();
 
@@ -1500,7 +1568,7 @@ async fn pushed_summaries_above_the_sync_target_are_dropped() {
             ..Default::default()
         })
         .build();
-    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let network_2 = build_network(|router| router.merge(server));
     let (event_loop_2, _handle_2) = builder.build(network_2.clone());
     let store_2 = event_loop_2.store.clone();
     let peer_heights_2 = event_loop_2.peer_heights.clone();
@@ -1552,6 +1620,173 @@ async fn pushed_summaries_above_the_sync_target_are_dropped() {
     wait_for_watermarks(&store_2, last_checkpoint_seq, last_checkpoint_seq).await;
 }
 
+/// Tests that the max_checkpoint_lookahead config correctly limits how far
+/// ahead pushed checkpoints can be stored, and that state sync still works
+/// correctly to eventually sync all checkpoints.
+#[tokio::test]
+async fn sync_with_max_lookahead_rejection() {
+    telemetry_subscribers::init_for_testing();
+    let num_checkpoints: u64 = 20;
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, num_checkpoints as usize, None, empty_contents);
+    let small_lookahead: u64 = 5;
+    let config_with_small_lookahead = StateSyncConfig {
+        max_checkpoint_lookahead: Some(small_lookahead),
+        ..Default::default()
+    };
+
+    // Build Node 1 (the receiving node) with small lookahead.
+    let store_1 = store_with_genesis_state(
+        ordered_checkpoints.first().cloned().unwrap(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    let (
+        UnstartedStateSync {
+            handle: _handle_1,
+            mailbox: _mailbox_1,
+            peer_heights: peer_heights_1,
+            ..
+        },
+        server_1,
+    ) = Builder::new()
+        .store(store_1.clone())
+        .config(config_with_small_lookahead.clone())
+        .build_internal();
+
+    // Build Node 2 (the source node with all checkpoints)
+    let store_2 = store_with_genesis_state(
+        ordered_checkpoints.first().cloned().unwrap(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    let (builder, state_sync_router) = Builder::new().store(store_2).build();
+    let network_2 = build_network(|router| router.merge(state_sync_router));
+    let (event_loop_2, _handle_2) = builder.build(network_2.clone());
+
+    // Populate Node 2's store with all checkpoints and contents
+    {
+        let mut store = event_loop_2.store.inner_mut();
+        for checkpoint in ordered_checkpoints.iter().skip(1) {
+            store.insert_checkpoint(checkpoint);
+            store.insert_checkpoint_contents(checkpoint, empty_contents());
+            store.update_highest_synced_checkpoint(checkpoint);
+        }
+    }
+
+    // Set up peer info so the server recognizes the fake peer for initial test
+    let fake_peer_id = PeerId([9; 32]);
+    peer_heights_1.write().unwrap().insert_peer_info(
+        fake_peer_id,
+        PeerStateSyncInfo {
+            genesis_checkpoint_digest: *ordered_checkpoints[0].digest(),
+            on_same_chain_as_us: true,
+            height: 0,
+            lowest: 0,
+        },
+    );
+
+    // Phase 1: Verify lookahead rejection by manually pushing checkpoints
+    // Push all checkpoints via the server handler - server should reject those
+    // beyond lookahead
+    for checkpoint in ordered_checkpoints.iter().skip(1) {
+        let request = Request::new(checkpoint.clone().into_inner()).with_extension(fake_peer_id);
+        server_1.push_checkpoint_summary(request).await.unwrap();
+    }
+
+    // Verify the lookahead logic:
+    // - Checkpoints 1-5 should be stored (within lookahead from genesis at 0)
+    // - Checkpoints 6-19 should NOT be stored (beyond lookahead)
+    {
+        let heights = peer_heights_1.read().unwrap();
+
+        for seq in 1..=small_lookahead {
+            let checkpoint = &ordered_checkpoints[seq as usize];
+            assert!(
+                heights
+                    .unprocessed_checkpoints
+                    .contains_key(checkpoint.digest()),
+                "Checkpoint {seq} should be stored (within lookahead of {small_lookahead})",
+            );
+        }
+
+        for seq in (small_lookahead + 1)..num_checkpoints {
+            let checkpoint = &ordered_checkpoints[seq as usize];
+            assert!(
+                !heights
+                    .unprocessed_checkpoints
+                    .contains_key(checkpoint.digest()),
+                "Checkpoint {seq} should NOT be stored (beyond lookahead of {small_lookahead})",
+            );
+        }
+
+        // Peer height should be updated even for rejected checkpoints
+        let peer_info = heights.peers.get(&fake_peer_id).unwrap();
+        assert_eq!(
+            peer_info.height,
+            ordered_checkpoints.last().unwrap().sequence_number(),
+            "Peer height should be updated even for rejected checkpoints"
+        );
+    }
+
+    // Phase 2: Now build a proper Node 1 with networking and start the sync loop
+    // to verify that sync works correctly despite the lookahead limit
+    let (builder, state_sync_router) = Builder::new()
+        .store(store_1.clone())
+        .config(config_with_small_lookahead)
+        .build();
+    let network_1 = build_network(|router| router.merge(state_sync_router));
+    let (event_loop_1, _handle_1) = builder.build(network_1.clone());
+
+    let peer_heights_1 = event_loop_1.peer_heights.clone();
+    peer_heights_1
+        .write()
+        .unwrap()
+        .set_wait_interval_when_no_peer_to_sync_content(Duration::from_secs(1));
+
+    let peer_id_2 = network_2.peer_id();
+
+    // Start both event loops
+    tokio::spawn(event_loop_1.start());
+    tokio::spawn(event_loop_2.start());
+
+    // Connect the networks
+    network_1.connect(network_2.local_addr()).await.unwrap();
+
+    // Wait for peer discovery
+    timeout(Duration::from_secs(5), async {
+        loop {
+            if peer_heights_1
+                .read()
+                .unwrap()
+                .peers
+                .contains_key(&peer_id_2)
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("Peer discovery timed out");
+
+    // Wait for sync to complete - Node 1 should eventually sync all checkpoints
+    // despite the lookahead limit, because the sync loop handles this correctly
+    let last_checkpoint_seq = ordered_checkpoints.last().unwrap().sequence_number();
+    wait_for_watermarks(&store_1, last_checkpoint_seq, last_checkpoint_seq).await;
+
+    // Verify all checkpoint contents are available
+    for checkpoint in ordered_checkpoints.iter().skip(1) {
+        assert!(
+            store_1
+                .get_full_checkpoint_contents(&checkpoint.contents_digest)
+                .is_some(),
+            "Checkpoint {} contents should be available",
+            checkpoint.sequence_number()
+        );
+    }
+}
+
 #[tokio::test]
 // Test that checkpoint summary sync crosses an epoch boundary: the end-of-epoch
 // checkpoint gives the store the next epoch's committee, and the checkpoints
@@ -1592,10 +1827,10 @@ async fn sync_across_epoch_boundary() {
         committee_0.committee().to_owned(),
     );
     let (builder, server) = Builder::new().store(store_1).build();
-    let network_1 = build_network(|router| router.add_rpc_service(server));
+    let network_1 = build_network(|router| router.merge(server));
     let (mut event_loop_1, _handle_1) = builder.build(network_1.clone());
     let (builder, server) = Builder::new().store(store_2).build();
-    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let network_2 = build_network(|router| router.merge(server));
     let (event_loop_2, _handle_2) = builder.build(network_2.clone());
     network_1.connect(network_2.local_addr()).await.unwrap();
 
@@ -1791,7 +2026,7 @@ async fn sync_with_epoch_end_past_the_bound(
         committee.committee().to_owned(),
     );
     let (builder, server) = Builder::new().store(store_1).build();
-    let network_1 = build_network(|router| router.add_rpc_service(server));
+    let network_1 = build_network(|router| router.merge(server));
     let (event_loop_1, handle_1) = builder.build(network_1.clone());
     let store_1 = event_loop_1.store.clone();
 
@@ -1812,7 +2047,7 @@ async fn sync_with_epoch_end_past_the_bound(
         })
         .sync_summaries_to_epoch_end(Arc::new(AtomicBool::new(sync_to_epoch_end)))
         .build();
-    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let network_2 = build_network(|router| router.merge(server));
     let (event_loop_2, handle_2) = builder.build(network_2.clone());
     let store_2 = event_loop_2.store.clone();
 
