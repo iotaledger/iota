@@ -5,11 +5,11 @@
 //! good, read from the compiled IOTA framework, so that an aliased import or a
 //! reformatted signature cannot hide a removal.
 //!
-//! Post-consensus validation records a claim of an address by that field
-//! rather than by the account object: the object can be deleted once its
-//! `UID` moves to another type, while the field stays attached to the `UID`
-//! and, after the `UID` is deleted, stays behind orphaned. A way to remove the
-//! field would let the address be claimed again.
+//! Post-consensus validation records a claim of an address by that field,
+//! which only `iota::account` can build the key of, rather than by the account
+//! object. A way to remove the field would let the address be claimed again,
+//! and a validator would answer whether it was claimed from its latest state
+//! differently from one that reads the state at the horizon.
 
 use std::collections::BTreeSet;
 

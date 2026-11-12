@@ -1584,9 +1584,8 @@ impl AuthorityState {
     }
 
     /// Whether this validator's latest state records a claim of `address`:
-    /// the authenticator function field the claim attached to its account.
-    /// The field outlives the account object, so a deleted account still
-    /// counts.
+    /// the authenticator function field the claim attached to its account
+    /// (see [`CommitIndexedReader::read_claimed_address`]).
     fn claimed_in_store(&self, address: Address) -> IotaResult<bool> {
         let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(address)?;
         Ok(self

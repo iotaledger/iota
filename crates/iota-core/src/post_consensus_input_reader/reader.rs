@@ -328,15 +328,55 @@ impl CommitIndexedReader {
     /// account at that address was live at the horizon. Storage errors
     /// propagate.
     ///
-    /// The field, not the account object, records the claim, because it
-    /// outlives the object. Only `iota::account` can build the field's key,
-    /// and it removes the field only to add it back in the same rotation. The
-    /// field stays attached when the account's `UID` moves to another type,
-    /// and stays behind, orphaned, when that `UID` is deleted. A field created
-    /// above the horizon reads as absent, as on a validator that has not
-    /// executed that commit; the claim that created it holds the address's
-    /// lock, which post-consensus validation checks first.
+    /// The field records the claim. Only `iota::account` can build the field's
+    /// key, and it removes the field only to add it back in the same rotation.
+    /// The account a claim creates is a `SmartAccount`, which is shared, lacks
+    /// `store` and has no function that unpacks or deletes it, so the object
+    /// stays too; the field is read so that the claim stays recorded even if a
+    /// later version lets the object go. A field created above the horizon
+    /// reads as absent, as on a validator that has not executed that commit;
+    /// the claim that created it holds the address's lock, which
+    /// post-consensus validation checks first.
+    ///
+    /// Almost every transaction asks this for its plain signers, and almost
+    /// none of them was ever claimed, so an address whose field this
+    /// validator's latest state holds neither live nor deleted is answered
+    /// from the object cache, without reading the rows: every commit at or
+    /// below the horizon is executed before the commit is validated, so the
+    /// field was absent at the horizon too. Like the reads of owned inputs,
+    /// this relies on the store holding every write of those commits. A
+    /// deleted field takes the full read, so a later way to remove the field
+    /// could not make validators answer differently.
     pub fn read_claimed_address(&self, address: Address) -> IotaResult<ClaimedAddressAtHorizon> {
+        let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(address)?;
+        // The object read caches what it finds, an absent or deleted field
+        // included, so the lookup of a deleted field after it is a cache hit.
+        if self.cache.try_get_object(&field_id)?.is_none()
+            && self
+                .cache
+                .try_get_latest_object_ref_or_tombstone(field_id)?
+                .is_none()
+        {
+            if cfg!(debug_assertions) {
+                // A storage error is left to the reads that need the rows.
+                if let Ok(at_horizon) = self.read_claimed_address_at_horizon(address) {
+                    assert_eq!(
+                        at_horizon,
+                        ClaimedAddressAtHorizon::NotClaimed,
+                        "{address} has no authenticator function field in the latest state"
+                    );
+                }
+            }
+            return Ok(ClaimedAddressAtHorizon::NotClaimed);
+        }
+        self.read_claimed_address_at_horizon(address)
+    }
+
+    /// [`Self::read_claimed_address`] from the rows of the field.
+    fn read_claimed_address_at_horizon(
+        &self,
+        address: Address,
+    ) -> IotaResult<ClaimedAddressAtHorizon> {
         Ok(match self.read_account(ObjectId::from(address))? {
             AccountVerdict::Account(_) => ClaimedAddressAtHorizon::Claimed,
             AccountVerdict::Missing(_) => ClaimedAddressAtHorizon::NotClaimed,

@@ -13055,6 +13055,56 @@ async fn claim_is_dropped_once_the_account_row_is_at_the_horizon() {
     );
 }
 
+/// An address the latest state holds no field for is answered without
+/// reading the rows, before and after the horizon passes another address's
+/// claim and in the next epoch, and still once the rows can no longer be
+/// read; the answer the rows give is checked against it in debug builds.
+#[tokio::test]
+async fn never_claimed_address_reads_as_not_claimed() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let never_claimed = Address::random();
+    let gas = ObjectId::random();
+    let mut s =
+        setup_handler_object_state(vec![Object::with_id_owner_for_testing(gas, sender)], true)
+            .await;
+    let claim = s.build_claim(sender, &key, &gas);
+    let effects = s.execute_claim_with_assigned_commit(claim, 1);
+    s.complete_commit(1, &[&effects]);
+    let k = s.horizon_distance();
+
+    for index in [1, k, k + 1] {
+        assert_eq!(
+            s.reader_at(index)
+                .read_claimed_address(never_claimed)
+                .unwrap(),
+            ClaimedAddressAtHorizon::NotClaimed,
+            "commit {index}"
+        );
+    }
+    assert_eq!(
+        s.reader_at(k + 1).read_claimed_address(sender).unwrap(),
+        ClaimedAddressAtHorizon::Claimed
+    );
+
+    s.advance_epoch().await;
+    assert_eq!(
+        s.reader_at(1).read_claimed_address(never_claimed).unwrap(),
+        ClaimedAddressAtHorizon::NotClaimed
+    );
+    assert_eq!(
+        s.reader_at(1).read_claimed_address(sender).unwrap(),
+        ClaimedAddressAtHorizon::Claimed
+    );
+
+    s.epoch_store.release_db_handles();
+    let reader = s.reader_at(1);
+    assert!(reader.read_account(ObjectId::from(never_claimed)).is_err());
+    assert_eq!(
+        reader.read_claimed_address(never_claimed).unwrap(),
+        ClaimedAddressAtHorizon::NotClaimed
+    );
+}
+
 /// An account claimed in an earlier epoch is in the store with no row this
 /// epoch, so a new claim of its address is dropped at the first commit.
 #[tokio::test]
@@ -13317,10 +13367,9 @@ async fn admission_rejects_a_plain_signature_for_a_claimed_address() {
 }
 
 /// The claim is recorded by the account's authenticator function field, not
-/// by the account object. An account whose `UID` moved to a type that was
-/// later deleted leaves the field behind, orphaned, with no object at the
-/// address: the address stays claimed, so a new claim and a plain signature
-/// are both dropped.
+/// by the account object. No claim leaves the field without the object today,
+/// but if one did, the address would stay claimed, so a new claim and a plain
+/// signature are both dropped.
 #[tokio::test]
 async fn orphaned_authenticator_field_keeps_the_address_claimed() {
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
