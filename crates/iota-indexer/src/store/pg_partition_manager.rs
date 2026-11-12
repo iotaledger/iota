@@ -17,7 +17,7 @@ use tracing::{error, info};
 use crate::{
     db::ConnectionPool,
     errors::IndexerError,
-    models::epoch::{StartOfEpochUpdate, StoredEpochInfo},
+    models::epoch::{EpochLowerBounds, StartOfEpochUpdate, StoredEpochInfo},
     store::diesel_macro::*,
 };
 
@@ -52,17 +52,38 @@ impl Clone for PgPartitionManager {
 
 #[derive(Clone, Copy)]
 pub enum PgPartitionStrategy {
-    CheckpointSequenceNumber,
-    TxSequenceNumber,
+    Epoch(EpochPartitionKey),
     ObjectId,
 }
 
+/// Partition key of a table that has one partition for each epoch.
+#[derive(Clone, Copy)]
+pub enum EpochPartitionKey {
+    CheckpointSequenceNumber,
+    TxSequenceNumber,
+}
+
 impl PgPartitionStrategy {
+    /// Returns the partition key of an epoch-partitioned table, or `None` for other strategies.
+    pub fn epoch(&self) -> Option<EpochPartitionKey> {
+        match self {
+            PgPartitionStrategy::Epoch(key) => Some(*key),
+            PgPartitionStrategy::ObjectId => None,
+        }
+    }
+
     pub fn is_epoch_partitioned(&self) -> bool {
-        matches!(
-            self,
-            Self::CheckpointSequenceNumber | Self::TxSequenceNumber
-        )
+        self.epoch().is_some()
+    }
+}
+
+impl EpochPartitionKey {
+    /// Returns the first partition key associated to `epoch`.
+    pub fn start(&self, epoch: &EpochLowerBounds) -> i64 {
+        match self {
+            Self::CheckpointSequenceNumber => epoch.first_checkpoint_id,
+            Self::TxSequenceNumber => epoch.first_tx_sequence_number,
+        }
     }
 }
 
@@ -100,8 +121,14 @@ impl EpochPartitionData {
 impl PgPartitionManager {
     pub fn new(cp: ConnectionPool) -> Self {
         let mut partition_strategies = HashMap::new();
-        partition_strategies.insert("events", PgPartitionStrategy::TxSequenceNumber);
-        partition_strategies.insert("transactions", PgPartitionStrategy::TxSequenceNumber);
+        partition_strategies.insert(
+            "events",
+            PgPartitionStrategy::Epoch(EpochPartitionKey::TxSequenceNumber),
+        );
+        partition_strategies.insert(
+            "transactions",
+            PgPartitionStrategy::Epoch(EpochPartitionKey::TxSequenceNumber),
+        );
         partition_strategies.insert("objects_version", PgPartitionStrategy::ObjectId);
         Self {
             cp,
@@ -143,7 +170,9 @@ impl PgPartitionManager {
         self.partition_strategies
             .get(table_name)
             .copied()
-            .unwrap_or(PgPartitionStrategy::CheckpointSequenceNumber)
+            .unwrap_or(PgPartitionStrategy::Epoch(
+                EpochPartitionKey::CheckpointSequenceNumber,
+            ))
     }
 
     pub fn determine_epoch_partition_range(
@@ -152,10 +181,10 @@ impl PgPartitionManager {
         data: &EpochPartitionData,
     ) -> Option<(u64, u64)> {
         match self.get_strategy(table_name) {
-            PgPartitionStrategy::CheckpointSequenceNumber => {
+            PgPartitionStrategy::Epoch(EpochPartitionKey::CheckpointSequenceNumber) => {
                 Some((data.last_epoch_start_cp, data.next_epoch_start_cp))
             }
-            PgPartitionStrategy::TxSequenceNumber => {
+            PgPartitionStrategy::Epoch(EpochPartitionKey::TxSequenceNumber) => {
                 Some((data.last_epoch_start_tx, data.next_epoch_start_tx))
             }
             PgPartitionStrategy::ObjectId => None,
