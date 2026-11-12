@@ -10,7 +10,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -22,6 +22,7 @@ use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::{
     StreamExt,
     future::{AbortRegistration, Abortable},
+    stream::FuturesUnordered,
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use integer_encoding::VarIntReader;
@@ -45,7 +46,7 @@ use tokio::{
     sync::{Mutex, mpsc, oneshot},
     task::{JoinHandle, JoinSet},
 };
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC,
@@ -57,6 +58,35 @@ use crate::{
     },
     restore::Restore,
 };
+
+/// Inserts one partition and returns how long the insert took.
+///
+/// An insert that has not started when `stop` is set does not start; it
+/// returns at once.
+async fn insert_partition_timed(
+    database: &impl Restore,
+    file_metadata: FileMetadata,
+    bytes: Bytes,
+    sha3_digest: [u8; 32],
+    download_time: Duration,
+    stop: &AtomicBool,
+) -> Result<Duration> {
+    if stop.load(Ordering::SeqCst) {
+        return Ok(Duration::ZERO);
+    }
+    let (bucket, part) = (file_metadata.bucket_num, file_metadata.part_num);
+    let insert_started = Instant::now();
+    database
+        .insert_partition(file_metadata, bytes, &sha3_digest)
+        .await
+        .with_context(|| format!("failed to insert object file {bucket}_{part}"))?;
+    let insert_time = insert_started.elapsed();
+    debug!(
+        "Object file {bucket}_{part}: downloaded in {download_time:?}, inserted in \
+         {insert_time:?}"
+    );
+    Ok(insert_time)
+}
 
 pub type SnapshotChecksums = (DigestByBucketAndPartition, GlobalStateHash);
 pub type DigestByBucketAndPartition = BTreeMap<u32, BTreeMap<u32, [u8; 32]>>;
@@ -707,30 +737,71 @@ impl StateSnapshotReaderV1 {
                 for _ in 0..concurrency.get() {
                     start_next_download(&mut downloads);
                 }
-                while let Some(joined) = downloads.join_next().await {
-                    let (bytes, file_metadata, sha3_digest, download_time) = match joined {
-                        Ok(download) => download?,
-                        Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
-                        // Returning Ok here would skip a partition.
-                        Err(e) => return Err(anyhow::Error::new(e).context("download cancelled")),
-                    };
-                    start_next_download(&mut downloads);
-                    let (bucket, part) = (file_metadata.bucket_num, file_metadata.part_num);
-                    let insert_started = Instant::now();
-                    database
-                        .insert_partition(file_metadata, bytes, &sha3_digest)
-                        .await?;
-                    let partition_insert_time = insert_started.elapsed();
-                    insert_time += partition_insert_time;
-                    debug!(
-                        "Object file {bucket}_{part}: downloaded in {download_time:?}, inserted \
-                         in {partition_insert_time:?}"
-                    );
-                    obj_progress_insert.file_done();
+                // A finished download stays in the set until an insert slot is free,
+                // so it still counts against `concurrency`.
+                let max_inserts = database.max_concurrent_inserts().get();
+                let stop_inserts = AtomicBool::new(false);
+                let mut inserts = FuturesUnordered::new();
+                let mut failure = None;
+                loop {
+                    tokio::select! {
+                        Some(joined) = downloads.join_next(), if inserts.len() < max_inserts => {
+                            let (bytes, file_metadata, sha3_digest, download_time) = match joined {
+                                Ok(Ok(download)) => download,
+                                Ok(Err(e)) => {
+                                    failure = Some(e);
+                                    break;
+                                }
+                                Err(e) if e.is_panic() => {
+                                    std::panic::resume_unwind(e.into_panic())
+                                }
+                                // Returning Ok here would skip a partition.
+                                Err(e) => {
+                                    failure = Some(anyhow::Error::new(e).context("download cancelled"));
+                                    break;
+                                }
+                            };
+                            start_next_download(&mut downloads);
+                            inserts.push(insert_partition_timed(
+                                database,
+                                file_metadata,
+                                bytes,
+                                sha3_digest,
+                                download_time,
+                                &stop_inserts,
+                            ));
+                        }
+                        Some(inserted) = inserts.next() => match inserted {
+                            Ok(partition_insert_time) => {
+                                insert_time += partition_insert_time;
+                                obj_progress_insert.file_done();
+                            }
+                            Err(e) => {
+                                failure = Some(e);
+                                break;
+                            }
+                        },
+                        else => break,
+                    }
+                }
+                if let Some(error) = failure {
+                    // After a download error or an insert error, no insert still writes
+                    // when the error is returned. An insert that was taken but has not
+                    // started does not start. An abort through the abort registration, a
+                    // drop of the read future, or a panic does not wait: inserts that
+                    // already run on the blocking pool finish there.
+                    stop_inserts.store(true, Ordering::SeqCst);
+                    drop(downloads);
+                    while let Some(result) = inserts.next().await {
+                        if let Err(e) = result {
+                            error!("an insert failed while the restore was stopping: {e:#}");
+                        }
+                    }
+                    return Err(error);
                 }
                 info!(
-                    "Downloaded and inserted {num_partitions} object files in {:?}, of which \
-                     {insert_time:?} inserting",
+                    "Downloaded and inserted {num_partitions} object files in {:?}, with \
+                     {insert_time:?} inserting, summed over the partitions",
                     phase_started.elapsed()
                 );
                 Ok(())

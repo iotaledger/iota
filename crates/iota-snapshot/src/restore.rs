@@ -4,7 +4,7 @@
 //! Logic and abstractions for supporting different databases that the snapshot
 //! can restore.
 
-use std::{future::Future, sync::Arc};
+use std::{future::Future, num::NonZeroUsize, sync::Arc};
 
 use anyhow::{Context, Result};
 use bytes::Bytes;
@@ -29,18 +29,31 @@ pub trait Restore {
     /// objects' digests included. Then it can be verified against the given
     /// expected value.
     ///
-    /// While this future runs, `read_to_db` does not poll the downloads: they
-    /// run as tasks of the runtime. An implementation that blocks its thread
-    /// stops the downloads that this thread would run: all of them on a
-    /// current-thread runtime, and the download started just before the insert
-    /// when the read runs on a worker of a multi-thread runtime. Such an
-    /// implementation should move its work to the blocking pool.
+    /// While this future runs, the downloads are runtime tasks that the
+    /// reader does not poll. The reader itself takes a finished download and
+    /// starts its insert only while fewer than `max_concurrent_inserts`
+    /// inserts run. An implementation that blocks its thread stops the
+    /// downloads that this thread would run: all of them on a current-thread
+    /// runtime, and the download started just before the insert when the read
+    /// runs on a worker of a multi-thread runtime. Such an implementation
+    /// should move its work to the blocking pool.
     fn insert_partition(
         &self,
         file_metadata: FileMetadata,
         bytes: Bytes,
         expected_checksum: &[u8; SHA3_BYTES],
     ) -> impl Future<Output = Result<()>> + Send;
+
+    /// How many partitions the reader may insert at the same time. Each
+    /// insert in progress holds one downloaded partition in memory.
+    ///
+    /// The reader polls all inserts from one task, so the inserts overlap only
+    /// if `insert_partition` does not block the thread that polls it. An
+    /// implementation that works inline gets one insert at a time, whatever it
+    /// returns here.
+    fn max_concurrent_inserts(&self) -> NonZeroUsize {
+        NonZeroUsize::MIN
+    }
 }
 
 impl Restore for AuthorityPerpetualTables {

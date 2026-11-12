@@ -1762,6 +1762,7 @@ struct ObservedStore {
     gate_after: Option<usize>,
     gate: watch::Sender<bool>,
     fail_download: Option<usize>,
+    download_failed: AtomicBool,
     panic_on_download: bool,
     // Served from memory instead of `inner`, keyed by path.
     preloaded_files: Option<HashMap<String, bytes::Bytes>>,
@@ -1783,6 +1784,7 @@ impl ObservedStore {
             gate_after: None,
             gate: watch::Sender::new(true),
             fail_download: None,
+            download_failed: AtomicBool::new(false),
             panic_on_download: false,
             preloaded_files: None,
             before_first_download: None,
@@ -1818,7 +1820,6 @@ impl ObservedStore {
         self
     }
 
-    #[cfg(not(msim))]
     fn with_preloaded_files(mut self, files: HashMap<String, bytes::Bytes>) -> Self {
         self.preloaded_files = Some(files);
         self
@@ -1829,6 +1830,10 @@ impl ObservedStore {
     fn with_before_first_download(mut self, hook: impl Fn() + Send + Sync + 'static) -> Self {
         self.before_first_download = Some(Box::new(hook));
         self
+    }
+
+    fn download_failed(&self) -> bool {
+        self.download_failed.load(Ordering::SeqCst)
     }
 
     fn open_gate(&self) {
@@ -1893,6 +1898,7 @@ impl ObjectStoreGetExt for ObservedStore {
             }
         }
         if self.fail_download == Some(started) {
+            self.download_failed.store(true, Ordering::SeqCst);
             return Err(not_found_error(src));
         }
         if self.gate_after.is_some_and(|after| started >= after) {
@@ -1997,7 +2003,7 @@ fn wait_until_blocking(what: &str, condition: impl Fn() -> bool) {
     }
 }
 
-/// What [`HookedRestore`] does before its first insert.
+/// What [`HookedRestore`] does before its first inserts.
 #[derive(Clone, Copy)]
 enum InsertHook {
     None,
@@ -2008,21 +2014,83 @@ enum InsertHook {
     /// awaiting.
     #[cfg(not(msim))]
     OpenGateAndBlockForDownload,
-    /// Waits until this many downloaded partitions are held, the one in the
-    /// insert included.
-    AwaitHeldPartitions(usize),
-    /// The insert fails.
+    /// Before each of the first `num_inserts` inserts: waits until that many
+    /// inserts are in progress and `num_held_partitions` downloaded partitions
+    /// are held, the ones in the inserts included.
+    AwaitOverlap {
+        num_inserts: usize,
+        num_held_partitions: usize,
+    },
+    /// Like `AwaitOverlap` with no held partitions, then the first insert
+    /// fails and the others wait for that failure before they go on.
+    FailOverlapped {
+        num_inserts: usize,
+    },
+    /// Every one of the first inserts waits until a download has failed, opens
+    /// the store's gate, and ends a little later.
+    HoldUntilDownloadFailed {
+        num_inserts: usize,
+    },
+    /// The first insert yields to the runtime once, then fails.
+    FailAfterYield,
+    /// The first insert fails.
     FailFirst,
 }
 
+impl InsertHook {
+    /// How many of the first inserts the hook acts on.
+    fn num_affected_inserts(self) -> usize {
+        match self {
+            InsertHook::AwaitOverlap { num_inserts, .. }
+            | InsertHook::FailOverlapped { num_inserts }
+            | InsertHook::HoldUntilDownloadFailed { num_inserts } => num_inserts,
+            _ => 1,
+        }
+    }
+}
+
 /// Restores into the real perpetual tables, with a hook before the first
-/// insert.
+/// inserts. It says it supports one insert at a time, unless
+/// [`Self::with_max_concurrent_inserts`] says otherwise.
 struct HookedRestore {
     tables: Arc<AuthorityPerpetualTables>,
     store: Arc<ObservedStore>,
     hook: InsertHook,
+    max_concurrent_inserts: Option<NonZeroUsize>,
     num_inserts: AtomicUsize,
+    num_inserts_in_progress: AtomicUsize,
+    max_num_inserts_in_progress: AtomicUsize,
+    // Inserts that ran to their end. Never raised in a drop path.
+    num_completed_inserts: AtomicUsize,
+    failed: AtomicBool,
+    num_inserts_started_after_failure: AtomicUsize,
+    overlap_seen: AtomicBool,
     num_downloads_in_flight_at_first_insert: AtomicUsize,
+    num_downloads_in_flight_at_failure: AtomicUsize,
+}
+
+/// Counts an insert as in progress until dropped.
+struct InsertInProgress<'a>(&'a HookedRestore);
+
+impl<'a> InsertInProgress<'a> {
+    fn start(restore_target: &'a HookedRestore) -> Self {
+        let num_in_progress = restore_target
+            .num_inserts_in_progress
+            .fetch_add(1, Ordering::SeqCst)
+            + 1;
+        restore_target
+            .max_num_inserts_in_progress
+            .fetch_max(num_in_progress, Ordering::SeqCst);
+        Self(restore_target)
+    }
+}
+
+impl Drop for InsertInProgress<'_> {
+    fn drop(&mut self) {
+        self.0
+            .num_inserts_in_progress
+            .fetch_sub(1, Ordering::SeqCst);
+    }
 }
 
 impl HookedRestore {
@@ -2035,9 +2103,57 @@ impl HookedRestore {
             tables,
             store,
             hook,
+            max_concurrent_inserts: None,
             num_inserts: AtomicUsize::new(0),
+            num_inserts_in_progress: AtomicUsize::new(0),
+            max_num_inserts_in_progress: AtomicUsize::new(0),
+            num_completed_inserts: AtomicUsize::new(0),
+            failed: AtomicBool::new(false),
+            num_inserts_started_after_failure: AtomicUsize::new(0),
+            overlap_seen: AtomicBool::new(false),
             num_downloads_in_flight_at_first_insert: AtomicUsize::new(0),
+            num_downloads_in_flight_at_failure: AtomicUsize::new(0),
         }
+    }
+
+    fn with_max_concurrent_inserts(mut self, num_inserts: usize) -> Self {
+        self.max_concurrent_inserts = Some(NonZeroUsize::new(num_inserts).unwrap());
+        self
+    }
+
+    fn num_inserts_in_progress(&self) -> usize {
+        self.num_inserts_in_progress.load(Ordering::SeqCst)
+    }
+
+    fn max_num_inserts_in_progress(&self) -> usize {
+        self.max_num_inserts_in_progress.load(Ordering::SeqCst)
+    }
+
+    async fn await_overlap(&self, num_inserts: usize, num_held_partitions: usize) {
+        wait_until_described(
+            &format!("{num_inserts} inserts in progress and {num_held_partitions} partitions held"),
+            || {
+                format!(
+                    ", only {} and {}",
+                    self.num_inserts_in_progress(),
+                    self.store.num_held_partitions()
+                )
+            },
+            || {
+                // Once any insert has seen the overlap, the others may go on: the
+                // first ones to finish would otherwise end it for the rest.
+                if self.overlap_seen.load(Ordering::SeqCst) {
+                    return true;
+                }
+                let seen = self.num_inserts_in_progress() >= num_inserts
+                    && self.store.num_held_partitions() >= num_held_partitions;
+                if seen {
+                    self.overlap_seen.store(true, Ordering::SeqCst);
+                }
+                seen
+            },
+        )
+        .await;
     }
 }
 
@@ -2048,39 +2164,86 @@ impl Restore for HookedRestore {
         bytes: bytes::Bytes,
         expected_checksum: &[u8; 32],
     ) -> anyhow::Result<()> {
-        let first = self.num_inserts.fetch_add(1, Ordering::SeqCst) == 0;
+        let index = self.num_inserts.fetch_add(1, Ordering::SeqCst);
+        let first = index == 0;
+        if self.failed.load(Ordering::SeqCst) {
+            self.num_inserts_started_after_failure
+                .fetch_add(1, Ordering::SeqCst);
+        }
+        let _in_progress = InsertInProgress::start(self);
         let result = async {
             if first {
                 self.num_downloads_in_flight_at_first_insert
                     .store(self.store.num_downloads_in_flight(), Ordering::SeqCst);
-                match self.hook {
-                    InsertHook::None => {}
-                    InsertHook::OpenGateAndAwaitDownload => {
-                        let num_finished_before = self.store.num_downloads_finished();
-                        self.store.open_gate();
-                        wait_until("a download to finish during the insert", || {
-                            self.store.num_downloads_finished() > num_finished_before
-                        })
-                        .await;
+            }
+            let hook = if index < self.hook.num_affected_inserts() {
+                self.hook
+            } else {
+                InsertHook::None
+            };
+            match hook {
+                InsertHook::None => {}
+                InsertHook::OpenGateAndAwaitDownload => {
+                    let num_finished_before = self.store.num_downloads_finished();
+                    self.store.open_gate();
+                    wait_until("a download to finish during the insert", || {
+                        self.store.num_downloads_finished() > num_finished_before
+                    })
+                    .await;
+                }
+                #[cfg(not(msim))]
+                InsertHook::OpenGateAndBlockForDownload => {
+                    let num_finished_before = self.store.num_downloads_finished();
+                    self.store.open_gate();
+                    wait_until_blocking(
+                        "a download to finish while the insert blocks its thread",
+                        || self.store.num_downloads_finished() > num_finished_before,
+                    );
+                }
+                InsertHook::AwaitOverlap {
+                    num_inserts,
+                    num_held_partitions,
+                } => self.await_overlap(num_inserts, num_held_partitions).await,
+                InsertHook::FailOverlapped { num_inserts } => {
+                    self.await_overlap(num_inserts, 0).await;
+                    if first {
+                        self.num_downloads_in_flight_at_failure
+                            .store(self.store.num_downloads_in_flight(), Ordering::SeqCst);
+                        self.failed.store(true, Ordering::SeqCst);
+                        anyhow::bail!("insert refused by the test");
                     }
-                    #[cfg(not(msim))]
-                    InsertHook::OpenGateAndBlockForDownload => {
-                        let num_finished_before = self.store.num_downloads_finished();
-                        self.store.open_gate();
-                        wait_until_blocking(
-                            "a download to finish while the insert blocks its thread",
-                            || self.store.num_downloads_finished() > num_finished_before,
-                        );
-                    }
-                    InsertHook::AwaitHeldPartitions(num_partitions) => {
-                        wait_until_described(
-                            &format!("{num_partitions} partitions to be held"),
-                            || format!(", only {} are held", self.store.num_held_partitions()),
-                            || self.store.num_held_partitions() >= num_partitions,
-                        )
-                        .await;
-                    }
-                    InsertHook::FailFirst => anyhow::bail!("insert refused by the test"),
+                    // The others end only after the reader has stopped the downloads.
+                    wait_until("the downloads to stop after the failure", || {
+                        self.failed.load(Ordering::SeqCst)
+                            && self.store.num_downloads_in_flight() == 0
+                    })
+                    .await;
+                }
+                InsertHook::HoldUntilDownloadFailed { .. } => {
+                    wait_until("a download to fail", || self.store.download_failed()).await;
+                    self.store.open_gate();
+                    tokio::time::sleep(POLL_INTERVAL * 4).await;
+                }
+                InsertHook::FailAfterYield => {
+                    // Wakes its own task at once, unlike `tokio::task::yield_now`,
+                    // which defers the wake-up: the insert is then ready to run
+                    // again before the reader's next poll.
+                    let mut yielded = false;
+                    std::future::poll_fn(|cx| {
+                        if yielded {
+                            return std::task::Poll::Ready(());
+                        }
+                        yielded = true;
+                        cx.waker().wake_by_ref();
+                        std::task::Poll::Pending
+                    })
+                    .await;
+                    self.failed.store(true, Ordering::SeqCst);
+                    anyhow::bail!("insert refused by the test");
+                }
+                InsertHook::FailFirst => {
+                    self.failed.store(true, Ordering::SeqCst);
+                    anyhow::bail!("insert refused by the test");
                 }
             }
             self.tables
@@ -2089,7 +2252,14 @@ impl Restore for HookedRestore {
         }
         .await;
         self.store.partition_inserted();
+        if result.is_ok() {
+            self.num_completed_inserts.fetch_add(1, Ordering::SeqCst);
+        }
         result
+    }
+
+    fn max_concurrent_inserts(&self) -> NonZeroUsize {
+        self.max_concurrent_inserts.unwrap_or(NonZeroUsize::MIN)
     }
 }
 
@@ -2173,32 +2343,213 @@ async fn downloads_progress_while_a_partition_is_inserted_on_a_blocked_thread()
     downloads_progress_while_inserting(InsertHook::OpenGateAndBlockForDownload).await
 }
 
-/// At most N downloads run at once, and at most N + 1 downloaded partitions
-/// are held in memory (N waiting, one in the insert). The first insert waits
-/// until N + 1 are held, so the bound is reached, and a larger count would
-/// show in `max_num_held_partitions`.
+/// At most N downloads run at once, at most K inserts run at once, and at
+/// most N + K downloaded partitions are held in memory (N waiting, K in
+/// inserts). The first K inserts wait until the bounds are reached, so a
+/// larger count would show in the maxima.
 #[tokio::test]
-async fn n_downloads_run_and_n_plus_one_partitions_are_held() -> Result<(), anyhow::Error> {
+async fn n_downloads_k_inserts_and_n_plus_k_partitions_are_the_most_at_once()
+-> Result<(), anyhow::Error> {
     const NUM_PARALLEL_DOWNLOADS: usize = 2;
-    let mut fixture = RestoreFixture::new(
-        |store| store.with_delay(Duration::from_millis(5)),
-        NUM_PARALLEL_DOWNLOADS,
-    )
-    .await?;
-    let restore_target =
-        fixture.restore_target(InsertHook::AwaitHeldPartitions(NUM_PARALLEL_DOWNLOADS + 1));
+    for max_concurrent_inserts in [1, 3] {
+        let mut fixture = RestoreFixture::new(
+            |store| store.with_delay(Duration::from_millis(5)),
+            NUM_PARALLEL_DOWNLOADS,
+        )
+        .await?;
+        let restore_target = fixture
+            .restore_target(InsertHook::AwaitOverlap {
+                num_inserts: max_concurrent_inserts,
+                num_held_partitions: NUM_PARALLEL_DOWNLOADS + max_concurrent_inserts,
+            })
+            .with_max_concurrent_inserts(max_concurrent_inserts);
+        fixture.read(&restore_target).await?;
+        fixture.assert_restored()?;
+        assert_eq!(
+            fixture.store.max_num_downloads_in_flight(),
+            NUM_PARALLEL_DOWNLOADS,
+            "downloads in flight, K = {max_concurrent_inserts}"
+        );
+        assert_eq!(
+            restore_target.max_num_inserts_in_progress(),
+            max_concurrent_inserts,
+            "inserts in progress, K = {max_concurrent_inserts}"
+        );
+        assert_eq!(
+            fixture.store.max_num_held_partitions(),
+            NUM_PARALLEL_DOWNLOADS + max_concurrent_inserts,
+            "held partitions, K = {max_concurrent_inserts}"
+        );
+    }
+    Ok(())
+}
+
+/// Two inserts run at the same time when the target allows it. Each of the
+/// first two inserts waits until both are in progress.
+#[tokio::test]
+async fn inserts_run_at_the_same_time_when_the_target_allows_it() -> Result<(), anyhow::Error> {
+    let mut fixture = RestoreFixture::new(|store| store, 2).await?;
+    let restore_target = fixture
+        .restore_target(InsertHook::AwaitOverlap {
+            num_inserts: 2,
+            num_held_partitions: 0,
+        })
+        .with_max_concurrent_inserts(2);
+    fixture.read(&restore_target).await?;
+    fixture.assert_restored()
+}
+
+/// A target that keeps the default of the trait gets one insert at a time,
+/// although the next downloads have finished and could be inserted. The first
+/// insert waits until they have.
+#[tokio::test]
+async fn a_target_with_the_default_gets_one_insert_at_a_time() -> Result<(), anyhow::Error> {
+    const NUM_PARALLEL_DOWNLOADS: usize = 3;
+    let mut fixture = RestoreFixture::new(|store| store, NUM_PARALLEL_DOWNLOADS).await?;
+    let restore_target = fixture.restore_target(InsertHook::AwaitOverlap {
+        num_inserts: 1,
+        num_held_partitions: NUM_PARALLEL_DOWNLOADS + 1,
+    });
+    assert_eq!(restore_target.max_concurrent_inserts().get(), 1);
     fixture.read(&restore_target).await?;
     fixture.assert_restored()?;
+    assert_eq!(restore_target.max_num_inserts_in_progress(), 1);
+    Ok(())
+}
+
+/// After a failure, an insert that was taken but has not started must not
+/// start. The inserts are taken from downloads that finish at once, and the
+/// first one fails after it has yielded. Which branch of the reader's
+/// `select!` is polled first is random, so one run hits the case only some of
+/// the time: the scenario repeats.
+///
+/// The test cannot see whether a run reached the case (an insert was taken
+/// and had not started when the failure was recorded): that is inside the
+/// reader, and a taken insert that stops returns before it calls the restore
+/// target. The evidence that the test can fail is a mutation: with the stop
+/// check in `insert_partition_timed` disabled, it turns red in about two thirds
+/// of the runs of the scenario.
+#[tokio::test]
+async fn no_insert_starts_after_a_failure() -> Result<(), anyhow::Error> {
+    const NUM_RUNS: usize = 30;
+    let dir = iota_common::tempdir();
+    let snapshot = write_several_partitions_snapshot(dir.path()).await?;
+    let object_files = preloaded_object_files(&snapshot)?;
+    let mut num_runs_with_a_late_start = 0;
+    for run in 0..NUM_RUNS {
+        let store = Arc::new(
+            snapshot
+                .observed_store()
+                .with_preloaded_files(object_files.clone()),
+        );
+        let mut reader = snapshot.reader(store.clone(), 2).await?;
+        let restored_db = Arc::new(AuthorityPerpetualTables::open(
+            &dir.path().join(format!("restored_db_{run}")),
+            None,
+        ));
+        let restore_target = HookedRestore::new(restored_db, store, InsertHook::FailAfterYield)
+            .with_max_concurrent_inserts(2);
+        let (_abort_handle, abort_registration) = AbortHandle::new_pair();
+        let error = reader
+            .read_to_db(&restore_target, abort_registration, None)
+            .await
+            .expect_err("the insert fails");
+        assert!(format!("{error:#}").contains("insert refused by the test"));
+        if restore_target
+            .num_inserts_started_after_failure
+            .load(Ordering::SeqCst)
+            > 0
+        {
+            num_runs_with_a_late_start += 1;
+        }
+    }
     assert_eq!(
-        fixture.store.max_num_downloads_in_flight(),
-        NUM_PARALLEL_DOWNLOADS,
-        "downloads in flight"
+        num_runs_with_a_late_start, 0,
+        "in {num_runs_with_a_late_start} of {NUM_RUNS} runs an insert started after the failure"
+    );
+    Ok(())
+}
+
+/// A failed insert while others run: the read returns the error with the
+/// context of the object file, no insert is in progress by then, and the
+/// inserts that ran have run to their end. The reader stops the downloads
+/// before it waits for them: the inserts that still run end only after no
+/// download is in flight any more. Three downloads pass the gate, the later
+/// ones are in flight when the insert fails.
+#[tokio::test]
+async fn a_failed_insert_stops_the_downloads_and_waits_for_the_running_inserts()
+-> Result<(), anyhow::Error> {
+    let mut fixture = RestoreFixture::new(|store| store.with_gate_after(3), 2).await?;
+    let restore_target = fixture
+        .restore_target(InsertHook::FailOverlapped { num_inserts: 3 })
+        .with_max_concurrent_inserts(3);
+    let error = fixture
+        .read(&restore_target)
+        .await
+        .expect_err("the insert fails");
+    let message = format!("{error:#}");
+    assert!(message.contains("insert refused by the test"), "{message}");
+    assert!(
+        message.contains("failed to insert object file"),
+        "{message}"
+    );
+    assert!(
+        restore_target
+            .num_downloads_in_flight_at_failure
+            .load(Ordering::SeqCst)
+            > 0,
+        "downloads must have been in flight when the insert failed"
     );
     assert_eq!(
-        fixture.store.max_num_held_partitions(),
-        NUM_PARALLEL_DOWNLOADS + 1,
-        "held partitions"
+        restore_target.num_inserts_in_progress(),
+        0,
+        "no insert runs after the error"
     );
+    // A dropped insert would also leave none in progress, so count the ones
+    // that ran to their end: all but the failed one.
+    assert_eq!(
+        restore_target.num_completed_inserts.load(Ordering::SeqCst),
+        restore_target.num_inserts.load(Ordering::SeqCst) - 1,
+        "the running inserts must finish before the error is returned"
+    );
+    assert_eq!(restore_target.max_num_inserts_in_progress(), 3);
+    assert_eq!(
+        restore_target.num_inserts.load(Ordering::SeqCst),
+        3,
+        "no insert starts after the error"
+    );
+    assert_eq!(fixture.store.num_downloads_in_flight(), 0);
+    Ok(())
+}
+
+/// A download that fails with a permanent error while an insert runs: the read
+/// returns the download error, only after the running insert ran to its end,
+/// and no insert starts after the failure. The first download passes, the
+/// second is held at the gate, the third fails at once.
+#[tokio::test]
+async fn a_failed_download_waits_for_the_running_inserts() -> Result<(), anyhow::Error> {
+    let mut fixture =
+        RestoreFixture::new(|store| store.with_gate_after(1).with_failing_download(2), 2).await?;
+    let restore_target = fixture
+        .restore_target(InsertHook::HoldUntilDownloadFailed { num_inserts: 2 })
+        .with_max_concurrent_inserts(2);
+    let error = tokio::time::timeout(WAIT_LIMIT, fixture.read(&restore_target))
+        .await
+        .expect("the restore must end after a failed download")
+        .expect_err("a failed download ends the restore with an error");
+    let message = format!("{error:#}");
+    assert!(
+        message.contains("Failed to download object file") && message.contains("404"),
+        "unexpected error: {message}"
+    );
+    assert_eq!(restore_target.num_inserts.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        restore_target.num_completed_inserts.load(Ordering::SeqCst),
+        1,
+        "the running insert must finish before the error is returned"
+    );
+    assert_eq!(restore_target.num_inserts_in_progress(), 0);
+    assert_eq!(fixture.store.num_downloads_in_flight(), 0);
     Ok(())
 }
 
@@ -2406,7 +2757,6 @@ fn restore_with_indexes_inserts_on_the_blocking_pool() -> Result<(), anyhow::Err
 
 /// The object files of the snapshot, keyed by their path in the store, to serve
 /// from memory.
-#[cfg(not(msim))]
 fn preloaded_object_files(
     snapshot: &WrittenSnapshot,
 ) -> Result<HashMap<String, bytes::Bytes>, anyhow::Error> {
@@ -2477,7 +2827,8 @@ fn accumulation_runs_on_the_blocking_pool() -> Result<(), anyhow::Error> {
             read_counting_partial_hashes(&mut reader, &restore_target, num_partials_seen.clone());
         let controller = async {
             wait_until("every partition to be inserted", || {
-                restore_target.num_inserts.load(Ordering::SeqCst) == snapshot.num_partitions
+                restore_target.num_completed_inserts.load(Ordering::SeqCst)
+                    == snapshot.num_partitions
             })
             .await;
             tokio::time::sleep(Duration::from_millis(200)).await;
