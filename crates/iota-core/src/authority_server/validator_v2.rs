@@ -25,7 +25,7 @@ use iota_types::{
         TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
     },
     traffic_control::Weight,
-    transaction::{SenderSignedTransactionAPI, TransactionEnvelope},
+    transaction::{SenderSignedTransactionAPI, TransactionAPI, TransactionEnvelope},
 };
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -484,6 +484,7 @@ impl ValidatorService {
         let claim_lock = crate::post_consensus_validation::claimed_address_lock(
             verified_tx.data().transaction(),
         );
+        let sender = verified_tx.data().transaction().sender();
 
         let consensus_tx = if let Some(attestation_data) = attestation_data {
             // submit_single_tx runs on a validator, so it must be present in its
@@ -531,6 +532,19 @@ impl ValidatorService {
             } else {
                 metrics.num_rejected_tx_soft_lock_conflict.inc();
             }
+            // A claim lock's reference is no object, so a conflict on it is
+            // reported as the other claim of the address.
+            let error = match error {
+                IotaError::ObjectLockConflict {
+                    obj_ref,
+                    pending_transaction,
+                } if Some(obj_ref) == claim_lock => UserInputError::AccountClaimPending {
+                    address: sender,
+                    pending_transaction,
+                }
+                .into(),
+                error => error,
+            };
             let weight = normalize(&error);
             return (TxStatusUpdate::Rejected { error }, weight);
         }

@@ -77,3 +77,4 @@
 75: InputObjectNotAvailableAtCommit
 76: AccountAlreadyExplicit
 77: PlainSignatureForExplicitAccount
+78: AccountClaimPending
