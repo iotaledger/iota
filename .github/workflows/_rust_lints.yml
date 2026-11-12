@@ -121,7 +121,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-  min-sdk-version:
+  min-iota-sdk-client-version:
     if: (!cancelled() && inputs.isRust)
     runs-on: ubuntu-latest
     steps:
@@ -129,8 +129,8 @@ jobs:
       - name: Check the minimum SDK client versions cover the BCS schema of iota-sdk-types
         run: ./scripts/check_min_sdk_version.py
 
-  min-sdk-version-cancel:
-    needs: [min-sdk-version]
+  min-iota-sdk-client-version-cancel:
+    needs: [min-iota-sdk-client-version]
     if: failure() && !inputs.isNightly
     runs-on: ubuntu-latest
     steps:
