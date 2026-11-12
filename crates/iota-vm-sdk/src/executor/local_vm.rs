@@ -10,6 +10,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, MoveAuthenticator, SenderSignedTransaction, Transaction, TransactionEvents,
 };
+use iota_transaction_checks::simulate;
 use iota_types::{
     effects::TransactionEffectsAPI,
     gas::IotaGasStatus,
@@ -29,7 +30,7 @@ use crate::{
     executor::{
         env::{ExecutionEnv, build_executor, new_bytecode_verifier_metrics, new_limits_metrics},
         prepare::{
-            authenticate_only, build_auth_context_data, decode_one_event, execute_prepared,
+            authenticate_only, build_auth_context_data, decode_one_event,
             execute_with_move_authenticators, prepare_authenticators, prepare_transaction,
         },
         types::{
@@ -142,22 +143,21 @@ impl LocalVm {
         opts: ExecuteOptions,
     ) -> Result<ExecutionResult, VmSdkError> {
         let env = ExecutionEnv::new(self, &opts.debug)?;
+        let sim_env = env.simulation_env(&opts.deny_config);
         let prepared = {
             let backend = StoreBackend::new(self.store.as_ref());
             prepare_transaction(
-                &env,
+                &sim_env,
                 &backend,
                 tx,
                 opts.mode,
-                &opts.deny_config,
-                &[],
                 &[],
                 opts.check_coin_deny_list,
             )?
         };
         let (sim, transaction) = {
             let backend = StoreBackend::new(self.store.as_ref());
-            execute_prepared(&env, &backend, prepared, opts.mode)?
+            simulate::execute_simulation(&sim_env, env.executor.as_ref(), &backend, prepared)
         };
         // The dev-inspect entry point accepts no `MoveTraceBuilder`, so this path
         // never captures a trace; pass `None`. See `DebugConfig::with_tracing`.
@@ -226,16 +226,15 @@ impl LocalVm {
             !move_authenticators.is_empty(),
         )?;
 
+        let sim_env = env.simulation_env(&opts.deny_config);
         let prepared = {
             let backend = StoreBackend::new(self.store.as_ref());
             prepare_transaction(
-                &env,
+                &sim_env,
                 &backend,
                 transaction,
                 opts.mode,
-                &opts.deny_config,
                 &tx_signatures,
-                &move_authenticators,
                 opts.check_coin_deny_list,
             )?
         };
@@ -245,7 +244,12 @@ impl LocalVm {
                 // Standard schemes were verified cryptographically above; the
                 // run's outcome cannot retroactively invalidate them. Runs
                 // through the dev-inspect entry point, so no trace is captured.
-                let (sim, executed) = execute_prepared(&env, &backend, prepared, opts.mode)?;
+                let (sim, executed) = simulate::execute_simulation(
+                    &sim_env,
+                    env.executor.as_ref(),
+                    &backend,
+                    prepared,
+                );
                 (sim, executed, SignatureStatus::Verified, None)
             } else {
                 // Only the authenticator path threads a `MoveTraceBuilder`

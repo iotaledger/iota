@@ -216,12 +216,13 @@ impl EpochState {
             bytecode_verifier_metrics: &self.bytecode_verifier_metrics,
             limits_metrics: &self.limits_metrics,
         };
-        simulate::simulate_transaction(
+        let prepared = simulate::prepare_simulation(
             &env,
-            self.executor.as_ref(),
             store.backing_store(),
             transaction,
             checks,
+            &[],
+            true,
             |input_object_kinds, receiving_object_refs| {
                 store.read_objects_for_synchronous_execution(
                     &tx_digest,
@@ -229,6 +230,13 @@ impl EpochState {
                     receiving_object_refs,
                 )
             },
+        )?;
+        Ok(simulate::execute_simulation(
+            &env,
+            self.executor.as_ref(),
+            store.backing_store(),
+            prepared,
         )
+        .0)
     }
 }

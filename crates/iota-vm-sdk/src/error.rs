@@ -11,6 +11,7 @@
 //! (BCS / layout / VM invariant failures) are not a single matchable type.
 
 use iota_sdk_types::{ObjectId, Version};
+use iota_transaction_checks::simulate::SimulationCheckError;
 use iota_types::error::IotaError;
 
 /// Top-level error for every fallible operation in the SDK.
@@ -80,6 +81,12 @@ impl ValidationError {
             context: context.into(),
             source: source.into(),
         }
+    }
+}
+
+impl From<SimulationCheckError> for VmSdkError {
+    fn from(error: SimulationCheckError) -> Self {
+        ValidationError::new(error.check, error.source).into()
     }
 }
 

@@ -2744,7 +2744,7 @@ impl AuthorityState {
     /// Simulate a transaction without committing it, under this node's deny
     /// config and signing-time verifier limits, and with a suggested gas price
     /// from its congestion tracker. See
-    /// [`iota_transaction_checks::simulate::simulate_transaction`] for how
+    /// [`iota_transaction_checks::simulate::prepare_simulation`] for how
     /// `checks`, unset gas and published packages are handled.
     pub fn simulate_transaction(
         &self,
@@ -2803,9 +2803,6 @@ impl AuthorityState {
         transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
-        let suggested_gas_price = self
-            .congestion_tracker
-            .get_prediction_suggested_gas_price(&transaction);
         let protocol_config = epoch_store.protocol_config();
         let epoch_data = epoch_store.epoch_start_config().epoch_data();
         let env = SimulationEnv {
@@ -2819,19 +2816,13 @@ impl AuthorityState {
             bytecode_verifier_metrics: &self.metrics.bytecode_verifier_metrics,
             limits_metrics: &self.metrics.limits_metrics,
         };
-        let executor = iota_execution::executor(
-            protocol_config,
-            true, // silent
-            None,
-        )
-        .expect("Creating an executor should not fail here");
-
-        let result = simulate::simulate_transaction(
+        let prepared = simulate::prepare_simulation(
             &env,
-            executor.as_ref(),
             self.get_backing_store().as_ref(),
             transaction,
             checks,
+            &[],
+            true,
             |input_object_kinds, receiving_object_refs| {
                 self.input_loader.read_objects_for_signing(
                     // We don't want to cache this transaction since it's a simulation.
@@ -2842,8 +2833,25 @@ impl AuthorityState {
                 )
             },
         )?;
+
+        // Create a new executor for the simulation
+        let executor = iota_execution::executor(
+            protocol_config,
+            true, // silent
+            None,
+        )
+        .expect("Creating an executor should not fail here");
+
+        let (result, transaction) = simulate::execute_simulation(
+            &env,
+            executor.as_ref(),
+            self.get_backing_store().as_ref(),
+            prepared,
+        );
         Ok(SimulateTransactionResult {
-            suggested_gas_price,
+            suggested_gas_price: self
+                .congestion_tracker
+                .get_prediction_suggested_gas_price(&transaction),
             ..result
         })
     }
