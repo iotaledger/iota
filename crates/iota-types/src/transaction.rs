@@ -96,7 +96,7 @@ fn input_object_version_validity_check(version: Version) -> UserInputResult {
 
 /// Rejects an identifier that move-core rejects. The SDK `Identifier` also
 /// accepts `<SELF>`, which no module or type can be named.
-fn move_core_identifier_validity_check(identifier: &Identifier) -> UserInputResult {
+pub fn move_core_identifier_validity_check(identifier: &Identifier) -> UserInputResult {
     fp_ensure!(
         move_core_types::identifier::Identifier::is_valid(identifier.as_str()),
         UserInputError::InvalidIdentifier {
@@ -108,7 +108,7 @@ fn move_core_identifier_validity_check(identifier: &Identifier) -> UserInputResu
 
 /// Rejects an identifier that move-core rejects in the module or name of any
 /// struct type in `type_tags`, nested type parameters included.
-fn type_tags_identifiers_validity_check<'a>(
+pub fn type_tags_identifiers_validity_check<'a>(
     type_tags: impl IntoIterator<Item = &'a TypeTag>,
 ) -> UserInputResult {
     let mut stack: Vec<&TypeTag> = type_tags.into_iter().collect();

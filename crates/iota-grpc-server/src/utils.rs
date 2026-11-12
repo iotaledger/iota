@@ -4,39 +4,60 @@
 
 use std::sync::Arc;
 
-use iota_sdk_types::{Identifier, MAX_IDENTIFIER_LENGTH, TypeTag};
+use iota_sdk_types::{Identifier, MAX_IDENTIFIER_LENGTH, StructTag, TypeParseError, TypeTag};
+use iota_types::transaction::{
+    move_core_identifier_validity_check, type_tags_identifiers_validity_check,
+};
 
 use crate::GrpcReader;
 
 /// Parses the optional module or function name of a filter. `field` names it
-/// in the error, which shows at most [`MAX_IDENTIFIER_LENGTH`] bytes of the
-/// name.
+/// in the error.
 pub(crate) fn parse_filter_identifier(
     name: Option<String>,
     field: &str,
 ) -> Result<Option<Identifier>, String> {
     name.map(|name| {
-        // Checked before parsing because a parse error holds the rest of the input.
-        if name.len() > MAX_IDENTIFIER_LENGTH {
-            return Err(format!(
+        // The move-core check rejects `<SELF>`, which the SDK parser accepts,
+        // and keeps invalid names away from the SDK parser, whose errors copy
+        // the rest of the input.
+        if name.len() <= MAX_IDENTIFIER_LENGTH
+            && move_core_types::identifier::Identifier::is_valid(&name)
+        {
+            Ok(Identifier::new_unchecked(name))
+        } else {
+            Err(format!(
                 "invalid {field} name: {}",
                 quote_filter_input(&name)
-            ));
-        }
-        match Identifier::new(&name) {
-            // The parser accepts `<SELF>`, which never names a module or function.
-            Ok(identifier) if identifier.as_str() != "<SELF>" => Ok(identifier),
-            _ => Err(format!(
-                "invalid {field} name: {}",
-                quote_filter_input(&name)
-            )),
+            ))
         }
     })
     .transpose()
 }
 
-/// Quotes a filter value for an error message, shortened to
-/// [`MAX_IDENTIFIER_LENGTH`] bytes.
+/// Parses the struct tag of an event filter. For a syntax error, the error
+/// gives the byte offset and the input where parsing stopped.
+pub(crate) fn parse_filter_struct_tag(struct_tag: &str) -> Result<StructTag, String> {
+    let tag: StructTag = struct_tag.parse().map_err(|error| match error {
+        // `input` is the rest of the struct tag from where parsing stopped.
+        TypeParseError::Parse { input, .. } => format!(
+            "invalid struct tag: unexpected input at byte {}: {}",
+            struct_tag.len().saturating_sub(input.len()),
+            quote_filter_input(&input)
+        ),
+        error => format!("invalid struct tag: {error}"),
+    })?;
+    // The SDK parser accepts `<SELF>`, which never names a module or type.
+    move_core_identifier_validity_check(tag.module())
+        .and_then(|()| move_core_identifier_validity_check(tag.name()))
+        .and_then(|()| type_tags_identifiers_validity_check(tag.type_params()))
+        .map_err(|_| format!("invalid struct tag: {}", quote_filter_input(struct_tag)))?;
+    Ok(tag)
+}
+
+/// Quotes a filter value for an error message. Values longer than
+/// [`MAX_IDENTIFIER_LENGTH`] bytes are cut to that length before quoting,
+/// which escapes control characters.
 pub(crate) fn quote_filter_input(value: &str) -> String {
     if value.len() <= MAX_IDENTIFIER_LENGTH {
         return format!("{value:?}");
