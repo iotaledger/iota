@@ -12,6 +12,7 @@ use std::{
         Arc,
         atomic::{AtomicU64, Ordering},
     },
+    time::{Duration, Instant},
 };
 
 use anyhow::{Context, Result, bail};
@@ -44,7 +45,7 @@ use tokio::{
     sync::{Mutex, mpsc, oneshot},
     task::{JoinHandle, JoinSet},
 };
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC,
@@ -404,7 +405,12 @@ impl StateSnapshotReaderV1 {
         // The reference files have to be local before their checksums can be
         // computed. Their download shares a bar with the object files, which
         // `sync_live_objects` downloads onto it below.
+        let ref_download_started = Instant::now();
         let download_progress = self.download_reference_files().await?;
+        info!(
+            "Downloaded the .ref files in {:?}",
+            ref_download_started.elapsed()
+        );
 
         // This computes and stores the sha3 digest of object references in REFERENCE
         // file for each bucket partition. When downloading objects, we will
@@ -424,6 +430,7 @@ impl StateSnapshotReaderV1 {
             .sum::<usize>();
 
         info!("Computing checksums");
+        let checksum_started = Instant::now();
         // Creates a progress bar for checksumming
         let checksum_ticker = ProgressTicker::spawn(
             self.multi_progress_bar.add(
@@ -491,6 +498,7 @@ impl StateSnapshotReaderV1 {
             .await?;
 
         checksum_ticker.finish_with_message("Checksumming complete");
+        info!("Computed the checksums in {:?}", checksum_started.elapsed());
 
         let accum_handle = accumulator
             .map(|accumulator| self.spawn_accumulation_tasks(accumulator, num_part_files));
@@ -555,6 +563,7 @@ impl StateSnapshotReaderV1 {
         let epoch_dir = self.epoch_dir();
         let local_staging_dir_root = self.local_staging_dir_root.clone();
         tokio::task::spawn(async move {
+            let accumulation_started = Instant::now();
             for part_files in ref_files.values() {
                 futures::stream::iter(part_files.values())
                     .map(|file_metadata| {
@@ -605,6 +614,10 @@ impl StateSnapshotReaderV1 {
                     .await;
             }
             accum_ticker.finish_with_message("Accumulation complete");
+            info!(
+                "Accumulated the .ref files in {:?}",
+                accumulation_started.elapsed()
+            );
             let _ = completion.send(());
         })
     }
@@ -653,6 +666,9 @@ impl StateSnapshotReaderV1 {
                 // before the insert: it waits in the LIFO slot of this worker, which
                 // other workers do not take tasks from. See
                 // `Restore::insert_partition`.
+                let phase_started = Instant::now();
+                let mut insert_time = Duration::ZERO;
+                let num_partitions = input_files.len();
                 let mut files_to_download = input_files.into_iter();
                 let mut downloads = JoinSet::new();
                 let mut start_next_download = |downloads: &mut JoinSet<_>| {
@@ -664,6 +680,7 @@ impl StateSnapshotReaderV1 {
                     let sha3_digests = sha3_digests.clone();
                     let obj_progress = obj_progress_download.clone();
                     downloads.spawn(async move {
+                        let download_started = Instant::now();
                         // Downloads object file with retries
                         let bytes =
                             get_with_progress(&remote_object_store, &file_path, &obj_progress)
@@ -679,10 +696,11 @@ impl StateSnapshotReaderV1 {
                             .expect("Bucket not in digest map")
                             .get(&part_num)
                             .expect("sha3 digest not in bucket map");
-                        Ok::<(Bytes, FileMetadata, [u8; 32]), anyhow::Error>((
+                        Ok::<_, anyhow::Error>((
                             bytes,
                             file_metadata,
                             sha3_digest,
+                            download_started.elapsed(),
                         ))
                     });
                 };
@@ -690,18 +708,31 @@ impl StateSnapshotReaderV1 {
                     start_next_download(&mut downloads);
                 }
                 while let Some(joined) = downloads.join_next().await {
-                    let (bytes, file_metadata, sha3_digest) = match joined {
+                    let (bytes, file_metadata, sha3_digest, download_time) = match joined {
                         Ok(download) => download?,
                         Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
                         // Returning Ok here would skip a partition.
                         Err(e) => return Err(anyhow::Error::new(e).context("download cancelled")),
                     };
                     start_next_download(&mut downloads);
+                    let (bucket, part) = (file_metadata.bucket_num, file_metadata.part_num);
+                    let insert_started = Instant::now();
                     database
                         .insert_partition(file_metadata, bytes, &sha3_digest)
                         .await?;
+                    let partition_insert_time = insert_started.elapsed();
+                    insert_time += partition_insert_time;
+                    debug!(
+                        "Object file {bucket}_{part}: downloaded in {download_time:?}, inserted \
+                         in {partition_insert_time:?}"
+                    );
                     obj_progress_insert.file_done();
                 }
+                info!(
+                    "Downloaded and inserted {num_partitions} object files in {:?}, of which \
+                     {insert_time:?} inserting",
+                    phase_started.elapsed()
+                );
                 Ok(())
             },
             abort_registration,
