@@ -400,14 +400,14 @@ impl NameCommand {
                         .await?;
                 }
 
-                let sender = processing.sender;
-                let name_str = name.to_string();
-                let coin = select_coin_for_payment(name_str.as_str(), coin, price, sender, context)
-                    .await?;
-                let signer = match sender {
+                let signer = match processing.sender {
                     Some(sender) => sender,
                     None => context.infer_sender(&payment.gas).await?,
                 };
+                let sender = Some(signer);
+                let name_str = name.to_string();
+                let coin = select_coin_for_payment(name_str.as_str(), coin, price, sender, context)
+                    .await?;
                 let client = context.get_grpc_client().await?;
                 let mut builder = client.transaction_builder(signer);
                 let iota_names = SharedMut(iota_names_config.object_id);
@@ -453,8 +453,7 @@ impl NameCommand {
                     let target_address =
                         get_identity_address(identity.clone().or(sender.map(Into::into)), context)
                             .await?;
-                    let sender = get_identity_address(sender.map(Into::into), context).await?;
-                    if set_reverse_lookup && target_address != sender {
+                    if set_reverse_lookup && target_address != signer {
                         bail!("cannot set reverse lookup if target address is not the sender");
                     }
                     builder
@@ -527,17 +526,17 @@ impl NameCommand {
                         .await?;
                 }
 
-                let sender = processing.sender;
+                let signer = match processing.sender {
+                    Some(sender) => sender,
+                    None => context.infer_sender(&payment.gas).await?,
+                };
+                let sender = Some(signer);
                 let name_str = name.to_string();
                 let coin = select_coin_for_payment(name_str.as_str(), coin, price, sender, context)
                     .await?;
                 let nft_id = get_owned_nft_by_name::<NameRegistration>(&name, sender, context)
                     .await?
                     .id();
-                let signer = match sender {
-                    Some(sender) => sender,
-                    None => context.infer_sender(&payment.gas).await?,
-                };
                 let client = context.get_grpc_client().await?;
                 let mut builder = client.transaction_builder(signer);
                 let iota_names = SharedMut(iota_names_config.object_id);
@@ -1070,7 +1069,11 @@ impl SubnameCommand {
 
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
-                let sender = processing.sender;
+                let signer = match processing.sender {
+                    Some(sender) => sender,
+                    None => context.infer_sender(&payment.gas).await?,
+                };
+                let sender = Some(signer);
                 let parent = get_proxy_nft_by_name(&parent, sender, context).await?;
                 ensure!(!parent.has_expired(), "parent NFT has expired");
                 let package_id = parent.subname_package_id(&iota_client).await?;
@@ -1089,10 +1092,6 @@ impl SubnameCommand {
                 let expiration_timestamp = expiration_timestamp.0;
                 let parent_id = parent.id();
 
-                let signer = match sender {
-                    Some(sender) => sender,
-                    None => context.infer_sender(&payment.gas).await?,
-                };
                 let client = context.get_grpc_client().await?;
                 let mut builder = client.transaction_builder(signer);
                 let nft = builder
