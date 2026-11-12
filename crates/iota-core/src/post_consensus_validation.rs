@@ -84,7 +84,8 @@ use iota_types::{
     error::{IotaError, IotaResult},
     gas::check_gas_bounds,
     transaction::{
-        InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction,
+        InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, TransactionEnvelope,
+        VerifiedTransaction,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -491,121 +492,50 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
-        // Checks #2 to #4 read no store. `ReadAhead::new` repeats them to pick
-        // the transactions to read ahead, so a change here goes there too.
-        //
-        // Check #2: Structural validity.
-        if let Err(e) = transaction.validity_check(&epoch_store.tx_validity_check_context()) {
-            warn!(
-                ?digest,
-                commit_index,
-                attested = attestation.is_some(),
-                error = ?e,
-                "user transaction failed validity_check post-consensus, dropping"
-            );
-            let from_signatures = from_signatures(FailedCheck::Validity(&e));
-            decisions.drop_copy(digest, e, false, from_signatures);
-            keep[i] = false;
-            continue;
-        }
-
-        // Check #3: Attestation checks (attested transactions only).
-        // The block signature transitively authenticates the attestation;
-        // verify the claimed attestor matches the actual block author, that
-        // the payload is not malformed and that the attestor is not cut off.
-        if let Some(attestation) = attestation {
-            let block_author = u8::try_from(tx.0.certificate_author_index)
-                .expect("consensus committee indices should fit in a u8");
-            let Attestation::Authority {
-                authority_index, ..
-            } = attestation;
-            let checked = if *authority_index != block_author {
-                Err(IotaError::AttestationAuthorMismatch {
-                    expected: *authority_index,
-                    actual: block_author,
-                })
-            } else {
-                check_attested_units(epoch_store.protocol_config(), transaction, attestation)
-            };
-            if let Err(e) = checked {
-                warn!(
-                    ?digest,
-                    commit_index,
-                    error = ?e,
-                    "attested transaction failed attestation verification, dropping"
-                );
-                decisions.drop_copy(digest, e, false, from_signatures(FailedCheck::Attestation));
-                keep[i] = false;
-                continue;
-            }
-            if attestors_cut_off
-                .get_or_insert_with(|| {
-                    epoch_store.attestors_cut_off_as_of(horizon(
-                        epoch_store.protocol_config(),
+        // Checks #2 to #4 read no store. `ReadAhead::new` picks the
+        // transactions to read ahead with the same function.
+        let owned_inputs = match checks_reading_no_store(
+            epoch_store,
+            commit_index,
+            tx,
+            transaction,
+            attestation,
+            &mut attestors_cut_off,
+        ) {
+            Ok(owned_inputs) => owned_inputs,
+            Err((check, e)) => {
+                if check == NoStoreCheck::AttestorCutOff {
+                    // Every transaction in a cut-off attestor's blocks drops
+                    // here: debug, not warn.
+                    debug!(
+                        ?digest,
                         commit_index,
-                    ))
-                })
-                .contains(authority_index)
-            {
-                // Every transaction in a cut-off attestor's blocks drops here:
-                // debug, not warn.
-                debug!(
-                    ?digest,
-                    commit_index,
-                    attestor = authority_index,
-                    "attestor cut off for the rest of the epoch, dropping"
-                );
-                authority_state
-                    .metrics
-                    .consensus_handler_validation_attestor_cut_off_transactions
-                    .inc();
-                decisions.drop_copy(
-                    digest,
-                    IotaError::AttestorCutOff {
-                        attestor: *authority_index,
-                    },
-                    false,
-                    from_signatures(FailedCheck::Attestation),
-                );
-                keep[i] = false;
-                continue;
-            }
-
-            // Payload-only gas bounds: a pure function of the transaction and
-            // epoch constants, so this drop needs no store read. The full gas
-            // check (owner, coin type, balance) runs with the loaded coins in
-            // Check #6.
-            let txn = transaction.data().transaction();
-            if let Err(e) = check_gas_bounds(
-                epoch_store.protocol_config(),
-                epoch_store.reference_gas_price(),
-                txn.gas_price(),
-                txn.gas_budget(),
-            ) {
-                let e: IotaError = e.into();
-                warn!(
-                    ?digest,
-                    commit_index,
-                    error = ?e,
-                    "attested transaction failed post-consensus gas bounds check, dropping"
-                );
-                decisions.drop_copy(digest, e, false, from_signatures(FailedCheck::Data));
-                keep[i] = false;
-                continue;
-            }
-        }
-
-        // Check #4: Extract owned input objects for lock conflict detection.
-        let owned_inputs = match extract_owned_input_objects(tx) {
-            Ok(inputs) => inputs,
-            Err(e) => {
-                warn!(
-                    ?digest,
-                    commit_index,
-                    error = ?e,
-                    "Failed to extract owned input objects post-consensus, dropping"
-                );
-                decisions.drop_copy(digest, e, false, from_signatures(FailedCheck::OwnedInputs));
+                        error = ?e,
+                        "attestor cut off for the rest of the epoch, dropping"
+                    );
+                    authority_state
+                        .metrics
+                        .consensus_handler_validation_attestor_cut_off_transactions
+                        .inc();
+                } else {
+                    warn!(
+                        ?digest,
+                        commit_index,
+                        attested = attestation.is_some(),
+                        ?check,
+                        error = ?e,
+                        "user transaction failed a post-consensus check that reads no store, dropping"
+                    );
+                }
+                let from_signatures = from_signatures(match check {
+                    NoStoreCheck::Validity => FailedCheck::Validity(&e),
+                    NoStoreCheck::Attestation | NoStoreCheck::AttestorCutOff => {
+                        FailedCheck::Attestation
+                    }
+                    NoStoreCheck::GasBounds => FailedCheck::Data,
+                    NoStoreCheck::OwnedInputs => FailedCheck::OwnedInputs,
+                });
+                decisions.drop_copy(digest, e, false, from_signatures);
                 keep[i] = false;
                 continue;
             }
@@ -939,7 +869,6 @@ impl ReadAhead {
         transactions: &[VerifiedSequencedConsensusTransaction],
         attestors_cut_off: &mut Option<BTreeSet<u8>>,
     ) -> Self {
-        let protocol_config = epoch_store.protocol_config();
         let mut digests = HashSet::new();
         let mut picked = Vec::new();
         for (i, tx) in transactions.iter().enumerate() {
@@ -955,40 +884,16 @@ impl ReadAhead {
             if digests.contains(&digest) || previously_deferred.contains_key(&digest) {
                 continue;
             }
-            // Checks #2 to #4 of the loop, in its order.
-            if transaction
-                .validity_check(&epoch_store.tx_validity_check_context())
-                .is_err()
+            if checks_reading_no_store(
+                epoch_store,
+                commit_index,
+                tx,
+                transaction,
+                attestation,
+                attestors_cut_off,
+            )
+            .is_err()
             {
-                continue;
-            }
-            if let Some(attestation) = attestation {
-                let block_author = u8::try_from(tx.0.certificate_author_index)
-                    .expect("consensus committee indices should fit in a u8");
-                let Attestation::Authority {
-                    authority_index, ..
-                } = attestation;
-                let data = transaction.data().transaction();
-                if *authority_index != block_author
-                    || check_attested_units(protocol_config, transaction, attestation).is_err()
-                    || attestors_cut_off
-                        .get_or_insert_with(|| {
-                            epoch_store
-                                .attestors_cut_off_as_of(horizon(protocol_config, commit_index))
-                        })
-                        .contains(authority_index)
-                    || check_gas_bounds(
-                        protocol_config,
-                        epoch_store.reference_gas_price(),
-                        data.gas_price(),
-                        data.gas_budget(),
-                    )
-                    .is_err()
-                {
-                    continue;
-                }
-            }
-            if extract_owned_input_objects(tx).is_err() {
                 continue;
             }
             // Only now, so a later copy is picked when this one failed.
@@ -1089,6 +994,92 @@ impl ReadAhead {
         }
         results
     }
+}
+
+/// One of Checks #2 to #4, which read no store.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NoStoreCheck {
+    /// Check #2, `validity_check`.
+    Validity,
+    /// Check #3, the attestor and the units of the attestation.
+    Attestation,
+    /// Check #3, the attestor is cut off for the rest of the epoch.
+    AttestorCutOff,
+    /// Check #3, the gas bounds of an attested transaction.
+    GasBounds,
+    /// Check #4, listing the owned inputs.
+    OwnedInputs,
+}
+
+/// Runs Checks #2 to #4 for one copy of a user transaction, in order. Returns
+/// the owned inputs Check #4 lists, or the first check that failed with its
+/// error. `attestors_cut_off` is filled when an attested copy gets that far.
+fn checks_reading_no_store(
+    epoch_store: &AuthorityPerEpochStore,
+    commit_index: CommitIndex,
+    tx: &VerifiedSequencedConsensusTransaction,
+    transaction: &TransactionEnvelope,
+    attestation: Option<&Attestation>,
+    attestors_cut_off: &mut Option<BTreeSet<u8>>,
+) -> Result<Vec<ObjectReference>, (NoStoreCheck, IotaError)> {
+    let protocol_config = epoch_store.protocol_config();
+
+    // Check #2: Structural validity.
+    transaction
+        .validity_check(&epoch_store.tx_validity_check_context())
+        .map_err(|e| (NoStoreCheck::Validity, e))?;
+
+    // Check #3: Attestation checks (attested transactions only).
+    // The block signature transitively authenticates the attestation;
+    // verify the claimed attestor matches the actual block author, that
+    // the payload is not malformed and that the attestor is not cut off.
+    if let Some(attestation) = attestation {
+        let block_author = u8::try_from(tx.0.certificate_author_index)
+            .expect("consensus committee indices should fit in a u8");
+        let Attestation::Authority {
+            authority_index, ..
+        } = attestation;
+        if *authority_index != block_author {
+            return Err((
+                NoStoreCheck::Attestation,
+                IotaError::AttestationAuthorMismatch {
+                    expected: *authority_index,
+                    actual: block_author,
+                },
+            ));
+        }
+        check_attested_units(protocol_config, transaction, attestation)
+            .map_err(|e| (NoStoreCheck::Attestation, e))?;
+        if attestors_cut_off
+            .get_or_insert_with(|| {
+                epoch_store.attestors_cut_off_as_of(horizon(protocol_config, commit_index))
+            })
+            .contains(authority_index)
+        {
+            return Err((
+                NoStoreCheck::AttestorCutOff,
+                IotaError::AttestorCutOff {
+                    attestor: *authority_index,
+                },
+            ));
+        }
+
+        // Payload-only gas bounds: a pure function of the transaction and
+        // epoch constants, so this drop needs no store read. The full gas
+        // check (owner, coin type, balance) runs with the loaded coins in
+        // Check #6.
+        let data = transaction.data().transaction();
+        check_gas_bounds(
+            protocol_config,
+            epoch_store.reference_gas_price(),
+            data.gas_price(),
+            data.gas_budget(),
+        )
+        .map_err(|e| (NoStoreCheck::GasBounds, e.into()))?;
+    }
+
+    // Check #4: Extract owned input objects for lock conflict detection.
+    extract_owned_input_objects(tx).map_err(|e| (NoStoreCheck::OwnedInputs, e))
 }
 
 /// The decision so far for each user transaction digest of a commit.
