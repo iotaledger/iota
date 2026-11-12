@@ -661,6 +661,16 @@ impl AuthorityPerpetualTables {
         Ok(())
     }
 
+    /// The object references that have a live owned object marker. Reads the
+    /// whole table into memory.
+    pub fn live_owned_object_markers_test_only(&self) -> IotaResult<Vec<ObjectReference>> {
+        Ok(self
+            .live_owned_object_markers
+            .safe_iter()
+            .map(|marker| marker.map(|(object_ref, ())| object_ref))
+            .collect::<Result<_, _>>()?)
+    }
+
     pub fn insert_store_object_v2_test_only(
         &self,
         object: Object,
