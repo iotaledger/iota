@@ -1186,6 +1186,9 @@ gas_budget
 native_gas_budget
 	fun
 	0x2::tx_context
+take_gas_coin_nonce
+	public(package) fun
+	0x2::tx_context
 native_ids_created
 	fun
 	0x2::tx_context
@@ -4219,6 +4222,15 @@ update
 apply_delta
 	fun
 	0x2::transaction_deny_rules
+VerifiedNonce
+	public struct
+	0x2::verified_nonce
+take_from_tx_context
+	public fun
+	0x2::verified_nonce
+into_hash
+	public(package) fun
+	0x2::verified_nonce
 VerifiedID
 	public struct
 	0x2::zklogin_verified_id
