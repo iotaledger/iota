@@ -211,30 +211,28 @@ async fn attested_object_version_state_follows_the_superseding_transaction() {
     };
 
     assert_eq!(
-        versions.superseded_within_window(&attested_id, current_version, current_version),
+        versions.superseded_within_window(&attested_id, current_version),
         None,
         "the version the object is still at has not been superseded"
     );
     assert_eq!(
-        versions.superseded_within_window(&attested_id, attested_ref.version(), current_version),
+        versions.superseded_within_window(&attested_id, attested_ref.version()),
         Some(SupersededAt::Commit(commit)),
         "a version this epoch superseded carries the superseding commit"
     );
     assert_eq!(
-        versions.superseded_within_window(
-            &ObjectId::random(),
-            attested_ref.version(),
-            current_version
-        ),
+        versions.superseded_within_window(&ObjectId::random(), attested_ref.version()),
         None,
-        "an unknown object has no history to walk"
+        "an unknown object has no version above the recorded one"
     );
 }
 
 /// Validators flush to the database on their own schedule, so a verdict that
 /// depended on whether the supersession had been written back would differ
-/// between honest validators and fork the checkpoint. The state must be the
-/// same read from the cache and read from the database.
+/// between honest validators and fork the checkpoint. Each version of a coin
+/// that paid for three transactions in a row must resolve to the commit of
+/// the transaction that replaced it, read from the cache and from the
+/// database alike.
 #[tokio::test]
 async fn attested_object_version_state_does_not_depend_on_flush_state() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -247,12 +245,13 @@ async fn attested_object_version_state_does_not_depend_on_flush_state() {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let (recipient, _): (_, AccountPrivateKey) = get_key_pair();
 
-    let attested_id = ObjectId::random();
+    let transferred: Vec<ObjectId> = (0..3).map(|_| ObjectId::random()).collect();
     let gas_id = ObjectId::random();
-    let objects = vec![
-        Object::with_id_owner_for_testing(attested_id, sender),
-        Object::with_id_owner_for_testing(gas_id, sender),
-    ];
+    let objects: Vec<Object> = transferred
+        .iter()
+        .chain([&gas_id])
+        .map(|id| Object::with_id_owner_for_testing(*id, sender))
+        .collect();
     let authority = TestAuthorityBuilder::new()
         .with_starting_objects(&objects)
         .build()
@@ -262,28 +261,33 @@ async fn attested_object_version_state_does_not_depend_on_flush_state() {
     let epoch = epoch_store.epoch();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let attested_ref = authority.get_object(&attested_id).unwrap().object_ref();
-    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
-
-    let tx_data = Transaction::new_transfer(
-        recipient,
-        attested_ref,
-        sender,
-        gas_ref,
-        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
-        rgp,
-    );
-    let tx = to_sender_signed_transaction(tx_data, &sender_key);
-    let verified_tx = epoch_store.verify_transaction(tx).unwrap();
-    let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
-    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
-    let commit = epoch_store
-        .commit_index_of(&executable.key())
-        .expect("the test assigned the transaction a commit");
-    let (effects, _execution_error) = authority
-        .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
-        .unwrap();
-    assert!(effects.status().is_success());
+    let mut gas_versions = vec![authority.get_object(&gas_id).unwrap().version()];
+    let (mut commits, mut digests) = (Vec::new(), Vec::new());
+    for id in &transferred {
+        let tx_data = Transaction::new_transfer(
+            recipient,
+            authority.get_object(id).unwrap().object_ref(),
+            sender,
+            authority.get_object(&gas_id).unwrap().object_ref(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
+            rgp,
+        );
+        let tx = to_sender_signed_transaction(tx_data, &sender_key);
+        let verified_tx = epoch_store.verify_transaction(tx).unwrap();
+        let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
+        epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
+        commits.push(
+            epoch_store
+                .commit_index_of(&executable.key())
+                .expect("the test assigned the transaction a commit"),
+        );
+        let (effects, _execution_error) = authority
+            .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
+            .unwrap();
+        assert!(effects.status().is_success());
+        digests.push(*effects.transaction_digest());
+        gas_versions.push(authority.get_object(&gas_id).unwrap().version());
+    }
 
     let versions = AttestedObjectVersions {
         object_cache: authority.get_object_cache_reader().as_ref(),
@@ -292,27 +296,33 @@ async fn attested_object_version_state_does_not_depend_on_flush_state() {
         sequenced_at: ExecutionIndices::default(),
         window: None,
     };
-    let current_version = authority.get_object(&attested_id).unwrap().version();
+    let resolved = || {
+        gas_versions
+            .iter()
+            .map(|version| versions.superseded_within_window(&gas_id, *version))
+            .collect::<Vec<_>>()
+    };
+    let expected: Vec<_> = commits
+        .iter()
+        .map(|commit| Some(SupersededAt::Commit(*commit)))
+        .chain([None])
+        .collect();
 
     // Nothing has been written back yet, so this is answered from the cache.
-    let before_commit =
-        versions.superseded_within_window(&attested_id, attested_ref.version(), current_version);
     assert_eq!(
-        before_commit,
-        Some(SupersededAt::Commit(commit)),
-        "a supersession still in the cache must already count"
+        resolved(),
+        expected,
+        "supersessions still in the cache must already count"
     );
 
-    let digests = [*effects.transaction_digest()];
     let cache_commit = authority.get_cache_commit();
     let batch = cache_commit.build_db_batch(epoch, 0, &digests);
     cache_commit.commit_transaction_outputs(epoch, batch, &digests);
 
-    let after_commit =
-        versions.superseded_within_window(&attested_id, attested_ref.version(), current_version);
     assert_eq!(
-        before_commit, after_commit,
-        "the verdict must not change when the supersession reaches the database"
+        resolved(),
+        expected,
+        "the verdict must not change when the supersessions reach the database"
     );
 }
 
@@ -396,12 +406,6 @@ async fn attested_object_version_state_judges_a_deleted_object() {
         "the merge must have deleted the attested object"
     );
 
-    let deleted_version = effects
-        .deleted()
-        .into_iter()
-        .find(|reference| reference.object_id == attested_id)
-        .expect("the merge deleted the attested object")
-        .version;
     let versions = AttestedObjectVersions {
         object_cache: authority.get_object_cache_reader().as_ref(),
         transaction_cache: authority.get_transaction_cache_reader().as_ref(),
@@ -410,8 +414,89 @@ async fn attested_object_version_state_judges_a_deleted_object() {
         window: None,
     };
     assert_eq!(
-        versions.superseded_within_window(&attested_id, attested_ref.version(), deleted_version),
+        versions.superseded_within_window(&attested_id, attested_ref.version()),
         Some(SupersededAt::Commit(commit)),
         "a version a deletion superseded this epoch carries the deleting commit"
+    );
+}
+
+/// A recorded version superseded in an earlier epoch is stale without the
+/// effects of the transaction that superseded it, which a node may have
+/// pruned: here they are gone from the ledger and from the caches.
+#[tokio::test]
+async fn attested_version_superseded_in_an_earlier_epoch_is_stale_without_its_effects() {
+    let config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (recipient, _): (_, AccountPrivateKey) = get_key_pair();
+
+    let attested_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let objects = vec![
+        Object::with_id_owner_for_testing(attested_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ];
+    let authority = TestAuthorityBuilder::new()
+        .with_starting_objects(&objects)
+        .build()
+        .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let epoch = epoch_store.epoch();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let attested_ref = authority.get_object(&attested_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+
+    let tx_data = Transaction::new_transfer(
+        recipient,
+        attested_ref,
+        sender,
+        gas_ref,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
+        rgp,
+    );
+    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    let verified_tx = epoch_store.verify_transaction(tx).unwrap();
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
+    let (effects, _execution_error) = authority
+        .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
+        .unwrap();
+    assert!(effects.status().is_success());
+
+    let digests = [*effects.transaction_digest()];
+    let cache_commit = authority.get_cache_commit();
+    let batch = cache_commit.build_db_batch(epoch, 0, &digests);
+    cache_commit.commit_transaction_outputs(epoch, batch, &digests);
+
+    // The override goes with the epoch: reconfiguration installs its own.
+    drop(config_guard);
+    authority.reconfigure_for_testing().await;
+    // Epoch 0's ledger bucket is gone, and so are the cached effects, as on a
+    // node whose retention has passed them.
+    authority
+        .get_historic_ledger()
+        .prune(epoch + 1, 0, &|| {})
+        .unwrap();
+    authority.clear_execution_caches_for_testing();
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let versions = AttestedObjectVersions {
+        object_cache: authority.get_object_cache_reader().as_ref(),
+        transaction_cache: authority.get_transaction_cache_reader().as_ref(),
+        epoch_store: &epoch_store,
+        sequenced_at: ExecutionIndices::default(),
+        window: None,
+    };
+    assert_eq!(
+        versions.superseded_within_window(&attested_id, attested_ref.version()),
+        None,
+        "a version superseded in an earlier epoch is stale, whatever the node retains"
     );
 }

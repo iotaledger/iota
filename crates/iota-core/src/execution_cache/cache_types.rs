@@ -89,6 +89,12 @@ impl<V> CachedVersionMap<V> {
         self.values.front()
     }
 
+    /// returns the lowest version in the map above `version`
+    pub fn get_least_above(&self, version: &Version) -> Option<&(Version, V)> {
+        self.values
+            .get(self.values.partition_point(|(v, _)| v <= version))
+    }
+
     // pop items from the front of the collection until the size is <= limit
     pub fn truncate_to(&mut self, limit: usize) {
         while self.values.len() > limit {
