@@ -5443,6 +5443,62 @@ async fn reader_keeps_a_shared_deletion_from_its_tombstone_row_before_the_marker
     assert_deleted_by(s.read_shared(14, &shared_id, initial), &deletion_effects);
 }
 
+/// A reader that answered a shared input as existing keeps that answer for
+/// the rest of its commit, also once a deletion above the horizon executes
+/// meanwhile. A new reader at the same commit answers the deletion. Both are
+/// kept inputs, so the commit's decisions are the same either way.
+#[tokio::test]
+async fn reader_keeps_its_first_shared_verdict_through_a_deletion_above_the_horizon() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let deleter_gas_id = ObjectId::random();
+    let s = setup_handler_object_state(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sender),
+            Object::with_id_owner_for_testing(deleter_gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let share_effects =
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared_ref = *share_effects.created()[0].reference();
+    let shared_id = shared_ref.object_id;
+    let initial = initial_shared_version(share_effects.created()[0].owner());
+    let reused = || {
+        s.epoch_store
+            .metrics
+            .consensus_handler_validation_reader_reused_verdicts
+            .with_label_values(&["shared"])
+            .get()
+    };
+
+    // Commit 14, horizon 10: shared at 5, so it exists.
+    let reader = s.reader_at(14);
+    assert_eq!(
+        reader.read_shared(shared_id, initial).unwrap(),
+        SharedVerdict::Exists
+    );
+
+    let deletion_effects = s.assigned_commit_shared_object_basics_call(
+        "delete",
+        vec![s.shared_arg(&shared_id)],
+        &deleter_gas_id,
+        sender,
+        &sender_key,
+        11,
+    );
+
+    assert_eq!(reused(), 0);
+    assert_eq!(
+        reader.read_shared(shared_id, initial).unwrap(),
+        SharedVerdict::Exists
+    );
+    assert_eq!(reused(), 1);
+    assert_deleted_by(s.read_shared(14, &shared_id, initial), &deletion_effects);
+    assert_eq!(reused(), 1);
+}
+
 // ---------------------------------------------------------------------------
 // P-COOL deterministic-validation loader
 // ---------------------------------------------------------------------------
@@ -5467,6 +5523,9 @@ async fn package_store_view_follows_the_reader() {
     assert_eq!(package.object().id(), s.package_id);
 
     s.record_package_published_at(11);
+    // A reader answers a package once per commit, so the row is read
+    // through a new one.
+    let reader = s.reader_at(12);
     assert!(
         BackingPackageStore::get_package_object(&reader, &s.package_id)
             .unwrap()

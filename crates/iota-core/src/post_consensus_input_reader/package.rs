@@ -273,4 +273,77 @@ mod tests {
             PackageRowLookup::Missing(reason) if reason.kind() == MissingKind::PackageAboveHorizon
         ));
     }
+
+    /// A package read again through the same reader is answered from the
+    /// first read, visible or missing. Another commit's reader reads afresh.
+    #[tokio::test]
+    async fn a_package_read_again_at_the_commit_reuses_the_first_verdict() {
+        use iota_sdk_types::{Address, Owner, Version};
+        use iota_types::object::Object;
+
+        use crate::{
+            authority::authority_tests::init_state_with_objects_and_object_basics,
+            post_consensus_input_reader::PackageVerdict,
+        };
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_pcool_deterministic_validation_horizon_distance_for_testing(
+                    HORIZON_DISTANCE,
+                );
+                config
+            });
+
+        let gas = Object::with_id_owner_version_for_testing(
+            ObjectId::random(),
+            Version::from_u64(0),
+            Owner::Address(Address::ZERO),
+        );
+        let (authority, package_ref) = init_state_with_objects_and_object_basics([gas]).await;
+        let epoch_store = authority.epoch_store_for_testing().clone();
+        let reused = || {
+            epoch_store
+                .metrics
+                .consensus_handler_validation_reader_reused_verdicts
+                .with_label_values(&["package"])
+                .get()
+        };
+        let reader_at = |commit_index| {
+            CommitIndexedReader::new(
+                authority.get_object_cache_reader().clone(),
+                epoch_store.clone(),
+                commit_index,
+            )
+        };
+
+        let ctx = reader_at(VALIDATED_COMMIT);
+        let package_id = package_ref.object_id;
+        let first = match ctx.read_package(package_id).unwrap() {
+            PackageVerdict::Visible(package) => package,
+            PackageVerdict::Missing(_) => panic!("the package is in the store"),
+        };
+        assert_eq!(reused(), 0);
+        match ctx.read_package(package_id).unwrap() {
+            PackageVerdict::Visible(package) => {
+                assert_eq!(package.object().digest(), first.object().digest());
+            }
+            PackageVerdict::Missing(_) => panic!("the package is in the store"),
+        }
+        assert_eq!(reused(), 1);
+
+        let absent = ObjectId::random();
+        for _ in 0..2 {
+            assert!(matches!(
+                ctx.read_package(absent).unwrap(),
+                PackageVerdict::Missing(_)
+            ));
+        }
+        assert_eq!(reused(), 2);
+
+        let other = reader_at(VALIDATED_COMMIT + 1);
+        assert!(matches!(
+            other.read_package(package_id).unwrap(),
+            PackageVerdict::Visible(_)
+        ));
+        assert_eq!(reused(), 2);
+    }
 }

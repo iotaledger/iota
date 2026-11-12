@@ -1072,4 +1072,58 @@ mod tests {
             );
         }
     }
+
+    /// A shared input read again through the same reader, at the same
+    /// declared initial version, is answered from the first read. Another
+    /// declared version is its own read.
+    #[tokio::test]
+    async fn a_shared_input_read_again_at_the_commit_reuses_the_first_verdict() {
+        use crate::{
+            authority::authority_tests::init_state_with_objects_and_object_basics,
+            post_consensus_input_reader::SharedVerdict,
+        };
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_pcool_deterministic_validation_horizon_distance_for_testing(
+                    HORIZON_DISTANCE,
+                );
+                config
+            });
+
+        let s_id = ObjectId::random();
+        let shared =
+            Object::with_id_owner_version_for_testing(s_id, declared(), Owner::Shared(declared()));
+        let (authority, _) = init_state_with_objects_and_object_basics([shared]).await;
+        let epoch_store = authority.epoch_store_for_testing().clone();
+        let reused = || {
+            epoch_store
+                .metrics
+                .consensus_handler_validation_reader_reused_verdicts
+                .with_label_values(&["shared"])
+                .get()
+        };
+        let ctx = CommitIndexedReader::new(
+            authority.get_object_cache_reader().clone(),
+            epoch_store.clone(),
+            VALIDATED_COMMIT,
+        );
+
+        assert_eq!(
+            ctx.read_shared(s_id, declared()).unwrap(),
+            SharedVerdict::Exists
+        );
+        assert_eq!(reused(), 0);
+        assert_eq!(
+            ctx.read_shared(s_id, declared()).unwrap(),
+            SharedVerdict::Exists
+        );
+        assert_eq!(reused(), 1);
+
+        let other_version = Version::from_u64(DECLARED + 1);
+        let first = ctx.read_shared(s_id, other_version).unwrap();
+        assert_ne!(first, SharedVerdict::Exists);
+        assert_eq!(reused(), 1);
+        assert_eq!(ctx.read_shared(s_id, other_version).unwrap(), first);
+        assert_eq!(reused(), 2);
+    }
 }
