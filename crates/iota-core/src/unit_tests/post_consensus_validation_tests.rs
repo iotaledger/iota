@@ -5094,6 +5094,70 @@ async fn checkpoint_bookkeeping_does_not_wait_for_the_quarantine() {
     );
 }
 
+/// The rows of later checkpoints are in the table while the outputs of an
+/// earlier checkpoint are not written yet, as on a running node whose
+/// executor works on several checkpoints at once. The reader answers as it
+/// does after each checkpoint's outputs are written.
+#[tokio::test]
+async fn rows_written_ahead_of_an_earlier_checkpoints_outputs_read_the_same() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_handler_object_state(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+
+    // Three checkpoints of one commit each. Each transfer consumes the
+    // outputs of the one before.
+    let mut references = vec![s.latest_ref(&gas_id)];
+    let mut effects = Vec::new();
+    for commit in 1..=3 {
+        let transfer = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, sender);
+        effects.push(
+            s.execute_with_assigned_commit(vec![transfer], commit)
+                .remove(0),
+        );
+        references.push(s.latest_ref(&gas_id));
+    }
+    // The rows of all three are written, in checkpoint order, before the
+    // outputs of the first.
+    for effects in &effects {
+        s.epoch_store
+            .persist_checkpoint_bookkeeping([effects])
+            .unwrap();
+    }
+
+    let horizon_distance = s.horizon_distance();
+    // Every version of the gas coin as of every horizon from before the
+    // first commit to the last.
+    let verdicts = || {
+        let mut verdicts = Vec::new();
+        for horizon in 0..=3 {
+            for reference in &references {
+                verdicts.push(match s.read_owned(horizon + horizon_distance, *reference) {
+                    OwnedVerdict::Keep(_) => "keep",
+                    OwnedVerdict::Drop(_) => "drop",
+                    OwnedVerdict::Missing(_) => "missing",
+                });
+            }
+        }
+        verdicts
+    };
+    let with_rows_ahead = verdicts();
+    // As of the last commit only the latest version is kept.
+    assert_eq!(with_rows_ahead[12..], ["drop", "drop", "drop", "keep"]);
+
+    for effects in &effects {
+        s.commit_outputs(&[*effects.transaction_digest()]);
+        assert_eq!(verdicts(), with_rows_ahead);
+    }
+}
+
 #[tokio::test]
 async fn bookkeeping_disabled_writes_nothing() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();

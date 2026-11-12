@@ -463,8 +463,8 @@ impl CheckpointExecutor {
         );
 
         // Before the outputs, so no durable object lacks its bookkeeping. In
-        // this stage, so the write overlaps the previous checkpoint's output
-        // write and still runs in checkpoint order. A transaction whose
+        // this stage, so the write overlaps the output writes of earlier
+        // checkpoints and still runs in checkpoint order. A transaction whose
         // outputs are already durable is not in `batch` and needs nothing:
         // its bookkeeping was written before them.
         let batch = if self.epoch_store.pcool_bookkeeping_enabled() {
