@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::traits::ToFromBytes;
 use iota_multiaddr::Multiaddr;
 use iota_sdk_move_types::{
     iota_framework::{bag::Bag, object::ID, system_admin_cap::IotaSystemAdminCap, table::Table},
@@ -16,7 +15,8 @@ use crate::{
     balance::Balance,
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{
-        AuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey, network_pubkey_from_bytes,
+        AuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey, authority_pubkey_from_bytes,
+        network_pubkey_from_bytes,
     },
     error::IotaError,
     gas_coin::IotaTreasuryCap,
@@ -90,7 +90,7 @@ pub struct SimTestValidatorMetadataV1 {
     pub extra_fields: Bag,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct VerifiedSimTestValidatorMetadataV1 {
     pub iota_address: Address,
     pub authority_pubkey: AuthorityPublicKey,
@@ -104,7 +104,7 @@ pub struct VerifiedSimTestValidatorMetadataV1 {
 impl SimTestValidatorMetadataV1 {
     pub fn verify(&self) -> VerifiedSimTestValidatorMetadataV1 {
         let authority_pubkey =
-            AuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref()).unwrap();
+            authority_pubkey_from_bytes(self.authority_pubkey_bytes.as_ref()).unwrap();
         let network_pubkey = network_pubkey_from_bytes(self.network_pubkey_bytes.as_ref()).unwrap();
         let protocol_pubkey =
             network_pubkey_from_bytes(self.protocol_pubkey_bytes.as_ref()).unwrap();
@@ -205,7 +205,9 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateV1 {
                 let metadata = validator.verified_metadata();
                 EpochStartValidatorInfoV1 {
                     iota_address: metadata.iota_address,
-                    authority_pubkey: metadata.authority_pubkey.clone(),
+                    authority_pubkey: AuthorityPublicKeyBytes::from(&metadata.authority_pubkey)
+                        .try_into()
+                        .unwrap(),
                     network_pubkey: metadata.network_pubkey,
                     protocol_pubkey: metadata.protocol_pubkey,
                     iota_net_address: metadata.net_address.clone(),
@@ -328,7 +330,9 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateShallowV1 {
                 let metadata = validator.verified_metadata();
                 EpochStartValidatorInfoV1 {
                     iota_address: metadata.iota_address,
-                    authority_pubkey: metadata.authority_pubkey.clone(),
+                    authority_pubkey: AuthorityPublicKeyBytes::from(&metadata.authority_pubkey)
+                        .try_into()
+                        .unwrap(),
                     network_pubkey: metadata.network_pubkey,
                     protocol_pubkey: metadata.protocol_pubkey,
                     iota_net_address: metadata.net_address.clone(),
@@ -480,7 +484,9 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateDeepV1 {
                 let metadata = validator.verified_metadata();
                 EpochStartValidatorInfoV1 {
                     iota_address: metadata.iota_address,
-                    authority_pubkey: metadata.authority_pubkey.clone(),
+                    authority_pubkey: AuthorityPublicKeyBytes::from(&metadata.authority_pubkey)
+                        .try_into()
+                        .unwrap(),
                     network_pubkey: metadata.network_pubkey,
                     protocol_pubkey: metadata.protocol_pubkey,
                     iota_net_address: metadata.net_address.clone(),
