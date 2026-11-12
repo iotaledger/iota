@@ -122,7 +122,7 @@ use iota_types::{
     committee::Committee,
     crypto::{AuthoritySignature, IotaAuthoritySignature, KeypairTraits},
     digests::ChainIdentifier,
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     full_checkpoint_content::CheckpointData,
     iota_system_state::{
@@ -2033,9 +2033,25 @@ impl IotaNode {
                         tracking_id = ?transaction.get_tracking_id(),
                         "submitting deny rule proposal to consensus"
                     );
-                    components
+                    match components
                         .consensus_adapter
-                        .submit(transaction, None, &cur_epoch_store)?;
+                        .submit(transaction, None, &cur_epoch_store)
+                    {
+                        // Consensus does not take a proposal that large, so
+                        // the node goes on without announcing its deny rules.
+                        Err(
+                            error @ IotaError::UserInput {
+                                error: UserInputError::SizeLimitExceeded { .. },
+                            },
+                        ) => error!(
+                            ?error,
+                            "the deny rule proposal is refused as larger than consensus accepts, \
+                                so the local deny rules are not announced"
+                        ),
+                        result => {
+                            result?;
+                        }
+                    }
                 }
             } else if self.state.is_active_validator(&cur_epoch_store)
                 && cur_epoch_store
