@@ -176,10 +176,10 @@ fn check_consensus_transaction_size(
 }
 
 /// Rejects a submission because the validator is overloaded, and counts it in
-/// `num_rejected_tx_during_overload`. The rejection weighs nothing in the
-/// traffic controller's tally: the client turned away is not necessarily the
-/// one keeping the validator busy.
-fn overload_rejection(
+/// [`ValidatorServiceMetrics::num_rejected_tx_during_overload`]. The
+/// rejection weighs nothing in the traffic controller's tally: the client
+/// turned away is not necessarily the one keeping the validator busy.
+fn reject_for_overload(
     metrics: &ValidatorServiceMetrics,
     error: IotaError,
 ) -> (TxStatusUpdate, Weight) {
@@ -206,10 +206,10 @@ fn count_soft_lock_refusal(metrics: &ValidatorServiceMetrics, error: &IotaError)
 
 /// Lists the owned and immutable objects `transaction` names as inputs, gas
 /// coins included. It reads the transaction alone, before validation, so it
-/// cannot tell owned inputs from immutable ones; that does no harm to a check
-/// for soft lock conflicts, since a lock on an immutable input would make the
-/// lock taken later conflict as well. A transaction whose inputs cannot be
-/// listed gets an empty list, and validation refuses it later.
+/// cannot distinguish owned inputs from immutable ones; that does no harm to
+/// a check for soft lock conflicts, since no soft lock is taken on an
+/// immutable object. A transaction whose inputs cannot be listed gets an
+/// empty list, and validation refuses it later.
 fn list_owned_or_immutable_inputs(transaction: &TransactionEnvelope) -> Vec<ObjectReference> {
     transaction
         .data()
@@ -223,9 +223,9 @@ fn list_owned_or_immutable_inputs(transaction: &TransactionEnvelope) -> Vec<Obje
         .collect()
 }
 
-/// Weighs a rejection the sender causes: one after the attestation's dry run,
-/// which the validator then ran for nothing, and otherwise what [`normalize`]
-/// gives the error.
+/// Returns the traffic weight of a rejection the sender causes:
+/// [`Weight::one()`] after the attestation's dry run, which the validator
+/// then ran for nothing, and otherwise what [`normalize()`] gives `error`.
 fn weigh_sender_rejection(error: &IotaError, after_dry_run: bool) -> Weight {
     if after_dry_run {
         Weight::one()
@@ -353,7 +353,7 @@ impl ValidatorService {
         // drops the slot and releases it.
         let slot = match state.reserve_consensus_queue_slot(consensus_adapter, transaction.data()) {
             Ok(slot) => slot,
-            Err(e) => return overload_rejection(metrics, e),
+            Err(e) => return reject_for_overload(metrics, e),
         };
 
         // Validate transaction.
@@ -458,7 +458,7 @@ impl ValidatorService {
         } else if epoch_store.protocol_config().enable_validator_attestation() {
             let permit = match state.acquire_attestation_permit().await {
                 Ok(permit) => permit,
-                Err(e) => return overload_rejection(metrics, e),
+                Err(e) => return reject_for_overload(metrics, e),
             };
             // Another transaction may have locked these inputs while this one
             // waited for its dry run.

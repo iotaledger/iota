@@ -776,7 +776,8 @@ impl AuthorityMetrics {
                 .unwrap(),
             attestations_rejected_total: register_int_counter_with_registry!(
                 "attestations_rejected_total",
-                "Number of submissions rejected because every attestation dry run was taken and the queue was full or the wait for one too long",
+                "Number of submissions rejected because every attestation dry run was taken \
+                    and the queue was full or the wait for one too long",
                 registry,
             )
                 .unwrap(),
@@ -1788,7 +1789,8 @@ impl AuthorityState {
     /// [`InflightSlot::queue_length_before()`], which also counts admissions
     /// still in progress, the permit check of
     /// [`ConsensusAdapter::check_submit_permits()`], and the check on
-    /// attestation dry runs. Returns the slot, to be passed to
+    /// attestation dry runs of [`AttestationSemaphore::check_overload()`].
+    /// Returns the slot, to be passed to
     /// [`ConsensusAdapter::submit_with_slot()`]; on an error, the slot is
     /// released.
     ///
@@ -1837,14 +1839,16 @@ impl AuthorityState {
     }
 
     /// Waits for a free attestation dry run, within the limits of
-    /// `max_concurrent_attestations`, `max_queued_attestations` and
-    /// `max_attestation_wait`. The dry run must hold the permit until it ends.
+    /// [`AuthorityOverloadConfig::max_concurrent_attestations`],
+    /// [`AuthorityOverloadConfig::max_queued_attestations`] and
+    /// [`AuthorityOverloadConfig::max_attestation_wait`]. The dry run must hold
+    /// the permit until it ends.
     ///
     /// # Errors
     ///
     /// [`IotaError::ValidatorOverloadedRetryAfter`] when every dry run is
     /// taken and the queue for them is full, or when none frees within
-    /// `max_attestation_wait`.
+    /// [`AuthorityOverloadConfig::max_attestation_wait`].
     pub(crate) async fn acquire_attestation_permit(&self) -> IotaResult<AttestationPermit> {
         self.attestation_semaphore.acquire().await
     }

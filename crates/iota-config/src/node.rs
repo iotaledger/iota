@@ -1503,14 +1503,18 @@ pub struct AuthorityOverloadConfig {
     /// Maximum number of submissions that wait for a free attestation dry run,
     /// a bound on the memory they hold. A submission that finds every dry run
     /// taken and this many waiting is rejected with
-    /// `ValidatorOverloadedRetryAfter`. Unset means 1,024.
+    /// [`IotaError::ValidatorOverloadedRetryAfter`]. Unset means 1,024.
+    ///
+    /// [`IotaError::ValidatorOverloadedRetryAfter`]: iota_types::error::IotaError::ValidatorOverloadedRetryAfter
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_queued_attestations: Option<usize>,
 
-    /// Longest a submission waits for a free attestation dry run. A submission
-    /// that has waited this long, or whose expected wait is longer when it
-    /// arrives, is rejected with `ValidatorOverloadedRetryAfter`. Unset means
-    /// 500 ms.
+    /// Maximum time a submission waits for a free attestation dry run. A
+    /// submission that has waited this long, or whose expected wait is longer
+    /// when it arrives, is rejected with
+    /// [`IotaError::ValidatorOverloadedRetryAfter`]. Unset means 500 ms.
+    ///
+    /// [`IotaError::ValidatorOverloadedRetryAfter`]: iota_types::error::IotaError::ValidatorOverloadedRetryAfter
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_attestation_wait: Option<Duration>,
 }
