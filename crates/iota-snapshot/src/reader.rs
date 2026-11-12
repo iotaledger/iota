@@ -509,8 +509,9 @@ impl StateSnapshotReaderV1 {
         if let Some(handle) = accum_handle {
             if sync_result.is_err() {
                 // Nobody is left to consume the partial hashes once the
-                // restore has failed; stop the accumulation rather than leave
-                // it running detached after this returns.
+                // restore has failed. This stops the outer accumulation task. The
+                // per-partition tasks that already started, and their jobs on the
+                // blocking pool, run to their end; they only read files.
                 handle.abort();
             } else {
                 handle.await?;
@@ -554,47 +555,43 @@ impl StateSnapshotReaderV1 {
         let epoch_dir = self.epoch_dir();
         let local_staging_dir_root = self.local_staging_dir_root.clone();
         tokio::task::spawn(async move {
-            let local_staging_dir_root_clone = local_staging_dir_root.clone();
-            let epoch_dir_clone = epoch_dir.clone();
-            for (bucket, part_files) in ref_files.clone().iter() {
-                futures::stream::iter(part_files.iter())
-                    .map(|(part, _part_files)| {
-                        // TODO depending on concurrency limit here, we may be
-                        // materializing too many refs into memory at once.
-
-                        // Takes the sha3 digests of every object in the partition
-                        // This is only done because ObjectRefIter is not Send
-                        let obj_digests = {
-                            // TODO: Make sure that we can remove this getter, just take _part_files
-                            // here
-                            let file_metadata = ref_files
-                                .get(bucket)
-                                .expect("No ref files found for bucket: {bucket_num}")
-                                .get(part)
-                                .expect(
-                                    "No ref files found for bucket: {bucket_num}, part: {part_num}",
-                                );
-                            ObjectRefIter::new(
-                                file_metadata,
-                                local_staging_dir_root_clone.clone(),
-                                epoch_dir_clone.clone(),
-                            )
-                            .expect("Failed to create object ref iter")
-                        }
-                        .map(|obj_ref| obj_ref.digest)
-                        .collect::<Vec<ObjectDigest>>();
-
-                        // Spawns a task to accumulate the sha3 digests and send the accumulator
-                        // to the sender.
-                        let sender_clone = sender.clone();
+            for part_files in ref_files.values() {
+                futures::stream::iter(part_files.values())
+                    .map(|file_metadata| {
+                        let file_metadata = file_metadata.clone();
+                        let local_staging_dir_root = local_staging_dir_root.clone();
+                        let epoch_dir = epoch_dir.clone();
+                        let sender = sender.clone();
                         tokio::spawn(async move {
-                            let mut partial_acc = GlobalStateHash::default();
-                            let num_objects = obj_digests.len();
-                            partial_acc.insert_all(obj_digests);
+                            // Opens, decodes and hashes the partition on the blocking
+                            // pool. The iterator is created inside the closure because
+                            // it is not Send.
+                            let hashed = tokio::task::spawn_blocking(move || {
+                                let obj_digests = ObjectRefIter::new(
+                                    &file_metadata,
+                                    local_staging_dir_root,
+                                    epoch_dir,
+                                )
+                                .expect("Failed to create object ref iter")
+                                .map(|obj_ref| obj_ref.digest);
+                                let mut num_objects = 0u64;
+                                let mut partial_acc = GlobalStateHash::default();
+                                partial_acc.insert_all(obj_digests.inspect(|_| num_objects += 1));
+                                (partial_acc, num_objects)
+                            })
+                            .await;
+                            let (partial_acc, num_objects) = match hashed {
+                                Ok(hashed) => hashed,
+                                Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
+                                // The task ends without sending the completion, so the
+                                // restore fails. A release build aborts the process on
+                                // this panic.
+                                Err(e) => panic!("hashing a .ref file was cancelled: {e}"),
+                            };
                             // The receiver is only dropped once the caller
                             // has given up on the restore, so a failed send
                             // has nothing left to report to.
-                            let _ = sender_clone.send((partial_acc, num_objects as u64)).await;
+                            let _ = sender.send((partial_acc, num_objects)).await;
                         })
                     })
                     .boxed()
