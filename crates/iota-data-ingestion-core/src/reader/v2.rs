@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    cmp::Ordering,
     num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
@@ -457,20 +458,31 @@ impl CheckpointReaderActor {
         }
     }
 
-    /// Attempts to send a checkpoint from remote source to the channel if
-    /// capacity allows.
+    /// Attempts to send a remote checkpoint to the channel and registers it with the data limiter.
     ///
-    /// If the checkpoint's sequence number would exceed the allowed capacity,
-    /// returns `IngestionError::MaxCheckpointsCapacityReached` and does not
-    /// send. Otherwise, adds the checkpoint to the data limiter and sends
-    /// it to the channel.
+    /// The sequence number of the received checkpoint must match the one the reader expects next.
+    /// The reader advances its current checkpoint number by one for every checkpoint it sends, so
+    /// this keeps the checkpoints it sends in order and without gaps.
+    ///
+    /// # Errors
+    ///
+    /// - [`IngestionError::Verification`] if the checkpoint's sequence number is not the one the
+    ///   reader expects next.
+    /// - [`IngestionError::MaxCheckpointsCapacityReached`] if the capacity limit is exceeded.
+    /// - [`IngestionError::Channel`] if the receiver channel is closed.
     async fn send_remote_checkpoint_with_capacity_check(
         &mut self,
         checkpoint: Arc<CheckpointData>,
         size: usize,
     ) -> IngestionResult<()> {
-        self.verify_sequence_number(&checkpoint, self.current_checkpoint_number)?;
-        if self.exceeds_capacity(checkpoint.checkpoint_summary.sequence_number) {
+        let sequence_number = checkpoint.checkpoint_summary.sequence_number;
+        if sequence_number != self.current_checkpoint_number {
+            return Err(IngestionError::Verification(format!(
+                "expected checkpoint {}, the remote source sent {sequence_number}",
+                self.current_checkpoint_number
+            )));
+        }
+        if self.exceeds_capacity(sequence_number) {
             return Err(IngestionError::MaxCheckpointsCapacityReached);
         }
         self.data_limiter.add(&checkpoint, size);
@@ -488,16 +500,19 @@ impl CheckpointReaderActor {
         checkpoints: Vec<Arc<CheckpointData>>,
     ) -> IngestionResult<()> {
         for checkpoint in checkpoints {
-            if self.is_checkpoint_ahead(&checkpoint, self.current_checkpoint_number) {
-                break;
+            let sequence_number = checkpoint.checkpoint_summary.sequence_number;
+            match sequence_number.cmp(&self.current_checkpoint_number) {
+                // A missing local file is expected, so stop without an error.
+                Ordering::Greater => break,
+                Ordering::Less => {
+                    error!(
+                        "expected checkpoint {}, a local file holds {sequence_number}",
+                        self.current_checkpoint_number
+                    );
+                    break;
+                }
+                Ordering::Equal => self.send_checkpoint_to_channel(checkpoint).await?,
             }
-            if let Err(err) =
-                self.verify_sequence_number(&checkpoint, self.current_checkpoint_number)
-            {
-                error!("{err}");
-                break;
-            }
-            self.send_checkpoint_to_channel(checkpoint).await?;
         }
         Ok(())
     }
