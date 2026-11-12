@@ -143,7 +143,7 @@ where
 /// Panics if `v` is all-`0xFF`. Incrementing it would overflow, and silently
 /// wrapping to zero would emit a wrong key; panicking instead keeps a buggy
 /// caller from corrupting the keyspace.
-fn big_endian_add_one(v: &mut [u8]) {
+pub(crate) fn big_endian_add_one(v: &mut [u8]) {
     for i in (0..v.len()).rev() {
         if v[i] == u8::MAX {
             v[i] = 0;
@@ -159,7 +159,7 @@ fn big_endian_add_one(v: &mut [u8]) {
 }
 
 /// Check if all the bytes in the vector are 0xFF
-fn is_max(v: &[u8]) -> bool {
+pub(crate) fn is_max(v: &[u8]) -> bool {
     v.iter().all(|&x| x == u8::MAX)
 }
 

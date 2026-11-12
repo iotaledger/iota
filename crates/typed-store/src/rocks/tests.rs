@@ -2,13 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::ops::{Bound, RangeBounds};
+use std::{
+    collections::BTreeMap,
+    ops::{Bound, RangeBounds},
+};
 
 use rstest::rstest;
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::*;
-use crate::{database::drop_tolerant_write_options, traits::Map};
+use crate::{
+    be_fix_int_ser,
+    database::drop_tolerant_write_options,
+    traits::{DbIterator, Map},
+};
 
 fn get_iter<K, V>(db: &DBMap<K, V>) -> impl Iterator<Item = (K, V)> + use<'_, K, V>
 where
@@ -2256,4 +2263,382 @@ async fn a_relabelled_map_reports_its_operations_under_the_label() {
             .get_sample_count(),
         0
     );
+}
+
+/// Keys shaped like an `(ObjectId, Version)` key: a 32-byte prefix followed
+/// by a big-endian `u64`.
+type PrefixedKey = ([u8; 32], u64);
+
+const PREFIX_LEN: usize = 32;
+
+fn prefixed_id(i: u8) -> [u8; 32] {
+    let mut id = [0u8; 32];
+    id[0] = i.wrapping_mul(37);
+    id[31] = i;
+    id
+}
+
+fn open_prefixed_map(path: &Path) -> DBMap<PrefixedKey, u64> {
+    let options = default_db_options().with_fixed_prefix_extractor(PREFIX_LEN);
+    let db = open_cf_opts(
+        path,
+        None,
+        MetricConf::default(),
+        &[("prefixed", options.options.clone())],
+    )
+    .expect("Failed to open rocksdb");
+    DBMap::reopen(&db, Some("prefixed"), &options.rw_options, true).expect("Failed to open storage")
+}
+
+fn insert_row(
+    db: &DBMap<PrefixedKey, u64>,
+    reference: &mut BTreeMap<PrefixedKey, u64>,
+    key: PrefixedKey,
+) {
+    let value = key.1 * 1000 + u64::from(key.0[31]);
+    db.insert(&key, &value).unwrap();
+    reference.insert(key, value);
+}
+
+/// Rows for the even ids at versions 1, 5 and 9, and for the all-`0xFF` id,
+/// which has no next prefix. The caller flushes them to a file.
+fn insert_file_rows(db: &DBMap<PrefixedKey, u64>, reference: &mut BTreeMap<PrefixedKey, u64>) {
+    for i in (0..64u8).step_by(2) {
+        for version in [1, 5, 9] {
+            insert_row(db, reference, (prefixed_id(i), version));
+        }
+    }
+    insert_row(db, reference, ([0xFF; 32], 7));
+}
+
+/// Rows for the odd ids at versions 2, 6 and 10, a row at version 20 for the
+/// ids divisible by four, which then have rows in the file and in the
+/// memtable, and one more for the all-`0xFF` id.
+fn insert_memtable_rows(db: &DBMap<PrefixedKey, u64>, reference: &mut BTreeMap<PrefixedKey, u64>) {
+    for i in (1..64u8).step_by(2) {
+        for version in [2, 6, 10] {
+            insert_row(db, reference, (prefixed_id(i), version));
+        }
+    }
+    for i in (0..64u8).step_by(4) {
+        insert_row(db, reference, (prefixed_id(i), 20));
+    }
+    insert_row(db, reference, ([0xFF; 32], 11));
+}
+
+/// Rows for 64 ids, the even ids' rows in a file and the odd ids' rows in
+/// the memtable. Returns the rows as the reference.
+fn populate_prefixed_map(db: &DBMap<PrefixedKey, u64>) -> BTreeMap<PrefixedKey, u64> {
+    let mut reference = BTreeMap::new();
+    insert_file_rows(db, &mut reference);
+    db.flush().unwrap();
+    insert_memtable_rows(db, &mut reference);
+    reference
+}
+
+fn rows<K, V>(iter: DbIterator<'_, (K, V)>) -> Vec<(K, V)> {
+    iter.map(|row| row.unwrap()).collect()
+}
+
+/// Every kind of scan returns what `reference` holds: scans that stay within
+/// one prefix in both directions, scans that cross prefixes and point reads.
+fn assert_every_scan_exact(db: &DBMap<PrefixedKey, u64>, reference: &BTreeMap<PrefixedKey, u64>) {
+    let versions = [0u64, 1, 2, 5, 6, 9, 10, 11, 20, 30, u64::MAX - 1, u64::MAX];
+
+    for id in (0..70u8).map(prefixed_id).chain([[0xFF; 32]]) {
+        let expected: Vec<_> = reference
+            .range((id, 0)..=(id, u64::MAX))
+            .map(|(key, value)| (*key, *value))
+            .collect();
+        assert_eq!(rows(db.safe_iter_with_prefix(&id)), expected, "{id:?}");
+        let mut reversed = expected.clone();
+        reversed.reverse();
+        assert_eq!(
+            rows(db.safe_iter_with_prefix_reversed(&id)),
+            reversed,
+            "{id:?}"
+        );
+        for version in versions {
+            let above: Vec<_> = expected
+                .iter()
+                .filter(|(key, _)| key.1 > version)
+                .copied()
+                .collect();
+            assert_eq!(
+                rows(db.safe_iter_with_prefix_from(&id, Bound::Excluded(&version))),
+                above,
+                "{id:?} above {version}"
+            );
+            let from: Vec<_> = expected
+                .iter()
+                .filter(|(key, _)| key.1 >= version)
+                .copied()
+                .collect();
+            assert_eq!(
+                rows(db.safe_iter_with_prefix_from(&id, Bound::Included(&version))),
+                from,
+                "{id:?} from {version}"
+            );
+            let below: Vec<_> = expected
+                .iter()
+                .filter(|(key, _)| key.1 < version)
+                .copied()
+                .collect();
+            assert_eq!(
+                rows(db.safe_range_iter((id, 0)..(id, version))),
+                below,
+                "{id:?} below {version}"
+            );
+            let mut below_reversed = below;
+            below_reversed.reverse();
+            assert_eq!(
+                rows(db.safe_range_iter_reversed((id, 0)..(id, version))),
+                below_reversed,
+                "{id:?} below {version} reversed"
+            );
+            assert_eq!(
+                db.get(&(id, version)).unwrap(),
+                reference.get(&(id, version)).copied(),
+                "{id:?} at {version}"
+            );
+        }
+    }
+
+    let all: Vec<_> = reference
+        .iter()
+        .map(|(key, value)| (*key, *value))
+        .collect();
+    assert_eq!(rows(db.safe_iter()), all);
+    // The ids rise with `i` only while `i * 37` does not wrap.
+    let range = (prefixed_id(1), 5)..(prefixed_id(4), 6);
+    let expected: Vec<_> = reference
+        .range(range.clone())
+        .map(|(key, value)| (*key, *value))
+        .collect();
+    assert_eq!(rows(db.safe_range_iter(range.clone())), expected);
+    let mut reversed = expected;
+    reversed.reverse();
+    assert_eq!(rows(db.safe_range_iter_reversed(range)), reversed);
+    let keys: Vec<_> = versions
+        .iter()
+        .flat_map(|version| {
+            [
+                (prefixed_id(4), *version),
+                (prefixed_id(5), *version),
+                (prefixed_id(66), *version),
+            ]
+        })
+        .collect();
+    assert_eq!(
+        db.multi_contains_keys(keys.iter()).unwrap(),
+        keys.iter()
+            .map(|key| reference.contains_key(key))
+            .collect::<Vec<_>>()
+    );
+}
+
+/// With a prefix extractor, every kind of scan returns what a plain table
+/// returns: rows in the memtable, in a file or in both.
+#[tokio::test]
+async fn a_prefix_extractor_keeps_every_scan_exact() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_prefixed_map(tmp_dir.path());
+    let reference = populate_prefixed_map(&db);
+    assert_every_scan_exact(&db, &reference);
+}
+
+/// A file written before the extractor is installed has no prefix filter.
+/// Reopened with the extractor, scans over that file, over the rows written
+/// since and over a file written with the extractor return what a plain
+/// table returns.
+#[tokio::test]
+async fn a_prefix_extractor_installed_on_reopen_keeps_every_scan_exact() {
+    let tmp_dir = iota_common::tempdir();
+    let mut reference = BTreeMap::new();
+    {
+        let plain = default_db_options();
+        let db = open_cf_opts(
+            tmp_dir.path(),
+            None,
+            MetricConf::default(),
+            &[("prefixed", plain.options.clone())],
+        )
+        .expect("Failed to open rocksdb");
+        let map: DBMap<PrefixedKey, u64> =
+            DBMap::reopen(&db, Some("prefixed"), &plain.rw_options, true)
+                .expect("Failed to open storage");
+        insert_file_rows(&map, &mut reference);
+        map.flush().unwrap();
+    }
+
+    let db = open_prefixed_map(tmp_dir.path());
+    insert_memtable_rows(&db, &mut reference);
+    assert_every_scan_exact(&db, &reference);
+
+    db.flush().unwrap();
+    insert_row(&db, &mut reference, (prefixed_id(1), 30));
+    insert_row(&db, &mut reference, (prefixed_id(2), 30));
+    assert_every_scan_exact(&db, &reference);
+}
+
+/// A table whose extractor was installed on the RocksDB options directly, so
+/// its read options hold no prefix length, still returns every row from every
+/// kind of scan.
+#[tokio::test]
+async fn a_prefix_extractor_without_a_prefix_length_keeps_every_scan_exact() {
+    let tmp_dir = iota_common::tempdir();
+    let mut options = default_db_options();
+    options
+        .options
+        .set_prefix_extractor(rocksdb::SliceTransform::create_fixed_prefix(PREFIX_LEN));
+    assert_eq!(options.rw_options.prefix_len, None);
+    let db = open_cf_opts(
+        tmp_dir.path(),
+        None,
+        MetricConf::default(),
+        &[("prefixed", options.options.clone())],
+    )
+    .expect("Failed to open rocksdb");
+    let map: DBMap<PrefixedKey, u64> =
+        DBMap::reopen(&db, Some("prefixed"), &options.rw_options, true)
+            .expect("Failed to open storage");
+    let reference = populate_prefixed_map(&map);
+    assert_every_scan_exact(&map, &reference);
+}
+
+/// A forward prefix scan consults a file's prefix bloom filter: the file is
+/// skipped when it holds no row of the id and read when it does. A reverse
+/// prefix scan seeks to the next prefix, so it consults no file's filter.
+#[tokio::test]
+async fn prefix_scans_let_a_files_filter_reject_files_without_the_id() {
+    use rocksdb::statistics::Ticker;
+
+    let tmp_dir = iota_common::tempdir();
+    let options = default_db_options().with_fixed_prefix_extractor(PREFIX_LEN);
+    let mut db_options = options.options.clone();
+    db_options.enable_statistics();
+    let db = open_cf_opts(
+        tmp_dir.path(),
+        Some(db_options.clone()),
+        MetricConf::default(),
+        &[("prefixed", db_options.clone())],
+    )
+    .expect("Failed to open rocksdb");
+    let map: DBMap<PrefixedKey, u64> =
+        DBMap::reopen(&db, Some("prefixed"), &options.rw_options, true)
+            .expect("Failed to open storage");
+    let in_file = prefixed_id(1);
+    let in_memtable = prefixed_id(2);
+    map.insert(&(in_file, 1), &1).unwrap();
+    map.flush().unwrap();
+    map.insert(&(in_memtable, 1), &2).unwrap();
+    let skipped = || {
+        db_options.get_ticker_count(Ticker::NonLastLevelSeekFiltered)
+            + db_options.get_ticker_count(Ticker::LastLevelSeekFiltered)
+    };
+    let read = || {
+        db_options.get_ticker_count(Ticker::NonLastLevelSeekFilterMatch)
+            + db_options.get_ticker_count(Ticker::LastLevelSeekFilterMatch)
+    };
+
+    let (skipped_before, read_before) = (skipped(), read());
+    assert_eq!(
+        rows(map.safe_iter_with_prefix_from(&in_memtable, Bound::Excluded(&0u64))),
+        vec![((in_memtable, 1), 2)]
+    );
+    assert_eq!(skipped() - skipped_before, 1);
+    assert_eq!(read(), read_before);
+
+    let (skipped_before, read_before) = (skipped(), read());
+    assert_eq!(
+        rows(map.safe_iter_with_prefix_from(&in_file, Bound::Excluded(&0u64))),
+        vec![((in_file, 1), 1)]
+    );
+    assert_eq!(skipped(), skipped_before);
+    assert_eq!(read() - read_before, 1);
+
+    let (skipped_before, read_before) = (skipped(), read());
+    assert_eq!(
+        rows(map.safe_iter_with_prefix_reversed(&in_memtable)),
+        vec![((in_memtable, 1), 2)]
+    );
+    assert_eq!(skipped(), skipped_before);
+    assert_eq!(read(), read_before);
+}
+
+/// A scan within one prefix consults the memtable's prefix bloom filter. A
+/// reverse prefix scan seeks to the next prefix, so it must not, or the
+/// filter could reject the seek key's prefix and hide the rows.
+#[tokio::test]
+async fn prefix_scans_use_the_bloom_filter_only_within_a_prefix() {
+    use rocksdb::perf::{PerfContext, PerfMetric, PerfStatsLevel, set_perf_stats};
+
+    let tmp_dir = iota_common::tempdir();
+    let db = open_prefixed_map(tmp_dir.path());
+    populate_prefixed_map(&db);
+    // Rows of this id are in the file only, so the memtable's filter rejects
+    // its prefix.
+    let id = prefixed_id(2);
+    let mut perf = PerfContext::default();
+
+    set_perf_stats(PerfStatsLevel::EnableCount);
+    perf.reset();
+    let above = rows(db.safe_iter_with_prefix_from(&id, Bound::Excluded(&1u64)));
+    let memtable_misses = perf.metric(PerfMetric::BloomMemtableMissCount);
+    assert_eq!(above, vec![((id, 5), 5002), ((id, 9), 9002)]);
+    assert!(memtable_misses >= 1, "{memtable_misses}");
+
+    set_perf_stats(PerfStatsLevel::EnableCount);
+    perf.reset();
+    let highest = rows(db.safe_iter_with_prefix_reversed(&id))
+        .first()
+        .map(|(key, _)| *key);
+    let memtable_misses = perf.metric(PerfMetric::BloomMemtableMissCount);
+    set_perf_stats(PerfStatsLevel::Disable);
+    assert_eq!(highest, Some((id, 9)));
+    assert_eq!(memtable_misses, 0);
+}
+
+/// The seek mode decision for the bounds the prefix helpers produce.
+#[test]
+fn a_scan_seeks_within_a_prefix_only_when_its_bounds_stay_there() {
+    use crate::{
+        rocks::rocks_util::scan_stays_within_prefix,
+        util::{prefix_iterator_bounds, prefix_iterator_bounds_with_range},
+    };
+
+    let id = prefixed_id(7);
+    let within = |lower: &Option<Vec<u8>>, upper: &Option<Vec<u8>>, reverse| {
+        scan_stays_within_prefix(PREFIX_LEN, lower.as_deref(), upper.as_deref(), reverse)
+    };
+
+    // A forward prefix scan ends at the next prefix. A reverse one seeks to it.
+    let (lower, upper) = prefix_iterator_bounds(&id);
+    assert!(within(&lower, &upper, false));
+    assert!(!within(&lower, &upper, true));
+    let (lower, upper) = prefix_iterator_bounds_with_range::<_, u64>(
+        &id,
+        (Bound::Excluded(&3u64), Bound::Unbounded),
+    );
+    assert!(within(&lower, &upper, false));
+    assert!(!within(&lower, &upper, true));
+
+    // Both bounds in the prefix: either direction.
+    let (lower, upper) = prefix_iterator_bounds_with_range(&id, 2u64..9);
+    assert!(within(&lower, &upper, false));
+    assert!(within(&lower, &upper, true));
+
+    // The all-0xFF prefix has no next prefix and no upper bound.
+    let (lower, upper) = prefix_iterator_bounds(&[0xFF_u8; 32]);
+    assert!(upper.is_none());
+    assert!(!within(&lower, &upper, false));
+
+    // Scans across prefixes, and unbounded ones.
+    let other = prefixed_id(8);
+    let lower = Some(be_fix_int_ser(&(id, 5u64)));
+    let upper = Some(be_fix_int_ser(&(other, 6u64)));
+    assert!(!within(&lower, &upper, false));
+    assert!(!within(&lower, &upper, true));
+    assert!(!within(&None, &upper, false));
+    assert!(!within(&lower, &None, false));
 }

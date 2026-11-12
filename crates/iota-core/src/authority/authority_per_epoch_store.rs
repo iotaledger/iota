@@ -883,10 +883,11 @@ pub struct AuthorityEpochTables {
     /// version produced by a commit the handler assigned. Written by each
     /// commit's quarantine flush in the same batch as `last_consensus_stats`,
     /// and by the checkpoint executor in a separate batch just before each
-    /// checkpoint's outputs. Same
-    /// access profile as the lock table: one write per written object version
-    /// per commit, one point lookup per validated input.
-    #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
+    /// checkpoint's outputs. One write per written object version per
+    /// commit. Validation reads the row at an input's version by key, and
+    /// seeks the rows of the input's id above or below a version, so the
+    /// table is indexed by id as well as by key.
+    #[default_options_override_fn = "handler_processed_objects_table_default_config"]
     handler_processed_objects: DBMap<ObjectKey, HandlerProcessedObject>,
 
     /// The `Refuted` attestation totals of each commit that has any (see
@@ -1118,6 +1119,13 @@ fn pending_consensus_transactions_table_default_config() -> DBOptions {
     default_db_options()
         .optimize_for_write_throughput()
         .optimize_for_large_values_no_scan(1 << 10)
+}
+
+/// The lock table's options plus a prefix extractor over the object id, the
+/// leading [`ObjectId::LENGTH`] bytes of the serialized [`ObjectKey`].
+fn handler_processed_objects_table_default_config() -> DBOptions {
+    owned_object_locked_transactions_table_default_config()
+        .with_fixed_prefix_extractor(ObjectId::LENGTH)
 }
 
 impl AuthorityEpochTables {
