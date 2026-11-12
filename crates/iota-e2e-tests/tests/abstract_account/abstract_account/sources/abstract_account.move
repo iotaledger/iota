@@ -68,6 +68,12 @@ public fun add_dynamic_field<Name: copy + drop + store, Value: store>(
     self
 }
 
+/// The `UID` of the account being built, so that another package can attach a field whose
+/// key only the framework constructs.
+public fun account_uid_mut(self: &mut AbstractAccountBuilder): &mut UID {
+    &mut self.account.id
+}
+
 /// Finish building the `AbstractAccount` and share the object.
 public fun build(self: AbstractAccountBuilder) {
     let AbstractAccountBuilder { account, authenticator } = self;
