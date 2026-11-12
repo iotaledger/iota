@@ -27,6 +27,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "account",
             "address",
             "approval_message",
+            "authenticated_public_key",
             "authenticator_function",
             "authenticator_state",
             "auth_context",

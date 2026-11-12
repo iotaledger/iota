@@ -2209,6 +2209,33 @@ native_tx_inputs
 native_tx_commands
 	fun
 	0x2::auth_context
+AuthenticatedPublicKey
+	public struct
+	0x2::authenticated_public_key
+verify_for_new_smart_account
+	public fun
+	0x2::authenticated_public_key
+verify_for_existing_account
+	public fun
+	0x2::authenticated_public_key
+public_key
+	public fun
+	0x2::authenticated_public_key
+account
+	public fun
+	0x2::authenticated_public_key
+into_public_key_for_existing_account
+	public(package) fun
+	0x2::authenticated_public_key
+into_public_key_for_new_smart_account
+	public(package) fun
+	0x2::authenticated_public_key
+public_key_line
+	fun
+	0x2::authenticated_public_key
+check_builtin_authenticators_enabled
+	fun
+	0x2::authenticated_public_key
 AuthenticatorState
 	public struct
 	0x2::authenticator_state
