@@ -3422,6 +3422,7 @@ impl AuthorityPerEpochStore {
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         dependency_state: Option<&CommitDependencyState>,
+        authority_metrics: &AuthorityMetrics,
     ) -> SchedulingResult {
         // Defer transaction if it uses randomness but we aren't generating any this
         // round. Don't defer if DKG has failed or timed out for this commit; in
@@ -3454,7 +3455,8 @@ impl AuthorityPerEpochStore {
         // in that phase: the regular phase is assigned versions first, so a
         // dependent outside it would hold the lower version of a common object
         // while waiting for the higher one. There is no `dependency_state`
-        // only when no transaction of the commit has a dependency.
+        // only when no transaction of the commit has a dependency. The wait
+        // is a deferral for congestion, with the same limit.
         if let Some((dependency, dependency_state)) = transaction
             .data()
             .transaction()
@@ -3480,9 +3482,16 @@ impl AuthorityPerEpochStore {
                             .deferred_from_round()
                     })
                     .unwrap_or(commit_round);
+                debug!(
+                    ?dependency,
+                    "deferring the transaction until its dependency is scheduled"
+                );
+                authority_metrics
+                    .consensus_handler_dependency_deferred_transactions
+                    .inc();
                 let result = SchedulingResult::Defer(
                     DeferralKey::new_for_consensus_round(commit_round + 1, deferred_from_round),
-                    DeferralReason::WaitingForDependency(dependency),
+                    DeferralReason::Congestion(Vec::new()),
                 );
                 tracing::Span::current()
                     .record("scheduling_result", tracing::field::debug(&result));
@@ -3508,14 +3517,19 @@ impl AuthorityPerEpochStore {
                 SequencingResult::Defer(deferral_key, congested_objects) => {
                     SchedulingResult::Defer(
                         deferral_key,
-                        DeferralReason::SharedObjectCongestion(congested_objects),
+                        DeferralReason::Congestion(congested_objects),
                     )
                 }
                 SequencingResult::DeferForDependency(deferral_key, dependency) => {
-                    SchedulingResult::Defer(
-                        deferral_key,
-                        DeferralReason::WaitingForDependency(dependency),
-                    )
+                    debug!(
+                        ?dependency,
+                        "deferring the transaction until its dependency ends within a commit's \
+                         budget"
+                    );
+                    authority_metrics
+                        .consensus_handler_dependency_deferred_transactions
+                        .inc();
+                    SchedulingResult::Defer(deferral_key, DeferralReason::Congestion(Vec::new()))
                 }
                 SequencingResult::Schedule(start_time) => SchedulingResult::Schedule(start_time),
             }
@@ -6731,6 +6745,7 @@ impl AuthorityPerEpochStore {
                     previously_deferred_tx_digests,
                     shared_object_congestion_tracker,
                     dependency_state,
+                    authority_metrics,
                 );
 
                 self.handle_scheduling_result(
@@ -6987,6 +7002,7 @@ impl AuthorityPerEpochStore {
                     previously_deferred_tx_digests,
                     shared_object_congestion_tracker,
                     dependency_state,
+                    authority_metrics,
                 );
 
                 self.handle_scheduling_result(
@@ -7086,27 +7102,7 @@ impl AuthorityPerEpochStore {
                             suggested_gas_price: None,
                         }
                     }
-                    DeferralReason::WaitingForDependency(dependency) => {
-                        // No deferral limit of its own: the wait ends when the
-                        // dependency is scheduled, or cancelled after its own
-                        // limit. A suggested gas price from an earlier
-                        // congestion deferral is carried along.
-                        debug!(
-                            "Deferring verified executable transaction {:?} until its \
-                             dependency {dependency:?} is scheduled",
-                            verified_executable_tx.digest(),
-                        );
-                        authority_metrics
-                            .consensus_handler_dependency_deferred_transactions
-                            .inc();
-                        ConsensusTransactionResult::Deferred {
-                            deferral_key,
-                            suggested_gas_price: previously_deferred_tx_digests
-                                .get(verified_executable_tx.digest())
-                                .and_then(|(_, suggested_gas_price)| *suggested_gas_price),
-                        }
-                    }
-                    DeferralReason::SharedObjectCongestion(congested_objects) => {
+                    DeferralReason::Congestion(congested_objects) => {
                         authority_metrics
                             .consensus_handler_congested_transactions
                             .inc();
@@ -7155,12 +7151,13 @@ impl AuthorityPerEpochStore {
                         } else {
                             // Cancel the transaction that has been deferred for too long.
                             //
-                            // A deferral caused by execution-worker congestion reports no
-                            // congested objects. Cancellation is signalled through assigned
-                            // versions on the transaction's shared inputs, so treat all of
-                            // them as congested; the suggested gas price is what matters to
-                            // the client either way. A transaction without shared inputs is
-                            // handled in version assignment via its gas object instead.
+                            // A deferral caused by execution-worker congestion, or by a wait
+                            // for the transaction dependency, reports no congested objects.
+                            // Cancellation is signalled through assigned versions on the
+                            // transaction's shared inputs, so treat all of them as congested;
+                            // the suggested gas price is what matters to the client either
+                            // way. A transaction without shared inputs is handled in version
+                            // assignment via its gas object instead.
                             let congested_objects = if congested_objects.is_empty() {
                                 verified_executable_tx
                                     .shared_input_objects()

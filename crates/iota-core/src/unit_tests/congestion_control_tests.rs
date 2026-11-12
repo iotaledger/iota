@@ -2398,6 +2398,157 @@ async fn test_chain_through_an_owned_object_transaction_takes_no_free_gap_with_w
     chain_through_an_owned_object_transaction_takes_no_free_gap(Some(4)).await;
 }
 
+/// A chain of dependencies, each on its own object, advances one transaction
+/// per commit when the budget per object is one transaction. Waiting for a
+/// dependency is a deferral for congestion, so once the chain has waited past
+/// the deferral limit, none of it stays deferred: each transaction deferred
+/// for its dependency's end is cancelled, and a transaction depending on a
+/// cancelled one is scheduled.
+#[tokio::test]
+async fn test_dependency_chain_waits_no_longer_than_the_deferral_limit() {
+    telemetry_subscribers::init_for_testing();
+    const LENGTH: usize = 15;
+    let sequencing = SharedObjectSequencing::new(1, LENGTH, None).await;
+    let max_deferral_rounds = sequencing
+        .authority
+        .epoch_store_for_testing()
+        .protocol_config()
+        .max_deferral_rounds_for_congestion_control();
+    let rgp = TEST_ONLY_GAS_PRICE;
+    let objects: Vec<Object> = (0..LENGTH).map(|_| sequencing.shared_object()).collect();
+    let mut chain: Vec<VerifiedTransaction> = Vec::with_capacity(LENGTH);
+    for (index, object) in objects.iter().enumerate() {
+        let dependency = chain.last().map(|previous| *previous.digest());
+        chain.push(sequencing.transaction(index, &[object], rgp, dependency, false));
+    }
+    // Every transaction left after the first commit was first deferred there.
+    let deferred_since_round_1 =
+        |round, remaining: &[VerifiedTransaction]| -> PreviouslyDeferredTransactions {
+            remaining
+                .iter()
+                .map(|tx| {
+                    (
+                        *tx.digest(),
+                        (DeferralKey::new_for_consensus_round(round, 1), None),
+                    )
+                })
+                .collect()
+        };
+
+    let mut next = 0;
+    for round in 1..=max_deferral_rounds {
+        let previously_deferred = if round == 1 {
+            PreviouslyDeferredTransactions::default()
+        } else {
+            deferred_since_round_1(round, &chain[next..])
+        };
+        let (scheduled, _) = sequencing
+            .sequence(
+                chain[next..].iter().map(sequenced).collect(),
+                vec![],
+                previously_deferred,
+                round,
+                None,
+            )
+            .await;
+        assert_eq!(scheduled, vec![*chain[next].digest()]);
+        next += 1;
+    }
+
+    let round = max_deferral_rounds + 1;
+    let (scheduled, assigned) = sequencing
+        .sequence(
+            chain[next..].iter().map(sequenced).collect(),
+            vec![],
+            deferred_since_round_1(round, &chain[next..]),
+            round,
+            None,
+        )
+        .await;
+    assert_eq!(
+        scheduled.into_iter().collect::<BTreeSet<_>>(),
+        chain[next..].iter().map(|tx| *tx.digest()).collect()
+    );
+    for index in next..LENGTH {
+        let version = assigned_version(&assigned, &chain[index], objects[index].id()).unwrap();
+        let cancelled = (index - next) % 2 == 1;
+        assert_eq!(version.is_congested(), cancelled, "transaction {index}");
+        if cancelled {
+            assert_eq!(
+                version.get_congested_version_suggested_gas_price().unwrap(),
+                rgp
+            );
+        }
+    }
+}
+
+/// A transaction waiting for a dependency that is still deferred is cancelled
+/// once its own deferral would pass the limit, like any deferral for
+/// congestion: through its shared inputs, or through its gas object when it
+/// has none. The dependency, deferred until randomness is available, stays
+/// deferred.
+#[tokio::test]
+async fn test_dependent_of_a_deferred_dependency_is_cancelled_past_the_deferral_limit() {
+    telemetry_subscribers::init_for_testing();
+    let sequencing = SharedObjectSequencing::new(2, 3, None).await;
+    let max_deferral_rounds = sequencing
+        .authority
+        .epoch_store_for_testing()
+        .protocol_config()
+        .max_deferral_rounds_for_congestion_control();
+    let rgp = TEST_ONLY_GAS_PRICE;
+    let common = sequencing.shared_object();
+    let other = sequencing.shared_object();
+    let dependency = sequencing.transaction(0, &[&common], rgp, None, true);
+    let shared_dependent =
+        sequencing.transaction(1, &[&other], rgp, Some(*dependency.digest()), false);
+    let owned_dependent = sequencing.transaction(2, &[], rgp, Some(*dependency.digest()), false);
+
+    // All three were first deferred at round 1.
+    let round = max_deferral_rounds + 1;
+    let previously_deferred = [
+        (
+            *dependency.digest(),
+            (DeferralKey::new_for_randomness(1), None),
+        ),
+        (
+            *shared_dependent.digest(),
+            (DeferralKey::new_for_consensus_round(round, 1), None),
+        ),
+        (
+            *owned_dependent.digest(),
+            (DeferralKey::new_for_consensus_round(round, 1), None),
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let (scheduled, assigned) = sequencing
+        .sequence(
+            vec![sequenced(&shared_dependent), sequenced(&owned_dependent)],
+            vec![sequenced(&dependency)],
+            previously_deferred,
+            round,
+            None,
+        )
+        .await;
+
+    assert_eq!(
+        scheduled.into_iter().collect::<BTreeSet<_>>(),
+        BTreeSet::from([*shared_dependent.digest(), *owned_dependent.digest()])
+    );
+    for (transaction, cancelled_object) in [
+        (&shared_dependent, other.id()),
+        (&owned_dependent, sequencing.gas_ids[2]),
+    ] {
+        let version = assigned_version(&assigned, transaction, cancelled_object).unwrap();
+        assert!(version.is_congested(), "{version:?}");
+        assert_eq!(
+            version.get_congested_version_suggested_gas_price().unwrap(),
+            rgp
+        );
+    }
+}
+
 /// With the combined tracker, a dependent outside the randomness phase is
 /// deferred when its dependency is a root of that phase at the same commit:
 /// the regular phase is assigned versions first, so the dependent would

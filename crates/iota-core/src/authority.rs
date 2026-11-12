@@ -881,7 +881,7 @@ impl AuthorityMetrics {
             ).unwrap(),
             consensus_handler_dependency_deferred_transactions: register_int_counter_with_registry!(
                 "consensus_handler_dependency_deferred_transactions",
-                "Number of transactions deferred by consensus handler until the transaction they depend on is scheduled",
+                "Number of times the consensus handler deferred a transaction for the transaction it depends on",
                 registry,
             ).unwrap(),
             consensus_handler_cancelled_transactions: register_int_counter_with_registry!(
