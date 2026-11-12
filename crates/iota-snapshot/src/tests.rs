@@ -1626,13 +1626,29 @@ fn object_file_paths(remote_dir: &std::path::Path) -> Result<Vec<PathBuf>, anyho
     Ok(paths)
 }
 
-/// Writes a snapshot of several partitions, none of them without objects.
+/// Writes a snapshot of 60 immutable objects in several partitions, none of
+/// them without objects.
 async fn write_several_partitions_snapshot(
     tmp_dir: &std::path::Path,
 ) -> Result<WrittenSnapshot, anyhow::Error> {
+    write_several_partitions_snapshot_of(tmp_dir, |db| insert_keys(db, 60)).await
+}
+
+/// Like [`write_several_partitions_snapshot`], with the objects put into the
+/// source tables by `populate`.
+async fn write_several_partitions_snapshot_of(
+    tmp_dir: &std::path::Path,
+    populate: impl FnOnce(&AuthorityPerpetualTables) -> Result<(), anyhow::Error>,
+) -> Result<WrittenSnapshot, anyhow::Error> {
     /// Small enough that a few dozen test objects span several object files.
     const SMALL_FILE_MAX_BYTES: usize = 1024;
-    let snapshot = write_snapshot(tmp_dir, 60, FileCompression::Zstd, SMALL_FILE_MAX_BYTES).await?;
+    let snapshot = write_snapshot_of(
+        tmp_dir,
+        FileCompression::Zstd,
+        SMALL_FILE_MAX_BYTES,
+        populate,
+    )
+    .await?;
     assert!(
         snapshot.num_partitions >= 6,
         "the fixture must span several partitions, got {}",
@@ -2540,6 +2556,10 @@ async fn a_wrong_checksum_is_an_error_and_writes_nothing_to_the_perpetual_tables
             0,
             "nothing is written to the perpetual tables"
         );
+        assert!(
+            db.live_owned_object_markers_test_only()?.is_empty(),
+            "no live owned object marker is written"
+        );
     }
 
     plain_db
@@ -2554,5 +2574,57 @@ async fn a_wrong_checksum_is_an_error_and_writes_nothing_to_the_perpetual_tables
             snapshot.num_objects
         );
     }
+    Ok(())
+}
+
+/// The restore must give every live object that is not a child object a live
+/// owned object marker, and no other object one. Compares with what the test
+/// put into the source, not with a second restore.
+#[tokio::test]
+async fn restored_live_owned_object_markers_match_the_source_objects() -> Result<(), anyhow::Error>
+{
+    let dir = iota_common::tempdir();
+    let mut with_markers = Vec::new();
+    let mut without_markers = Vec::new();
+    let snapshot = write_several_partitions_snapshot_of(dir.path(), |db| {
+        let mut id = ObjectId::ZERO;
+        for i in 0..60u16 {
+            let object = match i % 3 {
+                0 => Object::immutable_with_id_for_testing(id),
+                1 => Object::with_id_owner_for_testing(id, Address::from_u16(7)),
+                // Owned by an object, so it is a child object.
+                _ => Object::with_object_owner_for_testing(id, ObjectId::ZERO),
+            };
+            db.insert_store_object_v2_test_only(object.clone(), Some(0))?;
+            if i % 3 == 2 {
+                without_markers.push(object.object_ref());
+            } else {
+                with_markers.push(object.object_ref());
+            }
+            id = id.next_lexicographical();
+        }
+        // Shared objects get a marker too.
+        for _ in 0..3 {
+            let object = Object::shared_for_testing();
+            db.insert_store_object_v2_test_only(object.clone(), Some(0))?;
+            with_markers.push(object.object_ref());
+        }
+        Ok(())
+    })
+    .await?;
+    let mut reader = snapshot.reader(snapshot.store(), 2).await?;
+    let restored_db = AuthorityPerpetualTables::open(&dir.path().join("restored_db"), None);
+    read_with_partial_hashes(&mut reader, &restored_db).await?;
+
+    let markers: HashSet<_> = restored_db
+        .live_owned_object_markers_test_only()?
+        .into_iter()
+        .collect();
+    assert_eq!(markers, with_markers.into_iter().collect::<HashSet<_>>());
+    assert!(
+        without_markers
+            .iter()
+            .all(|object| !markers.contains(object))
+    );
     Ok(())
 }
