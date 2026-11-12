@@ -827,8 +827,8 @@ pub async fn validate_and_resolve_conflicts(
         // The validated set comes from loaded objects, so unlike the
         // byte-derived `owned_inputs` it excludes immutable inputs, which must
         // never be locked (see the module docs). It is a subset of `owned_inputs`,
-        // so every reference locked here was probed by Check #4 first, as was
-        // a claim's lock.
+        // so every reference locked here was probed by Check #5 first. A
+        // claim's lock was probed by the claim lock check that follows it.
         for obj_ref in validated_owned_objects.iter().chain(claim_lock.as_ref()) {
             current_commit_locks.insert(*obj_ref, digest);
         }

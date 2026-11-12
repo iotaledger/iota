@@ -13495,3 +13495,378 @@ async fn claim_with_an_explicit_sponsor_is_dropped_for_good() {
         .expect("the decision is saved");
     assert_eq!(saved.decision, PostConsensusDecision::Dropped);
 }
+
+/// A claim kept at commit 1 moves its lock to the lock table when commit 1
+/// flushes, where it still drops a second claim of the address that the
+/// horizon cannot see yet.
+#[tokio::test]
+async fn claim_lock_in_the_lock_table_drops_a_second_claim() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas = [ObjectId::random(), ObjectId::random()];
+    let s = setup_handler_object_state(
+        gas.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        true,
+    )
+    .await;
+    let first = s.build_claim(sender, &key, &gas[0]);
+    let scheduled = s.process_at(1, std::slice::from_ref(&first)).await;
+    assert_eq!(scheduled.len(), 1);
+    let effects = s.execute(first.clone());
+    let height = s
+        .checkpoint_roots()
+        .into_iter()
+        .map(|(height, _)| height)
+        .max()
+        .expect("commit 1 has a pending checkpoint");
+    s.epoch_store
+        .flush_pushed_commits_for_testing(height, 1, vec![*effects.transaction_digest()])
+        .unwrap();
+    assert_eq!(
+        s.epoch_store
+            .get_quarantined_owned_object_lock(&claim_lock(sender)),
+        None
+    );
+    assert_eq!(
+        s.epoch_store
+            .tables()
+            .unwrap()
+            .get_locked_transaction(&claim_lock(sender))
+            .unwrap(),
+        Some(*first.digest())
+    );
+
+    let second = s.build_claim(sender, &key, &gas[1]);
+    let result = s.validate_at(2, std::slice::from_ref(&second)).await;
+    assert!(result.kept.is_empty(), "{:?}", result.kept);
+    assert_eq!(
+        result.dropped,
+        vec![(*second.digest(), already_explicit(sender))]
+    );
+}
+
+/// A kept claim that has not executed keeps its lock however far the horizon
+/// moves, so a second claim of the address is dropped. The lock ends with the
+/// epoch: in the next one, the address, never claimed, can be claimed.
+#[tokio::test]
+async fn claim_lock_counts_until_the_epoch_ends() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas = [ObjectId::random(), ObjectId::random()];
+    let mut s = setup_handler_object_state(
+        gas.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        true,
+    )
+    .await;
+    let first = s.build_claim(sender, &key, &gas[0]);
+    let scheduled = s.process_at(1, std::slice::from_ref(&first)).await;
+    assert_eq!(scheduled.len(), 1);
+
+    let second = s.build_claim(sender, &key, &gas[1]);
+    let result = s
+        .validate_at(s.horizon_distance() + 10, std::slice::from_ref(&second))
+        .await;
+    assert!(result.kept.is_empty(), "{:?}", result.kept);
+    assert_eq!(
+        result.dropped,
+        vec![(*second.digest(), already_explicit(sender))]
+    );
+
+    s.advance_epoch().await;
+    let retried = s.build_claim(sender, &key, &gas[1]);
+    let result = s.validate_at(1, std::slice::from_ref(&retried)).await;
+    assert_eq!(result.kept, vec![*retried.digest()]);
+}
+
+/// With an execution worker limit and no deferral allowance, congestion
+/// control cancels one of two claims kept at a commit. Its lock still holds
+/// until the epoch ends, so its address cannot be claimed again in that
+/// epoch, which is why no version accepts claims together with that limit
+/// (see `every_kept_claim_account_can_execute` in `iota-protocol-config`).
+#[tokio::test]
+async fn claim_cancelled_by_worker_congestion_keeps_its_lock() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_per_object_congestion_control_mode_for_testing(
+            iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_concurrent_execution_workers_for_testing(1);
+        config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
+        config
+    });
+    let accounts: Vec<(Address, AccountPrivateKey, ObjectId, ObjectId)> = (0..2)
+        .map(|_| {
+            let (address, key): (Address, AccountPrivateKey) = get_key_pair();
+            (address, key, ObjectId::random(), ObjectId::random())
+        })
+        .collect();
+    let s = setup_handler_object_state_with_config_guard(
+        accounts
+            .iter()
+            .flat_map(|(address, _, gas, retry_gas)| {
+                [
+                    Object::with_id_owner_for_testing(*gas, *address),
+                    Object::with_id_owner_for_testing(*retry_gas, *address),
+                ]
+            })
+            .collect(),
+        Some(guard),
+    )
+    .await;
+    let claims: Vec<_> = accounts
+        .iter()
+        .map(|(address, key, gas, _)| s.build_claim(*address, key, gas))
+        .collect();
+
+    let (scheduled, assigned_versions) = s.process_at_with_versions(1, &claims).await;
+    assert_eq!(
+        scheduled.len(),
+        2,
+        "both claims are scheduled, one cancelled"
+    );
+    let assigned_versions = assigned_versions.into_map();
+    let cancelled = claims
+        .iter()
+        .filter(|claim| {
+            assigned_versions
+                .get(&TransactionKey::Digest(*claim.digest()))
+                .is_some_and(|versions| {
+                    versions
+                        .iter()
+                        .any(|assignment| assignment.version.is_congested())
+                })
+        })
+        .count();
+    assert_eq!(cancelled, 1, "one claim is cancelled");
+    for ((address, ..), claim) in accounts.iter().zip(&claims) {
+        assert_eq!(
+            s.epoch_store
+                .get_quarantined_owned_object_lock(&claim_lock(*address)),
+            Some(*claim.digest())
+        );
+    }
+
+    let retries: Vec<_> = accounts
+        .iter()
+        .map(|(address, key, _, retry_gas)| s.build_claim(*address, key, retry_gas))
+        .collect();
+    let result = s.validate_at(s.horizon_distance() + 10, &retries).await;
+    assert!(result.kept.is_empty(), "{:?}", result.kept);
+    assert_eq!(
+        result.dropped,
+        accounts
+            .iter()
+            .zip(&retries)
+            .map(|((address, ..), retried)| (*retried.digest(), already_explicit(*address)))
+            .collect::<Vec<_>>()
+    );
+}
+
+/// No object has a claim lock's reference, so a transaction that names one as
+/// an owned input is never kept and never holds the lock. With no claim of
+/// the address, the input is reported as not visible yet. Before a claim in
+/// the same commit, it is dropped and the claim still takes the lock. Once a
+/// claim holds the lock, it is dropped on it.
+#[tokio::test]
+async fn transaction_naming_a_claim_lock_as_an_owned_input_never_takes_it() {
+    let (victim, victim_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (attacker, attacker_key): (Address, AccountPrivateKey) = get_key_pair();
+    let [claim_gas, attacker_gas] = [ObjectId::random(), ObjectId::random()];
+    let s = setup_handler_object_state(
+        vec![
+            Object::with_id_owner_for_testing(claim_gas, victim),
+            Object::with_id_owner_for_testing(attacker_gas, attacker),
+        ],
+        true,
+    )
+    .await;
+    let naming_the_lock = s
+        .epoch_store
+        .verify_transaction(make_transfer_object_transaction(
+            claim_lock(victim),
+            s.latest_ref(&attacker_gas),
+            attacker,
+            &attacker_key,
+            Address::random(),
+            s.rgp,
+        ))
+        .unwrap();
+    let claim = s.build_claim(victim, &victim_key, &claim_gas);
+
+    let result = s
+        .validate_at(1, std::slice::from_ref(&naming_the_lock))
+        .await;
+    assert!(result.kept.is_empty(), "{:?}", result.kept);
+    assert!(result.locks.is_empty(), "{:?}", result.locks);
+    assert_eq!(
+        s.epoch_store
+            .post_consensus_decision(1, *naming_the_lock.digest())
+            .unwrap()
+            .map(|saved| saved.decision),
+        Some(PostConsensusDecision::DroppedInputNotVisibleYet)
+    );
+
+    let scheduled = s
+        .process_at(2, &[naming_the_lock.clone(), claim.clone()])
+        .await;
+    assert_eq!(
+        scheduled.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
+        vec![*claim.digest()]
+    );
+    assert_eq!(
+        s.epoch_store
+            .get_quarantined_owned_object_lock(&claim_lock(victim)),
+        Some(*claim.digest())
+    );
+
+    let result = s
+        .validate_at(3, std::slice::from_ref(&naming_the_lock))
+        .await;
+    assert!(result.kept.is_empty(), "{:?}", result.kept);
+    assert_eq!(
+        result.dropped,
+        vec![(
+            *naming_the_lock.digest(),
+            IotaError::ObjectLockConflict {
+                obj_ref: claim_lock(victim),
+                pending_transaction: *claim.digest(),
+            }
+        )]
+    );
+    assert!(result.locks.is_empty(), "{:?}", result.locks);
+}
+
+/// A plain-signed transaction kept before a claim of its sender and deferred
+/// is kept again after the claim without being validated again: the rule
+/// against plain signatures holds only for decisions made once the claim is
+/// kept. The same transaction validated anew after the claim is dropped. In a
+/// version without an execution worker limit only a transaction with a shared
+/// input can be deferred; the test hands the transfer to validation as
+/// previously deferred, which is all the skip looks at.
+#[tokio::test]
+async fn deferred_plain_signed_transaction_is_kept_after_a_claim() {
+    let (s, sender, key, [claim_gas, object, gas]) = setup_claim_and_transfer().await;
+    let claim = s.build_claim(sender, &key, &claim_gas);
+    let transfer = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    let scheduled = s.process_at(1, std::slice::from_ref(&claim)).await;
+    assert_eq!(scheduled.len(), 1);
+
+    let previously_deferred = std::collections::HashMap::from([(
+        *transfer.digest(),
+        (
+            crate::authority::transaction_deferral::DeferralKey::new_for_consensus_round(2, 1),
+            None,
+        ),
+    )]);
+    let mut transactions = vec![make_user_tx_v1_verified(transfer.clone())];
+    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &s.authority,
+        &s.epoch_store,
+        2,
+        &previously_deferred,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+    assert!(dropped.is_empty(), "{dropped:?}");
+    assert_eq!(transactions.len(), 1);
+    assert!(locks.is_empty());
+
+    let result = s.validate_at(3, std::slice::from_ref(&transfer)).await;
+    assert!(result.kept.is_empty(), "{:?}", result.kept);
+    assert_eq!(
+        result.dropped,
+        vec![(*transfer.digest(), plain_signature_for(sender))]
+    );
+}
+
+/// The costliest claim the validity check accepts at its smallest budget:
+/// the largest MultiSig key, of Secp256r1 members, paid with the most gas
+/// coins a transaction may name, none with a storage rebate, at the highest
+/// gas price. It is kept and creates its account within the computation
+/// bound the budget assumes.
+#[tokio::test]
+async fn claim_at_the_gas_floor_with_the_most_gas_coins_succeeds() {
+    use iota_sdk_crypto::{Signer, secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair};
+    use iota_sdk_types::{
+        SignatureScheme, SmartAccountClaim,
+        crypto::{
+            Intent, IntentMessage, MULTISIG_COMMITTEE_SIZE_MAX, MultisigAggregatedSignature,
+            MultisigCommittee, MultisigMember, SimpleSignature,
+        },
+    };
+    use iota_types::account_abstraction::public_key::MovePublicKey;
+    use rand::{SeedableRng, rngs::StdRng};
+
+    let mut rng = StdRng::from_seed([7; 32]);
+    let keys: Vec<Secp256r1PrivateKey> = (0..MULTISIG_COMMITTEE_SIZE_MAX)
+        .map(|_| Secp256r1PrivateKey::random_with(&mut rng))
+        .collect();
+    let committee = MultisigCommittee::new(
+        keys.iter()
+            .map(|key| MultisigMember::new(key.public_key(), 1))
+            .collect(),
+        1,
+    )
+    .unwrap();
+    let claim = SmartAccountClaim::new_multisig(&committee);
+    let sender = MovePublicKey::new(
+        SignatureScheme::Multisig,
+        claim.public_key_raw_bytes.clone(),
+    )
+    .unwrap()
+    .address()
+    .unwrap();
+    let max_gas_payment_objects =
+        ProtocolConfig::get_for_max_version_UNSAFE().max_gas_payment_objects() as usize;
+    let gas: Vec<ObjectId> = (0..max_gas_payment_objects - 1)
+        .map(|_| ObjectId::random())
+        .collect();
+    let s = setup_handler_object_state(
+        gas.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        true,
+    )
+    .await;
+    let config = s.epoch_store.protocol_config();
+    let gas_price = config.max_gas_price();
+    let budget = iota_types::transaction::claim_account_min_gas_budget(
+        config,
+        gas_price,
+        claim.public_key_raw_bytes.len() as u64,
+    );
+    let tx = Transaction::new_with_gas_coins(
+        iota_sdk_types::TransactionKind::new_claim_account(
+            iota_sdk_types::ClaimAccountTransaction::new_smart_account(claim),
+        ),
+        sender,
+        gas.iter().map(|id| s.latest_ref(id)).collect(),
+        budget,
+        gas_price,
+    );
+    let signature: SimpleSignature = SimpleKeypair::from(keys[0].clone())
+        .sign(&IntentMessage::new(Intent::iota_transaction(), tx.clone()).signing_digest());
+    let multisig = MultisigAggregatedSignature::new(vec![signature.into()], committee).unwrap();
+    let claim = s
+        .epoch_store
+        .verify_transaction(TransactionEnvelope::from_user_sig_data(
+            tx,
+            vec![UserSignature::Multisig(multisig)],
+        ))
+        .unwrap();
+
+    let result = s.validate_at(1, std::slice::from_ref(&claim)).await;
+    assert_eq!(result.kept, vec![*claim.digest()]);
+    let effects = s.execute_claim_with_assigned_commit(claim, 1);
+    assert!(
+        effects.gas_cost_summary().computation_cost
+            <= config.claim_account_max_computation_units() * gas_price,
+        "{:?}",
+        effects.gas_cost_summary()
+    );
+}
