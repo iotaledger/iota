@@ -23,9 +23,8 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
-    effects::TransactionEffectsAPI,
     error::UserInputError,
-    gas::{IotaGasStatus, IotaGasStatusAPI},
+    gas::IotaGasStatus,
     layout_resolver::LayoutResolver,
     move_authenticator::MoveAuthenticatorExt,
     object::bounded_visitor::BoundedVisitor,
@@ -109,11 +108,9 @@ pub(super) fn prepare_transaction(
 ///
 /// Every `MoveAuthenticator` on the transaction is resolved and executed — the
 /// sender's and, for a sponsored transaction, the sponsor's. A successful run
-/// implies all of them accepted. On a failed run the failure may come from any
-/// authenticator or from the transaction body, so the authenticators are
-/// re-executed alone for an unambiguous outcome: `Err` if any rejected, `Ok` if
-/// they all passed and the body was at fault. The re-run is sound — the
-/// authentication phase discards writes.
+/// implies all of them accepted. The outcome is the engine's authentication
+/// error: `Err` if any rejected, `Ok` if they all passed, even when the body
+/// failed.
 pub(super) fn execute_with_move_authenticators(
     env: &ExecutionEnv,
     store: &dyn BackingStore,
@@ -137,10 +134,6 @@ pub(super) fn execute_with_move_authenticators(
         mock_gas_id,
         ..
     } = prepared;
-    // Captured before `gas_status` is consumed so the re-run below can meter at
-    // the same budget as the combined run.
-    let run_gas_budget = gas_status.gas_budget();
-
     // Resolve every authenticator, then union each one's inputs into the
     // transaction's checked inputs, enforcing consistency (matching object read
     // results, compatible shared-object kinds) for ids that appear in more than
@@ -189,7 +182,7 @@ pub(super) fn execute_with_move_authenticators(
         })
         .collect::<Vec<_>>();
 
-    let (inner_temp_store, _, effects, _timings, execution_result, _) = env
+    let (inner_temp_store, _, effects, _timings, execution_result, authentication_error) = env
         .executor
         .authenticate_then_execute_transaction_to_effects(
             store,
@@ -207,44 +200,11 @@ pub(super) fn execute_with_move_authenticators(
             kind,
             signer,
             transaction.digest(),
-            auth_context_data.clone(),
+            auth_context_data,
             trace_builder_opt,
         );
 
-    let authenticator_outcome = if effects.status().is_success() {
-        Ok(())
-    } else if effects.status().error_command().is_some_and(|cmd| cmd > 0) {
-        // The authenticators run as a fake command 0, so a failure in any later
-        // command is a transaction-body abort, never an authentication
-        // rejection: the authenticators passed. Skip the re-run.
-        // TODO(https://github.com/iotaledger/iota/issues/11986): once the fake
-        // command-0 mapping is resolved an authentication rejection becomes
-        // unambiguous and this whole re-run branch can be removed.
-        Ok(())
-    } else {
-        // The failure is in command 0 or unattributed, so it may be an
-        // authentication rejection or a body abort. Re-run the authenticators
-        // alone to tell them apart. Meter at the same budget the combined run
-        // shared between the authenticators and body (the full transaction
-        // budget outside `DevInspect`, matching the node's post-consensus
-        // execution), so the re-run never reports a rejection for a run the
-        // combined execution had enough gas for.
-        let rerun_gas_status = IotaGasStatus::new(
-            run_gas_budget,
-            transaction.gas_price(),
-            env.reference_gas_price,
-            &env.protocol_config,
-        )
-        .map_err(|e| ValidationError::new("authenticator re-run gas status", e))?;
-        authenticate_only(
-            env,
-            store,
-            &transaction,
-            &prepared_auths,
-            rerun_gas_status,
-            auth_context_data,
-        )?
-    };
+    let authenticator_outcome = authentication_error.map_or(Ok(()), |kind| Err(kind.into()));
 
     // The authenticator engine entry point does not return per-command
     // results, so a signed `MoveAuthenticator` run carries none.
@@ -328,9 +288,8 @@ pub(super) fn build_auth_context_data(
 }
 
 /// Run `authenticate_transaction` over `auths_to_run` under `gas_status`,
-/// returning the aggregate outcome (`Err` if any authenticator rejected). Used
-/// to disambiguate a failed combined run and, on its own, to model the node's
-/// pre-consensus signing check.
+/// returning the aggregate outcome (`Err` if any authenticator rejected).
+/// Models the node's pre-consensus signing check.
 pub(super) fn authenticate_only(
     env: &ExecutionEnv,
     store: &dyn BackingStore,

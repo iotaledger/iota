@@ -62,24 +62,6 @@ async fn a_checkpoint_and_its_contents_are_read_from_their_epoch_bucket() {
         Some(contents_digest)
     );
 
-    // Neither flat table holds them.
-    assert!(
-        store
-            .tables
-            .checkpoint_by_digest
-            .get(checkpoint.digest())
-            .unwrap()
-            .is_none()
-    );
-    assert!(
-        store
-            .tables
-            .checkpoint_content
-            .get(&contents_digest)
-            .unwrap()
-            .is_none()
-    );
-
     // The store's own readers resolve both through the bucket.
     assert_eq!(
         store

@@ -605,17 +605,9 @@ impl<B: BucketReopen + Send + Sync + 'static> EpochBuckets<B> {
         self.earliest_retained_epoch.load(Ordering::Relaxed)
     }
 
-    /// The directory this store's buckets keep their files under: the bucket
-    /// root, or the database directory for a store without one.
-    pub(crate) fn files_dir(&self) -> PathBuf {
-        match &self.paths {
-            Some(paths) => paths.root.clone(),
-            None => self.db.path_for_pruning().to_path_buf(),
-        }
-    }
-
     /// The options a bucket's column family is created with, which SST files
     /// ingested into it must be written with.
+    #[cfg(test)]
     pub(crate) fn cf_options(&self) -> &rocksdb::Options {
         &self.cf_options
     }

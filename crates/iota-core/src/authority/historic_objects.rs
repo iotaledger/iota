@@ -11,7 +11,7 @@ use std::{
     collections::BTreeMap,
     path::Path,
     sync::{
-        Arc, OnceLock,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -21,7 +21,6 @@ use iota_types::{
     committee::EpochId,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
-    messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
     storage::{ObjectKey, ObjectStore},
 };
@@ -165,14 +164,6 @@ pub struct HistoricObjects {
     /// The live objects table of the same database, which holds the
     /// tombstones of every bucket that has not expired.
     objects: DBMap<ObjectKey, StoreObjectWrapper>,
-    /// The checkpoint through which the objects pruner of earlier releases
-    /// deleted superseded versions, `None` on a database it never ran on.
-    pub(crate) objects_pruned_through: Option<CheckpointSequenceNumber>,
-    /// Set once the one-time backlog sweep is done; see
-    /// [`Self::backlog_swept`].
-    backlog_swept: AtomicBool,
-    /// See [`Self::backlog_sweep_epoch`].
-    backlog_sweep_epoch: OnceLock<EpochId>,
     /// Set by [`Self::stop`].
     stopping: AtomicBool,
 
@@ -285,28 +276,10 @@ impl HistoricObjects {
         Ok(Self {
             buckets,
             objects,
-            objects_pruned_through: None,
-            backlog_swept: AtomicBool::new(false),
-            backlog_sweep_epoch: OnceLock::new(),
             stopping: AtomicBool::new(false),
             #[cfg(test)]
             bucket_walks: std::sync::atomic::AtomicU64::new(0),
         })
-    }
-
-    /// Whether the live `objects` table holds no superseded version, so that a
-    /// live version that is not a tombstone is newer than every version
-    /// relocated for its object. Until the one-time backlog sweep is done, a
-    /// version it has yet to relocate can sit in the live table below a newer
-    /// relocated one.
-    pub(crate) fn backlog_swept(&self) -> bool {
-        self.backlog_swept.load(Ordering::Acquire)
-    }
-
-    /// Records that the live `objects` table holds no superseded version. Call
-    /// this only once that is persisted; see [`Self::backlog_swept`].
-    pub(crate) fn mark_backlog_swept(&self) {
-        self.backlog_swept.store(true, Ordering::Release);
     }
 
     /// Stops an expiry in progress at its next batch of tombstones, for a
@@ -316,21 +289,6 @@ impl HistoricObjects {
         self.stopping.store(true, Ordering::Release);
     }
 
-    /// The epoch whose bucket the one-time backlog sweep moved the versions
-    /// superseded before the upgrade into, `None` if no sweep ran. Besides
-    /// that epoch's own versions, the bucket holds every version superseded
-    /// since [`Self::objects_pruned_through`].
-    pub(crate) fn backlog_sweep_epoch(&self) -> Option<EpochId> {
-        self.backlog_sweep_epoch.get().copied()
-    }
-
-    /// Records the epoch the sweep moved the backlog into; see
-    /// [`Self::backlog_sweep_epoch`]. Call this only once that is persisted.
-    pub(crate) fn record_backlog_sweep_epoch(&self, epoch: EpochId) {
-        let _ = self.backlog_sweep_epoch.set(epoch);
-    }
-
-    /// How many bucket walks [`Self::find_lt_or_eq_version`] has done.
     #[cfg(test)]
     pub(crate) fn bucket_walks(&self) -> u64 {
         self.bucket_walks.load(Ordering::Relaxed)
@@ -398,9 +356,10 @@ impl HistoricObjects {
     /// for `epoch`. Reads only that bucket, so the answer does not depend on
     /// how many epochs the node retains.
     ///
-    /// On a node whose one-time backlog sweep ran in `epoch`, that bucket also
-    /// holds the versions superseded before the sweep, so for that epoch alone
-    /// `true` does not mean superseded in `epoch`.
+    /// One exception: a node upgraded from a release before the per-epoch
+    /// history buckets (1.36) moved every version superseded before the
+    /// upgrade into the bucket of the epoch it upgraded in. For that epoch,
+    /// `true` can also mean the version was superseded before the upgrade.
     pub fn relocated_in_epoch(&self, epoch: EpochId, key: &ObjectKey) -> IotaResult<bool> {
         let Some(bucket) = self.buckets.get(epoch) else {
             return Ok(false);
@@ -579,8 +538,7 @@ impl HistoricObjects {
 
         // A version left below a tombstone in the live table would become the
         // newest again once the tombstone is deleted, bringing the object
-        // back. That only happens where the backlog sweep did not relocate it,
-        // so such a tombstone is kept. Tombstones below it don't count: an
+        // back, so such a tombstone is kept. Tombstones below it don't count: an
         // object wrapped and deleted in one epoch leaves two in this bucket.
         //
         // The bucket lists its tombstones by object, so each object's live
@@ -643,8 +601,7 @@ impl HistoricObjects {
                 epoch,
                 kept,
                 "kept tombstones that still have a live version below them: those \
-                 objects were superseded before this build and the backlog sweep did not \
-                 relocate them. They stay deleted, which is why the tombstones stay too"
+                 objects stay deleted, which is why the tombstones stay too"
             );
         }
         info!(

@@ -637,14 +637,6 @@ pub async fn setup_db_state(
     .unwrap();
     perpetual_db.set_epoch_start_configuration(&epoch_start_configuration)?;
     perpetual_db.insert_root_state_hash(epoch, last_checkpoint.sequence_number, state_hash)?;
-    // A restore holds only the live object set, writes no ledger rows, and
-    // puts its checkpoints in their epoch's bucket, so the one-time backlog
-    // passes have nothing to find.
-    // TODO(https://github.com/iotaledger/iota/issues/12712): remove with the sweep.
-    perpetual_db.mark_object_backlog_swept()?;
-    // TODO(https://github.com/iotaledger/iota/issues/12763): remove with the migration.
-    perpetual_db.mark_ledger_backlog_migrated()?;
-    checkpoint_store.mark_checkpoint_backlog_migrated()?;
     committee_store.insert_new_committee(&next_epoch_committee)?;
     checkpoint_store.update_highest_executed_checkpoint(&last_checkpoint)?;
 

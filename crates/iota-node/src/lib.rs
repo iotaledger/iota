@@ -34,7 +34,6 @@ use iota_core::{
         authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
-        ledger_backlog_migration, object_backlog_sweep,
         shared_object_version_manager::Schedulable,
     },
     authority_aggregator::{
@@ -71,7 +70,7 @@ use iota_core::{
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{consensus_queue_overload_monitor, overload_monitor},
     rpc_indexes::{
-        RpcIndexesStore, legacy_index_dirs_size, remove_legacy_index_dirs,
+        RpcIndexesStore,
         schema::{IndexGroup, RPC_INDEXES_DIR},
     },
     safe_client::SafeClientMetricsBase,
@@ -286,27 +285,6 @@ impl fmt::Debug for IotaNode {
     }
 }
 
-/// Removes the `db_checkpoints` directory earlier releases wrote under the
-/// node's `db-path`. A failure is logged, not returned.
-// TODO(#12968): remove once a release containing this has shipped.
-fn remove_legacy_db_checkpoints(config: &NodeConfig) {
-    let path = config.db_path.join("db_checkpoints");
-    if !path.exists() {
-        return;
-    }
-    match std::fs::remove_dir_all(&path) {
-        Ok(()) => info!(
-            "removed {}, the database checkpoint directory of an earlier release",
-            path.display()
-        ),
-        // The directory only costs disk, which is no reason to refuse to start.
-        Err(e) => warn!(
-            "failed to remove the leftover database checkpoint directory {}: {e}",
-            path.display()
-        ),
-    }
-}
-
 impl IotaNode {
     /// Starts a node that hosts the client-facing servers on the caller's
     /// runtime, alongside everything else.
@@ -386,7 +364,6 @@ impl IotaNode {
         serving_rt_handle: tokio::runtime::Handle,
         index_rebuild_cancelled: Arc<AtomicBool>,
     ) -> Result<Arc<IotaNode>> {
-        config.check_renamed_keys()?;
         config.validate()?;
         if config.maintains_rpc_indexes() {
             config
@@ -464,8 +441,6 @@ impl IotaNode {
             ))
             .expect("Failed registering uptime metric");
 
-        remove_legacy_db_checkpoints(&config);
-
         let secret = Arc::pin(config.authority_key_pair().copy());
         let genesis_committee = genesis.committee()?;
         let committee_store = Arc::new(CommitteeStore::new(
@@ -473,6 +448,9 @@ impl IotaNode {
             &genesis_committee,
             None,
         ));
+
+        AuthorityPerpetualTables::ensure_per_epoch_layout(&config.db_path().join("store"))
+            .map_err(|e| anyhow!("refusing to start: {e}"))?;
 
         let historic_db_path = config.db_path().join(HISTORIC_DB_DIR);
 
@@ -633,100 +611,7 @@ impl IotaNode {
         // Database has everything from genesis, set corrupted key to 0
         unmark_db_corruption(db_corrupted_path)?;
 
-        // A database created from genesis has nothing for the one-time passes
-        // below to find.
-        // TODO(https://github.com/iotaledger/iota/issues/12712): remove this.
-        if is_genesis {
-            store.mark_pre_bucket_passes_done()?;
-            checkpoint_store.mark_checkpoint_backlog_migrated()?;
-        }
-
-        // Before the first start changes anything an older release reads, so
-        // that a refused start leaves the database usable by that release.
-        // TODO(https://github.com/iotaledger/iota/issues/12763): remove this call.
-        let pruning_config = &config.authority_store_pruning_config;
-        // Only space freed on the history's file system helps the migration,
-        // which copies into it.
-        let legacy_index_size = if is_full_node {
-            legacy_index_dirs_size(&config.db_path(), &historic_db_path)
-        } else {
-            0
-        };
-        ledger_backlog_migration::check_before_first_start(
-            &store,
-            checkpoint_store.clone(),
-            epoch_store.epoch(),
-            pruning_config.num_epochs_to_retain_for_checkpoints,
-            pruning_config.num_epochs_to_retain_for_checkpoints(),
-            legacy_index_size,
-        )
-        .map_err(|e| anyhow!("refusing to start: {e}"))?;
-
-        // The first one-way step: an older release reads these databases.
-        // Frees disk space ahead of the one-time migration passes below. The
-        // check above counted that space as free, so a failed removal must
-        // stop the start before the migration fills the disk.
-        if is_full_node {
-            if let Err(e) = remove_legacy_index_dirs(&config.db_path()) {
-                if legacy_index_size > 0 {
-                    return Err(anyhow!(
-                        "refusing to start: failed to remove a legacy index database in {}, \
-                         whose space the ledger migration needs: {e}. Remove the `indexes`, \
-                         `jsonrpc_indexes` and `grpc_indexes` directories there by hand",
-                        config.db_path().display()
-                    ));
-                }
-                warn!("failed to remove a legacy index database: {e}");
-            }
-        }
-
-        // After the last refusal above: an older release reads the column
-        // family this drops.
-        store.retire_objects_pruner_watermark()?;
-
-        // Before any service starts, since nothing reads the flat tables.
-        // TODO(https://github.com/iotaledger/iota/issues/12763): remove this call.
-        ledger_backlog_migration::migrate(
-            store.clone(),
-            checkpoint_store.clone(),
-            epoch_store.epoch(),
-            pruning_config.num_epochs_to_retain_for_checkpoints(),
-        )
-        .await
-        .map_err(|e| {
-            anyhow!(
-                "failed to migrate the ledger and checkpoint history written before this build: {e}"
-            )
-        })?;
-
-        // Before any service starts: a missed marker would let a receive or a
-        // delete happen twice.
-        // TODO(https://github.com/iotaledger/iota/issues/12712): remove this call.
-        store
-            .migrate_flat_markers(epoch_store.epoch())
-            .map_err(|e| {
-                anyhow!("failed to migrate the object markers written before this build: {e}")
-            })?;
-
-        // Before any service that could expire a historic bucket starts, and
-        // before the index rebuild below scans the live `objects` table.
-        // TODO(https://github.com/iotaledger/iota/issues/12712): remove this call.
-        object_backlog_sweep::sweep(store.clone(), epoch_store.epoch())
-            .await
-            .map_err(|e| {
-                anyhow!(
-                    "failed to sweep the object versions superseded before this build: {e}. If it \
-                     fails on a row it cannot read every time, `iota-tool db-tool --db-path {} \
-                     mark-object-backlog-swept`, with the node stopped, lets it start without \
-                     the sweep; the versions it had not reached then stay in the live object \
-                     table",
-                    config.db_path().display()
-                )
-            })?;
-
-        // As at an epoch change. After the one-time passes above, whose
-        // rewind writes only the saved synced watermark, and before state sync
-        // marks anything synced.
+        // As at an epoch change, before state sync marks anything synced.
         if epoch_store.protocol_config().enable_pcool_flow()
             && epoch_store
                 .committee()
@@ -3167,7 +3052,7 @@ mod config_tests {
     use iota_metrics::RegistryService;
     use prometheus_filtered::Registry;
 
-    use super::{IotaNode, ServerVersion, remove_legacy_db_checkpoints};
+    use super::{IotaNode, ServerVersion};
 
     /// A config whose `db-path` is `db_path`, with nothing else a node would
     /// need to start.
@@ -3201,34 +3086,6 @@ genesis:
 
         let err = format!("{err:#}");
         assert!(err.contains("`grpc-api-config` is `null`"), "{err}");
-    }
-
-    #[test]
-    fn a_leftover_database_checkpoint_directory_is_removed() {
-        let dir = iota_common::tempdir();
-        let config = config_with_db_path(dir.path());
-        let leftover = dir.path().join("db_checkpoints").join("epoch_0");
-        std::fs::create_dir_all(&leftover).unwrap();
-        std::fs::write(leftover.join("CURRENT"), b"hard link to a live SST").unwrap();
-        let live = config.db_path();
-        std::fs::create_dir_all(&live).unwrap();
-
-        remove_legacy_db_checkpoints(&config);
-
-        assert!(!dir.path().join("db_checkpoints").exists());
-        assert!(live.exists(), "the live database must be left alone");
-    }
-
-    #[test]
-    fn a_database_without_one_is_left_alone() {
-        let dir = iota_common::tempdir();
-
-        remove_legacy_db_checkpoints(&config_with_db_path(dir.path()));
-
-        assert!(
-            !dir.path().join("db_checkpoints").exists(),
-            "the cleanup must not create what it is there to remove",
-        );
     }
 
     /// `start_async` refuses a config whose index retention outlives its

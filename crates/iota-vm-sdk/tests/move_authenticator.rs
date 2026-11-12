@@ -16,11 +16,9 @@
 
 use std::{fs, path::PathBuf};
 
-use iota_sdk_types::{
-    MoveStruct, SenderSignedTransaction, Transaction, TransactionDigest, UserSignature,
-};
+use iota_sdk_types::{SenderSignedTransaction, Transaction, UserSignature};
 use iota_types::{
-    object::{MoveStructExt, Object, ObjectInner},
+    object::{Object, ObjectInner},
     transaction::TransactionAPI,
 };
 use iota_vm_sdk::{
@@ -46,10 +44,6 @@ struct Fixture {
 struct FixtureObject {
     bcs_b64: String,
 }
-
-/// Comfortably above `max_tx_gas`, so a coin holding it backs any budget a
-/// simulation can resolve to.
-const FUNDED_GAS_COIN_VALUE: u64 = 1_000_000_000_000;
 
 impl Fixture {
     fn transaction(&self) -> Transaction {
@@ -93,26 +87,6 @@ fn chain_context(f: &Fixture) -> ChainContext {
         .with_reference_gas_price(f.reference_gas_price)
         .with_epoch_id(f.epoch_id)
         .with_epoch_timestamp_ms(f.epoch_timestamp_ms)
-}
-
-/// Replace the balance of every gas coin `tx` pays with, so the coins can back
-/// a budget of `max_tx_gas`.
-///
-/// The fixtures carry the coin balance they were captured with, which need not
-/// cover the protocol maximum a zero declared budget resolves to.
-fn fund_gas_coins_for_max_budget(vm: &mut LocalVm, tx: &Transaction) {
-    for gas_ref in tx.gas() {
-        let coin = vm
-            .store()
-            .get_object(&gas_ref.object_id, None)
-            .expect("store lookup")
-            .expect("fixture carries the gas coin it pays with");
-        vm.store_mut().insert(Object::new_move(
-            MoveStruct::new_gas_coin(coin.version(), coin.id(), FUNDED_GAS_COIN_VALUE),
-            coin.owner,
-            TransactionDigest::ZERO,
-        ));
-    }
 }
 
 /// The fixture's `MoveAuthenticator` signature.
@@ -179,8 +153,7 @@ fn move_authenticator_accepts() {
 
 /// An accepting `MoveAuthenticator` paired with a transaction body that aborts
 /// must still report `SignatureStatus::Verified` — a body failure is not an
-/// authentication failure. This exercises the re-run in
-/// `execute_with_move_authenticators`: run the free-access fixture once (the
+/// authentication failure. Run the free-access fixture once (the
 /// `add_field` body succeeds), seed the created dynamic field back into the
 /// store, then replay the identical transaction so `add_field` aborts on the
 /// now-existing field while the free-access authenticator still accepts.
@@ -217,66 +190,6 @@ fn move_authenticator_accepts_but_aborting_body_stays_verified() {
     assert!(
         matches!(second.signature_status, SignatureStatus::Verified),
         "an accepting authenticator with an aborting body must stay Verified, got {:?}",
-        second.signature_status
-    );
-}
-
-/// The re-run must meter at the same budget the combined run used.
-/// In dev-inspect the declared budget is often still `0` (not yet settled) and
-/// the combined run meters at the dev-inspect budget instead; a re-run metered
-/// at the declared `0` would run the authenticator out of gas and misreport a
-/// body abort as `SignatureStatus::Failed`. Same flow as
-/// [`move_authenticator_accepts_but_aborting_body_stays_verified`], with the
-/// declared budget zeroed (the free-access authenticator ignores the message,
-/// so the mutated transaction still authenticates).
-#[test]
-fn move_authenticator_dev_inspect_rerun_ignores_zero_declared_budget() {
-    let f = load("move_auth_free_access_valid.json");
-    let mut tx = f.transaction();
-    tx.gas_data_mut().budget = 0;
-    let mut vm = f.vm();
-    // A zero budget resolves to as much as the gas coins can back, up to
-    // `max_tx_gas`, so top up the fixture's coin — otherwise it resolves to that
-    // smaller balance rather than the maximum this test is about.
-    fund_gas_coins_for_max_budget(&mut vm, &tx);
-
-    // First run: the free-access authenticator accepts and `add_field`
-    // succeeds — dev-inspect meters at the dev-inspect budget, not the
-    // declared `0`.
-    let first = vm
-        .execute_signed(
-            SenderSignedTransaction::new(tx.clone(), f.decoded_signatures()),
-            ExecuteOptions::dev_inspect(),
-        )
-        .expect("first run returns Ok");
-    assert!(
-        first.status.is_success(),
-        "the first add_field must succeed, got {:?}",
-        first.status
-    );
-
-    // Seed the objects the run produced (the new dynamic field) so the same
-    // `add_field` aborts the second time around.
-    for obj in first.output_objects {
-        vm.store_mut().insert(obj);
-    }
-
-    // Second run: the body aborts, triggering the re-run. Metered at
-    // the combined run's budget the free-access authenticator still accepts;
-    // metered at the declared `0` it would run out of gas and misreport.
-    let second = vm
-        .execute_signed(
-            SenderSignedTransaction::new(tx, f.decoded_signatures()),
-            ExecuteOptions::dev_inspect(),
-        )
-        .expect("second run returns Ok (the abort is carried in the status)");
-    assert!(
-        !second.status.is_success(),
-        "re-adding the field must abort the transaction body"
-    );
-    assert!(
-        matches!(second.signature_status, SignatureStatus::Verified),
-        "a body abort must not be reported as a signature failure, got {:?}",
         second.signature_status
     );
 }
