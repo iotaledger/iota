@@ -19,18 +19,22 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 use crate::{authority::AuthorityMetrics, runtime::available_cpu_cores};
 
-/// The retry hint of a rejection. A dry run takes milliseconds, so a full
-/// queue empties quickly.
+/// The retry hint of a rejection. It is longer than the default
+/// [`AuthorityOverloadConfig::max_attestation_wait`] (500 ms), so by the time
+/// a client retries, every submission that was waiting has got a dry run or
+/// been rejected.
 const RETRY_AFTER_SECS: u64 = 1;
 
-/// The number of submissions that may wait when `max_queued_attestations` is
-/// unset.
+/// The number of submissions that may wait when
+/// [`AuthorityOverloadConfig::max_queued_attestations`] is unset.
 const DEFAULT_MAX_QUEUED_ATTESTATIONS: usize = 1_024;
 
-/// The longest wait for a dry run when `max_attestation_wait` is unset.
+/// The longest wait for a dry run when
+/// [`AuthorityOverloadConfig::max_attestation_wait`] is unset.
 const DEFAULT_MAX_ATTESTATION_WAIT: Duration = Duration::from_millis(500);
 
-/// Each new dry run time moves the average by this fraction of the difference.
+/// Each new dry run time moves the average toward it by the difference
+/// divided by this.
 const AVERAGE_DRY_RUN_TIME_DIVISOR: u64 = 8;
 
 /// The attestation dry runs a validator may run at once, with a queue of
@@ -92,13 +96,17 @@ impl Drop for QueuePlace<'_> {
 }
 
 impl AttestationSemaphore {
-    /// Sized by `max_concurrent_attestations`, `max_queued_attestations` and
-    /// `max_attestation_wait` of `config`, with the defaults their docs give.
+    /// Returns a semaphore sized by
+    /// [`AuthorityOverloadConfig::max_concurrent_attestations`],
+    /// [`AuthorityOverloadConfig::max_queued_attestations`] and
+    /// [`AuthorityOverloadConfig::max_attestation_wait`] of `config`, with the
+    /// defaults their docs give.
     pub(crate) fn new(config: &AuthorityOverloadConfig, metrics: &AuthorityMetrics) -> Self {
         let max_concurrent = config
             .max_concurrent_attestations
             .unwrap_or_else(|| available_cpu_cores() / 4)
             .clamp(1, Semaphore::MAX_PERMITS);
+
         Self {
             permits: Arc::new(Semaphore::new(max_concurrent)),
             max_concurrent,
@@ -118,24 +126,30 @@ impl AttestationSemaphore {
     }
 
     /// Returns a permit at once when one is free, and otherwise waits for one
-    /// while the queue has room, for at most `max_attestation_wait`.
+    /// while the queue has room, for at most
+    /// [`AuthorityOverloadConfig::max_attestation_wait`].
     ///
     /// # Errors
     ///
     /// [`IotaError::ValidatorOverloadedRetryAfter`] when every permit is taken
     /// and the queue is full, or when no permit frees within
-    /// `max_attestation_wait`.
+    /// [`AuthorityOverloadConfig::max_attestation_wait`].
+    ///
+    /// # Panics
+    ///
+    /// If the semaphore is closed. Nothing closes it.
     pub(crate) async fn acquire(&self) -> IotaResult<AttestationPermit> {
         let arrived = Instant::now();
         let permit = match self.permits.clone().try_acquire_owned() {
             Ok(permit) => permit,
             Err(_) => {
                 let _place = self.join_queue()?;
+
                 tokio::time::timeout(self.max_wait, self.permits.clone().acquire_owned())
                     .await
                     .map_err(|_| self.reject())?
                     // Nothing closes the semaphore.
-                    .expect("the attestation semaphore is never closed")
+                    .expect("the attestation semaphore should not be closed")
             }
         };
         self.wait_histogram.observe(arrived.elapsed().as_secs_f64());
@@ -149,10 +163,11 @@ impl AttestationSemaphore {
         })
     }
 
-    /// Fails when a submission arriving now would be refused by
-    /// [`Self::acquire()`]: every permit is taken, and either the queue is full
-    /// or the expected wait is longer than `max_attestation_wait`. Lets a
-    /// submission be refused before any work is done for it.
+    /// Fails with [`IotaError::ValidatorOverloadedRetryAfter`] when every
+    /// permit is taken, and either the queue is full or the expected wait is
+    /// longer than [`AuthorityOverloadConfig::max_attestation_wait`]. Takes no
+    /// permit and no place in the queue, so a submission can be refused
+    /// before any work is done for it.
     pub(crate) fn check_overload(&self) -> IotaResult {
         if self.permits.available_permits() > 0 {
             return Ok(());
@@ -167,7 +182,7 @@ impl AttestationSemaphore {
 
     /// The wait a submission arriving behind `waiting` others can expect while
     /// every permit is taken: one average dry run time for each of them and for
-    /// itself, shared out over the permits.
+    /// itself, divided by the number of permits.
     fn expected_wait(&self, waiting: usize) -> Duration {
         let average = self.average_dry_run_micros.load(Ordering::Relaxed);
         let queued = u64::try_from(waiting).unwrap_or(u64::MAX).saturating_add(1);
@@ -183,11 +198,13 @@ impl AttestationSemaphore {
             })
             .map_err(|_| self.reject())?;
         self.waiting_gauge.inc();
+
         Ok(QueuePlace { semaphore: self })
     }
 
     fn reject(&self) -> IotaError {
         self.rejected_counter.inc();
+
         IotaError::ValidatorOverloadedRetryAfter {
             retry_after_secs: RETRY_AFTER_SECS,
         }
@@ -221,6 +238,7 @@ mod tests {
             ..Default::default()
         };
         let metrics = AuthorityMetrics::new(&Registry::new());
+
         (
             Arc::new(AttestationSemaphore::new(&config, &metrics)),
             metrics,
@@ -317,6 +335,7 @@ mod tests {
                 let semaphore = semaphore.clone();
                 let running = running.clone();
                 let most_running = most_running.clone();
+
                 tokio::spawn(async move {
                     let _permit = semaphore.acquire().await.unwrap();
                     let now_running = running.fetch_add(1, Ordering::SeqCst) + 1;
@@ -342,6 +361,7 @@ mod tests {
         let held = semaphore.acquire().await.unwrap();
         let waiter = tokio::spawn({
             let semaphore = semaphore.clone();
+
             async move { semaphore.acquire().await.map(drop) }
         });
         wait_until_queued(&semaphore, 1).await;
@@ -378,8 +398,8 @@ mod tests {
         let (semaphore, metrics) = semaphore(Some(1), Some(1));
         let _held = semaphore.acquire().await.unwrap();
 
-        // Timing out means the call was waiting; a rejection would return
-        // at once with an error.
+        // Timing out means the call was waiting; a rejection returns at once
+        // with an error.
         for _ in 0..2 {
             let wait = tokio::time::timeout(Duration::from_millis(10), semaphore.acquire()).await;
             assert!(wait.is_err(), "the submission should have been queued");

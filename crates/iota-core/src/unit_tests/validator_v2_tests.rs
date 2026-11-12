@@ -233,7 +233,7 @@ async fn test_submit_single_tx_attest_failure_rejected_without_reaching_consensu
 /// transaction that passes its own size check, but whose attestation, one
 /// object reference per shared input, makes the consensus transaction larger
 /// than consensus accepts. Asserts that the validator rejects it with the size
-/// limit and a traffic weight of one, without keeping a soft lock or handing
+/// limit and a traffic weight of one, without taking a soft lock or handing
 /// anything to the consensus adapter.
 #[tokio::test]
 async fn test_submit_single_tx_rejects_an_attested_transaction_too_large_for_consensus() {
@@ -495,17 +495,19 @@ async fn test_submit_single_tx_counts_a_transaction_in_the_consensus_queue_from_
     assert_eq!(consensus_adapter.num_inflight_transactions(), 1);
 }
 
-fn attestation_enabled() -> impl Drop {
+fn enable_attestation() -> impl Drop {
     ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
         config.set_checkpoint_summary_version_specific_data_for_testing(2);
+
         config
     })
 }
 
-/// At most `max_concurrent` attestation dry runs at once, and `max_queued`
-/// submissions waiting for one, for longer than any test waits.
+/// Returns an overload config that allows `max_concurrent` attestation dry
+/// runs at once and `max_queued` submissions waiting for one, with a wait
+/// limit longer than any test waits.
 fn dry_run_limits(max_concurrent: usize, max_queued: usize) -> AuthorityOverloadConfig {
     AuthorityOverloadConfig {
         max_concurrent_attestations: Some(max_concurrent),
@@ -551,6 +553,7 @@ impl TestValidator {
                 for transaction in transactions {
                     let _ = sender.try_send(transaction.clone());
                 }
+
                 Ok(with_block_status(starfish_core::BlockStatus::Sequenced(
                     starfish_core::TransactionRef::default(),
                 )))
@@ -576,6 +579,7 @@ impl TestValidator {
             metrics: Arc::new(ValidatorServiceMetrics::new_for_tests()),
             soft_locks: Arc::new(PreConsensusSoftLocks::new()),
         };
+
         (validator, submitted)
     }
 
@@ -610,6 +614,7 @@ fn transfer(
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
+
     to_sender_signed_transaction(tx_data, signing_key)
 }
 
@@ -619,6 +624,7 @@ fn owned_by(owner: Address, count: usize) -> (Vec<ObjectId>, Vec<Object>) {
         .iter()
         .map(|id| Object::with_id_owner_for_testing(*id, owner))
         .collect();
+
     (ids, objects)
 }
 
@@ -629,6 +635,7 @@ fn digest_of(consensus_transaction: ConsensusTransaction) -> TransactionDigest {
             consensus_transaction.kind
         );
     };
+
     *attested.transaction.digest()
 }
 
@@ -655,7 +662,7 @@ fn assert_overload_rejection((update, weight): &(TxStatusUpdate, Weight)) {
 #[tokio::test]
 async fn a_submission_finding_every_dry_run_taken_is_refused_before_its_signature_is_checked() {
     telemetry_subscribers::init_for_testing();
-    let _guard = attestation_enabled();
+    let _guard = enable_attestation();
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let (_, other_key): (_, AccountPrivateKey) = get_key_pair();
@@ -704,7 +711,7 @@ async fn a_submission_finding_every_dry_run_taken_is_refused_before_its_signatur
 #[tokio::test]
 async fn a_submission_waits_for_a_free_dry_run_while_the_queue_has_room() {
     telemetry_subscribers::init_for_testing();
-    let _guard = attestation_enabled();
+    let _guard = enable_attestation();
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let (ids, objects) = owned_by(sender, 4);
@@ -716,6 +723,7 @@ async fn a_submission_waits_for_a_free_dry_run_while_the_queue_has_room() {
     let waiting = tokio::spawn({
         let validator = validator.clone();
         let first = first.clone();
+
         async move { validator.submit(first).await }
     });
     tokio::time::timeout(Duration::from_secs(30), async {
@@ -746,7 +754,7 @@ async fn a_submission_waits_for_a_free_dry_run_while_the_queue_has_room() {
 #[tokio::test]
 async fn a_second_transaction_on_the_same_gas_coin_is_refused() {
     telemetry_subscribers::init_for_testing();
-    let _guard = attestation_enabled();
+    let _guard = enable_attestation();
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let (ids, objects) = owned_by(sender, 3);
@@ -808,7 +816,7 @@ async fn a_second_transaction_on_the_same_gas_coin_is_refused() {
 #[tokio::test]
 async fn a_move_account_transaction_on_a_held_coin_gets_no_dry_run() {
     telemetry_subscribers::init_for_testing();
-    let _guard = attestation_enabled();
+    let _guard = enable_attestation();
 
     let mut env = AbstractAccountTestEnv::new().await;
     let (first, second) = env.account_transactions_on_one_coin();
@@ -849,7 +857,7 @@ async fn a_move_account_transaction_on_a_held_coin_gets_no_dry_run() {
 #[tokio::test]
 async fn a_lock_taken_while_waiting_for_a_dry_run_refuses_the_transaction_before_it() {
     telemetry_subscribers::init_for_testing();
-    let _guard = attestation_enabled();
+    let _guard = enable_attestation();
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let (ids, objects) = owned_by(sender, 2);
@@ -860,6 +868,7 @@ async fn a_lock_taken_while_waiting_for_a_dry_run_refuses_the_transaction_before
     let held = validator.state.acquire_attestation_permit().await.unwrap();
     let waiting = tokio::spawn({
         let validator = validator.clone();
+
         async move { validator.submit(tx).await }
     });
     tokio::time::timeout(Duration::from_secs(30), async {
@@ -901,7 +910,7 @@ async fn a_lock_taken_while_waiting_for_a_dry_run_refuses_the_transaction_before
 #[tokio::test]
 async fn a_lock_refused_after_the_dry_run_weighs_one() {
     telemetry_subscribers::init_for_testing();
-    let _guard = attestation_enabled();
+    let _guard = enable_attestation();
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let (ids, objects) = owned_by(sender, 2);
@@ -912,6 +921,7 @@ async fn a_lock_refused_after_the_dry_run_weighs_one() {
 
     let submission = tokio::spawn({
         let validator = validator.clone();
+
         async move { validator.submit(tx).await }
     });
     // The count rises when the dry run starts, after both checks for

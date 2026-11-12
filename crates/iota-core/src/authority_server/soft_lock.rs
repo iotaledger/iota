@@ -25,7 +25,7 @@
 //! | Tx processed by consensus        | Released in `authority_per_epoch_store` after quarantine               |
 //! | Tx dropped in post-consensus     | Released in `authority_per_epoch_store` after quarantine               |
 //! | Tx forgotten by consensus        | TTL expiry releases locks via background sweep                        |
-//! | Rejected after locking           | Released when the admission drops its `SoftLockGuard`                 |
+//! | Rejected after locking           | Released when the admission drops its [`SoftLockGuard`]               |
 //! | Crash / restart                  | All soft locks lost → clean slate; post-consensus is authoritative    |
 //! | Epoch boundary                   | Same instance is `clear()`-ed; all locks dropped                      |
 //! | Object version mismatch          | Keyed on full `ObjectReference`; different versions don't conflict          |
@@ -104,7 +104,7 @@ impl Default for PreConsensusSoftLocks {
 }
 
 /// The soft locks one admission took for its transaction. Dropping the guard
-/// releases them; [`Self::keep`] leaves them held once the transaction is
+/// releases them; [`Self::keep()`] leaves them held once the transaction is
 /// submitted to consensus.
 #[must_use = "dropping the guard releases the soft locks"]
 pub struct SoftLockGuard {
@@ -243,16 +243,17 @@ impl PreConsensusSoftLocks {
         Ok(())
     }
 
-    /// Like [`Self::try_acquire`], but the locks are released when the
-    /// returned guard is dropped, unless [`SoftLockGuard::keep`] is called. An
-    /// error leaves untouched the locks another admission of the same digest
-    /// holds.
+    /// Like [`Self::try_acquire()`], but the locks are released when the
+    /// returned guard is dropped, unless [`SoftLockGuard::keep()`] is called.
+    /// An error leaves untouched the locks another admission of the same
+    /// digest holds.
     pub fn try_acquire_guard(
         self: &Arc<Self>,
         tx_digest: TransactionDigest,
         owned_objects: &[ObjectReference],
     ) -> Result<SoftLockGuard, IotaError> {
         self.try_acquire(tx_digest, owned_objects)?;
+
         Ok(SoftLockGuard {
             soft_locks: self.clone(),
             tx_digest,
@@ -262,12 +263,16 @@ impl PreConsensusSoftLocks {
         })
     }
 
-    /// Fails as [`Self::try_acquire`] would fail at this moment for
-    /// `tx_digest` and `objects`, but takes and changes no lock, so a
-    /// submission can be refused before any work is done for it: with
-    /// `RecentlyResubmitted` while `tx_digest` is in flight, and with
-    /// `ObjectLockConflict` while another transaction holds an unexpired lock
-    /// on one of `objects`. Always `Ok` when disabled.
+    /// Checks `tx_digest` and `objects` against the soft locks held at this
+    /// moment, as [`Self::try_acquire()`] does, but takes and changes no
+    /// lock, so a submission can be refused before any work is done for it.
+    /// Returns `Ok` when soft locks are disabled or `objects` is empty.
+    ///
+    /// # Errors
+    ///
+    /// [`IotaError::RecentlyResubmitted`] while `tx_digest` is in flight, and
+    /// [`IotaError::ObjectLockConflict`] while another transaction holds an
+    /// unexpired lock on one of `objects`.
     pub fn check_conflicts(
         &self,
         tx_digest: &TransactionDigest,
@@ -634,7 +639,7 @@ mod tests {
     }
 
     #[test]
-    fn test_check_conflicts_takes_no_lock() {
+    fn check_conflicts_takes_no_lock() {
         let table = PreConsensusSoftLocks::with_ttl(Duration::from_secs(60));
         let held = obj_ref(1, 1);
         let free = obj_ref(2, 1);
