@@ -296,9 +296,8 @@ impl NameCommand {
                 gas_data,
                 processing,
             } => {
-                let nft =
-                    get_owned_nft_by_name::<NameRegistration>(&name, processing.sender, context)
-                        .await?;
+                let sender = Some(signer(&processing, &payment, context).await?);
+                let nft = get_owned_nft_by_name::<NameRegistration>(&name, sender, context).await?;
 
                 if !nft.has_expired() {
                     let expiration_datetime = DateTime::<Utc>::from(nft.expiration_time())
@@ -612,8 +611,7 @@ impl NameCommand {
                 processing,
             } => {
                 // Check ownership of the name off-chain to avoid potentially wasting gas
-                let sender =
-                    get_identity_address(processing.sender.map(Into::into), context).await?;
+                let sender = signer(&processing, &payment, context).await?;
                 get_proxy_nft_by_name(&name, Some(sender), context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -661,7 +659,7 @@ impl NameCommand {
                         "cannot set target address for leaf subname; try removing and recreating the subname instead."
                     );
                 }
-                let sender = processing.sender;
+                let sender = Some(signer(&processing, &payment, context).await?);
                 let new_address =
                     get_identity_address(new_address.or(sender.map(Into::into)), context).await?;
                 if entry
@@ -711,7 +709,7 @@ impl NameCommand {
                 gas_data,
                 processing,
             } => {
-                let sender = processing.sender;
+                let sender = Some(signer(&processing, &payment, context).await?);
                 let nft = get_proxy_nft_by_name(&name, sender, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -754,7 +752,7 @@ impl NameCommand {
                 processing,
             } => {
                 let address = get_identity_address(Some(address), context).await?;
-                let sender = processing.sender;
+                let sender = Some(signer(&processing, &payment, context).await?);
                 let nft = get_proxy_nft_by_name(&name, sender, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -790,8 +788,7 @@ impl NameCommand {
                 processing,
             } => {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
-                let address =
-                    get_identity_address(processing.sender.map(Into::into), context).await?;
+                let address = signer(&processing, &payment, context).await?;
 
                 let res = IotaClientCommands::Call {
                     package: iota_names_config.package_address.into(),
@@ -829,7 +826,7 @@ impl NameCommand {
                     bail!("target address is already unset");
                 }
 
-                let sender = processing.sender;
+                let sender = Some(signer(&processing, &payment, context).await?);
 
                 let nft = get_proxy_nft_by_name(&name, sender, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
@@ -869,7 +866,7 @@ impl NameCommand {
                 gas_data,
                 processing,
             } => {
-                let sender = processing.sender;
+                let sender = Some(signer(&processing, &payment, context).await?);
                 let nft = get_proxy_nft_by_name(&name, sender, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -1016,7 +1013,7 @@ impl SubnameCommand {
 
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
-                let sender = processing.sender;
+                let sender = Some(signer(&processing, &payment, context).await?);
                 let parent = get_proxy_nft_by_name(&parent, sender, context).await?;
                 ensure!(!parent.has_expired(), "parent NFT has expired");
                 let package_id = parent.subname_package_id(&iota_client).await?;
@@ -1144,7 +1141,7 @@ impl SubnameCommand {
                 };
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
-                let sender = processing.sender;
+                let sender = Some(signer(&processing, &payment, context).await?);
                 let parent = get_proxy_nft_by_name(&parent, sender, context).await?;
                 let package_id = parent.subname_package_id(&iota_client).await?;
                 let module_name = parent.subname_module_name();
@@ -1185,7 +1182,7 @@ impl SubnameCommand {
                 gas_data,
                 processing,
             } => {
-                let sender = processing.sender;
+                let sender = Some(signer(&processing, &payment, context).await?);
                 let nft =
                     get_owned_nft_by_name::<SubnameRegistration>(&name, sender, context).await?;
                 ensure!(
@@ -1856,6 +1853,19 @@ async fn fetch_renewal_config(context: &mut WalletContext) -> anyhow::Result<Ren
         .map_err(|e| anyhow::anyhow!("couldn't fetch renewal config: {e}"))?;
 
     Ok(entry.value)
+}
+
+/// The address that signs a name command's transaction: `--sender`, else the
+/// owner of the `--gas` coins, else the active address.
+async fn signer(
+    processing: &TxProcessingArgs,
+    payment: &PaymentArgs,
+    context: &mut WalletContext,
+) -> anyhow::Result<Address> {
+    match processing.sender {
+        Some(sender) => Ok(sender),
+        None => context.infer_sender(&payment.gas).await,
+    }
 }
 
 async fn handle_transaction_result<Fun, F>(
