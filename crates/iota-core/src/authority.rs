@@ -2414,15 +2414,11 @@ impl AuthorityState {
         // in the block verifier (`IotaTxValidator::validate_transactions`), exactly
         // as for an unattested one, and is not re-checked here.
 
-        if matches!(tx.kind(), TransactionKind::ClaimAccount(_))
-            && self.claimed_in_store(tx.sender())?
-        {
-            debug_fatal!(
-                "ClaimAccount {tx_digest} executes although {} is already claimed: \
-                 post-consensus validation keeps one claim per address",
-                tx.sender()
-            );
-        }
+        // Read before execution, judged after it together with the claim's
+        // effects (see `claim_execution_fault`).
+        let claimed_before_execution = matches!(tx.kind(), TransactionKind::ClaimAccount(_))
+            .then(|| self.claimed_in_store(tx.sender()))
+            .transpose()?;
 
         let (kind, signer, gas_data) = tx.execution_parts();
 
@@ -2758,6 +2754,16 @@ impl AuthorityState {
 
             (inner_temp_store, effects, execution_error_opt, outcome)
         };
+
+        if let Some(fault) = claimed_before_execution
+            .and_then(|claimed_before| claim_execution_fault(claimed_before, effects.status()))
+        {
+            debug_fatal!(
+                "ClaimAccount {tx_digest} of {} {fault} (status: {:?})",
+                tx.sender(),
+                effects.status()
+            );
+        }
 
         // Judged before the fork-injecting fail point below, so that only the
         // effects diverge under it.
@@ -7637,6 +7643,40 @@ impl From<MoveAccountCheckError> for IotaError {
             MoveAccountCheckError::Input(error) => IotaError::UserInput { error },
             MoveAccountCheckError::Storage(error) => error,
         }
+    }
+}
+
+/// What went wrong with an executed `ClaimAccount`, given whether this node's
+/// latest state recorded its address as claimed before it ran; `None` when
+/// nothing did.
+///
+/// Post-consensus validation keeps one claim per address, and a kept claim
+/// locks its address until the epoch ends, so a claim must find its address
+/// unclaimed and must create the account. Both hold whatever order this node
+/// executes claims in: a second claim of an address is never kept in the
+/// epoch of the first, and every node executes an epoch's transactions before
+/// the next epoch's. A denial by this node's own certificate deny list is not
+/// counted.
+pub(crate) fn claim_execution_fault(
+    claimed_before: bool,
+    status: &ExecutionStatus,
+) -> Option<&'static str> {
+    if claimed_before {
+        return Some(
+            "executed although its address was already claimed: post-consensus validation keeps \
+             one claim per address",
+        );
+    }
+    match status {
+        ExecutionStatus::Success
+        | ExecutionStatus::Failure {
+            error: iota_sdk_types::ExecutionError::CertificateDenied,
+            ..
+        } => None,
+        _ => Some(
+            "did not create its account, so its address can neither be claimed again nor sign \
+             with a plain signature until the epoch ends",
+        ),
     }
 }
 

@@ -12893,6 +12893,68 @@ async fn claim_account_executes_and_creates_the_account() {
     s.execute_claim_with_assigned_commit(claim, 1);
 }
 
+/// After execution, a claim is reported when its address was claimed before
+/// it ran, whatever its status, and when it did not create its account,
+/// unless this node's own certificate deny list denied it.
+#[test]
+fn claim_execution_fault_reports_a_repeated_or_failed_claim() {
+    let failed = ExecutionStatus::Failure {
+        error: iota_sdk_types::ExecutionError::InsufficientGas,
+        command: None,
+    };
+    let denied = ExecutionStatus::Failure {
+        error: iota_sdk_types::ExecutionError::CertificateDenied,
+        command: None,
+    };
+
+    assert_eq!(
+        crate::authority::claim_execution_fault(false, &ExecutionStatus::Success),
+        None
+    );
+    assert_eq!(
+        crate::authority::claim_execution_fault(false, &denied),
+        None
+    );
+    assert!(
+        crate::authority::claim_execution_fault(false, &failed)
+            .is_some_and(|fault| fault.contains("did not create its account"))
+    );
+    for status in [ExecutionStatus::Success, failed, denied] {
+        assert!(
+            crate::authority::claim_execution_fault(true, &status)
+                .is_some_and(|fault| fault.contains("already claimed")),
+            "{status:?}"
+        );
+    }
+}
+
+/// A second claim of an address that reaches execution, which validation
+/// never lets happen, is reported after it runs.
+#[tokio::test]
+#[should_panic(expected = "executed although its address was already claimed")]
+async fn second_claim_executed_without_validation_is_reported() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas = [ObjectId::random(), ObjectId::random()];
+    let s = setup_handler_object_state(
+        gas.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        true,
+    )
+    .await;
+    let first = s.build_claim(sender, &key, &gas[0]);
+    let second = s.build_claim(sender, &key, &gas[1]);
+    s.execute_claim_with_assigned_commit(first, 1);
+
+    s.epoch_store
+        .assign_commit_to_transactions(2, vec![TransactionKey::Digest(*second.digest())]);
+    let _ = s.authority.try_execute_immediately(
+        &s.executable(second),
+        ExecutionEnv::new(),
+        &s.epoch_store,
+    );
+}
+
 /// Two claims of one address in one commit: the first is kept with the lock
 /// on the address, the second is dropped for good.
 #[tokio::test]
