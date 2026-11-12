@@ -68,14 +68,13 @@ pub(super) fn prepare_transaction(
     }
     transaction.gas_data_mut().objects = updated_gas;
 
-    let checks = if matches!(mode, ExecutionMode::DevInspect) {
-        VmChecks::Disabled
-    } else {
-        VmChecks::Enabled
+    let (checks, fill_in_gas) = match mode {
+        ExecutionMode::DevInspect => (VmChecks::Disabled, true),
+        ExecutionMode::DryRun => (VmChecks::Enabled, true),
+        // `Execute` commits its effects, so it holds a transaction to its own
+        // declared gas the way a validator would.
+        ExecutionMode::Execute => (VmChecks::Enabled, false),
     };
-    // `Execute` commits its effects, so it holds a transaction to its own
-    // declared gas the way a validator would.
-    let fill_in_gas = !matches!(mode, ExecutionMode::Execute);
     let prepared = simulate::prepare_simulation(
         env,
         store,

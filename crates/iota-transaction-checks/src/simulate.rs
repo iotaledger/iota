@@ -86,11 +86,7 @@ pub struct PreparedSimulation {
 /// to simulate it without committing it.
 ///
 /// `checks` selects the input checks here and the Move VM semantics
-/// [`execute_simulation`] runs with: `VmChecks::Enabled` runs the transaction
-/// as it would run on chain (a dry run), while `VmChecks::Disabled` drops the
-/// input checks named in [`InputCheckRules::RELAXED_UNSAFE`] and relaxes the
-/// checks around entry functions and argument values (a dev inspect). System
-/// transactions are rejected.
+/// [`execute_simulation`] runs with. System transactions are rejected.
 ///
 /// With `fill_in_gas`, whatever gas the transaction leaves unset is filled
 /// in, so that a caller with no gas to declare can leave all of it out: no gas
@@ -129,8 +125,7 @@ pub fn prepare_simulation<E: From<SimulationCheckError>>(
 ) -> Result<PreparedSimulation, E> {
     let protocol_config = env.protocol_config;
 
-    // A missing gas payment is allowed here, since we may create a mock gas
-    // object below.
+    // A missing gas payment is not rejected here; `fill_in_gas` decides below.
     check_user_transaction_validity(&transaction, protocol_config)
         .map_err(|e| SimulationCheckError::new("transaction validity check", e))?;
 
@@ -202,7 +197,7 @@ pub fn prepare_simulation<E: From<SimulationCheckError>>(
         env.bytecode_verifier_metrics,
         VerifierLimitsSource::NodeConfig(env.verifier_signing_config),
         authenticator_gas_budget,
-        false,
+        false, // is_execute_transaction_to_effects
         InputCheckRules::from(checks),
     )
     .map_err(|e| {

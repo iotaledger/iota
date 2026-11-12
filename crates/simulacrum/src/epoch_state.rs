@@ -190,12 +190,10 @@ impl EpochState {
         Ok((inner_temp_store, gas_status, effects, result))
     }
 
-    /// Simulate a transaction without committing changes.
-    /// This is similar to execute_transaction but:
-    /// - Takes Transaction instead of VerifiedTransaction (no signature required)
-    /// - Takes VmChecks parameter to control validation strictness
-    /// - Returns SimulateTransactionResult with input/output objects
-    /// - Creates a mock gas object if none provided
+    /// Simulate an unsigned transaction without committing it, filling in the
+    /// gas it leaves unset. See
+    /// [`iota_transaction_checks::simulate::prepare_simulation`] for how
+    /// `checks`, unset gas and published packages are handled.
     pub fn simulate_transaction(
         &self,
         store: &dyn SimulatorStore,
@@ -221,8 +219,8 @@ impl EpochState {
             store.backing_store(),
             transaction,
             checks,
-            &[],
-            true,
+            &[],  // signatures
+            true, // fill_in_gas
             |input_object_kinds, receiving_object_refs| {
                 store.read_objects_for_synchronous_execution(
                     &tx_digest,

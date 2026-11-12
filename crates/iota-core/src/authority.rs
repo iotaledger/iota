@@ -2769,7 +2769,9 @@ impl AuthorityState {
 
     /// Simulate a transaction without committing it, under this node's deny
     /// config and signing-time verifier limits, and with a suggested gas price
-    /// from its congestion tracker. See
+    /// from its congestion tracker. Gas the transaction leaves unset is filled
+    /// in: a missing gas payment becomes a mock gas coin, and a zero gas price
+    /// or budget is filled in. See
     /// [`iota_transaction_checks::simulate::prepare_simulation`] for how
     /// `checks`, unset gas and published packages are handled.
     pub fn simulate_transaction(
@@ -2847,8 +2849,8 @@ impl AuthorityState {
             self.get_backing_store().as_ref(),
             transaction,
             checks,
-            &[],
-            true,
+            &[],  // signatures
+            true, // fill_in_gas
             |input_object_kinds, receiving_object_refs| {
                 self.input_loader.read_objects_for_signing(
                     // We don't want to cache this transaction since it's a simulation.

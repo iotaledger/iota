@@ -144,19 +144,16 @@ impl LocalVm {
     ) -> Result<ExecutionResult, VmSdkError> {
         let env = ExecutionEnv::new(self, &opts.debug)?;
         let sim_env = env.simulation_env(&opts.deny_config);
-        let prepared = {
+        let (sim, transaction) = {
             let backend = StoreBackend::new(self.store.as_ref());
-            prepare_transaction(
+            let prepared = prepare_transaction(
                 &sim_env,
                 &backend,
                 tx,
                 opts.mode,
                 &[],
                 opts.check_coin_deny_list,
-            )?
-        };
-        let (sim, transaction) = {
-            let backend = StoreBackend::new(self.store.as_ref());
+            )?;
             simulate::execute_simulation(&sim_env, env.executor.as_ref(), &backend, prepared)
         };
         // The dev-inspect entry point accepts no `MoveTraceBuilder`, so this path
@@ -181,9 +178,9 @@ impl LocalVm {
     ///
     /// `opts.mode` governs input-check relaxation
     /// ([`ExecutionMode::DevInspect`]) and commit
-    /// ([`ExecutionMode::Execute`]) as for [`execute`](Self::execute),
-    /// but the authenticators and transaction body always execute under full
-    /// (non-dev-inspect) VM semantics.
+    /// ([`ExecutionMode::Execute`]) as for [`execute`](Self::execute). With a
+    /// `MoveAuthenticator`, the authenticators and transaction body always
+    /// execute under full (non-dev-inspect) VM semantics.
     ///
     /// Signatures are verified against the transaction as supplied. Gas and
     /// owned-input references are then resolved against the store's versions,
@@ -227,19 +224,16 @@ impl LocalVm {
         )?;
 
         let sim_env = env.simulation_env(&opts.deny_config);
-        let prepared = {
+        let (sim, executed, signature_status, trace) = {
             let backend = StoreBackend::new(self.store.as_ref());
-            prepare_transaction(
+            let prepared = prepare_transaction(
                 &sim_env,
                 &backend,
                 transaction,
                 opts.mode,
                 &tx_signatures,
                 opts.check_coin_deny_list,
-            )?
-        };
-        let (sim, executed, signature_status, trace) = {
-            let backend = StoreBackend::new(self.store.as_ref());
+            )?;
             if move_authenticators.is_empty() {
                 // Standard schemes were verified cryptographically above; the
                 // run's outcome cannot retroactively invalidate them. Runs
