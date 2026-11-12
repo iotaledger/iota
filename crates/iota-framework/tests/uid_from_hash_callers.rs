@@ -67,6 +67,46 @@ fn functions_that_mint_a_uid_at_a_chosen_address_have_the_expected_callers() {
     );
 }
 
+/// Only `iota::object` can pack a `UID`, so its functions that do are all the
+/// ways to mint one. Every one but `new`, which takes a fresh address from the
+/// transaction context, picks the address itself, so none of them, nor the
+/// claim's functions above, may be callable from outside the framework.
+#[test]
+fn functions_that_mint_a_uid_stay_inside_the_framework() {
+    let modules = system_modules();
+
+    assert_eq!(
+        packers(&modules, "object", "UID"),
+        functions(&[
+            ("object", "authenticator_state"),
+            ("object", "clock"),
+            ("object", "iota_deny_list_object_id"),
+            ("object", "iota_system_state"),
+            ("object", "new"),
+            ("object", "new_uid_from_hash"),
+            ("object", "randomness_state"),
+            ("object", "transaction_deny_rules"),
+        ]),
+        "a function of `iota::object` that builds a `UID` was added or removed: check which \
+         address it uses and who can call it"
+    );
+    for (module, function) in packers(&modules, "object", "UID")
+        .into_iter()
+        .filter(|(_, function)| function != "new")
+        .chain(functions(&[
+            ("claim", "claim_address"),
+            ("smart_account", "claim_builder"),
+        ]))
+    {
+        let definition = definition(&modules, &module, &function);
+        assert!(
+            definition.visibility != Visibility::Public && !definition.is_entry,
+            "`{module}::{function}` mints a `UID` at an address it does not take from the \
+             transaction context, so it must not be public or entry"
+        );
+    }
+}
+
 /// The modules of every system package, as compiled.
 fn system_modules() -> Vec<CompiledModule> {
     BuiltInFramework::iter_system_packages()
@@ -115,6 +155,44 @@ fn callers(modules: &[CompiledModule], module: &str, function: &str) -> BTreeSet
         }
     }
     callers
+}
+
+/// The functions of the IOTA framework module `module` that pack its struct
+/// `name`, as `(module, function)` pairs.
+fn packers(modules: &[CompiledModule], module: &str, name: &str) -> BTreeSet<(String, String)> {
+    let compiled = modules
+        .iter()
+        .find(|compiled| {
+            *compiled.self_id().address() == AccountAddress::TWO
+                && compiled.self_id().name().as_str() == module
+        })
+        .unwrap_or_else(|| panic!("`{module}` is a module of the IOTA framework"));
+    let (packed, _) = compiled
+        .find_struct_def_by_name(name)
+        .unwrap_or_else(|| panic!("`{module}::{name}` is a struct of the IOTA framework"));
+    compiled
+        .function_defs()
+        .iter()
+        .filter(|definition| {
+            definition.code.as_ref().is_some_and(|code| {
+                code.code.iter().any(|instruction| match instruction {
+                    Bytecode::Pack(index) => *index == packed,
+                    Bytecode::PackGeneric(index) => {
+                        compiled.struct_instantiation_at(*index).def == packed
+                    }
+                    _ => false,
+                })
+            })
+        })
+        .map(|definition| {
+            (
+                module.to_string(),
+                compiled
+                    .identifier_at(compiled.function_handle_at(definition.function).name)
+                    .to_string(),
+            )
+        })
+        .collect()
 }
 
 /// The definition of `module::function` in the IOTA framework.
