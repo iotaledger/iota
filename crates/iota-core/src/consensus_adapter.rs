@@ -260,7 +260,15 @@ pub struct ConsensusAdapter {
     /// certificate-less and certificate-based flows.
     max_pending_transactions: usize,
 
-    /// Number of submitted transactions still inflight at this node.
+    /// Length of the consensus queue: transactions under admission, waiting
+    /// for their turn to be submitted, or submitted and not yet processed by
+    /// consensus. A P-COOL user transaction counts from admission, where
+    /// [`ConsensusAdapter::reserve_inflight_slot()`] takes its slot before the
+    /// overload check. Certificates and system transactions count from the
+    /// start of the task that submits them ([`InflightDropGuard::acquire()`]),
+    /// and transactions recovered after a restart from
+    /// [`ConsensusAdapter::submit_recovered()`], before their tasks start. A
+    /// transaction stops counting when its [`InflightSlot`] is dropped.
     num_inflight_transactions: AtomicU64,
 
     /// Dictates the maximum position  from which will submit to consensus. Even
@@ -419,7 +427,14 @@ impl ConsensusAdapter {
             if transaction.is_end_of_publish() {
                 info!(epoch=?epoch_store.epoch(), "Submitting EndOfPublish message to consensus");
             }
-            self.submit_unchecked(&[transaction], epoch_store);
+            // Admitted before the restart, so it takes its slot here, before
+            // its submission task starts, and admissions arriving meanwhile
+            // count it.
+            self.submit_unchecked(
+                &[transaction],
+                epoch_store,
+                Some(self.reserve_inflight_slot()),
+            );
         }
     }
 
@@ -623,6 +638,39 @@ impl ConsensusAdapter {
         lock: Option<&RwLockReadGuard<ReconfigState>>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<JoinHandle<()>> {
+        self.submit_batch_inner(transactions, lock, epoch_store, None)
+    }
+
+    /// Submits a user transaction with the [`InflightSlot`] it took at
+    /// admission. The slot stays counted until consensus has processed the
+    /// transaction, and is released on any other outcome.
+    pub(crate) fn submit_with_slot(
+        self: &Arc<Self>,
+        transaction: ConsensusTransaction,
+        lock: Option<&RwLockReadGuard<ReconfigState>>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        slot: InflightSlot,
+    ) -> IotaResult<JoinHandle<()>> {
+        self.submit_batch_inner(&[transaction], lock, epoch_store, Some(slot))
+    }
+
+    /// Writes `transactions` to the pending consensus table and spawns the
+    /// task that submits them. `slot` is the [`InflightSlot`] the transaction
+    /// took at admission, if any; the task takes it over, and without one it
+    /// takes a slot when it starts. On an error the slot is released.
+    ///
+    /// # Errors
+    ///
+    /// [`IotaError::InvalidTxKindInSoftBundle`] when a batch of more than one
+    /// mixes kinds or holds anything but user transactions or certificates,
+    /// and any error writing to the pending consensus table.
+    fn submit_batch_inner(
+        self: &Arc<Self>,
+        transactions: &[ConsensusTransaction],
+        lock: Option<&RwLockReadGuard<ReconfigState>>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        slot: Option<InflightSlot>,
+    ) -> IotaResult<JoinHandle<()>> {
         if transactions.len() > 1 {
             // Soft-bundle batches must be homogeneous and limited to the kinds we
             // actually bundle: user or certified transactions. submit_and_wait_inner
@@ -643,7 +691,9 @@ impl ConsensusAdapter {
 
         epoch_store.insert_pending_consensus_transactions(transactions, lock)?;
 
-        Ok(self.submit_unchecked(transactions, epoch_store))
+        // The spawned task owns the slot from here on and releases it when it
+        // is dropped, also if the epoch ends before the submission starts.
+        Ok(self.submit_unchecked(transactions, epoch_store, slot))
     }
 
     /// Returns the limit on the number of inflight transactions at this node.
@@ -664,6 +714,21 @@ impl ConsensusAdapter {
         self.num_inflight_transactions.load(Ordering::Relaxed)
     }
 
+    /// Takes a slot in the consensus queue and returns it with the queue's
+    /// length before it; the submission counts until the slot is dropped.
+    /// [`ConsensusAdapter::submit_with_slot()`] keeps it until consensus has
+    /// processed the transaction.
+    pub(crate) fn reserve_inflight_slot(self: &Arc<Self>) -> InflightSlot {
+        let queue_length_before = self
+            .num_inflight_transactions
+            .fetch_add(1, Ordering::SeqCst);
+
+        InflightSlot {
+            adapter: self.clone(),
+            queue_length_before,
+        }
+    }
+
     /// Test-only: sets the number of in-flight transactions.
     #[cfg(test)]
     pub(super) fn set_num_inflight_transactions_for_testing(&self, value: u64) {
@@ -678,12 +743,6 @@ impl ConsensusAdapter {
     /// Uses relaxed atomic reads: the two limits are not observed atomically.
     fn check_consensus_hard_limits(&self) -> bool {
         // First check total in-flight transactions (waiting and in submission).
-        // TODO: this check is redundant in the P-COOL flow - graduated
-        // shedding already rejects at 100% once `num_inflight_transactions`
-        // reaches `max_pending_transactions`. Remove when the certificate-based
-        // flow is removed from the codebase. The semaphore check below stays in
-        // either case, since it is a separate concurrency limit not covered
-        // by graduated shedding.
         if self.num_inflight_transactions.load(Ordering::Relaxed) as usize
             > self.max_pending_transactions
         {
@@ -705,18 +764,38 @@ impl ConsensusAdapter {
         Ok(())
     }
 
+    /// Returns `TooManyTransactionsPendingConsensus` when `submit_semaphore`
+    /// has no free permit. Unlike [`Self::check_consensus_overload()`], it does
+    /// not check the number of in-flight transactions.
+    pub(crate) fn check_submit_permits(&self) -> IotaResult {
+        fp_ensure!(
+            self.submit_semaphore.available_permits() > 0,
+            IotaError::TooManyTransactionsPendingConsensus
+        );
+
+        Ok(())
+    }
+
+    /// Spawns the task that submits `transactions` to consensus, which must
+    /// already be in the pending consensus table. `slot` is the
+    /// [`InflightSlot`] the transaction already holds, taken at admission or
+    /// when it was recovered after a restart, if any; without one, the task
+    /// takes a slot when it starts.
     fn submit_unchecked(
         self: &Arc<Self>,
         transactions: &[ConsensusTransaction],
         epoch_store: &Arc<AuthorityPerEpochStore>,
+        slot: Option<InflightSlot>,
     ) -> JoinHandle<()> {
         // Reconfiguration lock is dropped when pending_consensus_transactions is
         // persisted, before it is handled by consensus
-        let async_stage = self
-            .clone()
-            .submit_and_wait(transactions.to_vec(), epoch_store.clone());
-        // Number of these tasks is weakly limited based on `num_inflight_transactions`.
-        // (Limit is not applied atomically, and only to user transactions.)
+        let async_stage =
+            self.clone()
+                .submit_and_wait(transactions.to_vec(), epoch_store.clone(), slot);
+        // `num_inflight_transactions` limits user transactions only. The limit
+        // is exact in the P-COOL flow, where an admission takes its slot first
+        // and is judged by the queue before it, and loose in the certificate
+        // flow, where the count rises only once this task runs.
         let join_handle = spawn_monitored_task!(async_stage);
         join_handle
     }
@@ -725,6 +804,7 @@ impl ConsensusAdapter {
         self: Arc<Self>,
         transactions: Vec<ConsensusTransaction>,
         epoch_store: Arc<AuthorityPerEpochStore>,
+        slot: Option<InflightSlot>,
     ) {
         // When epoch_terminated signal is received all pending submit_and_wait_inner
         // are dropped.
@@ -740,7 +820,7 @@ impl ConsensusAdapter {
         // restarts, this means we might be sending transactions from previous
         // epochs to consensus of new epoch if we have not had this barrier.
         epoch_store
-            .within_alive_epoch(self.submit_and_wait_inner(transactions, &epoch_store))
+            .within_alive_epoch(self.submit_and_wait_inner(transactions, &epoch_store, slot))
             .await
             .ok(); // result here indicates if epoch ended earlier, we don't
         // care about it
@@ -750,6 +830,7 @@ impl ConsensusAdapter {
         self: Arc<Self>,
         transactions: Vec<ConsensusTransaction>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
+        slot: Option<InflightSlot>,
     ) {
         if transactions.is_empty() {
             return;
@@ -778,7 +859,7 @@ impl ConsensusAdapter {
             "soft_bundle"
         };
 
-        let mut guard = InflightDropGuard::acquire(&self, tx_type);
+        let mut guard = InflightDropGuard::acquire(&self, tx_type, slot);
 
         // Create the waiter until the node's turn comes to submit to consensus
         let (await_submit, position, positions_moved, preceding_disconnected) =
@@ -1364,9 +1445,38 @@ impl<T> Drop for CancelOnDrop<T> {
     }
 }
 
+/// A slot in the consensus queue, counted in `num_inflight_transactions`
+/// until it is dropped. Take one with
+/// [`ConsensusAdapter::reserve_inflight_slot()`].
+#[must_use = "dropping the slot releases it"]
+pub(crate) struct InflightSlot {
+    adapter: Arc<ConsensusAdapter>,
+    queue_length_before: u64,
+}
+
+impl InflightSlot {
+    /// Length of the consensus queue just before this slot was taken: every
+    /// slot taken earlier and not yet released, including those of
+    /// admissions still in progress.
+    pub(crate) fn queue_length_before(&self) -> u64 {
+        self.queue_length_before
+    }
+}
+
+impl Drop for InflightSlot {
+    fn drop(&mut self) {
+        self.adapter
+            .num_inflight_transactions
+            .fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
 /// Tracks number of inflight consensus requests and relevant metrics
 struct InflightDropGuard<'a> {
-    adapter: &'a ConsensusAdapter,
+    adapter: &'a Arc<ConsensusAdapter>,
+    /// The submission's [`InflightSlot`], released first when the guard
+    /// drops.
+    slot: Option<InflightSlot>,
     start: Instant,
     position: Option<usize>,
     positions_moved: Option<usize>,
@@ -1383,10 +1493,17 @@ enum ProcessedMethod {
 }
 
 impl<'a> InflightDropGuard<'a> {
-    pub fn acquire(adapter: &'a ConsensusAdapter, tx_type: &'static str) -> Self {
-        adapter
-            .num_inflight_transactions
-            .fetch_add(1, Ordering::SeqCst);
+    /// Returns a guard that holds the submission's [`InflightSlot`] and
+    /// counts the submission in the `sequencing_certificate_inflight` metric
+    /// until the guard is dropped. `slot` is the [`InflightSlot`] the
+    /// transaction already holds, taken at admission or when it was recovered
+    /// after a restart, if any; without one, the guard takes a slot now.
+    pub fn acquire(
+        adapter: &'a Arc<ConsensusAdapter>,
+        tx_type: &'static str,
+        slot: Option<InflightSlot>,
+    ) -> Self {
+        let slot = slot.unwrap_or_else(|| adapter.reserve_inflight_slot());
         adapter
             .metrics
             .sequencing_certificate_inflight
@@ -1397,8 +1514,10 @@ impl<'a> InflightDropGuard<'a> {
             .sequencing_certificate_attempt
             .with_label_values(&[tx_type])
             .inc();
+
         Self {
             adapter,
+            slot: Some(slot),
             start: Instant::now(),
             position: None,
             positions_moved: None,
@@ -1411,9 +1530,10 @@ impl<'a> InflightDropGuard<'a> {
 
 impl Drop for InflightDropGuard<'_> {
     fn drop(&mut self) {
-        self.adapter
-            .num_inflight_transactions
-            .fetch_sub(1, Ordering::SeqCst);
+        // Release the slot here instead of when the field is dropped after
+        // this function, so `num_inflight_transactions` goes down together
+        // with the `sequencing_certificate_inflight` gauge below.
+        drop(self.slot.take());
         self.adapter
             .metrics
             .sequencing_certificate_inflight
@@ -1512,7 +1632,7 @@ mod adapter_tests {
         crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes},
     };
 
-    use super::position_submit_certificate;
+    use super::{InflightDropGuard, position_submit_certificate};
     use crate::{
         checkpoints::CheckpointStore,
         consensus_adapter::{
@@ -1520,6 +1640,38 @@ mod adapter_tests {
         },
         starfish_adapter::LazyStarfishClient,
     };
+
+    /// A slot counts in the consensus queue from the moment it is taken until
+    /// it is dropped, on its own or inside the guard it was passed to.
+    #[tokio::test]
+    async fn an_inflight_slot_counts_until_it_is_dropped() {
+        let adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
+            AuthorityPublicKeyBytes::ZERO,
+        ));
+        assert_eq!(adapter.num_inflight_transactions(), 0);
+
+        let first = adapter.reserve_inflight_slot();
+        let second = adapter.reserve_inflight_slot();
+        assert_eq!(first.queue_length_before(), 0);
+        assert_eq!(second.queue_length_before(), 1);
+        assert_eq!(adapter.num_inflight_transactions(), 2);
+
+        drop(second);
+        assert_eq!(adapter.num_inflight_transactions(), 1);
+
+        // The guard takes over a slot taken at admission without counting it
+        // again, and releases it when it drops.
+        let guard = InflightDropGuard::acquire(&adapter, "owned_user_transaction", Some(first));
+        assert_eq!(adapter.num_inflight_transactions(), 1);
+        drop(guard);
+        assert_eq!(adapter.num_inflight_transactions(), 0);
+
+        // Without one, the guard takes a slot itself.
+        let guard = InflightDropGuard::acquire(&adapter, "checkpoint_signature", None);
+        assert_eq!(adapter.num_inflight_transactions(), 1);
+        drop(guard);
+        assert_eq!(adapter.num_inflight_transactions(), 0);
+    }
 
     /// A committee built from fixed keys and stakes, so the submission order
     /// these tests check depends only on the code under test, not on `rand`

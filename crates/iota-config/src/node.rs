@@ -1013,7 +1013,9 @@ pub struct ConsensusConfig {
     pub db_pruner_period_secs: Option<u64>,
 
     /// Hard limit on the number of pending transactions to submit to
-    /// consensus, including those in submission wait. Used as the upper
+    /// consensus, including those in submission wait and, in the
+    /// certificate-less (P-COOL) mode, user transactions the validator is
+    /// still checking. Used as the upper
     /// bound for graduated pre-consensus load shedding
     /// (`graduated_load_shedding_soft_limit_pct`) in the certificate-less
     /// (P-COOL) mode, and as the threshold for the binary
@@ -1021,7 +1023,9 @@ pub struct ConsensusConfig {
     /// certificate-less and certificate-based flows.
     ///
     /// Default to 20_000 inflight limit, assuming 20_000 txn tps * 1 sec
-    /// consensus latency.
+    /// consensus latency. In the P-COOL mode, a user transaction counts from
+    /// admission, so that second also includes the checks there and, with
+    /// attestation, the dry run and the wait for it.
     pub max_pending_transactions: Option<usize>,
 
     /// When defined caps the calculated submission position to the
@@ -1057,8 +1061,12 @@ impl ConsensusConfig {
     }
 
     /// Returns the hard limit on the number of pending transactions to submit
-    /// to consensus, including those in submission wait. Defaults to 20_000
-    /// inflight limit, assuming 20_000 txn tps * 1 sec consensus latency.
+    /// to consensus, including those in submission wait and, in the
+    /// certificate-less (P-COOL) mode, user transactions the validator is
+    /// still checking. Defaults to 20_000 inflight limit, assuming 20_000 txn
+    /// tps * 1 sec consensus latency. In the P-COOL mode, a user transaction
+    /// counts from admission, so that second also includes the checks there
+    /// and, with attestation, the dry run and the wait for it.
     pub fn max_pending_transactions(&self) -> usize {
         self.max_pending_transactions.unwrap_or(20_000)
     }

@@ -287,21 +287,22 @@ impl ValidatorService {
             }
         };
 
-        // Check system overload.
-        if let Err(e) = state.check_system_overload(
-            consensus_adapter,
-            transaction.data(),
-            state.check_system_overload_at_signing(),
-            // `true` means P-COOL flow is enabled - ensured by `fp_ensure!` in the caller
-            true,
-        ) {
-            metrics
-                .num_rejected_tx_during_overload
-                .with_label_values(&[e.as_ref()])
-                .inc();
-            let weight = normalize(&e);
-            return (TxStatusUpdate::Rejected { error: e }, weight);
-        }
+        // Take this transaction's slot in the consensus queue and run the
+        // overload checks against the queue at that moment, which also counts
+        // admissions still in progress. Returning before the submission below
+        // drops the slot and releases it.
+        let slot = match state.reserve_consensus_queue_slot(consensus_adapter, transaction.data()) {
+            Ok(slot) => slot,
+            Err(e) => {
+                metrics
+                    .num_rejected_tx_during_overload
+                    .with_label_values(&[e.as_ref()])
+                    .inc();
+                let weight = normalize(&e);
+
+                return (TxStatusUpdate::Rejected { error: e }, weight);
+            }
+        };
 
         // Validate transaction.
         if let Err(e) = transaction.validity_check(&epoch_store.tx_validity_check_context()) {
@@ -542,10 +543,14 @@ impl ValidatorService {
             .soft_lock_table_size
             .set(soft_locks.lock_count() as i64);
 
-        // Submit to consensus.
-        if let Err(e) =
-            consensus_adapter.submit(consensus_tx, Some(&reconfiguration_lock), epoch_store)
-        {
+        // Submit to consensus. The slot stays counted until consensus has
+        // processed the transaction, and any other outcome releases the slot.
+        if let Err(e) = consensus_adapter.submit_with_slot(
+            consensus_tx,
+            Some(&reconfiguration_lock),
+            epoch_store,
+            slot,
+        ) {
             let weight = normalize(&e);
             // Release soft locks so the transaction can be retried.
             tracing::debug!(

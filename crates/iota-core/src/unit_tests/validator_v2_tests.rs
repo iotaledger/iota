@@ -354,3 +354,138 @@ async fn test_submit_single_tx_rejects_an_attested_transaction_too_large_for_con
         "nothing may reach the consensus adapter"
     );
 }
+
+/// Submits a transfer to `submit_single_tx`, first with the consensus queue
+/// full, then with room in it. With the queue full, asserts that the transfer
+/// is rejected before anything reaches the consensus adapter, and that the
+/// number of transactions in the queue is unchanged. With room, asserts that
+/// the transfer holds one slot as soon as the call returns `Submitted`, before
+/// its submission task starts, and still that one slot once it reaches
+/// consensus.
+#[tokio::test]
+async fn test_submit_single_tx_counts_a_transaction_in_the_consensus_queue_from_admission() {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[
+            Object::with_id_owner_for_testing(object_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ])
+        .build()
+        .await;
+
+    // Intercept whatever reaches the consensus adapter.
+    let (captured_tx, mut rx) = mpsc::channel::<ConsensusTransaction>(1);
+    let mut mock = MockConsensusClient::new();
+    mock.expect_submit().returning(move |transactions, _| {
+        let _ = captured_tx.try_send(transactions[0].clone());
+        Ok(with_block_status(starfish_core::BlockStatus::Sequenced(
+            starfish_core::TransactionRef::default(),
+        )))
+    });
+
+    let max_pending_transactions: usize = 10;
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(mock),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        max_pending_transactions,
+        max_pending_transactions,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        50,
+    ));
+
+    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
+    let metrics = Arc::new(ValidatorServiceMetrics::new_for_tests());
+    let soft_locks = Arc::new(PreConsensusSoftLocks::new());
+
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
+
+    let tx_data = Transaction::new_transfer(
+        dbg_addr(2),
+        object.object_ref(),
+        sender,
+        gas.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+
+    // The queue is full: the transfer is rejected at admission, and its slot
+    // is released.
+    consensus_adapter.set_num_inflight_transactions_for_testing(max_pending_transactions as u64);
+    let (update, _weight) = ValidatorService::submit_single_tx(
+        &authority_state,
+        &consensus_adapter,
+        &metrics,
+        &epoch_store,
+        &soft_locks,
+        tx.clone(),
+    )
+    .await;
+
+    assert!(
+        matches!(
+            update,
+            TxStatusUpdate::Rejected {
+                error: IotaError::TooManyTransactionsPendingConsensus
+            }
+        ),
+        "expected a rejection for the full consensus queue, got {update:?}",
+    );
+    assert_eq!(
+        consensus_adapter.num_inflight_transactions(),
+        max_pending_transactions as u64
+    );
+    assert!(
+        epoch_store
+            .get_all_pending_consensus_transactions()
+            .is_empty(),
+        "nothing may reach the consensus adapter"
+    );
+
+    // The queue has room: the transfer is submitted. The test runtime runs one
+    // task at a time, and `submit_single_tx` returns right after it spawns the
+    // submission task, so that task has not started yet. The count includes
+    // the slot taken at admission; a submission that took its own slot when
+    // its task starts would leave it at 0.
+    consensus_adapter.set_num_inflight_transactions_for_testing(0);
+    let (update, _weight) = ValidatorService::submit_single_tx(
+        &authority_state,
+        &consensus_adapter,
+        &metrics,
+        &epoch_store,
+        &soft_locks,
+        tx,
+    )
+    .await;
+
+    assert!(
+        matches!(update, TxStatusUpdate::Submitted),
+        "expected Submitted, got {update:?}",
+    );
+    assert_eq!(consensus_adapter.num_inflight_transactions(), 1);
+
+    // The submission task keeps that one slot, without taking another, until
+    // consensus has processed the transfer.
+    rx.recv()
+        .await
+        .expect("the transfer should have reached consensus");
+    assert_eq!(consensus_adapter.num_inflight_transactions(), 1);
+}
