@@ -255,7 +255,7 @@ impl<'a> TablePruner<'a> {
             Ok(Some(w)) => w,
             Ok(None) => {
                 // No watermark entry yet, skip
-                tracing::warn!("no watermark entry found for table {}", self.table.as_ref());
+                tracing::debug!("no watermark entry found for table {}", self.table.as_ref());
                 return Ok(());
             }
             Err(e) => {
@@ -563,6 +563,10 @@ async fn update_watermarks_lower_bounds(
         return Ok(());
     }
 
+    let Some(latest_epoch) = watermarks.iter().map(|w| w.current_epoch as u64).max() else {
+        return Ok(());
+    };
+
     let mut lower_bound_updates = vec![];
     for watermark in watermarks.iter() {
         let Some(prunable_table) = watermark.entity() else {
@@ -572,9 +576,19 @@ async fn update_watermarks_lower_bounds(
             error!("no retention policy found for prunable table {prunable_table}");
             continue;
         };
-        if let Some(new_min_available_epoch) = watermark.new_min_available_epoch(*epochs_to_keep) {
-            lower_bound_updates.push((prunable_table, new_min_available_epoch));
-        };
+        // `latest_epoch` may differ from `watermark.current_epoch` if the operational
+        // level does not ingest data for the respective `watermark.entity`
+        if watermark.min_available_epoch as u64 + *epochs_to_keep <= latest_epoch
+            // the upper bound for `min_available_epoch` is `current_epoch`
+            && watermark.min_available_epoch < watermark.current_epoch
+        {
+            // we don't want `min_available_epoch` to exceed `current_epoch`
+            // in order to maintain the table semantics
+            let new_min_available_epoch = (latest_epoch)
+                .saturating_sub(*epochs_to_keep - 1)
+                .min(watermark.current_epoch as u64);
+            lower_bound_updates.push((prunable_table, new_min_available_epoch))
+        }
     }
 
     if !lower_bound_updates.is_empty() {
