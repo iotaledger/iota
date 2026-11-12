@@ -52,6 +52,22 @@ pub(crate) trait LocalRead {
         checkpoint.checkpoint_summary.sequence_number > expected_sequence_number
     }
 
+    /// Returns an [`IngestionError::Verification`] error if the checkpoint's sequence number does
+    /// not match the expected one.
+    fn verify_sequence_number(
+        &self,
+        checkpoint: &CheckpointData,
+        expected_sequence_number: CheckpointSequenceNumber,
+    ) -> IngestionResult<()> {
+        if checkpoint.checkpoint_summary.sequence_number != expected_sequence_number {
+            return Err(IngestionError::Verification(format!(
+                "expected checkpoint {}, received checkpoint {}",
+                expected_sequence_number, checkpoint.checkpoint_summary.sequence_number
+            )));
+        }
+        Ok(())
+    }
+
     /// Lists unprocessed checkpoint files in the specified directory.
     ///
     /// Scans the checkpoint directory for files whose sequence number is

@@ -469,6 +469,7 @@ impl CheckpointReaderActor {
         checkpoint: Arc<CheckpointData>,
         size: usize,
     ) -> IngestionResult<()> {
+        self.verify_sequence_number(&checkpoint, self.current_checkpoint_number)?;
         if self.exceeds_capacity(checkpoint.checkpoint_summary.sequence_number) {
             return Err(IngestionError::MaxCheckpointsCapacityReached);
         }
@@ -476,18 +477,24 @@ impl CheckpointReaderActor {
         self.send_checkpoint_to_channel(checkpoint).await
     }
 
-    /// Sends a batch of local checkpoints to the channel in order.
+    /// Sends a batch of local checkpoints to the channel in order. Stops at the first checkpoint
+    /// whose sequence number is not the current checkpoint number.
     ///
-    /// Each checkpoint is sent sequentially until a gap is detected (i.e., a
-    /// checkpoint with a sequence number greater than the current
-    /// checkpoint number). If a gap is found, the function breaks early. If
-    /// sending fails, returns the error immediately.
+    /// # Errors
+    ///
+    /// Fails if sending to the channel fails.
     async fn send_local_checkpoints_to_channel(
         &mut self,
         checkpoints: Vec<Arc<CheckpointData>>,
     ) -> IngestionResult<()> {
         for checkpoint in checkpoints {
             if self.is_checkpoint_ahead(&checkpoint, self.current_checkpoint_number) {
+                break;
+            }
+            if let Err(err) =
+                self.verify_sequence_number(&checkpoint, self.current_checkpoint_number)
+            {
+                error!("{err}");
                 break;
             }
             self.send_checkpoint_to_channel(checkpoint).await?;
@@ -497,18 +504,10 @@ impl CheckpointReaderActor {
 
     /// Sends a single checkpoint to the channel and advances the current
     /// checkpoint number.
-    ///
-    /// Asserts that the checkpoint's sequence number matches the expected
-    /// current number. Increments the current checkpoint number after
-    /// sending.
     async fn send_checkpoint_to_channel(
         &mut self,
         checkpoint: Arc<CheckpointData>,
     ) -> IngestionResult<()> {
-        assert_eq!(
-            checkpoint.checkpoint_summary.sequence_number,
-            self.current_checkpoint_number
-        );
         self.checkpoint_tx.send(checkpoint).await.map_err(|_| {
             IngestionError::Channel(
                 "unable to send checkpoint to executor, receiver half closed".to_owned(),
