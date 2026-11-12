@@ -1162,6 +1162,12 @@ native_epoch_timestamp_ms
 sponsor
 	public fun
 	0x2::tx_context
+chain_identifier
+	public fun
+	0x2::tx_context
+native_chain_identifier
+	fun
+	0x2::tx_context
 fresh_object_address
 	public fun
 	0x2::tx_context

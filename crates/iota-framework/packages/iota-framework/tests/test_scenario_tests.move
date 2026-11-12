@@ -1204,6 +1204,32 @@ fun test_tx_context() {
 }
 
 #[test]
+fun test_tx_context_chain_identifier() {
+    use std::unit_test::assert_eq;
+
+    let chain_identifier = x"0101010101010101010101010101010101010101010101010101010101010101";
+    let ctx_builder = test_scenario::ctx_builder_from_sender(@0xA)
+        .set_chain_identifier(chain_identifier);
+    let mut scenario = test_scenario::begin_with_context(ctx_builder);
+    assert_eq!(scenario.ctx().chain_identifier(), chain_identifier);
+
+    // check that the chain identifier holds across transactions
+    scenario.next_tx(@0xB);
+    assert_eq!(scenario.ctx().chain_identifier(), chain_identifier);
+    let ctx_builder = scenario.ctx_builder().set_gas_price(800);
+    scenario.next_with_context(ctx_builder);
+    assert_eq!(scenario.ctx().chain_identifier(), chain_identifier);
+
+    // replace the chain identifier
+    let new_chain_identifier = x"0202020202020202020202020202020202020202020202020202020202020202";
+    let ctx_builder = scenario.ctx_builder().set_chain_identifier(new_chain_identifier);
+    scenario.next_with_context(ctx_builder);
+    assert_eq!(scenario.ctx().chain_identifier(), new_chain_identifier);
+
+    scenario.end();
+}
+
+#[test]
 fun test_tx_context_with_builder() {
     use std::unit_test::assert_eq;
 
