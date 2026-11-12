@@ -1319,6 +1319,29 @@ fn pinned_checkpoint_digest(
         .map(|index| pinned_checkpoints[index].1)
 }
 
+/// Returns whether `checkpoint` is the checkpoint pinned at its sequence
+/// number. Returns an error if another digest is pinned at that sequence
+/// number.
+///
+/// `pinned_checkpoints` must be sorted by sequence number.
+fn is_pinned_checkpoint(
+    pinned_checkpoints: &[(CheckpointSequenceNumber, CheckpointDigest)],
+    checkpoint: &Checkpoint,
+) -> Result<bool> {
+    let Some(pinned_digest) =
+        pinned_checkpoint_digest(pinned_checkpoints, checkpoint.sequence_number())
+    else {
+        return Ok(false);
+    };
+    ensure!(
+        *checkpoint.digest() == pinned_digest,
+        "checkpoint {} has digest {}, not the pinned digest {pinned_digest}",
+        checkpoint.sequence_number(),
+        checkpoint.digest()
+    );
+    Ok(true)
+}
+
 /// Queries connected peers for the checkpoint summaries from the highest
 /// verified one up to `highest_checkpoint_to_sync`, verifies them, inserts
 /// them in the store, and cleans the ones it took out of `peer_heights` as it
@@ -1558,15 +1581,7 @@ where
     S: WriteStore,
 {
     // Skip verification for manually pinned checkpoints.
-    if let Some(pinned_digest) =
-        pinned_checkpoint_digest(pinned_checkpoints, checkpoint.sequence_number())
-    {
-        ensure!(
-            *checkpoint.digest() == pinned_digest,
-            "checkpoint {} has digest {}, not the pinned digest {pinned_digest}",
-            checkpoint.sequence_number(),
-            checkpoint.digest()
-        );
+    if is_pinned_checkpoint(pinned_checkpoints, &checkpoint)? {
         return Ok(VerifiedCheckpoint::new_unchecked(checkpoint));
     }
     match verify_checkpoint(current, store, checkpoint) {

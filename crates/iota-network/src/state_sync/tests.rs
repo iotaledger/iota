@@ -14,7 +14,7 @@ use anyhow::anyhow;
 use bytes::Bytes;
 use iota_config::{node::CheckpointArchiveConfig, p2p::StateSyncConfig};
 use iota_data_ingestion_core::{
-    Worker,
+    Reducer, Worker,
     history::{
         CHECKPOINT_FILE_MAGIC,
         manifest::{Manifest, create_file_metadata_from_bytes, finalize_manifest},
@@ -48,8 +48,12 @@ use crate::{
         Builder, GetCheckpointAvailabilityResponse, GetCheckpointSummaryRequest, Handle,
         PeerBalancer, PeerCheckpointRequestType, PeerStateSyncInfo, StateSync, StateSyncEventLoop,
         StateSyncHandshake, StateSyncMessage, StateSyncServer, UnstartedStateSync,
-        get_or_fetch_checkpoint_summary, pinned_checkpoint_digest, server::Server,
-        verify_checkpoint_summary, worker::StateSyncWorker,
+        get_or_fetch_checkpoint_summary,
+        metrics::Metrics,
+        pinned_checkpoint_digest,
+        server::Server,
+        verify_checkpoint_summary,
+        worker::{StateSyncReducer, StateSyncWorker},
     },
     utils::build_network,
 };
@@ -323,132 +327,21 @@ async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
     let committee =
         CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
     // build mock data
-    let (ordered_checkpoints, ordered_contents, sequence_number_to_digest, checkpoints) =
+    let (ordered_checkpoints, _, sequence_number_to_digest, checkpoints) =
         committee.make_empty_checkpoints(100, None);
-    let temp_dir = iota_common::tempdir();
-    // We will delete all checkpoints older than this checkpoint on Node 2
-    let oldest_checkpoint_to_keep: u64 = 10;
-
-    // Create archive files for the first `oldest_checkpoint_to_keep` checkpoints
-    {
-        let mut chk_buf: Vec<u8> = Vec::new();
-        chk_buf.extend_from_slice(&CHECKPOINT_FILE_MAGIC.to_be_bytes());
-        chk_buf.push(StorageFormat::Blob as u8);
-        chk_buf.push(FileCompression::None as u8);
-
-        for i in 0..(oldest_checkpoint_to_keep as usize) {
-            let checkpoint_data = CheckpointData {
-                checkpoint_summary: ordered_checkpoints[i].clone().into_inner(),
-                checkpoint_contents: ordered_contents[i].clone().into_checkpoint_contents(),
-                transactions: vec![],
-            };
-            Blob::encode(&checkpoint_data, BlobEncoding::Bcs)?.write(&mut chk_buf)?;
-        }
-
-        let chk_bytes = Bytes::from(chk_buf.clone());
-        let file_metadata =
-            create_file_metadata_from_bytes(chk_bytes, 0..oldest_checkpoint_to_keep)?;
-        std::fs::write(temp_dir.path().join("0.chk"), &chk_buf)?;
-
-        let mut manifest = Manifest::new(0);
-        manifest.update(oldest_checkpoint_to_keep, file_metadata);
-        let manifest_bytes = finalize_manifest(manifest)?;
-        std::fs::write(temp_dir.path().join("MANIFEST"), &manifest_bytes[..])?;
-    }
-    let checkpoint_archive_config = CheckpointArchiveConfig {
-        download_concurrency: NonZeroUsize::new(1).unwrap(),
-        verify_concurrency: NonZeroUsize::new(2).unwrap(),
-        url: format!("file://{}", temp_dir.path().display()),
-    };
-    // Build and connect two nodes where Node 1 will be given access to an archive
-    // store Node 2 will prune older checkpoints, so Node 1 is forced to
-    // backfill from the archive
-    let store_1 = store_with_genesis_state(
-        ordered_checkpoints.first().cloned().unwrap(),
-        empty_contents(),
-        committee.committee().to_owned(),
-    );
-    let (builder, state_sync_router) = Builder::new()
-        .store(store_1)
-        .config(StateSyncConfig {
-            // Shorten the retry delay so pruned-checkpoint tasks quickly discover
-            // that the archive has already advanced highest_synced past them.
-            wait_interval_when_no_peer_to_sync_content_ms: Some(10),
-            // Keep sync unbounded: this store does not execute checkpoints.
-            max_checkpoints_ahead_of_execution: NonZeroU64::new(1_000_000),
-            ..StateSyncConfig::randomized_for_testing()
-        })
-        .checkpoint_archive_config(Some(checkpoint_archive_config))
-        .build();
-    let network_1 = build_network(|router| router.add_rpc_service(state_sync_router));
-    let (event_loop_1, _handle_1) = builder.build(network_1.clone());
-    let store_2 = store_with_genesis_state(
-        ordered_checkpoints.first().cloned().unwrap(),
-        empty_contents(),
-        committee.committee().to_owned(),
-    );
-    let (builder, state_sync_router) = Builder::new()
-        .store(store_2)
-        .config(StateSyncConfig::randomized_for_testing())
-        .build();
-    let network_2 = build_network(|router| router.add_rpc_service(state_sync_router));
-    let (event_loop_2, _handle_2) = builder.build(network_2.clone());
-    network_1.connect(network_2.local_addr()).await.unwrap();
-
-    // Node 2 will have all the data at first
-    {
-        let mut store = event_loop_2.store.inner_mut();
-        for checkpoint in ordered_checkpoints.clone() {
-            store.insert_checkpoint(&checkpoint);
-            store.insert_checkpoint_contents(&checkpoint, empty_contents());
-            store.update_highest_synced_checkpoint(&checkpoint);
-        }
-    }
-    // Prune first 10 checkpoint contents from Node 2
-    {
-        let mut store = event_loop_2.store.inner_mut();
-        for checkpoint in &ordered_checkpoints[0..(oldest_checkpoint_to_keep as usize)] {
-            store.delete_checkpoint_content_test_only(checkpoint.sequence_number)?;
-        }
-        // Now Node 2 has deleted checkpoint contents from range [0, 10) on local store
-        assert_eq!(
-            store.get_lowest_available_checkpoint(),
-            oldest_checkpoint_to_keep
-        );
-        assert_eq!(
-            store
-                .get_highest_synced_checkpoint()
-                .unwrap()
-                .sequence_number,
-            ordered_checkpoints.last().unwrap().sequence_number
-        );
-        assert_eq!(
-            store
-                .get_highest_verified_checkpoint()
-                .unwrap()
-                .sequence_number,
-            ordered_checkpoints.last().unwrap().sequence_number
-        );
-    }
-
-    // Node 1 will know that Node 2 has the data starting checkpoint 10
-    event_loop_1.peer_heights.write().unwrap().peers.insert(
-        network_2.peer_id(),
-        PeerStateSyncInfo {
-            genesis_checkpoint_digest: *ordered_checkpoints[0].digest(),
-            on_same_chain_as_us: true,
-            height: ordered_checkpoints.last().unwrap().sequence_number(),
-            lowest: oldest_checkpoint_to_keep,
-        },
-    );
-
-    // Get handle to node 1 store
-    let store_1 = event_loop_1.store.clone();
-
-    // Sync the data
-    // Start both event loops
-    tokio::spawn(event_loop_1.start());
-    tokio::spawn(event_loop_2.start());
+    // Node 2 deletes all checkpoints older than checkpoint 10, so Node 1 is
+    // forced to backfill them from the archive
+    let archive_summaries: Vec<_> = ordered_checkpoints[..10]
+        .iter()
+        .map(|checkpoint| checkpoint.clone().into_inner())
+        .collect();
+    let (store_1, _nodes) = start_sync_from_checkpoint_archive(
+        &committee,
+        &ordered_checkpoints,
+        &archive_summaries,
+        vec![],
+    )
+    .await?;
 
     let total_time = Instant::now();
     loop {
@@ -482,9 +375,53 @@ async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
-    // make sure temp_dir lives long enough
-    drop(temp_dir);
     Ok(())
+}
+
+#[tokio::test]
+async fn archive_sync_applies_unsorted_pinned_checkpoints_from_the_config() {
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 12, None, empty_contents);
+    let last_sequence_number = ordered_checkpoints.last().unwrap().sequence_number();
+
+    // The archive has checkpoint 1 signed by a committee the node does not
+    // know.
+    let (_, (unverifiable_checkpoints, _, _, _)) = make_committee_and_checkpoints(
+        0,
+        4,
+        1,
+        Some(ordered_checkpoints[0].clone()),
+        empty_contents,
+    );
+    let mut archive_summaries: Vec<_> = ordered_checkpoints[..4]
+        .iter()
+        .map(|checkpoint| checkpoint.clone().into_inner())
+        .collect();
+    assert_eq!(
+        unverifiable_checkpoints[0].digest(),
+        archive_summaries[1].digest()
+    );
+    archive_summaries[1] = unverifiable_checkpoints[0].clone().into_inner();
+
+    // A lookup in a list in this order finds none of the pins.
+    let pinned_checkpoints = [3, 2, 1]
+        .map(|sequence_number| {
+            (
+                sequence_number,
+                *ordered_checkpoints[sequence_number as usize].digest(),
+            )
+        })
+        .to_vec();
+    let (store_1, _nodes) = start_sync_from_checkpoint_archive(
+        &committee,
+        &ordered_checkpoints,
+        &archive_summaries,
+        pinned_checkpoints,
+    )
+    .await
+    .unwrap();
+
+    wait_for_watermarks(&store_1, last_sequence_number, last_sequence_number).await;
 }
 
 #[tokio::test]
@@ -2135,7 +2072,7 @@ async fn archive_checkpoint_with_the_pinned_digest_is_taken_without_verifying_si
         pinned_checkpoints: vec![],
     };
     let pinned_worker = StateSyncWorker {
-        store,
+        store: store.clone(),
         pinned_checkpoints: vec![(1, pinned_digest)],
     };
     assert!(
@@ -2144,11 +2081,21 @@ async fn archive_checkpoint_with_the_pinned_digest_is_taken_without_verifying_si
             .await
             .is_err()
     );
-    assert!(
-        pinned_worker
-            .process_checkpoint(archive_checkpoint_data(unverifiable_checkpoint))
-            .await
-            .is_ok()
+    let message = pinned_worker
+        .process_checkpoint(archive_checkpoint_data(unverifiable_checkpoint))
+        .await
+        .unwrap();
+
+    let reducer = StateSyncReducer {
+        store: store.clone(),
+        metrics: Metrics::disabled(),
+        max_checkpoints_ahead_of_execution: u64::MAX,
+    };
+    reducer.commit(&[message]).await.unwrap();
+    assert_eq!(store.get_highest_synced_checkpoint_seq_number(), 1);
+    assert_eq!(
+        *store.get_checkpoint_by_sequence_number(1).unwrap().digest(),
+        pinned_digest
     );
 }
 
@@ -2159,6 +2106,135 @@ fn archive_checkpoint_data(summary: CertifiedCheckpointSummary) -> Arc<Checkpoin
         checkpoint_contents: empty_contents().into_checkpoint_contents(),
         transactions: vec![],
     })
+}
+
+/// Starts node 1 at genesis with `pinned_checkpoints` and a checkpoint archive
+/// that holds `archive_summaries`, which start at genesis. Starts node 2 with
+/// all of `ordered_checkpoints`, but with the contents only from the first
+/// checkpoint after the archive on, so that node 1 needs the archive for the
+/// ones before it. Returns the store of node 1 and what keeps both nodes
+/// running.
+async fn start_sync_from_checkpoint_archive(
+    committee: &CommitteeFixture,
+    ordered_checkpoints: &[VerifiedCheckpoint],
+    archive_summaries: &[CertifiedCheckpointSummary],
+    pinned_checkpoints: Vec<(CheckpointSequenceNumber, CheckpointDigest)>,
+) -> anyhow::Result<(SharedInMemoryStore, impl Sized)> {
+    let genesis_checkpoint = &ordered_checkpoints[0];
+    let last_sequence_number = ordered_checkpoints.last().unwrap().sequence_number();
+    let oldest_checkpoint_to_keep = archive_summaries.len() as u64;
+
+    // Create one archive file with `archive_summaries`
+    let temp_dir = iota_common::tempdir();
+    let mut chk_buf: Vec<u8> = Vec::new();
+    chk_buf.extend_from_slice(&CHECKPOINT_FILE_MAGIC.to_be_bytes());
+    chk_buf.push(StorageFormat::Blob as u8);
+    chk_buf.push(FileCompression::None as u8);
+    for summary in archive_summaries {
+        let checkpoint_data = archive_checkpoint_data(summary.clone());
+        Blob::encode(checkpoint_data.as_ref(), BlobEncoding::Bcs)?.write(&mut chk_buf)?;
+    }
+    let file_metadata = create_file_metadata_from_bytes(
+        Bytes::from(chk_buf.clone()),
+        0..oldest_checkpoint_to_keep,
+    )?;
+    std::fs::write(temp_dir.path().join("0.chk"), &chk_buf)?;
+    let mut manifest = Manifest::new(0);
+    manifest.update(oldest_checkpoint_to_keep, file_metadata);
+    std::fs::write(
+        temp_dir.path().join("MANIFEST"),
+        &finalize_manifest(manifest)?[..],
+    )?;
+    let checkpoint_archive_config = CheckpointArchiveConfig {
+        download_concurrency: NonZeroUsize::new(1).unwrap(),
+        verify_concurrency: NonZeroUsize::new(2).unwrap(),
+        url: format!("file://{}", temp_dir.path().display()),
+    };
+
+    let store_1 = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    let (builder, state_sync_router) = Builder::new()
+        .store(store_1.clone())
+        .config(StateSyncConfig {
+            pinned_checkpoints,
+            // Shorten the retry delay so pruned-checkpoint tasks quickly discover
+            // that the archive has already advanced highest_synced past them.
+            wait_interval_when_no_peer_to_sync_content_ms: Some(10),
+            // Keep sync unbounded: this store does not execute checkpoints.
+            max_checkpoints_ahead_of_execution: NonZeroU64::new(1_000_000),
+            ..StateSyncConfig::randomized_for_testing()
+        })
+        .checkpoint_archive_config(Some(checkpoint_archive_config))
+        .build();
+    let network_1 = build_network(|router| router.add_rpc_service(state_sync_router));
+    let (event_loop_1, handle_1) = builder.build(network_1.clone());
+
+    let store_2 = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    let (builder, state_sync_router) = Builder::new()
+        .store(store_2)
+        .config(StateSyncConfig::randomized_for_testing())
+        .build();
+    let network_2 = build_network(|router| router.add_rpc_service(state_sync_router));
+    let (event_loop_2, handle_2) = builder.build(network_2.clone());
+    network_1.connect(network_2.local_addr()).await.unwrap();
+
+    // Node 2 has all the data at first, and then prunes the contents of the
+    // checkpoints that the archive holds
+    {
+        let mut store = event_loop_2.store.inner_mut();
+        for checkpoint in ordered_checkpoints {
+            store.insert_checkpoint(checkpoint);
+            store.insert_checkpoint_contents(checkpoint, empty_contents());
+            store.update_highest_synced_checkpoint(checkpoint);
+        }
+        for checkpoint in &ordered_checkpoints[..archive_summaries.len()] {
+            store.delete_checkpoint_content_test_only(checkpoint.sequence_number)?;
+        }
+        assert_eq!(
+            store.get_lowest_available_checkpoint(),
+            oldest_checkpoint_to_keep
+        );
+        assert_eq!(
+            store
+                .get_highest_synced_checkpoint()
+                .unwrap()
+                .sequence_number,
+            last_sequence_number
+        );
+        assert_eq!(
+            store
+                .get_highest_verified_checkpoint()
+                .unwrap()
+                .sequence_number,
+            last_sequence_number
+        );
+    }
+
+    // Node 1 knows that Node 2 has the data from `oldest_checkpoint_to_keep` on
+    event_loop_1.peer_heights.write().unwrap().peers.insert(
+        network_2.peer_id(),
+        PeerStateSyncInfo {
+            genesis_checkpoint_digest: *genesis_checkpoint.digest(),
+            on_same_chain_as_us: true,
+            height: last_sequence_number,
+            lowest: oldest_checkpoint_to_keep,
+        },
+    );
+
+    tokio::spawn(event_loop_1.start());
+    tokio::spawn(event_loop_2.start());
+
+    Ok((
+        store_1,
+        (temp_dir, network_1, network_2, handle_1, handle_2),
+    ))
 }
 
 /// A peer that answers every request for a checkpoint summary with the same

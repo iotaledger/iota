@@ -20,20 +20,19 @@ use iota_types::{
 };
 use tracing::debug;
 
-use crate::state_sync::{metrics::Metrics, pinned_checkpoint_digest};
+use crate::state_sync::{is_pinned_checkpoint, metrics::Metrics};
 
-/// A checkpoint downloaded from the archive whose content digests — and,
-/// unless deferred, authority signatures — have been verified by a
-/// [`StateSyncWorker`], pending the chain-linkage check and insertion in the
-/// [`StateSyncReducer`].
+/// A checkpoint downloaded from the archive whose content digests have been
+/// verified by a [`StateSyncWorker`], pending the chain-linkage check and
+/// insertion in the [`StateSyncReducer`]. Its authority signatures have been
+/// verified too, unless they are deferred or the checkpoint is pinned.
 pub(crate) struct VerifiedArchiveCheckpoint {
     summary: CertifiedCheckpointSummary,
     contents: VerifiedCheckpointContents,
-    /// False when the committee for the checkpoint's epoch was not yet in the
+    /// True when the committee for the checkpoint's epoch was not yet in the
     /// store, because the previous epoch's last checkpoint had not been
     /// committed; the reducer verifies the signatures for those instead.
-    /// True for a pinned checkpoint, whose signatures are not verified.
-    signatures_verified: bool,
+    signatures_deferred: bool,
 }
 
 /// Verifies checkpoints downloaded from the archive.
@@ -62,31 +61,22 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
         checkpoint: Arc<CheckpointData>,
     ) -> anyhow::Result<Self::Message> {
         let summary = checkpoint.checkpoint_summary.clone();
-        let pinned_digest =
-            pinned_checkpoint_digest(&self.pinned_checkpoints, summary.sequence_number);
+        let is_pinned = is_pinned_checkpoint(&self.pinned_checkpoints, &summary)?;
         let committee = self.store.get_committee(summary.epoch());
         // As many workers run as there are cores, so keep their CPU-bound
         // verification off the runtime's worker threads, where it would hold up
         // checkpoint execution — which in turn gates how far sync may run
         // ahead.
         tokio::task::spawn_blocking(move || {
-            let signatures_verified = match (pinned_digest, committee) {
-                (Some(pinned_digest), _) => {
-                    ensure!(
-                        *summary.digest() == pinned_digest,
-                        "checkpoint {} has digest {}, not the pinned digest {pinned_digest}",
-                        summary.sequence_number,
-                        summary.digest()
-                    );
-                    true
-                }
-                (None, Some(committee)) => {
+            let signatures_deferred = match (is_pinned, committee) {
+                (true, _) => false,
+                (false, Some(committee)) => {
                     summary
                         .verify_authority_signatures(&committee)
                         .map_err(|e| anyhow!("checkpoint signature verification failed: {e}"))?;
-                    true
+                    false
                 }
-                (None, None) => false,
+                (false, None) => true,
             };
             let contents = FullCheckpointContents::from_contents_and_execution_data(
                 checkpoint.checkpoint_contents.clone(),
@@ -96,7 +86,7 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
             Ok(VerifiedArchiveCheckpoint {
                 summary,
                 contents,
-                signatures_verified,
+                signatures_deferred,
             })
         })
         .await?
@@ -214,7 +204,7 @@ impl<S: WriteStore + Clone> StateSyncReducer<S> {
         batch: &[VerifiedArchiveCheckpoint],
     ) -> anyhow::Result<()> {
         let mut deferred: BTreeMap<EpochId, Vec<CertifiedCheckpointSummary>> = BTreeMap::new();
-        for message in batch.iter().filter(|message| !message.signatures_verified) {
+        for message in batch.iter().filter(|message| message.signatures_deferred) {
             deferred
                 .entry(message.summary.epoch())
                 .or_default()
