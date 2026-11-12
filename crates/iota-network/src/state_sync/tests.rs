@@ -21,6 +21,7 @@ use iota_sdk_types::{CheckpointDigest, EndOfEpochData};
 use iota_storage::{
     FileCompression, StorageFormat,
     blob::{Blob, BlobEncoding},
+    verify_checkpoint,
 };
 use iota_swarm_config::test_utils::{
     CommitteeFixture, MakeCheckpointResults, empty_contents, random_contents,
@@ -29,7 +30,8 @@ use iota_types::{
     committee::{Committee, EpochId},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{
-        CheckpointSequenceNumber, VerifiedCheckpoint, VerifiedCheckpointContents,
+        CertifiedCheckpointSummary, CheckpointSequenceNumber, VerifiedCheckpoint,
+        VerifiedCheckpointContents,
     },
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };
@@ -40,8 +42,9 @@ use tokio::{
 
 use crate::{
     state_sync::{
-        Builder, GetCheckpointSummaryRequest, PeerStateSyncInfo, StateSync, StateSyncEventLoop,
-        StateSyncHandshake, StateSyncMessage, UnstartedStateSync,
+        Builder, GetCheckpointSummaryRequest, Handle, PeerStateSyncInfo, StateSync,
+        StateSyncEventLoop, StateSyncHandshake, StateSyncMessage, UnstartedStateSync,
+        pinned_checkpoint_digest, server::Server,
     },
     utils::build_network,
 };
@@ -1650,11 +1653,6 @@ async fn peer_checkpoint_with_unknown_epoch_is_rejected() {
         let (committee, (ordered_checkpoints, _, _, _)) =
             make_committee_and_checkpoints(0, 4, 1, None, empty_contents);
         let genesis_checkpoint = ordered_checkpoints.first().cloned().unwrap();
-        let store = store_with_genesis_state(
-            genesis_checkpoint.clone(),
-            empty_contents(),
-            committee.committee().to_owned(),
-        );
 
         let (_, (forged_checkpoints, _, _, _)) = make_committee_and_checkpoints(
             epoch,
@@ -1666,57 +1664,81 @@ async fn peer_checkpoint_with_unknown_epoch_is_rejected() {
         let forged_checkpoint = forged_checkpoints.first().cloned().unwrap().into_inner();
         assert_eq!(forged_checkpoint.sequence_number(), 1);
 
-        let (builder, server) = Builder::new().store(store).build_internal();
-        let (mut event_loop, _handle) = builder.build(build_network(|router| router));
+        let (mut event_loop, server, _handle) =
+            node_at_genesis(&genesis_checkpoint, &committee, vec![]);
 
-        let handshake = StateSyncHandshake {
-            genesis_checkpoint: genesis_checkpoint.clone().into_inner(),
-            highest_synced_checkpoint: forged_checkpoint.clone(),
-            lowest_available_checkpoint: 0,
-        };
-        server
-            .exchange_state_sync_handshake(Request::new(handshake).with_extension(PeerId([9; 32])))
-            .await
-            .unwrap();
-        sync_and_assert_checkpoint_1_rejected(&mut event_loop).await;
+        handshake_from_peer(&server, PeerId([9; 32]), forged_checkpoint.clone()).await;
+        sync_and_assert_checkpoint_rejected(&mut event_loop, 1).await;
 
-        let pushing_peer_id = PeerId([10; 32]);
-        event_loop.peer_heights.write().unwrap().peers.insert(
-            pushing_peer_id,
-            PeerStateSyncInfo {
-                genesis_checkpoint_digest: *genesis_checkpoint.digest(),
-                on_same_chain_as_us: true,
-                height: 0,
-                lowest: 0,
-            },
-        );
-        server
-            .push_checkpoint_summary(
-                Request::new(forged_checkpoint).with_extension(pushing_peer_id),
-            )
-            .await
-            .unwrap();
-        event_loop.sync_checkpoint_summaries_task = None;
-        sync_and_assert_checkpoint_1_rejected(&mut event_loop).await;
+        push_from_peer(&server, PeerId([10; 32]), forged_checkpoint).await;
+        sync_and_assert_checkpoint_rejected(&mut event_loop, 1).await;
     }
 }
 
-/// Runs one checkpoint summary sync with a peer's summary for checkpoint 1
-/// cached, and asserts that verification rejects the summary and drops it.
-async fn sync_and_assert_checkpoint_1_rejected(
-    event_loop: &mut StateSyncEventLoop<SharedInMemoryStore>,
-) {
-    assert!(
-        event_loop
-            .peer_heights
-            .read()
-            .unwrap()
-            .get_checkpoint_by_sequence_number(1)
-            .is_some()
-    );
+#[tokio::test]
+async fn cached_checkpoint_with_a_digest_other_than_the_pinned_one_is_not_taken() {
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 2, None, empty_contents);
+    let genesis_checkpoint = &ordered_checkpoints[0];
+    let pinned_digest = *ordered_checkpoints[1].digest();
+    let other_checkpoint =
+        end_of_epoch_checkpoint_with_new_committee(&committee, genesis_checkpoint);
+    assert_ne!(*other_checkpoint.digest(), pinned_digest);
 
-    event_loop.maybe_start_checkpoint_summary_sync_task();
-    event_loop.tasks.join_next().await.unwrap().unwrap();
+    for push in [false, true] {
+        let (mut event_loop, server, _handle) =
+            node_at_genesis(genesis_checkpoint, &committee, vec![(1, pinned_digest)]);
+        // It passes verification, so only the pin keeps it out.
+        assert!(
+            verify_checkpoint(
+                genesis_checkpoint,
+                &event_loop.store,
+                other_checkpoint.clone()
+            )
+            .is_ok()
+        );
+
+        if push {
+            push_from_peer(&server, PeerId([10; 32]), other_checkpoint.clone()).await;
+        } else {
+            handshake_from_peer(&server, PeerId([9; 32]), other_checkpoint.clone()).await;
+        }
+        sync_and_assert_checkpoint_not_taken(&mut event_loop, 1).await;
+    }
+}
+
+#[tokio::test]
+async fn requested_checkpoint_with_a_digest_other_than_the_pinned_one_is_not_taken() {
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 2, None, empty_contents);
+    let genesis_checkpoint = &ordered_checkpoints[0];
+    let pinned_digest = *ordered_checkpoints[1].digest();
+    let other_checkpoint =
+        end_of_epoch_checkpoint_with_new_committee(&committee, genesis_checkpoint);
+    let other_digest = *other_checkpoint.digest();
+    assert_ne!(other_digest, pinned_digest);
+
+    // Node 2 serves the other summary at sequence number 1.
+    let store_2 = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    store_2
+        .inner_mut()
+        .insert_checkpoint(&VerifiedCheckpoint::new_unchecked(other_checkpoint));
+    let (_, server_2) = Builder::new().store(store_2).build();
+    let network_2 = build_network(|router| router.add_rpc_service(server_2));
+
+    let (mut event_loop, server, _handle) =
+        node_at_genesis(genesis_checkpoint, &committee, vec![(1, pinned_digest)]);
+    event_loop
+        .network
+        .connect(network_2.local_addr())
+        .await
+        .unwrap();
+    insert_peer_on_same_chain(&server, network_2.peer_id(), 1);
+    run_checkpoint_summary_sync(&mut event_loop).await;
 
     assert_eq!(
         event_loop
@@ -1724,14 +1746,355 @@ async fn sync_and_assert_checkpoint_1_rejected(
             .get_highest_verified_checkpoint_seq_number(),
         0
     );
+    assert!(event_loop.store.get_committee(1).is_none());
+    // State sync caches a summary from a peer before it verifies it.
+    assert!(!is_checkpoint_cached(&event_loop, &other_digest));
+}
+
+#[tokio::test]
+async fn pinned_checkpoint_is_requested_when_another_one_is_cached() {
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 4, None, empty_contents);
+    let genesis_checkpoint = &ordered_checkpoints[0];
+    let pinned_digest = *ordered_checkpoints[2].digest();
+    let other_checkpoint =
+        end_of_epoch_checkpoint_with_new_committee(&committee, &ordered_checkpoints[1]);
+    let other_digest = *other_checkpoint.digest();
+    assert_eq!(other_checkpoint.sequence_number(), 2);
+    assert_ne!(other_digest, pinned_digest);
+
+    // Node 2 has every checkpoint and serves them.
+    let store_2 = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    for checkpoint in &ordered_checkpoints[1..] {
+        store_2.inner_mut().insert_checkpoint(checkpoint);
+    }
+    let (_, server_2) = Builder::new().store(store_2).build();
+    let network_2 = build_network(|router| router.add_rpc_service(server_2));
+
+    let (mut event_loop, server, _handle) =
+        node_at_genesis(genesis_checkpoint, &committee, vec![(2, pinned_digest)]);
+    assert!(
+        verify_checkpoint(
+            &ordered_checkpoints[1],
+            &event_loop.store,
+            other_checkpoint.clone()
+        )
+        .is_ok()
+    );
+    event_loop
+        .network
+        .connect(network_2.local_addr())
+        .await
+        .unwrap();
+    handshake_from_peer(
+        &server,
+        network_2.peer_id(),
+        ordered_checkpoints[3].clone().into_inner(),
+    )
+    .await;
+    push_from_peer(&server, PeerId([10; 32]), other_checkpoint).await;
+    assert_eq!(cached_checkpoint_digest(&event_loop, 2), Some(other_digest));
+
+    run_checkpoint_summary_sync(&mut event_loop).await;
+    assert_eq!(
+        event_loop
+            .store
+            .get_highest_verified_checkpoint_seq_number(),
+        3
+    );
+    assert_eq!(
+        *event_loop
+            .store
+            .get_checkpoint_by_sequence_number(2)
+            .unwrap()
+            .digest(),
+        pinned_digest
+    );
+    assert!(!is_checkpoint_cached(&event_loop, &other_digest));
+}
+
+#[tokio::test]
+async fn cached_checkpoint_with_the_pinned_digest_is_taken_without_verifying_signatures() {
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 2, None, empty_contents);
+    let genesis_checkpoint = &ordered_checkpoints[0];
+    let pinned_digest = *ordered_checkpoints[1].digest();
+
+    // The same summary, signed by a committee the node does not know.
+    let (_, (unverifiable_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 1, Some(genesis_checkpoint.clone()), empty_contents);
+    let unverifiable_checkpoint = unverifiable_checkpoints[0].clone().into_inner();
+    assert_eq!(*unverifiable_checkpoint.digest(), pinned_digest);
+    assert!(
+        unverifiable_checkpoint
+            .verify_authority_signatures(committee.committee())
+            .is_err()
+    );
+
+    let (mut event_loop, server, _handle) =
+        node_at_genesis(genesis_checkpoint, &committee, vec![(1, pinned_digest)]);
+
+    push_from_peer(&server, PeerId([10; 32]), unverifiable_checkpoint).await;
+    run_checkpoint_summary_sync(&mut event_loop).await;
+
+    let highest = event_loop.store.get_highest_verified_checkpoint();
+    assert_eq!(highest.sequence_number(), 1);
+    assert_eq!(*highest.digest(), pinned_digest);
+}
+
+#[tokio::test]
+async fn cached_pinned_checkpoint_is_taken_when_another_one_is_cached_after_it() {
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 2, None, empty_contents);
+    let genesis_checkpoint = &ordered_checkpoints[0];
+    let pinned_checkpoint = ordered_checkpoints[1].clone().into_inner();
+    let pinned_digest = *pinned_checkpoint.digest();
+    let other_checkpoint =
+        end_of_epoch_checkpoint_with_new_committee(&committee, genesis_checkpoint);
+    let other_digest = *other_checkpoint.digest();
+    assert_ne!(other_digest, pinned_digest);
+
+    let (mut event_loop, server, _handle) =
+        node_at_genesis(genesis_checkpoint, &committee, vec![(1, pinned_digest)]);
+
+    push_from_peer(&server, PeerId([9; 32]), pinned_checkpoint).await;
+    push_from_peer(&server, PeerId([10; 32]), other_checkpoint).await;
+    assert_eq!(cached_checkpoint_digest(&event_loop, 1), Some(other_digest));
+    run_checkpoint_summary_sync(&mut event_loop).await;
+
+    let highest = event_loop.store.get_highest_verified_checkpoint();
+    assert_eq!(highest.sequence_number(), 1);
+    assert_eq!(*highest.digest(), pinned_digest);
+}
+
+#[tokio::test]
+async fn cached_checkpoint_with_the_pinned_digest_at_another_sequence_number_is_not_taken() {
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 3, None, empty_contents);
+    let genesis_checkpoint = &ordered_checkpoints[0];
+    let checkpoint_2 = ordered_checkpoints[2].clone().into_inner();
+    let checkpoint_2_digest = *checkpoint_2.digest();
+
+    let (mut event_loop, server, _handle) = node_at_genesis(
+        genesis_checkpoint,
+        &committee,
+        vec![(1, checkpoint_2_digest)],
+    );
+
+    push_from_peer(&server, PeerId([10; 32]), checkpoint_2).await;
+    run_checkpoint_summary_sync(&mut event_loop).await;
+
+    assert_eq!(
+        event_loop
+            .store
+            .get_highest_verified_checkpoint_seq_number(),
+        0
+    );
+    // State sync did not read it for sequence number 1.
+    assert!(is_checkpoint_cached(&event_loop, &checkpoint_2_digest));
+}
+
+#[test]
+fn pinned_checkpoint_digest_returns_the_digest_pinned_at_the_sequence_number() {
+    let pinned_checkpoints = [
+        (2, CheckpointDigest::new([2; 32])),
+        (5, CheckpointDigest::new([5; 32])),
+        (9, CheckpointDigest::new([9; 32])),
+    ];
+    for (sequence_number, digest) in pinned_checkpoints {
+        assert_eq!(
+            pinned_checkpoint_digest(&pinned_checkpoints, sequence_number),
+            Some(digest)
+        );
+    }
+    for sequence_number in [0, 3, 10] {
+        assert_eq!(
+            pinned_checkpoint_digest(&pinned_checkpoints, sequence_number),
+            None
+        );
+    }
+}
+
+/// Returns a summary that follows `previous_checkpoint`, is signed by
+/// `committee`, and ends the epoch with a newly generated committee.
+fn end_of_epoch_checkpoint_with_new_committee(
+    committee: &CommitteeFixture,
+    previous_checkpoint: &VerifiedCheckpoint,
+) -> CertifiedCheckpointSummary {
+    let next_committee = CommitteeFixture::generate(
+        rand::rand_core::UnwrapErr(rand::rngs::SysRng),
+        committee.committee().epoch + 1,
+        4,
+    );
+    let (_, _, checkpoint) = committee.make_end_of_epoch_checkpoint(
+        previous_checkpoint.clone(),
+        Some(EndOfEpochData {
+            next_epoch_committee: next_committee.committee().committee_members(),
+            next_epoch_protocol_version: 1,
+            epoch_commitments: vec![],
+            epoch_supply_change: 0,
+        }),
+    );
+    checkpoint.into_inner()
+}
+
+/// Builds a node at `genesis_checkpoint` with `pinned_checkpoints`, without
+/// starting its event loop.
+fn node_at_genesis(
+    genesis_checkpoint: &VerifiedCheckpoint,
+    committee: &CommitteeFixture,
+    pinned_checkpoints: Vec<(CheckpointSequenceNumber, CheckpointDigest)>,
+) -> (
+    StateSyncEventLoop<SharedInMemoryStore>,
+    Server<SharedInMemoryStore>,
+    Handle,
+) {
+    let store = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    let config = StateSyncConfig {
+        pinned_checkpoints,
+        ..Default::default()
+    };
+    let (builder, server) = Builder::new().store(store).config(config).build_internal();
+    let (event_loop, handle) = builder.build(build_network(|router| router));
+    (event_loop, server, handle)
+}
+
+/// Has a peer on the node's chain report `checkpoint` as its highest synced
+/// checkpoint in the handshake.
+async fn handshake_from_peer(
+    server: &Server<SharedInMemoryStore>,
+    peer_id: PeerId,
+    checkpoint: CertifiedCheckpointSummary,
+) {
+    let handshake = StateSyncHandshake {
+        genesis_checkpoint: server.genesis_checkpoint.as_ref().clone().into_inner(),
+        highest_synced_checkpoint: checkpoint,
+        lowest_available_checkpoint: 0,
+    };
+    server
+        .exchange_state_sync_handshake(Request::new(handshake).with_extension(peer_id))
+        .await
+        .unwrap();
+}
+
+/// Records `peer_id` as a peer on the node's chain at `height`.
+fn insert_peer_on_same_chain(
+    server: &Server<SharedInMemoryStore>,
+    peer_id: PeerId,
+    height: CheckpointSequenceNumber,
+) {
+    server.peer_heights.write().unwrap().peers.insert(
+        peer_id,
+        PeerStateSyncInfo {
+            genesis_checkpoint_digest: *server.genesis_checkpoint.digest(),
+            on_same_chain_as_us: true,
+            height,
+            lowest: 0,
+        },
+    );
+}
+
+/// Has a peer on the node's chain push `checkpoint`.
+async fn push_from_peer(
+    server: &Server<SharedInMemoryStore>,
+    peer_id: PeerId,
+    checkpoint: CertifiedCheckpointSummary,
+) {
+    insert_peer_on_same_chain(server, peer_id, 0);
+    server
+        .push_checkpoint_summary(Request::new(checkpoint).with_extension(peer_id))
+        .await
+        .unwrap();
+}
+
+/// Runs one checkpoint summary sync task to completion.
+async fn run_checkpoint_summary_sync(event_loop: &mut StateSyncEventLoop<SharedInMemoryStore>) {
+    event_loop.maybe_start_checkpoint_summary_sync_task();
+    event_loop.tasks.join_next().await.unwrap().unwrap();
+    event_loop.sync_checkpoint_summaries_task = None;
+}
+
+/// Runs one checkpoint summary sync with a peer's summary for checkpoint
+/// `sequence_number` cached, and asserts that state sync does not take the
+/// summary.
+async fn sync_and_assert_checkpoint_not_taken(
+    event_loop: &mut StateSyncEventLoop<SharedInMemoryStore>,
+    sequence_number: CheckpointSequenceNumber,
+) {
+    let cached_checkpoint = event_loop
+        .peer_heights
+        .read()
+        .unwrap()
+        .get_checkpoint_by_sequence_number(sequence_number)
+        .cloned()
+        .unwrap();
+
+    run_checkpoint_summary_sync(event_loop).await;
+
+    // An end-of-epoch summary that is not taken must not install its next
+    // committee.
     assert!(
         event_loop
-            .peer_heights
-            .read()
-            .unwrap()
-            .get_checkpoint_by_sequence_number(1)
+            .store
+            .get_committee(cached_checkpoint.epoch() + 1)
             .is_none()
     );
+    assert_eq!(
+        event_loop
+            .store
+            .get_highest_verified_checkpoint_seq_number(),
+        sequence_number - 1
+    );
+    assert!(
+        event_loop
+            .store
+            .get_checkpoint_by_digest(cached_checkpoint.digest())
+            .is_none()
+    );
+}
+
+/// Like `sync_and_assert_checkpoint_not_taken`, and also asserts that state
+/// sync drops the summary from the cache.
+async fn sync_and_assert_checkpoint_rejected(
+    event_loop: &mut StateSyncEventLoop<SharedInMemoryStore>,
+    sequence_number: CheckpointSequenceNumber,
+) {
+    sync_and_assert_checkpoint_not_taken(event_loop, sequence_number).await;
+    assert_eq!(cached_checkpoint_digest(event_loop, sequence_number), None);
+}
+
+/// Returns the digest of the summary that the node's cache gives for
+/// `sequence_number`.
+fn cached_checkpoint_digest(
+    event_loop: &StateSyncEventLoop<SharedInMemoryStore>,
+    sequence_number: CheckpointSequenceNumber,
+) -> Option<CheckpointDigest> {
+    event_loop
+        .peer_heights
+        .read()
+        .unwrap()
+        .get_checkpoint_by_sequence_number(sequence_number)
+        .map(|checkpoint| *checkpoint.digest())
+}
+
+fn is_checkpoint_cached(
+    event_loop: &StateSyncEventLoop<SharedInMemoryStore>,
+    digest: &CheckpointDigest,
+) -> bool {
+    event_loop
+        .peer_heights
+        .read()
+        .unwrap()
+        .get_checkpoint_by_digest(digest)
+        .is_some()
 }
 
 /// Waits for a store to reach the given verified and synced watermarks,

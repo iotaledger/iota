@@ -67,7 +67,7 @@ use std::{
 };
 
 use anemo::{PeerId, Request, Response, Result, types::PeerEvent};
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, ensure};
 use futures::{Future, FutureExt, StreamExt, stream::FuturesOrdered};
 use iota_config::p2p::StateSyncConfig;
 use iota_data_ingestion_core::{
@@ -1307,6 +1307,17 @@ async fn query_peers_for_their_latest_checkpoint(
     }
 }
 
+/// `pinned_checkpoints` must be sorted by sequence number.
+fn pinned_checkpoint_digest(
+    pinned_checkpoints: &[(CheckpointSequenceNumber, CheckpointDigest)],
+    sequence_number: CheckpointSequenceNumber,
+) -> Option<CheckpointDigest> {
+    pinned_checkpoints
+        .binary_search_by_key(&sequence_number, |(seq_num, _digest)| *seq_num)
+        .ok()
+        .map(|index| pinned_checkpoints[index].1)
+}
+
 /// Queries connected peers for the checkpoint summaries from the highest
 /// verified one up to `highest_checkpoint_to_sync`, verifies them, inserts
 /// them in the store, and cleans the ones it took out of `peer_heights` as it
@@ -1349,12 +1360,22 @@ where
             let peer_heights = peer_heights.clone();
             let pinned_checkpoints = &pinned_checkpoints;
             async move {
-                if let Some(checkpoint) = peer_heights
-                    .read()
-                    .unwrap()
-                    .get_checkpoint_by_sequence_number(next)
+                let pinned_digest = pinned_checkpoint_digest(pinned_checkpoints, next);
                 {
-                    return (Some(checkpoint.to_owned()), next, None);
+                    let peer_heights = peer_heights.read().unwrap();
+                    let cached_checkpoint = match pinned_digest {
+                        // The cache can hold other summaries at this sequence number.
+                        Some(pinned_digest) => {
+                            peer_heights.get_checkpoint_by_digest(&pinned_digest)
+                        }
+                        None => peer_heights.get_checkpoint_by_sequence_number(next),
+                    };
+                    if let Some(checkpoint) = cached_checkpoint {
+                        // A pinned digest can belong to a checkpoint at another sequence number.
+                        if checkpoint.sequence_number() == next {
+                            return (Some(checkpoint.clone()), next, None);
+                        }
+                    }
                 }
 
                 // Iterate through peers trying each one in turn until we're able to
@@ -1381,14 +1402,11 @@ where
 
                         // Peer gave us a checkpoint whose digest does not match pinned digest
                         let checkpoint_digest = checkpoint.digest();
-                        if let Ok(pinned_digest_index) = pinned_checkpoints.binary_search_by_key(
-                            &checkpoint.sequence_number(),
-                            |(seq_num, _digest)| *seq_num
-                        ) {
-                            if pinned_checkpoints[pinned_digest_index].1 != *checkpoint_digest {
+                        if let Some(pinned_digest) = pinned_digest {
+                            if pinned_digest != *checkpoint_digest {
                                 tracing::debug!(
                                     "peer returned checkpoint with digest that does not match pinned digest: expected {:?}, got {:?}",
-                                    pinned_checkpoints[pinned_digest_index].1,
+                                    pinned_digest,
                                     checkpoint_digest
                                 );
                                 continue;
@@ -1453,10 +1471,15 @@ where
                 )
             })?;
             // Skip verification for manually pinned checkpoints.
-            if pinned_checkpoints
-                .binary_search_by_key(&checkpoint.sequence_number(), |(seq_num, _digest)| *seq_num)
-                .is_ok()
+            if let Some(pinned_digest) =
+                pinned_checkpoint_digest(&pinned_checkpoints, checkpoint.sequence_number())
             {
+                ensure!(
+                    *checkpoint.digest() == pinned_digest,
+                    "checkpoint {} has digest {}, not the pinned digest {pinned_digest}",
+                    checkpoint.sequence_number(),
+                    checkpoint.digest()
+                );
                 break 'cp VerifiedCheckpoint::new_unchecked(checkpoint);
             }
             match verify_checkpoint(&current, &store, checkpoint) {
