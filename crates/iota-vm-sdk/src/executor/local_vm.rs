@@ -11,6 +11,7 @@ use iota_sdk_types::{
     Address, MoveAuthenticator, SenderSignedTransaction, Transaction, TransactionEvents,
 };
 use iota_types::{
+    digests::ChainIdentifier,
     effects::TransactionEffectsAPI,
     gas::IotaGasStatus,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
@@ -47,6 +48,7 @@ pub struct LocalVm {
     pub(super) reference_gas_price: u64,
     pub(super) epoch_id: u64,
     pub(super) epoch_timestamp_ms: u64,
+    pub(super) chain_identifier: ChainIdentifier,
     pub(super) limits_metrics: Arc<LimitsMetrics>,
     pub(super) bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
     store: Box<dyn Store>,
@@ -93,6 +95,7 @@ impl LocalVm {
             reference_gas_price: ctx.reference_gas_price,
             epoch_id: ctx.epoch_id,
             epoch_timestamp_ms: ctx.epoch_timestamp_ms,
+            chain_identifier: ctx.chain_identifier,
             limits_metrics: Arc::new(new_limits_metrics()),
             bytecode_verifier_metrics: Arc::new(new_bytecode_verifier_metrics()),
             store: Box::new(store),

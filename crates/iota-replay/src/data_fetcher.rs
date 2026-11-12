@@ -9,9 +9,9 @@ use futures::future::join_all;
 use iota_core::authority::NodeStateDump;
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
 use iota_json_rpc_types::{
-    EventFilter, IotaEvent, IotaGetPastObjectRequest, IotaObjectData, IotaObjectDataOptions,
-    IotaObjectResponse, IotaPastObjectResponse, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions,
+    CheckpointId, EventFilter, IotaEvent, IotaGetPastObjectRequest, IotaObjectData,
+    IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::IotaClient;
@@ -83,6 +83,9 @@ pub(crate) trait DataFetcher {
     ) -> Result<Vec<IotaEvent>, ReplayEngineError>;
 
     async fn get_chain_id(&self) -> Result<String, ReplayEngineError>;
+
+    /// The digest of the chain's genesis checkpoint.
+    async fn get_chain_identifier(&self) -> Result<ChainIdentifier, ReplayEngineError>;
 
     async fn get_child_object(
         &self,
@@ -226,6 +229,12 @@ impl DataFetcher for Fetchers {
         match self {
             Fetchers::Remote(q) => q.get_chain_id().await,
             Fetchers::NodeStateDump(q) => q.get_chain_id().await,
+        }
+    }
+    async fn get_chain_identifier(&self) -> Result<ChainIdentifier, ReplayEngineError> {
+        match self {
+            Fetchers::Remote(q) => q.get_chain_identifier().await,
+            Fetchers::NodeStateDump(q) => q.get_chain_identifier().await,
         }
     }
     async fn get_child_object(
@@ -660,6 +669,16 @@ impl DataFetcher for RemoteFetcher {
             .map_err(|e| ReplayEngineError::UnableToGetChainId { err: e.to_string() })?;
         Ok(chain_id)
     }
+
+    async fn get_chain_identifier(&self) -> Result<ChainIdentifier, ReplayEngineError> {
+        let genesis_checkpoint = self
+            .rpc_client
+            .read_api()
+            .get_checkpoint(CheckpointId::SequenceNumber(0))
+            .await
+            .map_err(|e| ReplayEngineError::UnableToGetChainId { err: e.to_string() })?;
+        Ok(ChainIdentifier::from(genesis_checkpoint.digest))
+    }
 }
 
 fn convert_past_obj_response(resp: IotaPastObjectResponse) -> Result<Object, ReplayEngineError> {
@@ -876,6 +895,12 @@ impl DataFetcher for NodeStateDumpFetcher {
 
     async fn get_chain_id(&self) -> Result<String, ReplayEngineError> {
         unimplemented!("get_chain_id for state dump is not implemented")
+    }
+
+    async fn get_chain_identifier(&self) -> Result<ChainIdentifier, ReplayEngineError> {
+        Err(ReplayEngineError::UnableToGetChainId {
+            err: "a node state dump has no chain identifier".to_string(),
+        })
     }
 
     async fn get_child_object(
