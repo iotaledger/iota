@@ -955,6 +955,7 @@ pub async fn download_formal_snapshot(
             RpcIndexesRestorer::open(
                 path.join(RPC_INDEXES_DIR),
                 BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+                NonZeroUsize::MIN,
             )
         })
         .transpose()?
