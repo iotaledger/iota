@@ -90,6 +90,17 @@ public fun gas_budget(_self: &TxContext): u64 {
 // native function to retrieve gas budget, currently not exposed
 native fun native_gas_budget(): u64;
 
+/// Return the ID and version, as listed in the transaction, of the first gas
+/// coin, and the index of this nonce among those taken in the transaction,
+/// starting at 0. Each call moves the index on.
+///
+/// Aborts with code 2 if the transaction has no gas coin. Authenticators never
+/// have one.
+public(package) fun take_gas_coin_nonce(_self: &mut TxContext): (address, u64, u64) {
+    native_take_gas_coin_nonce()
+}
+native fun native_take_gas_coin_nonce(): (address, u64, u64);
+
 // ==== test-only functions ====
 #[test_only]
 /// Return the number of id's created by the current transaction.
@@ -124,6 +135,7 @@ public fun create(
         gas_budget,
         sponsor.to_vec(),
     );
+    replace_gas_coin(vector[], 0);
     TxContext {
         sender: @0x0,
         tx_hash: vector::empty(),
@@ -229,6 +241,13 @@ public fun increment_epoch_timestamp(self: &mut TxContext, delta_ms: u64) {
     );
 }
 
+#[test_only]
+/// Set the first gas coin of the transaction to `id` at `version`, and restart
+/// the index of its nonces at 0.
+public fun set_gas_coin_for_testing(_self: &mut TxContext, id: address, version: u64) {
+    replace_gas_coin(vector[id], version);
+}
+
 fun option_sponsor(): Option<address> {
     let sponsor = native_sponsor();
     if (sponsor.length() == 0) option::none() else option::some(sponsor[0])
@@ -247,6 +266,9 @@ native fun replace(
     gas_budget: u64,
     sponsor: vector<address>,
 );
+
+#[test_only]
+native fun replace_gas_coin(id: vector<address>, version: u64);
 
 #[allow(unused_function)]
 /// Native function for deriving an ID via hash(tx_hash || ids_created)

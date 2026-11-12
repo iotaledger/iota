@@ -5,7 +5,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use better_any::{Tid, TidAble};
-use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest};
 use iota_types::{base_types::TxContext, committee::EpochId};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -115,6 +115,13 @@ impl TransactionContext {
         self.tx_context.borrow_mut().fresh_id()
     }
 
+    /// Returns the gas coin and the index of this nonce among those taken
+    /// from it, then moves the index on. Returns `None` when there is no gas
+    /// coin.
+    pub fn take_gas_coin_nonce(&self) -> Option<(ObjectReference, u64)> {
+        self.tx_context.borrow_mut().take_gas_coin_nonce()
+    }
+
     // Test only function: replace all fields of the wrapped TxContext.
     pub fn replace(
         &mut self,
@@ -150,6 +157,19 @@ impl TransactionContext {
         // data
         self.cached_digest = None;
 
+        Ok(())
+    }
+
+    // Test only function: set the gas coin of the wrapped TxContext and restart
+    // the index of its nonces at 0.
+    pub fn set_gas_coin(&mut self, gas_coin: Option<ObjectReference>) -> PartialVMResult<()> {
+        if !self.test_only {
+            return Err(
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                    .with_message("`set_gas_coin` called on a non testing scenario".to_string()),
+            );
+        }
+        self.tx_context.borrow_mut().set_gas_coin(gas_coin);
         Ok(())
     }
 }

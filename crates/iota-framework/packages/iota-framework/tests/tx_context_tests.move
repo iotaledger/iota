@@ -49,3 +49,44 @@ fun test_tx_context_returned_refs_consistency() {
     // the created reference to the first digest should still be valid and unchanged
     assert_eq!(*digest_ref1, digest1);
 }
+
+#[test]
+fun test_take_gas_coin_nonce() {
+    use std::unit_test::assert_eq;
+
+    let mut ctx = tx_context::dummy();
+    ctx.set_gas_coin_for_testing(@0xC0, 7);
+
+    let (id, version, index) = ctx.take_gas_coin_nonce();
+    assert_eq!(id, @0xC0);
+    assert_eq!(version, 7);
+    assert_eq!(index, 0);
+    let (_, _, index) = ctx.take_gas_coin_nonce();
+    assert_eq!(index, 1);
+    let (_, _, index) = ctx.take_gas_coin_nonce();
+    assert_eq!(index, 2);
+
+    // setting another gas coin restarts the index
+    ctx.set_gas_coin_for_testing(@0xC1, 8);
+    let (id, version, index) = ctx.take_gas_coin_nonce();
+    assert_eq!(id, @0xC1);
+    assert_eq!(version, 8);
+    assert_eq!(index, 0);
+}
+
+#[test]
+#[expected_failure(abort_code = 2, location = iota::tx_context)]
+fun test_take_gas_coin_nonce_without_gas_coin() {
+    let mut ctx = tx_context::dummy();
+    let (_, _, _) = ctx.take_gas_coin_nonce();
+}
+
+#[test]
+#[expected_failure(abort_code = 2, location = iota::tx_context)]
+fun test_new_tx_context_has_no_gas_coin() {
+    let mut ctx = tx_context::dummy();
+    ctx.set_gas_coin_for_testing(@0xC0, 7);
+
+    let mut ctx = tx_context::dummy();
+    let (_, _, _) = ctx.take_gas_coin_nonce();
+}

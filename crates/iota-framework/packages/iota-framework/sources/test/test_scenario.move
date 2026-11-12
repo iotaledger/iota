@@ -88,6 +88,9 @@ public struct TxContextBuilder has drop {
     gas_price: u64,
     gas_budget: u64,
     sponsor: Option<address>,
+    // ID and version of the first gas coin, if the transaction has one
+    gas_coin_id: Option<address>,
+    gas_coin_version: u64,
 }
 
 /// The effects of a transaction
@@ -126,6 +129,8 @@ public fun ctx_builder_from_sender(sender: address): TxContextBuilder {
         gas_price: 1_000,
         gas_budget: 100_000_000,
         sponsor: option::none(),
+        gas_coin_id: option::none(),
+        gas_coin_version: 0,
     }
 }
 
@@ -135,6 +140,7 @@ public fun ctx_builder(scenario: &Scenario): TxContextBuilder {
 }
 
 /// Create a `TxContextBuilder` from an existing `TxContext`.
+/// The builder has no gas coin, since reading the gas coin of `ctx` would take a nonce.
 public fun ctx_builder_from_context(ctx: &TxContext): TxContextBuilder {
     TxContextBuilder {
         sender: ctx.sender(),
@@ -145,6 +151,8 @@ public fun ctx_builder_from_context(ctx: &TxContext): TxContextBuilder {
         gas_price: ctx.gas_price(),
         gas_budget: ctx.gas_budget(),
         sponsor: ctx.sponsor(),
+        gas_coin_id: option::none(),
+        gas_coin_version: 0,
     }
 }
 
@@ -196,6 +204,17 @@ public fun set_sponsor(mut builder: TxContextBuilder, sponsor: Option<address>):
     builder
 }
 
+/// Set the ID and version of the first gas coin for the `TxContextBuilder`.
+public fun set_gas_coin(
+    mut builder: TxContextBuilder,
+    id: address,
+    version: u64,
+): TxContextBuilder {
+    builder.gas_coin_id = option::some(id);
+    builder.gas_coin_version = version;
+    builder
+}
+
 /// Clone a `TxContextBuilder`.
 /// This is useful for building a new context that is mostly the same as an existing one.
 public fun clone(builder: &TxContextBuilder): TxContextBuilder {
@@ -208,13 +227,15 @@ public fun clone(builder: &TxContextBuilder): TxContextBuilder {
         gas_price: builder.gas_price,
         gas_budget: builder.gas_budget,
         sponsor: builder.sponsor,
+        gas_coin_id: builder.gas_coin_id,
+        gas_coin_version: builder.gas_coin_version,
     }
 }
 
 // Create a `TxContext` from a `TxContextBuilder`.
 // This is an internal function called when building a `Scenario`.
 fun make_tx_context(builder: TxContextBuilder, tx_hash: vector<u8>): TxContext {
-    tx_context::create(
+    let mut ctx = tx_context::create(
         builder.sender,
         tx_hash,
         builder.epoch,
@@ -225,7 +246,9 @@ fun make_tx_context(builder: TxContextBuilder, tx_hash: vector<u8>): TxContext {
         builder.gas_price,
         builder.gas_budget,
         builder.sponsor,
-    )
+    );
+    builder.gas_coin_id.do!(|id| ctx.set_gas_coin_for_testing(id, builder.gas_coin_version));
+    ctx
 }
 
 /// Begin a new multi-transaction test scenario in a context where `sender` is the tx sender
