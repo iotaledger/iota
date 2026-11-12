@@ -30,6 +30,7 @@ use iota_test_transaction_builder::{
     publish_nfts_package,
 };
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID,
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     messages_grpc::TransactionInfoRequest,
@@ -1611,4 +1612,35 @@ async fn publish_init_events_without_local_execution() {
         .await
         .unwrap();
     assert_eq!(response.events.unwrap().data.len(), 1);
+}
+
+#[sim_test]
+async fn test_chain_identifier_read_in_move_is_genesis_checkpoint_digest()
+-> Result<(), anyhow::Error> {
+    let test_cluster = TestClusterBuilder::new().build().await;
+
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.programmable_move_call(
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        Identifier::from_static("tx_context"),
+        Identifier::from_static("chain_identifier"),
+        vec![],
+        vec![],
+    );
+    let kind = TransactionKind::new_programmable(builder.finish());
+
+    let results = test_cluster
+        .fullnode_handle
+        .iota_client
+        .read_api()
+        .dev_inspect_transaction_block(test_cluster.get_address_0(), kind, None, None, None)
+        .await?;
+    assert_eq!(results.error, None);
+    let call_results = results.results.expect("the call should have results");
+    let (return_value, _) = &call_results[0].return_values[0];
+    let chain_identifier: Vec<u8> = bcs::from_bytes(return_value)?;
+
+    let genesis_checkpoint = test_cluster.swarm.config().genesis.checkpoint();
+    assert_eq!(chain_identifier, genesis_checkpoint.digest().bytes());
+    Ok(())
 }
