@@ -2198,6 +2198,7 @@ impl AuthorityState {
         expected_effects_digest: TransactionEffectsDigest,
         inner_temporary_store: &InnerTemporaryStore,
         transaction: &VerifiedExecutableTransaction,
+        transaction_dependency: Option<TransactionDependencyReadResult>,
         debug_dump_config: &StateDebugDumpConfig,
     ) -> IotaResult<PathBuf> {
         // Fall back to the OS temp directory if no dump directory is configured.
@@ -2217,6 +2218,7 @@ impl AuthorityState {
             &epoch_store,
             inner_temporary_store,
             transaction,
+            transaction_dependency,
         )?
         .write_to_file(&dump_dir)
         .map_err(|e| IotaError::FileIO(e.to_string()))
@@ -2274,6 +2276,7 @@ impl AuthorityState {
         // errors). However, all errors from this function occur before we have
         // written anything to the db, so we commit the tx guard and rely on the
         // client to retry the tx (if it was transient).
+        let transaction_dependency = tx_input_objects.transaction_dependency();
         let (inner_temporary_store, effects, execution_error_opt, read_objects, attestation_record) =
             match self.execute_transaction(
                 &execution_guard,
@@ -2300,6 +2303,7 @@ impl AuthorityState {
                     expected_effects_digest,
                     &inner_temporary_store,
                     transaction,
+                    transaction_dependency,
                     &self.config.state_debug_dump_config,
                 ) {
                     Ok(out_path) => {
@@ -7609,6 +7613,9 @@ pub struct NodeStateDump {
     pub modified_at_versions: Vec<ObjDumpFormat>,
     pub runtime_reads: Vec<ObjDumpFormat>,
     pub input_objects: Vec<ObjDumpFormat>,
+    /// The outcome of the transaction named by the transaction dependency
+    /// input, when execution read it.
+    pub transaction_dependency: Option<TransactionDependencyReadResult>,
 }
 
 impl NodeStateDump {
@@ -7620,6 +7627,7 @@ impl NodeStateDump {
         epoch_store: &Arc<AuthorityPerEpochStore>,
         inner_temporary_store: &InnerTemporaryStore,
         transaction: &VerifiedExecutableTransaction,
+        transaction_dependency: Option<TransactionDependencyReadResult>,
     ) -> IotaResult<Self> {
         // Epoch info
         let executed_epoch = epoch_store.epoch();
@@ -7707,6 +7715,7 @@ impl NodeStateDump {
                 .collect(),
             computed_effects: effects.clone(),
             expected_effects_digest,
+            transaction_dependency,
         })
     }
 
