@@ -251,7 +251,7 @@ pub struct NodeConfig {
     /// How many threads read the inputs of a consensus commit's transactions
     /// at once in post-consensus validation, the consensus handler's own
     /// thread included. One reads them one after another. By default a
-    /// quarter of the cores, at least one and at most eight. Has no effect
+    /// third of the cores, at least one and at most sixteen. Has no effect
     /// unless the pcool flow is enabled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub post_consensus_validation_readers: Option<NonZeroUsize>,

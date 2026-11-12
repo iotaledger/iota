@@ -13176,10 +13176,18 @@ fn validation_does_not_wait_for_a_reader_the_blocking_pool_has_not_started() {
 }
 
 #[test]
-fn validation_readers_are_a_quarter_of_the_cores_between_one_and_eight() {
+fn validation_readers_are_a_third_of_the_cores_between_one_and_sixteen() {
     use super::validation_readers_for;
 
-    for (cores, readers) in [(1, 1), (4, 1), (8, 2), (16, 4), (32, 8), (48, 8), (96, 8)] {
+    for (cores, readers) in [
+        (1, 1),
+        (4, 1),
+        (8, 2),
+        (16, 5),
+        (32, 10),
+        (48, 16),
+        (96, 16),
+    ] {
         assert_eq!(validation_readers_for(cores), readers, "{cores} cores");
     }
 }

@@ -910,9 +910,9 @@ fn default_validation_readers() -> usize {
     })
 }
 
-/// A quarter of `cores`, at least one and at most eight.
+/// A third of `cores`, at least one and at most sixteen.
 fn validation_readers_for(cores: usize) -> usize {
-    (cores / 4).clamp(1, 8)
+    (cores / 3).clamp(1, 16)
 }
 
 /// The transactions of a commit whose Check #6 runs ahead of the validation
