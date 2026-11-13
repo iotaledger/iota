@@ -151,7 +151,7 @@ impl ReplayFuzzer {
                     self.sandbox_state.transaction_info.tx_digest, mutation
                 );
                 match self.execute_tx_and_check_status(&mutation).await {
-                    Ok(v) => tx_kind = v.transaction_info.kind.clone(),
+                    Ok(v) => tx_kind = v.transaction_info.kind,
                     Err(e) => {
                         error!(
                             "Error executing transaction: base tx: {}, mutation: {:?} with error{:?}",

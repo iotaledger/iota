@@ -224,7 +224,7 @@ impl Worker for KVStoreWorker {
             let transaction_digest = transaction.transaction.digest().into_bytes().to_vec();
             effects.push((transaction_digest.clone(), transaction.effects.clone()));
             transactions_to_checkpoint.push((transaction_digest.clone(), checkpoint_number));
-            transactions.push((transaction_digest.clone(), transaction.transaction.clone()));
+            transactions.push((transaction_digest, transaction.transaction.clone()));
 
             if let Some(tx_events) = &transaction.events {
                 events.push((tx_events.digest().into_bytes().to_vec(), tx_events));

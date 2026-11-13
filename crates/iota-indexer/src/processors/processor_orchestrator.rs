@@ -89,7 +89,8 @@ where
                 tasks.shutdown().await;
             }
             _ = async {
-                while let Some(res) = tasks.join_next().await {
+                // The processor tasks loop forever, so a task only finishes if it failed.
+                if let Some(res) = tasks.join_next().await {
                     res.expect("processor orchestrator should not run into errors.");
                 }
             } => {}

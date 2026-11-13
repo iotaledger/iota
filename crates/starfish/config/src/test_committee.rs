@@ -27,7 +27,7 @@ pub fn local_committee_and_keys(
         authorities.push(Authority {
             stake,
             address: get_available_local_address(),
-            hostname: format!("test_host_{i}").to_string(),
+            hostname: format!("test_host_{i}"),
             authority_key: authority_keypair.public(),
             protocol_key: protocol_keypair.public(),
             network_key: network_keypair.public(),

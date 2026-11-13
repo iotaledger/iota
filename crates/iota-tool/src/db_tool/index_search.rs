@@ -341,7 +341,7 @@ where
 
             for result in iter {
                 let (key, value) = result?;
-                entries.push((key.clone(), value.clone()));
+                entries.push((key, value));
             }
         }
         SearchRange::Count(mut count) => {
@@ -350,7 +350,7 @@ where
             while count > 0 {
                 if let Some(result) = iter.next() {
                     let (key, value) = result?;
-                    entries.push((key.clone(), value.clone()));
+                    entries.push((key, value));
                 } else {
                     break;
                 }

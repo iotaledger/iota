@@ -111,7 +111,7 @@ pub async fn test_certificates(
         let vote = response.status.into_signed_for_testing();
         let certificate = CertifiedTransaction::new(
             transaction.into_message(),
-            vec![vote.clone()],
+            vec![vote],
             &authority.clone_committee_for_testing(),
         )
         .unwrap();

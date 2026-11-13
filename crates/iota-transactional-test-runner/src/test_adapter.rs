@@ -1597,13 +1597,11 @@ impl IotaTestAdapter {
             .map(|(name, addr)| (name.clone(), format!("{addr:#04x}")));
 
         for (name, addr) in named_addrs {
-            let addr = addr.to_string();
-
             // Required variant
             variables.insert(name.to_owned(), addr.clone());
             // Optional variant
-            let name = name.to_string() + "_opt";
-            variables.insert(name.clone(), addr.clone());
+            let name = name + "_opt";
+            variables.insert(name, addr);
         }
 
         for (oid, fid) in &self.object_enumeration {
@@ -2878,7 +2876,7 @@ async fn init_sim_executor(
             account_objects.insert(name.clone(), o.id());
 
             accounts.insert(
-                name.to_owned(),
+                name,
                 TestAccount {
                     address: addr,
                     private_key: Some(key),

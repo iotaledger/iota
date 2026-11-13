@@ -150,7 +150,7 @@ async fn run_task(
         match result {
             Err(err) => {
                 error!("Replaying transaction {:?} failed: {:?}", digest, err);
-                failed_transactions.push(err.clone());
+                failed_transactions.push(err);
                 if terminate_early {
                     cancel.cancel();
                     break;

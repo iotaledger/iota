@@ -404,11 +404,11 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
     };
 
     // Delegate some IOTA
-    for i in 0..3 {
+    for coin in coins.data.iter().take(3) {
         let transaction_bytes: TransactionBlockBytes = http_client
             .request_add_stake(
                 address,
-                vec![coins.data[i].coin_object_id],
+                vec![coin.coin_object_id],
                 Some(1000000000.into()),
                 validator,
                 None,

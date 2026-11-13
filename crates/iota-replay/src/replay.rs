@@ -516,7 +516,7 @@ impl LocalExec {
                     .package_cache
                     .lock()
                     .expect("Cannot lock")
-                    .insert(o_ref.object_id, obj.clone());
+                    .insert(o_ref.object_id, obj);
             }
         }
         Ok(objs.collect())

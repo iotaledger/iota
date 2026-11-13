@@ -323,7 +323,7 @@ impl Linearizer {
             // Buffer commit in dag state for persistence later.
             // This also updates the last committed rounds.
             let mut dag_state_guard = self.dag_state.write();
-            dag_state_guard.add_commit(commit.clone());
+            dag_state_guard.add_commit(commit);
             drop(dag_state_guard);
 
             pending_sub_dags.push(sub_dag);
@@ -1016,7 +1016,7 @@ mod tests {
                 .map(|bh| bh.transaction_ref())
                 .collect();
 
-            let ack_authors = linearizer.get_transaction_ack_authors(round_references.clone());
+            let ack_authors = linearizer.get_transaction_ack_authors(round_references);
             assert_eq!(ack_authors.len(), 4);
             assert!(ack_authors.values().all(|authors| !authors.is_empty()));
         }
@@ -1030,7 +1030,7 @@ mod tests {
                 .into_iter()
                 .map(|bh| bh.transaction_ref())
                 .collect();
-            let ack_authors = linearizer.get_transaction_ack_authors(round_references.clone());
+            let ack_authors = linearizer.get_transaction_ack_authors(round_references);
             assert_eq!(ack_authors.len(), 4);
             if round <= num_rounds_to_evict {
                 assert!(ack_authors.values().all(BTreeSet::is_empty));
