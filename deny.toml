@@ -92,12 +92,6 @@ ignore = [
   "RUSTSEC-2026-0391",
   "RUSTSEC-2026-0398",
   "RUSTSEC-2026-0403",
-  # `im` is unmaintained and its `OrdSet` insertion is unsound, together with
-  # its `bitmaps` dependency. Only reachable through `fastcrypto-zkp`; remove
-  # all three once that switches to `imbl`.
-  "RUSTSEC-2026-0248",
-  "RUSTSEC-2026-0251",
-  "RUSTSEC-2026-0247",
   # `clear_on_drop` is unmaintained. Only reachable through `bulletproofs`,
   # pinned by `fastcrypto`; neither has a newer release that drops it.
   "RUSTSEC-2026-0283",
@@ -267,7 +261,6 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # List of URLs for allowed Git repositories
 allow-git = [
   "https://github.com/iotaledger/iota-sim.git",
-  "https://github.com/MystenLabs/fastcrypto.git",
   "https://github.com/mystenlabs/anemo.git",
   "https://github.com/iotaledger/tokio-madsim-fork.git",
   "https://github.com/nextest-rs/datatest-stable.git",

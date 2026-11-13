@@ -16,7 +16,7 @@ use fastcrypto::{
     serde_helpers::ToFromByteArray,
     traits::{KeyPair, ToFromBytes},
 };
-use fastcrypto_tbls::{dkg_v1, dkg_v1::Output, nodes, nodes::PartyId};
+use fastcrypto_threshold::{dkg_v1, dkg_v1::Output, nodes, nodes::PartyId};
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_common::{debug_fatal, fatal};
 use iota_macros::{fail_point, fail_point_if};
@@ -285,12 +285,12 @@ impl RandomnessManager {
         )
         .expect("should work to convert BLS key to Scalar");
         let party = dkg_v1::Party::<PkG, EncG>::new(
-            fastcrypto_tbls::ecies_v1::PrivateKey::<bls12381::G2Element>::from(
+            fastcrypto_threshold::ecies_v1::PrivateKey::<bls12381::G2Element>::from(
                 randomness_private_key,
             ),
             nodes,
             t,
-            fastcrypto_tbls::random_oracle::RandomOracle::new(prefix_str.as_str()),
+            fastcrypto_threshold::random_oracle::RandomOracle::new(prefix_str.as_str()),
             &mut rand08::thread_rng(),
         )
         .map_err(|err| IotaError::Unknown(format!("error while initializing Party: {err:?}")))?;
@@ -888,7 +888,7 @@ impl RandomnessManager {
     ) -> Vec<(
         u16,
         AuthorityName,
-        fastcrypto_tbls::ecies_v1::PublicKey<bls12381::G2Element>,
+        fastcrypto_threshold::ecies_v1::PublicKey<bls12381::G2Element>,
         StakeUnit,
     )> {
         committee
@@ -911,7 +911,7 @@ impl RandomnessManager {
                 (
                     index,
                     *name,
-                    fastcrypto_tbls::ecies_v1::PublicKey::from(pk),
+                    fastcrypto_threshold::ecies_v1::PublicKey::from(pk),
                     *stake,
                 )
             })

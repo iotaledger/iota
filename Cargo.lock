@@ -1980,15 +1980,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bitmaps"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "031043d04099746d8db04daf1fa424b2bc8bd69d92b25962dcde24da39ab64a2"
-dependencies = [
- "typenum",
-]
-
-[[package]]
 name = "bitvec"
 version = "0.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4190,9 +4181,9 @@ dependencies = [
 
 [[package]]
 name = "fastcrypto"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7ba8f556d75586dd5d9148df99ca02d8afbab9ba230a4f028de54eb0d3bfced"
+checksum = "871c3ba6a13af4bbf1175d3e28ccdf7f1f8a040b8aceb2a9abe0a46791f98611"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -4249,7 +4240,6 @@ dependencies = [
  "static_assertions",
  "thiserror 1.0.64",
  "tokio",
- "tracing",
  "typenum",
  "x509-parser",
  "zeroize",
@@ -4257,24 +4247,25 @@ dependencies = [
 
 [[package]]
 name = "fastcrypto-derive"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea839b19e2241156eb78b1c33066df25266e893ba85a6b283ceb3bd8a1a6d21b"
+checksum = "76da189a5c2fc9493b2ea47acc68df2c47f732aa1953d8c94c3e1ac65381cb6c"
 dependencies = [
  "quote",
- "syn 1.0.109",
+ "syn 2.0.117",
 ]
 
 [[package]]
-name = "fastcrypto-tbls"
-version = "0.1.0"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a#47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a"
+name = "fastcrypto-threshold"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a33a294889d5efe579a2609a12a8a5d70afccc7ea3e46e9275cb0962d3b6310"
 dependencies = [
  "bcs 0.1.6",
  "digest 0.10.7",
  "fastcrypto",
  "hex",
- "itertools 0.10.5",
+ "itertools 0.12.1",
  "rand 0.8.6",
  "reed-solomon-erasure",
  "serde",
@@ -4287,8 +4278,9 @@ dependencies = [
 
 [[package]]
 name = "fastcrypto-vdf"
-version = "0.1.0"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a#47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "926db460f57ece69612a1ed6bb8404682e943c01eb232379469fe083904e8497"
 dependencies = [
  "bcs 0.1.6",
  "fastcrypto",
@@ -4304,8 +4296,9 @@ dependencies = [
 
 [[package]]
 name = "fastcrypto-zkp"
-version = "0.1.4"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a#47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "238495b6bc04b0464380e792a16bea699f105fdc248eb91c23e2d5bc5d7adc30"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -4319,7 +4312,7 @@ dependencies = [
  "derive_more 0.99.18",
  "fastcrypto",
  "ff 0.13.0",
- "im",
+ "imbl",
  "itertools 0.12.1",
  "lazy_static",
  "neptune",
@@ -4330,6 +4323,7 @@ dependencies = [
  "schemars 0.8.21",
  "serde",
  "serde_json",
+ "tracing",
  "typenum",
 ]
 
@@ -5485,20 +5479,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb56e1aa765b4b4f3aadfab769793b7087bb03a4ea4920644a6d238e2df5b9ed"
 
 [[package]]
-name = "im"
-version = "15.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0acd33ff0285af998aaf9b57342af478078f53492322fafc47450e09397e0e9"
-dependencies = [
- "bitmaps",
- "rand_core 0.6.4",
- "rand_xoshiro 0.6.0",
- "sized-chunks",
- "typenum",
- "version_check",
-]
-
-[[package]]
 name = "imbl"
 version = "7.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5508,7 +5488,7 @@ dependencies = [
  "equivalent",
  "imbl-sized-chunks",
  "rand_core 0.9.3",
- "rand_xoshiro 0.7.0",
+ "rand_xoshiro",
  "version_check",
  "wide",
 ]
@@ -6048,7 +6028,7 @@ dependencies = [
  "expect-test",
  "eyre",
  "fastcrypto",
- "fastcrypto-tbls",
+ "fastcrypto-threshold",
  "fs_extra",
  "futures",
  "iota-authority-aggregation",
@@ -7360,7 +7340,7 @@ dependencies = [
  "bytes",
  "dashmap",
  "fastcrypto",
- "fastcrypto-tbls",
+ "fastcrypto-threshold",
  "futures",
  "governor",
  "iota-common",
@@ -7859,8 +7839,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "1.0.0-rc.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e02fcb53ed08067dd56c5111240aa708093f0effa46a991968d270b5c7b86cbd"
+source = "git+https://github.com/iotaledger/iota-rust-sdk?rev=9be66f5538f5fcadab94bab0b0c4df61d743922f#9be66f5538f5fcadab94bab0b0c4df61d743922f"
 dependencies = [
  "base64ct",
  "bech32 0.12.0",
@@ -7885,8 +7864,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client"
 version = "1.0.0-rc.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc186ee90497b6d127984f0ae2751107ac674ff7ec92aaf3e86c0608fadbd4bb"
+source = "git+https://github.com/iotaledger/iota-rust-sdk?rev=9be66f5538f5fcadab94bab0b0c4df61d743922f#9be66f5538f5fcadab94bab0b0c4df61d743922f"
 dependencies = [
  "async-stream",
  "base64ct",
@@ -7919,8 +7897,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client-build"
 version = "1.0.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dacd7a2ab80e8c3aac2705d009b4a2b146b49eee6b514ca2e3024c29f079b6ec"
+source = "git+https://github.com/iotaledger/iota-rust-sdk?rev=9be66f5538f5fcadab94bab0b0c4df61d743922f#9be66f5538f5fcadab94bab0b0c4df61d743922f"
 dependencies = [
  "cynic-codegen",
 ]
@@ -7928,8 +7905,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "1.0.0-rc.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcb52f22c843dce05eeb36a4c5db055df39fa824d1871c38d3909e3e45c5cd3a"
+source = "git+https://github.com/iotaledger/iota-rust-sdk?rev=9be66f5538f5fcadab94bab0b0c4df61d743922f#9be66f5538f5fcadab94bab0b0c4df61d743922f"
 dependencies = [
  "async-stream",
  "base64 0.23.1",
@@ -7949,8 +7925,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "1.0.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1038f684323581d52cd210d743f98ef2dbb0ca853fb08618ac9bd8afffe445e9"
+source = "git+https://github.com/iotaledger/iota-rust-sdk?rev=9be66f5538f5fcadab94bab0b0c4df61d743922f#9be66f5538f5fcadab94bab0b0c4df61d743922f"
 dependencies = [
  "bcs 0.2.1",
  "iota-sdk-types",
@@ -7966,8 +7941,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-move-types"
 version = "1.0.0-rc.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b019226e53c4386cf31ff9d6afde8e46c066959700705f5600789013bb16ac6"
+source = "git+https://github.com/iotaledger/iota-rust-sdk?rev=9be66f5538f5fcadab94bab0b0c4df61d743922f#9be66f5538f5fcadab94bab0b0c4df61d743922f"
 dependencies = [
  "bcs 0.2.1",
  "filetime",
@@ -7982,8 +7956,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "1.0.0-rc.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6553cacc92a39c22bb9f7d95bce24a265fadeb34f82c2141970738c275de29ce"
+source = "git+https://github.com/iotaledger/iota-rust-sdk?rev=9be66f5538f5fcadab94bab0b0c4df61d743922f#9be66f5538f5fcadab94bab0b0c4df61d743922f"
 dependencies = [
  "bcs 0.2.1",
  "derive_more 2.1.1",
@@ -8001,8 +7974,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "1.0.0-rc.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7be7c68f7361494137105993c41b732f17760707699dd31ef2cac3528d2d719"
+source = "git+https://github.com/iotaledger/iota-rust-sdk?rev=9be66f5538f5fcadab94bab0b0c4df61d743922f#9be66f5538f5fcadab94bab0b0c4df61d743922f"
 dependencies = [
  "base64ct",
  "bcs 0.2.1",
@@ -8531,7 +8503,7 @@ dependencies = [
  "expect-test",
  "eyre",
  "fastcrypto",
- "fastcrypto-tbls",
+ "fastcrypto-threshold",
  "futures",
  "hex",
  "indexmap 2.11.0",
@@ -12495,15 +12467,6 @@ dependencies = [
 
 [[package]]
 name = "rand_xoshiro"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f97cdb2a36ed4183de61b2f824cc45c9f1037f28afe0a322e9fff4c108b5aaa"
-dependencies = [
- "rand_core 0.6.4",
-]
-
-[[package]]
-name = "rand_xoshiro"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f703f4665700daf5512dcca5f43afa6af89f09db47fb56be587f80636bda2d41"
@@ -12650,7 +12613,6 @@ checksum = "7263373d500d4d4f505d43a2a662d475a894aa94503a1ee28e9188b5f3960d4f"
 dependencies = [
  "libm",
  "lru 0.7.8",
- "parking_lot 0.11.2",
  "smallvec",
  "spin",
 ]
@@ -13915,16 +13877,6 @@ name = "siphasher"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
-
-[[package]]
-name = "sized-chunks"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16d69225bde7a69b235da73377861095455d298f2b970996eec25ddbb42b3d1e"
-dependencies = [
- "bitmaps",
- "typenum",
-]
 
 [[package]]
 name = "slab"

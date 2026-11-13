@@ -1295,8 +1295,8 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "40",
-              "protocolVersion": "40",
+              "maxSupportedProtocolVersion": "41",
+              "protocolVersion": "41",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -1369,6 +1369,7 @@
                 "relocate_event_module": true,
                 "report_move_authentication_error": true,
                 "rethrow_serialization_type_layout_errors": true,
+                "secp256r1_ecrecover_checks_x_below_p": true,
                 "select_committee_from_eligible_validators": true,
                 "select_committee_supporting_next_epoch_version": true,
                 "separate_gas_price_feedback_mechanism_for_randomness": true,

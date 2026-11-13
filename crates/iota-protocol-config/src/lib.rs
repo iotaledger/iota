@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 40;
+pub const MAX_PROTOCOL_VERSION: u64 = 41;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -283,6 +283,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Update the gas model version to 3.
 //             Enable validator attestation on devnet, with the checkpoint
 //             summary data version that certifies the verdicts.
+// Version 41: `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
+//             restored x-coordinate is not below the field modulus.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -843,6 +845,12 @@ struct FeatureFlags {
     // shared-object scheduling.
     #[serde(skip_serializing_if = "is_false")]
     enable_validator_attestation: bool,
+
+    // If true, `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
+    // restored x-coordinate `r + n` is not below the field modulus, instead
+    // of wrapping it at 2^256.
+    #[serde(skip_serializing_if = "is_false")]
+    secp256r1_ecrecover_checks_x_below_p: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2408,6 +2416,10 @@ impl ProtocolConfig {
     pub fn enable_validator_attestation(&self) -> bool {
         self.feature_flags.enable_validator_attestation
     }
+
+    pub fn secp256r1_ecrecover_checks_x_below_p(&self) -> bool {
+        self.feature_flags.secp256r1_ecrecover_checks_x_below_p
+    }
 }
 
 #[cfg(not(msim))]
@@ -3939,6 +3951,12 @@ impl ProtocolConfig {
                         cfg.feature_flags.enable_validator_attestation = true;
                         cfg.checkpoint_summary_version_specific_data = Some(2);
                     }
+                }
+                41 => {
+                    // `ecdsa_r1::secp256r1_ecrecover` rejects a signature
+                    // whose restored x-coordinate is not below the field
+                    // modulus.
+                    cfg.feature_flags.secp256r1_ecrecover_checks_x_below_p = true;
                 }
                 // Use this template when making changes:
                 //
