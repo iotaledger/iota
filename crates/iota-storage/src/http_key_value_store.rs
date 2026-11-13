@@ -27,6 +27,7 @@ use reqwest::{
 };
 use serde::{Deserialize, Serialize};
 use tap::TapFallible;
+use tokio::sync::Semaphore;
 use tracing::{error, info, instrument, trace, warn};
 
 use crate::{
@@ -36,6 +37,21 @@ use crate::{
     key_value_store_metrics::KeyValueStoreMetrics,
 };
 
+/// How long a GET may wait for the next part of its answer. A GET that waits longer fails the
+/// read, so a key that never answers does not hold up the call, while a large value that keeps
+/// arriving is not cut off.
+const FETCH_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// How long one GET may take in total, also while its answer keeps arriving.
+const FETCH_TOTAL_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How many GETs may be in flight at once. All GETs share one HTTP/2 connection, and a GET beyond
+/// the server's concurrent-stream limit waits inside the client with its [`FETCH_TIMEOUT`] already
+/// running, so a busy but healthy store would time out. GETs beyond this limit wait for a slot
+/// before their timeout starts. Matches the stream limit of iota-rest-kv, which keeps hyper's
+/// default of 200.
+const MAX_IN_FLIGHT_FETCHES: usize = 200;
+
 /// Reads a trusted HTTP key-value store. Its checks catch data stored under the
 /// wrong key, not forged data: signatures are not verified.
 pub struct HttpKVStore {
@@ -43,6 +59,7 @@ pub struct HttpKVStore {
     client: Client,
     cache: MokaCache<Url, Bytes>,
     metrics: Arc<KeyValueStoreMetrics>,
+    fetch_slots: Semaphore,
 }
 
 pub fn encode_digest<T: AsRef<[u8]>>(digest: &T) -> String {
@@ -324,7 +341,12 @@ impl HttpKVStore {
         info!("creating HttpKVStore with base_url: {}", base_url);
 
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let client = Client::builder().http2_prior_knowledge().build().unwrap();
+        let client = Client::builder()
+            .http2_prior_knowledge()
+            .read_timeout(FETCH_TIMEOUT)
+            .timeout(FETCH_TOTAL_TIMEOUT)
+            .build()
+            .unwrap();
 
         let base_url = if base_url.ends_with('/') {
             base_url.to_string()
@@ -343,7 +365,20 @@ impl HttpKVStore {
             client,
             cache,
             metrics,
+            fetch_slots: Semaphore::new(MAX_IN_FLIGHT_FETCHES),
         })
+    }
+
+    /// Allows at most `max` GETs in flight instead of [`MAX_IN_FLIGHT_FETCHES`]; for a store whose
+    /// server allows fewer concurrent HTTP/2 streams.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `max` is 0, with which every GET would wait forever.
+    pub fn with_max_in_flight_fetches(mut self, max: usize) -> Self {
+        assert!(max > 0, "at least one GET must be allowed in flight");
+        self.fetch_slots = Semaphore::new(max);
+        self
     }
 
     fn get_url(&self, key: &Key) -> IotaResult<Url> {
@@ -409,6 +444,12 @@ impl HttpKVStore {
             .with_label_values(&["http_cache", "url"])
             .inc();
 
+        // Held until the body is read: the stream stays open until then.
+        let _slot = self
+            .fetch_slots
+            .acquire()
+            .await
+            .expect("the fetch semaphore is never closed");
         let resp = self
             .client
             .get(url.clone())
