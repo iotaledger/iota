@@ -2301,12 +2301,12 @@ pub(crate) fn implicit_deps_for_protocol_version(
 ) -> anyhow::Result<Dependencies> {
     if version > ProtocolVersion::MAX + 2 {
         eprintln!(
-            "[{}]: The network is using protocol version {:?}, but this binary only recognizes protocol version {:?}; \
+            "[{}]: The network is using protocol version {}, but this binary only recognizes protocol version {}; \
             the system packages used for compilation (e.g. MoveStdlib) may be out of date. If you have errors related to \
             system packages, you may need to update your CLI.",
             "warning".bold().yellow(),
-            version,
-            ProtocolVersion::MAX
+            version.as_u64(),
+            ProtocolVersion::MAX.as_u64()
         )
     }
 
