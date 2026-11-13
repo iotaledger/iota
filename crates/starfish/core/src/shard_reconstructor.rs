@@ -23,7 +23,7 @@ use crate::{
     Round, Transaction,
     block_header::{
         BlockHeaderDigest, CommitmentVerifiedTransactions, GENESIS_ROUND, Shard, ShardWithProof,
-        ShardWithProofAPI, TransactionsCommitment, VerifiedBlock,
+        ShardWithProofAPI, Slot, TransactionsCommitment, VerifiedBlock,
     },
     block_verifier::BlockVerifier,
     context::Context,
@@ -250,23 +250,14 @@ fn record_reconstruction_validity_failure(
     let authored = dag_state
         .read()
         .contains_verified_block_headers_for_transaction_refs(&[tx_ref])[0];
-    misbehavior_store.record_faulty_transactions(author, authored, relayers);
+    misbehavior_store.record_faulty_transactions(
+        authored.then_some(Slot::new(tx_ref.round, author)),
+        relayers,
+    );
     error!(
         "Reconstructed transactions for {:?} failed the validity check: {:?}",
         tx_ref, err
     );
-}
-
-/// Charges the peers that relayed shards for a reconstructed payload whose
-/// commitment doesn't match the one its ref commits to. The mismatch comes from
-/// the peer-supplied shards, not the author, so no author fault is recorded
-/// even when a verified header for the ref exists.
-fn record_reconstruction_commitment_mismatch(
-    misbehavior_store: &MisbehaviorStore,
-    tx_ref: TransactionRef,
-    relayers: Vec<AuthorityIndex>,
-) {
-    misbehavior_store.record_faulty_transactions(tx_ref.author, false, relayers);
 }
 
 /// Decodes the collected shards, checks the result against the commitment in
@@ -295,9 +286,9 @@ fn reconstruct_and_verify(
             // A commitment mismatch means the reconstructed bytes aren't the
             // ones the author committed to; the shards, and thus the mismatch,
             // come from peers, so charge only the peers that relayed shards,
-            // never the author.
+            // never the author, even when a verified header for the ref exists.
             if matches!(err, ConsensusError::TransactionCommitmentMismatch { .. }) {
-                record_reconstruction_commitment_mismatch(misbehavior_store, tx_ref, relayers);
+                misbehavior_store.record_faulty_transactions(None, relayers);
             }
             Err(tx_ref)
         }
@@ -835,7 +826,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             {
                 self.misbehavior_store.record_faulty_block(
                     peer,
-                    peer,
+                    None,
                     &ConsensusError::SecondShardForSlot {
                         peer,
                         author: tx_ref.author,

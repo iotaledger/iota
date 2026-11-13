@@ -600,11 +600,9 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         serialized_block_headers,
                     )
                     .inspect_err(|e| {
-                        inner.misbehavior_store.record_faulty_block(
-                            target_authority,
-                            target_authority,
-                            e,
-                        );
+                        inner
+                            .misbehavior_store
+                            .record_faulty_block(target_authority, None, e);
                     })
                 }
             })
@@ -651,11 +649,9 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         //     TransactionSynchronizer will take care of fetching missing
                         //     transactions later.
                         if request_tx_refs.len() < serialized_transactions.len() {
-                            inner.misbehavior_store.record_faulty_transactions(
-                                target_authority,
-                                false,
-                                [target_authority],
-                            );
+                            inner
+                                .misbehavior_store
+                                .record_faulty_transactions(None, [target_authority]);
                             return Err(ConsensusError::TooManyFetchedTransactionsReturned(
                                 target_authority,
                             ));
@@ -672,11 +668,9 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                             let serialized_tx: SerializedTransactionsV2 =
                                 bcs::from_bytes(&serialized_bytes)
                                     .inspect_err(|_| {
-                                        inner.misbehavior_store.record_faulty_transactions(
-                                            target_authority,
-                                            false,
-                                            [target_authority],
-                                        )
+                                        inner
+                                            .misbehavior_store
+                                            .record_faulty_transactions(None, [target_authority])
                                     })
                                     .map_err(ConsensusError::MalformedTransactions)?;
 
@@ -684,11 +678,9 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                             //     refs.
                             let committed_transaction_ref = serialized_tx.transaction_ref;
                             if !requested_tx_refs_set.contains(&committed_transaction_ref) {
-                                inner.misbehavior_store.record_faulty_transactions(
-                                    target_authority,
-                                    false,
-                                    [target_authority],
-                                );
+                                inner
+                                    .misbehavior_store
+                                    .record_faulty_transactions(None, [target_authority]);
                                 return Err(ConsensusError::UnexpectedTransactionForCommit {
                                     peer: target_authority,
                                     received: committed_transaction_ref,
@@ -744,11 +736,9 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             .inspect_err(|_| {
                 // Not provable against the author, whose commitment the
                 // peer may have forged.
-                inner.misbehavior_store.record_faulty_transactions(
-                    target_authority,
-                    false,
-                    [target_authority],
-                );
+                inner
+                    .misbehavior_store
+                    .record_faulty_transactions(None, [target_authority]);
             })?
         } else {
             BTreeMap::new()
