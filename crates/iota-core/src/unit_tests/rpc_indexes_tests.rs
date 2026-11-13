@@ -1,7 +1,10 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    num::NonZeroUsize,
+};
 
 use iota_json_rpc_types::IotaObjectDataFilter;
 use iota_sdk_types::{
@@ -21,13 +24,15 @@ use iota_types::{
     test_checkpoint_data_builder::TestCheckpointDataBuilder,
 };
 use prometheus_filtered::Registry;
-use typed_store::Map;
+use typed_store::{Map, rocks::bulk_ingestion_options};
 
 use super::{
     IndexGroup, RpcIndexesStore,
     jsonrpc_api::CachingLayoutResolver,
     live_scan::RpcIndexesRestorer,
-    schema::{CoinIndexInfo, CoinIndexKey, OwnerIndexKey, OwnerTypeFilter, owner_bounds},
+    schema::{
+        CoinIndexInfo, CoinIndexKey, OwnerIndexInfo, OwnerIndexKey, OwnerTypeFilter, owner_bounds,
+    },
 };
 use crate::{checkpoints::CheckpointStore, test_utils::executed_checkpoint};
 
@@ -2387,7 +2392,8 @@ async fn test_restore_built_store_is_adopted_on_open() {
 
     let index_dir = dir.path().join(super::schema::RPC_INDEXES_DIR);
     let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
-    let restorer = RpcIndexesRestorer::open(index_dir.clone(), groups.clone()).unwrap();
+    let restorer =
+        RpcIndexesRestorer::open(index_dir.clone(), groups.clone(), NonZeroUsize::MIN).unwrap();
     let mut partition = restorer.partition_indexer();
     partition.index_object(&gas_object).unwrap();
     partition.index_object(&field_object).unwrap();
@@ -2470,7 +2476,8 @@ async fn test_verify_restored_rejects_an_unusable_store() {
     let index_dir = dir.path().join(super::schema::RPC_INDEXES_DIR);
     let groups = BTreeSet::from([IndexGroup::Grpc]);
 
-    let restorer = RpcIndexesRestorer::open(index_dir.clone(), groups.clone()).unwrap();
+    let restorer =
+        RpcIndexesRestorer::open(index_dir.clone(), groups.clone(), NonZeroUsize::MIN).unwrap();
     restorer.finalize(5).await.unwrap();
     let error = RpcIndexesRestorer::verify_restored(&index_dir, None, 5, 1)
         .await
@@ -2617,7 +2624,8 @@ async fn test_restore_builds_the_same_live_state_as_the_rebuild() {
     let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
 
     let restored_dir = dir.path().join("restored");
-    let restorer = RpcIndexesRestorer::open(restored_dir.clone(), groups.clone()).unwrap();
+    let restorer =
+        RpcIndexesRestorer::open(restored_dir.clone(), groups.clone(), NonZeroUsize::MIN).unwrap();
     for object in &objects {
         let mut partition = restorer.partition_indexer();
         partition.index_object(object).unwrap();
@@ -2708,6 +2716,7 @@ async fn test_restore_partitions_share_their_buffers() {
     let restorer = RpcIndexesRestorer::open(
         index_dir.clone(),
         BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+        NonZeroUsize::MIN,
     )
     .unwrap();
 
@@ -2756,6 +2765,150 @@ async fn test_restore_partitions_share_their_buffers() {
             "a row indexed before the failed partition must survive it"
         );
     }
+}
+
+/// A restorer shares its memory budget between the partitions it is opened
+/// for.
+#[tokio::test]
+async fn test_restorer_buffer_limit_follows_partitions_at_once() {
+    let dir = iota_common::tempdir();
+    let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
+    let partitions = NonZeroUsize::new(4).unwrap();
+
+    let for_one =
+        RpcIndexesRestorer::open(dir.path().join("one"), groups.clone(), NonZeroUsize::MIN)
+            .unwrap();
+    let for_many = RpcIndexesRestorer::open(dir.path().join("many"), groups, partitions).unwrap();
+
+    assert_eq!(for_many.partitions_at_once(), partitions);
+    assert_eq!(
+        for_one.buffer_limit(),
+        bulk_ingestion_options().sst_buffer_limit(1)
+    );
+    assert_eq!(
+        for_many.buffer_limit(),
+        bulk_ingestion_options().sst_buffer_limit(partitions.get())
+    );
+    assert!(
+        for_many.buffer_limit() < for_one.buffer_limit(),
+        "partitions indexed at once must share the budget one partition would have alone"
+    );
+}
+
+/// Partition indexers alive at the same time on one restorer give the same
+/// rows as the same partitions indexed one after another.
+#[tokio::test]
+async fn test_concurrent_partitions_give_the_rows_of_sequential_ones() {
+    type Rows = (
+        Vec<(OwnerIndexKey, OwnerIndexInfo)>,
+        Vec<(DynamicFieldKey, ())>,
+        Vec<(PackageVersionKey, PackageVersionInfo)>,
+    );
+    const PARTITIONS: usize = 4;
+
+    async fn restore(
+        dir: std::path::PathBuf,
+        partitions: &[Vec<Object>],
+        concurrent: bool,
+    ) -> Rows {
+        let restorer = RpcIndexesRestorer::open(
+            dir.clone(),
+            BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+            NonZeroUsize::new(PARTITIONS).unwrap(),
+        )
+        .unwrap();
+        if concurrent {
+            let all_open = &std::sync::Barrier::new(partitions.len());
+            let restorer = &restorer;
+            std::thread::scope(|scope| {
+                for objects in partitions {
+                    scope.spawn(move || {
+                        let mut partition = restorer.partition_indexer();
+                        // Every partition holds its buffers before any
+                        // indexes a row.
+                        all_open.wait();
+                        for object in objects {
+                            partition.index_object(object).unwrap();
+                        }
+                        partition.finish().unwrap();
+                    });
+                }
+            });
+        } else {
+            for objects in partitions {
+                let mut partition = restorer.partition_indexer();
+                for object in objects {
+                    partition.index_object(object).unwrap();
+                }
+                partition.finish().unwrap();
+            }
+        }
+        restorer.finalize(0).await.unwrap();
+        let store = open_index_store(dir);
+        (
+            store
+                .tables
+                .owner
+                .safe_iter()
+                .collect::<Result<_, _>>()
+                .unwrap(),
+            store
+                .tables
+                .dynamic_field
+                .safe_iter()
+                .collect::<Result<_, _>>()
+                .unwrap(),
+            store
+                .tables
+                .package_version
+                .safe_iter()
+                .collect::<Result<_, _>>()
+                .unwrap(),
+        )
+    }
+
+    let dir = iota_common::tempdir();
+    let mut objects = Vec::new();
+    for index in 0..40u8 {
+        objects.push(Object::new_gas_with_balance_and_owner_for_testing(
+            100 + u64::from(index),
+            iota_types::base_types::dbg_addr(index % 5),
+        ));
+        objects.push(dynamic_field_object(ObjectId::random(), ObjectId::random()));
+    }
+    objects.push(package_object_for_testing());
+    let partitions: Vec<Vec<Object>> = (0..PARTITIONS)
+        .map(|n| {
+            objects
+                .iter()
+                .skip(n)
+                .step_by(PARTITIONS)
+                .cloned()
+                .collect()
+        })
+        .collect();
+
+    let sequential = restore(dir.path().join("sequential"), &partitions, false).await;
+    let concurrent = restore(dir.path().join("concurrent"), &partitions, true).await;
+    assert!(sequential.0.len() >= 40, "every gas object must be indexed");
+    assert!(
+        sequential.1.len() >= 40,
+        "every dynamic field must be indexed"
+    );
+    assert!(!sequential.2.is_empty(), "the package must be indexed");
+    assert!(
+        sequential == concurrent,
+        "concurrent partitions must build the rows of sequential ones"
+    );
+
+    // The comparison must notice a missing row.
+    let mut missing = partitions.clone();
+    missing[PARTITIONS - 1].pop();
+    let incomplete = restore(dir.path().join("incomplete"), &missing, true).await;
+    assert!(
+        sequential != incomplete,
+        "a missing object must change the compared rows"
+    );
 }
 
 /// A rebuild whose partitions write their rows out every few rows, into many
@@ -3214,8 +3367,12 @@ async fn test_live_scan_gates_the_grpc_tables() {
     );
     let package_object = package_object_for_testing();
 
-    let restorer =
-        RpcIndexesRestorer::open(index_dir.clone(), BTreeSet::from([IndexGroup::JsonRpc])).unwrap();
+    let restorer = RpcIndexesRestorer::open(
+        index_dir.clone(),
+        BTreeSet::from([IndexGroup::JsonRpc]),
+        NonZeroUsize::MIN,
+    )
+    .unwrap();
     let mut partition = restorer.partition_indexer();
     for object in [&gas_object, &coin_metadata, &package_object] {
         partition.index_object(object).unwrap();

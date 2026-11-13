@@ -4,7 +4,7 @@
 //! Logic and abstractions for supporting different databases that the snapshot
 //! can restore.
 
-use std::{future::Future, sync::Arc};
+use std::{future::Future, num::NonZeroUsize, sync::Arc};
 
 use anyhow::{Context, Result};
 use bytes::Bytes;
@@ -29,18 +29,31 @@ pub trait Restore {
     /// objects' digests included. Then it can be verified against the given
     /// expected value.
     ///
-    /// While this future runs, `read_to_db` does not poll the downloads: they
-    /// run as tasks of the runtime. An implementation that blocks its thread
-    /// stops the downloads that this thread would run: all of them on a
-    /// current-thread runtime, and the download started just before the insert
-    /// when the read runs on a worker of a multi-thread runtime. Such an
-    /// implementation should move its work to the blocking pool.
+    /// While this future runs, the downloads are runtime tasks that the
+    /// reader does not poll. The reader itself takes a finished download and
+    /// starts its insert only while fewer than `max_concurrent_inserts`
+    /// inserts run. An implementation that blocks its thread stops the
+    /// downloads that this thread would run: all of them on a current-thread
+    /// runtime, and the download started just before the insert when the read
+    /// runs on a worker of a multi-thread runtime. Such an implementation
+    /// should move its work to the blocking pool.
     fn insert_partition(
         &self,
         file_metadata: FileMetadata,
         bytes: Bytes,
         expected_checksum: &[u8; SHA3_BYTES],
     ) -> impl Future<Output = Result<()>> + Send;
+
+    /// How many partitions the reader may insert at the same time. Each
+    /// insert in progress holds one downloaded partition in memory.
+    ///
+    /// The reader polls all inserts from one task, so the inserts overlap only
+    /// if `insert_partition` does not block the thread that polls it. An
+    /// implementation that works inline gets one insert at a time, whatever it
+    /// returns here.
+    fn max_concurrent_inserts(&self) -> NonZeroUsize {
+        NonZeroUsize::MIN
+    }
 }
 
 impl Restore for AuthorityPerpetualTables {
@@ -93,16 +106,36 @@ fn bulk_insert_partition(
 pub struct RestoreWithIndexes {
     perpetual_tables: Arc<AuthorityPerpetualTables>,
     rpc_indexes_restorer: Option<Arc<RpcIndexesRestorer>>,
+    max_concurrent_inserts: NonZeroUsize,
 }
 
 impl RestoreWithIndexes {
+    /// `max_concurrent_inserts` is how many partitions the reader may insert
+    /// at the same time. Each insert in progress holds one downloaded
+    /// partition and its write batch in memory.
+    ///
+    /// # Panics
+    ///
+    /// If `rpc_indexes_restorer` was opened for fewer partitions at once than
+    /// `max_concurrent_inserts`.
     pub fn new(
         perpetual_tables: Arc<AuthorityPerpetualTables>,
         rpc_indexes_restorer: Option<Arc<RpcIndexesRestorer>>,
+        max_concurrent_inserts: NonZeroUsize,
     ) -> Self {
+        if let Some(restorer) = &rpc_indexes_restorer {
+            assert!(
+                restorer.partitions_at_once() >= max_concurrent_inserts,
+                "the RPC indexes restorer is opened for {} partitions at once, fewer than the {} \
+                 concurrent inserts",
+                restorer.partitions_at_once(),
+                max_concurrent_inserts
+            );
+        }
         Self {
             perpetual_tables,
             rpc_indexes_restorer,
+            max_concurrent_inserts,
         }
     }
 }
@@ -143,6 +176,10 @@ impl Restore for RestoreWithIndexes {
             Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
             Err(e) => Err(anyhow::Error::new(e).context("inserting a partition was cancelled")),
         }
+    }
+
+    fn max_concurrent_inserts(&self) -> NonZeroUsize {
+        self.max_concurrent_inserts
     }
 }
 

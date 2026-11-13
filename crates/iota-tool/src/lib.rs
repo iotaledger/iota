@@ -834,6 +834,7 @@ pub async fn download_formal_snapshot(
     genesis: &Path,
     snapshot_store_config: ObjectStoreConfig,
     num_parallel_downloads: NonZeroUsize,
+    num_parallel_inserts: NonZeroUsize,
     verify: SnapshotVerifyMode,
     skip_rpc_indexes: bool,
     disable_progress_bar: bool,
@@ -955,6 +956,7 @@ pub async fn download_formal_snapshot(
             RpcIndexesRestorer::open(
                 path.join(RPC_INDEXES_DIR),
                 BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+                num_parallel_inserts,
             )
         })
         .transpose()?
@@ -974,7 +976,8 @@ pub async fn download_formal_snapshot(
             partials: sender,
             completion: accumulation_done_sender,
         });
-        let restore_target = RestoreWithIndexes::new(perpetual_db_clone, rpc_indexes_clone);
+        let restore_target =
+            RestoreWithIndexes::new(perpetual_db_clone, rpc_indexes_clone, num_parallel_inserts);
         reader
             .read_to_db(&restore_target, abort_registration, accumulator)
             .await

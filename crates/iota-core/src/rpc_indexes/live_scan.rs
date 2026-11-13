@@ -11,6 +11,7 @@
 
 use std::{
     collections::{BTreeSet, HashMap},
+    num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::atomic::{AtomicUsize, Ordering},
 };
@@ -362,17 +363,25 @@ pub struct RpcIndexesRestorer {
     groups: BTreeSet<IndexGroup>,
     coin_metadata: CoinMetadata,
     sst_files: SstFiles,
+    partitions_at_once: NonZeroUsize,
 }
 
 impl RpcIndexesRestorer {
     /// Opens the store for bulk ingestion and records this schema version and
     /// `groups`. The watermark is written only by [`Self::finalize`], so a
     /// node opening the store of an interrupted restore rebuilds it.
-    pub fn open(path: PathBuf, groups: BTreeSet<IndexGroup>) -> Result<Self, StorageError> {
+    ///
+    /// `partitions_at_once` is the most partition indexers the caller keeps
+    /// alive at the same time. They share one memory budget.
+    pub fn open(
+        path: PathBuf,
+        groups: BTreeSet<IndexGroup>,
+        partitions_at_once: NonZeroUsize,
+    ) -> Result<Self, StorageError> {
         // After the open, which clears a database directory it finds in use.
         let (tables, table_options) = IndexStoreTables::open_for_bulk_ingestion(path.clone());
-        // The restore indexes one partition at a time.
-        let sst_files = SstFiles::new(&path, &table_options, 1)?;
+        // Every partition indexer alive at once holds a set of buffers.
+        let sst_files = SstFiles::new(&path, &table_options, partitions_at_once.get())?;
         tables.meta.insert(
             &(),
             &MetadataInfo {
@@ -385,7 +394,18 @@ impl RpcIndexesRestorer {
             groups,
             coin_metadata: Mutex::new(HashMap::new()),
             sst_files,
+            partitions_at_once,
         })
+    }
+
+    /// The number of partition indexers this restorer is sized for.
+    pub fn partitions_at_once(&self) -> NonZeroUsize {
+        self.partitions_at_once
+    }
+
+    #[cfg(test)]
+    pub(super) fn buffer_limit(&self) -> usize {
+        self.sst_files.buffer_limit
     }
 
     /// Returns an indexer for one partition of the snapshot's live objects.

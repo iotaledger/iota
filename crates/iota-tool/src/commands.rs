@@ -216,6 +216,11 @@ pub enum ToolCommand {
         /// 1, capped at 8.
         #[arg(long)]
         num_parallel_downloads: Option<NonZeroUsize>,
+        /// Number of partitions to insert into the database at the same time.
+        /// Defaults to logical cores - 1, capped at 4. Each additional insert
+        /// holds one more downloaded partition and its write batch in memory.
+        #[arg(long)]
+        num_parallel_inserts: Option<NonZeroUsize>,
         /// Verification mode to employ.
         #[arg(long, default_value = "normal")]
         verify: Option<SnapshotVerifyMode>,
@@ -596,6 +601,7 @@ impl ToolCommand {
                 genesis,
                 path,
                 num_parallel_downloads,
+                num_parallel_inserts,
                 verify,
                 network,
                 snapshot_bucket,
@@ -614,6 +620,8 @@ impl ToolCommand {
                 }
                 let num_parallel_downloads = num_parallel_downloads
                     .unwrap_or_else(iota_snapshot::default_download_concurrency);
+                let num_parallel_inserts =
+                    num_parallel_inserts.unwrap_or_else(iota_snapshot::default_insert_concurrency);
                 let snapshot_bucket =
                     snapshot_bucket.or_else(|| match (network, no_sign_request) {
                         (Network::Mainnet, false) => Some(
@@ -721,6 +729,7 @@ impl ToolCommand {
                     &genesis,
                     snapshot_store_config,
                     num_parallel_downloads,
+                    num_parallel_inserts,
                     verify,
                     skip_rpc_indexes,
                     disable_progress_bar,
