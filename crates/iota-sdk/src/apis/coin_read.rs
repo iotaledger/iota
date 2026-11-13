@@ -15,8 +15,8 @@ use iota_json_rpc_api::CoinReadApiClient;
 use iota_json_rpc_types::{
     Balance, Coin, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, OwnedObjectCursor,
 };
+use iota_sdk_move_types::iota_framework::balance::Supply;
 use iota_sdk_types::{Address, ObjectId};
-use iota_types::balance::Supply;
 
 use crate::{
     RpcClient,
@@ -317,7 +317,10 @@ impl CoinReadApi {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_total_supply(&self, coin_type: impl Into<String>) -> IotaRpcResult<Supply> {
+    pub async fn get_total_supply(
+        &self,
+        coin_type: impl Into<String>,
+    ) -> IotaRpcResult<Supply<()>> {
         Ok(self
             .api
             .http
