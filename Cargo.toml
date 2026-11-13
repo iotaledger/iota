@@ -453,7 +453,6 @@ iota-transaction-checks = { path = "crates/iota-transaction-checks" }
 iota-transactional-test-runner = { path = "crates/iota-transactional-test-runner" }
 iota-types = { path = "crates/iota-types" }
 iota-vm-sdk = { path = "crates/iota-vm-sdk" }
-move-abstract-interpreter = { path = "external-crates/move/crates/move-abstract-interpreter" }
 move-abstract-stack = { path = "external-crates/move/crates/move-abstract-stack" }
 move-analyzer = { path = "external-crates/move/crates/move-analyzer" }
 move-binary-format = { path = "external-crates/move/crates/move-binary-format" }
@@ -469,7 +468,6 @@ move-docgen = { path = "external-crates/move/crates/move-docgen" }
 move-ir-types = { path = "external-crates/move/crates/move-ir-types" }
 move-package = { path = "external-crates/move/crates/move-package" }
 move-package-alt = { path = "external-crates/move/crates/move-package-alt" }
-move-stackless-bytecode = { path = "external-crates/move/crates/move-stackless-bytecode" }
 move-symbol-pool = { path = "external-crates/move/crates/move-symbol-pool" }
 move-trace-format = { path = "external-crates/move/crates/move-trace-format" }
 move-transactional-test-runner = { path = "external-crates/move/crates/move-transactional-test-runner" }
