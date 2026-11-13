@@ -32,7 +32,6 @@ feature_flags:
   select_committee_supporting_next_epoch_version: true
   consensus_median_timestamp_with_checkpoint_enforcement: true
   consensus_commit_transactions_only_for_traversed_headers: true
-  consensus_commit_transactions_once_traversed: true
   congestion_limit_overshoot_in_gas_price_feedback_mechanism: true
   separate_gas_price_feedback_mechanism_for_randomness: true
   metadata_in_module_bytes: true
@@ -74,6 +73,7 @@ feature_flags:
   deprecate_global_storage_ops: true
   meter_instantiation_loops: true
   move_authenticator_type_arg_packages_as_inputs: true
+  consensus_commit_transactions_once_traversed: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000

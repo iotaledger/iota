@@ -566,11 +566,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     consensus_commit_transactions_only_for_traversed_headers: bool,
 
-    // If true, a block whose transactions reach their acknowledgment quorum
-    // before its header is traversed is committed once its header is traversed.
-    #[serde(skip_serializing_if = "is_false")]
-    consensus_commit_transactions_once_traversed: bool,
-
     // To enable/disable congestion limit overshoot in the gas price feedback mechanism.
     #[serde(skip_serializing_if = "is_false")]
     congestion_limit_overshoot_in_gas_price_feedback_mechanism: bool,
@@ -850,6 +845,11 @@ struct FeatureFlags {
     // shared-object scheduling.
     #[serde(skip_serializing_if = "is_false")]
     enable_validator_attestation: bool,
+
+    // If true, a block whose transactions reach their acknowledgment quorum
+    // before its header is traversed is committed once its header is traversed.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_commit_transactions_once_traversed: bool,
 }
 
 fn is_true(b: &bool) -> bool {
