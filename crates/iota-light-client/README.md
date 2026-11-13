@@ -20,7 +20,7 @@ The light client requires a config file and a directory to cache checkpoints, an
 
 ## Setup
 
-The config file for the light client takes a URL for a full node, a directory to store checkpoint summaries (that must exist) and within the directory the name of the genesis blob for the IOTA network.
+The config file for the light client takes a URL for a full node, a directory to store checkpoint summaries (that must exist), within the directory the name of the genesis blob for the IOTA network, and the digest of that network's genesis checkpoint.
 
 ```
 # A full node JSON RPC endpoint to query the latest network state (mandatory)
@@ -35,6 +35,9 @@ checkpoints_dir: "checkpoints_mainnet"
 # A URL to download or copy the genesis blob file from (optional if genesis blob is already present in checkpoints_dir)
 genesis_blob_download_url: "https://dbfiles.mainnet.iota.cafe/genesis.blob"
 
+# The base58 digest of the genesis checkpoint (mandatory). A genesis blob that does not match it is rejected.
+genesis_checkpoint_digest: "7gzPnGnmjqvpmF7NXTCmtacXLqx1cMaJFV6GCmi1peqr"
+
 # A flag to set whether the light client should always sync before checking an object or a transaction for inclusion (mandatory)
 sync_before_check: true
 
@@ -47,6 +50,8 @@ checkpoint_store_config:
   aws-region: "weur"
   object-store-connection-limit: 20
 ```
+
+The crate ships `mainnet.yaml` and `testnet.yaml` with the genesis checkpoint digests of those networks.
 
 ## Sync
 

@@ -3,6 +3,7 @@
 
 use std::fs;
 
+use iota_config::genesis::Genesis;
 use iota_light_client::{
     checkpoint::{
         CheckpointList, verified_committee_for_epoch, write_checkpoint_list,
@@ -10,13 +11,17 @@ use iota_light_client::{
     },
     config::Config,
 };
-use iota_sdk_types::{CheckpointContents, CheckpointSummary, EndOfEpochData, GasCostSummary};
+use iota_sdk_types::{
+    CheckpointContents, CheckpointSummary, EndOfEpochData, GasCostSummary, TransactionEffects,
+};
 use iota_swarm_config::{network_config::NetworkConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
     committee::Committee,
+    iota_system_state::get_iota_system_state_objects,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, SignedCheckpointSummary,
     },
+    object::Object,
 };
 use tempfile::TempDir;
 
@@ -88,6 +93,7 @@ fn cached_committee_chain_requires_every_authenticated_epoch() {
     let mut config = Config::mainnet();
     config.checkpoints_dir = temp.path().to_path_buf();
     config.sync_before_check = false;
+    config.genesis_checkpoint_digest = *trusted.genesis.checkpoint().digest();
     trusted
         .genesis
         .save(config.genesis_blob_file_path())
@@ -179,4 +185,124 @@ fn cached_committee_chain_requires_every_authenticated_epoch() {
             "{invalid} cache must be left in place"
         );
     }
+}
+
+#[test]
+fn genesis_blob_must_match_the_pinned_checkpoint_digest() {
+    let trusted_dir = TempDir::new().unwrap();
+    let trusted = ConfigBuilder::new(&trusted_dir).build();
+    let other_dir = TempDir::new().unwrap();
+    let other = ConfigBuilder::new(&other_dir)
+        .deterministic_committee_size(std::num::NonZeroUsize::new(1).unwrap())
+        .build();
+    let temp = TempDir::new().unwrap();
+    let mut config = Config::mainnet();
+    config.checkpoints_dir = temp.path().to_path_buf();
+    config.genesis_checkpoint_digest = *trusted.genesis.checkpoint().digest();
+
+    trusted
+        .genesis
+        .save(config.genesis_blob_file_path())
+        .unwrap();
+    assert_eq!(
+        verified_committee_for_epoch(&config, 0).unwrap(),
+        trusted.genesis.committee().unwrap()
+    );
+
+    // Each case is rejected by exactly one check of `verified_committee`, so
+    // that skipping any check fails the test.
+    for invalid in [
+        "other-genesis",
+        "other-below-checkpoint",
+        "other-wrapper-system-state-object",
+        "other-inner-system-state-object",
+        "forged-effects",
+    ] {
+        let [other_wrapper, other_inner] =
+            get_iota_system_state_objects(&other.genesis.objects()).unwrap();
+        let genesis = match invalid {
+            "other-genesis" => other.genesis.clone(),
+            "other-below-checkpoint" => genesis_from(
+                &trusted.genesis,
+                &other.genesis,
+                &other.genesis,
+                other.genesis.objects().to_vec(),
+            ),
+            "other-wrapper-system-state-object" => genesis_from(
+                &trusted.genesis,
+                &trusted.genesis,
+                &trusted.genesis,
+                objects_with(trusted.genesis.objects(), other_wrapper),
+            ),
+            "other-inner-system-state-object" => genesis_from(
+                &trusted.genesis,
+                &trusted.genesis,
+                &trusted.genesis,
+                objects_with(trusted.genesis.objects(), other_inner),
+            ),
+            // The effects keep the genuine transaction digest but list the
+            // other inner system state object, so that only the effects digest
+            // in the checkpoint contents can reject the blob.
+            "forged-effects" => {
+                let mut effects = trusted.genesis.effects().clone();
+                let TransactionEffects::V1(forged) = &mut effects else {
+                    unreachable!()
+                };
+                let TransactionEffects::V1(other_effects) = other.genesis.effects() else {
+                    unreachable!()
+                };
+                let entry = forged
+                    .changed_objects
+                    .iter_mut()
+                    .find(|changed| changed.object_id == other_inner.id())
+                    .unwrap();
+                *entry = other_effects
+                    .changed_objects
+                    .iter()
+                    .find(|changed| changed.object_id == other_inner.id())
+                    .unwrap()
+                    .clone();
+                Genesis::new(
+                    trusted.genesis.checkpoint().into_inner(),
+                    trusted.genesis.checkpoint_contents().clone(),
+                    trusted.genesis.transaction().clone(),
+                    effects,
+                    trusted.genesis.events().clone(),
+                    objects_with(trusted.genesis.objects(), other_inner),
+                )
+            }
+            _ => unreachable!(),
+        };
+        genesis.save(config.genesis_blob_file_path()).unwrap();
+        assert!(
+            verified_committee_for_epoch(&config, 0).is_err(),
+            "{invalid} genesis must be rejected"
+        );
+    }
+}
+
+fn genesis_from(
+    checkpoint: &Genesis,
+    contents: &Genesis,
+    transaction: &Genesis,
+    objects: Vec<Object>,
+) -> Genesis {
+    Genesis::new(
+        checkpoint.checkpoint().into_inner(),
+        contents.checkpoint_contents().clone(),
+        transaction.transaction().clone(),
+        transaction.effects().clone(),
+        transaction.events().clone(),
+        objects,
+    )
+}
+
+fn objects_with(objects: &[Object], replacement: Object) -> Vec<Object> {
+    let mut objects = objects.to_vec();
+    let position = objects
+        .iter()
+        .position(|object| object.id() == replacement.id())
+        .unwrap();
+    objects[position] = replacement;
+    objects
 }

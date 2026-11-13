@@ -9,7 +9,7 @@ use std::{
     path::Path,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use fastcrypto::{
     encoding::{Base64, Encoding},
     hash::HashFunction,
@@ -20,18 +20,20 @@ use iota_sdk_move_types::{
     iota_system::iota_system::IotaSystemState as IotaSystemStateWrapper,
 };
 use iota_sdk_types::{
-    Address, CheckpointContents, CheckpointSummary, ObjectId, TransactionEffects, TransactionEvents,
+    Address, CheckpointContents, CheckpointDigest, CheckpointSummary, ObjectId, TransactionEffects,
+    TransactionEvents,
 };
 use iota_types::{
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
     crypto::DefaultHash,
     deny_list_v1::get_deny_list_root_object,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaResult,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait, IotaValidatorGenesis, get_iota_system_state,
-        get_iota_system_state_wrapper,
+        get_iota_system_state_objects, get_iota_system_state_wrapper,
     },
-    messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContentsExt, VerifiedCheckpoint},
     object::Object,
     storage::ObjectStore,
     transaction::TransactionEnvelope,
@@ -156,6 +158,48 @@ impl Genesis {
     // TODO: No need to return IotaResult. Also consider return &.
     pub fn committee(&self) -> IotaResult<Committee> {
         Ok(self.committee_with_network().committee().clone())
+    }
+
+    /// Returns the committee of epoch 0 of the genesis whose checkpoint digest
+    /// is `expected_digest`, or an error if this genesis is not that one.
+    ///
+    /// The committee is read from the system state objects, which the genesis
+    /// checkpoint commits to only through the checkpoint contents and the
+    /// genesis transaction effects, so each of those links is checked. The
+    /// validator signatures on the checkpoint are not consulted: they come
+    /// from the same file as the committee they would be checked against.
+    pub fn verified_committee(&self, expected_digest: CheckpointDigest) -> Result<Committee> {
+        let digest = *self.checkpoint.digest();
+        ensure!(
+            digest == expected_digest,
+            "genesis checkpoint digest {digest} does not match the expected digest {expected_digest}"
+        );
+        let contents_digest = self.checkpoint_contents.digest();
+        ensure!(
+            self.checkpoint.data().contents_digest == contents_digest,
+            "genesis checkpoint contents digest {contents_digest} does not match the checkpoint summary"
+        );
+        let execution_digests = self.effects.execution_digests();
+        ensure!(
+            self.checkpoint_contents
+                .iter()
+                .any(|digests| digests == execution_digests),
+            "genesis transaction effects are not in the checkpoint contents"
+        );
+        let objects = get_iota_system_state_objects(&self.objects())?;
+        let created = self.effects.created();
+        for object in &objects {
+            let reference = object.object_ref();
+            ensure!(
+                created.iter().any(|owned| owned.reference() == &reference),
+                "genesis transaction effects do not create system state object {}",
+                object.id()
+            );
+        }
+        Ok(get_iota_system_state(&objects.as_slice())?
+            .get_current_epoch_committee()
+            .committee()
+            .clone())
     }
 
     pub fn iota_system_wrapper_object(&self) -> IotaSystemStateWrapper {

@@ -61,9 +61,11 @@ pub fn read_checkpoint_summary(config: &Config, seq: u64) -> Result<CertifiedChe
 /// Authenticates the committee for `epoch` from the configured genesis.
 ///
 /// Cached summaries and the checkpoint list are untrusted, including files left
-/// behind by a failed sync. Verify every preceding epoch's closing checkpoint
-/// before using its next committee. This works offline and does not depend on
-/// `sync_before_check`; syncing only determines which summaries are available.
+/// behind by a failed sync. The genesis blob is untrusted as well; it must
+/// match `genesis_checkpoint_digest`. Verify every preceding epoch's closing
+/// checkpoint before using its next committee. This works offline and does not
+/// depend on `sync_before_check`; syncing only determines which summaries are
+/// available.
 pub fn verified_committee_for_epoch(config: &Config, epoch: u64) -> Result<Committee> {
     let mut verifier = CommitteeChainVerifier::new(load_genesis_committee(config)?);
     if epoch == 0 {
@@ -83,7 +85,7 @@ pub fn verified_committee_for_epoch(config: &Config, epoch: u64) -> Result<Commi
 
 fn load_genesis_committee(config: &Config) -> Result<Committee> {
     Genesis::load(config.genesis_blob_file_path())?
-        .committee()
+        .verified_committee(config.genesis_checkpoint_digest)
         .context("Failed to load genesis committee")
 }
 
@@ -122,7 +124,7 @@ pub fn write_checkpoint_summary(
 
 /// Writes through a temporary file in the same directory and renames it over
 /// `path`, so that `path` never holds a partial write.
-fn write_file_atomically(path: &Path, bytes: &[u8]) -> Result<()> {
+pub(crate) fn write_file_atomically(path: &Path, bytes: &[u8]) -> Result<()> {
     let directory = path
         .parent()
         .with_context(|| format!("'{}' has no parent directory", path.display()))?;
@@ -346,7 +348,9 @@ fn remove_unusable_summary(config: &Config, seq: u64) {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{CheckpointContents, CheckpointSummary, EndOfEpochData, GasCostSummary};
+    use iota_sdk_types::{
+        CheckpointContents, CheckpointDigest, CheckpointSummary, EndOfEpochData, GasCostSummary,
+    };
     use iota_types::{
         crypto::{AuthorityKeyPair, AuthorityQuorumSignInfo},
         message_envelope::Envelope,
@@ -368,6 +372,7 @@ mod tests {
             checkpoints_dir: temp_dir.path().to_path_buf(),
             sync_before_check: false,
             genesis_blob_download_url: None,
+            genesis_checkpoint_digest: CheckpointDigest::default(),
             checkpoint_store_config: None,
         };
         (config, temp_dir)
