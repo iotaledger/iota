@@ -139,7 +139,7 @@ async fn make_clients(
         let client = NetworkAuthorityClient::new(channel);
         let public_key_bytes =
             AuthorityPublicKeyBytes::from_bytes(&committee_member.authority_pubkey_bytes)?;
-        authority_clients.insert(public_key_bytes, (net_addr.clone(), client));
+        authority_clients.insert(public_key_bytes, (net_addr, client));
     }
 
     Ok(authority_clients)

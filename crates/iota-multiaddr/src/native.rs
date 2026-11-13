@@ -579,11 +579,7 @@ fn is_valid_fqdn(hostname: &str, allow_localhost_dns: bool) -> bool {
         tld.chars().all(|c| c.is_ascii_alphabetic())
     };
 
-    if !is_valid_tld {
-        return false;
-    }
-
-    true
+    is_valid_tld
 }
 
 /// Validates a single DNS label according to RFC 1035

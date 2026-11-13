@@ -84,7 +84,7 @@ mod test {
                 p2p_address: Multiaddr::empty(),
                 primary_address: Multiaddr::empty(),
                 voting_power: 1_000,
-                hostname: format!("host-{i}").to_string(),
+                hostname: format!("host-{i}"),
             })
         }
 
@@ -153,7 +153,7 @@ mod test {
                 p2p_address: Multiaddr::empty(),
                 primary_address: Multiaddr::empty(),
                 voting_power: 1_000,
-                hostname: format!("committee-{i}").to_string(),
+                hostname: format!("committee-{i}"),
             });
 
             let (iota_address, authority_key): (Address, AuthorityKeyPair) = get_key_pair();
@@ -168,7 +168,7 @@ mod test {
                 p2p_address: Multiaddr::empty(),
                 primary_address: Multiaddr::empty(),
                 voting_power: 500,
-                hostname: format!("non-committee-{i}").to_string(),
+                hostname: format!("non-committee-{i}"),
             });
         }
 

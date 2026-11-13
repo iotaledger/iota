@@ -112,7 +112,7 @@ impl From<Vec<MetricFamily>> for Mimir<Vec<remote_write::WriteRequest>> {
             }
 
             // TODO stop using state directly
-            timeseries.extend(Mimir::from(mf.clone()).state);
+            timeseries.extend(Mimir::from(mf).state);
         }
 
         Self {

@@ -169,7 +169,7 @@ async fn create_txes(test_cluster: &TestCluster) -> BTreeMap<CommonTransactionCo
     for n in 0..4 {
         let gas = gas_objects.pop().unwrap();
         let coin = gas_objects.pop().unwrap();
-        let split_tx = split_n_tx(n, gas, coin, gas_price, sender).await.clone();
+        let split_tx = split_n_tx(n, gas, coin, gas_price, sender).await;
         ret.insert(CommonTransactionCosts::SplitCoin(n as usize), split_tx);
     }
 

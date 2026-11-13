@@ -80,7 +80,7 @@ pub fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
                     let entry = iota_distribution
                         .entry(object.owner.to_string())
                         .or_default();
-                    entry.insert(object_id_str.clone(), (STR_IOTA, gas.value()));
+                    entry.insert(object_id_str, (STR_IOTA, gas.value()));
                     iota_map.insert(object.id(), gas);
                 } else if let Ok(coin_metadata) = CoinMetadata::try_from(&object) {
                     coin_metadata_map.insert(object.id(), coin_metadata);

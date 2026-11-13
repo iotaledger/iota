@@ -153,7 +153,7 @@ fn parse_rpc_method(trait_data: &mut syn::ItemTrait) -> Result<RpcDefinition, sy
     let mut version_routing = Vec::new();
     for trait_item in &mut trait_data.items {
         if let TraitItem::Method(method) = trait_item {
-            let doc = extract_doc_comments(&method.attrs).to_string();
+            let doc = extract_doc_comments(&method.attrs);
             let deprecated = method.attrs.iter().any(|a| a.path.is_ident("deprecated"));
             let params: Vec<_> = method
                 .sig

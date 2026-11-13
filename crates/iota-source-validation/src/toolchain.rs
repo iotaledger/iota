@@ -160,7 +160,7 @@ pub(crate) fn units_for_toolchain(
             &package,
         )?;
 
-        let compiled_unit_paths = vec![package_root.clone()];
+        let compiled_unit_paths = vec![package_root];
         let compiled_units = find_filenames(&compiled_unit_paths, |path| {
             extension_equals(path, MOVE_COMPILED_EXTENSION)
         })?;

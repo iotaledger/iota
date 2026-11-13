@@ -546,14 +546,10 @@ impl MisbehaviorObservationsV1 {
         // the future, reports should be unwrapped (or translated) to a type verifiable
         // by the starfish crate, which means that the verification logic will probably
         // move out of this crate.
-        if (self.faulty_blocks_provable.len() != committee_size)
-            || (self.faulty_blocks_unprovable.len() != committee_size)
-            || (self.equivocations.len() != committee_size)
-            || (self.missing_proposals.len() != committee_size)
-        {
-            return false;
-        }
-        true
+        self.faulty_blocks_provable.len() == committee_size
+            && self.faulty_blocks_unprovable.len() == committee_size
+            && self.equivocations.len() == committee_size
+            && self.missing_proposals.len() == committee_size
     }
 }
 
