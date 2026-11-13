@@ -278,6 +278,167 @@ async fn pipelined_dependent_of_a_failed_transaction_never_succeeds_pcool_flow()
     pipelined_dependent_of_a_failed_transaction_never_succeeds(true).await;
 }
 
+/// A dependent sequenced while the transaction it depends on is still pending
+/// runs once that transaction has failed: it fails with
+/// `TransactionDependencyFailed` without running its commands, its gas coin
+/// moves on, and a fullnode that only replays checkpoints reaches the same
+/// effects. Execution is paused on every node until both transactions are
+/// sequenced, so the dependency fails only after its dependent is sequenced.
+///
+/// Simulator only, because the pause is a fail point.
+#[cfg(msim)]
+#[sim_test]
+async fn dependent_sequenced_before_its_dependency_fails_is_cancelled_at_execution() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+
+    use iota_core::consensus_handler::SequencedConsensusTransactionKey;
+    use iota_macros::{clear_fail_point, register_fail_point_async};
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::messages_consensus::ConsensusTransactionKey;
+
+    // Commits keep being sequenced for this many commits while execution is
+    // paused, since a commit is validated once every root of the commit this
+    // many below it has executed. Inputs must be older than the same
+    // distance, or post-consensus validation does not see them.
+    const HORIZON_DISTANCE: u64 = 50;
+
+    let _horizon_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_pcool_deterministic_validation_horizon_distance_for_testing(HORIZON_DISTANCE);
+        config
+    });
+    let _pcool_guard = override_pcool_flow(true);
+    let mut cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(600_000)
+        .build()
+        .await;
+
+    let failing = signed(&cluster, u64::MAX, None).await;
+    let failing_digest = *failing.digest();
+    let dependent = signed(&cluster, 1_000, Some(failing_digest)).await;
+    let dependent_digest = *dependent.digest();
+    let dependent_gas = dependent.data().transaction().gas()[0];
+
+    let validators = cluster.swarm.validator_node_handles();
+    let flushed_commit = || {
+        validators[0].with(|node| {
+            node.state()
+                .epoch_store_for_testing()
+                .tables()
+                .unwrap()
+                .get_last_consensus_index()
+                .unwrap()
+                .map(|indices| indices.sub_dag_index)
+                .unwrap_or_default()
+        })
+    };
+    let past_the_gas_coins = flushed_commit() + HORIZON_DISTANCE + 5;
+    tokio::time::timeout(SUBMISSION_TIMEOUT, async {
+        while flushed_commit() < past_the_gas_coins {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+    })
+    .await
+    .expect("the commits must advance past the gas coins' creation");
+
+    let paused = Arc::new(AtomicBool::new(true));
+    {
+        let paused = paused.clone();
+        register_fail_point_async("transaction_execution_delay", move || {
+            let paused = paused.clone();
+            async move {
+                while paused.load(Ordering::SeqCst) {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+            }
+        });
+    }
+    let sequenced_everywhere = |digest| {
+        let key = SequencedConsensusTransactionKey::External(
+            ConsensusTransactionKey::UserTransaction(digest),
+        );
+        let validators = &validators;
+        async move {
+            for validator in validators {
+                let key = key.clone();
+                validator
+                    .with_async(|node| async move {
+                        node.state()
+                            .epoch_store_for_testing()
+                            .consensus_messages_processed_notify(vec![key])
+                            .await
+                    })
+                    .await
+                    .unwrap();
+            }
+        }
+    };
+
+    // The dependent is submitted once its dependency is sequenced, so
+    // post-consensus validation keeps it, and execution resumes once it is
+    // sequenced too.
+    let (failing_outcome, dependent_outcome, sequenced) = futures::join!(
+        submit(&cluster, failing),
+        async {
+            match tokio::time::timeout(SUBMISSION_TIMEOUT, sequenced_everywhere(failing_digest))
+                .await
+            {
+                Ok(()) => submit(&cluster, dependent).await,
+                Err(_) => Outcome::TimedOut,
+            }
+        },
+        async {
+            let sequenced = tokio::time::timeout(SUBMISSION_TIMEOUT, async {
+                sequenced_everywhere(failing_digest).await;
+                sequenced_everywhere(dependent_digest).await;
+            })
+            .await;
+            paused.store(false, Ordering::SeqCst);
+            sequenced
+        },
+    );
+    clear_fail_point("transaction_execution_delay");
+    sequenced.expect("both transactions must be sequenced while execution is paused");
+
+    let Outcome::Executed(failing_effects) = failing_outcome else {
+        panic!("the dependency did not execute: {failing_outcome:?}");
+    };
+    assert!(
+        !failing_effects.status().is_success(),
+        "{failing_effects:?}"
+    );
+    let Outcome::Executed(dependent_effects) = dependent_outcome else {
+        panic!("the dependent did not execute: {dependent_outcome:?}");
+    };
+    assert_eq!(
+        dependent_effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionError::TransactionDependencyFailed {
+                dependency: failing_digest
+            },
+            command: None,
+        }
+    );
+    // No command ran: the transfer created no coin.
+    assert!(
+        dependent_effects.created().is_empty(),
+        "{dependent_effects:?}"
+    );
+    assert!(dependent_effects.dependencies().contains(&failing_digest));
+    assert!(dependent_effects.gas_object().reference().version > dependent_gas.version);
+
+    // A fullnode that only replays checkpoints reaches the same effects.
+    let fullnode = cluster.spawn_new_fullnode().await.iota_node;
+    let replayed = fullnode
+        .state()
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects_for_testing("", &[failing_digest, dependent_digest])
+        .await;
+    assert_eq!(replayed, [failing_effects, dependent_effects]);
+}
+
 async fn dependency_on_an_unknown_transaction_never_executes(pcool: bool) {
     let _pcool_guard = override_pcool_flow(pcool);
     let cluster = TestClusterBuilder::new().build().await;
