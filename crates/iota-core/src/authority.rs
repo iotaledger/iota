@@ -177,10 +177,11 @@ use crate::{
         overload_monitor_accept_tx,
     },
     post_consensus_input_reader::{
-        AccountVerdict, InputResolution, ReceivingObjectsResolution, ValidationAtCommit,
-        ValidationInputsAtCommit,
+        AccountVerdict, ClaimedAddressAtHorizon, InputResolution, ReceivingObjectsResolution,
+        ValidationAtCommit, ValidationInputsAtCommit,
         reader::{CommitIndexedReader, DenyListAtCommit},
     },
+    post_consensus_validation::plain_signed_addresses,
     rpc_indexes::{
         RpcIndexesStore,
         jsonrpc_api::{
@@ -1389,6 +1390,25 @@ impl AuthorityState {
 
         let tx = transaction.data().transaction();
 
+        // A claim of an address already claimed at the horizon, or a plain
+        // signature for one. A claim kept above the horizon holds the
+        // address's lock, which the caller checks before this.
+        if matches!(tx.kind(), TransactionKind::ClaimAccount(_))
+            && reader.read_claimed_address(tx.sender())? == ClaimedAddressAtHorizon::Claimed
+        {
+            return Err(UserInputError::AccountAlreadyExplicit {
+                address: tx.sender(),
+            }
+            .into());
+        }
+        if protocol_config.reject_plain_signatures_for_explicit_accounts() {
+            for address in plain_signed_addresses(transaction.data()) {
+                if reader.read_claimed_address(address)? == ClaimedAddressAtHorizon::Claimed {
+                    return Err(UserInputError::PlainSignatureForExplicitAccount { address }.into());
+                }
+            }
+        }
+
         let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) = match self
             .read_objects_for_validation_at_commit(reader, transaction, protocol_config)?
         {
@@ -1561,6 +1581,54 @@ impl AuthorityState {
         Ok(ValidationAtCommit::Keep(
             tx_checked_input_objects.inner().filter_owned_objects(),
         ))
+    }
+
+    /// Whether this validator's latest state records a claim of `address`:
+    /// the authenticator function field the claim attached to its account
+    /// (see [`CommitIndexedReader::read_claimed_address`]).
+    fn claimed_in_store(&self, address: Address) -> IotaResult<bool> {
+        let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(address)?;
+        Ok(self
+            .get_object_cache_reader()
+            .try_get_object(&field_id)?
+            .is_some())
+    }
+
+    /// Rejects a `ClaimAccount` of an address this validator's latest state
+    /// already records as claimed. Only an early answer, before consensus or
+    /// in a simulation: post-consensus validation decides from what every
+    /// validator shares.
+    fn check_claimed_address_not_in_store(&self, tx: &Transaction) -> IotaResult {
+        if !matches!(tx.kind(), TransactionKind::ClaimAccount(_)) {
+            return Ok(());
+        }
+        let address = tx.sender();
+        fp_ensure!(
+            !self.claimed_in_store(address)?,
+            UserInputError::AccountAlreadyExplicit { address }.into()
+        );
+        Ok(())
+    }
+
+    /// Rejects a transaction where an address signs with a plain signature
+    /// although this validator's latest state records it as claimed. Only an
+    /// early answer, before consensus: post-consensus validation decides from
+    /// what every validator shares.
+    fn check_plain_signed_addresses_not_in_store(
+        &self,
+        transaction: &SenderSignedTransaction,
+        protocol_config: &ProtocolConfig,
+    ) -> IotaResult {
+        if !protocol_config.reject_plain_signatures_for_explicit_accounts() {
+            return Ok(());
+        }
+        for address in plain_signed_addresses(transaction) {
+            fp_ensure!(
+                !self.claimed_in_store(address)?,
+                UserInputError::PlainSignatureForExplicitAccount { address }.into()
+            );
+        }
+        Ok(())
     }
 
     /// This is a private method and should be kept that way. It doesn't check
@@ -2345,6 +2413,12 @@ impl AuthorityState {
         // in the block verifier (`IotaTxValidator::validate_transactions`), exactly
         // as for an unattested one, and is not re-checked here.
 
+        // Read before execution, judged after it together with the claim's
+        // effects (see `claim_execution_fault`).
+        let claimed_before_execution = matches!(tx.kind(), TransactionKind::ClaimAccount(_))
+            .then(|| self.claimed_in_store(tx.sender()))
+            .transpose()?;
+
         let (kind, signer, gas_data) = tx.execution_parts();
 
         let move_authenticators = transaction.move_authenticators();
@@ -2680,6 +2754,16 @@ impl AuthorityState {
             (inner_temp_store, effects, execution_error_opt, outcome)
         };
 
+        if let Some(fault) = claimed_before_execution
+            .and_then(|claimed_before| claim_execution_fault(claimed_before, effects.status()))
+        {
+            debug_fatal!(
+                "ClaimAccount {tx_digest} of {} {fault} (status: {:?})",
+                tx.sender(),
+                effects.status()
+            );
+        }
+
         // Judged before the fork-injecting fail point below, so that only the
         // effects diverge under it.
         let attestation_record = attestation_record(
@@ -2859,6 +2943,7 @@ impl AuthorityState {
             &self.config.transaction_deny_config,
             self.get_backing_package_store().as_ref(),
         )?;
+        self.check_claimed_address_not_in_store(&transaction)?;
 
         // Load input and receiving objects
         let (mut input_objects, receiving_objects) = self.input_loader.read_objects_for_signing(
@@ -6620,6 +6705,11 @@ impl AuthorityState {
             self.get_backing_package_store().as_ref(),
         )?;
 
+        // Here rather than in `handle_transaction_validation_checks`, so that
+        // admission with validator attestation runs the account checks too.
+        self.check_claimed_address_not_in_store(tx)?;
+        self.check_plain_signed_addresses_not_in_store(transaction.data(), protocol_config)?;
+
         // Step 2: load all input objects (including authenticator + account).
         let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
             self.read_objects_for_validation(transaction, epoch, protocol_config)?;
@@ -7552,6 +7642,40 @@ impl From<MoveAccountCheckError> for IotaError {
             MoveAccountCheckError::Input(error) => IotaError::UserInput { error },
             MoveAccountCheckError::Storage(error) => error,
         }
+    }
+}
+
+/// What went wrong with an executed `ClaimAccount`, given whether this node's
+/// latest state recorded its address as claimed before it ran; `None` when
+/// nothing did.
+///
+/// Post-consensus validation keeps one claim per address, and a kept claim
+/// locks its address until the epoch ends, so a claim must find its address
+/// unclaimed and must create the account. Both hold whatever order this node
+/// executes claims in: a second claim of an address is never kept in the
+/// epoch of the first, and every node executes an epoch's transactions before
+/// the next epoch's. A denial by this node's own certificate deny list is not
+/// counted.
+pub(crate) fn claim_execution_fault(
+    claimed_before: bool,
+    status: &ExecutionStatus,
+) -> Option<&'static str> {
+    if claimed_before {
+        return Some(
+            "executed although its address was already claimed: post-consensus validation keeps \
+             one claim per address",
+        );
+    }
+    match status {
+        ExecutionStatus::Success
+        | ExecutionStatus::Failure {
+            error: iota_sdk_types::ExecutionError::CertificateDenied,
+            ..
+        } => None,
+        _ => Some(
+            "did not create its account, so its address can neither be claimed again nor sign \
+             with a plain signature until the epoch ends",
+        ),
     }
 }
 

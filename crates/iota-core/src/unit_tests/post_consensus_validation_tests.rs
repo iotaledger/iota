@@ -100,8 +100,8 @@ use crate::{
     },
     execution_scheduler::{ExecutionSchedulerAPI, transaction_manager::AttestationSource},
     post_consensus_input_reader::{
-        DropKind, DynamicFieldAtHorizon, InputResolution, MissingKind, OwnedVerdict, SharedVerdict,
-        ValidationAtCommit, reader::CommitIndexedReader,
+        ClaimedAddressAtHorizon, DropKind, DynamicFieldAtHorizon, InputResolution, MissingKind,
+        OwnedVerdict, SharedVerdict, ValidationAtCommit, reader::CommitIndexedReader,
     },
     post_consensus_validation::{self, PostConsensusDecision, SavedPostConsensusDecision},
     test_utils::make_transfer_object_transaction,
@@ -12803,4 +12803,1070 @@ async fn validation_at_commit_never_keeps_an_account_input_a_receive_moved() {
         }
         other => panic!("expected the received version to drop, got {other:?}"),
     }
+}
+
+// ---------------------------------------------------------------------------
+// ClaimAccount: at most one claim of an address is kept
+// ---------------------------------------------------------------------------
+
+impl HandlerObjectStateSetup {
+    /// A verified `ClaimAccount` of `sender`, the address of `sender_key`'s
+    /// Ed25519 key, paid with its gas coin `gas_id`.
+    fn build_claim(
+        &self,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+        gas_id: &ObjectId,
+    ) -> VerifiedTransaction {
+        let claim = iota_sdk_types::SmartAccountClaim {
+            public_key_scheme: iota_sdk_types::SignatureScheme::Ed25519.to_u8(),
+            public_key_raw_bytes: AsRef::<[u8]>::as_ref(&sender_key.public_key()).to_vec(),
+        };
+        let tx = Transaction::new(
+            iota_sdk_types::TransactionKind::new_claim_account(
+                iota_sdk_types::ClaimAccountTransaction::new_smart_account(claim),
+            ),
+            sender,
+            self.latest_ref(gas_id),
+            iota_types::transaction::TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * self.rgp,
+            self.rgp,
+        );
+        let tx = to_sender_signed_transaction(tx, sender_key);
+        self.epoch_store.verify_transaction(tx).unwrap()
+    }
+
+    /// Executes `claim` as the only root of commit `index` and checks that it
+    /// created the account object at its sender's address.
+    fn execute_claim_with_assigned_commit(
+        &self,
+        claim: VerifiedTransaction,
+        index: CommitIndex,
+    ) -> TransactionEffects {
+        let account_id = ObjectId::from(claim.data().transaction().sender());
+        self.epoch_store
+            .assign_commit_to_transactions(index, vec![TransactionKey::Digest(*claim.digest())]);
+        let (effects, error) = self
+            .authority
+            .try_execute_immediately(
+                &self.executable(claim),
+                ExecutionEnv::new(),
+                &self.epoch_store,
+            )
+            .unwrap();
+        assert!(
+            effects.status().is_success(),
+            "{:?}, {error:?}",
+            effects.status()
+        );
+        assert!(
+            effects
+                .created()
+                .iter()
+                .any(|created| created.reference().object_id == account_id),
+            "the claim must create the account object"
+        );
+        effects
+    }
+}
+
+/// The error a second claim of `address` is dropped with.
+fn already_explicit(address: Address) -> IotaError {
+    UserInputError::AccountAlreadyExplicit { address }.into()
+}
+
+/// A claim kept at a commit takes the lock on its address.
+fn claim_lock(address: Address) -> ObjectReference {
+    ObjectReference::new(
+        ObjectId::from(address),
+        Version::from_u64(0),
+        ObjectDigest::MIN,
+    )
+}
+
+#[tokio::test]
+async fn claim_account_executes_and_creates_the_account() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas = ObjectId::random();
+    let s = setup_handler_object_state(vec![Object::with_id_owner_for_testing(gas, sender)], true)
+        .await;
+    let claim = s.build_claim(sender, &key, &gas);
+    s.execute_claim_with_assigned_commit(claim, 1);
+}
+
+/// After execution, a claim is reported when its address was claimed before
+/// it ran, whatever its status, and when it did not create its account,
+/// unless this node's own certificate deny list denied it.
+#[test]
+fn claim_execution_fault_reports_a_repeated_or_failed_claim() {
+    let failed = ExecutionStatus::Failure {
+        error: iota_sdk_types::ExecutionError::InsufficientGas,
+        command: None,
+    };
+    let denied = ExecutionStatus::Failure {
+        error: iota_sdk_types::ExecutionError::CertificateDenied,
+        command: None,
+    };
+
+    assert_eq!(
+        crate::authority::claim_execution_fault(false, &ExecutionStatus::Success),
+        None
+    );
+    assert_eq!(
+        crate::authority::claim_execution_fault(false, &denied),
+        None
+    );
+    assert!(
+        crate::authority::claim_execution_fault(false, &failed)
+            .is_some_and(|fault| fault.contains("did not create its account"))
+    );
+    for status in [ExecutionStatus::Success, failed, denied] {
+        assert!(
+            crate::authority::claim_execution_fault(true, &status)
+                .is_some_and(|fault| fault.contains("already claimed")),
+            "{status:?}"
+        );
+    }
+}
+
+/// A second claim of an address that reaches execution, which validation
+/// never lets happen, is reported after it runs.
+#[tokio::test]
+#[should_panic(expected = "executed although its address was already claimed")]
+async fn second_claim_executed_without_validation_is_reported() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas = [ObjectId::random(), ObjectId::random()];
+    let s = setup_handler_object_state(
+        gas.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        true,
+    )
+    .await;
+    let first = s.build_claim(sender, &key, &gas[0]);
+    let second = s.build_claim(sender, &key, &gas[1]);
+    s.execute_claim_with_assigned_commit(first, 1);
+
+    s.epoch_store
+        .assign_commit_to_transactions(2, vec![TransactionKey::Digest(*second.digest())]);
+    let _ = s.authority.try_execute_immediately(
+        &s.executable(second),
+        ExecutionEnv::new(),
+        &s.epoch_store,
+    );
+}
+
+/// Two claims of one address in one commit: the first is kept with the lock
+/// on the address, the second is dropped for good.
+#[tokio::test]
+async fn second_claim_in_the_same_commit_is_dropped() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas = [ObjectId::random(), ObjectId::random()];
+    let s = setup_handler_object_state(
+        gas.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        true,
+    )
+    .await;
+    let first = s.build_claim(sender, &key, &gas[0]);
+    let second = s.build_claim(sender, &key, &gas[1]);
+
+    let result = s.validate_at(1, &[first.clone(), second.clone()]).await;
+
+    assert_eq!(result.kept, vec![*first.digest()]);
+    assert_eq!(
+        result.dropped,
+        vec![(*second.digest(), already_explicit(sender))]
+    );
+    assert_eq!(result.locks.get(&claim_lock(sender)), Some(first.digest()));
+}
+
+/// A claim kept at commit 1 holds the lock in the quarantine, so a claim of
+/// the same address at commit 2 is dropped, although the horizon of commit 2
+/// does not see the first claim yet.
+#[tokio::test]
+async fn second_claim_within_the_horizon_is_dropped_by_the_lock() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas = [ObjectId::random(), ObjectId::random()];
+    let s = setup_handler_object_state(
+        gas.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        true,
+    )
+    .await;
+    let first = s.build_claim(sender, &key, &gas[0]);
+    let second = s.build_claim(sender, &key, &gas[1]);
+
+    let scheduled = s.process_at(1, std::slice::from_ref(&first)).await;
+    assert_eq!(scheduled.len(), 1);
+    assert_eq!(
+        s.epoch_store
+            .get_quarantined_owned_object_lock(&claim_lock(sender)),
+        Some(*first.digest())
+    );
+
+    let result = s.validate_at(2, std::slice::from_ref(&second)).await;
+    assert!(result.kept.is_empty());
+    assert_eq!(
+        result.dropped,
+        vec![(*second.digest(), already_explicit(sender))]
+    );
+}
+
+/// The reader answers from the account's creation row: not claimed while the
+/// row is above the horizon, as on a validator that has not executed it, and
+/// claimed once the row is at or below it. Without a lock, as when the claim
+/// was not kept by this commit processing, the horizon read alone decides.
+#[tokio::test]
+async fn claim_is_dropped_once_the_account_row_is_at_the_horizon() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas = [ObjectId::random(), ObjectId::random()];
+    let s = setup_handler_object_state(
+        gas.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        true,
+    )
+    .await;
+    let first = s.build_claim(sender, &key, &gas[0]);
+    let first_effects = s.execute_claim_with_assigned_commit(first, 1);
+    s.complete_commit(1, &[&first_effects]);
+    let k = s.horizon_distance();
+
+    let read_at = |index: CommitIndex| {
+        CommitIndexedReader::new(
+            s.authority.get_object_cache_reader().clone(),
+            s.epoch_store.clone(),
+            index,
+        )
+        .read_claimed_address(sender)
+        .unwrap()
+    };
+    assert_eq!(read_at(k), ClaimedAddressAtHorizon::NotClaimed);
+    assert_eq!(read_at(k + 1), ClaimedAddressAtHorizon::Claimed);
+
+    let second = s.build_claim(sender, &key, &gas[1]);
+    let result = s.validate_at(k + 1, std::slice::from_ref(&second)).await;
+    assert!(result.kept.is_empty());
+    assert_eq!(
+        result.dropped,
+        vec![(*second.digest(), already_explicit(sender))]
+    );
+}
+
+/// An address the latest state holds no field for is answered without
+/// reading the rows, before and after the horizon passes another address's
+/// claim and in the next epoch, and still once the rows can no longer be
+/// read; the answer the rows give is checked against it in debug builds.
+#[tokio::test]
+async fn never_claimed_address_reads_as_not_claimed() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let never_claimed = Address::random();
+    let gas = ObjectId::random();
+    let mut s =
+        setup_handler_object_state(vec![Object::with_id_owner_for_testing(gas, sender)], true)
+            .await;
+    let claim = s.build_claim(sender, &key, &gas);
+    let effects = s.execute_claim_with_assigned_commit(claim, 1);
+    s.complete_commit(1, &[&effects]);
+    let k = s.horizon_distance();
+
+    for index in [1, k, k + 1] {
+        assert_eq!(
+            s.reader_at(index)
+                .read_claimed_address(never_claimed)
+                .unwrap(),
+            ClaimedAddressAtHorizon::NotClaimed,
+            "commit {index}"
+        );
+    }
+    assert_eq!(
+        s.reader_at(k + 1).read_claimed_address(sender).unwrap(),
+        ClaimedAddressAtHorizon::Claimed
+    );
+
+    s.advance_epoch().await;
+    assert_eq!(
+        s.reader_at(1).read_claimed_address(never_claimed).unwrap(),
+        ClaimedAddressAtHorizon::NotClaimed
+    );
+    assert_eq!(
+        s.reader_at(1).read_claimed_address(sender).unwrap(),
+        ClaimedAddressAtHorizon::Claimed
+    );
+
+    s.epoch_store.release_db_handles();
+    let reader = s.reader_at(1);
+    assert!(reader.read_account(ObjectId::from(never_claimed)).is_err());
+    assert_eq!(
+        reader.read_claimed_address(never_claimed).unwrap(),
+        ClaimedAddressAtHorizon::NotClaimed
+    );
+}
+
+/// An account claimed in an earlier epoch is in the store with no row this
+/// epoch, so a new claim of its address is dropped at the first commit.
+#[tokio::test]
+async fn claim_of_an_account_from_an_earlier_epoch_is_dropped() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas = [ObjectId::random(), ObjectId::random()];
+    let mut s = setup_handler_object_state(
+        gas.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        true,
+    )
+    .await;
+    let first = s.build_claim(sender, &key, &gas[0]);
+    let first_effects = s.execute_claim_with_assigned_commit(first, 1);
+    s.complete_commit(1, &[&first_effects]);
+    s.advance_epoch().await;
+
+    let second = s.build_claim(sender, &key, &gas[1]);
+    let result = s.validate_at(1, std::slice::from_ref(&second)).await;
+    assert!(result.kept.is_empty());
+    assert_eq!(
+        result.dropped,
+        vec![(*second.digest(), already_explicit(sender))]
+    );
+}
+
+/// After a restart, the replay of the commit that kept an executed claim
+/// takes the claim's lock again from the transaction, so a later claim of
+/// the address is still dropped within the horizon.
+#[tokio::test]
+async fn replayed_executed_claim_takes_its_lock_again() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas = [ObjectId::random(), ObjectId::random()];
+    let mut s = setup_handler_object_state(
+        gas.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        true,
+    )
+    .await;
+    let first = s.build_claim(sender, &key, &gas[0]);
+    let second = s.build_claim(sender, &key, &gas[1]);
+    let scheduled = s.process_at(1, std::slice::from_ref(&first)).await;
+    assert_eq!(scheduled.len(), 1);
+    s.execute_executable(&scheduled[0], ExecutionEnv::new());
+
+    s.restart_epoch_store().await;
+    assert_eq!(
+        s.epoch_store
+            .get_quarantined_owned_object_lock(&claim_lock(sender)),
+        None,
+        "the restart must lose the quarantined lock"
+    );
+    let replayed = s.process_at(1, std::slice::from_ref(&first)).await;
+    assert_eq!(replayed.len(), 1);
+    assert_eq!(
+        s.epoch_store
+            .get_quarantined_owned_object_lock(&claim_lock(sender)),
+        Some(*first.digest())
+    );
+
+    let result = s.validate_at(2, std::slice::from_ref(&second)).await;
+    assert!(result.kept.is_empty());
+    assert_eq!(
+        result.dropped,
+        vec![(*second.digest(), already_explicit(sender))]
+    );
+}
+
+/// Admission answers early from the validator's latest state.
+#[tokio::test]
+async fn admission_rejects_a_claim_of_an_existing_account() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas = [ObjectId::random(), ObjectId::random()];
+    let s = setup_handler_object_state(
+        gas.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        true,
+    )
+    .await;
+    let first = s.build_claim(sender, &key, &gas[0]);
+    s.execute_claim_with_assigned_commit(first, 1);
+
+    let second = s.build_claim(sender, &key, &gas[1]);
+    let error = s
+        .authority
+        .handle_transaction_validation_checks(
+            &second,
+            &s.epoch_store,
+            &s.authority.config.transaction_deny_config,
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error, already_explicit(sender));
+}
+
+/// The error a plain signature for the claimed address `address` is dropped
+/// with.
+fn plain_signature_for(address: Address) -> IotaError {
+    UserInputError::PlainSignatureForExplicitAccount { address }.into()
+}
+
+/// A setup where `sender` owns an object and two gas coins: one for its
+/// claim, one for a plain-signed transfer of the object.
+async fn setup_claim_and_transfer() -> (
+    HandlerObjectStateSetup,
+    Address,
+    AccountPrivateKey,
+    [ObjectId; 3],
+) {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let ids = [ObjectId::random(), ObjectId::random(), ObjectId::random()];
+    let s = setup_handler_object_state(
+        ids.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        true,
+    )
+    .await;
+    (s, sender, key, ids)
+}
+
+/// A plain-signed transaction of the claimed address in the same commit,
+/// after the claim, is dropped as a copy: a copy where the address signs with
+/// a Move authenticator could still be kept.
+#[tokio::test]
+async fn plain_signature_after_a_claim_in_the_same_commit_is_dropped() {
+    let (s, sender, key, [claim_gas, object, gas]) = setup_claim_and_transfer().await;
+    let claim = s.build_claim(sender, &key, &claim_gas);
+    let transfer = s.build_transfer(&object, &gas, sender, &key, Address::random());
+
+    let result = s.validate_at(1, &[claim.clone(), transfer.clone()]).await;
+
+    assert_eq!(result.kept, vec![*claim.digest()]);
+    assert_eq!(
+        result.dropped,
+        vec![(*transfer.digest(), plain_signature_for(sender))]
+    );
+    assert_eq!(
+        s.epoch_store
+            .post_consensus_decision(1, *transfer.digest())
+            .unwrap()
+            .map(|saved| saved.decision),
+        Some(PostConsensusDecision::DroppedCopy)
+    );
+}
+
+/// A plain-signed transaction sequenced before the claim proceeds as
+/// implicit.
+#[tokio::test]
+async fn plain_signature_before_a_claim_in_the_same_commit_is_kept() {
+    let (s, sender, key, [claim_gas, object, gas]) = setup_claim_and_transfer().await;
+    let claim = s.build_claim(sender, &key, &claim_gas);
+    let transfer = s.build_transfer(&object, &gas, sender, &key, Address::random());
+
+    let result = s.validate_at(1, &[transfer.clone(), claim.clone()]).await;
+
+    assert_eq!(result.kept, vec![*transfer.digest(), *claim.digest()]);
+    assert!(result.dropped.is_empty(), "{:?}", result.dropped);
+}
+
+/// A claim kept at commit 1 holds the lock, so a plain-signed transaction of
+/// the address at commit 2 is dropped before the horizon sees the account.
+#[tokio::test]
+async fn plain_signature_within_the_horizon_is_dropped_by_the_lock() {
+    let (s, sender, key, [claim_gas, object, gas]) = setup_claim_and_transfer().await;
+    let claim = s.build_claim(sender, &key, &claim_gas);
+    assert_eq!(s.process_at(1, std::slice::from_ref(&claim)).await.len(), 1);
+
+    let transfer = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    let result = s.validate_at(2, std::slice::from_ref(&transfer)).await;
+
+    assert!(result.kept.is_empty());
+    assert_eq!(
+        result.dropped,
+        vec![(*transfer.digest(), plain_signature_for(sender))]
+    );
+}
+
+/// In a later epoch no lock remains, and the horizon read finds the account
+/// the epoch began with.
+#[tokio::test]
+async fn plain_signature_for_an_account_from_an_earlier_epoch_is_dropped() {
+    let (mut s, sender, key, [claim_gas, object, gas]) = setup_claim_and_transfer().await;
+    let claim = s.build_claim(sender, &key, &claim_gas);
+    let claim_effects = s.execute_claim_with_assigned_commit(claim, 1);
+    s.complete_commit(1, &[&claim_effects]);
+    s.advance_epoch().await;
+
+    let transfer = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    let result = s.validate_at(1, std::slice::from_ref(&transfer)).await;
+
+    assert!(result.kept.is_empty());
+    assert_eq!(
+        result.dropped,
+        vec![(*transfer.digest(), plain_signature_for(sender))]
+    );
+}
+
+/// The rule covers the gas owner too: a claimed address cannot sponsor with a
+/// plain signature.
+#[tokio::test]
+async fn plain_signed_sponsor_of_a_claimed_address_is_dropped() {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let [claim_gas, gas, object] = [ObjectId::random(), ObjectId::random(), ObjectId::random()];
+    let s = setup_handler_object_state(
+        vec![
+            Object::with_id_owner_for_testing(claim_gas, sponsor),
+            Object::with_id_owner_for_testing(gas, sponsor),
+            Object::with_id_owner_for_testing(object, sender),
+        ],
+        true,
+    )
+    .await;
+    let claim = s.build_claim(sponsor, &sponsor_key, &claim_gas);
+    let mut tx = TestTransactionBuilder::new(sender, s.latest_ref(&gas), s.rgp)
+        .transfer(s.latest_ref(&object), Address::random())
+        .build();
+    tx.gas_data_mut().owner = sponsor;
+    let sponsored = s
+        .epoch_store
+        .verify_transaction(
+            iota_types::utils::to_sender_signed_transaction_with_multi_signers(
+                tx,
+                vec![&sender_key, &sponsor_key],
+            ),
+        )
+        .unwrap();
+
+    let result = s.validate_at(1, &[claim.clone(), sponsored.clone()]).await;
+
+    assert_eq!(result.kept, vec![*claim.digest()]);
+    assert_eq!(
+        result.dropped,
+        vec![(*sponsored.digest(), plain_signature_for(sponsor))]
+    );
+}
+
+/// Admission answers early for a plain signature too.
+#[tokio::test]
+async fn admission_rejects_a_plain_signature_for_a_claimed_address() {
+    let (s, sender, key, [claim_gas, object, gas]) = setup_claim_and_transfer().await;
+    let claim = s.build_claim(sender, &key, &claim_gas);
+    s.execute_claim_with_assigned_commit(claim, 1);
+
+    let transfer = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    let error = s
+        .authority
+        .handle_transaction_validation_checks(
+            &transfer,
+            &s.epoch_store,
+            &s.authority.config.transaction_deny_config,
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error, plain_signature_for(sender));
+}
+
+/// The claim is recorded by the account's authenticator function field, not
+/// by the account object. No claim leaves the field without the object today,
+/// but if one did, the address would stay claimed, so a new claim and a plain
+/// signature are both dropped.
+#[tokio::test]
+async fn orphaned_authenticator_field_keeps_the_address_claimed() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let [claim_gas, object, gas] = [ObjectId::random(), ObjectId::random(), ObjectId::random()];
+    let account_id = ObjectId::from(sender);
+    let s = setup_handler_object_state(
+        vec![
+            Object::with_id_owner_for_testing(claim_gas, sender),
+            Object::with_id_owner_for_testing(object, sender),
+            Object::with_id_owner_for_testing(gas, sender),
+            authenticator_function_ref_field(account_id, ObjectId::random(), Version::from(1)),
+        ],
+        true,
+    )
+    .await;
+    assert!(s.authority.get_object(&account_id).is_none());
+
+    let claim = s.build_claim(sender, &key, &claim_gas);
+    let transfer = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    let result = s.validate_at(1, &[claim.clone(), transfer.clone()]).await;
+
+    assert!(result.kept.is_empty(), "{:?}", result.kept);
+    assert_eq!(
+        result.dropped,
+        vec![
+            (*claim.digest(), already_explicit(sender)),
+            (*transfer.digest(), plain_signature_for(sender)),
+        ]
+    );
+}
+
+/// The plain-signature rule follows its own protocol flag, so a claimed
+/// address keeps rejecting plain signatures in a version that no longer
+/// accepts claims.
+#[tokio::test]
+async fn plain_signature_rule_outlives_the_claim_flag() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_claim_account_transaction_for_testing(false);
+        config.set_reject_plain_signatures_for_explicit_accounts_for_testing(true);
+        config
+    });
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let [object, gas] = [ObjectId::random(), ObjectId::random()];
+    let s = setup_handler_object_state_with_config_guard(
+        vec![
+            Object::with_id_owner_for_testing(object, sender),
+            Object::with_id_owner_for_testing(gas, sender),
+        ],
+        Some(guard),
+    )
+    .await;
+    // A claim of the sender kept earlier in the epoch holds the lock.
+    seed_quarantined_lock(
+        &s.epoch_store,
+        claim_lock(sender),
+        TransactionDigest::new([7; 32]),
+    );
+    let transfer = s.build_transfer(&object, &gas, sender, &key, Address::random());
+
+    let result = s.validate_at(1, std::slice::from_ref(&transfer)).await;
+
+    assert_eq!(
+        result.dropped,
+        vec![(*transfer.digest(), plain_signature_for(sender))]
+    );
+}
+
+/// A claim whose plain-signed sponsor is explicit is dropped for good: a
+/// claim cannot carry a Move authenticator, so no other copy of it can be
+/// kept, and the claimant is told.
+#[tokio::test]
+async fn claim_with_an_explicit_sponsor_is_dropped_for_good() {
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let [sponsor_claim_gas, gas] = [ObjectId::random(), ObjectId::random()];
+    let s = setup_handler_object_state(
+        vec![
+            Object::with_id_owner_for_testing(sponsor_claim_gas, sponsor),
+            Object::with_id_owner_for_testing(gas, sponsor),
+        ],
+        true,
+    )
+    .await;
+    let sponsor_claim = s.build_claim(sponsor, &sponsor_key, &sponsor_claim_gas);
+    let mut tx = Transaction::new(
+        iota_sdk_types::TransactionKind::new_claim_account(
+            iota_sdk_types::ClaimAccountTransaction::new_smart_account(
+                iota_sdk_types::SmartAccountClaim {
+                    public_key_scheme: iota_sdk_types::SignatureScheme::Ed25519.to_u8(),
+                    public_key_raw_bytes: AsRef::<[u8]>::as_ref(&sender_key.public_key()).to_vec(),
+                },
+            ),
+        ),
+        sender,
+        s.latest_ref(&gas),
+        iota_types::transaction::TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * s.rgp,
+        s.rgp,
+    );
+    tx.gas_data_mut().owner = sponsor;
+    let sponsored = s
+        .epoch_store
+        .verify_transaction(
+            iota_types::utils::to_sender_signed_transaction_with_multi_signers(
+                tx,
+                vec![&sender_key, &sponsor_key],
+            ),
+        )
+        .unwrap();
+
+    let result = s
+        .validate_at(1, &[sponsor_claim.clone(), sponsored.clone()])
+        .await;
+
+    assert_eq!(result.kept, vec![*sponsor_claim.digest()]);
+    assert_eq!(
+        result.dropped,
+        vec![(*sponsored.digest(), plain_signature_for(sponsor))]
+    );
+    let saved = s
+        .epoch_store
+        .post_consensus_decision(1, *sponsored.digest())
+        .unwrap()
+        .expect("the decision is saved");
+    assert_eq!(saved.decision, PostConsensusDecision::Dropped);
+}
+
+/// A claim kept at commit 1 moves its lock to the lock table when commit 1
+/// flushes, where it still drops a second claim of the address that the
+/// horizon cannot see yet.
+#[tokio::test]
+async fn claim_lock_in_the_lock_table_drops_a_second_claim() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas = [ObjectId::random(), ObjectId::random()];
+    let s = setup_handler_object_state(
+        gas.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        true,
+    )
+    .await;
+    let first = s.build_claim(sender, &key, &gas[0]);
+    let scheduled = s.process_at(1, std::slice::from_ref(&first)).await;
+    assert_eq!(scheduled.len(), 1);
+    let effects = s.execute(first.clone());
+    let height = s
+        .checkpoint_roots()
+        .into_iter()
+        .map(|(height, _)| height)
+        .max()
+        .expect("commit 1 has a pending checkpoint");
+    s.epoch_store
+        .flush_pushed_commits_for_testing(height, 1, vec![*effects.transaction_digest()])
+        .unwrap();
+    assert_eq!(
+        s.epoch_store
+            .get_quarantined_owned_object_lock(&claim_lock(sender)),
+        None
+    );
+    assert_eq!(
+        s.epoch_store
+            .tables()
+            .unwrap()
+            .get_locked_transaction(&claim_lock(sender))
+            .unwrap(),
+        Some(*first.digest())
+    );
+
+    let second = s.build_claim(sender, &key, &gas[1]);
+    let result = s.validate_at(2, std::slice::from_ref(&second)).await;
+    assert!(result.kept.is_empty(), "{:?}", result.kept);
+    assert_eq!(
+        result.dropped,
+        vec![(*second.digest(), already_explicit(sender))]
+    );
+}
+
+/// A kept claim that has not executed keeps its lock however far the horizon
+/// moves, so a second claim of the address is dropped. The lock ends with the
+/// epoch: in the next one, the address, never claimed, can be claimed.
+#[tokio::test]
+async fn claim_lock_counts_until_the_epoch_ends() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas = [ObjectId::random(), ObjectId::random()];
+    let mut s = setup_handler_object_state(
+        gas.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        true,
+    )
+    .await;
+    let first = s.build_claim(sender, &key, &gas[0]);
+    let scheduled = s.process_at(1, std::slice::from_ref(&first)).await;
+    assert_eq!(scheduled.len(), 1);
+
+    let second = s.build_claim(sender, &key, &gas[1]);
+    let result = s
+        .validate_at(s.horizon_distance() + 10, std::slice::from_ref(&second))
+        .await;
+    assert!(result.kept.is_empty(), "{:?}", result.kept);
+    assert_eq!(
+        result.dropped,
+        vec![(*second.digest(), already_explicit(sender))]
+    );
+
+    s.advance_epoch().await;
+    let retried = s.build_claim(sender, &key, &gas[1]);
+    let result = s.validate_at(1, std::slice::from_ref(&retried)).await;
+    assert_eq!(result.kept, vec![*retried.digest()]);
+}
+
+/// With an execution worker limit and no deferral allowance, congestion
+/// control cancels one of two claims kept at a commit. Its lock still holds
+/// until the epoch ends, so its address cannot be claimed again in that
+/// epoch, which is why no version accepts claims together with that limit
+/// (see `every_kept_claim_account_can_execute` in `iota-protocol-config`).
+#[tokio::test]
+async fn claim_cancelled_by_worker_congestion_keeps_its_lock() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_per_object_congestion_control_mode_for_testing(
+            iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_concurrent_execution_workers_for_testing(1);
+        config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
+        config
+    });
+    let accounts: Vec<(Address, AccountPrivateKey, ObjectId, ObjectId)> = (0..2)
+        .map(|_| {
+            let (address, key): (Address, AccountPrivateKey) = get_key_pair();
+            (address, key, ObjectId::random(), ObjectId::random())
+        })
+        .collect();
+    let s = setup_handler_object_state_with_config_guard(
+        accounts
+            .iter()
+            .flat_map(|(address, _, gas, retry_gas)| {
+                [
+                    Object::with_id_owner_for_testing(*gas, *address),
+                    Object::with_id_owner_for_testing(*retry_gas, *address),
+                ]
+            })
+            .collect(),
+        Some(guard),
+    )
+    .await;
+    let claims: Vec<_> = accounts
+        .iter()
+        .map(|(address, key, gas, _)| s.build_claim(*address, key, gas))
+        .collect();
+
+    let (scheduled, assigned_versions) = s.process_at_with_versions(1, &claims).await;
+    assert_eq!(
+        scheduled.len(),
+        2,
+        "both claims are scheduled, one cancelled"
+    );
+    let assigned_versions = assigned_versions.into_map();
+    let cancelled = claims
+        .iter()
+        .filter(|claim| {
+            assigned_versions
+                .get(&TransactionKey::Digest(*claim.digest()))
+                .is_some_and(|versions| {
+                    versions
+                        .iter()
+                        .any(|assignment| assignment.version.is_congested())
+                })
+        })
+        .count();
+    assert_eq!(cancelled, 1, "one claim is cancelled");
+    for ((address, ..), claim) in accounts.iter().zip(&claims) {
+        assert_eq!(
+            s.epoch_store
+                .get_quarantined_owned_object_lock(&claim_lock(*address)),
+            Some(*claim.digest())
+        );
+    }
+
+    let retries: Vec<_> = accounts
+        .iter()
+        .map(|(address, key, _, retry_gas)| s.build_claim(*address, key, retry_gas))
+        .collect();
+    let result = s.validate_at(s.horizon_distance() + 10, &retries).await;
+    assert!(result.kept.is_empty(), "{:?}", result.kept);
+    assert_eq!(
+        result.dropped,
+        accounts
+            .iter()
+            .zip(&retries)
+            .map(|((address, ..), retried)| (*retried.digest(), already_explicit(*address)))
+            .collect::<Vec<_>>()
+    );
+}
+
+/// No object has a claim lock's reference, so a transaction that names one as
+/// an owned input is never kept and never holds the lock. With no claim of
+/// the address, the input is reported as not visible yet. Before a claim in
+/// the same commit, it is dropped and the claim still takes the lock. Once a
+/// claim holds the lock, it is dropped on it.
+#[tokio::test]
+async fn transaction_naming_a_claim_lock_as_an_owned_input_never_takes_it() {
+    let (victim, victim_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (attacker, attacker_key): (Address, AccountPrivateKey) = get_key_pair();
+    let [claim_gas, attacker_gas] = [ObjectId::random(), ObjectId::random()];
+    let s = setup_handler_object_state(
+        vec![
+            Object::with_id_owner_for_testing(claim_gas, victim),
+            Object::with_id_owner_for_testing(attacker_gas, attacker),
+        ],
+        true,
+    )
+    .await;
+    let naming_the_lock = s
+        .epoch_store
+        .verify_transaction(make_transfer_object_transaction(
+            claim_lock(victim),
+            s.latest_ref(&attacker_gas),
+            attacker,
+            &attacker_key,
+            Address::random(),
+            s.rgp,
+        ))
+        .unwrap();
+    let claim = s.build_claim(victim, &victim_key, &claim_gas);
+
+    let result = s
+        .validate_at(1, std::slice::from_ref(&naming_the_lock))
+        .await;
+    assert!(result.kept.is_empty(), "{:?}", result.kept);
+    assert!(result.locks.is_empty(), "{:?}", result.locks);
+    assert_eq!(
+        s.epoch_store
+            .post_consensus_decision(1, *naming_the_lock.digest())
+            .unwrap()
+            .map(|saved| saved.decision),
+        Some(PostConsensusDecision::DroppedInputNotVisibleYet)
+    );
+
+    let scheduled = s
+        .process_at(2, &[naming_the_lock.clone(), claim.clone()])
+        .await;
+    assert_eq!(
+        scheduled.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
+        vec![*claim.digest()]
+    );
+    assert_eq!(
+        s.epoch_store
+            .get_quarantined_owned_object_lock(&claim_lock(victim)),
+        Some(*claim.digest())
+    );
+
+    let result = s
+        .validate_at(3, std::slice::from_ref(&naming_the_lock))
+        .await;
+    assert!(result.kept.is_empty(), "{:?}", result.kept);
+    assert_eq!(
+        result.dropped,
+        vec![(
+            *naming_the_lock.digest(),
+            IotaError::ObjectLockConflict {
+                obj_ref: claim_lock(victim),
+                pending_transaction: *claim.digest(),
+            }
+        )]
+    );
+    assert!(result.locks.is_empty(), "{:?}", result.locks);
+}
+
+/// A plain-signed transaction kept before a claim of its sender and deferred
+/// is kept again after the claim without being validated again: the rule
+/// against plain signatures holds only for decisions made once the claim is
+/// kept. The same transaction validated anew after the claim is dropped. In a
+/// version without an execution worker limit only a transaction with a shared
+/// input can be deferred; the test hands the transfer to validation as
+/// previously deferred, which is all the skip looks at.
+#[tokio::test]
+async fn deferred_plain_signed_transaction_is_kept_after_a_claim() {
+    let (s, sender, key, [claim_gas, object, gas]) = setup_claim_and_transfer().await;
+    let claim = s.build_claim(sender, &key, &claim_gas);
+    let transfer = s.build_transfer(&object, &gas, sender, &key, Address::random());
+    let scheduled = s.process_at(1, std::slice::from_ref(&claim)).await;
+    assert_eq!(scheduled.len(), 1);
+
+    let previously_deferred = std::collections::HashMap::from([(
+        *transfer.digest(),
+        (
+            crate::authority::transaction_deferral::DeferralKey::new_for_consensus_round(2, 1),
+            None,
+        ),
+    )]);
+    let mut transactions = vec![make_user_tx_v1_verified(transfer.clone())];
+    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &s.authority,
+        &s.epoch_store,
+        2,
+        &previously_deferred,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+    assert!(dropped.is_empty(), "{dropped:?}");
+    assert_eq!(transactions.len(), 1);
+    assert!(locks.is_empty());
+
+    let result = s.validate_at(3, std::slice::from_ref(&transfer)).await;
+    assert!(result.kept.is_empty(), "{:?}", result.kept);
+    assert_eq!(
+        result.dropped,
+        vec![(*transfer.digest(), plain_signature_for(sender))]
+    );
+}
+
+/// The costliest claim the validity check accepts at its smallest budget:
+/// the largest MultiSig key, of Secp256r1 members, paid with the most gas
+/// coins a transaction may name, none with a storage rebate, at the highest
+/// gas price. It is kept and creates its account within the computation
+/// bound the budget assumes.
+#[tokio::test]
+async fn claim_at_the_gas_floor_with_the_most_gas_coins_succeeds() {
+    use iota_sdk_crypto::{Signer, secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair};
+    use iota_sdk_types::{
+        SignatureScheme, SmartAccountClaim,
+        crypto::{
+            Intent, IntentMessage, MULTISIG_COMMITTEE_SIZE_MAX, MultisigAggregatedSignature,
+            MultisigCommittee, MultisigMember, SimpleSignature,
+        },
+    };
+    use iota_types::account_abstraction::public_key::MovePublicKey;
+    use rand::{SeedableRng, rngs::StdRng};
+
+    let mut rng = StdRng::from_seed([7; 32]);
+    let keys: Vec<Secp256r1PrivateKey> = (0..MULTISIG_COMMITTEE_SIZE_MAX)
+        .map(|_| Secp256r1PrivateKey::random_with(&mut rng))
+        .collect();
+    let committee = MultisigCommittee::new(
+        keys.iter()
+            .map(|key| MultisigMember::new(key.public_key(), 1))
+            .collect(),
+        1,
+    )
+    .unwrap();
+    let claim = SmartAccountClaim::new_multisig(&committee);
+    let sender = MovePublicKey::new(
+        SignatureScheme::Multisig,
+        claim.public_key_raw_bytes.clone(),
+    )
+    .unwrap()
+    .address()
+    .unwrap();
+    let max_gas_payment_objects =
+        ProtocolConfig::get_for_max_version_UNSAFE().max_gas_payment_objects() as usize;
+    let gas: Vec<ObjectId> = (0..max_gas_payment_objects - 1)
+        .map(|_| ObjectId::random())
+        .collect();
+    let s = setup_handler_object_state(
+        gas.iter()
+            .map(|id| Object::with_id_owner_for_testing(*id, sender))
+            .collect(),
+        true,
+    )
+    .await;
+    let config = s.epoch_store.protocol_config();
+    let gas_price = config.max_gas_price();
+    let budget = iota_types::transaction::claim_account_min_gas_budget(
+        config,
+        gas_price,
+        claim.public_key_raw_bytes.len() as u64,
+    );
+    let tx = Transaction::new_with_gas_coins(
+        iota_sdk_types::TransactionKind::new_claim_account(
+            iota_sdk_types::ClaimAccountTransaction::new_smart_account(claim),
+        ),
+        sender,
+        gas.iter().map(|id| s.latest_ref(id)).collect(),
+        budget,
+        gas_price,
+    );
+    let signature: SimpleSignature = SimpleKeypair::from(keys[0].clone())
+        .sign(&IntentMessage::new(Intent::iota_transaction(), tx.clone()).signing_digest());
+    let multisig = MultisigAggregatedSignature::new(vec![signature.into()], committee).unwrap();
+    let claim = s
+        .epoch_store
+        .verify_transaction(TransactionEnvelope::from_user_sig_data(
+            tx,
+            vec![UserSignature::Multisig(multisig)],
+        ))
+        .unwrap();
+
+    let result = s.validate_at(1, std::slice::from_ref(&claim)).await;
+    assert_eq!(result.kept, vec![*claim.digest()]);
+    let effects = s.execute_claim_with_assigned_commit(claim, 1);
+    assert!(
+        effects.gas_cost_summary().computation_cost
+            <= config.claim_account_max_computation_units() * gas_price,
+        "{:?}",
+        effects.gas_cost_summary()
+    );
 }

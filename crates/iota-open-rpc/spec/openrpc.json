@@ -1368,6 +1368,7 @@
                 "reject_immutable_account_creation": true,
                 "reject_immutable_account_objects": true,
                 "reject_partially_signed_mixed_ed25519_multisig": true,
+                "reject_plain_signatures_for_explicit_accounts": true,
                 "relocate_event_module": true,
                 "report_move_authentication_error": true,
                 "rethrow_serialization_type_layout_errors": true,

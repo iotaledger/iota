@@ -393,6 +393,19 @@ pub enum UserInputError {
         object_id: ObjectId,
         version: Option<Version>,
     },
+    #[error(
+        "Account {address} is already explicit: the address has been claimed, or another claim of it was accepted earlier in this epoch"
+    )]
+    AccountAlreadyExplicit { address: Address },
+    #[error(
+        "Account {address} is explicit, so it must sign with a MoveAuthenticator, not a plain signature"
+    )]
+    PlainSignatureForExplicitAccount { address: Address },
+    #[error("Account {address} has another claim pending on this validator: {pending_transaction}")]
+    AccountClaimPending {
+        address: Address,
+        pending_transaction: TransactionDigest,
+    },
 }
 
 /// Formats `version` as " at version {version}", or as nothing when it is
@@ -939,6 +952,8 @@ impl IotaError {
                     // Every validator drops the transaction at the commit for
                     // good, so a resubmission of it gets the same answer.
                     UserInputError::InputObjectNotAvailableAtCommit { .. } => false,
+                    // As a lock conflict on an owned object.
+                    UserInputError::AccountClaimPending { .. } => false,
                     _ => false,
                 }
             }
@@ -1051,6 +1066,7 @@ pub fn categorize(error: &IotaError) -> ErrorCategory {
             UserInputError::InputObjectNotAvailableAtCommit { .. } => {
                 ErrorCategory::InvalidTransaction
             }
+            UserInputError::AccountClaimPending { .. } => ErrorCategory::LockConflict,
             _ => ErrorCategory::InvalidTransaction,
         },
         IotaError::InvalidSignature { .. }

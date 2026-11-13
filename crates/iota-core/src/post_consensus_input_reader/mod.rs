@@ -190,6 +190,20 @@ pub enum DynamicFieldAtHorizon {
     Absent,
 }
 
+/// The reader's answer for the address a `ClaimAccount` claims: whether the
+/// authenticator function field the claim attaches to its account was live
+/// at the horizon.
+#[must_use]
+#[derive(Debug, PartialEq, Eq)]
+pub enum ClaimedAddressAtHorizon {
+    /// The field was live at the horizon, whether or not the account object
+    /// still exists.
+    Claimed,
+    /// No field at the horizon. A claim kept above the horizon holds the
+    /// address's lock, which post-consensus validation checks first.
+    NotClaimed,
+}
+
 /// The reader's result for a Move authenticator's account.
 #[must_use]
 pub enum AccountVerdict {

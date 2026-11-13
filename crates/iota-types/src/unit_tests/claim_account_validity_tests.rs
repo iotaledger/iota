@@ -215,3 +215,50 @@ fn disabled_claim_kind_skips_the_gas_floor() {
         Err(UserInputError::Unsupported(_))
     ));
 }
+
+/// A claim carries plain signatures only: a gas owner whose
+/// `MoveAuthenticator` failed at execution would leave the claim kept without
+/// its account. The rule that a transaction with a `MoveAuthenticator` is
+/// programmable rejects it.
+#[test]
+fn claim_signed_with_a_move_authenticator_is_rejected() {
+    use iota_sdk_types::{
+        MoveAuthenticator, MoveAuthenticatorV1, SenderSignedTransaction, SharedObjectReference,
+        UserSignature,
+    };
+
+    use crate::{
+        error::IotaError,
+        transaction::{SenderSignedTransactionAPI, TxValidityCheckContext},
+    };
+
+    let config = config();
+    let (claim, sender) = ed25519_claim();
+    let authenticator = MoveAuthenticatorV1::new(
+        vec![],
+        vec![],
+        SharedObjectReference::new(sender.into(), Version::from(1), false),
+    );
+    let tx = SenderSignedTransaction::new(
+        claim_tx(claim, sender),
+        vec![UserSignature::MoveAuthenticator(MoveAuthenticator::from(
+            authenticator,
+        ))],
+    );
+
+    let error = tx
+        .validity_check(&TxValidityCheckContext {
+            config: &config,
+            epoch: 0,
+        })
+        .unwrap_err();
+    assert!(
+        matches!(
+            &error,
+            IotaError::UserInput {
+                error: UserInputError::Unsupported(message)
+            } if message.contains("programmable")
+        ),
+        "{error:?}"
+    );
+}

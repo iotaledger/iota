@@ -354,3 +354,111 @@ async fn test_submit_single_tx_rejects_an_attested_transaction_too_large_for_con
         "nothing may reach the consensus adapter"
     );
 }
+
+/// A second claim of an address while the first is in flight on this
+/// validator conflicts on the address's claim lock, a reference that is no
+/// object, so it is rejected as a pending claim of the address rather than as
+/// a lock conflict on an object.
+#[tokio::test]
+async fn test_submit_single_tx_rejects_a_second_claim_in_flight() {
+    telemetry_subscribers::init_for_testing();
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_ids = [ObjectId::random(), ObjectId::random()];
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[
+            Object::with_id_owner_for_testing(gas_ids[0], sender),
+            Object::with_id_owner_for_testing(gas_ids[1], sender),
+        ])
+        .build()
+        .await;
+
+    let mut mock = MockConsensusClient::new();
+    mock.expect_submit().times(1).returning(|_, _| {
+        Ok(with_block_status(starfish_core::BlockStatus::Sequenced(
+            starfish_core::GenericTransactionRef::BlockRef(starfish_core::BlockRef::MIN),
+        )))
+    });
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(mock),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        100_000,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        50,
+    ));
+
+    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
+    assert!(
+        epoch_store
+            .protocol_config()
+            .enable_claim_account_transaction()
+    );
+    let metrics = Arc::new(ValidatorServiceMetrics::new_for_tests());
+    let soft_locks = Arc::new(PreConsensusSoftLocks::new());
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let claims: Vec<_> = gas_ids
+        .iter()
+        .map(|gas_id| {
+            let claim = iota_sdk_types::SmartAccountClaim {
+                public_key_scheme: iota_sdk_types::SignatureScheme::Ed25519.to_u8(),
+                public_key_raw_bytes: AsRef::<[u8]>::as_ref(&sender_key.public_key()).to_vec(),
+            };
+            let tx_data = Transaction::new(
+                iota_sdk_types::TransactionKind::new_claim_account(
+                    iota_sdk_types::ClaimAccountTransaction::new_smart_account(claim),
+                ),
+                sender,
+                authority_state.get_object(gas_id).unwrap().object_ref(),
+                iota_types::transaction::TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * rgp,
+                rgp,
+            );
+            to_sender_signed_transaction(tx_data, &sender_key)
+        })
+        .collect();
+    let first_digest = *claims[0].digest();
+
+    let mut updates = Vec::new();
+    for claim in claims {
+        updates.push(
+            ValidatorService::submit_single_tx(
+                &authority_state,
+                &consensus_adapter,
+                &metrics,
+                &epoch_store,
+                &soft_locks,
+                claim,
+            )
+            .await
+            .0,
+        );
+    }
+
+    assert!(
+        matches!(updates[0], TxStatusUpdate::Submitted),
+        "expected the first claim to be submitted, got {:?}",
+        updates[0]
+    );
+    let TxStatusUpdate::Rejected {
+        error:
+            IotaError::UserInput {
+                error:
+                    UserInputError::AccountClaimPending {
+                        address,
+                        pending_transaction,
+                    },
+            },
+    } = &updates[1]
+    else {
+        panic!(
+            "expected the second claim to be rejected as pending, got {:?}",
+            updates[1]
+        );
+    };
+    assert_eq!(*address, sender);
+    assert_eq!(*pending_transaction, first_digest);
+}
