@@ -9863,6 +9863,7 @@ dependencies = [
  "move-vm-types",
  "serde_json",
  "serde_yaml",
+ "sha3 0.11.0",
  "similar",
  "tempfile",
  "walkdir",
@@ -9966,6 +9967,7 @@ dependencies = [
  "move-ir-types",
  "move-trace-format",
  "petgraph 0.8.3",
+ "rayon",
  "serde",
 ]
 
@@ -10294,7 +10296,6 @@ dependencies = [
  "move-vm-config",
  "move-vm-profiler",
  "move-vm-types",
- "once_cell",
  "parking_lot 0.11.2",
  "smallvec",
  "tracing",

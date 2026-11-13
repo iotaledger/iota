@@ -19,7 +19,8 @@ use move_core_types::language_storage::{ModuleId, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    interface::{NopTracer, Tracer, Writer},
+    interface::{Tracer, Writer},
+    tracers::nop::NopTracer,
     value::SerializableMoveValue,
 };
 
@@ -292,9 +293,12 @@ impl BufferedEventStream {
         }
     }
 
+    pub fn increment_event_count(&mut self) {
+        self.event_count += 1;
+    }
+
     pub fn push(&mut self, event: TraceEvent) {
         self.sender.send(event).unwrap();
-        self.event_count += 1;
     }
 
     pub fn finish(self) -> Vec<u8> {
@@ -325,6 +329,10 @@ impl BufferedEventStream {
         }
     }
 
+    pub fn increment_event_count(&mut self) {
+        self.event_count += 1;
+    }
+
     pub fn push(&mut self, event: TraceEvent) {
         use std::io::Write;
         serde_json::to_writer(&mut self.buf, &event).unwrap();
@@ -335,7 +343,6 @@ impl BufferedEventStream {
                 .write_all(&std::mem::take(&mut self.buf))
                 .unwrap();
         }
-        self.event_count += 1;
     }
 
     pub fn finish(mut self) -> Vec<u8> {
@@ -351,6 +358,10 @@ impl MoveTrace {
             version: TRACE_VERSION,
             buf: BufferedEventStream::new(),
         }
+    }
+
+    pub fn increment_event_count(&mut self) {
+        self.buf.increment_event_count();
     }
 
     pub fn push_event(&mut self, event: TraceEvent) {
@@ -383,6 +394,12 @@ impl MoveTraceBuilder {
             tracer,
             trace: MoveTrace::new(),
         }
+    }
+
+    /// Whether the tracer wants effect events. If false, the VM tracer can skip
+    /// the expensive value conversion work needed to build effects.
+    pub fn wants_effects(&self) -> bool {
+        self.tracer.wants_effects()
     }
 
     /// Consume the `MoveTraceBuilder` and return the `MoveTrace` that has been
@@ -459,11 +476,17 @@ impl MoveTraceBuilder {
         self.push_event(TraceEvent::Effect(Box::new(effect)));
     }
 
-    // All events pushed to the trace are first pushed, and then the tracer is
-    // notified of the event.
+    // All events are first sent to the event API. If the event specifies that
+    // the event should be kept then it is also pushed to the trace to be
+    // saved.
     pub fn push_event(&mut self, event: TraceEvent) {
-        self.trace.push_event(event.clone());
-        self.tracer.notify(&event, Writer(&mut self.trace));
+        // Even if the event is not kept, we still increment the event count so
+        // that the trace reflects the number of events that were
+        // processed.
+        self.trace.increment_event_count();
+        if self.tracer.notify(&event, Writer(&mut self.trace)) {
+            self.trace.push_event(event);
+        }
     }
 }
 
