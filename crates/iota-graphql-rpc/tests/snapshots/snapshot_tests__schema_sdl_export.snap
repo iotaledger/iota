@@ -4795,7 +4795,18 @@ type TransactionDenyRulesUpdateTransaction {
 	denyRulesObjInitialSharedVersion: UInt53!
 }
 
-union TransactionInput = OwnedOrImmutable | SharedInput | Receiving | Pure
+"""
+The transaction this transaction depends on: it executes only after that
+transaction executed successfully. No command can use this input.
+"""
+type TransactionDependencyInput {
+	"""
+	Digest of the transaction depended on.
+	"""
+	digest: String!
+}
+
+union TransactionInput = OwnedOrImmutable | SharedInput | Receiving | Pure | TransactionDependencyInput
 
 type TransactionInputConnection {
 	"""

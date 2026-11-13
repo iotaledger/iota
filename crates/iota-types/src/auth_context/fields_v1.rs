@@ -164,6 +164,13 @@ impl From<&CallArg> for MoveCallArg {
                 mutable: obj_arg.mutable,
             }),
             CallArg::Receiving(obj_arg) => MoveCallArg::Object(MoveObjectArg::Receiving(*obj_arg)),
+            // The Move enum cannot gain a variant in a framework upgrade, so a
+            // transaction dependency is shown as pure data: the BCS bytes of
+            // its digest, which Move reads as a `vector<u8>`. The input keeps
+            // its index, and no command can use it.
+            CallArg::TransactionDependency(digest) => MoveCallArg::Pure(
+                bcs::to_bytes(digest).expect("a transaction digest serializes to BCS"),
+            ),
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }

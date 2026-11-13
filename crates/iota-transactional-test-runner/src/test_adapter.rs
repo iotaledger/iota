@@ -1578,11 +1578,12 @@ impl IotaTestAdapter {
                     MoveAuthenticatorV1::new(auth_inputs, vec![], *shared).into(),
                 ),
             )),
-            CallArg::ImmutableOrOwned(_) | CallArg::Pure(_) | CallArg::Receiving(_) => {
-                Err(anyhow::anyhow!(
-                    "abstract: account must be a shared object representing the abstract account"
-                ))
-            }
+            CallArg::ImmutableOrOwned(_)
+            | CallArg::Pure(_)
+            | CallArg::Receiving(_)
+            | CallArg::TransactionDependency(_) => Err(anyhow::anyhow!(
+                "abstract: account must be a shared object representing the abstract account"
+            )),
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }

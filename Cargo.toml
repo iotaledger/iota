@@ -519,3 +519,8 @@ typed-store-error = { path = "crates/typed-store-error" }
 # so the workspace shares a single fastcrypto instead of two conflicting copies.
 [patch."https://github.com/MystenLabs/fastcrypto"]
 fastcrypto = "=0.1.11"
+
+# Development only: the transaction dependency input and execution error live on a branch of
+# iota-rust-sdk until they are released; replace by the released version before merging.
+[patch.crates-io]
+iota-sdk-types = { path = "../iota-rust-sdk-txdep/crates/iota-sdk-types" }
