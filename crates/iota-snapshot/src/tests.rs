@@ -1660,6 +1660,16 @@ async fn read_with_partial_hashes(
     reader: &mut StateSnapshotReaderV1,
     restore_target: &impl Restore,
 ) -> Result<(GlobalStateHash, u64), anyhow::Error> {
+    read_counting_partial_hashes(reader, restore_target, Arc::default()).await
+}
+
+/// Like [`read_with_partial_hashes`], and counts the partial hashes in
+/// `num_partials_seen` as they arrive.
+async fn read_counting_partial_hashes(
+    reader: &mut StateSnapshotReaderV1,
+    restore_target: &impl Restore,
+    num_partials_seen: Arc<AtomicUsize>,
+) -> Result<(GlobalStateHash, u64), anyhow::Error> {
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     let (partials_sender, mut partials_receiver) = mpsc::channel(1);
     let (completion_sender, completion_receiver) = oneshot::channel();
@@ -1667,6 +1677,7 @@ async fn read_with_partial_hashes(
         let mut union = GlobalStateHash::default();
         let mut num_objects = 0u64;
         while let Some((partial, partial_num_objects)) = partials_receiver.recv().await {
+            num_partials_seen.fetch_add(1, Ordering::SeqCst);
             union.union(&partial);
             num_objects += partial_num_objects;
         }
@@ -1736,6 +1747,9 @@ struct ObservedStore {
     gate: watch::Sender<bool>,
     fail_download: Option<usize>,
     panic_on_download: bool,
+    // Served from memory instead of `inner`, keyed by path.
+    preloaded_files: Option<HashMap<String, bytes::Bytes>>,
+    before_first_download: Option<Box<dyn Fn() + Send + Sync>>,
     num_downloads_started: AtomicUsize,
     num_downloads_finished: AtomicUsize,
     num_downloads_in_flight: AtomicUsize,
@@ -1754,6 +1768,8 @@ impl ObservedStore {
             gate: watch::Sender::new(true),
             fail_download: None,
             panic_on_download: false,
+            preloaded_files: None,
+            before_first_download: None,
             num_downloads_started: AtomicUsize::new(0),
             num_downloads_finished: AtomicUsize::new(0),
             num_downloads_in_flight: AtomicUsize::new(0),
@@ -1783,6 +1799,19 @@ impl ObservedStore {
 
     fn with_panic_on_download(mut self) -> Self {
         self.panic_on_download = true;
+        self
+    }
+
+    #[cfg(not(msim))]
+    fn with_preloaded_files(mut self, files: HashMap<String, bytes::Bytes>) -> Self {
+        self.preloaded_files = Some(files);
+        self
+    }
+
+    /// `hook` runs when the first download starts, on the thread that polls it.
+    #[cfg(not(msim))]
+    fn with_before_first_download(mut self, hook: impl Fn() + Send + Sync + 'static) -> Self {
+        self.before_first_download = Some(Box::new(hook));
         self
     }
 
@@ -1842,6 +1871,11 @@ impl ObjectStoreGetExt for ObservedStore {
             "download panic injected by the test"
         );
         let started = self.num_downloads_started.fetch_add(1, Ordering::SeqCst);
+        if started == 0 {
+            if let Some(hook) = &self.before_first_download {
+                hook();
+            }
+        }
         if self.fail_download == Some(started) {
             return Err(not_found_error(src));
         }
@@ -1853,7 +1887,14 @@ impl ObjectStoreGetExt for ObservedStore {
                 .expect("the gate sender lives as long as the store");
         }
         tokio::time::sleep(self.delay).await;
-        let bytes = inner.get_bytes_with_progress(src, on_bytes).await?;
+        let bytes = match &self.preloaded_files {
+            Some(files) => {
+                let bytes = files[src.as_ref()].clone();
+                on_bytes(bytes.len() as u64);
+                bytes
+            }
+            None => inner.get_bytes_with_progress(src, on_bytes).await?,
+        };
         self.num_downloads_finished.fetch_add(1, Ordering::SeqCst);
         let num_held = self.num_held_partitions.fetch_add(1, Ordering::SeqCst) + 1;
         self.max_num_held_partitions
@@ -2325,5 +2366,101 @@ fn restore_with_indexes_inserts_on_the_blocking_pool() -> Result<(), anyhow::Err
             .expect("insert_partition must finish once the blocking thread is free")
     })?;
     compare_live_objects(&snapshot.source_db, &restored_db)?;
+    Ok(())
+}
+
+/// The object files of the snapshot, keyed by their path in the store, to serve
+/// from memory.
+#[cfg(not(msim))]
+fn preloaded_object_files(
+    snapshot: &WrittenSnapshot,
+) -> Result<HashMap<String, bytes::Bytes>, anyhow::Error> {
+    let mut object_files = HashMap::new();
+    for path in object_file_paths(&snapshot.remote_dir)? {
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        object_files.insert(
+            format!("epoch_0/{name}"),
+            bytes::Bytes::from(fs::read(path)?),
+        );
+    }
+    Ok(object_files)
+}
+
+/// No partial state hash may arrive while the blocking pool is busy. The
+/// runtime below has one blocking thread, which the test occupies once the
+/// `.obj` downloads start, with the object files served from memory.
+///
+/// This proves that hashing a partition and sending its partial hash wait for
+/// the pool. It does not prove that opening and decoding the `.ref` file do:
+/// the test stays green if that part moves back to the async side.
+#[cfg(not(msim))]
+#[test]
+fn accumulation_runs_on_the_blocking_pool() -> Result<(), anyhow::Error> {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .max_blocking_threads(1)
+        .build()?;
+    let _runtime_context = runtime.enter();
+    let dir = iota_common::tempdir();
+    let snapshot = runtime.block_on(write_several_partitions_snapshot(dir.path()))?;
+
+    // Declared after the runtime, so a failed assertion drops it first and
+    // frees the blocking thread that the runtime waits for.
+    let (release_blocker_sender, release_blocker_receiver) = std::sync::mpsc::channel::<()>();
+    let release_blocker_receiver = std::sync::Mutex::new(Some(release_blocker_receiver));
+    let occupy_blocking_thread = move || {
+        let release_blocker_receiver = release_blocker_receiver
+            .lock()
+            .unwrap()
+            .take()
+            .expect("the hook runs once");
+        let (blocker_started_sender, blocker_started_receiver) = std::sync::mpsc::channel::<()>();
+        tokio::task::spawn_blocking(move || {
+            blocker_started_sender.send(()).ok();
+            release_blocker_receiver.recv().ok();
+        });
+        blocker_started_receiver
+            .recv_timeout(WAIT_LIMIT)
+            .expect("the blocking thread must start");
+    };
+    let store = Arc::new(
+        snapshot
+            .observed_store()
+            .with_preloaded_files(preloaded_object_files(&snapshot)?)
+            .with_before_first_download(occupy_blocking_thread),
+    );
+    let restored_db = Arc::new(AuthorityPerpetualTables::open(
+        &dir.path().join("restored_db"),
+        None,
+    ));
+    let restore_target = HookedRestore::new(restored_db, store.clone(), InsertHook::None);
+
+    let (partial_hashes, num_objects) = runtime.block_on(async {
+        let mut reader = snapshot.reader(store, 2).await?;
+        let num_partials_seen = Arc::new(AtomicUsize::new(0));
+        let read =
+            read_counting_partial_hashes(&mut reader, &restore_target, num_partials_seen.clone());
+        let controller = async {
+            wait_until("every partition to be inserted", || {
+                restore_target.num_inserts.load(Ordering::SeqCst) == snapshot.num_partitions
+            })
+            .await;
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            assert_eq!(
+                num_partials_seen.load(Ordering::SeqCst),
+                0,
+                "partial hashes arrived while the blocking pool was busy"
+            );
+            release_blocker_sender.send(()).unwrap();
+        };
+        let (read_result, ()) = tokio::join!(read, controller);
+        read_result
+    })?;
+
+    assert_eq!(num_objects, snapshot.num_objects);
+    assert_eq!(
+        partial_hashes.digest(),
+        accumulate_live_object_set(&snapshot.source_db).digest()
+    );
     Ok(())
 }
