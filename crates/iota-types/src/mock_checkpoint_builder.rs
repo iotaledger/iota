@@ -4,7 +4,7 @@
 
 use std::mem;
 
-use fastcrypto::traits::Signer;
+use iota_sdk_crypto::Signer;
 use iota_sdk_types::{
     CheckpointContents, CheckpointSummary, EndOfEpochData, GasCostSummary, TransactionEffects,
 };

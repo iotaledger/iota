@@ -439,7 +439,8 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                             .stats
                             .inc_num_user_transactions(authority_index as usize);
                     }
-                    let transaction = SequencedConsensusTransactionKind::External(transaction);
+                    let transaction =
+                        SequencedConsensusTransactionKind::External(Box::new(transaction));
                     transactions.push((transaction, authority_index));
                 }
             }
@@ -918,8 +919,8 @@ pub struct SequencedConsensusTransaction {
 
 #[derive(Debug, Clone)]
 pub enum SequencedConsensusTransactionKind {
-    External(ConsensusTransaction),
-    System(VerifiedExecutableTransaction),
+    External(Box<ConsensusTransaction>),
+    System(Box<VerifiedExecutableTransaction>),
 }
 
 impl Serialize for SequencedConsensusTransactionKind {
@@ -950,7 +951,7 @@ impl From<&SequencedConsensusTransactionKind> for SerializableSequencedConsensus
     fn from(kind: &SequencedConsensusTransactionKind) -> Self {
         match kind {
             SequencedConsensusTransactionKind::External(ext) => {
-                SerializableSequencedConsensusTransactionKind::External(Box::new(ext.clone()))
+                SerializableSequencedConsensusTransactionKind::External(ext.clone())
             }
             SequencedConsensusTransactionKind::System(txn) => {
                 SerializableSequencedConsensusTransactionKind::System(Box::new(
@@ -965,10 +966,10 @@ impl From<SerializableSequencedConsensusTransactionKind> for SequencedConsensusT
     fn from(kind: SerializableSequencedConsensusTransactionKind) -> Self {
         match kind {
             SerializableSequencedConsensusTransactionKind::External(ext) => {
-                SequencedConsensusTransactionKind::External(*ext)
+                SequencedConsensusTransactionKind::External(ext)
             }
             SerializableSequencedConsensusTransactionKind::System(txn) => {
-                SequencedConsensusTransactionKind::System((*txn).into())
+                SequencedConsensusTransactionKind::System(Box::new((*txn).into()))
             }
         }
     }
@@ -981,6 +982,13 @@ pub enum SequencedConsensusTransactionKey {
 }
 
 impl SequencedConsensusTransactionKind {
+    pub fn as_external_kind(&self) -> Option<&ConsensusTransactionKind> {
+        match self {
+            SequencedConsensusTransactionKind::External(ext) => Some(&ext.kind),
+            SequencedConsensusTransactionKind::System(_) => None,
+        }
+    }
+
     pub fn key(&self) -> SequencedConsensusTransactionKey {
         match self {
             SequencedConsensusTransactionKind::External(ext) => {
@@ -1129,7 +1137,7 @@ impl SequencedConsensusTransaction {
             certificate_author_index: 0,
             certificate_author: AuthorityName::ZERO,
             consensus_index: Default::default(),
-            transaction: SequencedConsensusTransactionKind::External(transaction),
+            transaction: SequencedConsensusTransactionKind::External(Box::new(transaction)),
         }
     }
 }
@@ -1212,10 +1220,7 @@ mod tests {
         attestation::{Attestation, AttestationData, AttestedTransaction},
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
-        crypto::{
-            AccountPrivateKey, KeypairTraits, deterministic_random_account_private_key,
-            get_key_pair,
-        },
+        crypto::{AccountPrivateKey, deterministic_random_account_private_key, get_key_pair},
         effects::TransactionEffectsAPI,
         error::{IotaError, UserInputError},
         messages_consensus::{
@@ -3243,7 +3248,7 @@ mod tests {
         let keypairs: Vec<_> = network_config
             .validator_configs()
             .iter()
-            .map(|config| config.authority_key_pair().copy())
+            .map(|config| config.authority_key_pair().clone())
             .collect();
         let certificate = CertifiedTransaction::new_from_keypairs_for_testing(
             transfer.into_message(),

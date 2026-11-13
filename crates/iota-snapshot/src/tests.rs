@@ -14,10 +14,7 @@ use std::{
 };
 
 use byteorder::{BigEndian, ByteOrder};
-use fastcrypto::{
-    hash::{HashFunction, MultisetHash, Sha3_256},
-    traits::KeyPair,
-};
+use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::{StreamExt, future::AbortHandle, stream::BoxStream};
 use indicatif::MultiProgress;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
@@ -150,7 +147,7 @@ fn certify_summary(summary: CheckpointSummary) -> CertifiedCheckpointSummary {
     let committee = test_committee_at(summary.epoch);
     let signatures = keys
         .iter()
-        .map(|key| SignedCheckpointSummary::sign(summary.epoch, &summary, key, key.public().into()))
+        .map(|key| SignedCheckpointSummary::sign(summary.epoch, &summary, key, key.into()))
         .collect();
     CertifiedCheckpointSummary::new(summary, signatures, &committee)
         .expect("test summary must certify under the test committee")

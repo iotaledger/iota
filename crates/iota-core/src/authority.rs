@@ -38,6 +38,7 @@ use iota_macros::{fail_point, fail_point_async, fail_point_if};
 use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
+use iota_sdk_crypto::Signer;
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
     CheckpointSummary, Digest, EndOfEpochTransactionKind, Event, ExecutionStatus, GasCostSummary,
@@ -68,7 +69,7 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
-    crypto::{AggregateAuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
+    crypto::{AggregateAuthorityPublicKey, AuthoritySignInfo, AuthoritySignature},
     deny_list_v1::{check_coin_deny_list_v1, coin_types_for_denylist_check},
     deny_rule_governance::DenyRuleConfig,
     digests::ChainIdentifier,
@@ -976,7 +977,7 @@ impl AuthorityMetrics {
 /// - Pin, i.e. confined to one place in memory (we don't want to copy private keys).
 /// - Sync, i.e. can be safely shared between threads.
 ///
-/// Typically instantiated with Box::pin(keypair) where keypair is a `KeyPair`
+/// Typically instantiated with Box::pin(keypair) where keypair is an `AuthorityKeyPair`
 pub type StableSyncAuthoritySigner = Pin<Arc<dyn Signer<AuthoritySignature> + Send + Sync>>;
 
 /// The checked transaction inputs and, per Move authenticator, its checked inputs.

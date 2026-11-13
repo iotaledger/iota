@@ -821,7 +821,6 @@ fn abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
 mod faulty_attestor {
     use std::collections::{BTreeMap, BTreeSet};
 
-    use fastcrypto::traits::KeyPair;
     use iota_macros::{clear_fail_point, register_fail_point_arg, register_fail_point_if};
     use iota_node::IotaNodeHandle;
     use iota_protocol_config::{OverrideGuard, ProtocolConfig};
@@ -1330,7 +1329,7 @@ mod faulty_attestor {
         let joining = ValidatorGenesisConfigBuilder::new()
             .with_authority_key_pair(authority_key_pair_sorting_first(&mut rng))
             .build(&mut rng);
-        let attestor: AuthorityName = joining.authority_key_pair.public().into();
+        let attestor: AuthorityName = (&joining.authority_key_pair).into();
         let mut env = TestEnvironment::with_a_validator_candidate(
             joining.account_key_pair.public_key().derive_address(),
         )
@@ -1583,7 +1582,7 @@ mod faulty_attestor {
         /// Panics if a transaction of the join fails, or if the fullnode cannot
         /// submit to `validator` within 60 seconds.
         async fn join_as_committee_member(&mut self, validator: ValidatorGenesisConfig) {
-            let name: AuthorityName = validator.authority_key_pair.public().into();
+            let name: AuthorityName = (&validator.authority_key_pair).into();
             let epoch = self
                 .test_cluster
                 .fullnode_handle
@@ -2422,7 +2421,7 @@ mod faulty_attestor {
     fn authority_key_pair_sorting_first<R: rand::CryptoRng>(rng: &mut R) -> AuthorityKeyPair {
         loop {
             let (_, key_pair): (_, AuthorityKeyPair) = get_key_pair_from_rng(rng);
-            let name = AuthorityPublicKeyBytes::from(key_pair.public());
+            let name = AuthorityPublicKeyBytes::from(&key_pair);
             let bytes: &[u8] = name.as_ref();
             if bytes[0] == 0x80 && bytes[1] < 0x40 {
                 return key_pair;

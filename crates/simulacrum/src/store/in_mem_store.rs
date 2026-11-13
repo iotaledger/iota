@@ -501,43 +501,23 @@ impl ReadStore for InMemoryStore {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct KeyStore {
     validator_keys: BTreeMap<AuthorityName, AuthorityKeyPair>,
     account_keys: BTreeMap<Address, AccountPrivateKey>,
-}
-
-impl Clone for KeyStore {
-    fn clone(&self) -> Self {
-        use fastcrypto::traits::KeyPair;
-        Self {
-            validator_keys: self
-                .validator_keys
-                .iter()
-                .map(|(k, v)| (*k, v.copy()))
-                .collect(),
-            account_keys: self
-                .account_keys
-                .iter()
-                .map(|(k, v)| (*k, v.clone()))
-                .collect(),
-        }
-    }
 }
 
 impl KeyStore {
     pub fn from_network_config(
         network_config: &iota_swarm_config::network_config::NetworkConfig,
     ) -> Self {
-        use fastcrypto::traits::KeyPair;
-
         let validator_keys = network_config
             .validator_configs()
             .iter()
             .map(|config| {
                 (
                     config.authority_public_key(),
-                    config.authority_key_pair().copy(),
+                    config.authority_key_pair().clone(),
                 )
             })
             .collect();

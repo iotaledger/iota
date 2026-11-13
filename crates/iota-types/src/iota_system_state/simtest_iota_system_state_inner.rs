@@ -16,7 +16,8 @@ use crate::{
     balance::Balance,
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{
-        AuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey, network_pubkey_from_bytes,
+        AggregateAuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey,
+        network_pubkey_from_bytes,
     },
     error::IotaError,
     gas_coin::IotaTreasuryCap,
@@ -93,7 +94,7 @@ pub struct SimTestValidatorMetadataV1 {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct VerifiedSimTestValidatorMetadataV1 {
     pub iota_address: Address,
-    pub authority_pubkey: AuthorityPublicKey,
+    pub authority_pubkey: AggregateAuthorityPublicKey,
     pub network_pubkey: NetworkPublicKey,
     pub protocol_pubkey: NetworkPublicKey,
     pub net_address: Multiaddr,
@@ -104,7 +105,7 @@ pub struct VerifiedSimTestValidatorMetadataV1 {
 impl SimTestValidatorMetadataV1 {
     pub fn verify(&self) -> VerifiedSimTestValidatorMetadataV1 {
         let authority_pubkey =
-            AuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref()).unwrap();
+            AggregateAuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref()).unwrap();
         let network_pubkey = network_pubkey_from_bytes(self.network_pubkey_bytes.as_ref()).unwrap();
         let protocol_pubkey =
             network_pubkey_from_bytes(self.protocol_pubkey_bytes.as_ref()).unwrap();

@@ -20,8 +20,8 @@ use iota_sdk_types::Address;
 use iota_types::{
     committee::EpochId,
     crypto::{
-        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, KeypairTraits,
-        NetworkPrivateKey, get_key_pair_from_rng,
+        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkPrivateKey,
+        authority_keypair_serde, get_key_pair_from_rng,
     },
     messages_checkpoint::CheckpointSequenceNumber,
     supported_protocol_versions::{Chain, SupportedProtocolVersions},
@@ -870,7 +870,7 @@ impl NodeConfig {
     }
 
     pub fn authority_public_key(&self) -> AuthorityPublicKeyBytes {
-        self.authority_key_pair().public().into()
+        self.authority_key_pair().into()
     }
 
     pub fn db_path(&self) -> PathBuf {
@@ -1756,20 +1756,24 @@ pub struct AuthorityKeyPairWithPath {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
 #[serde(untagged)]
 enum AuthorityKeyPairLocation {
-    InPlace { value: Arc<AuthorityKeyPair> },
-    File { path: PathBuf },
+    InPlace {
+        #[serde(with = "authority_keypair_serde")]
+        value: AuthorityKeyPair,
+    },
+    File {
+        path: PathBuf,
+    },
 }
 
 impl AuthorityKeyPairWithPath {
     pub fn new(kp: AuthorityKeyPair) -> Self {
         let cell: OnceCell<Arc<AuthorityKeyPair>> = OnceCell::new();
-        let arc_kp = Arc::new(kp);
         // OK to unwrap panic because authority should not start without all keypairs
         // loaded.
-        cell.set(arc_kp.clone())
+        cell.set(Arc::new(kp.clone()))
             .expect("failed to set authority keypair");
         Self {
-            location: AuthorityKeyPairLocation::InPlace { value: arc_kp },
+            location: AuthorityKeyPairLocation::InPlace { value: kp },
             keypair: cell,
         }
     }
@@ -1792,7 +1796,7 @@ impl AuthorityKeyPairWithPath {
     pub fn authority_keypair(&self) -> &AuthorityKeyPair {
         self.keypair
             .get_or_init(|| match &self.location {
-                AuthorityKeyPairLocation::InPlace { value } => value.clone(),
+                AuthorityKeyPairLocation::InPlace { value } => Arc::new(value.clone()),
                 AuthorityKeyPairLocation::File { path } => {
                     // OK to unwrap panic because authority should not start without all keypairs
                     // loaded.
@@ -1823,7 +1827,6 @@ mod tests {
         time::Duration,
     };
 
-    use fastcrypto::traits::KeyPair;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_types::{
@@ -2275,8 +2278,8 @@ mod tests {
         const TEMPLATE: &str = include_str!("../data/fullnode-template-with-path.yaml");
         let template: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
         assert_eq!(
-            template.authority_key_pair().public(),
-            authority_key_pair.public()
+            template.authority_key_pair().public_key(),
+            authority_key_pair.public_key()
         );
         assert_eq!(
             template.network_private_key().public_key(),

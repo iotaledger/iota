@@ -8,7 +8,7 @@ use anyhow::Ok;
 use fastcrypto::encoding::{Base64, Encoding, Hex};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
 use iota_sdk_crypto::{
-    ToFromBech32, ToFromBytes as _, Verifier as _,
+    ToFromBase64 as _, ToFromBech32, ToFromBytes as _, Verifier as _,
     ed25519::{Ed25519PrivateKey, Ed25519VerifyingKey},
     secp256k1::Secp256k1PrivateKey,
     simple::SimpleKeypair,
@@ -19,7 +19,7 @@ use iota_sdk_types::{
     crypto::{Intent, IntentScope, PublicKey, PublicKeyExt as _, SimpleSignature, UserSignature},
 };
 use iota_types::{
-    crypto::{AuthorityKeyPair, EncodeDecodeBase64, get_key_pair_from_rng},
+    crypto::{AuthorityKeyPair, get_key_pair_from_rng},
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -162,7 +162,7 @@ async fn test_load_keystore_err() {
 
     // write encoded AuthorityKeyPair without flag byte to file
     let kp: AuthorityKeyPair = get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
-    let contents = kp.encode_base64();
+    let contents = kp.to_base64();
     let res = std::fs::write(path, serde_json::to_string(&[contents]).unwrap());
     assert!(res.is_ok());
 
