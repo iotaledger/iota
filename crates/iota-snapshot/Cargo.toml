@@ -37,9 +37,10 @@ prometheus-filtered.workspace = true
 
 [dev-dependencies]
 async-trait.workspace = true
+http.workspace = true
 rand.workspace = true
 tempfile.workspace = true
-tokio = { workspace = true, features = ["test-util"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "test-util"] }
 tracing-subscriber.workspace = true
 
 [lints]
