@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["NodeCountError"],"fn":["count_nodes"],"struct":["ArgumentNodeBudget"]};

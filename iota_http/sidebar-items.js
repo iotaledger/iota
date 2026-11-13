@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_HANDSHAKE_TIMEOUT","DEFAULT_HTTP1_HEADER_READ_TIMEOUT","DEFAULT_IPV6_PREFIX_LEN","DEFAULT_MAX_PENDING_CONNECTIONS"],"enum":["PeerConnectionEvent"],"mod":["body","metrics"],"struct":["Builder","Config","ConnectInfo","ConnectionInfo","PeerCertificates","ServerHandle"],"trait":["Listener","ListenerExt"],"type":["ConnectionId"]};

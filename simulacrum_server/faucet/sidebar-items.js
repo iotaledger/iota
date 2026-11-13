@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["add_faucet_routes","batch_request_gas","health","request_gas"]};

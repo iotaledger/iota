@@ -1,0 +1,9 @@
+(function() {
+    const implementors = Object.fromEntries([["iota_core",[["impl <a class=\"trait\" href=\"iota_node_storage/key_value_store/trait.TransactionKeyValueStoreTrait.html\" title=\"trait iota_node_storage::key_value_store::TransactionKeyValueStoreTrait\">TransactionKeyValueStoreTrait</a> for <a class=\"struct\" href=\"iota_core/authority/struct.AuthorityState.html\" title=\"struct iota_core::authority::AuthorityState\">AuthorityState</a>",0]]],["iota_storage",[["impl <a class=\"trait\" href=\"iota_storage/key_value_store/trait.TransactionKeyValueStoreTrait.html\" title=\"trait iota_storage::key_value_store::TransactionKeyValueStoreTrait\">TransactionKeyValueStoreTrait</a> for <a class=\"struct\" href=\"iota_storage/key_value_store/struct.FallbackTransactionKVStore.html\" title=\"struct iota_storage::key_value_store::FallbackTransactionKVStore\">FallbackTransactionKVStore</a>",0],["impl <a class=\"trait\" href=\"iota_storage/key_value_store/trait.TransactionKeyValueStoreTrait.html\" title=\"trait iota_storage::key_value_store::TransactionKeyValueStoreTrait\">TransactionKeyValueStoreTrait</a> for <a class=\"struct\" href=\"iota_storage/http_key_value_store/struct.HttpKVStore.html\" title=\"struct iota_storage::http_key_value_store::HttpKVStore\">HttpKVStore</a>",0],["impl <a class=\"trait\" href=\"iota_storage/key_value_store/trait.TransactionKeyValueStoreTrait.html\" title=\"trait iota_storage::key_value_store::TransactionKeyValueStoreTrait\">TransactionKeyValueStoreTrait</a> for <a class=\"struct\" href=\"iota_storage/key_value_store/struct.TransactionKeyValueStore.html\" title=\"struct iota_storage::key_value_store::TransactionKeyValueStore\">TransactionKeyValueStore</a>",0]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":59,"fragment_lengths":[398,1259]}
