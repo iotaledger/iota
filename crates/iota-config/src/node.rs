@@ -100,22 +100,28 @@ pub struct NodeConfig {
     #[serde(default)]
     pub grpc_load_shed: Option<bool>,
 
-    /// Maximum number of concurrent in-flight requests per CPU core, applied
-    /// to each service of the validator gRPC server separately (`Validator`,
+    /// Maximum number of in-flight requests per CPU core, applied to each
+    /// service of the validator gRPC server separately (`Validator`,
     /// `ValidatorV2`, `ValidatorPeer`), so a flood of client transaction
     /// submissions cannot crowd validator-peer RPCs out of admission slots.
-    /// The effective per-service limit is this value multiplied by the CPU
-    /// cores of the machine at server startup, so the same config file scales
-    /// with the hardware.
+    /// The per-service limit is this value times the CPU cores of the machine
+    /// at server startup.
     ///
-    /// Most request time is spent awaiting locks, I/O or consensus rather
-    /// than on-CPU, so the default ceiling is generous: it bounds total
-    /// in-flight work so a request flood cannot grow queues and memory
-    /// without limit, it does not throttle normal load. Operators wanting
-    /// hard load-shedding can lower it and set `grpc_load_shed`.
+    /// A request is in flight from admission until its response has been
+    /// sent, so a `SubmitTx` or `GetTxStatus` stream counts while it streams;
+    /// a `GetTxStatus` stream waits up to 30 s for its transactions, and a
+    /// response the client stops reading gives up its slot after 60 s. A
+    /// request over the limit waits for a slot, or is rejected if
+    /// `grpc_load_shed` is set.
     ///
-    /// A value of zero is rejected at config load: it would not disable the
-    /// limit, it would block every request.
+    /// The default is generous: requests spend most of that time waiting
+    /// rather than on-CPU, and the limit is meant to keep a request flood from
+    /// growing queues and memory without bound, not to throttle normal load.
+    /// A lower value must leave room for every `GetTxStatus` stream open at
+    /// peak.
+    ///
+    /// Zero is rejected at config load: it would block every request rather
+    /// than disable the limit.
     #[serde(default = "default_grpc_concurrency_limit_per_core")]
     pub grpc_concurrency_limit_per_core: NonZeroUsize,
 

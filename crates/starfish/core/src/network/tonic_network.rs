@@ -3136,8 +3136,9 @@ mod tests {
         let admitted = fetch().await.expect("the shared budget is free again");
         assert_eq!(in_use.get(), 2);
 
-        // Reading the abandoned response fails before its payload arrives,
-        // and only that releases the peer's slot.
+        // Reading the abandoned response fails with the deadline before its
+        // payload arrives, and only that ends the stream and releases the
+        // peer's slot.
         let mut unread = unread.into_inner();
         let read_to_the_end = async {
             while let Some(response) = unread.message().await? {
@@ -3149,12 +3150,14 @@ mod tests {
             Ok::<(), tonic::Status>(())
         }
         .await;
-        assert!(
-            read_to_the_end.is_err(),
-            "reading a reclaimed response must fail"
+        assert_eq!(
+            read_to_the_end
+                .expect_err("reading a reclaimed response must fail")
+                .code(),
+            tonic::Code::DeadlineExceeded
         );
         drop((unread, admitted));
-        settles("the reset streams keep their slots", &|| in_use.get() == 0).await;
+        settles("the ended streams keep their slots", &|| in_use.get() == 0).await;
         // The deadline fired once, for the response that was never read.
         tokio::time::sleep(SEND_TIMEOUT).await;
         assert_eq!(reclaimed.get(), 1);
