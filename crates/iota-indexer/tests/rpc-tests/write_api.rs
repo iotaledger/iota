@@ -23,10 +23,10 @@ use iota_json_rpc_api::{
     TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    IotaData, IotaExecutionStatus, IotaMoveStruct, IotaMoveValue, IotaObjectDataOptions,
-    IotaSystemStateSummary, IotaTransactionBlockDataAPI, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
-    TransactionBlockBytes,
+    DevInspectArgs, IotaData, IotaExecutionStatus, IotaMoveStruct, IotaMoveValue,
+    IotaObjectDataOptions, IotaSystemStateSummary, IotaTransactionBlockDataAPI,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
 };
 use iota_move_build::BuildConfig;
 use iota_sdk_crypto::simple::SimpleKeypair;
@@ -40,6 +40,7 @@ use iota_types::{
     gas_coin::NANOS_PER_IOTA,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::TransactionAPI,
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
@@ -2014,5 +2015,281 @@ fn dry_run_request_add_stake() {
 
         assert_eq!(dry_run_resp.effects.status(), &IotaExecutionStatus::Success);
         assert!(!dry_run_resp.balance_changes.is_empty());
+    });
+}
+
+/// A dev inspect fills a zero gas price and a zero gas budget in from the
+/// epoch, rather than metering against those zeroes and failing with
+/// `GasPriceUnderRGP` or `InsufficientGas`. This holds whether or not the
+/// caller asks for the checks to be skipped: `DevInspectArgs` models both
+/// fields as optional, so leaving them out has to work in either mode.
+#[test]
+fn dev_inspect_transaction_block_zero_gas_price_and_budget() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let sender = Address::random();
+        let receiver = Address::random();
+        let reference_gas_price = cluster.get_reference_gas_price().await;
+
+        let object_ref = cluster
+            .fund_address_and_return_gas(reference_gas_price, Some(NANOS_PER_IOTA), sender)
+            .await;
+        indexer_wait_for_object(client, object_ref.object_id, object_ref.version).await;
+
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_object(receiver, object_ref).unwrap();
+        let tx_bytes =
+            Base64::from_bytes(&TransactionKind::new_programmable(builder.finish()).to_bcs());
+
+        // A zero budget on its own, with a gas price the epoch would accept as-is.
+        let response = client
+            .dev_inspect_transaction_block(
+                sender,
+                tx_bytes.clone(),
+                Some(reference_gas_price.into()),
+                None,
+                Some(DevInspectArgs {
+                    gas_budget: Some(0),
+                    ..Default::default()
+                }),
+            )
+            .await
+            .unwrap();
+        assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
+
+        // A zero price and a zero budget together.
+        let response = client
+            .dev_inspect_transaction_block(
+                sender,
+                tx_bytes.clone(),
+                Some(0.into()),
+                None,
+                Some(DevInspectArgs {
+                    gas_budget: Some(0),
+                    ..Default::default()
+                }),
+            )
+            .await
+            .unwrap();
+        assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
+
+        // Both gas fields omitted entirely, with and without the checks. GraphQL's
+        // `dryRunTransactionBlock` issues exactly the `skip_checks: false` shape when
+        // it is given a `txMeta` carrying only a sender.
+        for skip_checks in [true, false] {
+            let response = client
+                .dev_inspect_transaction_block(
+                    sender,
+                    tx_bytes.clone(),
+                    None,
+                    None,
+                    Some(DevInspectArgs {
+                        skip_checks: Some(skip_checks),
+                        ..Default::default()
+                    }),
+                )
+                .await
+                .unwrap_or_else(|e| {
+                    panic!("dev inspect with skip_checks={skip_checks} failed: {e}")
+                });
+            assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
+        }
+    });
+}
+
+/// A caller that declares no gas budget is asking what the transaction costs,
+/// so the raw transaction a dev inspect hands back carries the cost the
+/// simulation charged and the price it charged at, not the zeroes that were
+/// sent.
+#[test]
+fn dev_inspect_transaction_block_reports_the_gas_it_charged() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let sender = Address::random();
+
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(Address::random(), Some(1_000));
+        let tx_bytes =
+            Base64::from_bytes(&TransactionKind::new_programmable(builder.finish()).to_bcs());
+
+        let response = client
+            .dev_inspect_transaction_block(
+                sender,
+                tx_bytes,
+                None,
+                None,
+                Some(DevInspectArgs {
+                    show_raw_txn_data_and_effects: Some(true),
+                    ..Default::default()
+                }),
+            )
+            .await
+            .unwrap();
+        assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
+
+        let reported: Transaction = bcs::from_bytes(&response.raw_txn_data).unwrap();
+        assert_ne!(reported.gas_budget(), 0);
+        assert_eq!(
+            reported.gas_price(),
+            cluster.get_reference_gas_price().await
+        );
+    });
+}
+
+/// A dry run of a publish that names no gas coin runs against a mock gas coin,
+/// and computing the balance changes must not fail on that coin.
+///
+/// Uses the test smart contract under `tests/data/dummy_modules_publish`.
+#[test]
+fn dry_run_publish_with_mock_gas_coin() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let sender = Address::random();
+
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.extend(["tests", "data", "dummy_modules_publish"]);
+        let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+        let compiled_modules_bytes = compiled_package
+            .get_package_base64(false)
+            .into_iter()
+            .map(|b| b.to_vec().unwrap())
+            .collect::<Vec<_>>();
+        let dependencies = compiled_package.get_dependency_storage_package_ids();
+
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.publish_immutable(compiled_modules_bytes, dependencies);
+        let publish = TransactionKind::new_programmable(builder.finish());
+        let tx_data = Transaction::new_with_gas_coins(publish, sender, vec![], 100_000_000, 1000);
+
+        let response = client
+            .dry_run_transaction_block(Base64::from_bytes(&bcs::to_bytes(&tx_data).unwrap()))
+            .await
+            .unwrap();
+        assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
+    });
+}
+
+/// Only functions a package declares as `#[view]` can be called as view
+/// functions; every other function is rejected, whatever its visibility or
+/// package.
+///
+/// Uses the test smart contract under `tests/data/view_functions`.
+#[test]
+fn view_function_call_rejects_functions_not_declared_as_view() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
+        let keypair = SimpleKeypair::from(key);
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA),
+                address,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
+
+        let (package_ref, transaction_response) =
+            publish_test_move_package(client, address, &keypair, "view_functions")
+                .await
+                .unwrap();
+        let package_id = package_ref.object_id;
+
+        let (counter_id, initial_shared_version) = transaction_response
+            .object_changes
+            .unwrap()
+            .into_iter()
+            .find_map(|change| match change {
+                ObjectChange::Created {
+                    object_id,
+                    owner: Owner::Shared(initial_shared_version),
+                    ..
+                } => Some((object_id, initial_shared_version)),
+                _ => None,
+            })
+            .unwrap();
+        node_wait_for_object(cluster, counter_id, initial_shared_version).await;
+
+        let results = client
+            .view_function_call(
+                format!("{package_id}::counter::value"),
+                None,
+                vec![call_arg!(counter_id).unwrap()],
+            )
+            .await
+            .unwrap();
+        assert!(results.error().is_none(), "{results:?}");
+        assert_eq!(
+            results.into_return_values(),
+            vec![IotaMoveValue::String("42".into())]
+        );
+
+        let not_view_calls = [
+            // A public function without the #[view] attribute.
+            (
+                format!("{package_id}::counter::value_not_view"),
+                vec![call_arg!(counter_id).unwrap()],
+            ),
+            // A module without function attributes has no view functions metadata,
+            // so its functions are rejected, public or not.
+            (format!("{package_id}::plain::forty"), vec![]),
+            (format!("{package_id}::plain::private_forty"), vec![]),
+            // System packages have no view functions metadata either.
+            (
+                "0x2::clock::timestamp_ms".to_string(),
+                vec![call_arg!(ObjectId::CLOCK).unwrap()],
+            ),
+            (
+                "0x2::random::load_inner".to_string(),
+                vec![call_arg!(ObjectId::RANDOMNESS_STATE).unwrap()],
+            ),
+        ];
+        for (function, args) in not_view_calls {
+            let err = client
+                .view_function_call(function.clone(), None, args)
+                .await
+                .unwrap_err();
+            assert!(
+                err.to_string()
+                    .contains("is not declared as a #[view] function"),
+                "{function}: {err}"
+            );
+        }
+
+        // A nonexistent function in an existing module is rejected with a distinct
+        // error from a real but non-view function.
+        let err = client
+            .view_function_call(format!("{package_id}::counter::nonexistent"), None, vec![])
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("Could not find function"), "{err}");
     });
 }

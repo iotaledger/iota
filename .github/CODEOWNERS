@@ -44,7 +44,6 @@
 /crates/iota-json-rpc/src/routing_layer.rs @iotaledger/node @iotaledger/infrastructure
 /crates/iota-json-rpc/src/transaction_builder_api.rs @iotaledger/node @iotaledger/infrastructure
 /crates/iota-json-rpc-api/ @iotaledger/infrastructure
-/crates/iota-json-rpc-tests/ @iotaledger/node
 /crates/iota-json-rpc-types/ @iotaledger/infrastructure
 /crates/iota-keys/ @iotaledger/dev-tools
 /crates/iota-kvstore/ @iotaledger/infrastructure

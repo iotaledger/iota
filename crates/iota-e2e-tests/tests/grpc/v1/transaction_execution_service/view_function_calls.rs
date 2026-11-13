@@ -21,8 +21,7 @@ use test_cluster::TestCluster;
 
 use crate::utils::{first_sender, setup_grpc_test, wait_for_executed_transactions_checkpointed};
 
-/// Path to the `view_functions` test package (`Move.toml` + `sources/`),
-/// copied from `iota-json-rpc-tests`.
+/// Path to the `view_functions` test package (`Move.toml` + `sources/`).
 fn view_functions_package_path() -> PathBuf {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "grpc", "data", "view_functions"]);

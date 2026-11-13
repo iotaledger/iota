@@ -68,4 +68,6 @@ mockall.workspace = true
 roaring.workspace = true
 
 # internal dependencies
+iota-config.workspace = true
+iota-open-rpc-macros.workspace = true
 telemetry-subscribers.workspace = true
