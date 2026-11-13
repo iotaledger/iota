@@ -452,8 +452,8 @@ impl NetworkClient for TonicClient {
 /// Reads the commits and certifier headers of a
 /// `fetch_commits_and_transactions` response stream, which come before its
 /// transactions, and returns the rest of the stream as transaction chunks. If
-/// the stream is cut by an error after commits arrived, the transaction chunks
-/// end with that error.
+/// the stream is cut by an error after the transactions started, the
+/// transaction chunks end with that error; an earlier cut fails the fetch.
 async fn collect_commits_and_transactions<S>(
     context: &Context,
     peer: AuthorityIndex,
@@ -560,19 +560,9 @@ where
                         limit: FetchCommitsAndTransactionsResponse::MAX_ENTRIES,
                     });
                 }
-                let error = mid_stream_error(e);
-                if commits.is_empty() {
-                    return Err(error);
-                }
-                // Keep what arrived and surface the cut alongside it: only
-                // the caller can tell whether the delivered chunks cover
-                // anything usable.
-                warn!("fetch_commits_and_transactions from {peer} failed mid-stream: {error}");
-                return Ok(FetchedCommitsAndTransactions {
-                    commits,
-                    certifier_block_headers,
-                    transactions: stream::once(future::ready(Err(error))).boxed(),
-                });
+                // A cut here can leave commits without the votes that certify
+                // them, and checking those would charge the peer for the cut.
+                return Err(mid_stream_error(e));
             }
         }
     };
@@ -2462,23 +2452,37 @@ mod tests {
         ));
     }
 
-    /// A stream cut before anything arrived delivers nothing to keep, so the
-    /// fetch fails outright.
+    /// A stream cut before the transactions start fails the fetch, including
+    /// after commits and, from older servers, certifier headers arrived.
     #[tokio::test]
-    async fn cut_before_any_commit_fails_the_fetch() {
+    async fn cut_before_the_transactions_fails_the_fetch() {
         let (context, _keys) = Context::new_for_test(4);
         let peer = AuthorityIndex::new_for_test(1);
-        let cut = stream::iter([Err(tonic::Status::unknown("h2 protocol error"))]);
+        let cut = || Err(tonic::Status::unknown("h2 protocol error"));
+        let headers_first = FetchCommitsAndTransactionsResponse {
+            certifier_block_headers: vec![Bytes::from_static(b"header")],
+            ..chunk(2, 0)
+        };
+        for responses in [
+            vec![cut()],
+            vec![Ok(chunk(2, 0)), cut()],
+            vec![Ok(headers_first), Ok(chunk(2, 0)), cut()],
+        ] {
+            let result = collect_commits_and_transactions(
+                &context,
+                peer,
+                &requested_range(),
+                stream::iter(responses),
+            )
+            .await;
 
-        let result =
-            collect_commits_and_transactions(&context, peer, &requested_range(), cut).await;
-
-        assert!(matches!(result, Err(ConsensusError::NetworkRequest(_))));
+            assert!(matches!(result, Err(ConsensusError::NetworkRequest(_))));
+        }
     }
 
-    /// A cut after commits arrived keeps the delivered chunks and returns the
-    /// error alongside them, so the caller can attribute missing transactions
-    /// to the connection instead of the peer's data.
+    /// A cut after the transactions started keeps the delivered chunks and
+    /// returns the error alongside them, so the caller can attribute missing
+    /// transactions to the connection instead of the peer's data.
     #[tokio::test]
     async fn cut_after_commits_keeps_the_delivered_chunks_and_the_error() {
         let (context, _keys) = Context::new_for_test(4);
@@ -2531,14 +2535,12 @@ mod tests {
             Err(tonic::Status::deadline_exceeded("deadline")),
         ]);
 
-        let response = collect_commits_and_transactions(&context, peer, &requested_range(), cut)
-            .await
-            .expect("a cut after commits arrived keeps them");
-        let (_transactions, stream_error) = read_to_end(response.transactions).await;
+        let result =
+            collect_commits_and_transactions(&context, peer, &requested_range(), cut).await;
 
         assert!(matches!(
-            stream_error,
-            Some(ConsensusError::NetworkRequestTimeout(_))
+            result,
+            Err(ConsensusError::NetworkRequestTimeout(_))
         ));
     }
 

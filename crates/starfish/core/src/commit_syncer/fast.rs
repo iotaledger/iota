@@ -719,23 +719,17 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 .sum::<usize>();
             if !fetched_transactions.is_empty() {
                 let verified = spawn_blocking({
-                    let context = inner.context.clone();
+                    let inner = inner.clone();
                     move || {
                         verify_transactions_commitments(
-                            &context,
+                            &inner.context,
+                            &inner.misbehavior_store,
                             target_authority,
                             fetched_transactions,
                         )
                     }
                 })
-                .await?
-                .inspect_err(|_| {
-                    // Not provable against the author, whose commitment the
-                    // peer may have forged.
-                    inner
-                        .misbehavior_store
-                        .record_faulty_transactions(None, [target_authority]);
-                })?;
+                .await??;
                 transactions_map.extend(verified);
             }
             if budgeted_bytes > byte_budget && first_commit_awaited.is_empty() {
