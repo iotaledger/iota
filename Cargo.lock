@@ -14125,6 +14125,7 @@ dependencies = [
  "futures",
  "http 1.5.0",
  "http-body 1.0.1",
+ "hyper-util",
  "iota-common",
  "iota-http",
  "iota-macros",

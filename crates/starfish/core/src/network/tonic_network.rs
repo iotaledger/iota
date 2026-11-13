@@ -14,6 +14,7 @@ use std::{
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{Stream, StreamExt as _, TryStreamExt as _, future, stream};
+use hyper_util::client::legacy::connect::HttpConnector;
 use iota_http::{PeerConnectionEvent, ServerHandle};
 use iota_network_stack::{
     Multiaddr,
@@ -980,21 +981,31 @@ impl ChannelPool {
             .tls_config(client_tls_config)
             .unwrap();
 
+        // `Endpoint::connect` bounds only the TCP connect by `connect_timeout`.
+        // Passing the connector in bounds every connection attempt of the
+        // channel, TLS handshake included, so a reconnect to a peer that
+        // stalls the handshake gives up too.
+        let mut http = HttpConnector::new();
+        http.enforce_http(false);
+        http.set_nodelay(true);
+        http.set_connect_timeout(Some(connect_timeout));
+
         trace!("Connecting to endpoint at {address}");
-        let channel = match tokio::time::timeout_at(deadline, endpoint.connect()).await {
-            Ok(Ok(channel)) => channel,
-            Ok(Err(e)) => {
-                debug!("Failed to connect to endpoint at {address}: {e:?}");
-                return Err(ConsensusError::NetworkClientConnection(format!(
-                    "Failed to connect to endpoint at {address}: {e:?}"
-                )));
-            }
-            Err(_) => {
-                return Err(ConsensusError::NetworkClientConnection(format!(
-                    "Timed out connecting to endpoint at {address}"
-                )));
-            }
-        };
+        let channel =
+            match tokio::time::timeout_at(deadline, endpoint.connect_with_connector(http)).await {
+                Ok(Ok(channel)) => channel,
+                Ok(Err(e)) => {
+                    debug!("Failed to connect to endpoint at {address}: {e:?}");
+                    return Err(ConsensusError::NetworkClientConnection(format!(
+                        "Failed to connect to endpoint at {address}: {e:?}"
+                    )));
+                }
+                Err(_) => {
+                    return Err(ConsensusError::NetworkClientConnection(format!(
+                        "Timed out connecting to endpoint at {address}"
+                    )));
+                }
+            };
         trace!("Connected to {address}");
 
         let channel = tower::ServiceBuilder::new()
@@ -2870,6 +2881,102 @@ mod tests {
         ));
 
         long.abort();
+    }
+
+    /// A pooled channel whose peer comes back without answering the TLS
+    /// handshake fails each call once the connect timeout passes, instead of
+    /// hanging, and connects again once the peer serves.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn pooled_channel_gives_up_on_a_peer_that_stalls_the_tls_handshake() {
+        use std::{net::TcpListener, time::Duration};
+
+        use parking_lot::Mutex;
+
+        use super::{TonicManager, to_socket_addr};
+        use crate::network::{NetworkClient as _, test_network::TestService};
+
+        const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+        /// How long the test waits for a call before deciding that no deadline
+        /// ended it. Far longer than `CONNECT_TIMEOUT`, so a slow machine does
+        /// not fail the test.
+        const GIVE_UP: Duration = Duration::from_secs(10);
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let server_context = Arc::new(context.clone().with_authority_index(server_index));
+        let start_server = || {
+            let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
+            async move {
+                server
+                    .install_service(Arc::new(Mutex::new(TestService::new())))
+                    .await;
+                server
+            }
+        };
+        let mut server = start_server().await;
+
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+        client
+            .channel_pool
+            .get_channel(
+                client.network_keypair.clone(),
+                server_index,
+                CONNECT_TIMEOUT,
+            )
+            .await
+            .expect("the server is up");
+
+        server.stop().await;
+        // Never accepted, so the TLS handshake of the next connection attempt
+        // gets no answer.
+        let listener = TcpListener::bind(
+            to_socket_addr(&context.committee.authority(server_index).address).unwrap(),
+        )
+        .unwrap();
+
+        // The first call can still reach the closing connection and fail at
+        // once. The second one has to connect again.
+        for call in 1..=2 {
+            let started = tokio::time::Instant::now();
+            // A request timeout past `GIVE_UP`, so only the connect timeout
+            // can end the call in time.
+            let result = tokio::time::timeout(
+                GIVE_UP,
+                client.fetch_commits(server_index, (1..=2).into(), 2 * GIVE_UP),
+            )
+            .await
+            .unwrap_or_else(|_| panic!("call {call} was still pending after {GIVE_UP:?}"));
+            assert!(
+                matches!(result, Err(ConsensusError::NetworkRequest(_))),
+                "call {call} must fail, got {result:?}"
+            );
+            if call == 2 {
+                assert!(
+                    started.elapsed() >= CONNECT_TIMEOUT,
+                    "call {call} failed after {:?}, before the connect timeout: {result:?}",
+                    started.elapsed()
+                );
+            }
+        }
+
+        drop(listener);
+        let _server = start_server().await;
+        // Only a call makes the pooled channel connect; taking it from the
+        // pool does not.
+        tokio::time::timeout(
+            GIVE_UP,
+            client.fetch_commits(server_index, (1..=2).into(), GIVE_UP),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("the call was still pending after {GIVE_UP:?}"))
+        .expect("the pooled channel connects again once the peer serves");
     }
 
     /// A header fetch whose request message never arrives is charged to its
