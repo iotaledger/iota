@@ -2305,8 +2305,8 @@ pub(crate) fn implicit_deps_for_protocol_version(
             the system packages used for compilation (e.g. MoveStdlib) may be out of date. If you have errors related to \
             system packages, you may need to update your CLI.",
             "warning".bold().yellow(),
-            ProtocolVersion::MAX,
-            version
+            version,
+            ProtocolVersion::MAX
         )
     }
 
