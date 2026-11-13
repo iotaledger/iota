@@ -48,7 +48,8 @@ use iota_types::{
     },
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        SenderSignedTransactionAPI, TransactionAPI, TransactionEnvelope, VerifiedTransaction,
+        SenderSignedTransactionAPI, TransactionAPI, TransactionDependencyReadResult,
+        TransactionEnvelope, VerifiedTransaction,
     },
 };
 use move_binary_format::CompiledModule;
@@ -1057,9 +1058,12 @@ impl LocalExec {
 
         let (_, _, effects, _timings, exec_res) = if move_authenticators.is_empty() {
             // Standard path: no MoveAuthenticator
-            let input_objects = store.read_input_objects_for_transaction(
+            let mut input_objects = store.read_input_objects_for_transaction(
                 &TransactionEnvelope::new(sender_signed_data.clone()),
             );
+            if let Some(dependency) = pre_run_sandbox.transaction_info.transaction_dependency {
+                input_objects.set_transaction_dependency(dependency);
+            }
             let (gas_status, input_objects) = iota_transaction_checks::check_certificate_input(
                 &executable,
                 input_objects,
@@ -1092,7 +1096,7 @@ impl LocalExec {
                     protocol_config.move_authenticator_type_arg_packages_as_inputs(),
                 )
                 .unwrap();
-            let all_input_objects: InputObjects = all_input_object_kinds
+            let mut all_input_objects: InputObjects = all_input_object_kinds
                 .into_iter()
                 .map(|kind| {
                     let id = kind.object_id();
@@ -1104,6 +1108,9 @@ impl LocalExec {
                 })
                 .collect::<Vec<_>>()
                 .into();
+            if let Some(dependency) = pre_run_sandbox.transaction_info.transaction_dependency {
+                all_input_objects.set_transaction_dependency(dependency);
+            }
 
             let (tx_input_objects, per_authenticator_inputs) = sender_signed_data
                 .split_input_objects_into_groups_for_reading(all_input_objects)
@@ -1834,6 +1841,10 @@ impl LocalExec {
             .get_epoch_start_timestamp_and_rgp(epoch_id, tx_digest)
             .await?;
 
+        let transaction_dependency = self
+            .resolve_transaction_dependency(&orig_tx, effects.dependencies())
+            .await?;
+
         Ok(OnChainTransactionInfo {
             kind: tx_kind_orig.clone(),
             sender,
@@ -1846,6 +1857,7 @@ impl LocalExec {
             gas_price: gas_data.price,
             executed_epoch: epoch_id,
             dependencies: effects.dependencies().to_vec(),
+            transaction_dependency,
             effects: IotaTransactionBlockEffects::V1(effects),
             receiving_objs,
             config_objects,
@@ -1938,6 +1950,7 @@ impl LocalExec {
             gas_price: gas_data.price,
             executed_epoch: epoch_id,
             dependencies: effects.dependencies().to_vec(),
+            transaction_dependency: dp.node_state_dump.transaction_dependency,
             effects,
             receiving_objs,
             config_objects,
@@ -1948,6 +1961,36 @@ impl LocalExec {
             reference_gas_price,
             chain,
         })
+    }
+
+    /// The outcome of the transaction named by `transaction`'s dependency
+    /// input, read from the dependency's own effects. `None` when
+    /// `effects_dependencies`, the dependencies in the effects of
+    /// `transaction`, do not include the dependency; they include it whenever
+    /// execution read it.
+    async fn resolve_transaction_dependency(
+        &self,
+        transaction: &SenderSignedTransaction,
+        effects_dependencies: &[TransactionDigest],
+    ) -> Result<Option<TransactionDependencyReadResult>, ReplayEngineError> {
+        let Some(digest) = transaction.transaction().transaction_dependency() else {
+            return Ok(None);
+        };
+        if !effects_dependencies.contains(&digest) {
+            return Ok(None);
+        }
+        let effects = self
+            .fetcher
+            .get_transaction(&digest)
+            .await?
+            .effects
+            .ok_or_else(|| ReplayEngineError::GeneralError {
+                err: format!("transaction dependency {digest} has no effects"),
+            })?;
+        Ok(Some(TransactionDependencyReadResult {
+            digest,
+            succeeded: effects.status().is_ok(),
+        }))
     }
 
     async fn resolve_download_input_objects(
@@ -2128,9 +2171,12 @@ impl LocalExec {
         self.multi_download_and_store(&gas_refs).await?;
 
         // Fetch the input objects we know from the raw transaction
-        let input_objs = self
+        let mut input_objs = self
             .resolve_download_input_objects(tx_info, deleted_shared_refs)
             .await?;
+        if let Some(dependency) = tx_info.transaction_dependency {
+            input_objs.set_transaction_dependency(dependency);
+        }
 
         // Fetch the receiving objects
         self.multi_download_and_store(&tx_info.receiving_objs)

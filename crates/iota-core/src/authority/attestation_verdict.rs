@@ -648,6 +648,9 @@ mod tests {
                 suggested_gas_price: 1,
             },
             ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable,
+            ExecutionErrorKind::TransactionDependencyFailed {
+                dependency: TransactionDigest::random(),
+            },
         ] {
             let error = wrapped(kind);
             assert!(

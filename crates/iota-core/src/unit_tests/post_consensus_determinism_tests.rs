@@ -1338,6 +1338,13 @@ impl FakeStore {
 }
 
 impl ObjectCacheRead for FakeStore {
+    fn try_multi_transactions_executed(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<bool>> {
+        Ok(vec![false; digests.len()])
+    }
+
     fn try_get_package_object(&self, id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         Ok(self
             .lock()

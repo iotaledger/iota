@@ -235,6 +235,10 @@ mod cancelled_move_authenticator_tests;
 mod move_authenticator_attestation_tests;
 
 #[cfg(test)]
+#[path = "unit_tests/transaction_dependency_execution_tests.rs"]
+mod transaction_dependency_execution_tests;
+
+#[cfg(test)]
 #[path = "unit_tests/auth_unit_test_utils.rs"]
 pub mod auth_unit_test_utils;
 
@@ -318,6 +322,9 @@ pub struct AuthorityMetrics {
     pub(crate) transaction_manager_package_cache_hits: IntCounter,
     pub(crate) transaction_manager_package_cache_misses: IntCounter,
     pub(crate) transaction_manager_package_cache_evictions: IntCounter,
+    pub(crate) transaction_manager_executed_transaction_cache_size: IntGauge,
+    pub(crate) transaction_manager_executed_transaction_cache_hits: IntCounter,
+    pub(crate) transaction_manager_executed_transaction_cache_misses: IntCounter,
     pub(crate) transaction_manager_transaction_queue_age_s: Histogram,
 
     pub(crate) execution_driver_executed_transactions: IntCounter,
@@ -726,6 +733,24 @@ impl AuthorityMetrics {
             transaction_manager_package_cache_evictions: register_int_counter_with_registry!(
                 "transaction_manager_package_cache_evictions",
                 "Number of package-availability cache evictions in TransactionManager",
+                registry,
+            )
+                .unwrap(),
+            transaction_manager_executed_transaction_cache_size: register_int_gauge_with_registry!(
+                "transaction_manager_executed_transaction_cache_size",
+                "Current size of the executed-transaction cache in TransactionManager, which dependents wait on",
+                registry,
+            )
+                .unwrap(),
+            transaction_manager_executed_transaction_cache_hits: register_int_counter_with_registry!(
+                "transaction_manager_executed_transaction_cache_hits",
+                "Number of executed-transaction cache hits in TransactionManager",
+                registry,
+            )
+                .unwrap(),
+            transaction_manager_executed_transaction_cache_misses: register_int_counter_with_registry!(
+                "transaction_manager_executed_transaction_cache_misses",
+                "Number of executed-transaction cache misses in TransactionManager",
                 registry,
             )
                 .unwrap(),
@@ -1950,13 +1975,37 @@ impl AuthorityState {
                 .move_authenticator_type_arg_packages_as_inputs(),
         )?;
 
-        let input_objects = self.input_loader.read_objects_for_execution(
+        let mut input_objects = self.input_loader.read_objects_for_execution(
             &transaction.key(),
             tx_lock,
             &input_objects,
             &assigned_shared_object_versions,
             epoch_store.epoch(),
         )?;
+
+        // The outcome of the transaction named by the dependency input. A
+        // transaction cancelled at sequencing executes as cancelled without
+        // reading its dependency, so it does not wait for it in the scheduler.
+        // Otherwise the scheduler released this transaction only once the
+        // dependency's effects were committed.
+        if let Some(dependency) = transaction.data().transaction().transaction_dependency() {
+            if input_objects.get_cancelled_objects().is_none() {
+                let effects = self
+                    .get_transaction_cache_reader()
+                    .get_executed_effects(&dependency)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "transaction {:?} depends on transaction {dependency}, whose effects \
+                             are absent although the scheduler released the dependent",
+                            transaction.digest()
+                        )
+                    });
+                input_objects.set_transaction_dependency(TransactionDependencyReadResult {
+                    digest: dependency,
+                    succeeded: effects.status().is_success(),
+                });
+            }
+        }
 
         transaction.split_input_objects_into_groups_for_reading(input_objects)
     }
@@ -2020,6 +2069,7 @@ impl AuthorityState {
         expected_effects_digest: TransactionEffectsDigest,
         inner_temporary_store: &InnerTemporaryStore,
         transaction: &VerifiedExecutableTransaction,
+        transaction_dependency: Option<TransactionDependencyReadResult>,
         debug_dump_config: &StateDebugDumpConfig,
     ) -> IotaResult<PathBuf> {
         // Fall back to the OS temp directory if no dump directory is configured.
@@ -2039,6 +2089,7 @@ impl AuthorityState {
             &epoch_store,
             inner_temporary_store,
             transaction,
+            transaction_dependency,
         )?
         .write_to_file(&dump_dir)
         .map_err(|e| IotaError::FileIO(e.to_string()))
@@ -2096,6 +2147,7 @@ impl AuthorityState {
         // errors). However, all errors from this function occur before we have
         // written anything to the db, so we commit the tx guard and rely on the
         // client to retry the tx (if it was transient).
+        let transaction_dependency = tx_input_objects.transaction_dependency();
         let (inner_temporary_store, effects, execution_error_opt, read_objects, attestation_record) =
             match self.execute_transaction(
                 &execution_guard,
@@ -2122,6 +2174,7 @@ impl AuthorityState {
                     expected_effects_digest,
                     &inner_temporary_store,
                     transaction,
+                    transaction_dependency,
                     &self.config.state_debug_dump_config,
                 ) {
                     Ok(out_path) => {
@@ -2883,6 +2936,20 @@ impl AuthorityState {
             &receiving_object_refs,
             epoch_store.epoch(),
         )?;
+
+        // The transaction dependency is evaluated when its effects are here,
+        // and assumed to have succeeded otherwise, so a dependent can be
+        // simulated before its dependency executes.
+        if let Some(dependency) = transaction.transaction_dependency() {
+            let succeeded = self
+                .get_transaction_cache_reader()
+                .try_get_executed_effects(&dependency)?
+                .is_none_or(|effects| effects.status().is_success());
+            input_objects.set_transaction_dependency(TransactionDependencyReadResult {
+                digest: dependency,
+                succeeded,
+            });
+        }
 
         // Create a mock gas object if one was not provided
         let mock_gas_id = if transaction.gas().is_empty() {
@@ -7373,6 +7440,9 @@ pub struct NodeStateDump {
     pub modified_at_versions: Vec<ObjDumpFormat>,
     pub runtime_reads: Vec<ObjDumpFormat>,
     pub input_objects: Vec<ObjDumpFormat>,
+    /// The outcome of the transaction named by the transaction dependency
+    /// input, when execution read it.
+    pub transaction_dependency: Option<TransactionDependencyReadResult>,
 }
 
 impl NodeStateDump {
@@ -7384,6 +7454,7 @@ impl NodeStateDump {
         epoch_store: &Arc<AuthorityPerEpochStore>,
         inner_temporary_store: &InnerTemporaryStore,
         transaction: &VerifiedExecutableTransaction,
+        transaction_dependency: Option<TransactionDependencyReadResult>,
     ) -> IotaResult<Self> {
         // Epoch info
         let executed_epoch = epoch_store.epoch();
@@ -7471,6 +7542,7 @@ impl NodeStateDump {
                 .collect(),
             computed_effects: effects.clone(),
             expected_effects_digest,
+            transaction_dependency,
         })
     }
 
