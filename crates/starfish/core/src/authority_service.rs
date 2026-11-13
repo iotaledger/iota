@@ -486,6 +486,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "shard", e.name()])
                     .inc();
+                self.misbehavior_store.record_faulty_block(peer, None, &e);
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
             }
@@ -6216,6 +6217,27 @@ mod tests {
             matches!(result, Err(ConsensusError::IncorrectShardProof { .. })),
             "a maximum-length shard must pass the size gate, got {result:?}"
         );
+
+        // A shard whose author is outside the committee is charged to the peer.
+        let outside = AuthorityIndex::new_for_test(context.committee.size() as u8);
+        let shard = crate::block_header::ShardWithProof::new(
+            vec![],
+            vec![],
+            BlockRef::new(4, outside, BlockHeaderDigest::default()),
+            TransactionsCommitment::default(),
+        );
+        let result = authority_service.extract_shards_from_bundle(
+            peer,
+            &context.committee.authority(peer).hostname.clone(),
+            vec![Bytes::from(bcs::to_bytes(&shard).unwrap())],
+            carrier_ref,
+        );
+        assert!(matches!(
+            result,
+            Err(ConsensusError::InvalidAuthorityIndexRequested { .. })
+        ));
+        let totals = misbehavior_store.snapshot_totals();
+        assert_eq!(totals[peer.value()].as_v2().faulty_blocks_unprovable, 1);
     }
 
     /// A server whose batch size exceeds the requester's still stops at twice

@@ -378,6 +378,9 @@ pub(crate) enum ConsensusError {
     #[error("Commit variant {actual} is not the expected V3")]
     WrongCommitVersion { actual: &'static str },
 
+    #[error("Block references invalid authority index {index}, committee size is {max}")]
+    InvalidReferenceAuthority { index: AuthorityIndex, max: usize },
+
     #[error("Block strong_vote contains invalid authority index {index}, committee size is {max}")]
     InvalidStrongVoteAuthority { index: AuthorityIndex, max: usize },
 
