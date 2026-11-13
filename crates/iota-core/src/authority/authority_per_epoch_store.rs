@@ -2389,16 +2389,24 @@ impl AuthorityPerEpochStore {
             Err(IotaError::EpochEnded(_)) => return Ok(()),
             Err(e) => return Err(e),
         };
-        let rows = handler_object_state.checkpoint_rows(effects);
+        let _scope = monitored_scope("PersistCheckpointBookkeeping");
+        let rows = {
+            let _scope = monitored_scope("PersistCheckpointBookkeeping::CollectRows");
+            handler_object_state.checkpoint_rows(effects)
+        };
         if rows.is_empty() {
             return Ok(());
         }
-        let mut batch = tables.handler_processed_objects.batch();
-        handler_object_state.write_checkpoint_rows_to_batch(&tables, &mut batch, &rows)?;
-        batch.write()?;
+        {
+            let _scope = monitored_scope("PersistCheckpointBookkeeping::WriteBatch");
+            let mut batch = tables.handler_processed_objects.batch();
+            handler_object_state.write_checkpoint_rows_to_batch(&tables, &mut batch, &rows)?;
+            batch.write()?;
+        }
         // Lets a test crash the node with the checkpoint's rows written and
         // its outputs not.
         fail_point!("crash-after-checkpoint-bookkeeping-write");
+        let _scope = monitored_scope("PersistCheckpointBookkeeping::EvictRows");
         handler_object_state.evict_flushed_checkpoint_rows(&rows);
         Ok(())
     }

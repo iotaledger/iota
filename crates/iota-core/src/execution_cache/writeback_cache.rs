@@ -1308,7 +1308,11 @@ impl WritebackCache {
         // Flush writes to disk before removing anything from dirty set. otherwise,
         // a cache eviction could cause a value to disappear briefly, even if we insert
         // to the cache before removing from the dirty set.
-        db_batch.write().expect("db error");
+        {
+            let _metrics_guard =
+                iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs::write");
+            db_batch.write().expect("db error");
+        }
 
         let _metrics_guard =
             iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs::flush");
