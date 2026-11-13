@@ -4874,12 +4874,14 @@ impl AuthorityPerEpochStore {
         // validators to exchange the round's partial signatures. So this wait
         // can last that long even on a validator whose execution keeps up.
         if self.pcool_bookkeeping_enabled && accepts_tx {
+            let _scope = monitored_scope("ProcessConsensusCommit::WaitForHorizon");
             self.within_alive_epoch(self.wait_for_fully_executed_commit(horizon(
                 &self.protocol_config,
                 consensus_commit_info.index,
             )))
             .await?;
         }
+        let mut phase_scope = monitored_scope("ProcessConsensusCommit::Prepare");
 
         // Split transactions into different types for processing.
         let mut system_transactions = Vec::with_capacity(verified_transactions.len());
@@ -5168,6 +5170,7 @@ impl AuthorityPerEpochStore {
                     }
                 });
             }
+            drop(phase_scope.take());
             let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
@@ -5177,6 +5180,7 @@ impl AuthorityPerEpochStore {
                     &mut sequenced_transactions,
                 )
                 .await?;
+            phase_scope = monitored_scope("ProcessConsensusCommit::AfterValidation");
             output.set_owned_object_locks(owned_object_locks);
             soft_lock_release_tx_digests.extend(soft_lock_digests);
             let kept: Vec<_> = sequenced_transactions
@@ -5271,6 +5275,8 @@ impl AuthorityPerEpochStore {
             })
             .collect();
 
+        drop(phase_scope.take());
+        let assign_versions_scope = monitored_scope("ProcessConsensusCommit::AssignVersions");
         // Order transactions by gas price. With the combined congestion
         // tracker this is one order across regular and randomness-using
         // transactions.
@@ -5350,6 +5356,8 @@ impl AuthorityPerEpochStore {
                 shared_object_using_randomness_congestion_tracker,
             )
             .await?;
+        drop(assign_versions_scope);
+        let write_output_scope = monitored_scope("ProcessConsensusCommit::WriteOutput");
         // Update scores on the consensus handler thread, right after processing
         // reports and snapshotting. This avoids cross-thread reads of the
         // aggregator — the checkpoint service only reads the published score
@@ -5490,6 +5498,7 @@ impl AuthorityPerEpochStore {
         self.consensus_quarantine
             .write()
             .push_consensus_output(output, self)?;
+        drop(write_output_scope);
 
         // Release pre-consensus soft locks now that permanent locks are visible
         // in the quarantine. Both accepted and rejected transactions are

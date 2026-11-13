@@ -248,6 +248,14 @@ pub struct NodeConfig {
     #[serde(default)]
     pub verifier_signing_config: VerifierSigningConfig,
 
+    /// How many threads read the inputs of a consensus commit's transactions
+    /// at once in post-consensus validation, the consensus handler's own
+    /// thread included. One reads them one after another. By default a
+    /// third of the cores, at least one and at most sixteen. Has no effect
+    /// unless the pcool flow is enabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub post_consensus_validation_readers: Option<NonZeroUsize>,
+
     /// If a value is set, it determines if writes to DB can stall, which can
     /// halt the whole process. By default, write stall is enabled on
     /// validators but not on fullnodes.
