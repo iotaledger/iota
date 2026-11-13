@@ -22,7 +22,9 @@ use iota_light_client::{
 };
 use iota_package_resolver::Resolver;
 use iota_sdk::IotaClientBuilder;
-use iota_sdk_types::{CheckpointDigest, ObjectData, ObjectId, ObjectReference, TransactionDigest};
+use iota_sdk_types::{
+    CheckpointDigest, ObjectData, ObjectId, ObjectReference, TransactionDigest, Version,
+};
 use iota_types::{
     committee::Committee, effects::TransactionEffectsExt, event::EventID,
     full_checkpoint_content::CheckpointData, object::bounded_visitor::BoundedVisitor,
@@ -55,6 +57,9 @@ pub enum LightClientCommand {
         /// Object ID
         #[arg(value_name = "HEX")]
         object_id: ObjectId,
+        /// Object version to check (default: the version the full node serves)
+        #[arg(value_name = "VERSION")]
+        version: Option<Version>,
     },
     /// Check a transaction for inclusion
     CheckTransaction {
@@ -135,15 +140,18 @@ pub async fn main() -> Result<()> {
     debug!("IOTA Light Client CLI version: {VERSION}");
 
     match args.command {
-        LightClientCommand::CheckObject { object_id } => {
+        LightClientCommand::CheckObject { object_id, version } => {
             if config.sync_before_check {
                 sync_and_verify_checkpoints(&config)
                     .await
                     .context("Failed to sync checkpoints")?;
             }
 
-            let object = get_verified_object(&config, object_id).await?;
-            println!("Successfully verified object: {object_id}");
+            let (object, checkpoint) = get_verified_object(&config, object_id, version).await?;
+            println!("Successfully verified object: {object_id} in checkpoint {checkpoint}");
+            if version.is_none() {
+                println!("Checked the version the full node served; a newer version may exist.");
+            }
 
             if let ObjectData::Struct(move_object) = &object.data {
                 let object_type = move_object.struct_tag();
@@ -173,12 +181,12 @@ pub async fn main() -> Result<()> {
                     .context("Failed to sync checkpoints")?;
             }
 
-            let (effects, events) =
+            let (effects, events, checkpoint) =
                 get_verified_effects_and_events(&config, transaction_digest).await?;
 
             let exec_digests = effects.execution_digests();
             println!(
-                "Executed Digest: {} Effects: {}",
+                "Executed Digest: {} Effects: {} Checkpoint: {checkpoint}",
                 exec_digests.transaction, exec_digests.effects
             );
 

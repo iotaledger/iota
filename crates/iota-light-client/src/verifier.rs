@@ -7,7 +7,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result, anyhow, bail};
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_sdk::IotaClientBuilder;
-use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffects, TransactionEvents};
+use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffects, TransactionEvents, Version};
 use iota_types::{
     committee::Committee,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -55,7 +55,15 @@ pub fn extract_verified_effects_and_events(
     Ok((matching_tx.effects.clone(), matching_tx.events.clone()))
 }
 
-pub async fn get_verified_object(config: &Config, object_id: ObjectId) -> Result<Object> {
+/// Fetches `object_id` at `version`, or at the version the full node serves
+/// when `None`, and proves that this version was written by a transaction in
+/// a signed checkpoint. Returns the object and that checkpoint's sequence
+/// number. Nothing proves that the version is the latest one.
+pub async fn get_verified_object(
+    config: &Config,
+    object_id: ObjectId,
+    version: Option<Version>,
+) -> Result<(Object, CheckpointSequenceNumber)> {
     let iota_client = Arc::new(
         IotaClientBuilder::default()
             .build(config.rpc_url.as_str())
@@ -65,19 +73,31 @@ pub async fn get_verified_object(config: &Config, object_id: ObjectId) -> Result
     info!("Getting object: {object_id}");
 
     let read_api = iota_client.read_api();
-    let object_json = read_api
-        .get_object_with_options(object_id, IotaObjectDataOptions::bcs_lossless())
-        .await
-        .context("Cannot get object")?;
-    let object = object_json
-        .into_object()
-        .context("Cannot make into object data")?;
-    let object: Object = object.try_into().context("Cannot reconstruct object")?;
+    let options = IotaObjectDataOptions::bcs_lossless();
+    let object_data = match version {
+        Some(version) => read_api
+            .try_get_parsed_past_object(object_id, version, options)
+            .await
+            .context("Cannot get object")?
+            .into_object()
+            .context("Cannot make into object data")?,
+        None => read_api
+            .get_object_with_options(object_id, options)
+            .await
+            .context("Cannot get object")?
+            .into_object()
+            .context("Cannot make into object data")?,
+    };
+    let object: Object = object_data
+        .try_into()
+        .context("Cannot reconstruct object")?;
+    ensure_requested_object(&object, object_id, version)?;
 
     // Need to authenticate this object
-    let (effects, _) = get_verified_effects_and_events(config, object.previous_transaction)
-        .await
-        .context("Cannot get effects and events")?;
+    let (effects, _, checkpoint) =
+        get_verified_effects_and_events(config, object.previous_transaction)
+            .await
+            .context("Cannot get effects and events")?;
 
     // check that this object ID, version and hash is in the effects
     let target_object_ref = object.object_ref();
@@ -87,13 +107,39 @@ pub async fn get_verified_object(config: &Config, object_id: ObjectId) -> Result
         .find(|(changed, _)| changed.reference() == &target_object_ref)
         .ok_or_else(|| anyhow!("Object not found"))?;
 
-    Ok(object)
+    Ok((object, checkpoint))
 }
 
+fn ensure_requested_object(
+    object: &Object,
+    object_id: ObjectId,
+    version: Option<Version>,
+) -> Result<()> {
+    anyhow::ensure!(
+        object.id() == object_id,
+        "Object {} was served instead of the requested object {object_id}",
+        object.id()
+    );
+    if let Some(version) = version {
+        anyhow::ensure!(
+            object.version() == version,
+            "Object {object_id} was served at version {}, not the requested version {version}",
+            object.version()
+        );
+    }
+    Ok(())
+}
+
+/// Returns the transaction's effects and events together with the sequence
+/// number of the signed checkpoint they were verified in.
 pub async fn get_verified_effects_and_events(
     config: &Config,
     transaction_digest: TransactionDigest,
-) -> Result<(TransactionEffects, Option<TransactionEvents>)> {
+) -> Result<(
+    TransactionEffects,
+    Option<TransactionEvents>,
+    CheckpointSequenceNumber,
+)> {
     let iota_client = IotaClientBuilder::default()
         .build(config.rpc_url.as_str())
         .await?;
@@ -126,88 +172,21 @@ pub async fn get_verified_effects_and_events(
 
     info!("Extracting effects and events for transaction: {transaction_digest}");
 
-    extract_verified_effects_and_events(&checkpoint, &committee, transaction_digest)
-        .context("Cannot extract effects and events")
-}
-
-/// Get the verified checkpoint sequence number for an object.
-/// This function will verify that the object is in the transaction's effects,
-/// and that the transaction is in the checkpoint
-/// and that the checkpoint is signed by the committee
-/// and the committee is read from the verified checkpoint summary
-/// which is signed by the previous committee.
-pub async fn get_verified_checkpoint(
-    config: &Config,
-    object_id: ObjectId,
-) -> Result<CheckpointSequenceNumber> {
-    let iota_client = IotaClientBuilder::default()
-        .build(config.rpc_url.as_str())
-        .await?;
-    let read_api = iota_client.read_api();
-    let object_json = read_api
-        .get_object_with_options(object_id, IotaObjectDataOptions::bcs_lossless())
-        .await
-        .context("Cannot get object")?;
-    let object = object_json
-        .into_object()
-        .context("Cannot make into object data")?;
-    let object: Object = object.try_into().context("Cannot reconstruct object")?;
-
-    // Lookup the transaction id and get the checkpoint sequence number
-    let options = IotaTransactionBlockResponseOptions::new();
-    let seq = read_api
-        .get_transaction_with_options(object.previous_transaction, options)
-        .await
-        .context("Cannot get transaction")?
-        .checkpoint
-        .ok_or_else(|| anyhow!("Transaction not found"))?;
-
-    // Need to authenticate this object
-    let (effects, _) = get_verified_effects_and_events(config, object.previous_transaction)
-        .await
-        .context("Cannot get effects and events")?;
-
-    // check that this object ID, version and hash is in the effects
-    let target_object_ref = object.object_ref();
-    effects
-        .all_changed_objects()
-        .iter()
-        .find(|(changed, _)| changed.reference() == &target_object_ref)
-        .ok_or_else(|| anyhow!("Object not found"))?;
-
-    // Create object store
-    let object_store = CheckpointStore::new(config)?;
-
-    // Download the full checkpoint for this sequence number
-    let full_check_point = object_store
-        .fetch_full_checkpoint(seq)
-        .await
-        .context("Cannot get full checkpoint")?;
-
-    let committee =
-        verified_committee_for_epoch(config, full_check_point.checkpoint_summary.epoch())?;
-
-    // Verify that committee signed this checkpoint and checkpoint contents with
-    // digest
-    full_check_point
-        .checkpoint_summary
-        .verify_with_contents(&committee, Some(&full_check_point.checkpoint_contents))?;
-
-    anyhow::ensure!(
-        full_check_point
-            .transactions
-            .iter()
-            .any(|t| *t.transaction.digest() == object.previous_transaction),
-        "Transaction not found in checkpoint"
-    );
-    Ok(seq)
+    let (effects, events) =
+        extract_verified_effects_and_events(&checkpoint, &committee, transaction_digest)
+            .context("Cannot extract effects and events")?;
+    Ok((
+        effects,
+        events,
+        checkpoint.checkpoint_summary.sequence_number(),
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use std::{fs, io::Read, path::PathBuf, str::FromStr};
 
-    use iota_sdk_types::{Address, Event, Identifier, StructTag};
+    use iota_sdk_types::{Address, Event, Identifier, Owner, StructTag};
     use iota_types::messages_checkpoint::{CertifiedCheckpointSummary, FullCheckpointContents};
 
     use super::*;
@@ -291,6 +270,22 @@ mod tests {
         let mut buffer = vec![0; metadata.len() as usize];
         reader.read_exact(&mut buffer)?;
         bcs::from_bytes(&buffer).context("failed to deserialize full checkpoint from bcs bytes")
+    }
+
+    #[test]
+    fn served_object_must_be_the_requested_one() {
+        let id = ObjectId::random();
+        let object = Object::with_id_owner_version_for_testing(
+            id,
+            Version::from_u64(5),
+            Owner::Address(Address::random()),
+        );
+
+        assert!(ensure_requested_object(&object, id, None).is_ok());
+        assert!(ensure_requested_object(&object, id, Some(Version::from_u64(5))).is_ok());
+        assert!(ensure_requested_object(&object, id, Some(Version::from_u64(4))).is_err());
+        assert!(ensure_requested_object(&object, id, Some(Version::from_u64(6))).is_err());
+        assert!(ensure_requested_object(&object, ObjectId::random(), None).is_err());
     }
 
     #[tokio::test]
