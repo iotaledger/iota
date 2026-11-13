@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, path::PathBuf, sync::Arc};
+use std::{collections::BTreeSet, num::NonZeroUsize, path::PathBuf, sync::Arc};
 
 use fastcrypto::traits::KeyPair;
 use iota_config::{
@@ -72,11 +72,26 @@ pub struct TestAuthorityBuilder<'a> {
     num_epochs_to_retain: Option<u64>,
     num_epochs_to_retain_for_checkpoints: Option<u64>,
     num_epochs_to_retain_for_indexes: Option<u64>,
+    post_consensus_validation_readers: Option<NonZeroUsize>,
 }
+
+/// The readers a test authority validates a commit with unless a test sets
+/// another number: more than one, whatever the machine, so that tests take
+/// the path that reads inputs ahead of the validation loop.
+const TEST_POST_CONSENSUS_VALIDATION_READERS: NonZeroUsize = NonZeroUsize::new(4).unwrap();
 
 impl<'a> TestAuthorityBuilder<'a> {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_post_consensus_validation_readers(mut self, readers: NonZeroUsize) -> Self {
+        assert!(
+            self.post_consensus_validation_readers
+                .replace(readers)
+                .is_none()
+        );
+        self
     }
 
     pub fn with_store_base_path(mut self, path: PathBuf) -> Self {
@@ -399,6 +414,10 @@ impl<'a> TestAuthorityBuilder<'a> {
         config.verifier_signing_config = verifier_signing_config;
         config.authority_overload_config = authority_overload_config;
         config.authority_store_pruning_config = pruning_config;
+        config.post_consensus_validation_readers = Some(
+            self.post_consensus_validation_readers
+                .unwrap_or(TEST_POST_CONSENSUS_VALIDATION_READERS),
+        );
 
         let chain_identifier = ChainIdentifier::from(*genesis.checkpoint().digest());
         let policy_config = config.policy_config.clone();

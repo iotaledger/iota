@@ -240,6 +240,7 @@ impl ValidatorConfigBuilder {
             enable_validator_tx_finalizer: true,
             enable_soft_locking: true,
             verifier_signing_config: VerifierSigningConfig::default(),
+            post_consensus_validation_readers: None,
             enable_db_write_stall: None,
             iota_names_config: None,
             enable_grpc_api: false,
@@ -669,6 +670,7 @@ impl FullnodeConfigBuilder {
             // submit path); kept at the default so the config mirrors production.
             enable_soft_locking: true,
             verifier_signing_config: VerifierSigningConfig::default(),
+            post_consensus_validation_readers: None,
             enable_db_write_stall: None,
             iota_names_config: self.iota_names_config,
             enable_grpc_api: self.enable_grpc_api,
