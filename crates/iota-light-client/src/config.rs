@@ -7,11 +7,13 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Result, anyhow, bail};
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+use iota_sdk_types::CheckpointDigest;
+use iota_types::digests::{get_mainnet_chain_identifier, get_testnet_chain_identifier};
 use serde::{Deserialize, Serialize};
 use tokio::fs::{create_dir_all, read_to_string};
 use url::Url;
 
-use crate::checkpoint::{CheckpointList, write_checkpoint_list};
+use crate::checkpoint::{CheckpointList, write_checkpoint_list, write_file_atomically};
 
 const GENESIS_FILE_NAME: &str = "genesis.blob";
 const CHECKPOINTS_FILE_NAME: &str = "checkpoints.yaml";
@@ -27,6 +29,9 @@ pub struct Config {
     pub checkpoints_dir: PathBuf,
     /// The URL to download the genesis.blob file from.
     pub genesis_blob_download_url: Option<Url>,
+    /// The digest of the genesis checkpoint. A genesis blob that does not match
+    /// it is rejected.
+    pub genesis_checkpoint_digest: CheckpointDigest,
     /// Flag to enable automatic syncing before running one of the check
     /// commands.
     pub sync_before_check: bool,
@@ -54,19 +59,24 @@ impl Config {
         // Download or copy the genesis blob if it doesn't exist yet
         if !self.genesis_blob_file_path().is_file() {
             if let Some(url) = &self.genesis_blob_download_url {
-                match url.scheme() {
+                let contents = match url.scheme() {
                     "file" => {
                         let path = url
                             .to_file_path()
                             .map_err(|_| anyhow!("invalid file path '{url}'"))?;
-                        tokio::fs::copy(path, self.genesis_blob_file_path()).await?;
+                        tokio::fs::read(path).await?
                     }
                     _ => {
                         let _ = rustls::crypto::ring::default_provider().install_default();
-                        let contents = reqwest::get(url.as_str()).await?.bytes().await?;
-                        tokio::fs::write(self.genesis_blob_file_path(), contents).await?;
+                        reqwest::get(url.as_str())
+                            .await?
+                            .error_for_status()?
+                            .bytes()
+                            .await?
+                            .to_vec()
                     }
-                }
+                };
+                write_file_atomically(&self.genesis_blob_file_path(), &contents)?;
             }
         }
         // Create an empty `checkpoints.yaml` if it doesn't exist yet
@@ -98,18 +108,17 @@ impl Config {
     }
 
     pub fn mainnet() -> Self {
-        Self::create_config_from_network_name("mainnet")
+        Self::create_config_from_network_name("mainnet", get_mainnet_chain_identifier().digest())
     }
 
     pub fn testnet() -> Self {
-        Self::create_config_from_network_name("testnet")
+        Self::create_config_from_network_name("testnet", get_testnet_chain_identifier().digest())
     }
 
-    pub fn devnet() -> Self {
-        Self::create_config_from_network_name("devnet")
-    }
-
-    fn create_config_from_network_name(network: &str) -> Self {
+    fn create_config_from_network_name(
+        network: &str,
+        genesis_checkpoint_digest: CheckpointDigest,
+    ) -> Self {
         Self {
             rpc_url: Url::parse(&format!("https://api.{network}.iota.cafe")).unwrap(),
             graphql_url: Some(Url::parse(&format!("https://graphql.{network}.iota.cafe")).unwrap()),
@@ -120,6 +129,7 @@ impl Config {
                 ))
                 .unwrap(),
             ),
+            genesis_checkpoint_digest,
             sync_before_check: false,
             checkpoint_store_config: Some(ObjectStoreConfig {
                 object_store: Some(ObjectStoreType::S3),
@@ -150,6 +160,7 @@ mod tests {
             graphql_url: Some("http://localhost:9003".parse().unwrap()),
             checkpoints_dir: temp_dir.path().to_path_buf(),
             genesis_blob_download_url: None,
+            genesis_checkpoint_digest: CheckpointDigest::default(),
             sync_before_check: false,
             checkpoint_store_config: Some(ObjectStoreConfig {
                 object_store: Some(ObjectStoreType::S3),
@@ -165,6 +176,69 @@ mod tests {
     fn test_config_validation() {
         let (config, _temp_dir) = create_test_config();
         assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn config_requires_the_genesis_checkpoint_digest() {
+        let without_digest = "rpc_url: http://localhost:9000\n\
+            graphql_url: http://localhost:9003\n\
+            checkpoints_dir: checkpoints\n\
+            genesis_blob_download_url: null\n\
+            sync_before_check: false\n\
+            checkpoint_store_config: null\n";
+        let with_digest = format!(
+            "{without_digest}genesis_checkpoint_digest: {}\n",
+            get_mainnet_chain_identifier().digest()
+        );
+
+        assert!(serde_yaml::from_str::<Config>(without_digest).is_err());
+        assert_eq!(
+            serde_yaml::from_str::<Config>(&with_digest)
+                .unwrap()
+                .genesis_checkpoint_digest,
+            get_mainnet_chain_identifier().digest()
+        );
+    }
+
+    #[tokio::test]
+    async fn setup_copies_the_genesis_blob_from_a_file_url() {
+        let source_dir = TempDir::new().unwrap();
+        let source = source_dir.path().join("source.blob");
+        std::fs::write(&source, b"genesis bytes").unwrap();
+        let (mut config, temp_dir) = create_test_config();
+        std::fs::remove_file(config.genesis_blob_file_path()).unwrap();
+        config.genesis_blob_download_url = Some(Url::from_file_path(&source).unwrap());
+
+        config.setup().await.unwrap();
+
+        assert_eq!(
+            std::fs::read(config.genesis_blob_file_path()).unwrap(),
+            b"genesis bytes"
+        );
+        assert_eq!(std::fs::read_dir(temp_dir.path()).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn built_in_and_shipped_configs_pin_the_genesis_of_their_network() {
+        for (file, built_in, digest) in [
+            (
+                "mainnet.yaml",
+                Config::mainnet(),
+                get_mainnet_chain_identifier().digest(),
+            ),
+            (
+                "testnet.yaml",
+                Config::testnet(),
+                get_testnet_chain_identifier().digest(),
+            ),
+        ] {
+            assert_eq!(built_in.genesis_checkpoint_digest, digest, "{file}");
+            let content =
+                std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(file)).unwrap();
+            let config: Config = serde_yaml::from_str(&content).unwrap();
+            config.validate().unwrap();
+            assert_eq!(config.genesis_checkpoint_digest, digest, "{file}");
+        }
     }
 
     #[test]
