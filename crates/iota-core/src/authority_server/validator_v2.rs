@@ -515,8 +515,8 @@ impl ValidatorService {
         // The attestation adds object references for the shared inputs and the
         // objects the dry run loaded, after the transaction passed its own size
         // check, so a valid transaction can become larger than consensus
-        // accepts. Consensus would refuse it on every attempt while the adapter
-        // retries it until the epoch ends, holding a submit permit, so it is
+        // accepts. The consensus adapter refuses such a transaction as well,
+        // but only after the soft locks below are taken, so it is
         // rejected here. The rejection weighs: the dry run has already run, and
         // with no soft lock taken, the in-flight check does not stop a resend.
         if let Err(error) =
