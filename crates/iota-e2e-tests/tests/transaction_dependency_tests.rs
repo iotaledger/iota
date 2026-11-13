@@ -278,6 +278,30 @@ async fn pipelined_dependent_of_a_failed_transaction_never_succeeds_pcool_flow()
     pipelined_dependent_of_a_failed_transaction_never_succeeds(true).await;
 }
 
+/// Waits until every node of `validators` has sequenced the user transaction
+/// `digest`, scheduled or deferred.
+#[cfg(msim)]
+async fn wait_until_sequenced(validators: &[iota_node::IotaNodeHandle], digest: TransactionDigest) {
+    use iota_core::consensus_handler::SequencedConsensusTransactionKey;
+    use iota_types::messages_consensus::ConsensusTransactionKey;
+
+    let key = SequencedConsensusTransactionKey::External(ConsensusTransactionKey::UserTransaction(
+        digest,
+    ));
+    for validator in validators {
+        let key = key.clone();
+        validator
+            .with_async(|node| async move {
+                node.state()
+                    .epoch_store_for_testing()
+                    .consensus_messages_processed_notify(vec![key])
+                    .await
+            })
+            .await
+            .unwrap();
+    }
+}
+
 /// A dependent sequenced while the transaction it depends on is still pending
 /// runs once that transaction has failed: it fails with
 /// `TransactionDependencyFailed` without running its commands, its gas coin
@@ -294,10 +318,8 @@ async fn dependent_sequenced_before_its_dependency_fails_is_cancelled_at_executi
         atomic::{AtomicBool, Ordering},
     };
 
-    use iota_core::consensus_handler::SequencedConsensusTransactionKey;
     use iota_macros::{clear_fail_point, register_fail_point_async};
     use iota_protocol_config::ProtocolConfig;
-    use iota_types::messages_consensus::ConsensusTransactionKey;
 
     // Commits keep being sequenced for this many commits while execution is
     // paused, since a commit is validated once every root of the commit this
@@ -355,26 +377,6 @@ async fn dependent_sequenced_before_its_dependency_fails_is_cancelled_at_executi
             }
         });
     }
-    let sequenced_everywhere = |digest| {
-        let key = SequencedConsensusTransactionKey::External(
-            ConsensusTransactionKey::UserTransaction(digest),
-        );
-        let validators = &validators;
-        async move {
-            for validator in validators {
-                let key = key.clone();
-                validator
-                    .with_async(|node| async move {
-                        node.state()
-                            .epoch_store_for_testing()
-                            .consensus_messages_processed_notify(vec![key])
-                            .await
-                    })
-                    .await
-                    .unwrap();
-            }
-        }
-    };
 
     // The dependent is submitted once its dependency is sequenced, so
     // post-consensus validation keeps it, and execution resumes once it is
@@ -382,8 +384,11 @@ async fn dependent_sequenced_before_its_dependency_fails_is_cancelled_at_executi
     let (failing_outcome, dependent_outcome, sequenced) = futures::join!(
         submit(&cluster, failing),
         async {
-            match tokio::time::timeout(SUBMISSION_TIMEOUT, sequenced_everywhere(failing_digest))
-                .await
+            match tokio::time::timeout(
+                SUBMISSION_TIMEOUT,
+                wait_until_sequenced(&validators, failing_digest),
+            )
+            .await
             {
                 Ok(()) => submit(&cluster, dependent).await,
                 Err(_) => Outcome::TimedOut,
@@ -391,8 +396,8 @@ async fn dependent_sequenced_before_its_dependency_fails_is_cancelled_at_executi
         },
         async {
             let sequenced = tokio::time::timeout(SUBMISSION_TIMEOUT, async {
-                sequenced_everywhere(failing_digest).await;
-                sequenced_everywhere(dependent_digest).await;
+                wait_until_sequenced(&validators, failing_digest).await;
+                wait_until_sequenced(&validators, dependent_digest).await;
             })
             .await;
             paused.store(false, Ordering::SeqCst);
@@ -437,6 +442,181 @@ async fn dependent_sequenced_before_its_dependency_fails_is_cancelled_at_executi
         .notify_read_executed_effects_for_testing("", &[failing_digest, dependent_digest])
         .await;
     assert_eq!(replayed, [failing_effects, dependent_effects]);
+}
+
+/// A dependency deferred for congestion, with its dependent waiting for it,
+/// holds back the end of the epoch once the epoch closes, and does not strand:
+/// when the congestion clears, both execute successfully in the closing epoch,
+/// the epoch changes within a bounded time, and their gas coins are usable in
+/// the next epoch. The congestion is a debt on a shared object, left by a
+/// transaction that runs past the per-object budget, which delays the
+/// dependency for about `DEBT_ROUNDS` rounds.
+///
+/// Simulator only, because the protocol config overrides reach the validators
+/// only there.
+#[cfg(msim)]
+#[sim_test]
+async fn deferred_dependency_chain_finishes_before_the_epoch_changes() {
+    use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
+    use iota_test_transaction_builder::publish_basics_package_and_make_counter;
+
+    // The per-object budget of a commit, counted in gas budget. The overshoot
+    // lets one transaction run `DEBT_ROUNDS` budgets past it.
+    const BUDGET_PER_COMMIT: u64 = 10_000_000;
+    const DEBT_ROUNDS: u64 = 100;
+    // A transaction with this gas budget fits a commit only when the shared
+    // object carries no debt, and leaves `DEBT_ROUNDS` budgets of debt.
+    const LONG_GAS_BUDGET: u64 = BUDGET_PER_COMMIT * (DEBT_ROUNDS + 1);
+    const EPOCH_CHANGE_DEADLINE: Duration = Duration::from_secs(120);
+
+    let _congestion_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_per_object_congestion_control_mode_for_testing(
+            PerObjectCongestionControlMode::TotalGasBudget,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
+            BUDGET_PER_COMMIT,
+        );
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(
+            BUDGET_PER_COMMIT * DEBT_ROUNDS,
+        );
+        // The debt clears before the dependency would be cancelled.
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(10 * DEBT_ROUNDS);
+        config
+    });
+    let _pcool_guard = override_pcool_flow(true);
+    let cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(600_000)
+        .build()
+        .await;
+    let (package, counter) = publish_basics_package_and_make_counter(&cluster.wallet).await;
+    let sender = cluster.get_address_0();
+    let rgp = cluster.get_reference_gas_price().await;
+    let increment = || async {
+        let gas = cluster
+            .fund_address_and_return_gas(rgp, Some(GAS_COIN_AMOUNT), sender)
+            .await;
+        cluster.sign_transaction(
+            &TestTransactionBuilder::new(sender, gas, rgp)
+                .call_counter_increment(package.object_id, counter.object_id, counter.version)
+                .with_gas_budget(LONG_GAS_BUDGET)
+                .build(),
+        )
+    };
+
+    assert_executed_successfully(&submit(&cluster, increment().await).await);
+    let dependency = increment().await;
+    let dependency_digest = *dependency.digest();
+    let dependent = signed(&cluster, 1_000, Some(dependency_digest)).await;
+    let dependent_digest = *dependent.digest();
+    let epoch = current_epoch(&cluster);
+    let validators = cluster.swarm.validator_node_handles();
+
+    // The dependent is submitted once its dependency is sequenced, so
+    // post-consensus validation keeps it. The epoch closes once both are
+    // sequenced, while the dependency is still deferred.
+    let (_, _, epoch_changed) = futures::join!(
+        submit(&cluster, dependency),
+        async {
+            match tokio::time::timeout(
+                SUBMISSION_TIMEOUT,
+                wait_until_sequenced(&validators, dependency_digest),
+            )
+            .await
+            {
+                Ok(()) => submit(&cluster, dependent).await,
+                Err(_) => Outcome::TimedOut,
+            }
+        },
+        async {
+            tokio::time::timeout(SUBMISSION_TIMEOUT, async {
+                wait_until_sequenced(&validators, dependency_digest).await;
+                wait_until_sequenced(&validators, dependent_digest).await;
+            })
+            .await
+            .expect("both transactions must be sequenced");
+            for validator in &validators {
+                validator.with(|node| {
+                    assert!(
+                        node.state()
+                            .metrics
+                            .consensus_handler_dependency_deferred_transactions
+                            .get()
+                            > 0,
+                        "the dependent must wait for its dependency"
+                    );
+                });
+                validator
+                    .with_async(|node| async move { node.close_epoch_for_testing().await })
+                    .await
+                    .unwrap();
+            }
+
+            // Every validator has seen 2f+1 end-of-publish messages, so only
+            // the deferred transactions keep the epoch from ending.
+            let past_end_of_publish = |validator: &iota_node::IotaNodeHandle| {
+                validator.with(|node| {
+                    !node
+                        .state()
+                        .epoch_store_for_testing()
+                        .get_reconfig_state_read_lock_guard()
+                        .should_accept_consensus_certs()
+                })
+            };
+            tokio::time::timeout(SUBMISSION_TIMEOUT, async {
+                while !validators.iter().all(past_end_of_publish) {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+            })
+            .await
+            .expect("the validators must receive 2f+1 end-of-publish messages");
+            for validator in &validators {
+                validator.with(|node| {
+                    let state = node.state();
+                    assert!(
+                        state
+                            .epoch_store_for_testing()
+                            .get_reconfig_state_read_lock_guard()
+                            .is_reject_all_certs()
+                            && !state.is_tx_already_executed(&dependency_digest),
+                        "the epoch must wait for the deferred dependency"
+                    );
+                });
+            }
+
+            tokio::time::timeout(EPOCH_CHANGE_DEADLINE, async {
+                cluster.wait_for_epoch(Some(epoch + 1)).await;
+                cluster.wait_for_epoch_all_nodes(epoch + 1).await;
+            })
+            .await
+        },
+    );
+    epoch_changed.expect("the epoch must change once the dependency chain finishes");
+
+    let digests = [dependency_digest, dependent_digest];
+    let effects = cluster
+        .fullnode_handle
+        .iota_node
+        .with_async(|node| async move {
+            node.state()
+                .get_transaction_cache_reader()
+                .notify_read_executed_effects_for_testing("", &digests)
+                .await
+        })
+        .await;
+    for effects in &effects {
+        assert!(effects.status().is_success(), "{effects:?}");
+        assert_eq!(effects.epoch(), epoch, "{effects:?}");
+    }
+    assert!(effects[1].dependencies().contains(&dependency_digest));
+
+    // Both gas coins pay for a transfer in the next epoch.
+    let rgp = cluster.get_reference_gas_price().await;
+    for effects in &effects {
+        let next = TestTransactionBuilder::new(sender, *effects.gas_object().reference(), rgp)
+            .programmable(transfer(1_000))
+            .build();
+        assert_executed_successfully(&submit(&cluster, cluster.sign_transaction(&next)).await);
+    }
 }
 
 async fn dependency_on_an_unknown_transaction_never_executes(pcool: bool) {
