@@ -41,7 +41,8 @@ impl PackageStore for RemotePackageStore {
 
             info!("Fetch Package: {id}");
 
-            let object = get_verified_object(&self.config, ObjectId::new(id.into_bytes())).await?;
+            let (object, _) =
+                get_verified_object(&self.config, ObjectId::new(id.into_bytes()), None).await?;
             let package = Arc::new(Package::read_from_object(&object)?);
 
             // Add to the cache

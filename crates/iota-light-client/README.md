@@ -8,7 +8,7 @@ Running a _full node_ requires downloading the full sequence of all transaction 
 
 Alternatively, a _light client_ only needs to download minimal information to authenticate blockchain state. Specifically in IOTA, the light client needs to _sync_ all end-of-epoch checkpoints that contain information about the committee in the next epoch. Sync involves downloading the checkpoints and checking their validity by checking their certificate.
 
-Once all end-of-epoch checkpoints are downloaded and checked, any event or current object can be checked for its validity. To do that the light client downloads the checkpoint in which the transaction was executed, and the effects structure that summarizes its effects on the system, including events emitted and objects created. The chain of validity from the checkpoint to the effects and its contents is checked via the certificate on the checkpoint and the hashes of all structures.
+Once all end-of-epoch checkpoints are downloaded and checked, any event or object version can be checked for its validity. To do that the light client downloads the checkpoint in which the transaction was executed, and the effects structure that summarizes its effects on the system, including events emitted and objects created. The chain of validity from the checkpoint to the effects and its contents is checked via the certificate on the checkpoint and the hashes of all structures. A light client cannot prove that an object version is the latest one, so a check names the checkpoint it verified the state in.
 
 ## Ensuring valid data display
 
@@ -75,7 +75,7 @@ To check whether a transaction was executed in the testnet and its effects and e
 $ iota-light-client --config testnet.yaml check-transaction <transaction-digest>
 ```
 
-where `transaction-digest` is a base58 encoded string. If the transaction has been executed in the past, its digest, the effects, and all events are displayed. Events are printed in JSON. Otherwise an error is shown.
+where `transaction-digest` is a base58 encoded string. If the transaction has been executed in the past, its digest, the effects, the checkpoint it was verified in, and all events are displayed. Events are printed in JSON. Otherwise an error is shown.
 
 If you set `sync_before_check: true` in the config, the light client will first sync itself to the latest network state before checking the transaction.
 
@@ -84,10 +84,10 @@ If you set `sync_before_check: true` in the config, the light client will first 
 To check whether an object exists in the testnet, run:
 
 ```
-$ iota-light-client --config testnet.yaml check-object <object-id>
+$ iota-light-client --config testnet.yaml check-object <object-id> [<version>]
 ```
 
-where `object-id` is a hex encoded string with a 0x prefix. If the object exists, it is printed in JSON. Otherwise an error is shown.
+where `object-id` is a hex encoded string with a 0x prefix. If the object exists, it is printed in JSON together with the checkpoint it was verified in. Otherwise an error is shown. Without a version argument the version the full node serves is checked, which may not be the latest; `check-object <object-id> <version>` checks that version and rejects any other.
 
 If you set `sync_before_check: true` in the config, the light client will first sync itself to the latest network state before checking the object.
 
