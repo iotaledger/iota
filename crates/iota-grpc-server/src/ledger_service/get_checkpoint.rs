@@ -72,6 +72,8 @@
 //!   - `events.bcs_contents` - the full BCS-encoded contents of the event
 //!   - `events.json_contents` - the JSON-encoded contents of the event
 
+use std::sync::Arc;
+
 use futures::Stream;
 use iota_grpc_types::{
     field::{FIELD_PATH_WILDCARD, FieldMaskTree, FieldMaskUtil},
@@ -88,8 +90,11 @@ use tracing::debug;
 
 use super::LedgerGrpcService;
 use crate::{
-    error::RpcError, event_filter::EventFilter, metrics::RequestMetrics,
-    transaction_filter::TransactionFilter, types::CheckpointStreamResult,
+    error::RpcError,
+    event_filter::EventFilter,
+    metrics::RequestMetrics,
+    transaction_filter::TransactionFilter,
+    types::{CheckpointMasksAndFilters, CheckpointStreamResult},
 };
 
 /// Converts the proto filters to internal filters. Returns `invalid_argument`
@@ -136,11 +141,14 @@ fn is_valid_checkpoint_data_path(path: &str) -> bool {
     }
 }
 
-/// Parse read_mask from request and extract component masks for checkpoint,
-/// transactions, and events.
-fn parse_checkpoint_read_mask(
+/// Parses the read mask and filters of a checkpoint request. Returns
+/// `invalid_argument` if either is malformed, or if a filter is set while
+/// its part of the read mask is not.
+fn parse_masks_and_filters(
     read_mask: Option<FieldMask>,
-) -> Result<(FieldMaskTree, Option<FieldMaskTree>, Option<FieldMaskTree>), RpcError> {
+    transactions_filter: Option<iota_grpc_types::v1::filter::TransactionFilter>,
+    events_filter: Option<iota_grpc_types::v1::filter::EventFilter>,
+) -> Result<CheckpointMasksAndFilters, RpcError> {
     let read_mask = read_mask.unwrap_or_else(|| FieldMask::from_str(GET_CHECKPOINT_READ_MASK));
     if let Some(path) = read_mask
         .paths
@@ -159,10 +167,32 @@ fn parse_checkpoint_read_mask(
     // Extract transactions mask if requested
     let transactions_mask = read_mask.subtree("transactions");
 
-    // Extract events mask if requested
-    let events_mask = read_mask.subtree("events");
+    // Extract the mask applied to each event if events are requested
+    let events_mask = read_mask.subtree("events").map(|mask| {
+        mask.subtree("events")
+            .unwrap_or_else(FieldMaskTree::new_wildcard)
+    });
 
-    Ok((checkpoint_mask, transactions_mask, events_mask))
+    // Convert proto filters to internal filters
+    let (transaction_filter, event_filter) = convert_filters(transactions_filter, events_filter)?;
+
+    if transaction_filter.is_some() && transactions_mask.is_none() {
+        return Err(Status::invalid_argument(
+            "transactions_filter requires transactions in read_mask",
+        )
+        .into());
+    }
+    if event_filter.is_some() && events_mask.is_none() {
+        return Err(Status::invalid_argument("events_filter requires events in read_mask").into());
+    }
+
+    Ok(CheckpointMasksAndFilters {
+        checkpoint_mask,
+        transactions_mask,
+        events_mask,
+        transaction_filter,
+        event_filter,
+    })
 }
 
 /// Get checkpoint data based on the provided checkpoint ID (sequence number,
@@ -242,38 +272,20 @@ pub(crate) fn get_checkpoint(
         .max_message_size_client_bytes(client_max_message_size_bytes);
 
     // Parse the read_mask to determine what data to include
-    let (checkpoint_mask, transactions_mask, events_mask) =
-        parse_checkpoint_read_mask(req.read_mask)?;
+    let masks_and_filters =
+        parse_masks_and_filters(req.read_mask, req.transactions_filter, req.events_filter)?;
 
     debug!(
         "Parsed read_mask: checkpoint_mask={}, transactions={}, events={}",
-        checkpoint_mask,
-        transactions_mask.is_some(),
-        events_mask.is_some()
+        masks_and_filters.checkpoint_mask,
+        masks_and_filters.transactions_mask.is_some(),
+        masks_and_filters.events_mask.is_some()
     );
-
-    // Convert proto filters to internal filters and validate complexity
-    let (transaction_filter, event_filter) =
-        convert_filters(req.transactions_filter, req.events_filter)?;
-
-    if transaction_filter.is_some() && transactions_mask.is_none() {
-        return Err(Status::invalid_argument(
-            "transactions_filter requires transactions in read_mask",
-        )
-        .into());
-    }
-    if event_filter.is_some() && events_mask.is_none() {
-        return Err(Status::invalid_argument("events_filter requires events in read_mask").into());
-    }
 
     Ok(service.reader.get_checkpoint_data(
         sequence_number,
-        checkpoint_mask,
-        transactions_mask,
-        events_mask,
+        Arc::new(masks_and_filters),
         max_message_size_bytes,
-        transaction_filter,
-        event_filter,
         metrics,
     ))
 }
@@ -326,14 +338,14 @@ pub(crate) fn stream_checkpoints(
         .max_message_size_client_bytes(client_max_message_size_bytes);
 
     // Parse the read_mask to determine what data to include
-    let (checkpoint_mask, transactions_mask, events_mask) =
-        parse_checkpoint_read_mask(req.read_mask)?;
+    let masks_and_filters =
+        parse_masks_and_filters(req.read_mask, req.transactions_filter, req.events_filter)?;
 
     debug!(
         "Parsed read_mask: checkpoint_mask={}, transactions={}, events={}",
-        checkpoint_mask,
-        transactions_mask.is_some(),
-        events_mask.is_some()
+        masks_and_filters.checkpoint_mask,
+        masks_and_filters.transactions_mask.is_some(),
+        masks_and_filters.events_mask.is_some()
     );
 
     // Check if the requested checkpoint has been pruned
@@ -352,26 +364,15 @@ pub(crate) fn stream_checkpoints(
         }
     }
 
-    // Convert proto filters to internal filters and validate complexity
-    let (transaction_filter, event_filter) =
-        convert_filters(req.transactions_filter, req.events_filter)?;
-
     // Validate filter_checkpoints constraints
-    if filter_checkpoints && transaction_filter.is_none() && event_filter.is_none() {
+    if filter_checkpoints
+        && masks_and_filters.transaction_filter.is_none()
+        && masks_and_filters.event_filter.is_none()
+    {
         return Err(Status::invalid_argument(
             "filter_checkpoints requires at least one of transactions_filter or events_filter",
         )
         .into());
-    }
-
-    if transaction_filter.is_some() && transactions_mask.is_none() {
-        return Err(Status::invalid_argument(
-            "transactions_filter requires transactions in read_mask",
-        )
-        .into());
-    }
-    if event_filter.is_some() && events_mask.is_none() {
-        return Err(Status::invalid_argument("events_filter requires events in read_mask").into());
     }
 
     let subscription = service
@@ -382,13 +383,9 @@ pub(crate) fn stream_checkpoints(
         subscription,
         start_sequence_number,
         end_sequence_number,
-        checkpoint_mask,
-        transactions_mask,
-        events_mask,
+        Arc::new(masks_and_filters),
         max_message_size_bytes,
         service.cancellation_token.clone(),
-        transaction_filter,
-        event_filter,
         filter_checkpoints,
         progress_interval,
         metrics,
@@ -421,6 +418,27 @@ mod tests {
         let status = convert_filters(Some(filter), None).unwrap_err();
         assert_eq!(status.code(), tonic::Code::InvalidArgument);
         assert!(status.message().contains("levels"), "{}", status.message());
+    }
+
+    #[test]
+    fn invalid_move_call_names_are_invalid_arguments() {
+        let mut package_id = iota_grpc_types::v1::types::ObjectId::default();
+        package_id.object_id = vec![0; 32].into();
+        let mut move_call = proto_filter::MoveCallCommandFilter::default();
+        move_call.package_id = Some(package_id);
+        move_call.module = Some("my-module".to_string());
+        let mut command = proto_filter::CommandFilter::default();
+        command.filter = Some(proto_filter::command_filter::Filter::MoveCall(move_call));
+        let mut filter = proto_filter::TransactionFilter::default();
+        filter.filter = Some(proto_filter::transaction_filter::Filter::Command(command));
+
+        let status = convert_filters(Some(filter), None).unwrap_err();
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+        assert!(
+            status.message().contains("invalid module name"),
+            "{}",
+            status.message()
+        );
     }
 
     #[test]
