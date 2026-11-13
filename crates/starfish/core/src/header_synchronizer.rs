@@ -1289,7 +1289,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
 
                                         let verified_block_header = VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
                                         if verified_block_header.author() != context.own_index {
-                                            return Err(ConsensusError::UnexpectedLastOwnHeader { index: authority_index, block_ref: verified_block_header.reference()});
+                                            let e = ConsensusError::UnexpectedLastOwnHeader { index: authority_index, block_ref: verified_block_header.reference()};
+                                            misbehavior_store.record_faulty_block(authority_index, None, &e);
+                                            return Err(e);
                                         }
                                         result.push(verified_block_header);
                                     }

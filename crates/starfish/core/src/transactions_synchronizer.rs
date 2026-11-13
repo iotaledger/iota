@@ -1176,27 +1176,25 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             );
         }
 
-        let transactions: Vec<_> =
-            match verify_transactions_commitments(context, peer_index, serialized_transactions_map)
-            {
-                Ok(transactions) => transactions.into_values().collect(),
-                Err(err) => {
-                    // The serving peer relayed a payload whose bytes don't match a
-                    // committed payload; count it against that peer and charge it an
-                    // unprovable fault. The mismatch can't be proven against the
-                    // author, whose commitment the peer may have forged.
-                    metrics
-                        .invalid_transactions
-                        .with_label_values(&[
-                            peer_hostname.as_str(),
-                            "transaction_synchronizer",
-                            err.name(),
-                        ])
-                        .inc();
-                    misbehavior_store.record_faulty_transactions(None, [peer_index]);
-                    return Err(err);
-                }
-            };
+        let transactions: Vec<_> = match verify_transactions_commitments(
+            context,
+            misbehavior_store,
+            peer_index,
+            serialized_transactions_map,
+        ) {
+            Ok(transactions) => transactions.into_values().collect(),
+            Err(err) => {
+                metrics
+                    .invalid_transactions
+                    .with_label_values(&[
+                        peer_hostname.as_str(),
+                        "transaction_synchronizer",
+                        err.name(),
+                    ])
+                    .inc();
+                return Err(err);
+            }
+        };
 
         // The commitment check above only proves the fetched bytes match what
         // the author committed to; it does not enforce the per-transaction

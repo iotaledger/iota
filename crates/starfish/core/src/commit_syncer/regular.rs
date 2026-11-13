@@ -722,24 +722,17 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         // 13. Verify the transactions against their commitments
         let mut transactions_map = if !fetched_transactions.is_empty() {
             spawn_blocking({
-                let context = inner.context.clone();
-
+                let inner = inner.clone();
                 move || {
                     verify_transactions_commitments(
-                        &context,
+                        &inner.context,
+                        &inner.misbehavior_store,
                         target_authority,
                         fetched_transactions,
                     )
                 }
             })
-            .await?
-            .inspect_err(|_| {
-                // Not provable against the author, whose commitment the
-                // peer may have forged.
-                inner
-                    .misbehavior_store
-                    .record_faulty_transactions(None, [target_authority]);
-            })?
+            .await??
         } else {
             BTreeMap::new()
         };

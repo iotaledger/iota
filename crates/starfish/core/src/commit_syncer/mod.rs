@@ -55,7 +55,7 @@ use tracing::{info, warn};
 use crate::{
     BlockRef, CommitConsumerMonitor, CommitIndex, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, CommitmentVerifiedTransactions, GENESIS_ROUND, SignedBlockHeader,
+        BlockHeaderAPI, CommitmentVerifiedTransactions, GENESIS_ROUND, SignedBlockHeader, Slot,
         TransactionsCommitment,
     },
     block_verifier::{BlockVerifier, serialized_transactions_size_limit},
@@ -442,34 +442,44 @@ pub(crate) fn verify_commits(
 }
 
 /// Verifies each payload against the transactions commitment in its ref and
-/// returns the payloads keyed by transaction reference.
+/// returns the payloads keyed by transaction reference. Each ref must come
+/// from a verified header or a certified commit, so its commitment is signed
+/// by its author.
+///
+/// Records each rejection through the fault classifier; a payload that
+/// matches its commitment but fails to parse is also charged to its author.
 pub(crate) fn verify_transactions_commitments(
     context: &Arc<Context>,
+    misbehavior_store: &MisbehaviorStore,
     peer: AuthorityIndex,
     serialized_transactions: BTreeMap<TransactionRef, Bytes>,
 ) -> ConsensusResult<BTreeMap<TransactionRef, CommitmentVerifiedTransactions>> {
+    let reject = |e: ConsensusError| {
+        misbehavior_store.record_fetch_fault(peer, &e);
+        e
+    };
     let mut verified_transactions_map = BTreeMap::new();
     let mut encoder = create_encoder(context);
     let size_limit = serialized_transactions_size_limit(context);
     for (transaction_ref, inner_serialized_transactions) in serialized_transactions {
-        // Range-check the peer-supplied author and round before any consumer
-        // indexes the committee by author.
+        // Range-check the author and round before any consumer indexes the
+        // committee by author.
         if !context.committee.is_valid_index(transaction_ref.author) {
-            return Err(ConsensusError::InvalidAuthorityIndexRequested {
+            return Err(reject(ConsensusError::InvalidAuthorityIndexRequested {
                 index: transaction_ref.author,
                 max: context.committee.size(),
                 peer,
-            });
+            }));
         }
         if transaction_ref.round == GENESIS_ROUND {
-            return Err(ConsensusError::UnexpectedGenesisRequested { peer });
+            return Err(reject(ConsensusError::UnexpectedGenesisRequested { peer }));
         }
         // Bound the peer-supplied payload before erasure-encoding it.
         if inner_serialized_transactions.len() > size_limit {
-            return Err(ConsensusError::SerializedTransactionsTooLarge {
+            return Err(reject(ConsensusError::SerializedTransactionsTooLarge {
                 size: inner_serialized_transactions.len(),
                 limit: size_limit,
-            });
+            }));
         }
         // Step 1: Verify that the transaction commitment matches.
         if transaction_ref.transactions_commitment
@@ -479,16 +489,22 @@ pub(crate) fn verify_transactions_commitments(
                 &mut encoder,
             )?
         {
-            return Err(ConsensusError::TransactionCommitmentFailure {
+            return Err(reject(ConsensusError::TransactionCommitmentFailure {
                 round: transaction_ref.round,
                 author: transaction_ref.author,
                 peer,
-            });
+            }));
         }
 
         // Step 2: Deserialize the actual transactions vector.
         let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
-            .map_err(ConsensusError::MalformedTransactions)?;
+            .map_err(ConsensusError::MalformedTransactions)
+            .inspect_err(|_| {
+                misbehavior_store.record_faulty_transactions(
+                    Some(Slot::new(transaction_ref.round, transaction_ref.author)),
+                    [peer],
+                );
+            })?;
 
         // Step 3: Create a CommitmentVerifiedTransactions instance and insert into map
         let verified_transactions = CommitmentVerifiedTransactions::new(
@@ -1265,7 +1281,12 @@ pub(crate) mod tests {
         let serialized_transactions =
             BTreeMap::from([(transaction_ref, Bytes::from(vec![0u8; size_limit + 1]))]);
 
-        let result = verify_transactions_commitments(&context, peer, serialized_transactions);
+        let result = verify_transactions_commitments(
+            &context,
+            &MisbehaviorStore::new(&context),
+            peer,
+            serialized_transactions,
+        );
         assert!(matches!(
             result,
             Err(ConsensusError::SerializedTransactionsTooLarge { size, limit })
@@ -1297,7 +1318,12 @@ pub(crate) mod tests {
         let serialized_transactions =
             BTreeMap::from([(transaction_ref, inner_serialized_transactions)]);
 
-        let result = verify_transactions_commitments(&context, peer, serialized_transactions);
+        let result = verify_transactions_commitments(
+            &context,
+            &MisbehaviorStore::new(&context),
+            peer,
+            serialized_transactions,
+        );
         assert!(matches!(
             result,
             Err(ConsensusError::InvalidAuthorityIndexRequested {
@@ -1331,12 +1357,53 @@ pub(crate) mod tests {
         let serialized_transactions =
             BTreeMap::from([(transaction_ref, inner_serialized_transactions)]);
 
-        let result = verify_transactions_commitments(&context, peer, serialized_transactions);
+        let result = verify_transactions_commitments(
+            &context,
+            &MisbehaviorStore::new(&context),
+            peer,
+            serialized_transactions,
+        );
         assert!(matches!(
             result,
             Err(ConsensusError::UnexpectedGenesisRequested { peer: error_peer })
                 if error_peer == peer
         ));
+    }
+
+    #[tokio::test]
+    async fn verify_transactions_commitments_charges_author_for_unparsable_payload() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let misbehavior_store = MisbehaviorStore::new(&context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let author = AuthorityIndex::new_for_test(0);
+        // A length prefix with no transaction after it.
+        let inner_serialized_transactions = Bytes::from(vec![1u8]);
+        let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
+            &inner_serialized_transactions,
+            &context,
+            &mut create_encoder(&context),
+        )
+        .unwrap();
+        let transaction_ref = TransactionRef {
+            round: 1,
+            author,
+            transactions_commitment,
+        };
+
+        let result = verify_transactions_commitments(
+            &context,
+            &misbehavior_store,
+            peer,
+            BTreeMap::from([(transaction_ref, inner_serialized_transactions)]),
+        );
+        assert!(matches!(
+            result,
+            Err(ConsensusError::MalformedTransactions(_))
+        ));
+        let counts = misbehavior_store.snapshot_totals();
+        assert_eq!(counts[author.value()].as_v2().faulty_blocks_provable, 1);
+        assert_eq!(counts[peer.value()].as_v2().faulty_blocks_unprovable, 1);
     }
 
     #[tokio::test]
