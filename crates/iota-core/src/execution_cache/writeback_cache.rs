@@ -1297,36 +1297,33 @@ impl WritebackCache {
     fn commit_transaction_outputs(
         &self,
         epoch: EpochId,
-        (all_outputs, db_batch): Batch,
+        batch: Batch,
         digests: &[TransactionDigest],
     ) -> IotaResult {
         let _metrics_guard =
             iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs");
+        let all_outputs = self.write_transaction_outputs_batch(batch, digests);
+        self.flush_committed_transaction_outputs(epoch, &all_outputs);
+        Ok(())
+    }
+
+    // Writes the batch to the db and returns the outputs to flush.
+    fn write_transaction_outputs_batch(
+        &self,
+        (all_outputs, db_batch): Batch,
+        digests: &[TransactionDigest],
+    ) -> Vec<Arc<TransactionOutputs>> {
         fail_point!("writeback-cache-commit");
         trace!(?digests);
 
-        // Flush writes to disk before removing anything from dirty set. otherwise,
-        // a cache eviction could cause a value to disappear briefly, even if we insert
-        // to the cache before removing from the dirty set.
         {
             let _metrics_guard =
                 iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs::write");
             db_batch.write().expect("db error");
         }
 
-        let _metrics_guard =
-            iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs::flush");
-        for outputs in all_outputs.iter() {
-            let tx_digest = outputs.transaction.digest();
-            assert!(
-                self.dirty
-                    .pending_transaction_writes
-                    .remove(tx_digest)
-                    .is_some()
-            );
-            self.flush_transactions_from_dirty_to_cached(epoch, *tx_digest, outputs);
-        }
-
+        // Counted here and not at the flush, so the pending count that load
+        // shedding reads does not depend on when the flush runs.
         let num_outputs = all_outputs.len() as u64;
         let num_commits = self
             .dirty
@@ -1342,7 +1339,30 @@ impl WritebackCache {
 
         self.set_backpressure(pending_count);
 
-        Ok(())
+        all_outputs
+    }
+
+    // Moves the outputs from the dirty set to the cache. Only after they are
+    // written to the db: otherwise a cache eviction could make a value
+    // disappear briefly, even if it is inserted into the cache before it is
+    // removed from the dirty set.
+    fn flush_committed_transaction_outputs(
+        &self,
+        epoch: EpochId,
+        all_outputs: &[Arc<TransactionOutputs>],
+    ) {
+        let _metrics_guard =
+            iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs::flush");
+        for outputs in all_outputs {
+            let tx_digest = outputs.transaction.digest();
+            assert!(
+                self.dirty
+                    .pending_transaction_writes
+                    .remove(tx_digest)
+                    .is_some()
+            );
+            self.flush_transactions_from_dirty_to_cached(epoch, *tx_digest, outputs);
+        }
     }
 
     fn approximate_pending_transaction_count(&self) -> u64 {
@@ -1661,6 +1681,22 @@ impl ExecutionCacheCommit for WritebackCache {
         digests: &[TransactionDigest],
     ) -> IotaResult {
         WritebackCache::commit_transaction_outputs(self, epoch, batch, digests)
+    }
+
+    fn write_transaction_outputs_batch(
+        &self,
+        batch: Batch,
+        digests: &[TransactionDigest],
+    ) -> Vec<Arc<TransactionOutputs>> {
+        WritebackCache::write_transaction_outputs_batch(self, batch, digests)
+    }
+
+    fn flush_committed_transaction_outputs(
+        &self,
+        epoch: EpochId,
+        outputs: &[Arc<TransactionOutputs>],
+    ) {
+        WritebackCache::flush_committed_transaction_outputs(self, epoch, outputs)
     }
 
     fn try_persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult {
