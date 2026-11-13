@@ -310,7 +310,6 @@ num_cpus = "1.15.0"
 num_enum = "0.7"
 object_store = { version = "0.13", features = ["aws", "gcp", "azure", "http"] }
 once_cell = "1.18.0"
-ouroboros = "0.18.4"
 p256 = { version = "0.13.2", features = ["ecdsa"] }
 packable = { version = "0.8.3", features = ["io"], default-features = false }
 parking_lot = { version = "0.12.3", features = ["arc_lock"] }
