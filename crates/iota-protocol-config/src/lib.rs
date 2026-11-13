@@ -2414,6 +2414,7 @@ impl ProtocolConfig {
         self.feature_flags.enable_validator_attestation
     }
 
+    /// Its prerequisites are checked once, in [`Self::get_for_version`].
     pub fn enable_transaction_dependencies(&self) -> bool {
         self.feature_flags.enable_transaction_dependencies
     }
@@ -2574,6 +2575,16 @@ impl ProtocolConfig {
                 ret.pass_validator_scores_to_advance_epoch(),
                 "attestation_max_refuted_units_squared requires \
                  pass_validator_scores_to_advance_epoch"
+            );
+        }
+        // A transaction without shared inputs that waits too long for its
+        // dependency is cancelled through its gas object, which carries the
+        // suggested gas price.
+        if ret.enable_transaction_dependencies() {
+            assert!(
+                ret.congestion_control_gas_price_feedback_mechanism(),
+                "enable_transaction_dependencies requires \
+                 congestion_control_gas_price_feedback_mechanism to be set"
             );
         }
 

@@ -83,8 +83,11 @@ impl DeferralKey {
 pub enum DeferralReason {
     RandomnessNotReady,
 
-    // The list of objects are congested objects.
-    SharedObjectCongestion(Vec<ObjectId>),
+    // The list of objects are congested objects. It is empty when no single
+    // object is the cause: when the execution-worker pool is congested, or
+    // when the transaction waits for the transaction named by its transaction
+    // dependency input.
+    Congestion(Vec<ObjectId>),
 }
 
 pub fn transaction_deferral_within_limit(
