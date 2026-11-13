@@ -14,10 +14,9 @@ use iota_json_rpc_types::{
     IotaSystemStateSummaryV1 as IotaSystemStateSummaryV1Schema, StakeStatus, ValidatorApys,
 };
 use iota_open_rpc::Module;
-use iota_sdk_move_types::iota_framework::object::ID;
+use iota_sdk_move_types::{MoveType, iota_framework::object::ID};
 use iota_sdk_types::{Address, ObjectId, StructTag};
 use iota_types::{
-    MoveTypeTagTrait,
     committee::EpochId,
     dynamic_field::DynamicFieldInfo,
     governance::StakedIota,
@@ -547,7 +546,7 @@ impl GovernanceReadApi {
     ) -> Result<Vec<ValidatorTable>, IndexerError>
     where
         F: Fn(DynamicFieldInfo) -> Result<K, IndexerError>,
-        K: MoveTypeTagTrait + Serialize + DeserializeOwned + Debug + Send + 'static,
+        K: MoveType + Serialize + DeserializeOwned + Debug + Send + 'static,
     {
         let dynamic_fields = self
             .inner
