@@ -6,11 +6,13 @@ use std::{collections::HashSet, path::PathBuf};
 
 use anyhow::{Context, Result, bail, ensure};
 use clap::{Parser, Subcommand};
-use iota_config::genesis::Genesis;
 use iota_json_rpc_types::CheckpointId;
 use iota_light_client::{
     Proof, ProofTargets,
-    checkpoint::{read_checkpoint_list, read_checkpoint_summary, sync_and_verify_checkpoints},
+    checkpoint::{
+        read_checkpoint_list, read_checkpoint_summary, sync_and_verify_checkpoints,
+        verified_committee_for_epoch,
+    },
     config::Config,
     construct_proof,
     object_store::CheckpointStore,
@@ -289,7 +291,12 @@ pub async fn main() -> Result<()> {
                     );
                 }
                 let summary = read_checkpoint_summary(&config, end_of_epoch_seq)?.into_data();
-                let authorities = summary.end_of_epoch_data.unwrap().next_epoch_committee;
+                let authorities = summary
+                    .end_of_epoch_data
+                    .with_context(|| {
+                        format!("Checkpoint {end_of_epoch_seq} is not an end-of-epoch checkpoint")
+                    })?
+                    .next_epoch_committee;
                 committee.replace(Committee::from_committee_members(epoch + 1, &authorities));
             }
 
@@ -329,20 +336,7 @@ pub async fn main() -> Result<()> {
             let proof: Proof = serde_json::from_reader(file)?;
             let epoch = proof.checkpoint_summary.epoch;
 
-            let committee = if epoch == 0 {
-                Genesis::load(config.genesis_blob_file_path())?.committee()?
-            } else {
-                let checkpoint_list = read_checkpoint_list(&config)
-                    .context("Checkpoint list not found. Please run the `sync` command first")?;
-                let Some(end_of_epoch_seq) =
-                    checkpoint_list.get_sequence_number_by_epoch(epoch - 1)
-                else {
-                    bail!("Checkpoint list not synced. Please run the `sync` command first");
-                };
-                let summary = read_checkpoint_summary(&config, end_of_epoch_seq)?.into_data();
-                let authorities = summary.end_of_epoch_data.unwrap().next_epoch_committee;
-                Committee::from_committee_members(epoch, &authorities)
-            };
+            let committee = verified_committee_for_epoch(&config, epoch)?;
 
             proof::verify_proof(&committee, &proof)?;
 

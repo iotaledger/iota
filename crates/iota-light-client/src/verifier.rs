@@ -5,7 +5,6 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow, bail};
-use iota_config::genesis::Genesis;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_sdk::IotaClientBuilder;
 use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffects, TransactionEvents};
@@ -19,9 +18,7 @@ use iota_types::{
 use tracing::info;
 
 use crate::{
-    checkpoint::{CheckpointList, read_checkpoint_list, read_checkpoint_summary},
-    config::Config,
-    object_store::CheckpointStore,
+    checkpoint::verified_committee_for_epoch, config::Config, object_store::CheckpointStore,
 };
 
 pub fn extract_verified_effects_and_events(
@@ -71,16 +68,16 @@ pub async fn get_verified_object(config: &Config, object_id: ObjectId) -> Result
     let object_json = read_api
         .get_object_with_options(object_id, IotaObjectDataOptions::bcs_lossless())
         .await
-        .expect("Cannot get object");
+        .context("Cannot get object")?;
     let object = object_json
         .into_object()
-        .expect("Cannot make into object data");
-    let object: Object = object.try_into().expect("Cannot reconstruct object");
+        .context("Cannot make into object data")?;
+    let object: Object = object.try_into().context("Cannot reconstruct object")?;
 
     // Need to authenticate this object
     let (effects, _) = get_verified_effects_and_events(config, object.previous_transaction)
         .await
-        .expect("Cannot get effects and events");
+        .context("Cannot get effects and events")?;
 
     // check that this object ID, version and hash is in the effects
     let target_object_ref = object.object_ref();
@@ -125,43 +122,7 @@ pub async fn get_verified_effects_and_events(
         bail!("No checkpoint store configured to fetch checkpoint data")
     };
 
-    // Load the list of stored checkpoints
-    let checkpoints_list: CheckpointList = read_checkpoint_list(config)?;
-
-    // find the stored checkpoint before the seq checkpoint
-    let prev_ckp_id = checkpoints_list
-        .checkpoints
-        .iter()
-        .rfind(|ckp_id| **ckp_id < seq);
-
-    let committee = if let Some(prev_ckp_id) = prev_ckp_id {
-        // Read it from the store
-        let prev_ckp = read_checkpoint_summary(config, *prev_ckp_id)?;
-
-        // Check we have the right checkpoint
-        anyhow::ensure!(
-            prev_ckp.epoch().checked_add(1).unwrap() == checkpoint.checkpoint_summary.epoch(),
-            "Checkpoint sequence number does not match. Need to Sync."
-        );
-
-        // Get the committee from the previous checkpoint
-        let next_epoch_committee = &prev_ckp
-            .end_of_epoch_data
-            .as_ref()
-            .ok_or_else(|| anyhow!("Expected all checkpoints to be end-of-epoch checkpoints"))?
-            .next_epoch_committee;
-
-        // Make a committee object using this
-        Committee::from_committee_members(
-            prev_ckp.epoch().checked_add(1).unwrap(),
-            next_epoch_committee,
-        )
-    } else {
-        // Since we did not find a small committee checkpoint we use the genesis
-        Genesis::load(config.genesis_blob_file_path())?
-            .committee()
-            .context("Cannot load Genesis")?
-    };
+    let committee = verified_committee_for_epoch(config, checkpoint.checkpoint_summary.epoch())?;
 
     info!("Extracting effects and events for transaction: {transaction_digest}");
 
@@ -186,11 +147,11 @@ pub async fn get_verified_checkpoint(
     let object_json = read_api
         .get_object_with_options(object_id, IotaObjectDataOptions::bcs_lossless())
         .await
-        .expect("Cannot get object");
+        .context("Cannot get object")?;
     let object = object_json
         .into_object()
-        .expect("Cannot make into object data");
-    let object: Object = object.try_into().expect("Cannot reconstruct object");
+        .context("Cannot make into object data")?;
+    let object: Object = object.try_into().context("Cannot reconstruct object")?;
 
     // Lookup the transaction id and get the checkpoint sequence number
     let options = IotaTransactionBlockResponseOptions::new();
@@ -204,7 +165,7 @@ pub async fn get_verified_checkpoint(
     // Need to authenticate this object
     let (effects, _) = get_verified_effects_and_events(config, object.previous_transaction)
         .await
-        .expect("Cannot get effects and events");
+        .context("Cannot get effects and events")?;
 
     // check that this object ID, version and hash is in the effects
     let target_object_ref = object.object_ref();
@@ -223,43 +184,8 @@ pub async fn get_verified_checkpoint(
         .await
         .context("Cannot get full checkpoint")?;
 
-    // Load the list of stored checkpoints
-    let checkpoints_list: CheckpointList = read_checkpoint_list(config)?;
-
-    // find the stored checkpoint before the seq checkpoint
-    let prev_ckp_id = checkpoints_list
-        .checkpoints
-        .iter()
-        .rfind(|ckp_id| **ckp_id < seq);
-
-    let committee = if let Some(prev_ckp_id) = prev_ckp_id {
-        // Read it from the store
-        let prev_ckp = read_checkpoint_summary(config, *prev_ckp_id)?;
-
-        // Check we have the right checkpoint
-        anyhow::ensure!(
-            prev_ckp.epoch().checked_add(1).unwrap() == full_check_point.checkpoint_summary.epoch(),
-            "Checkpoint sequence number does not match. Need to Sync."
-        );
-
-        // Get the committee from the previous checkpoint
-        let next_epoch_committee = &prev_ckp
-            .end_of_epoch_data
-            .as_ref()
-            .ok_or_else(|| anyhow!("Expected all checkpoints to be end-of-epoch checkpoints"))?
-            .next_epoch_committee;
-
-        // Make a committee object using this
-        Committee::from_committee_members(
-            prev_ckp.epoch().checked_add(1).unwrap(),
-            next_epoch_committee,
-        )
-    } else {
-        // Since we did not find a small committee checkpoint we use the genesis
-        Genesis::load(config.genesis_blob_file_path())?
-            .committee()
-            .context("Cannot load Genesis")?
-    };
+    let committee =
+        verified_committee_for_epoch(config, full_check_point.checkpoint_summary.epoch())?;
 
     // Verify that committee signed this checkpoint and checkpoint contents with
     // digest
@@ -285,6 +211,7 @@ mod tests {
     use iota_types::messages_checkpoint::{CertifiedCheckpointSummary, FullCheckpointContents};
 
     use super::*;
+    use crate::checkpoint::read_checkpoint_list;
 
     fn random_event() -> Event {
         Event {

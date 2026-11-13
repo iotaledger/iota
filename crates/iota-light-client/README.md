@@ -85,3 +85,5 @@ $ iota-light-client --config testnet.yaml check-object <object-id>
 where `object-id` is a hex encoded string with a 0x prefix. If the object exists, it is printed in JSON. Otherwise an error is shown.
 
 If you set `sync_before_check: true` in the config, the light client will first sync itself to the latest network state before checking the object.
+
+Committee authentication always verifies cached end-of-epoch summaries from the configured genesis before checking state or a proof. `sync_before_check: false` only skips the sync; the cached summaries are still authenticated. A missing, malformed, or unauthenticated committee chain makes the check fail.
