@@ -841,6 +841,7 @@ impl ConsensusAdapter {
         // (in practice all CertifiedTransaction or all UserTransactionV1).
         // Single-tx submits can be any kind.
         let is_soft_bundle = transactions.len() > 1;
+        let high_priority = !is_soft_bundle && is_high_priority(&transactions[0]);
 
         let mut transaction_keys = Vec::new();
 
@@ -931,12 +932,17 @@ impl ConsensusAdapter {
             guard.positions_moved = Some(positions_moved);
             guard.preceding_disconnected = Some(preceding_disconnected);
 
-            let _permit: SemaphorePermit = self
-                .submit_semaphore
-                .acquire()
-                .count_in_flight(self.metrics.sequencing_in_flight_semaphore_wait.clone())
-                .await
-                .expect("Consensus adapter does not close semaphore");
+            let _permit: Option<SemaphorePermit> = if high_priority {
+                None
+            } else {
+                Some(
+                    self.submit_semaphore
+                        .acquire()
+                        .count_in_flight(self.metrics.sequencing_in_flight_semaphore_wait.clone())
+                        .await
+                        .expect("Consensus adapter does not close semaphore"),
+                )
+            };
             let _in_flight_submission_guard =
                 GaugeGuard::acquire(&self.metrics.sequencing_in_flight_submissions);
 
@@ -1355,6 +1361,26 @@ impl CheckConnection for ConnectionMonitorStatusForTests {
         _authority_names_to_peer_ids: HashMap<AuthorityName, PeerId>,
     ) {
     }
+}
+
+/// Whether a lone `transaction` goes ahead of this validator's own user
+/// transactions: it skips the submit semaphore and uses the consensus priority
+/// lane. Any other kind, including a new one, keeps the normal path.
+pub(crate) fn is_high_priority(transaction: &ConsensusTransaction) -> bool {
+    // Only messages this validator creates for itself, at a rate it bounds,
+    // and whose position against its user transactions no handler relies on.
+    // `EndOfPublish` is not one: peers drop this validator's user transactions
+    // sequenced after it.
+    matches!(
+        transaction.kind,
+        ConsensusTransactionKind::CheckpointSignature(_)
+            | ConsensusTransactionKind::CapabilityNotificationV1(_)
+            | ConsensusTransactionKind::RandomnessDkgMessage(..)
+            | ConsensusTransactionKind::RandomnessDkgConfirmation(..)
+            | ConsensusTransactionKind::MisbehaviorReport(_)
+            | ConsensusTransactionKind::OverloadNotificationV1(..)
+            | ConsensusTransactionKind::TransactionDenyRuleProposal(_)
+    )
 }
 
 pub fn get_position_in_list(
