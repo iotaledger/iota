@@ -1301,7 +1301,7 @@ impl Core {
             .start_timer();
 
         let mut committed_sub_dags = Vec::new();
-        let mut all_missing_committed_txns = BTreeMap::new();
+        let mut all_missing_committed_txns = BTreeMap::<_, BTreeSet<_>>::new();
         // TODO: Add optimization to abort early without quorum for a round.
         loop {
             // LeaderSchedule has a limit to how many sequenced leaders can be committed
@@ -1394,14 +1394,14 @@ impl Core {
                 .commit_observer
                 .handle_committed_leaders(sequenced_leaders, source)?;
 
-            // Check for duplicates before extending
-            assert!(
-                !missing_transactions_refs
-                    .keys()
-                    .any(|k| all_missing_committed_txns.contains_key(k)),
-                "duplicate committed missing transactions reference found"
-            );
-            all_missing_committed_txns.extend(missing_transactions_refs);
+            // The same transaction ref can be missing on both sides of a leader
+            // schedule change.
+            for (transaction_ref, authors) in missing_transactions_refs {
+                all_missing_committed_txns
+                    .entry(transaction_ref)
+                    .or_default()
+                    .extend(authors);
+            }
 
             // After a positive commit advance, refresh the quorum commit index
             // on `DagState` so the eviction of `pending_commit_votes` is bounded.
@@ -3694,6 +3694,111 @@ mod test {
                 expected_reputation_scores
             );
         }
+    }
+
+    /// A missing payload committed on both sides of a leader schedule change
+    /// in one call is reported once, with the acknowledgers of both headers
+    /// that carry it, instead of aborting the node.
+    #[tokio::test]
+    async fn missing_payload_repeated_across_schedule_change_is_merged() {
+        let (context, _) = Context::new_for_test(4);
+        let mut fixture = CoreTestFixture::new(
+            context,
+            vec![1; 4],
+            AuthorityIndex::new_for_test(0),
+            true,
+            false,
+            None,
+        )
+        .await;
+
+        // Every block links all blocks of the previous round, so commit r has
+        // leader round r and the schedule changes after commit 10. Authority 3
+        // has two headers at round 8 with one payload: authorities 0-2
+        // acknowledge the first at round 9, committing the payload in commit
+        // 10, and authorities 1-3 the second at round 11, committing it again
+        // in commit 12.
+        let mut ancestors: Vec<BlockRef> = genesis_block_headers(&fixture.core.context)
+            .iter()
+            .map(|header| header.reference())
+            .collect();
+        let mut equivocating_headers = Vec::new();
+        let mut transaction_ref = None;
+        let mut headers = Vec::new();
+        for round in 1..=17 {
+            let mut layer = Vec::new();
+            for author in 0..4u8 {
+                let mut acknowledgments: Vec<BlockRef> = ancestors
+                    .iter()
+                    .filter(|ancestor| {
+                        ancestor.round > 0 && !equivocating_headers.contains(*ancestor)
+                    })
+                    .copied()
+                    .collect();
+                match (round, author) {
+                    (9, 0..=2) => acknowledgments.push(equivocating_headers[0]),
+                    (11, 1..=3) => acknowledgments.push(equivocating_headers[1]),
+                    _ => {}
+                }
+                let copies = if (round, author) == (8, 3) { 2 } else { 1 };
+                for copy in 0..copies {
+                    let header = VerifiedBlockHeader::new_for_test(
+                        TestBlockHeader::new(round, author)
+                            .set_ancestors(ancestors.clone())
+                            .set_acknowledgments(acknowledgments.clone())
+                            .set_timestamp_ms(round as u64 * 1000 + copy)
+                            .build(),
+                    );
+                    if copies == 2 {
+                        equivocating_headers.push(header.reference());
+                        transaction_ref = Some(header.transaction_ref());
+                    }
+                    layer.push(header.reference());
+                    headers.push(header);
+                }
+            }
+            ancestors = layer;
+        }
+        let transaction_ref = transaction_ref.unwrap();
+
+        let (_, missing) = fixture
+            .core
+            .add_block_headers(headers, DataSource::Test)
+            .unwrap();
+
+        assert_eq!(
+            missing[&transaction_ref],
+            (0..4)
+                .map(AuthorityIndex::new_for_test)
+                .collect::<BTreeSet<_>>()
+        );
+        assert_eq!(
+            fixture
+                .core
+                .leader_schedule
+                .leader_swap_table
+                .read()
+                .reputation_scores
+                .commit_range,
+            CommitRange::new(1..=10)
+        );
+        let commits = fixture
+            .store
+            .scan_commits((0..=CommitIndex::MAX).into())
+            .unwrap();
+        assert_eq!(
+            commits
+                .iter()
+                .map(|commit| commit.leader().round)
+                .collect::<Vec<_>>(),
+            (1..=12).collect::<Vec<_>>()
+        );
+        let payload_commits: Vec<CommitIndex> = commits
+            .iter()
+            .filter(|commit| commit.committed_transactions().contains(&transaction_ref))
+            .map(|commit| commit.index())
+            .collect();
+        assert_eq!(payload_commits, [10, 12]);
     }
 
     #[tokio::test]
