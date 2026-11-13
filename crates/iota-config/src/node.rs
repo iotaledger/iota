@@ -271,6 +271,11 @@ pub struct NodeConfig {
     )]
     pub grpc_api_config: Option<GrpcApiConfig>,
 
+    /// Configuration of the RPC indexes the JSON-RPC and gRPC APIs read from,
+    /// read when the node maintains them.
+    #[serde(default, skip_serializing_if = "is_default_rpc_indexes_config")]
+    pub rpc_indexes_config: RpcIndexesConfig,
+
     /// Allow overriding the chain for testing purposes. For instance, it allows
     /// you to create a test network that believes it is mainnet or testnet.
     /// Attempting to override this value on production networks will result
@@ -478,6 +483,99 @@ pub struct GrpcApiConfig {
     /// are clamped to this value.
     #[serde(default = "default_grpc_api_max_checkpoint_inclusion_timeout_ms")]
     pub max_checkpoint_inclusion_timeout_ms: u64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct RpcIndexesConfig {
+    /// How long a paginated query can read all its pages from the same
+    /// snapshot of the indexes.
+    #[serde(default)]
+    pub page_snapshots: PageSnapshotConfig,
+}
+
+fn is_default_rpc_indexes_config(config: &RpcIndexesConfig) -> bool {
+    *config == RpcIndexesConfig::default()
+}
+
+/// How long the node keeps the snapshot of the indexes that a paginated query
+/// reads its pages from. Each snapshot keeps RocksDB from compacting away the
+/// rows overwritten or deleted since it was taken, so the disk the indexes
+/// take grows with these limits.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct PageSnapshotConfig {
+    /// How long a snapshot is kept after its last page that was followed by
+    /// another one. A client that takes longer for its next page gets that
+    /// page from a new snapshot.
+    #[serde(default = "default_page_snapshot_idle_timeout_ms")]
+    pub idle_timeout_ms: u64,
+
+    /// How long a snapshot is kept at most after it was taken, however often
+    /// it is used. At most [`MAX_PAGE_SNAPSHOT_LIFETIME`].
+    #[serde(default = "default_page_snapshot_max_lifetime_ms")]
+    pub max_lifetime_ms: u64,
+
+    /// How many snapshots the node keeps at most. Once that many are kept, a
+    /// page of a new query reads the current state, and its next page tries
+    /// again.
+    #[serde(default = "default_max_page_snapshots")]
+    pub max_snapshots: usize,
+}
+
+/// The highest [`PageSnapshotConfig::max_lifetime_ms`] a node accepts.
+pub const MAX_PAGE_SNAPSHOT_LIFETIME: Duration = Duration::from_secs(10 * 60);
+
+fn default_page_snapshot_idle_timeout_ms() -> u64 {
+    10_000
+}
+
+fn default_page_snapshot_max_lifetime_ms() -> u64 {
+    5 * 60_000
+}
+
+fn default_max_page_snapshots() -> usize {
+    4096
+}
+
+impl Default for PageSnapshotConfig {
+    fn default() -> Self {
+        Self {
+            idle_timeout_ms: default_page_snapshot_idle_timeout_ms(),
+            max_lifetime_ms: default_page_snapshot_max_lifetime_ms(),
+            max_snapshots: default_max_page_snapshots(),
+        }
+    }
+}
+
+impl PageSnapshotConfig {
+    pub fn idle_timeout(&self) -> Duration {
+        Duration::from_millis(self.idle_timeout_ms)
+    }
+
+    pub fn max_lifetime(&self) -> Duration {
+        Duration::from_millis(self.max_lifetime_ms)
+    }
+
+    fn validate(&self) -> anyhow::Result<()> {
+        if self.max_lifetime() > MAX_PAGE_SNAPSHOT_LIFETIME {
+            anyhow::bail!(
+                "`rpc-indexes-config.page-snapshots.max-lifetime-ms` is {}, more than the {} \
+                 a node accepts",
+                self.max_lifetime_ms,
+                MAX_PAGE_SNAPSHOT_LIFETIME.as_millis()
+            );
+        }
+        if self.idle_timeout_ms > self.max_lifetime_ms {
+            anyhow::bail!(
+                "`rpc-indexes-config.page-snapshots.idle-timeout-ms` is {}, more than \
+                 `max-lifetime-ms` ({})",
+                self.idle_timeout_ms,
+                self.max_lifetime_ms
+            );
+        }
+        Ok(())
+    }
 }
 
 fn default_grpc_api_address() -> SocketAddr {
@@ -955,6 +1053,7 @@ impl NodeConfig {
                  remove the key to take the default config, or turn off `enable-grpc-api`"
             );
         }
+        self.rpc_indexes_config.page_snapshots.validate()?;
         // The uploader builds the store at startup, which needs a backend.
         if self
             .state_snapshot_write_config
@@ -2088,6 +2187,24 @@ mod tests {
         config.consensus_config = Some(consensus_config());
         let err = config.validate().unwrap_err().to_string();
         assert!(err.contains("validators do not expose"), "{err}");
+    }
+
+    #[test]
+    fn validate_bounds_the_page_snapshot_lifetimes() {
+        let mut config = template_config();
+        let snapshots = &mut config.rpc_indexes_config.page_snapshots;
+        snapshots.max_lifetime_ms = super::MAX_PAGE_SNAPSHOT_LIFETIME.as_millis() as u64;
+        config.validate().unwrap();
+
+        config.rpc_indexes_config.page_snapshots.max_lifetime_ms += 1;
+        let err = config.validate().unwrap_err().to_string();
+        assert!(err.contains("max-lifetime-ms"), "{err}");
+
+        let snapshots = &mut config.rpc_indexes_config.page_snapshots;
+        snapshots.max_lifetime_ms = 1_000;
+        snapshots.idle_timeout_ms = 1_001;
+        let err = config.validate().unwrap_err().to_string();
+        assert!(err.contains("idle-timeout-ms"), "{err}");
     }
 
     #[test]

@@ -87,6 +87,49 @@ pub struct DbSnapshot<'db> {
     snapshot: SnapshotWithThreadMode<'db, DBWithThreadMode<MultiThreaded>>,
 }
 
+/// A [`DbSnapshot`] that holds its own handle to the database, so it can be
+/// kept beyond a single read, for example between the requests of a
+/// paginated query, and shared through an `Arc`.
+///
+/// Holding one costs what holding a [`DbSnapshot`] costs, for as long as
+/// it is held.
+pub struct SharedDbSnapshot(SharedDbSnapshotInner);
+
+#[ouroboros::self_referencing]
+struct SharedDbSnapshotInner {
+    db: Arc<Database>,
+    #[borrows(db)]
+    #[covariant]
+    snapshot: DbSnapshot<'this>,
+}
+
+impl SharedDbSnapshot {
+    fn db(&self) -> &Arc<Database> {
+        self.0.borrow_db()
+    }
+
+    fn set_on(&self, readopts: &mut ReadOptions) {
+        self.0
+            .with_snapshot(|snapshot| readopts.set_snapshot(&snapshot.snapshot));
+    }
+}
+
+/// An iterator that reads through `snapshot`, holding it until the iterator
+/// is dropped.
+struct SharedSnapshotIter<'a, T> {
+    // Declared first so that it is dropped before the snapshot it reads.
+    iter: DbIterator<'a, T>,
+    _snapshot: Arc<SharedDbSnapshot>,
+}
+
+impl<T> Iterator for SharedSnapshotIter<'_, T> {
+    type Item = Result<T, TypedStoreError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+}
+
 impl std::fmt::Debug for Storage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -574,6 +617,22 @@ impl Database {
         }
     }
 
+    /// A point-in-time snapshot of this database that can outlive the borrow
+    /// of `self`. See [`SharedDbSnapshot`].
+    ///
+    /// # Panics
+    ///
+    /// Panics on the in-memory backend, which has no point-in-time reads.
+    pub fn shared_snapshot(self: &Arc<Self>) -> SharedDbSnapshot {
+        SharedDbSnapshot(
+            SharedDbSnapshotInnerBuilder {
+                db: self.clone(),
+                snapshot_builder: |db: &Arc<Database>| db.snapshot(),
+            }
+            .build(),
+        )
+    }
+
     pub fn get_sampling_interval(&self) -> SamplingInterval {
         self.metric_conf.read_sample_interval.new_from_self()
     }
@@ -981,6 +1040,107 @@ impl<K, V> DBMap<K, V> {
             }
             Storage::InMemory(_) => {
                 unreachable!("a DbSnapshot is only created over the rocksdb backend")
+            }
+        }
+    }
+
+    /// Fails when `snapshot` was taken of another database than this
+    /// table's.
+    fn check_snapshot_db(&self, snapshot: &SharedDbSnapshot) -> Result<(), TypedStoreError> {
+        if Arc::ptr_eq(&self.db, snapshot.db()) {
+            Ok(())
+        } else {
+            Err(TypedStoreError::RocksDB(format!(
+                "table {} cannot be read through a snapshot of another database",
+                self.cf_name()
+            )))
+        }
+    }
+
+    /// The value of `key` as of `snapshot`.
+    pub fn get_at_shared_snapshot(
+        &self,
+        snapshot: &SharedDbSnapshot,
+        key: &K,
+    ) -> Result<Option<V>, TypedStoreError>
+    where
+        K: Serialize,
+        V: DeserializeOwned,
+    {
+        self.check_snapshot_db(snapshot)?;
+        let mut readopts = self.opts.readopts();
+        snapshot.set_on(&mut readopts);
+        self.get_raw_key_with(be_fix_int_ser(key), &readopts)
+    }
+
+    /// [`Map::safe_range_iter`] as of `snapshot`, which the iterator holds
+    /// until it is dropped.
+    pub fn safe_range_iter_at_shared_snapshot(
+        &self,
+        snapshot: Arc<SharedDbSnapshot>,
+        range: impl RangeBounds<K>,
+    ) -> DbIterator<'_, (K, V)>
+    where
+        K: Serialize + DeserializeOwned,
+        V: DeserializeOwned,
+    {
+        let (lower_bound, upper_bound) = iterator_bounds_with_range(range);
+        self.iter_forward_raw_at_shared_snapshot(snapshot, lower_bound, upper_bound)
+    }
+
+    /// [`Self::safe_iter_with_prefix_after`] as of `snapshot`, which the
+    /// iterator holds until it is dropped.
+    pub fn safe_iter_with_prefix_after_at_shared_snapshot<P, C>(
+        &self,
+        snapshot: Arc<SharedDbSnapshot>,
+        prefix: &P,
+        cursor: Option<&C>,
+    ) -> DbIterator<'_, (K, V)>
+    where
+        P: ?Sized + Serialize,
+        C: ?Sized + Serialize,
+        K: DeserializeOwned,
+        V: DeserializeOwned,
+    {
+        let (lower_bound, upper_bound) = prefix_iterator_bounds_with_range::<P, C>(
+            prefix,
+            (
+                cursor.map_or(Bound::Unbounded, Bound::Excluded),
+                Bound::Unbounded,
+            ),
+        );
+        self.iter_forward_raw_at_shared_snapshot(snapshot, lower_bound, upper_bound)
+    }
+
+    /// [`Self::iter_forward_raw`] as of `snapshot`.
+    fn iter_forward_raw_at_shared_snapshot(
+        &self,
+        snapshot: Arc<SharedDbSnapshot>,
+        lower_bound: Option<Vec<u8>>,
+        upper_bound: Option<Vec<u8>>,
+    ) -> DbIterator<'_, (K, V)>
+    where
+        K: DeserializeOwned,
+        V: DeserializeOwned,
+    {
+        if let Err(e) = self.check_snapshot_db(&snapshot) {
+            return error_iterator(e);
+        }
+        match &self.db.storage {
+            Storage::Rocks(db) => {
+                let mut readopts =
+                    rocks_util::apply_range_bounds(self.opts.readopts(), lower_bound, upper_bound);
+                snapshot.set_on(&mut readopts);
+                match self.rocks_safe_iter(db, readopts) {
+                    Ok(iter) => Box::new(SharedSnapshotIter {
+                        iter: Box::new(iter),
+                        _snapshot: snapshot,
+                    }),
+                    Err(e) => error_iterator(e),
+                }
+            }
+            Storage::InMemory(_) => {
+                unreachable!("a SharedDbSnapshot is only created over the rocksdb backend")
             }
         }
     }
@@ -1484,6 +1644,17 @@ impl<K, V> DBMap<K, V> {
     where
         V: DeserializeOwned,
     {
+        self.get_raw_key_with(key_buf, &self.opts.readopts())
+    }
+
+    fn get_raw_key_with(
+        &self,
+        key_buf: Vec<u8>,
+        readopts: &ReadOptions,
+    ) -> Result<Option<V>, TypedStoreError>
+    where
+        V: DeserializeOwned,
+    {
         let _timer = self
             .db_metrics
             .op_metrics
@@ -1495,9 +1666,7 @@ impl<K, V> DBMap<K, V> {
         } else {
             None
         };
-        let res = self
-            .db
-            .get(&self.column_family, &key_buf, &self.opts.readopts())?;
+        let res = self.db.get(&self.column_family, &key_buf, readopts)?;
         self.db_metrics
             .op_metrics
             .rocksdb_get_bytes

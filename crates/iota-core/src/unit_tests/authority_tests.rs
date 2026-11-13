@@ -4848,9 +4848,9 @@ async fn test_owner_objects_queryable_through_authority_state() {
         create_and_retrieve_df(&Identifier::from_static("add_field")).await;
 
     let mut owned: Vec<_> = authority_state
-        .get_owner_objects(sender, None, 50, None, usize::MAX)
+        .get_owner_objects(sender, None, None, 50, None, usize::MAX)
         .unwrap()
-        .0
+        .objects
         .iter()
         .map(|(object, _)| object.id())
         .collect();
@@ -4939,6 +4939,7 @@ async fn test_rpc_index_rebuild_on_open() {
         &authority_state.database_for_testing(),
         checkpoint_store,
         Default::default(),
+        &Default::default(),
     )
     .await
     .unwrap();
@@ -4949,13 +4950,14 @@ async fn test_rpc_index_rebuild_on_open() {
         .get_owner_objects(
             owner,
             None,
+            None,
             10,
             None,
             usize::MAX,
             authority_state.get_object_store().as_ref(),
         )
         .unwrap()
-        .0;
+        .objects;
     assert_eq!(owned.len(), 1);
     assert_eq!(owned[0].0.id(), gas_object.id());
     let balance = index_store
@@ -5033,6 +5035,7 @@ async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
         &authority_state.database_for_testing(),
         checkpoint_store,
         Default::default(),
+        &Default::default(),
     )
     .await
     .unwrap();
@@ -5048,13 +5051,14 @@ async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
         .get_owner_objects(
             owner,
             None,
+            None,
             10,
             None,
             usize::MAX,
             authority_state.get_object_store().as_ref(),
         )
         .unwrap()
-        .0;
+        .objects;
     assert_eq!(owned.len(), 1);
     assert_eq!(owned[0].0.id(), gas_object.id());
 }
@@ -5095,6 +5099,7 @@ async fn test_rpc_index_rebuild_skips_contents_pruned_checkpoints() {
         &authority_state.database_for_testing(),
         checkpoint_store,
         Default::default(),
+        &Default::default(),
     )
     .await
     .unwrap();
@@ -5111,13 +5116,14 @@ async fn test_rpc_index_rebuild_skips_contents_pruned_checkpoints() {
         .get_owner_objects(
             owner,
             None,
+            None,
             10,
             None,
             usize::MAX,
             authority_state.get_object_store().as_ref(),
         )
         .unwrap()
-        .0;
+        .objects;
     assert_eq!(owned.len(), 1);
     assert_eq!(owned[0].0.id(), gas_object.id());
 }

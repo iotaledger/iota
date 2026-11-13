@@ -376,6 +376,7 @@ impl<'a> TestAuthorityBuilder<'a> {
                     &authority_store,
                     &checkpoint_store,
                     Arc::default(),
+                    &Default::default(),
                 )
                 .await
                 .expect("failed to open the RPC index store"),

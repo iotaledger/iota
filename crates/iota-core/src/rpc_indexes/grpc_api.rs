@@ -5,12 +5,16 @@
 //! The gRPC reads of the RPC index store. Every public read here fails when
 //! the store does not maintain the [`IndexGroup::Grpc`] tables.
 
+use std::sync::Arc;
+
+use iota_node_storage::PageIter;
 use iota_sdk_types::{Address, ObjectId, StructTag};
 use iota_types::storage::{
     AccountOwnedObjectInfo, DynamicFieldIteratorItem, DynamicFieldKey, OwnedObjectCursor,
-    OwnedObjectIteratorItem, PackageVersionIteratorItem, error::Error as StorageError,
+    OwnedObjectIteratorItem, PackageVersionIteratorItem, PageSnapshotRef,
+    error::Error as StorageError,
 };
-use typed_store::{TypedStoreError, traits::Map};
+use typed_store::{SharedDbSnapshot, TypedStoreError, traits::Map};
 
 use super::{
     RpcIndexesStore,
@@ -46,12 +50,59 @@ impl RpcIndexesStore {
         cursor: Option<ObjectId>,
     ) -> Result<impl Iterator<Item = Result<DynamicFieldKey, TypedStoreError>> + '_, StorageError>
     {
+        self.dynamic_field_iter_at(parent, cursor, None)
+    }
+
+    /// [`Self::dynamic_field_iter`] as of `snapshot`, or of the current state
+    /// when it is `None`.
+    fn dynamic_field_iter_at(
+        &self,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
+        snapshot: Option<Arc<SharedDbSnapshot>>,
+    ) -> Result<impl Iterator<Item = Result<DynamicFieldKey, TypedStoreError>> + '_, StorageError>
+    {
         self.require_grpc()?;
+        let rows = match snapshot {
+            Some(snapshot) => self
+                .tables
+                .dynamic_field
+                .safe_iter_with_prefix_after_at_shared_snapshot(snapshot, &parent, cursor.as_ref()),
+            None => self
+                .tables
+                .dynamic_field
+                .safe_iter_with_prefix_after(&parent, cursor.as_ref()),
+        };
+        Ok(rows.map(|r| r.map(|(key, ())| key)))
+    }
+
+    /// The owned objects of `owner` as of `snapshot`, or of the current state
+    /// when it is `None`.
+    fn owned_objects_info_iter_at(
+        &self,
+        owner: Address,
+        cursor: Option<&OwnedObjectCursor>,
+        object_type: Option<StructTag>,
+        snapshot: Option<Arc<SharedDbSnapshot>>,
+    ) -> Result<impl Iterator<Item = OwnedObjectIteratorItem> + '_, StorageError> {
+        self.require_grpc()?;
+        let cursor_key = cursor.map(|cursor| OwnerIndexKey::for_cursor(owner, cursor));
+        let type_filter = OwnerTypeFilter::from_struct_tag(object_type.as_ref());
         Ok(self
-            .tables
-            .dynamic_field
-            .safe_iter_with_prefix_after(&parent, cursor.as_ref())
-            .map(|r| r.map(|(key, ())| key)))
+            .owner_iter_at(owner, cursor_key.as_ref(), type_filter, snapshot)
+            .map_err(|e| StorageError::custom(e.to_string()))?
+            .map(|result| {
+                result.map(|(key, info)| {
+                    let cursor = OwnedObjectCursor::from(&key);
+                    let obj_info = AccountOwnedObjectInfo {
+                        owner: key.owner,
+                        object_id: key.object_id,
+                        version: info.version,
+                        object_type: info.object_type.into(),
+                    };
+                    (obj_info, cursor)
+                })
+            }))
     }
 
     /// Regulated coin metadata for `coin_type`, `None` if the type has none.
@@ -93,24 +144,7 @@ impl iota_node_storage::GrpcIndexes for RpcIndexesStore {
         object_type: Option<StructTag>,
     ) -> iota_types::storage::error::Result<Box<dyn Iterator<Item = OwnedObjectIteratorItem> + '_>>
     {
-        self.require_grpc()?;
-        let cursor_key = cursor.map(|cursor| OwnerIndexKey::for_cursor(owner, cursor));
-        let type_filter = OwnerTypeFilter::from_struct_tag(object_type.as_ref());
-        let iter = self
-            .owner_iter(owner, cursor_key.as_ref(), type_filter)
-            .map_err(|e| StorageError::custom(e.to_string()))?
-            .map(|result| {
-                result.map(|(key, info)| {
-                    let cursor = OwnedObjectCursor::from(&key);
-                    let obj_info = AccountOwnedObjectInfo {
-                        owner: key.owner,
-                        object_id: key.object_id,
-                        version: info.version,
-                        object_type: info.object_type.into(),
-                    };
-                    (obj_info, cursor)
-                })
-            });
+        let iter = self.owned_objects_info_iter_at(owner, cursor, object_type, None)?;
         Ok(Box::new(iter))
     }
 
@@ -139,5 +173,45 @@ impl iota_node_storage::GrpcIndexes for RpcIndexesStore {
     {
         let iter = RpcIndexesStore::package_versions_iter(self, original_package_id, cursor)?;
         Ok(Box::new(iter))
+    }
+
+    fn account_owned_objects_info_page_iter(
+        &self,
+        owner: Address,
+        cursor: Option<&OwnedObjectCursor>,
+        object_type: Option<StructTag>,
+        snapshot: Option<PageSnapshotRef>,
+    ) -> iota_types::storage::error::Result<PageIter<'_, OwnedObjectIteratorItem>> {
+        self.require_grpc()?;
+        let page = self
+            .page_snapshots
+            .acquire(snapshot, &self.tables.watermark)?;
+        let iter =
+            self.owned_objects_info_iter_at(owner, cursor, object_type, Some(page.snapshot))?;
+        Ok(PageIter {
+            iter: Box::new(iter),
+            snapshot: page.reference,
+        })
+    }
+
+    fn dynamic_field_page_iter(
+        &self,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
+        snapshot: Option<PageSnapshotRef>,
+    ) -> iota_types::storage::error::Result<PageIter<'_, DynamicFieldIteratorItem>> {
+        self.require_grpc()?;
+        let page = self
+            .page_snapshots
+            .acquire(snapshot, &self.tables.watermark)?;
+        let iter = self.dynamic_field_iter_at(parent, cursor, Some(page.snapshot))?;
+        Ok(PageIter {
+            iter: Box::new(iter),
+            snapshot: page.reference,
+        })
+    }
+
+    fn extend_page_snapshot(&self, snapshot: PageSnapshotRef) {
+        self.page_snapshots.extend(snapshot);
     }
 }

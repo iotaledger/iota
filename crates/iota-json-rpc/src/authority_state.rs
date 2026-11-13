@@ -33,7 +33,9 @@ use iota_types::{
     iota_system_state::IotaSystemState,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     object::{Object, ObjectRead, PastObjectRead},
-    storage::{BackingPackageStore, ObjectStore, OwnedObjectCursor as IndexCursor},
+    storage::{
+        BackingPackageStore, ObjectStore, OwnedObjectCursor as IndexCursor, PageSnapshotRef,
+    },
     timelock::timelocked_staked_iota::TimelockedStakedIota,
     transaction::TransactionEnvelope,
     transaction_executor::{SimulateTransactionResult, VmChecks},
@@ -120,10 +122,14 @@ pub trait StateRead: Send + Sync {
     ///
     /// A page reads a limited number of objects, so it can hold fewer than
     /// `limit` objects, even none, while `has_next_page` is set.
+    ///
+    /// The page reads from the snapshot `snapshot` names while this node keeps
+    /// it, and `next_cursor` names the one the next page reads from.
     fn get_owner_objects_page(
         &self,
         owner: Address,
         cursor: Option<IndexCursor>,
+        snapshot: Option<PageSnapshotRef>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
     ) -> StateReadResult<Page<Object, OwnedObjectCursor>>;
@@ -158,10 +164,14 @@ pub trait StateRead: Send + Sync {
 
     // coin_api
     fn find_publish_txn_digest(&self, package_id: ObjectId) -> StateReadResult<TransactionDigest>;
+    /// The page reads from a snapshot as in [`Self::get_owner_objects_page`];
+    /// the returned cursors name the one the next page reads from, which is
+    /// kept only when the page is full.
     fn get_owned_coins(
         &self,
         owner: Address,
         cursor: Option<IndexCursor>,
+        snapshot: Option<PageSnapshotRef>,
         coin_type: Option<TypeTag>,
         limit: usize,
     ) -> StateReadResult<Vec<(IotaCoin, OwnedObjectCursor)>>;
@@ -334,6 +344,7 @@ impl StateRead for AuthorityState {
         &self,
         owner: Address,
         cursor: Option<IndexCursor>,
+        snapshot: Option<PageSnapshotRef>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
     ) -> StateReadResult<Page<Object, OwnedObjectCursor>> {
@@ -341,17 +352,20 @@ impl StateRead for AuthorityState {
             // only when RPC_QUERY_MAX_RESULT_LIMIT is set to 0
             return Ok(Page::empty());
         }
-        let (objects, next_cursor) = self.get_owner_objects(
+        let page = self.get_owner_objects(
             owner,
             cursor.as_ref(),
+            snapshot,
             limit,
             filter,
             MAX_OWNED_OBJECTS_READ_PER_PAGE,
         )?;
         Ok(Page {
-            data: objects.into_iter().map(|(object, _)| object).collect(),
-            has_next_page: next_cursor.is_some(),
-            next_cursor: next_cursor.map(OwnedObjectCursor::from_position),
+            data: page.objects.into_iter().map(|(object, _)| object).collect(),
+            has_next_page: page.next_cursor.is_some(),
+            next_cursor: page.next_cursor.map(|cursor| {
+                OwnedObjectCursor::from_position(cursor).with_snapshot(page.snapshot)
+            }),
             oldest_available_checkpoint: None,
         })
     }
@@ -423,11 +437,13 @@ impl StateRead for AuthorityState {
         &self,
         owner: Address,
         cursor: Option<IndexCursor>,
+        snapshot: Option<PageSnapshotRef>,
         coin_type: Option<TypeTag>,
         limit: usize,
     ) -> StateReadResult<Vec<(IotaCoin, OwnedObjectCursor)>> {
-        Ok(self
-            .get_owned_coins_page(owner, cursor.as_ref(), coin_type, limit)?
+        let page = self.get_owned_coins_page(owner, cursor.as_ref(), snapshot, coin_type, limit)?;
+        Ok(page
+            .coins
             .into_iter()
             .map(|(coin_type, coin_object_id, coin, cursor)| {
                 (
@@ -439,7 +455,7 @@ impl StateRead for AuthorityState {
                         balance: coin.balance,
                         previous_transaction: coin.previous_transaction,
                     },
-                    OwnedObjectCursor::from_position(cursor),
+                    OwnedObjectCursor::from_position(cursor).with_snapshot(page.snapshot),
                 )
             })
             .collect())

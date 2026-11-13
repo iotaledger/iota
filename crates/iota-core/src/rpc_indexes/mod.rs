@@ -14,6 +14,7 @@
 pub mod grpc_api;
 pub mod jsonrpc_api;
 pub mod live_scan;
+mod page_snapshots;
 pub mod schema;
 
 use std::{
@@ -27,6 +28,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use iota_config::node::PageSnapshotConfig;
 use iota_sdk_types::{
     CheckpointContents, Owner, TransactionDigest, TransactionEffects, TransactionEvents,
 };
@@ -65,6 +67,7 @@ use self::{
         invalidate_balance_caches_instead_of_updating,
     },
     live_scan::{LiveObjectSetIndexer, SstFiles},
+    page_snapshots::PageSnapshots,
     schema::{
         CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, HISTORY_BUCKET_DIR, HISTORY_CF_PREFIX,
         HistoryBucket, IndexStoreTables, IndexStoreTablesReadOnly, MetadataInfo, OwnerIndexKey,
@@ -181,6 +184,8 @@ pub struct RpcIndexesStore {
     /// created in different checkpoints, so a checkpoint's row is merged onto
     /// a row staged before it, which the coin table does not show yet.
     staged_coin_rows: Mutex<HashMap<CoinIndexKey, (CheckpointSequenceNumber, CoinIndexInfo)>>,
+    /// The snapshots that paginated gRPC queries read their pages from.
+    page_snapshots: Arc<PageSnapshots>,
 }
 
 /// The highest checkpoint whose outputs are in the live object set:
@@ -622,6 +627,7 @@ impl RpcIndexesStore {
         authority_store: &Arc<AuthorityStore>,
         checkpoint_store: &Arc<CheckpointStore>,
         cancelled: Arc<AtomicBool>,
+        page_snapshot_config: &PageSnapshotConfig,
     ) -> Result<Arc<Self>, StorageError> {
         let historic_root = historic_root(&path, historic_db_path);
         // An unopenable database is rebuilt rather than crash-looping the
@@ -851,6 +857,7 @@ impl RpcIndexesStore {
             anchor,
             cancelled,
             epochs_to_retain,
+            page_snapshot_config,
         )?);
         store.spawn_history_backfill(authority_store.clone(), checkpoint_store.clone());
         Ok(store)
@@ -886,6 +893,7 @@ impl RpcIndexesStore {
                 0,
                 cancelled.clone(),
                 epochs_to_retain,
+                &PageSnapshotConfig::default(),
             )
             .map_err(StorageError::custom)?,
         );
@@ -1005,6 +1013,7 @@ impl RpcIndexesStore {
             0,
             Arc::default(),
             epochs_to_retain,
+            &PageSnapshotConfig::default(),
         )
         .expect("unable to open the RPC index database")
     }
@@ -1040,6 +1049,7 @@ impl RpcIndexesStore {
         next_sequence_number_floor: TxSequenceNumber,
         cancelled: Arc<AtomicBool>,
         epochs_to_retain: Option<u64>,
+        page_snapshot_config: &PageSnapshotConfig,
     ) -> Result<Self, TypedStoreError> {
         let OpenedIndexDb {
             tables,
@@ -1048,6 +1058,7 @@ impl RpcIndexesStore {
             history_paths,
             history,
         } = opened;
+        let page_snapshots = PageSnapshots::new(db.clone(), page_snapshot_config, registry);
         let history = EpochBuckets::open(
             db,
             "RPC index history",
@@ -1076,6 +1087,7 @@ impl RpcIndexesStore {
             epochs_to_retain,
             indexed_at_open,
             staged_coin_rows: Mutex::new(HashMap::new()),
+            page_snapshots,
         })
     }
 

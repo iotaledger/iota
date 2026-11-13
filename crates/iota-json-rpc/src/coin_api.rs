@@ -124,7 +124,7 @@ impl CoinReadApiServer for CoinReadApi {
             let coin_type_tag = parse_to_type_tag(coin_type)?;
 
             self.internal
-                .get_coins_iterator(owner, cursor_position(cursor)?, Some(coin_type_tag), limit)
+                .get_coins_iterator(owner, cursor, Some(coin_type_tag), limit)
                 .await
         }
         .trace()
@@ -144,7 +144,7 @@ impl CoinReadApiServer for CoinReadApi {
             // needs no lookup here.
             let coins = self
                 .internal
-                .get_coins_iterator(owner, cursor_position(cursor)?, None, limit)
+                .get_coins_iterator(owner, cursor, None, limit)
                 .await?;
 
             Ok(coins)
@@ -456,7 +456,7 @@ pub trait CoinReadInternal {
     async fn get_coins_iterator(
         &self,
         owner: Address,
-        cursor: Option<IndexCursor>,
+        cursor: Option<OwnedObjectCursor>,
         coin_type: Option<TypeTag>,
         limit: Option<usize>,
     ) -> RpcInterimResult<CoinPage>;
@@ -523,15 +523,19 @@ impl CoinReadInternal for CoinReadInternalImpl {
     async fn get_coins_iterator(
         &self,
         owner: Address,
-        cursor: Option<IndexCursor>,
+        cursor: Option<OwnedObjectCursor>,
         coin_type: Option<TypeTag>,
         limit: Option<usize>,
     ) -> RpcInterimResult<CoinPage> {
         let limit = cap_page_limit(limit);
         self.metrics.get_coins_limit.observe(limit as f64);
+        let snapshot = cursor.and_then(|cursor| cursor.snapshot());
+        let cursor = cursor_position(cursor)?;
         let state = self.get_state();
+        // One coin more than the page shows tells whether another page
+        // follows, which is when the node keeps the snapshot for it.
         let mut data = spawn_monitored_task!(async move {
-            state.get_owned_coins(owner, cursor, coin_type, limit + 1)
+            state.get_owned_coins(owner, cursor, snapshot, coin_type, limit + 1)
         })
         .await??;
 
@@ -760,10 +764,11 @@ mod tests {
                 .with(
                     predicate::eq(owner),
                     predicate::eq(None),
+                    predicate::eq(None),
                     predicate::eq(Some(TypeTag::Struct(Box::new(StructTag::new_gas())))),
                     predicate::eq(51),
                 )
-                .return_once(move |_, _, _, _| Ok(vec![with_cursor(gas_coin_clone)]));
+                .return_once(move |_, _, _, _, _| Ok(vec![with_cursor(gas_coin_clone)]));
 
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api.get_coins(owner, None, None, None).await;
@@ -799,10 +804,11 @@ mod tests {
                 .with(
                     predicate::eq(owner),
                     predicate::eq(Some(position(coins[0].coin_object_id))),
+                    predicate::eq(None),
                     predicate::eq(Some(TypeTag::Struct(Box::new(StructTag::new_gas())))),
                     predicate::eq(limit + 1),
                 )
-                .return_once(move |_, _, _, _| {
+                .return_once(move |_, _, _, _, _| {
                     Ok(coins_clone.into_iter().map(with_cursor).collect())
                 });
 
@@ -851,10 +857,11 @@ mod tests {
                 .with(
                     predicate::eq(owner),
                     predicate::eq(None),
+                    predicate::eq(None),
                     predicate::eq(Some(coin_type_tag.clone())),
                     predicate::eq(51),
                 )
-                .return_once(move |_, _, _, _| Ok(vec![with_cursor(coin_clone)]));
+                .return_once(move |_, _, _, _, _| Ok(vec![with_cursor(coin_clone)]));
 
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api
@@ -900,10 +907,11 @@ mod tests {
                 .with(
                     predicate::eq(owner),
                     predicate::eq(Some(cursor)),
+                    predicate::eq(None),
                     predicate::eq(Some(coin_type_tag.clone())),
                     predicate::eq(limit + 1),
                 )
-                .return_once(move |_, _, _, _| {
+                .return_once(move |_, _, _, _, _| {
                     Ok(coins_clone.into_iter().map(with_cursor).collect())
                 });
 
@@ -983,7 +991,7 @@ mod tests {
                 .returning(|_| Ok(None));
             mock_state
                 .expect_get_owned_coins()
-                .returning(move |_, _, _, _| {
+                .returning(move |_, _, _, _, _| {
                     Err(StateReadError::Client(
                         IotaError::IndexStoreNotAvailable.into(),
                     ))
@@ -1013,7 +1021,7 @@ mod tests {
                 .returning(|_| Ok(None));
             mock_state
                 .expect_get_owned_coins()
-                .returning(move |_, _, _, _| {
+                .returning(move |_, _, _, _, _| {
                     Err(IotaError::Storage("mock rocksdb error".to_string()).into())
                 });
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
@@ -1053,9 +1061,10 @@ mod tests {
                     predicate::eq(owner),
                     predicate::eq(None),
                     predicate::eq(None),
+                    predicate::eq(None),
                     predicate::eq(51),
                 )
-                .return_once(move |_, _, _, _| Ok(vec![with_cursor(gas_coin_clone)]));
+                .return_once(move |_, _, _, _, _| Ok(vec![with_cursor(gas_coin_clone)]));
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api
                 .get_all_coins(owner, None, Some(51))
@@ -1098,9 +1107,10 @@ mod tests {
                     predicate::eq(owner),
                     predicate::eq(Some(position(coins[0].coin_object_id))),
                     predicate::eq(None),
+                    predicate::eq(None),
                     predicate::eq(limit + 1),
                 )
-                .return_once(move |_, _, _, _| {
+                .return_once(move |_, _, _, _, _| {
                     Ok(coins_clone.into_iter().map(with_cursor).collect())
                 });
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
@@ -1132,7 +1142,7 @@ mod tests {
             // The store is never asked for the cursor's object.
             mock_state
                 .expect_get_owned_coins()
-                .return_once(move |_, _, _, _| Ok(vec![with_cursor(coin_clone)]));
+                .return_once(move |_, _, _, _, _| Ok(vec![with_cursor(coin_clone)]));
 
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
             let response = coin_read_api

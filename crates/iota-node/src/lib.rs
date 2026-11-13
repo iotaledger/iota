@@ -662,6 +662,7 @@ impl IotaNode {
                     &store,
                     &checkpoint_store,
                     index_rebuild_cancelled,
+                    &config.rpc_indexes_config.page_snapshots,
                 )
                 .await?,
             )
