@@ -19,17 +19,18 @@ use iota_json_rpc_api::{
     WriteApiClient,
 };
 use iota_json_rpc_types::{
-    CheckpointId, ExecuteTransactionRequestType, IotaGetPastObjectRequest, IotaObjectDataOptions,
-    IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery, IotaPastObjectResponse,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQueryV2, ObjectChange,
-    TransactionBlockBytes, TransactionFilterV2,
+    CheckpointId, ExecuteTransactionRequestType, IotaGetPastObjectRequest, IotaObjectData,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
+    IotaPastObjectResponse, IotaTransactionBlockDataAPI, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponseQueryV2, ObjectChange, TransactionBlockBytes, TransactionFilterV2,
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
-    Address, Identifier, ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version,
+    Address, Identifier, ObjectDigest, ObjectId, ObjectReference, SenderSignedTransaction,
+    TransactionDigest, Version,
 };
 use iota_test_transaction_builder::{
     TestTransactionBuilder, publish_example_package, publish_simple_warrior_package,
@@ -43,9 +44,15 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
-use jsonrpsee::http_client::HttpClient;
+use jsonrpsee::{
+    core::{ClientError, client::ClientT},
+    http_client::HttpClient,
+    rpc_params,
+    types::error::INVALID_PARAMS_CODE,
+};
 use rand::{SeedableRng, rngs::StdRng};
 use serde_json::Value;
+use test_cluster::TestCluster;
 
 use crate::{
     coin_api::execute_move_call,
@@ -111,6 +118,155 @@ fn match_transaction_block_resp_options(
         .all(|actual_options| actual_options.eq(expected_options))
 }
 
+/// Checks that `data` holds exactly the fields `options` asks for.
+fn object_data_matches_options(data: &IotaObjectData, options: &IotaObjectDataOptions) -> bool {
+    let actual_options = IotaObjectDataOptions {
+        show_type: data.object_type.is_some(),
+        show_owner: data.owner.is_some(),
+        show_previous_transaction: data.previous_transaction.is_some(),
+        show_display: data.display.is_some(),
+        show_content: data.content.is_some(),
+        show_bcs: data.bcs.is_some(),
+        show_storage_rebate: data.storage_rebate.is_some(),
+    };
+    &actual_options == options
+}
+
+/// Funds a fresh address with two coins and waits until the indexer has both.
+/// Returns the address, its key, the coin to transfer and the gas coin.
+async fn fund_object_and_gas(
+    cluster: &TestCluster,
+    client: &HttpClient,
+) -> (Address, AccountPrivateKey, ObjectReference, ObjectReference) {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_price = cluster.get_reference_gas_price().await;
+    let object = cluster
+        .fund_address_and_return_gas(gas_price, Some(500_000_000), sender)
+        .await;
+    let gas = cluster
+        .fund_address_and_return_gas(gas_price, Some(500_000_000), sender)
+        .await;
+    indexer_wait_for_object(client, object.object_id, object.version).await;
+    indexer_wait_for_object(client, gas.object_id, gas.version).await;
+    (sender, sender_key, object, gas)
+}
+
+/// Transfers a freshly funded coin to its own owner, so that it and the gas
+/// coin both get a new version. Returns the references of both coins before
+/// and after the transfer.
+async fn coins_before_and_after_transfer(
+    cluster: &TestCluster,
+    store: &PgIndexerStore,
+    client: &HttpClient,
+) -> (Vec<ObjectReference>, Vec<ObjectReference>) {
+    let (sender, sender_key, object, gas) = fund_object_and_gas(cluster, client).await;
+
+    let tx_bytes = client
+        .transfer_object(
+            sender,
+            object.object_id,
+            Some(gas.object_id),
+            100_000_000.into(),
+            sender,
+        )
+        .await
+        .unwrap();
+    execute_tx_and_wait_for_indexer_checkpoint(client, store, tx_bytes, &sender_key).await;
+
+    let after = vec![
+        cluster.get_latest_object_ref(&object.object_id).await,
+        cluster.get_latest_object_ref(&gas.object_id).await,
+    ];
+    (vec![object, gas], after)
+}
+
+fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (before, after) = coins_before_and_after_transfer(cluster, store, client).await;
+
+        for ObjectReference {
+            object_id, version, ..
+        } in before.into_iter().chain(after)
+        {
+            let fullnode_obj = cluster
+                .rpc_client()
+                .try_get_past_object(object_id, version.into(), Some(options.clone()))
+                .await
+                .unwrap();
+            let indexer_obj = client
+                .try_get_past_object(object_id, version.into(), Some(options.clone()))
+                .await
+                .unwrap();
+            assert_eq!(fullnode_obj, indexer_obj);
+
+            let data = indexer_obj.object().unwrap();
+            assert_eq!((data.object_id, data.version), (object_id, version));
+            assert!(
+                object_data_matches_options(data, &options),
+                "past object {data:?} does not match {options:?}"
+            );
+        }
+    });
+}
+
+fn try_multi_get_past_objects_with_options(options: IotaObjectDataOptions) {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (before, after) = coins_before_and_after_transfer(cluster, store, client).await;
+        let requests = || {
+            before
+                .iter()
+                .chain(&after)
+                .map(|object_ref| IotaGetPastObjectRequest {
+                    object_id: object_ref.object_id,
+                    version: object_ref.version,
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let fullnode_objs = cluster
+            .rpc_client()
+            .try_multi_get_past_objects(requests(), Some(options.clone()))
+            .await
+            .unwrap();
+        let indexer_objs = client
+            .try_multi_get_past_objects(requests(), Some(options.clone()))
+            .await
+            .unwrap();
+        assert_eq!(fullnode_objs, indexer_objs);
+        assert_eq!(indexer_objs.len(), requests().len());
+
+        for (request, response) in requests().iter().zip(&indexer_objs) {
+            let data = response.object().unwrap();
+            assert_eq!(
+                (data.object_id, data.version),
+                (request.object_id, request.version)
+            );
+            assert!(
+                object_data_matches_options(data, &options),
+                "past object {data:?} does not match {options:?}"
+            );
+        }
+    });
+}
+
 fn get_object_with_options(options: IotaObjectDataOptions) {
     let ApiTestSetup {
         runtime,
@@ -141,6 +297,10 @@ fn get_object_with_options(options: IotaObjectDataOptions) {
                 .unwrap();
 
             assert_eq!(obj, indexer_obj);
+            assert!(object_data_matches_options(
+                indexer_obj.data.as_ref().unwrap(),
+                &options
+            ));
         }
     });
 }
@@ -175,11 +335,16 @@ fn multi_get_objects_with_options(options: IotaObjectDataOptions) {
             .collect::<Vec<ObjectId>>();
 
         let indexer_objects = client
-            .multi_get_objects(object_ids, Some(options))
+            .multi_get_objects(object_ids, Some(options.clone()))
             .await
             .unwrap();
 
         assert_eq!(fullnode_objects.data, indexer_objects);
+        assert!(
+            indexer_objects
+                .iter()
+                .all(|obj| object_data_matches_options(obj.data.as_ref().unwrap(), &options))
+        );
     });
 }
 
@@ -1966,9 +2131,299 @@ fn try_get_object_before_version() {
                     "expected object version {:?} but got {:?}",
                     gas_ref.version, data.version
                 );
+                assert!(object_data_matches_options(
+                    data,
+                    &IotaObjectDataOptions::bcs_lossless()
+                ));
             }
             _ => panic!("expected VersionFound response, got: {result:?}"),
         }
+    });
+}
+
+#[test]
+fn try_get_object_before_version_not_exists() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let object_id = ObjectId::random();
+
+        let result = client
+            .try_get_object_before_version(object_id, Version::from_u64(1))
+            .await
+            .expect("rpc call should succeed");
+
+        assert_eq!(result, IotaPastObjectResponse::ObjectNotExists(object_id));
+    });
+}
+
+#[test]
+fn try_get_past_object_with_default_options() {
+    try_get_past_object_with_options(IotaObjectDataOptions::default());
+}
+
+#[test]
+fn try_get_past_object_with_bcs_lossless() {
+    try_get_past_object_with_options(IotaObjectDataOptions::bcs_lossless());
+}
+
+#[test]
+fn try_get_past_object_with_full_content() {
+    try_get_past_object_with_options(IotaObjectDataOptions::full_content());
+}
+
+#[test]
+fn try_get_past_object_with_bcs() {
+    try_get_past_object_with_options(IotaObjectDataOptions::default().with_bcs());
+}
+
+#[test]
+fn try_get_past_object_with_content() {
+    try_get_past_object_with_options(IotaObjectDataOptions::default().with_content());
+}
+
+#[test]
+fn try_get_past_object_with_display() {
+    try_get_past_object_with_options(IotaObjectDataOptions::default().with_display());
+}
+
+#[test]
+fn try_get_past_object_with_owner() {
+    try_get_past_object_with_options(IotaObjectDataOptions::default().with_owner());
+}
+
+#[test]
+fn try_get_past_object_with_previous_transaction() {
+    try_get_past_object_with_options(IotaObjectDataOptions::default().with_previous_transaction());
+}
+
+#[test]
+fn try_get_past_object_with_type() {
+    try_get_past_object_with_options(IotaObjectDataOptions::default().with_type());
+}
+
+#[test]
+fn try_get_past_object_with_storage_rebate() {
+    try_get_past_object_with_options(IotaObjectDataOptions {
+        show_storage_rebate: true,
+        ..Default::default()
+    });
+}
+
+#[test]
+fn try_multi_get_past_objects_with_default_options() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions::default());
+}
+
+#[test]
+fn try_multi_get_past_objects_with_bcs_lossless() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions::bcs_lossless());
+}
+
+#[test]
+fn try_multi_get_past_objects_with_full_content() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions::full_content());
+}
+
+#[test]
+fn try_multi_get_past_objects_with_bcs() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions::default().with_bcs());
+}
+
+#[test]
+fn try_multi_get_past_objects_with_content() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions::default().with_content());
+}
+
+#[test]
+fn try_multi_get_past_objects_with_display() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions::default().with_display());
+}
+
+#[test]
+fn try_multi_get_past_objects_with_owner() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions::default().with_owner());
+}
+
+#[test]
+fn try_multi_get_past_objects_with_previous_transaction() {
+    try_multi_get_past_objects_with_options(
+        IotaObjectDataOptions::default().with_previous_transaction(),
+    );
+}
+
+#[test]
+fn try_multi_get_past_objects_with_type() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions::default().with_type());
+}
+
+#[test]
+fn try_multi_get_past_objects_with_storage_rebate() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions {
+        show_storage_rebate: true,
+        ..Default::default()
+    });
+}
+
+/// The version can be sent as a JSON number, not only as a string.
+#[test]
+fn try_get_past_object_accepts_a_numeric_version() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let result: Result<Value, _> = client
+            .request(
+                "iota_tryGetPastObject",
+                rpc_params![ObjectId::ZERO.to_string(), 7, Value::Null],
+            )
+            .await;
+
+        match result {
+            Ok(_) => {}
+            Err(ClientError::Call(err)) => assert_ne!(err.code(), INVALID_PARAMS_CODE, "{err}"),
+            Err(err) => panic!("unexpected client error: {err}"),
+        }
+    });
+}
+
+#[test]
+fn get_package_with_display_should_not_fail() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let response = client
+            .get_object(
+                ObjectId::FRAMEWORK,
+                Some(IotaObjectDataOptions::new().with_display()),
+            )
+            .await
+            .unwrap();
+
+        assert!(
+            response
+                .into_object()
+                .unwrap()
+                .display
+                .unwrap()
+                .data
+                .is_none()
+        );
+    });
+}
+
+#[test]
+fn display_transaction_block_with_empty_balance_changes() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let checkpoint = client
+            .get_checkpoint(CheckpointId::SequenceNumber(1))
+            .await
+            .unwrap();
+
+        // The first transaction of a checkpoint is a system transaction, which
+        // has no balance changes.
+        let digest = *checkpoint.transactions.first().unwrap();
+        let tx = client
+            .get_transaction_block(
+                digest,
+                Some(IotaTransactionBlockResponseOptions::full_content()),
+            )
+            .await
+            .unwrap();
+
+        let gas_data = tx.transaction.as_ref().unwrap().data.gas_data();
+        assert_eq!(gas_data.price, 1);
+        assert_eq!(gas_data.budget, 0);
+        assert!(tx.balance_changes.as_ref().unwrap().is_empty());
+
+        let _ = tx.to_string();
+    });
+}
+
+/// The raw transaction returned on execution and on later reads decodes to
+/// the transaction that was signed.
+#[test]
+fn raw_transaction_decodes_to_the_signed_transaction() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, sender_key, object, gas) = fund_object_and_gas(cluster, client).await;
+
+        let tx_bytes = client
+            .transfer_object(
+                sender,
+                object.object_id,
+                Some(gas.object_id),
+                100_000_000.into(),
+                sender,
+            )
+            .await
+            .unwrap();
+        let tx = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), &sender_key);
+        let signed_transaction = tx.data().clone();
+        let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
+
+        let options = IotaTransactionBlockResponseOptions::new().with_raw_input();
+        let response = client
+            .execute_transaction_block(
+                tx_bytes,
+                signatures,
+                Some(options.clone()),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            bcs::from_bytes::<SenderSignedTransaction>(&response.raw_transaction).unwrap(),
+            signed_transaction
+        );
+
+        indexer_wait_for_transaction(response.digest, store, client).await;
+
+        let indexed = client
+            .get_transaction_block(response.digest, Some(options))
+            .await
+            .unwrap();
+        assert_eq!(
+            bcs::from_bytes::<SenderSignedTransaction>(&indexed.raw_transaction).unwrap(),
+            signed_transaction
+        );
     });
 }
 

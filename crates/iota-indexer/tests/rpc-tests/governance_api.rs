@@ -1,22 +1,40 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeSet;
+
 use iota_json_rpc_api::{
-    GovernanceReadApiClient, QUERY_MAX_RESULT_LIMIT, TransactionBuilderClient,
+    GovernanceReadApiClient, IndexerApiClient, QUERY_MAX_RESULT_LIMIT, TransactionBuilderClient,
 };
 use iota_json_rpc_types::{
-    DelegatedStake, DelegatedTimelockedStake, StakeStatus, TransactionBlockBytes,
+    DelegatedStake, DelegatedTimelockedStake, IotaObjectDataOptions, IotaObjectResponseQuery,
+    ObjectsPage, StakeStatus, TransactionBlockBytes,
 };
-use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_move_types::iota_framework::object::UID;
+use iota_sdk_types::{
+    Address, Identifier, MoveStruct, ObjectData, ObjectId, Owner, StructTag, TransactionDigest,
+    TypeTag,
+};
+use iota_swarm_config::genesis_config::{
+    AccountConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::{AccountPrivateKey, get_key_pair},
+    crypto::{AccountPrivateKey, deterministic_random_account_private_key, get_key_pair},
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+    object::{MoveStructExt, OBJECT_START_VERSION, ObjectInner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    timelock::{
+        label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
+        timelock::TimeLock,
+    },
     transaction::CallArg,
     utils::to_sender_signed_transaction,
 };
+use jsonrpsee::http_client::HttpClient;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
+use test_cluster::TestCluster;
 
 use crate::common::{
     ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint,
@@ -87,6 +105,22 @@ async fn test_staking() {
 
     let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
     indexer_wait_for_transaction(res.digest, store, client).await;
+
+    let staked_iota: Vec<DelegatedStake> = client.get_stakes(sender).await.unwrap();
+    assert_eq!(1, staked_iota.len());
+    assert_eq!(1000000000, staked_iota[0].stakes[0].principal);
+    assert!(matches!(
+        staked_iota[0].stakes[0].status,
+        StakeStatus::Pending
+    ));
+    let staked_iota_by_id = client
+        .get_stakes_by_ids(vec![staked_iota[0].stakes[0].staked_iota_id])
+        .await
+        .unwrap();
+    assert_eq!(
+        staked_iota[0].stakes[0].staked_iota_id,
+        staked_iota_by_id[0].stakes[0].staked_iota_id
+    );
 
     cluster.force_new_epoch().await;
     indexer_wait_for_latest_checkpoint(store, cluster).await;
@@ -507,6 +541,326 @@ async fn get_latest_iota_system_state_v2() {
         ProtocolVersion::MAX.as_u64()
     );
     assert_eq!(system_state_v2.system_state_version, 2);
+}
+
+#[test]
+fn get_latest_iota_system_state_reports_protocol_config_validator_parameters() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let config = cluster.protocol_config();
+        let summary: IotaSystemStateSummary = client
+            .get_latest_iota_system_state_v2()
+            .await
+            .unwrap()
+            .into();
+        assert_eq!(summary.min_validator_count(), config.min_validator_count());
+        assert_eq!(summary.max_validator_count(), config.max_validator_count());
+        assert_eq!(
+            summary.min_validator_joining_stake(),
+            config.min_validator_joining_stake()
+        );
+        assert_eq!(
+            summary.validator_low_stake_threshold(),
+            config.validator_low_stake_threshold()
+        );
+        assert_eq!(
+            summary.validator_very_low_stake_threshold(),
+            config.validator_very_low_stake_threshold()
+        );
+        assert_eq!(
+            summary.validator_low_stake_grace_period(),
+            config.validator_low_stake_grace_period()
+        );
+    });
+}
+
+#[tokio::test]
+async fn get_timelocked_stakes_reports_the_stake_details() {
+    let (address, key) = deterministic_random_account_private_key();
+
+    let principal = 100_000_000_000;
+    let expiration_timestamp_ms = u64::MAX;
+    let label = Some(label_struct_tag_to_string(stardust_upgrade_label_type()));
+
+    let timelock_iota = MoveStruct::new_from_execution(
+        StructTag::new_timelocked_gas_balance(),
+        OBJECT_START_VERSION,
+        TimeLock::<iota_types::balance::Balance>::new(
+            UID::new(ObjectId::random()),
+            iota_types::balance::Balance::new(principal),
+            expiration_timestamp_ms,
+            label.clone(),
+        )
+        .to_bcs_bytes(),
+        &ProtocolConfig::get_for_min_version(),
+        // system_mutation
+        false,
+    )
+    .unwrap();
+    let timelock_iota = ObjectInner {
+        owner: Owner::Address(address),
+        data: ObjectData::Struct(timelock_iota),
+        previous_transaction: TransactionDigest::GENESIS_MARKER,
+        storage_rebate: 0,
+    };
+
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("governance_get_timelocked_stakes_reports_the_stake_details"),
+        Some(Box::new(move |builder| {
+            builder
+                .with_accounts(
+                    [AccountConfig {
+                        address: Some(address),
+                        gas_amounts: [100_000_000].into(),
+                    }]
+                    .into(),
+                )
+                .with_objects([timelock_iota.into()])
+        })),
+        None,
+    )
+    .await;
+    indexer_wait_for_checkpoint(store, 1).await;
+
+    let objects: ObjectsPage = client
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new().with_type(),
+            )),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(2, objects.data.len());
+    let (coin, timelock): (Vec<_>, Vec<_>) = objects
+        .data
+        .into_iter()
+        .partition(|o| o.data.as_ref().unwrap().is_gas_coin());
+    let coin = coin[0].object().unwrap().object_id;
+    let timelocked_balance = timelock[0].object().unwrap().object_id;
+
+    assert!(
+        client
+            .get_timelocked_stakes(address)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    let validator = first_active_validator(client).await;
+
+    let transaction_bytes: TransactionBlockBytes = client
+        .request_add_timelocked_stake(
+            address,
+            timelocked_balance,
+            validator,
+            coin,
+            100_000_000.into(),
+        )
+        .await
+        .unwrap();
+    let txn = to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &key);
+    let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
+    indexer_wait_for_transaction(res.digest, store, client).await;
+
+    let staked_iota: Vec<DelegatedTimelockedStake> =
+        client.get_timelocked_stakes(address).await.unwrap();
+    assert_eq!(1, staked_iota.len());
+    let staked_iota = &staked_iota[0];
+    assert_eq!(1, staked_iota.stakes.len());
+    let stake = &staked_iota.stakes[0];
+
+    assert_eq!(validator, staked_iota.validator_address);
+    assert_eq!(principal, stake.principal);
+    assert!(matches!(stake.status, StakeStatus::Pending));
+    assert_eq!(expiration_timestamp_ms, stake.expiration_timestamp_ms);
+    assert_eq!(label, stake.label);
+
+    let staked_iota_by_id = client
+        .get_timelocked_stakes_by_ids(vec![stake.timelocked_staked_iota_id])
+        .await
+        .unwrap();
+    assert_eq!(1, staked_iota_by_id.len());
+    let staked_iota_by_id = &staked_iota_by_id[0];
+    assert_eq!(1, staked_iota_by_id.stakes.len());
+    let stake_by_id = &staked_iota_by_id.stakes[0];
+
+    assert_eq!(
+        staked_iota.validator_address,
+        staked_iota_by_id.validator_address
+    );
+    assert_eq!(staked_iota.staking_pool, staked_iota_by_id.staking_pool);
+    assert_eq!(
+        stake.timelocked_staked_iota_id,
+        stake_by_id.timelocked_staked_iota_id
+    );
+    assert_eq!(stake.stake_request_epoch, stake_by_id.stake_request_epoch);
+    assert_eq!(stake.stake_active_epoch, stake_by_id.stake_active_epoch);
+    assert_eq!(stake.principal, stake_by_id.principal);
+    assert!(matches!(stake_by_id.status, StakeStatus::Pending));
+    assert_eq!(
+        stake.expiration_timestamp_ms,
+        stake_by_id.expiration_timestamp_ms
+    );
+    assert_eq!(stake.label, stake_by_id.label);
+}
+
+/// Registers `new_validator` as a candidate, stakes the minimum joining stake
+/// on it and requests to join the validator set, so that it becomes active at
+/// the next epoch change.
+async fn execute_add_validator_transactions(
+    cluster: &TestCluster,
+    new_validator: &ValidatorGenesisConfig,
+) {
+    let address = new_validator.account_key_pair.public_key().derive_address();
+    let rgp = cluster.get_reference_gas_price().await;
+
+    let gas = cluster
+        .wallet
+        .get_one_gas_object_owned_by_address(address)
+        .await
+        .unwrap()
+        .unwrap();
+    let tx = TestTransactionBuilder::new(address, gas, rgp)
+        .call_request_add_validator_candidate(
+            &new_validator.to_validator_info_with_random_name().into(),
+        )
+        .build_and_sign(&new_validator.account_key_pair);
+    cluster.execute_transaction(tx).await;
+
+    let min_validator_joining_stake = cluster.protocol_config().min_validator_joining_stake();
+    let stake_coin = cluster
+        .wallet
+        .gas_for_owner_budget(address, min_validator_joining_stake, Default::default())
+        .await
+        .unwrap()
+        .1
+        .object_ref();
+    let gas = cluster
+        .wallet
+        .gas_for_owner_budget(address, 0, BTreeSet::from([stake_coin.object_id]))
+        .await
+        .unwrap()
+        .1
+        .object_ref();
+    let stake_tx = TestTransactionBuilder::new(address, gas, rgp)
+        .call_staking(stake_coin, address)
+        .build_and_sign(&new_validator.account_key_pair);
+    cluster.execute_transaction(stake_tx).await;
+
+    let gas = cluster.wallet.get_object_ref(gas.object_id).await.unwrap();
+    let tx = TestTransactionBuilder::new(address, gas, rgp)
+        .call_request_add_validator()
+        .build_and_sign(&new_validator.account_key_pair);
+    cluster.execute_transaction(tx).await;
+}
+
+/// Returns the status of the stake the validator at `address` placed on itself
+/// in epoch 0.
+async fn initial_self_stake_status(client: &HttpClient, address: Address) -> StakeStatus {
+    let stakes = client.get_stakes(address).await.unwrap();
+    stakes[0]
+        .stakes
+        .iter()
+        .find(|s| s.stake_request_epoch == 0)
+        .unwrap()
+        .status
+        .clone()
+}
+
+#[tokio::test]
+async fn get_stakes_with_new_validator() {
+    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut UnwrapErr(SysRng));
+    let address = new_validator.account_key_pair.public_key().derive_address();
+
+    let (mut cluster, store, client) = start_test_cluster_with_read_write_indexer(
+        Some("governance_get_stakes_with_new_validator"),
+        Some(Box::new(move |builder| {
+            builder
+                .with_validator_candidates([address])
+                .with_num_validators(4)
+        })),
+        None,
+    )
+    .await;
+    indexer_wait_for_checkpoint(&store, 1).await;
+
+    assert!(client.get_stakes(address).await.unwrap().is_empty());
+    assert!(client.get_committee_info(Some(1.into())).await.is_err());
+
+    execute_add_validator_transactions(&cluster, &new_validator).await;
+    indexer_wait_for_latest_checkpoint(&store, &cluster).await;
+
+    // The validator only becomes active at the next epoch change.
+    assert!(matches!(
+        initial_self_stake_status(&client, address).await,
+        StakeStatus::Pending
+    ));
+
+    cluster.force_new_epoch().await;
+    cluster.spawn_new_validator(new_validator).await;
+    cluster.wait_for_epoch_all_nodes(1).await;
+    indexer_wait_for_latest_checkpoint(&store, &cluster).await;
+
+    // An active validator joins the committee only one epoch after activation,
+    // so the stake is active but has not earned any reward yet.
+    let committee = client.get_committee_info(Some(1.into())).await.unwrap();
+    assert_eq!(committee.epoch, 1);
+    assert_eq!(committee.validators.len(), 4);
+    assert!(matches!(
+        initial_self_stake_status(&client, address).await,
+        StakeStatus::Active {
+            estimated_reward: 0
+        }
+    ));
+
+    cluster.force_new_epoch().await;
+    cluster.wait_for_epoch_all_nodes(2).await;
+    indexer_wait_for_latest_checkpoint(&store, &cluster).await;
+
+    let committee = client.get_committee_info(Some(2.into())).await.unwrap();
+    assert_eq!(committee.epoch, 2);
+    assert_eq!(committee.validators.len(), 5);
+    assert!(matches!(
+        initial_self_stake_status(&client, address).await,
+        StakeStatus::Active {
+            estimated_reward: 0
+        }
+    ));
+
+    cluster.force_new_epoch().await;
+    indexer_wait_for_latest_checkpoint(&store, &cluster).await;
+
+    // One epoch in the committee earns the stake a reward.
+    assert!(matches!(
+        initial_self_stake_status(&client, address).await,
+        StakeStatus::Active { estimated_reward } if estimated_reward > 0
+    ));
+}
+
+async fn first_active_validator(client: &HttpClient) -> Address {
+    match client
+        .get_latest_iota_system_state_v2()
+        .await
+        .unwrap()
+        .into()
+    {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+        _ => unimplemented!(
+            "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+        ),
+    }
 }
 
 #[test]

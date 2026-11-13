@@ -1,24 +1,38 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::PathBuf,
+    str::FromStr,
+};
 
-use iota_indexer::store::PgIndexerStore;
-use iota_json::{call_args, type_args};
+use iota_indexer::{
+    db::{ConnectionPoolConfig, DbUrl, new_connection_pool},
+    read::IndexerReader,
+    store::PgIndexerStore,
+    test_utils::db_url,
+};
+use iota_json::{call_arg, call_args, type_args};
 use iota_json_rpc_api::{
     CoinReadApiClient, GovernanceReadApiClient, IndexerApiClient, ReadApiClient,
-    TransactionBuilderClient,
+    TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    IotaObjectDataOptions, IotaObjectResponseQuery, MoveCallParams, ObjectsPage, PtbInput,
-    RPCTransactionRequestParams, StakeStatus, TransactionBlockBytes, TransferObjectParams,
+    IotaArgument, IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, MoveCallParams,
+    ObjectChange, ObjectsPage, PtbInput, RPCTransactionRequestParams, StakeStatus,
+    TransactionBlockBytes, TransferObjectParams,
 };
+use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_move_types::iota_framework::object::UID;
 use iota_sdk_types::{
-    Address, MoveStruct, ObjectData, ObjectId, Owner, StructTag, TransactionDigest,
+    Address, MoveStruct, ObjectData, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest,
+    Version,
 };
-use iota_swarm_config::genesis_config::AccountConfig;
+use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
+use iota_transaction_builder::DataReader;
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
@@ -27,6 +41,7 @@ use iota_types::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
         timelock::TimeLock,
     },
+    utils::to_sender_signed_transaction,
 };
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::TestCluster;
@@ -65,7 +80,20 @@ fn transfer_object() {
             )
             .await
             .unwrap();
-        execute_tx_must_succeed(client, tx_bytes, &sender_key).await;
+        let signed_tx =
+            to_sender_signed_transaction(tx_bytes.clone().to_data().unwrap(), &sender_key);
+        let (unsigned_tx_bytes, _signatures) = signed_tx.to_tx_bytes_and_signatures();
+        let dry_run_response = client
+            .dry_run_transaction_block(unsigned_tx_bytes)
+            .await
+            .unwrap();
+
+        let tx_response = execute_tx_with_changes(client, tx_bytes, &sender_key).await;
+
+        assert_same_object_changes_ignoring_version_and_digest(
+            dry_run_response.object_changes,
+            tx_response.object_changes.unwrap(),
+        );
 
         let transferred_object = client
             .get_object(object_to_send, Some(IotaObjectDataOptions::full_content()))
@@ -103,7 +131,14 @@ fn transfer_iota() {
             )
             .await
             .unwrap();
-        execute_tx_must_succeed(client, tx_bytes, &sender_key).await;
+        let tx_response = execute_tx_with_changes(client, tx_bytes, &sender_key).await;
+
+        let transferred = i128::from(transferred_balance);
+        assert_eq!(
+            balance_change_of(&tx_response, sender),
+            -transferred - net_gas_usage(&tx_response)
+        );
+        assert_eq!(balance_change_of(&tx_response, receiver), transferred);
 
         let receiver_balances = get_address_balances(client, receiver).await;
 
@@ -144,7 +179,16 @@ fn pay() {
             )
             .await
             .unwrap();
-        execute_tx_must_succeed(client, tx_bytes, &sender_key).await;
+        let tx_response = execute_tx_with_changes(client, tx_bytes, &sender_key).await;
+
+        let transferred_1 = i128::from(transferred_balance_1);
+        let transferred_2 = i128::from(transferred_balance_2);
+        assert_eq!(
+            balance_change_of(&tx_response, sender),
+            -transferred_1 - transferred_2 - net_gas_usage(&tx_response)
+        );
+        assert_eq!(balance_change_of(&tx_response, receiver_1), transferred_1);
+        assert_eq!(balance_change_of(&tx_response, receiver_2), transferred_2);
 
         let receiver_1_balances = get_address_balances(client, receiver_1).await;
         let receiver_2_balances = get_address_balances(client, receiver_2).await;
@@ -187,7 +231,16 @@ fn pay_iota() {
             )
             .await
             .unwrap();
-        execute_tx_must_succeed(client, tx_bytes, &sender_key).await;
+        let tx_response = execute_tx_with_changes(client, tx_bytes, &sender_key).await;
+
+        let transferred_1 = i128::from(transferred_balance_1);
+        let transferred_2 = i128::from(transferred_balance_2);
+        assert_eq!(
+            balance_change_of(&tx_response, sender),
+            -transferred_1 - transferred_2 - net_gas_usage(&tx_response)
+        );
+        assert_eq!(balance_change_of(&tx_response, receiver_1), transferred_1);
+        assert_eq!(balance_change_of(&tx_response, receiver_2), transferred_2);
 
         let receiver_1_balances = get_address_balances(client, receiver_1).await;
         let receiver_2_balances = get_address_balances(client, receiver_2).await;
@@ -219,13 +272,25 @@ fn pay_all_iota() {
             .pay_all_iota(sender, sender_coins, receiver, gas_budget.into())
             .await
             .unwrap();
-        execute_tx_must_succeed(client, tx_bytes, &sender_key).await;
+        let tx_response = execute_tx_with_changes(client, tx_bytes, &sender_key).await;
+
+        let total_input_balance = i128::from(FUNDED_BALANCE_PER_COIN * input_coins);
+        let expected_receiver_balance = total_input_balance - net_gas_usage(&tx_response);
+        assert_eq!(
+            balance_change_of(&tx_response, sender),
+            -total_input_balance
+        );
+        assert_eq!(
+            balance_change_of(&tx_response, receiver),
+            expected_receiver_balance
+        );
 
         let receiver_balances = get_address_balances(client, receiver).await;
-        let expected_minimum_receiver_balance = FUNDED_BALANCE_PER_COIN * input_coins - gas_budget;
 
-        assert_eq!(receiver_balances.len(), 1);
-        assert!(receiver_balances[0] >= expected_minimum_receiver_balance);
+        assert_eq!(
+            receiver_balances,
+            [u64::try_from(expected_receiver_balance).unwrap()]
+        );
     });
 }
 
@@ -441,6 +506,203 @@ fn batch_transaction() {
             Ok::<(), anyhow::Error>(())
         })
         .unwrap();
+}
+
+#[test]
+fn batch_transaction_with_result() {
+    let ApiTestSetup {
+        runtime,
+        store: _,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime
+        .block_on(async move {
+            let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+            let receiver = Address::random();
+
+            let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 2).await;
+            let gas = sender_coins[0];
+            let coin_to_split = sender_coins[1];
+            let amount_to_split = 10;
+
+            let tx_bytes: TransactionBlockBytes = client
+                .batch_transaction(
+                    sender,
+                    vec![
+                        RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
+                            package_object_id: ObjectId::FRAMEWORK,
+                            module: "coin".to_string(),
+                            function: "split".to_string(),
+                            type_arguments: type_args![StructTag::new_gas()]?,
+                            arguments: call_args!(coin_to_split, amount_to_split)?
+                                .into_iter()
+                                .map(PtbInput::CallArg)
+                                .collect(),
+                        }),
+                        RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
+                            package_object_id: ObjectId::FRAMEWORK,
+                            module: "transfer".to_string(),
+                            function: "public_transfer".to_string(),
+                            type_arguments: type_args![StructTag::new_gas_coin()]?,
+                            arguments: vec![
+                                PtbInput::PtbRef(IotaArgument::Result(0)),
+                                PtbInput::CallArg(call_arg!(receiver)?),
+                            ],
+                        }),
+                    ],
+                    Some(gas),
+                    10_000_000.into(),
+                    None,
+                )
+                .await?;
+            execute_tx_must_succeed(client, tx_bytes, &sender_key).await;
+
+            let split_coin_balance = client
+                .get_coins(sender, None, None, None)
+                .await?
+                .data
+                .into_iter()
+                .find(|coin| coin.coin_object_id == coin_to_split)
+                .unwrap()
+                .balance;
+            let receiver_balances = get_address_balances(client, receiver).await;
+
+            assert_eq!(
+                split_coin_balance,
+                FUNDED_BALANCE_PER_COIN - amount_to_split
+            );
+            assert_eq!(receiver_balances, [amount_to_split]);
+
+            Ok::<(), anyhow::Error>(())
+        })
+        .unwrap();
+}
+
+#[test]
+fn publish() {
+    let ApiTestSetup {
+        runtime,
+        store: _,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+        let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 1).await;
+
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.extend(["tests", "data", "dummy_modules_publish"]);
+        let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+        let compiled_modules_bytes =
+            compiled_package.get_package_base64(/* with_unpublished_deps */ false);
+        let module_count = compiled_modules_bytes.len();
+        let dependencies = compiled_package.get_dependency_storage_package_ids();
+
+        let tx_bytes = client
+            .publish(
+                sender,
+                compiled_modules_bytes,
+                dependencies,
+                Some(sender_coins[0]),
+                100_000_000.into(),
+            )
+            .await
+            .unwrap();
+        let tx_response = execute_tx_with_changes(client, tx_bytes, &sender_key).await;
+
+        let published_modules = tx_response
+            .object_changes
+            .unwrap()
+            .into_iter()
+            .filter_map(|change| match change {
+                ObjectChange::Published { modules, .. } => Some(modules),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(published_modules.len(), 1);
+        assert_eq!(published_modules[0].len(), module_count);
+    });
+}
+
+#[tokio::test]
+async fn data_reader_get_owned_objects_paginates_without_dropping_objects()
+-> Result<(), anyhow::Error> {
+    let db_name = "transaction_builder_data_reader_get_owned_objects_pagination";
+    let (cluster, store, _client) =
+        start_test_cluster_with_read_write_indexer(Some(db_name), None, None).await;
+    indexer_wait_for_latest_checkpoint(&store, &cluster).await;
+    let address = cluster.get_address_0();
+
+    let pool = new_connection_pool(
+        &DbUrl::from(db_url(db_name).as_str()),
+        &ConnectionPoolConfig::default(),
+    )?;
+    let reader = IndexerReader::new_without_watermark_cache(pool);
+    let gas_coins = |cursor, limit| {
+        reader.get_owned_objects(
+            address,
+            StructTag::new_gas_coin(),
+            cursor,
+            limit,
+            IotaObjectDataOptions::new(),
+        )
+    };
+
+    let full_page = gas_coins(None, None).await?;
+    assert!(!full_page.has_next_page);
+    assert!(full_page.next_cursor.is_none());
+    assert_eq!(full_page.data.len(), DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT);
+
+    let page_size = 2;
+    let expected_pages = DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT.div_ceil(page_size);
+    assert!(expected_pages > 1, "the walk must cross a page boundary");
+    let mut paginated = Vec::new();
+    let mut seen = BTreeSet::new();
+    let mut cursor = None;
+    let mut pages = 0;
+    loop {
+        assert!(
+            pages < expected_pages,
+            "cursor did not advance to completion within {expected_pages} pages"
+        );
+        let page = gas_coins(cursor, Some(page_size)).await?;
+        pages += 1;
+        for object in &page.data {
+            let object_id = object.object_id()?;
+            assert!(
+                seen.insert(object_id),
+                "object {object_id} was returned by more than one page"
+            );
+        }
+        paginated.extend(page.data);
+
+        if !page.has_next_page {
+            assert!(page.next_cursor.is_none());
+            break;
+        }
+        cursor = page.next_cursor;
+    }
+
+    let full_ids = full_page
+        .data
+        .iter()
+        .map(|object| object.object_id())
+        .collect::<Result<Vec<_>, _>>()?;
+    let paginated_ids = paginated
+        .iter()
+        .map(|object| object.object_id())
+        .collect::<Result<Vec<_>, _>>()?;
+    assert_eq!(paginated_ids, full_ids);
+    assert_eq!(pages, expected_pages);
+
+    let exact_page = gas_coins(None, Some(DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT)).await?;
+    assert!(!exact_page.has_next_page);
+    assert!(exact_page.next_cursor.is_none());
+
+    Ok(())
 }
 
 #[tokio::test]
@@ -733,6 +995,81 @@ async fn request_withdraw_timelocked_stake_from_active() -> Result<(), anyhow::E
     assert!(staked_iota.is_empty());
 
     Ok(())
+}
+
+/// Executes `tx_bytes` signed by `key`, asserts it succeeded and returns the
+/// response with effects, object changes and balance changes.
+async fn execute_tx_with_changes(
+    client: &HttpClient,
+    tx_bytes: TransactionBlockBytes,
+    key: &AccountPrivateKey,
+) -> IotaTransactionBlockResponse {
+    let signed_tx = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), key);
+    let (tx_bytes, signatures) = signed_tx.to_tx_bytes_and_signatures();
+    let tx_response = client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(
+                IotaTransactionBlockResponseOptions::new()
+                    .with_effects()
+                    .with_object_changes()
+                    .with_balance_changes(),
+            ),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        tx_response.status_ok(),
+        Some(true),
+        "transaction failed: {tx_response:?}"
+    );
+    tx_response
+}
+
+fn net_gas_usage(tx_response: &IotaTransactionBlockResponse) -> i128 {
+    tx_response
+        .effects
+        .as_ref()
+        .unwrap()
+        .gas_cost_summary()
+        .net_gas_usage()
+        .into()
+}
+
+fn balance_change_of(tx_response: &IotaTransactionBlockResponse, owner: Address) -> i128 {
+    let changes = tx_response
+        .balance_changes
+        .as_ref()
+        .unwrap()
+        .iter()
+        .filter(|change| change.owner == Owner::Address(owner))
+        .collect::<Vec<_>>();
+    assert_eq!(changes.len(), 1, "expected one balance change for {owner}");
+    changes[0].amount
+}
+
+fn assert_same_object_changes_ignoring_version_and_digest(
+    expected: Vec<ObjectChange>,
+    actual: Vec<ObjectChange>,
+) {
+    fn by_object_id_without_version_and_digest(
+        changes: Vec<ObjectChange>,
+    ) -> BTreeMap<ObjectId, ObjectChange> {
+        changes
+            .into_iter()
+            .map(|mut change| {
+                let object_id = change.object_id();
+                change.mask_for_test(Version::MAX_VALID_EXCL, ObjectDigest::MAX);
+                (object_id, change)
+            })
+            .collect()
+    }
+    assert_eq!(
+        by_object_id_without_version_and_digest(expected),
+        by_object_id_without_version_and_digest(actual)
+    );
 }
 
 async fn get_address_balances(indexer_client: &HttpClient, address: Address) -> Vec<u64> {

@@ -6,12 +6,14 @@ use std::str::FromStr;
 use iota_indexer::store::PgIndexerStore;
 use iota_json::{IotaJsonValue, call_args, type_args};
 use iota_json_rpc_api::{
-    CoinReadApiClient, IndexerApiClient, TransactionBuilderClient, WriteApiClient,
+    CoinReadApiClient, GovernanceReadApiClient, IndexerApiClient, QUERY_MAX_RESULT_LIMIT,
+    TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
     Balance, Coin, CoinPage, IotaCoinMetadata, IotaObjectData, IotaObjectDataFilter,
-    IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTypeTag, OwnedObjectCursor, TransactionBlockBytes,
+    IotaObjectResponseQuery, IotaSystemStateSummary, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, IotaTypeTag,
+    OwnedObjectCursor, StakeStatus, TransactionBlockBytes,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk_crypto::{Signer, simple::SimpleKeypair};
@@ -21,6 +23,7 @@ use iota_sdk_types::{
 use iota_types::{
     balance::Supply,
     crypto::{AccountPrivateKey, get_key_pair},
+    gas_coin::NANOS_PER_IOTA,
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
@@ -381,7 +384,231 @@ fn get_all_balances_with_zero_iotas() {
         result_indexer.sort_by_key(|balance: &Balance| balance.coin_type.clone());
 
         assert_eq!(result_fullnode, result_indexer);
+        assert!(
+            result_indexer
+                .iter()
+                .all(|balance| balance.coin_type != "0x2::iota::IOTA"),
+            "no IOTA balance should remain after sending away all IOTA coins: {result_indexer:?}"
+        );
     });
+}
+
+#[test]
+fn get_coins_filters_by_coin_type() {
+    let ApiTestSetup {
+        runtime,
+        client,
+        cluster,
+        ..
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
+
+        let unknown_type = client
+            .get_coins(*owner, Some("0x2::iota::TestCoin".into()), None, None)
+            .await
+            .unwrap();
+        assert!(unknown_type.data.is_empty());
+        assert!(!unknown_type.has_next_page);
+
+        let default_type = client.get_coins(*owner, None, None, None).await.unwrap();
+        let iota_type = client
+            .get_coins(*owner, Some("0x2::iota::IOTA".into()), None, None)
+            .await
+            .unwrap();
+        assert_eq!(iota_type.data.len(), 5);
+        assert!(!iota_type.has_next_page);
+        assert_eq!(
+            default_type.data, iota_type.data,
+            "the coin type defaults to IOTA"
+        );
+    });
+}
+
+#[test]
+fn get_all_coins_limit_zero() {
+    let ApiTestSetup {
+        runtime,
+        client,
+        cluster,
+        ..
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
+
+        let all_coins = client.get_all_coins(*owner, None, Some(0)).await.unwrap();
+
+        assert!(
+            !all_coins.data.is_empty(),
+            "a zero limit means the maximum page size, not an empty page"
+        );
+        assert!(all_coins.data.len() <= *QUERY_MAX_RESULT_LIMIT);
+    });
+}
+
+/// A cursor carries its own position, so a page resumes after it even when the
+/// coin it named has been destroyed, not merely transferred away.
+#[test]
+fn get_all_coins_with_a_cursor_whose_object_is_gone() {
+    let ApiTestSetup {
+        runtime,
+        client,
+        cluster,
+        store,
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let (owner, keypair) = fund_new_address(cluster, client, 5, NANOS_PER_IOTA).await;
+
+        let all = client.get_all_coins(owner, None, None).await.unwrap();
+        assert_eq!(all.data.len(), 5);
+        let cursor_coin = all.data[0].coin_object_id;
+        let next_coin = all.data[1].coin_object_id;
+        // Merging into `next_coin` would change its own row too, so use a later one.
+        let primary_coin = all.data[2].coin_object_id;
+        let gas_coin = all.data[4].coin_object_id;
+
+        let first = client.get_all_coins(owner, None, Some(1)).await.unwrap();
+        let cursor = first.next_cursor.expect("a page follows the first coin");
+
+        let merge = client
+            .merge_coin(
+                owner,
+                primary_coin,
+                cursor_coin,
+                Some(gas_coin),
+                10_000_000.into(),
+            )
+            .await
+            .unwrap();
+        execute_tx_and_wait_for_indexer_checkpoint(client, store, merge, &keypair).await;
+
+        let resumed = client
+            .get_all_coins(owner, Some(cursor), None)
+            .await
+            .expect("a cursor whose coin is gone still names a position");
+        let ids: Vec<_> = resumed.data.iter().map(|c| c.coin_object_id).collect();
+        assert!(
+            !ids.contains(&cursor_coin),
+            "the destroyed cursor coin must not come back",
+        );
+        assert!(
+            ids.contains(&next_coin),
+            "the row after the cursor must not be skipped with it: {ids:?}",
+        );
+    });
+}
+
+#[test]
+fn request_add_stake_with_multiple_coins() {
+    let ApiTestSetup {
+        runtime,
+        client,
+        cluster,
+        store,
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let coin_amount = NANOS_PER_IOTA;
+        let stake_amount = NANOS_PER_IOTA;
+        let (owner, keypair) = fund_new_address(cluster, client, 5, coin_amount).await;
+
+        let coins = client.get_coins(owner, None, None, None).await.unwrap();
+        assert_eq!(coins.data.len(), 5);
+        assert!(client.get_stakes(owner).await.unwrap().is_empty());
+
+        let validator = match client.get_latest_iota_system_state_v2().await.unwrap() {
+            IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+            IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
+        };
+
+        let transaction_bytes: TransactionBlockBytes = client
+            .request_add_stake(
+                owner,
+                vec![
+                    coins.data[0].coin_object_id,
+                    coins.data[1].coin_object_id,
+                    coins.data[2].coin_object_id,
+                ],
+                Some(stake_amount.into()),
+                validator,
+                Some(coins.data[3].coin_object_id),
+                100_000_000.into(),
+            )
+            .await
+            .unwrap();
+        let tx = to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &keypair);
+        let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
+
+        let dry_run_response = client
+            .dry_run_transaction_block(tx_bytes.clone())
+            .await
+            .unwrap();
+        let executed_response = client
+            .execute_transaction_block(
+                tx_bytes,
+                signatures,
+                Some(
+                    IotaTransactionBlockResponseOptions::new()
+                        .with_balance_changes()
+                        .with_input(),
+                ),
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            dry_run_response.balance_changes,
+            executed_response.balance_changes.unwrap(),
+            "the dry run must predict the balance changes"
+        );
+        assert_eq!(
+            dry_run_response.input,
+            executed_response.transaction.unwrap().data,
+            "the dry run must report the executed transaction's input"
+        );
+        indexer_wait_for_transaction(executed_response.digest, store, client).await;
+
+        let stakes = client.get_stakes(owner).await.unwrap();
+        assert_eq!(stakes.len(), 1);
+        assert_eq!(stakes[0].stakes[0].principal, stake_amount);
+        assert!(matches!(stakes[0].stakes[0].status, StakeStatus::Pending));
+
+        // The staked coins are merged into one, and the rest returned to the
+        // sender.
+        let coins = client.get_coins(owner, None, None, None).await.unwrap();
+        assert_eq!(coins.data.len(), 3);
+        assert!(
+            coins
+                .data
+                .iter()
+                .any(|coin| coin.balance == 3 * coin_amount - stake_amount),
+            "the remainder of the staked coins must come back as one coin: {coins:?}"
+        );
+    });
+}
+
+/// Funds a new address with `count` IOTA coins of `amount` each, and waits for
+/// the indexer to see them.
+async fn fund_new_address(
+    cluster: &TestCluster,
+    indexer_client: &HttpClient,
+    count: usize,
+    amount: u64,
+) -> (Address, SimpleKeypair) {
+    let (address, key): (_, AccountPrivateKey) = get_key_pair();
+    for _ in 0..count {
+        let coin_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(amount),
+                address,
+            )
+            .await;
+        indexer_wait_for_object(indexer_client, coin_ref.object_id, coin_ref.version).await;
+    }
+    (address, SimpleKeypair::from(key))
 }
 
 #[test]

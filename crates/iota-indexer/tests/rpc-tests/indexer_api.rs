@@ -19,16 +19,22 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, IotaTransactionKind,
     MAX_FILTER_NODES, ObjectsPage, TransactionFilter, TransactionFilterV2,
 };
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::simple::SimpleKeypair;
+use iota_sdk_move_types::iota_framework::{object::UID, vec_map::VecMap};
 use iota_sdk_types::{
-    Address, Command, Identifier, ObjectId, StructTag, Transaction, TransactionDigest, TypeTag,
+    Address, Command, Identifier, MoveStruct, ObjectData, ObjectId, Owner, StructTag, Transaction,
+    TransactionDigest, TypeTag,
 };
+use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::{TestTransactionBuilder, split_coin_equal_tx};
 use iota_types::{
-    crypto::{AccountPrivateKey, get_key_pair},
+    crypto::{AccountPrivateKey, deterministic_random_account_private_key, get_key_pair},
     dynamic_field::DynamicFieldName,
+    object::{MoveStructExt, OBJECT_START_VERSION, ObjectInner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
+    stardust::output::{Irc27Metadata, Nft},
     transaction::{CallArg, TransactionAPI},
     utils::to_sender_signed_transaction,
 };
@@ -715,6 +721,64 @@ fn query_events_unsupported_events() {
     });
 }
 
+/// A transaction's events page through in order in both directions, each
+/// with its checkpoint's timestamp.
+#[test]
+fn query_events_pages_through_a_transactions_events() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let genesis_digest = *client
+            .get_checkpoint(CheckpointId::SequenceNumber(0))
+            .await
+            .unwrap()
+            .transactions
+            .first()
+            .expect("the genesis checkpoint holds the genesis transaction");
+
+        for descending in [false, true] {
+            let mut seqs = Vec::new();
+            let mut cursor = None;
+            loop {
+                let page = client
+                    .query_events(
+                        EventFilter::Transaction(genesis_digest),
+                        cursor,
+                        Some(1),
+                        Some(descending),
+                    )
+                    .await
+                    .unwrap();
+                for event in &page.data {
+                    assert_eq!(event.id.tx_digest, genesis_digest);
+                    assert!(event.timestamp_ms.is_some());
+                }
+                seqs.extend(page.data.iter().map(|event| event.id.event_seq));
+                if !page.has_next_page {
+                    break;
+                }
+                cursor = page.next_cursor;
+            }
+            assert!(
+                seqs.len() > 1,
+                "the pages must split the transaction's events"
+            );
+            let mut expected: Vec<u64> = (0..seqs.len() as u64).collect();
+            if descending {
+                expected.reverse();
+            }
+            assert_eq!(seqs, expected, "descending: {descending}");
+        }
+    });
+}
+
 #[test]
 fn query_events_supported_events() {
     let ApiTestSetup {
@@ -856,6 +920,107 @@ fn test_get_owned_objects() -> Result<(), anyhow::Error> {
 
         Ok(())
     })
+}
+
+#[tokio::test]
+async fn test_nft_display_object() -> Result<(), anyhow::Error> {
+    let (address, _) = deterministic_random_account_private_key();
+    let issuer =
+        Address::from_str("0x1000000000000000002000000000000003000000000000040000000000000005")?;
+
+    let nft = Nft {
+        id: UID::new(ObjectId::random()),
+        legacy_sender: Some(Address::ZERO),
+        metadata: Some(String::from("metadata value").into_bytes()),
+        tag: Some(String::from("tag value").into_bytes()),
+        immutable_issuer: Some(issuer),
+        immutable_metadata: Irc27Metadata {
+            version: String::from("version value"),
+            media_type: String::from("media type value"),
+            uri: String::from("url value").try_into().unwrap(),
+            name: String::from("name value"),
+            collection_name: Some(String::from("collection name value")),
+            royalties: VecMap { contents: vec![] },
+            issuer_name: Some(String::from("issuer name value")),
+            description: Some(String::from("description value")),
+            attributes: VecMap { contents: vec![] },
+            non_standard_fields: VecMap { contents: vec![] },
+        },
+    };
+    let nft_move_object = MoveStruct::new_from_execution(
+        StructTag::new_nft(),
+        OBJECT_START_VERSION,
+        bcs::to_bytes(&nft)?,
+        &ProtocolConfig::get_for_min_version(),
+        // system_mutation
+        false,
+    )?;
+    let nft_object = ObjectInner {
+        owner: Owner::Address(address),
+        data: ObjectData::Struct(nft_move_object),
+        previous_transaction: TransactionDigest::GENESIS_MARKER,
+        storage_rebate: 0,
+    };
+
+    let (_cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("test_nft_display_object"),
+        Some(Box::new(move |builder| {
+            builder
+                .with_accounts(
+                    [AccountConfig {
+                        address: Some(address),
+                        gas_amounts: [100_000_000].into(),
+                    }]
+                    .into(),
+                )
+                .with_objects([nft_object.into()])
+        })),
+        None,
+    )
+    .await;
+    indexer_wait_for_checkpoint(store, 1).await;
+
+    let objects: ObjectsPage = client
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new(
+                Some(IotaObjectDataFilter::StructType(StructTag::new_nft())),
+                Some(
+                    IotaObjectDataOptions::new()
+                        .with_type()
+                        .with_owner()
+                        .with_previous_transaction()
+                        .with_display(),
+                ),
+            )),
+            None,
+            None,
+        )
+        .await?;
+    assert_eq!(1, objects.data.len());
+
+    let nft_display = objects.data[0]
+        .data
+        .as_ref()
+        .unwrap()
+        .display
+        .as_ref()
+        .unwrap()
+        .data
+        .as_ref()
+        .unwrap();
+
+    assert_eq!(8, nft_display.len());
+    assert_eq!(nft_display["collection_name"], "collection name value");
+    assert_eq!(nft_display["creator"], "issuer name value");
+    assert_eq!(nft_display["description"], "description value");
+    assert_eq!(nft_display["image_url"], "url value");
+    assert_eq!(nft_display["immutable_issuer"], issuer.to_string());
+    assert_eq!(nft_display["media_type"], "media type value");
+    assert_eq!(nft_display["name"], "name value");
+    assert_eq!(nft_display["version"], "version value");
+
+    Ok(())
 }
 
 /// Returns `count` copies of the same struct type filter.
@@ -1177,6 +1342,73 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
             .unwrap();
 
         assert_eq!(1, res.data.len());
+
+        // The transaction calls two functions of the same module, so a filter
+        // on that module must still return it only once.
+        let move_call_query =
+            IotaTransactionBlockResponseQuery::new_with_filter(TransactionFilter::MoveFunction {
+                package: package_id,
+                module: Some(module.to_string()),
+                function: None,
+            });
+        let mut matches = 0;
+        let mut cursor = None;
+        loop {
+            let page = client
+                .query_transaction_blocks(move_call_query.clone(), cursor, Some(50), Some(true))
+                .await?;
+            matches += page
+                .data
+                .iter()
+                .filter(|tx| tx.digest == response.digest)
+                .count();
+            if !page.has_next_page {
+                break;
+            }
+            cursor = page.next_cursor;
+        }
+        assert_eq!(1, matches);
+
+        Ok(())
+    })
+}
+
+/// Unfiltered pages in ascending order join up into the same transactions as
+/// one larger page.
+#[test]
+fn query_transaction_blocks_pages_without_filter() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 10).await;
+
+        let query = IotaTransactionBlockResponseQuery::default();
+        let first_page = client
+            .query_transaction_blocks(query.clone(), None, Some(5), Some(false))
+            .await?;
+        assert_eq!(5, first_page.data.len());
+        assert!(first_page.has_next_page);
+
+        let second_page = client
+            .query_transaction_blocks(query.clone(), first_page.next_cursor, Some(5), Some(false))
+            .await?;
+        assert_eq!(5, second_page.data.len());
+
+        let mut all_txs = first_page.data;
+        all_txs.extend(second_page.data);
+
+        let latest = client
+            .query_transaction_blocks(query, None, Some(10), Some(false))
+            .await?;
+        assert_eq!(10, latest.data.len());
+        assert_eq!(Some(all_txs[9].digest), latest.next_cursor);
+        assert_eq!(all_txs, latest.data);
+        assert!(latest.has_next_page);
 
         Ok(())
     })
