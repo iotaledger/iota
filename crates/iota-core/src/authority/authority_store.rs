@@ -769,22 +769,23 @@ impl AuthorityStore {
         let mut hasher = Sha3_256::default();
         let mut batch = perpetual_db.objects.batch();
         for live_object in live_objects {
-            hasher.update(live_object.object_reference().digest.bytes());
             let LiveObject {
                 object,
                 previous_transaction_checkpoint,
             } = live_object;
-            let store_object_wrapper =
-                get_store_object(object.clone(), previous_transaction_checkpoint);
+            let object_ref = object.object_ref();
+            hasher.update(object_ref.digest.bytes());
+            let is_child_object = object.is_child_object();
+            let store_object_wrapper = get_store_object(object, previous_transaction_checkpoint);
             batch.insert_batch(
                 &perpetual_db.objects,
-                std::iter::once((ObjectKey::from(object.object_ref()), store_object_wrapper)),
+                std::iter::once((ObjectKey::from(object_ref), store_object_wrapper)),
             )?;
-            if !object.is_child_object() {
+            if !is_child_object {
                 Self::initialize_live_object_markers(
                     &perpetual_db.live_owned_object_markers,
                     &mut batch,
-                    &[object.object_ref()],
+                    &[object_ref],
                 )?;
             }
         }
