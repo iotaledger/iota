@@ -948,6 +948,15 @@ pub struct AuthorityEpochTables {
     /// the commits up to it and processes none after it.
     last_commit_before_synced_checkpoint_execution: DBMap<u64, CommitIndex>,
 
+    /// The commit whose roots include the transaction, for every root of the
+    /// epoch with a digest, system transactions included, when the epoch
+    /// enables transaction dependencies. Written when the
+    /// commit's output flushes and never deleted within the epoch, so
+    /// post-consensus validation of a later commit places a transaction
+    /// dependency at its commit however far the flush or local execution has
+    /// got. Held in the quarantine overlay before the flush.
+    pub(crate) root_commits: DBMap<TransactionDigest, CommitIndex>,
+
     /// Map stores pending transactions that this authority submitted to
     /// consensus
     #[default_options_override_fn = "pending_consensus_transactions_table_default_config"]
@@ -3549,6 +3558,49 @@ impl AuthorityPerEpochStore {
             .contains(tx_digest)
     }
 
+    /// Whether this validator submitted the user transaction `tx_digest` to
+    /// consensus and has not seen it sequenced yet.
+    pub fn is_pending_consensus_user_transaction(
+        &self,
+        tx_digest: &TransactionDigest,
+    ) -> IotaResult<bool> {
+        Ok(self
+            .tables()?
+            .pending_consensus_transactions
+            .contains_key(&ConsensusTransactionKey::UserTransaction(*tx_digest))?)
+    }
+
+    /// The commit whose roots include `digest`, if the handler scheduled or
+    /// cancelled it from a commit of this epoch: from the quarantine overlay
+    /// for a commit whose output has not flushed yet, else from the epoch
+    /// table. Both hold the same value, so the answer does not depend on when
+    /// the flush ran.
+    pub(crate) fn root_commit_of(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<CommitIndex>> {
+        if let Some(index) = self.consensus_quarantine.read().get_root_commit(digest) {
+            return Ok(Some(index));
+        }
+        Ok(self.tables()?.root_commits.get(digest)?)
+    }
+
+    /// Whether `digest` is deferred: sequenced and kept at an earlier commit,
+    /// not scheduled yet. Consensus state, the same on every validator at the
+    /// same commit.
+    pub(crate) fn is_deferred_transaction(&self, digest: &TransactionDigest) -> bool {
+        self.consensus_output_cache.is_deferred_transaction(digest)
+    }
+
+    /// The final drop this validator recorded for `digest` at a commit, if
+    /// any. Validator-local: admission uses it to reject a dependent early.
+    pub(crate) fn recorded_dropped_transaction(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Option<IotaError> {
+        self.dropped_tx_status_cache.recorded_drop(digest)
+    }
+
     pub fn deferred_transactions_empty(&self) -> bool {
         if self
             .protocol_config
@@ -5098,6 +5150,28 @@ impl AuthorityPerEpochStore {
         sequenced_transactions.extend(current_commit_sequenced_consensus_transactions);
         sequenced_randomness_transactions.extend(current_commit_sequenced_randomness_transactions);
 
+        // Every list ordered for dependencies or searched for their debts
+        // below holds only transactions from these two, so checking them here
+        // covers the whole commit. Ordering is needed only when a transaction
+        // depends on another transaction of the commit.
+        let dependencies: HashSet<TransactionDigest> =
+            if self.protocol_config.enable_transaction_dependencies() {
+                sequenced_transactions
+                    .iter()
+                    .chain(&sequenced_randomness_transactions)
+                    .filter_map(|transaction| transaction.0.transaction.transaction_dependency())
+                    .collect()
+            } else {
+                HashSet::new()
+            };
+        let has_transaction_dependencies = !dependencies.is_empty();
+        let has_dependency_in_commit = has_transaction_dependencies
+            && sequenced_transactions
+                .iter()
+                .chain(&sequenced_randomness_transactions)
+                .filter_map(|transaction| transaction.0.transaction.executable_transaction_digest())
+                .any(|digest| dependencies.contains(&digest));
+
         // Post-consensus validation and owned-object conflict resolution in a
         // single pass: validates UserTransactionV1 transactions and resolves
         // lock conflicts before reordering. Deferred txs from previous commits
@@ -5167,6 +5241,14 @@ impl AuthorityPerEpochStore {
                         None => true,
                     }
                 });
+            }
+            // A transaction is validated after the transaction it depends on
+            // when both are in the commit, so the dependency's decision is
+            // known first.
+            if has_dependency_in_commit {
+                PostConsensusTxReorder::order_dependents_after_dependencies(
+                    &mut sequenced_transactions,
+                );
             }
             let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
@@ -5273,7 +5355,8 @@ impl AuthorityPerEpochStore {
 
         // Order transactions by gas price. With the combined congestion
         // tracker this is one order across regular and randomness-using
-        // transactions.
+        // transactions. A transaction then follows the transaction it depends
+        // on, so the congestion tracker sees the dependency first.
         PostConsensusTxReorder::reorder(
             &mut sequenced_transactions,
             self.protocol_config.consensus_transaction_ordering(),
@@ -5282,6 +5365,14 @@ impl AuthorityPerEpochStore {
             &mut sequenced_randomness_transactions,
             self.protocol_config.consensus_transaction_ordering(),
         );
+        if has_dependency_in_commit {
+            PostConsensusTxReorder::order_dependents_after_dependencies(
+                &mut sequenced_transactions,
+            );
+            PostConsensusTxReorder::order_dependents_after_dependencies(
+                &mut sequenced_randomness_transactions,
+            );
+        }
         // Worker debt exists only when execution-worker congestion control
         // is active; without it, the tracker ignores the debt, so skip the
         // quarantine scan and DB read entirely.
@@ -5411,11 +5502,23 @@ impl AuthorityPerEpochStore {
                 randomness_round.is_some() || (dkg_failed && !randomness_roots.is_empty());
 
             // The handler object state assigns the commit to exactly the
-            // roots written to its pending checkpoints.
+            // roots written to its pending checkpoints, and `root_commits`
+            // records the same roots when transaction dependencies are enabled.
             if self.pcool_bookkeeping_enabled {
                 let mut commit_roots = non_randomness_roots.clone();
                 if should_write_random_checkpoint {
                     commit_roots.extend(randomness_roots.iter().copied());
+                }
+                if self.protocol_config.enable_transaction_dependencies() {
+                    output.set_root_transactions(
+                        commit_roots
+                            .iter()
+                            .filter_map(|key| match key {
+                                TransactionKey::Digest(digest) => Some(*digest),
+                                _ => None,
+                            })
+                            .collect(),
+                    );
                 }
                 self.assign_commit_to_transactions(consensus_commit_info.index, commit_roots);
                 if let Some(highest_fully_executed) = self.subscribe_highest_fully_executed_commit()
@@ -5471,6 +5574,11 @@ impl AuthorityPerEpochStore {
                     deferred_transactions.remove(&deleted_deferred_key);
                 }
             }
+            self.consensus_output_cache
+                .rebuild_deferred_transaction_digests(
+                    self.protocol_config
+                        .congestion_control_gas_price_feedback_mechanism(),
+                );
         }
 
         let processed_keys = if self

@@ -44,10 +44,14 @@
 //!    later copy of the digest is validated.
 //! 6. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop with error, except a
 //!    lock held by the same transaction, which is exempt. Cheap; performed before expensive checks.
-//! 7. `handle_transaction_validation_checks_at_commit()` — drop with error. An attested transaction
+//! 7. Transaction dependency (transactions with a dependency input only): decided from consensus
+//!    state, see `dependency_verdict` — drop with error when the dependency failed or is not
+//!    sequenced yet. A dependency whose outcome is not known yet keeps the transaction; the
+//!    execution scheduler then runs it only after the dependency's effects are here.
+//! 8. `handle_transaction_validation_checks_at_commit()` — drop with error. An attested transaction
 //!    runs the input checks execution runs, gas included, and the checks on receiving objects; the
 //!    publish verifier stays at execution. Only reached when all locks are free.
-//! 8. All passed — acquire locks in the local tracking map, keep transaction.
+//! 9. All passed — acquire locks in the local tracking map, keep transaction.
 //!
 //! Non-`UserTransactionV1` transactions pass through unchanged.
 //!
@@ -55,7 +59,7 @@
 //!
 //! Step 6 probes every `ImmOrOwnedMoveObject` reference, but only genuinely
 //! owned references are locked — an immutable input never takes a new
-//! version, so its lock would hold until the epoch ends. Step 8 filters via
+//! version, so its lock would hold until the epoch ends. Step 9 filters via
 //! the loaded objects, step 3 via the executed transaction's effects.
 
 use std::{
@@ -72,7 +76,7 @@ use iota_types::{
     attestation::Attestation,
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     gas::check_gas_bounds,
     transaction::{
         InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction,
@@ -175,7 +179,7 @@ type ValidatedCopy<'a> = (
 /// Validates `UserTransactionV1` transactions and resolves owned-object
 /// conflicts in a single pass.
 ///
-/// For each `UserTransactionV1` in consensus order:
+/// For each `UserTransactionV1`, in the order of `transactions`:
 /// - Runs deduplication, structural validity, lock conflict check, and deny checks (deny list, gas,
 ///   ownership, coin deny list, Move authenticator).
 /// - If all checks pass, acquires owned-object locks in a local tracking map; immutable inputs are
@@ -187,6 +191,10 @@ type ValidatedCopy<'a> = (
 ///   differ from those of the other validators.
 /// - A transaction in `previously_deferred` is kept without checks and takes no new locks: the
 ///   locks it took at the commit that kept it stay in place.
+///
+/// `transactions` must list every transaction after the transaction it depends on when both are
+/// in it, as `PostConsensusTxReorder::order_dependents_after_dependencies` leaves them, so a
+/// dependency is decided before its dependent is validated.
 ///
 /// Copies of one digest with other signatures can come from different authors in one commit. The
 /// first copy is validated; a later one only while every earlier copy was dropped for a reason that
@@ -626,6 +634,55 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
+        // Check #5b: Transaction dependency. Decided from consensus state only
+        // (see `dependency_verdict`), so every validator reaches the same
+        // verdict. The dependency is part of the signed data, so every copy of
+        // the digest shares the verdict.
+        if let Some(dependency) = transaction.transaction().transaction_dependency() {
+            match dependency_verdict(
+                dependency,
+                commit_index,
+                &decisions,
+                previously_deferred,
+                epoch_store,
+                authority_state,
+            )? {
+                DependencyVerdict::Satisfied | DependencyVerdict::Pending => {}
+                DependencyVerdict::Failed => {
+                    warn!(
+                        ?digest,
+                        commit_index,
+                        ?dependency,
+                        "transaction dependency did not succeed, dropping"
+                    );
+                    decisions.drop_copy(
+                        digest,
+                        UserInputError::TransactionDependencyFailed { digest: dependency }.into(),
+                        false,
+                        from_signatures(FailedCheck::Data),
+                    );
+                    keep[i] = false;
+                    continue;
+                }
+                DependencyVerdict::NotVisibleYet => {
+                    warn!(
+                        ?digest,
+                        commit_index,
+                        ?dependency,
+                        "transaction dependency not sequenced at this commit yet, dropping"
+                    );
+                    decisions.drop_copy(
+                        digest,
+                        UserInputError::TransactionDependencyNotFound { digest: dependency }.into(),
+                        true,
+                        from_signatures(FailedCheck::Data),
+                    );
+                    keep[i] = false;
+                    continue;
+                }
+            }
+        }
+
         // Check #6: Validation and deny checks. Only reached when all locks are
         // free, so the expensive object loading is skipped for transactions the
         // lock conflict check would drop.
@@ -830,6 +887,85 @@ pub async fn validate_and_resolve_conflicts(
     transactions.retain(|_| iter.next().unwrap_or(true));
 
     Ok((dropped, current_commit_locks, all_user_tx_digests))
+}
+
+/// The outcome of the transaction dependency check at a commit.
+///
+/// The horizon of a commit is an earlier commit: its index is the commit's
+/// index minus the protocol config's horizon distance (see [`horizon`]).
+/// Before a validator validates a commit, it waits until every root of the
+/// horizon and of every earlier commit has executed, so the effects of those
+/// roots exist on every validator. A commit later than the horizon, one with
+/// a higher index, may not have executed on every validator yet.
+enum DependencyVerdict {
+    /// The dependency executed successfully, as a root of the horizon or of
+    /// an earlier commit.
+    Satisfied,
+    /// The dependency is sequenced, but not every validator may know its
+    /// outcome yet: it was kept earlier in this commit, it is deferred, or it
+    /// is a root of a commit later than the horizon. The execution scheduler
+    /// makes the dependent wait for the dependency's effects, and the
+    /// dependent is cancelled at execution if they report a failure.
+    Pending,
+    /// The dependency's effects report a failure, a cancellation at
+    /// sequencing included, or the dependency was dropped for good earlier in
+    /// this commit.
+    Failed,
+    /// The dependency is not a root of an earlier commit of this epoch, is
+    /// not deferred, and has not been kept in this commit so far.
+    NotVisibleYet,
+}
+
+/// Decides a transaction dependency at `commit_index` from consensus state
+/// only: this commit's decisions so far, the deferred set, and the commit
+/// each root of the epoch belongs to (`root_commits`). It reads the
+/// dependency's effects only for a root of the horizon or of an earlier
+/// commit, which every validator has executed. The perpetual store is never
+/// consulted for a digest that is not a root of this epoch: whether a
+/// transaction of an earlier epoch is still there depends on each node's
+/// pruning, so a dependency has to be a root of the current epoch.
+fn dependency_verdict(
+    dependency: TransactionDigest,
+    commit_index: CommitIndex,
+    decisions: &CommitDecisions,
+    previously_deferred: &PreviouslyDeferredTransactions,
+    epoch_store: &Arc<AuthorityPerEpochStore>,
+    authority_state: &AuthorityState,
+) -> IotaResult<DependencyVerdict> {
+    if let Some((decision, _)) = decisions.verdicts.get(&dependency) {
+        return Ok(match decision {
+            PostConsensusDecision::Kept => DependencyVerdict::Pending,
+            PostConsensusDecision::Dropped => DependencyVerdict::Failed,
+            PostConsensusDecision::DroppedInputNotVisibleYet
+            | PostConsensusDecision::DroppedCopy => DependencyVerdict::NotVisibleYet,
+        });
+    }
+    if previously_deferred.contains_key(&dependency)
+        || epoch_store.is_deferred_transaction(&dependency)
+    {
+        return Ok(DependencyVerdict::Pending);
+    }
+    let Some(root_commit) = epoch_store.root_commit_of(&dependency)? else {
+        return Ok(DependencyVerdict::NotVisibleYet);
+    };
+    let horizon = horizon(epoch_store.protocol_config(), commit_index);
+    if root_commit > horizon {
+        return Ok(DependencyVerdict::Pending);
+    }
+    let effects = authority_state
+        .get_transaction_cache_reader()
+        .try_get_executed_effects(&dependency)?
+        .unwrap_or_else(|| {
+            fatal!(
+                "transaction {dependency:?} is a root of commit {root_commit}, no later than \
+                 commit {horizon}, the horizon of commit {commit_index}, but has no effects"
+            )
+        });
+    Ok(if effects.status().is_success() {
+        DependencyVerdict::Satisfied
+    } else {
+        DependencyVerdict::Failed
+    })
 }
 
 /// The decision so far for each user transaction digest of a commit.
@@ -1072,3 +1208,7 @@ fn extract_owned_input_objects(
 #[cfg(test)]
 #[path = "unit_tests/post_consensus_validation_tests.rs"]
 mod post_consensus_validation_tests;
+
+#[cfg(test)]
+#[path = "unit_tests/post_consensus_dependency_tests.rs"]
+mod post_consensus_dependency_tests;

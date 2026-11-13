@@ -103,6 +103,11 @@ impl DroppedTxStatusCache {
         }
     }
 
+    /// The recorded final drop of `digest`, if any.
+    pub(crate) fn recorded_drop(&self, digest: &TransactionDigest) -> Option<IotaError> {
+        self.inner.read().entries.get(digest).cloned()
+    }
+
     /// Forget the recorded drops of transactions kept at a commit. The digest
     /// does not cover the signatures, so a drop recorded earlier may be that
     /// of another copy, or of an earlier submission, of a transaction that is

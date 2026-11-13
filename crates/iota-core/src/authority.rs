@@ -1604,6 +1604,9 @@ impl AuthorityState {
                 &self.config.transaction_deny_config,
             )
             .await?;
+        // After the checks above, so a permanent local error is reported ahead
+        // of the retriable "not executed yet".
+        self.check_transaction_dependency_for_signing(&transaction, epoch_store)?;
 
         let epoch = epoch_store.epoch();
         let signed_transaction =
@@ -2008,6 +2011,60 @@ impl AuthorityState {
         }
 
         transaction.split_input_objects_into_groups_for_reading(input_objects)
+    }
+
+    /// The final outcome of the transaction named by `transaction`'s
+    /// dependency input, when this node knows one: an error if the dependency
+    /// failed, was cancelled, or executed in an earlier epoch, `Ok` if it
+    /// succeeded in the current epoch or has not executed here yet.
+    pub fn check_transaction_dependency_known_outcome(
+        &self,
+        transaction: &Transaction,
+        current_epoch: EpochId,
+    ) -> IotaResult<()> {
+        let Some(digest) = transaction.transaction_dependency() else {
+            return Ok(());
+        };
+        let Some(effects) = self
+            .get_transaction_cache_reader()
+            .try_get_executed_effects(&digest)?
+        else {
+            return Ok(());
+        };
+        if !effects.status().is_success() {
+            return Err(UserInputError::TransactionDependencyFailed { digest }.into());
+        }
+        if effects.epoch() != current_epoch {
+            return Err(UserInputError::TransactionDependencyNotInCurrentEpoch {
+                digest,
+                executed_epoch: effects.epoch(),
+            }
+            .into());
+        }
+        Ok(())
+    }
+
+    /// Checks the transaction named by `transaction`'s dependency input before
+    /// signing it in the certificate flow: it must have executed successfully
+    /// in the current epoch on this validator. Not executed here yet is
+    /// reported with a retriable error, so the client's driver retries once it
+    /// has.
+    fn check_transaction_dependency_for_signing(
+        &self,
+        transaction: &VerifiedTransaction,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> IotaResult<()> {
+        let data = transaction.data().transaction();
+        self.check_transaction_dependency_known_outcome(data, epoch_store.epoch())?;
+        if let Some(digest) = data.transaction_dependency() {
+            if !self
+                .get_transaction_cache_reader()
+                .try_is_tx_already_executed(&digest)?
+            {
+                return Err(UserInputError::TransactionDependencyNotFound { digest }.into());
+            }
+        }
+        Ok(())
     }
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
