@@ -1909,3 +1909,50 @@ async fn deny_rule_delta_racing_the_epoch_close_is_never_lost() {
         assert_eq!(walked_rules(&handle).unwrap(), reference);
     }
 }
+
+/// A validator whose deny rule proposal is larger than consensus accepts
+/// keeps running: it changes epoch with the others, and the new epoch records
+/// the proposals of the other validators only.
+#[sim_test]
+async fn deny_rule_proposal_larger_than_consensus_accepts_does_not_stop_the_node() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = governance_overrides(1000);
+
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(600_000)
+        .build()
+        .await;
+
+    // The denied addresses alone take more bytes than consensus accepts in
+    // one transaction: each one takes at least 32 bytes of the proposal.
+    let max_size = test_cluster.fullnode_handle.iota_node.with(|node| {
+        node.state()
+            .epoch_store_for_testing()
+            .protocol_config()
+            .max_transaction_size_bytes()
+    });
+    let deny_config = (1..=max_size / 32 + 1)
+        .fold(TransactionDenyConfigBuilder::new(), |builder, index| {
+            let mut address = [0u8; 32];
+            address[..8].copy_from_slice(&index.to_le_bytes());
+            builder.add_denied_address(Address::new(address))
+        })
+        .build();
+    let validator = test_cluster.get_validator_pubkeys()[0];
+    restart_with_deny_config(&test_cluster, &validator, deny_config).await;
+
+    // Waits for every node to reach the next epoch, the restarted validator
+    // included.
+    test_cluster.force_new_epoch().await;
+
+    wait_for_the_live_announcements(&test_cluster).await;
+    for handle in test_cluster.swarm.validator_node_handles() {
+        handle.with(|node| {
+            let store = node.state().epoch_store_for_testing();
+            assert!(
+                store.recorded_deny_rule_proposal(&validator).is_none(),
+                "a proposal larger than consensus accepts should not be recorded"
+            );
+        });
+    }
+}
