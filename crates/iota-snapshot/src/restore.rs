@@ -6,10 +6,13 @@
 
 use std::{future::Future, sync::Arc};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use bytes::Bytes;
 use iota_core::{
-    authority::{AuthorityStore, authority_store_tables::AuthorityPerpetualTables},
+    authority::{
+        AuthorityStore,
+        authority_store_tables::{AuthorityPerpetualTables, LiveObject},
+    },
     checkpoints::CheckpointStore,
     rpc_indexes::live_scan::RpcIndexesRestorer,
 };
@@ -48,10 +51,29 @@ impl Restore for AuthorityPerpetualTables {
         expected_checksum: &[u8; SHA3_BYTES],
     ) -> Result<()> {
         let live_objects = LiveObjectIter::new(&file_metadata, bytes)?;
-        AuthorityStore::bulk_insert_live_objects(self, live_objects, expected_checksum)
-            .expect("Failed to insert live objects");
-        Ok(())
+        bulk_insert_partition(self, live_objects, expected_checksum, &file_metadata)
     }
+}
+
+/// Inserts the objects of a partition. A checksum mismatch, which means that
+/// downloaded data failed verification, and any other failure of the bulk
+/// insert (a failed database write, for example) are errors rather than
+/// panics. After a checksum mismatch nothing of the partition is written to
+/// the perpetual tables.
+fn bulk_insert_partition(
+    perpetual_tables: &AuthorityPerpetualTables,
+    live_objects: impl Iterator<Item = LiveObject>,
+    expected_checksum: &[u8; SHA3_BYTES],
+    file_metadata: &FileMetadata,
+) -> Result<()> {
+    AuthorityStore::bulk_insert_live_objects(perpetual_tables, live_objects, expected_checksum)
+        .map_err(anyhow::Error::from)
+        .with_context(|| {
+            format!(
+                "failed to insert the live objects of bucket {} partition {}",
+                file_metadata.bucket_num, file_metadata.part_num
+            )
+        })
 }
 
 /// Restore target that, given an [`RpcIndexesRestorer`], also indexes each
@@ -64,6 +86,10 @@ impl Restore for AuthorityPerpetualTables {
 /// polls it, does not stop an insert that was started, also when it still waits
 /// for a blocking thread. The insert finishes on the blocking pool and holds
 /// its `Arc`s until then.
+///
+/// After an error the restorer must not be finalized: the partition indexer
+/// hands its buffers back to the shared pool when it is dropped, so the index
+/// rows of the failed partition stay staged.
 pub struct RestoreWithIndexes {
     perpetual_tables: Arc<AuthorityPerpetualTables>,
     rpc_indexes_restorer: Option<Arc<RpcIndexesRestorer>>,
@@ -86,13 +112,13 @@ impl Restore for RestoreWithIndexes {
     ///
     /// # Errors
     ///
-    /// Returns an error if the partition cannot be decoded or indexed, or if
-    /// the insert was cancelled.
+    /// Returns an error if the partition cannot be decoded, if the objects do
+    /// not match `expected_checksum`, if they cannot be written or indexed, or
+    /// if the insert was cancelled.
     ///
     /// # Panics
     ///
     /// Panics if there is no Tokio runtime. A panic of the insert is re-raised.
-    /// A partition that fails its checksum, or whose write fails, panics.
     async fn insert_partition(
         &self,
         file_metadata: FileMetadata,
@@ -141,8 +167,12 @@ fn insert_partition_blocking(
             }
         }
     });
-    AuthorityStore::bulk_insert_live_objects(perpetual_tables, live_objects, expected_checksum)
-        .expect("Failed to insert live objects");
+    bulk_insert_partition(
+        perpetual_tables,
+        live_objects,
+        expected_checksum,
+        &file_metadata,
+    )?;
     if let Some(e) = index_error {
         return Err(e.into());
     }
