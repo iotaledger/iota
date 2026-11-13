@@ -106,7 +106,7 @@ pub struct AnalyticsIndexerConfig {
     #[arg(long, value_enum, default_value = "csv", global = true)]
     pub file_format: FileFormat,
     // Type of data to write i.e. checkpoint, object, transaction, etc
-    #[arg(long, value_enum, long, global = true)]
+    #[arg(long, value_enum, global = true)]
     pub file_type: FileType,
     #[arg(
         long,
@@ -118,7 +118,6 @@ pub struct AnalyticsIndexerConfig {
     #[arg(
         long,
         value_enum,
-        long,
         global = true,
         default_value = "/opt/iota/db/package_cache"
     )]

@@ -6530,7 +6530,7 @@ async fn make_test_transaction(
             .await
             .unwrap();
         let vote = response.status.into_signed_for_testing();
-        sigs.push(vote.clone());
+        sigs.push(vote);
         if let Ok(cert) =
             CertifiedTransaction::new(transaction.clone().into_message(), sigs.clone(), &committee)
         {
@@ -11375,7 +11375,6 @@ async fn served_checkpoint_contents_carry_the_pinned_signatures() {
             .unwrap();
         // The contents pin the sequenced copy's signatures.
         let (_, sigs) = contents
-            .clone()
             .into_iter_with_signatures()
             .find(|(digests, _)| digests.transaction == digest)
             .expect("checkpoint 0 holds T1");

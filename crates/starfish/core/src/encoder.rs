@@ -223,8 +223,8 @@ mod tests {
             let info_length = context.committee.info_length();
 
             let context = Arc::new(context);
-            let mut encoder = create_encoder(&context.clone());
-            let mut decoder = create_decoder(&context.clone());
+            let mut encoder = create_encoder(&context);
+            let mut decoder = create_decoder(&context);
 
             for count in 1..8 {
                 for max_len in 0..32 {
