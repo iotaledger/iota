@@ -1764,6 +1764,14 @@ pub struct ProtocolConfig {
     /// together.
     scorer_version: Option<u16>,
 
+    /// Minimum number of rounds without a committed header of an authority for
+    /// the gap to count in full as its absence when its next header is
+    /// committed. The gap can include rounds in which the authority produced
+    /// headers that were never committed. The value when an epoch's consensus
+    /// stats are created holds for the whole epoch; with `None`, that epoch
+    /// counts no absences.
+    consensus_absent_rounds_min_gap: Option<u64>,
+
     // `auth_context` module
     // Cost params for the Move native function `native_digest(): vector<u8>`
     auth_context_digest_cost_base: Option<u64>,
@@ -3106,6 +3114,7 @@ impl ProtocolConfig {
             pcool_deterministic_validation_horizon_distance: None,
 
             scorer_version: None,
+            consensus_absent_rounds_min_gap: None,
 
             // `auth_context` module
             auth_context_digest_cost_base: None,

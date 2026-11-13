@@ -55,6 +55,10 @@ pub(crate) trait ConsensusOutputAPI: Display {
 
     fn number_of_headers_in_commit_by_authority(&self) -> Vec<(AuthorityIndex, u64)>;
 
+    /// The distinct (author, round) pairs of the headers committed in this
+    /// commit, ordered by author and then by round.
+    fn committed_header_rounds(&self) -> Vec<(AuthorityIndex, u64)>;
+
     /// Per-authority misbehavior counts observed in this commit. The default
     /// impl returns the all-empty struct so unwired implementations get
     /// correct behavior for free; the mapper zero-fills empty fields.
@@ -140,6 +144,23 @@ impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
         num_of_committed_headers.into_iter().collect()
     }
 
+    fn committed_header_rounds(&self) -> Vec<(AuthorityIndex, u64)> {
+        let mut rounds: Vec<_> = self
+            .base
+            .committed_header_refs
+            .iter()
+            .map(|block_ref| {
+                (
+                    block_ref.author.value() as AuthorityIndex,
+                    block_ref.round as u64,
+                )
+            })
+            .collect();
+        rounds.sort_unstable();
+        rounds.dedup();
+        rounds
+    }
+
     fn misbehavior_counts(&self) -> ConsensusOutputMisbehaviorCounts {
         let (
             faulty_blocks_provable,
@@ -181,7 +202,7 @@ impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
 mod tests {
     use starfish_core::{
         BlockRef, CommitDigest, CommitRef, CommittedSubDag, MisbehaviorCounts, MisbehaviorCountsV1,
-        MisbehaviorCountsV2, VerifiedBlockHeader,
+        MisbehaviorCountsV2, TestBlockHeader, VerifiedBlockHeader,
     };
 
     use super::*;
@@ -243,5 +264,38 @@ mod tests {
         assert!(out.missing_proposals.is_empty());
         assert!(out.equivocations.is_empty());
         assert!(out.invalid_bundle_parts.is_empty());
+    }
+
+    /// The rounds come from the header references, not the header bodies,
+    /// which recovery and fast sync leave empty.
+    #[test]
+    fn committed_header_rounds_are_sorted_and_deduplicated() {
+        // (round, author, timestamp): headers that differ only in their
+        // timestamp are two headers of one author at one round.
+        let header_refs = [(7, 2, 1), (3, 2, 0), (5, 0, 0), (7, 2, 2)]
+            .into_iter()
+            .map(|(round, author, timestamp_ms)| {
+                VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author)
+                        .set_timestamp_ms(timestamp_ms)
+                        .build(),
+                )
+                .reference()
+            })
+            .collect();
+        let subdag = CommittedSubDag::new(
+            BlockRef::MIN,
+            Vec::<VerifiedBlockHeader>::new(),
+            header_refs,
+            vec![],
+            0,
+            CommitRef::new(1, CommitDigest::MIN),
+            vec![],
+            vec![],
+        );
+        assert_eq!(
+            subdag.committed_header_rounds(),
+            vec![(0, 5), (2, 3), (2, 7)]
+        );
     }
 }

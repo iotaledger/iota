@@ -35,8 +35,8 @@ use crate::{
     authority::{
         AuthorityMetrics, AuthorityState, ExecutionEnv,
         authority_per_epoch_store::{
-            AuthorityPerEpochStore, ConsensusStats, ConsensusStatsAPI, ExecutionIndices,
-            ExecutionIndicesWithStats,
+            AuthorityPerEpochStore, ConsensusStats, ConsensusStatsAPI, ConsensusStatsV2,
+            ExecutionIndices, ExecutionIndicesWithStats,
             handler_object_state::{AssignedCommit, CommitIndex, handler_rows_for_commit},
         },
         backpressure::{BackpressureManager, BackpressureSubscriber},
@@ -179,7 +179,15 @@ impl<C> ConsensusHandler<C> {
             .expect("Should be able to read last consensus index");
         // stats is empty at the beginning of epoch.
         if !last_consensus_stats.stats.is_initialized() {
-            last_consensus_stats.stats = ConsensusStats::new(committee.size());
+            last_consensus_stats.stats = match epoch_store
+                .protocol_config()
+                .consensus_absent_rounds_min_gap_as_option()
+            {
+                Some(min_gap) => {
+                    ConsensusStats::V2(ConsensusStatsV2::new(committee.size(), min_gap))
+                }
+                None => ConsensusStats::new(committee.size()),
+            };
         }
         let transaction_scheduler =
             AsyncTransactionScheduler::start(execution_scheduler, epoch_store.clone());
@@ -417,6 +425,13 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             self.last_consensus_stats
                 .stats
                 .inc_num_messages(authority_index as usize, number_of_committed_headers);
+        }
+        // The stats created at the start of the epoch decide whether absences
+        // are counted.
+        if let ConsensusStats::V2(stats) = &mut self.last_consensus_stats.stats {
+            for (authority_index, round) in consensus_output.committed_header_rounds() {
+                stats.record_committed_header_round(authority_index as usize, round);
+            }
         }
 
         {
@@ -1241,8 +1256,10 @@ mod tests {
     use super::*;
     use crate::{
         authority::{
-            AuthorityMetrics, authority_per_epoch_store::ConsensusStatsAPI,
-            backpressure::BackpressureManager, test_authority_builder::TestAuthorityBuilder,
+            AuthorityMetrics,
+            authority_per_epoch_store::{ConsensusStatsAPI, authority_per_epoch_store_tests},
+            backpressure::BackpressureManager,
+            test_authority_builder::TestAuthorityBuilder,
         },
         checkpoints::CheckpointServiceNoop,
         consensus_adapter::consensus_tests::{test_certificates, test_gas_objects},
@@ -1638,28 +1655,7 @@ mod tests {
         epoch_store.start_executing_synced_checkpoints().await;
         drop(consensus_handler);
 
-        let reopened =
-            crate::authority::authority_per_epoch_store::authority_per_epoch_store_tests::reopen(
-                &state,
-                &epoch_store,
-            );
-        // The commit boundary insists on a randomness manager; one whose DKG
-        // never completes keeps randomness out of the commits.
-        let randomness_manager = crate::epoch::randomness::RandomnessManager::try_new(
-            Arc::downgrade(&reopened),
-            Box::new(crate::mock_consensus::MockConsensusClient::new(
-                Arc::downgrade(&state),
-                crate::mock_consensus::ConsensusMode::Noop,
-            )),
-            iota_network::randomness::Handle::new_stub(),
-            network_config.validator_configs()[0].authority_key_pair(),
-        )
-        .await
-        .unwrap();
-        reopened
-            .set_randomness_manager(randomness_manager)
-            .await
-            .unwrap();
+        let reopened = reopen_for_handler(&state, &network_config, &epoch_store).await;
         let mut consensus_handler = new_handler(reopened.clone());
         for (round, index) in [(100, 1), (101, 2), (102, 3)] {
             consensus_handler
@@ -1673,6 +1669,148 @@ mod tests {
              before the switch"
         );
         assert!(reopened.is_executing_synced_checkpoints());
+    }
+
+    /// The handler counts absences and rounds with a committed header from the
+    /// committed headers, counts two headers of one author at one round once,
+    /// and after a restart resumes from the stored stats.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn consensus_handler_counts_absent_rounds() {
+        telemetry_subscribers::init_for_testing();
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_consensus_absent_rounds_min_gap_for_testing(10);
+            config
+        });
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .committee_size(NonZeroUsize::new(4).unwrap())
+                .build();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .build()
+            .await;
+        let epoch_store = state.epoch_store_for_testing().clone();
+        let consensus_committee = get_consensus_committee(epoch_store.epoch_start_state());
+        let backpressure_manager = BackpressureManager::new_for_tests();
+        let new_handler = |epoch_store: Arc<AuthorityPerEpochStore>| {
+            ConsensusHandler::new(
+                epoch_store,
+                state.clone(),
+                Arc::new(CheckpointServiceNoop {}),
+                state.execution_scheduler().clone(),
+                state.get_object_cache_reader().clone(),
+                Arc::new(ArcSwap::default()),
+                consensus_committee.clone(),
+                Arc::new(AuthorityMetrics::new(&Registry::new())),
+                backpressure_manager.subscribe(),
+            )
+        };
+        // Headers are (round, author, timestamp); the first one leads the
+        // commit. Headers that differ only in their timestamp are two headers
+        // of one author at one round.
+        let commit = |index: u32, headers: &[(u32, u8, u64)]| {
+            let headers: Vec<_> = headers
+                .iter()
+                .map(|&(round, author, timestamp_ms)| {
+                    VerifiedBlockHeader::new_for_test(
+                        TestBlockHeader::new(round, author)
+                            .set_timestamp_ms(timestamp_ms)
+                            .build(),
+                    )
+                })
+                .collect();
+            CommittedSubDag::new(
+                headers[0].reference(),
+                headers.clone(),
+                headers.iter().map(|header| header.reference()).collect(),
+                vec![],
+                headers[0].timestamp_ms(),
+                CommitRef::new(index, CommitDigest::MIN),
+                vec![],
+                vec![],
+            )
+        };
+        let commits = [
+            commit(1, &[(20, 1, 0), (10, 0, 0), (11, 0, 0)]),
+            commit(2, &[(40, 1, 0), (30, 0, 0), (11, 2, 1), (11, 2, 2)]),
+        ];
+        // Per authority: the absent rounds, and the rounds with a committed
+        // header.
+        let counts = |handler: &ConsensusHandler<CheckpointServiceNoop>| {
+            let ConsensusStats::V2(stats) = &handler.last_consensus_stats.stats else {
+                panic!("the setting makes the handler count absences");
+            };
+            (
+                stats.absent_rounds.clone(),
+                stats.num_committed_header_rounds.clone(),
+            )
+        };
+
+        let mut consensus_handler = new_handler(epoch_store.clone());
+        consensus_handler
+            .handle_consensus_output_for_test(commits[0].clone())
+            .await;
+        // Authority 0: a gap of 9 rounds, one below the minimum. Authority 1: a
+        // gap of 19.
+        assert_eq!(
+            counts(&consensus_handler),
+            (vec![0, 19, 0, 0], vec![2, 1, 0, 0])
+        );
+        // A restart between the two commits finds the stats of the first one.
+        let stored = consensus_handler.last_consensus_stats.clone();
+        authority_per_epoch_store_tests::store_last_consensus_stats(&epoch_store, &stored);
+
+        consensus_handler
+            .handle_consensus_output_for_test(commits[1].clone())
+            .await;
+        // Authority 0: a gap of 18. Authority 1: a gap of 19 more. Authority 2:
+        // a gap of exactly the minimum, with two headers at one round.
+        // Authority 3: nothing committed yet.
+        assert_eq!(
+            counts(&consensus_handler),
+            (vec![18, 38, 10, 0], vec![3, 2, 1, 0])
+        );
+        let after_both = consensus_handler.last_consensus_stats.clone();
+        drop(consensus_handler);
+
+        let reopened = reopen_for_handler(&state, &network_config, &epoch_store).await;
+        let mut consensus_handler = new_handler(reopened);
+        assert_eq!(consensus_handler.last_consensus_stats, stored);
+        // The replay skips the first commit, which the stored stats include.
+        for commit in &commits {
+            consensus_handler
+                .handle_consensus_output_for_test(commit.clone())
+                .await;
+        }
+        assert_eq!(consensus_handler.last_consensus_stats, after_both);
+    }
+
+    /// [`authority_per_epoch_store_tests::reopen`] for a handler: the commit
+    /// boundary insists on a randomness manager, so the reopened store gets
+    /// one whose DKG never completes, which keeps randomness out of the
+    /// commits.
+    async fn reopen_for_handler(
+        state: &Arc<AuthorityState>,
+        network_config: &NetworkConfig,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> Arc<AuthorityPerEpochStore> {
+        let reopened = authority_per_epoch_store_tests::reopen(state, epoch_store);
+        let randomness_manager = crate::epoch::randomness::RandomnessManager::try_new(
+            Arc::downgrade(&reopened),
+            Box::new(crate::mock_consensus::MockConsensusClient::new(
+                Arc::downgrade(state),
+                crate::mock_consensus::ConsensusMode::Noop,
+            )),
+            iota_network::randomness::Handle::new_stub(),
+            network_config.validator_configs()[0].authority_key_pair(),
+        )
+        .await
+        .unwrap();
+        reopened
+            .set_randomness_manager(randomness_manager)
+            .await
+            .unwrap();
+        reopened
     }
 
     /// A commit mixing a shared-object certificate with an owned-object-only
