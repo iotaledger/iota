@@ -811,12 +811,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             }
         }
 
-        // One shard per (relaying peer, slot), across all accumulators: the
-        // per-slot header cap leaves an honest peer holding exactly one own
-        // shard per slot, so a peer whose index already appears in another
-        // accumulator of the slot has relayed a shard it could not have held
-        // honestly. The shard carries no relayer signature, so the evidence
-        // stays local.
+        // An honest peer disseminates at most one own shard per slot. Shards carry no
+        // relayer signature, so evidence of a second shard stays local.
         if peer_in_other_accumulator {
             self.context
                 .metrics

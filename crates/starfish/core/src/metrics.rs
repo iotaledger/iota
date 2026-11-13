@@ -251,6 +251,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) cordial_knowledge_entries: IntGauge,
     pub(crate) cordial_knowledge_headers_not_known: IntGauge,
     pub(crate) cordial_knowledge_shards_not_known: IntGauge,
+    pub(crate) cordial_knowledge_second_own_shards_for_slot: IntCounter,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
     pub(crate) synchronizer_fetch_block_headers_scheduler_inflight: IntGauge,
@@ -738,6 +739,12 @@ impl NodeMetrics {
             cordial_knowledge_shards_not_known: register_int_gauge_with_registry!(
                 "cordial_knowledge_shards_not_known",
                 "Total unknown shard entries across all connection knowledges",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            cordial_knowledge_second_own_shards_for_slot: register_int_counter_with_registry!(
+                "cordial_knowledge_second_own_shards_for_slot",
+                "Own shards not disseminated because another own shard was disseminated for the slot",
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
