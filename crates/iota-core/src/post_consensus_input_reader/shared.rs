@@ -1125,5 +1125,21 @@ mod tests {
         assert_eq!(reused(), 1);
         assert_eq!(ctx.read_shared(s_id, other_version).unwrap(), first);
         assert_eq!(reused(), 2);
+
+        // Callers on several threads: one reads, the others wait for it.
+        let ctx = CommitIndexedReader::new(
+            authority.get_object_cache_reader().clone(),
+            epoch_store.clone(),
+            VALIDATED_COMMIT,
+        );
+        std::thread::scope(|scope| {
+            let callers: Vec<_> = (0..8)
+                .map(|_| scope.spawn(|| ctx.read_shared(s_id, declared()).unwrap()))
+                .collect();
+            for caller in callers {
+                assert_eq!(caller.join().unwrap(), SharedVerdict::Exists);
+            }
+        });
+        assert_eq!(reused(), 2 + 7);
     }
 }

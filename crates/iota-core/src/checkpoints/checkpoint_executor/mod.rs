@@ -462,18 +462,35 @@ impl CheckpointExecutor {
             &ckpt_state.data.tx_digests,
         );
 
+        // Before the outputs, so no durable object lacks its bookkeeping. In
+        // this stage, so the write overlaps the output writes of earlier
+        // checkpoints and still runs in checkpoint order. A transaction whose
+        // outputs are already durable is not in `batch` and needs nothing:
+        // its bookkeeping was written before them.
+        let batch = if self.epoch_store.pcool_bookkeeping_enabled() {
+            tokio::task::spawn_blocking({
+                let this = self.clone();
+                move || {
+                    this.epoch_store
+                        .persist_checkpoint_bookkeeping(
+                            batch.0.iter().map(|outputs| &outputs.effects),
+                        )
+                        .expect(
+                            "the epoch tables should accept the checkpoint's bookkeeping batch",
+                        );
+                    batch
+                }
+            })
+            .await?
+        } else {
+            batch
+        };
+
         finish_stage!(pipeline_handle, BuildDbBatch);
 
         let ckpt_state = tokio::task::spawn_blocking({
             let this = self.clone();
             move || {
-                // Before the outputs, so no durable object lacks its
-                // bookkeeping. A transaction whose outputs are already durable
-                // is not in `batch` and needs nothing: its bookkeeping was
-                // written before them.
-                this.epoch_store
-                    .persist_checkpoint_bookkeeping(batch.0.iter().map(|outputs| &outputs.effects))
-                    .expect("the epoch tables should accept the checkpoint's bookkeeping batch");
                 // Commit all transaction effects to disk
                 let cache_commit = this.state.get_cache_commit();
                 debug!(?seq, "committing checkpoint transactions to disk");
