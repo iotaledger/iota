@@ -345,6 +345,7 @@ pub struct OperationMetrics {
     pub rocksdb_very_slow_batch_writes_duration_ms: IntCounterVec,
     pub rocksdb_very_slow_puts_count: IntCounterVec,
     pub rocksdb_very_slow_puts_duration_ms: IntCounterVec,
+    pub rocksdb_synced_writes: IntCounterVec,
 }
 
 impl OperationMetrics {
@@ -524,6 +525,15 @@ impl OperationMetrics {
                 &["cf_name"],
                 registry;
                 MetricLevel::Trace,
+            )
+            .unwrap(),
+            rocksdb_synced_writes: register_int_counter_vec_with_registry!(
+                "rocksdb_synced_writes",
+                "Number of batch writes that synced the WAL to disk, by database and by \
+                 the switch that asked for the sync",
+                &["db_name", "switch"],
+                registry;
+                MetricLevel::Info,
             )
             .unwrap(),
         }
