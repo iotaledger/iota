@@ -13120,7 +13120,9 @@ async fn a_replayed_commit_and_a_deferred_transaction_read_nothing_ahead() {
 
 /// With every thread of the blocking pool busy, no other reader starts. The
 /// commit is validated by the handler's own reader and does not wait for a
-/// free thread.
+/// free thread. Not under the simulator: it has no blocking pool to fill and
+/// cannot build a runtime of its own.
+#[cfg(not(msim))]
 #[test]
 fn validation_does_not_wait_for_a_reader_the_blocking_pool_has_not_started() {
     let runtime = tokio::runtime::Builder::new_multi_thread()
