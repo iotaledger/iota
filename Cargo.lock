@@ -15613,6 +15613,7 @@ dependencies = [
  "msim",
  "num_cpus",
  "once_cell",
+ "ouroboros 0.18.4",
  "prometheus-filtered",
  "rocksdb",
  "rstest",

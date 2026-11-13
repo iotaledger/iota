@@ -977,6 +977,18 @@ pub struct OwnedObjectCursor {
     pub object_id: ObjectId,
 }
 
+/// Names a snapshot of the indexes that a paginated query reads all its pages
+/// from, so that the pages do not change while the node keeps indexing new
+/// checkpoints. Only the node that took the snapshot knows it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PageSnapshotRef {
+    /// Tells this node's snapshots apart from those of another node or of an
+    /// earlier run of this one.
+    pub node: u64,
+    /// The latest indexed checkpoint the snapshot covers.
+    pub checkpoint: CheckpointSequenceNumber,
+}
+
 pub type OwnedObjectIteratorItem =
     Result<(AccountOwnedObjectInfo, OwnedObjectCursor), TypedStoreError>;
 

@@ -15,7 +15,7 @@ use iota_grpc_types::{
         transaction as grpc_transaction,
     },
 };
-use iota_node_storage::{GrpcStateReader, TransactionKeyValueStoreTrait};
+use iota_node_storage::{GrpcStateReader, PageIter, TransactionKeyValueStoreTrait};
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointDigest, ObjectId, ObjectReference, StructTag,
     TransactionDigest, TransactionEffects, TransactionEvents, TransactionEventsDigest, TypeTag,
@@ -29,7 +29,7 @@ use iota_types::{
     },
     messages_checkpoint::CertifiedCheckpointSummary,
     object::Object,
-    storage::{ObjectKey, error::Kind},
+    storage::{ObjectKey, PageSnapshotRef, error::Kind},
 };
 use prometheus_filtered::IntGauge;
 use prost::Message;
@@ -714,33 +714,55 @@ impl GrpcReader {
             .map_err(Into::into)
     }
 
-    /// Iterate over objects owned by an account address.
+    /// Iterate over objects owned by an account address, for one page of a
+    /// paginated query read from the snapshot `snapshot` names; see
+    /// [`iota_node_storage::GrpcIndexes::account_owned_objects_info_page_iter`].
     ///
     /// The cursor is exclusive: items *after* the cursor position are returned.
-    pub fn account_owned_objects_info_iter(
+    pub fn account_owned_objects_info_page_iter(
         &self,
         owner: Address,
         cursor: Option<&OwnedObjectCursor>,
         object_type: Option<StructTag>,
-    ) -> Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>, crate::error::RpcError> {
+        snapshot: Option<PageSnapshotRef>,
+    ) -> Result<PageIter<'_, OwnedObjectIterItem>, crate::error::RpcError> {
         let indexes = self.require_indexes()?;
-        let iter = indexes
-            .account_owned_objects_info_iter(owner, cursor, object_type)
+        let page = indexes
+            .account_owned_objects_info_page_iter(owner, cursor, object_type, snapshot)
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
-        Ok(Box::new(iter.map(|r| r.map_err(Into::into))))
+        Ok(PageIter {
+            iter: Box::new(page.iter.map(|r| r.map_err(Into::into))),
+            snapshot: page.snapshot,
+        })
     }
 
-    /// Iterate over dynamic fields of a parent object.
+    /// Iterate over dynamic fields of a parent object, for one page of a
+    /// paginated query; the snapshot is as for
+    /// [`Self::account_owned_objects_info_page_iter`].
     ///
     /// The cursor is exclusive: items *after* the cursor position are
     /// returned.
-    pub fn dynamic_field_iter(
+    pub fn dynamic_field_page_iter(
         &self,
         parent: ObjectId,
         cursor: Option<ObjectId>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = DynamicFieldIterItem> + '_>> {
-        let iter = self.require_indexes()?.dynamic_field_iter(parent, cursor)?;
-        Ok(Box::new(iter.map(|r| r.map_err(Into::into))))
+        snapshot: Option<PageSnapshotRef>,
+    ) -> anyhow::Result<PageIter<'_, DynamicFieldIterItem>> {
+        let page = self
+            .require_indexes()?
+            .dynamic_field_page_iter(parent, cursor, snapshot)?;
+        Ok(PageIter {
+            iter: Box::new(page.iter.map(|r| r.map_err(Into::into))),
+            snapshot: page.snapshot,
+        })
+    }
+
+    /// Keeps `snapshot` for another page; see
+    /// [`iota_node_storage::GrpcIndexes::extend_page_snapshot`].
+    pub fn extend_page_snapshot(&self, snapshot: PageSnapshotRef) {
+        if let Ok(indexes) = self.require_indexes() {
+            indexes.extend_page_snapshot(snapshot);
+        }
     }
 
     /// Get unified coin info.

@@ -825,8 +825,16 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     let reopened =
         RpcIndexesStore::new_without_init(tmp_dir.join(RPC_INDEXES_DIR), None, index_groups);
     let restored_owned_ids: HashSet<ObjectId> = reopened
-        .get_owner_objects(owner, None, 10, None, usize::MAX, &restored_perpetual_db)?
-        .0
+        .get_owner_objects(
+            owner,
+            None,
+            None,
+            10,
+            None,
+            usize::MAX,
+            &restored_perpetual_db,
+        )?
+        .objects
         .into_iter()
         .map(|(object, _)| object.id())
         .collect();

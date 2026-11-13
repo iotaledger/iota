@@ -1273,6 +1273,48 @@ async fn a_snapshot_scan_ignores_later_writes() {
     );
 }
 
+/// A shared snapshot reads like a borrowed one, and its iterators keep it
+/// alive after the caller has dropped its own handle.
+#[tokio::test]
+async fn a_shared_snapshot_reads_ignore_later_writes() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
+    db.insert(&1, &"one".to_string()).unwrap();
+    db.insert(&2, &"two".to_string()).unwrap();
+
+    let snapshot = Arc::new(db.db.shared_snapshot());
+
+    db.insert(&2, &"two changed".to_string()).unwrap();
+    db.insert(&3, &"three".to_string()).unwrap();
+    db.remove(&1).unwrap();
+
+    assert_eq!(
+        db.get_at_shared_snapshot(&snapshot, &1).unwrap(),
+        Some("one".to_string())
+    );
+    assert_eq!(db.get_at_shared_snapshot(&snapshot, &3).unwrap(), None);
+
+    let iter = db.safe_range_iter_at_shared_snapshot(snapshot.clone(), 2..);
+    drop(snapshot);
+    assert_eq!(
+        iter.map(Result::unwrap).collect::<Vec<_>>(),
+        vec![(2, "two".to_string())],
+    );
+}
+
+/// A table cannot be read through a snapshot of another database.
+#[tokio::test]
+async fn a_shared_snapshot_of_another_database_is_rejected() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<i32, String> = open_map(tmp_dir.path().join("a"), None);
+    let other: DBMap<i32, String> = open_map(tmp_dir.path().join("b"), None);
+    let snapshot = Arc::new(other.db.shared_snapshot());
+
+    assert!(db.get_at_shared_snapshot(&snapshot, &1).is_err());
+    let mut iter = db.safe_range_iter_at_shared_snapshot(snapshot, ..);
+    assert!(iter.next().unwrap().is_err());
+}
+
 #[tokio::test]
 async fn test_multi_remove() {
     // Init a DB

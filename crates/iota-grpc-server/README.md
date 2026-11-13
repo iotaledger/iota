@@ -64,6 +64,21 @@ grpc-api-config:
   max-checkpoint-inclusion-timeout-ms: 60000
 ```
 
+`ListOwnedObjects` and `ListDynamicFields` read all pages of one query from the same snapshot of the node's indexes, so the set of entries does not change while the node indexes new checkpoints. The page token names the snapshot. The JSON-RPC `getOwnedObjects`, `getCoins` and `getAllCoins` do the same, so the settings live outside `grpc-api-config`:
+
+```yaml
+rpc-indexes-config:
+  page-snapshots:
+    # How long a snapshot is kept after a page that had a next page.
+    idle-timeout-ms: 10000
+    # How long a snapshot is kept at most, however often it is used (at most 10 minutes).
+    max-lifetime-ms: 300000
+    # How many snapshots are kept at most. Beyond that, new queries read the current state.
+    max-snapshots: 4096
+```
+
+Each snapshot keeps RocksDB from compacting away the index rows overwritten or deleted since it was taken, so longer limits cost disk space. A page whose snapshot is gone reads from a new snapshot of the latest checkpoint.
+
 **Client Example:**
 
 ```rust

@@ -63,6 +63,7 @@ impl DataReader for AuthorityStateDataReader {
         // This reader serves the node's own transaction builder, so a cursor
         // that cannot name a position in the node's index is a bug rather than
         // a request to refuse.
+        let snapshot = cursor.and_then(|cursor| cursor.snapshot());
         let cursor = cursor
             .map(|cursor| {
                 cursor
@@ -74,6 +75,7 @@ impl DataReader for AuthorityStateDataReader {
         let page = self.0.get_owner_objects_page(
             address,
             cursor,
+            snapshot,
             limit,
             Some(IotaObjectDataFilter::StructType(object_type)),
         )?;

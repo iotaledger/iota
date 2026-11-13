@@ -422,6 +422,14 @@ pub struct MockGrpcStateReader {
 
     // -- Pruning --
     pub lowest_available_checkpoint: u64,
+
+    // -- Page snapshots --
+    /// The snapshot that every page iterator reports reading from.
+    pub page_snapshot: Option<iota_types::storage::PageSnapshotRef>,
+    /// The snapshots the page iterators were asked for, in call order.
+    pub requested_page_snapshots: Arc<Mutex<Vec<Option<iota_types::storage::PageSnapshotRef>>>>,
+    /// The snapshots extended, in call order.
+    pub extended_page_snapshots: Arc<Mutex<Vec<iota_types::storage::PageSnapshotRef>>>,
 }
 
 /// Shared empty contents used when generating on-the-fly summaries.
@@ -790,6 +798,39 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
             })
             .map(|(key, info)| Ok((key.clone(), info.clone())));
         Ok(Box::new(iter))
+    }
+
+    fn account_owned_objects_info_page_iter(
+        &self,
+        owner: Address,
+        cursor: Option<&iota_types::storage::OwnedObjectCursor>,
+        object_type: Option<StructTag>,
+        snapshot: Option<iota_types::storage::PageSnapshotRef>,
+    ) -> StorageResult<iota_node_storage::PageIter<'_, iota_types::storage::OwnedObjectIteratorItem>>
+    {
+        self.requested_page_snapshots.lock().unwrap().push(snapshot);
+        Ok(iota_node_storage::PageIter {
+            iter: self.account_owned_objects_info_iter(owner, cursor, object_type)?,
+            snapshot: self.page_snapshot,
+        })
+    }
+
+    fn dynamic_field_page_iter(
+        &self,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
+        snapshot: Option<iota_types::storage::PageSnapshotRef>,
+    ) -> StorageResult<iota_node_storage::PageIter<'_, iota_types::storage::DynamicFieldIteratorItem>>
+    {
+        self.requested_page_snapshots.lock().unwrap().push(snapshot);
+        Ok(iota_node_storage::PageIter {
+            iter: self.dynamic_field_iter(parent, cursor)?,
+            snapshot: self.page_snapshot,
+        })
+    }
+
+    fn extend_page_snapshot(&self, snapshot: iota_types::storage::PageSnapshotRef) {
+        self.extended_page_snapshots.lock().unwrap().push(snapshot);
     }
 }
 
