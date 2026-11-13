@@ -21,18 +21,27 @@ use crate::{
 /// Per-authority misbehavior counters.
 ///
 /// Two buckets track different lifecycle stages:
-/// - `in_memory`: from blocks currently in the DAG cache (volatile, recomputed on each flush from
-///   blocks still in cache).
-/// - `persisted`: cumulative counts from blocks evicted from cache (restored from storage on
-///   restart).
+/// - `persisted`: missing proposals and equivocations in rounds at or below the GC round of the
+///   last commit at the last flush, plus flushed block faults. No header at or below that round can
+///   be accepted any more. Flush stores these counts in the same batch as the commits, so after a
+///   restart the GC round of the last stored commit is the round they reach.
+/// - `in_memory`: missing proposals and equivocations in rounds above that GC round, recomputed on
+///   each flush from cached headers and equivocating rounds, plus block faults not yet flushed.
 pub(crate) struct MisbehaviorStore {
     in_memory: CommitteeMisbehaviorCounts,
     persisted: CommitteeMisbehaviorCounts,
-    /// Per-authority rounds in which a second verified header for an occupied
-    /// slot was dropped at ingest. Counted into the in-memory equivocations on
-    /// each flush and folded into the persisted count when the round is
-    /// evicted.
-    equivocating_rounds: Vec<Mutex<BTreeSet<Round>>>,
+    dag_fault_rounds: Vec<Mutex<DagFaultRounds>>,
+}
+
+/// The GC round and equivocating rounds of one authority. Kept under one lock,
+/// so no equivocating round is added at or below the GC round.
+#[derive(Default)]
+struct DagFaultRounds {
+    /// GC round of the last commit at the last flush.
+    gc_round: Round,
+    /// Rounds above `gc_round` in which a second verified header for an
+    /// occupied slot was dropped at ingest.
+    equivocating_rounds: BTreeSet<Round>,
 }
 
 impl MisbehaviorStore {
@@ -41,42 +50,40 @@ impl MisbehaviorStore {
         Self {
             in_memory: CommitteeMisbehaviorCounts::new(&context.committee, metrics, "in_memory"),
             persisted: CommitteeMisbehaviorCounts::new(&context.committee, metrics, "persisted"),
-            equivocating_rounds: (0..context.committee.size())
-                .map(|_| Mutex::new(BTreeSet::new()))
+            dag_fault_rounds: (0..context.committee.size())
+                .map(|_| Mutex::new(DagFaultRounds::default()))
                 .collect(),
         }
     }
 
-    /// Resets all counters to zero. Used during fast sync reinitialization.
-    pub(crate) fn reset(&self) {
-        self.in_memory.reset();
-        self.persisted.reset();
-        for rounds in &self.equivocating_rounds {
-            rounds.lock().unwrap().clear();
-        }
-    }
-
-    /// Records that `author` signed more than one header for `round`: a second
-    /// verified header for an occupied slot was dropped at ingest. Idempotent —
-    /// repeated arrivals and further distinct headers for the same slot
-    /// collapse into one equivocation. Callers pass the author of a verified
-    /// header, so an author outside the committee is a verification bug and is
-    /// reported rather than recorded.
-    pub(crate) fn record_equivocating_slot(&self, author: AuthorityIndex, round: Round) {
-        let Some(rounds) = self.equivocating_rounds.get(author.value()) else {
+    /// Records that `author` signed more than one header for `round`.
+    /// Idempotent. Rounds at or below the GC round or above `ceiling` are
+    /// ignored.
+    pub(crate) fn record_equivocating_slot(
+        &self,
+        author: AuthorityIndex,
+        round: Round,
+        ceiling: Round,
+    ) {
+        let Some(rounds) = self.dag_fault_rounds.get(author.value()) else {
             debug_fatal!("equivocating author {author} is outside the committee");
             return;
         };
-        rounds.lock().unwrap().insert(round);
+        let mut rounds = rounds.lock().unwrap();
+        if round > rounds.gc_round && round <= ceiling {
+            rounds.equivocating_rounds.insert(round);
+        }
     }
 
-    /// Restores persisted counts from storage and computes in-memory counts
-    /// from the block refs already loaded into the DAG cache.
+    /// Restores persisted counts from storage at startup and computes
+    /// in-memory counts from the block refs already loaded into the DAG cache.
+    /// `gc_round` is the GC round of the last stored commit; the cache must
+    /// hold every header above it.
     pub(crate) fn initialize_misbehavior_counts(
         &self,
         recovered: BTreeMap<AuthorityIndex, MisbehaviorCounts>,
         recent_refs_by_authority: &[BTreeSet<BlockRef>],
-        evicted_rounds: &[Round],
+        gc_round: Round,
         threshold_clock_round: Round,
         context: &Arc<Context>,
     ) {
@@ -116,37 +123,29 @@ impl MisbehaviorStore {
                 }
             }
 
-            // Compute in-memory counts from cached block refs.
-            let eviction_round = evicted_rounds[idx];
-            if threshold_clock_round > 0 {
-                let cached_rounds: Vec<Round> = recent_refs_by_authority[idx]
-                    .iter()
-                    .map(|r| r.round)
-                    .collect();
-                // Flags are not persisted, so only rounds with more than one
-                // cached header count after a restart.
-                let (eq, missing) = calculate_misbehavior_counts_for_range(
-                    cached_rounds,
-                    &BTreeSet::new(),
-                    eviction_round + 1,
-                    threshold_clock_round.saturating_sub(1),
-                );
-                self.in_memory.set_dag_faults(idx, missing, eq);
-            }
+            // Flags are not persisted, so only rounds with more than one cached
+            // header count as equivocations after a restart.
+            let mut rounds = self.dag_fault_rounds[idx].lock().unwrap();
+            rounds.gc_round = gc_round;
+            self.set_in_memory_dag_faults(
+                authority_index,
+                &recent_refs_by_authority[idx],
+                &rounds,
+                threshold_clock_round,
+            );
         }
     }
 
-    /// Updates misbehavior counts for one authority during flush.
-    /// Must be called before cache eviction is applied, while evicted block
-    /// refs are still in `recent_refs`.
+    /// Updates misbehavior counts for one authority during flush. `gc_round` is
+    /// the GC round of the last commit. Must be called before cache eviction is
+    /// applied, while the headers up to `gc_round` are still in `recent_refs`.
     /// Returns `Some(MisbehaviorCounts)` if persisted data changed and needs
     /// to be written to storage.
-    pub(crate) fn update_misbehavior_counts_on_eviction(
+    pub(crate) fn update_misbehavior_counts(
         &self,
         authority_index: AuthorityIndex,
         recent_refs: &BTreeSet<BlockRef>,
-        eviction_round: Round,
-        last_eviction_round: Round,
+        gc_round: Round,
         threshold_clock_round: Round,
         context: &Arc<Context>,
     ) -> Option<MisbehaviorCounts> {
@@ -160,47 +159,30 @@ impl MisbehaviorStore {
         }
 
         // Move buffered faulty block counts to persisted.
-        let had_faulty = self.flush_faulty_block_buffer(idx);
+        let mut persisted_changed = self.flush_faulty_block_buffer(idx);
 
-        let mut equivocating_rounds = self.equivocating_rounds[idx].lock().unwrap();
-
-        // Recompute in-memory window from blocks still in cache.
-        let in_memory_block_rounds: Vec<Round> = recent_refs
-            .iter()
-            .map(|b| b.round)
-            .filter(|&r| r > eviction_round && r < threshold_clock_round)
-            .collect();
-        let (in_memory_eq, in_memory_missing) = calculate_misbehavior_counts_for_range(
-            in_memory_block_rounds,
-            &equivocating_rounds,
-            eviction_round + 1,
-            threshold_clock_round.saturating_sub(1),
-        );
-        self.in_memory
-            .set_dag_faults(idx, in_memory_missing, in_memory_eq);
-
-        let eviction_advanced = eviction_round != last_eviction_round;
-        if eviction_advanced {
-            // Accumulate newly-evicted rounds into persisted.
-            let evicted_block_rounds: Vec<Round> = recent_refs
-                .iter()
-                .map(|b| b.round)
-                .filter(|&r| r <= eviction_round)
-                .collect();
-            let (evicted_eq, evicted_missing) = calculate_misbehavior_counts_for_range(
-                evicted_block_rounds,
-                &equivocating_rounds,
-                last_eviction_round + 1,
-                eviction_round,
-            );
-            self.persisted
-                .add_dag_faults(idx, evicted_missing, evicted_eq);
-            // Evicted rounds are folded into persisted above; drop their flags.
-            let live_rounds = equivocating_rounds.split_off(&(eviction_round + 1));
-            *equivocating_rounds = live_rounds;
+        let mut rounds = self.dag_fault_rounds[idx].lock().unwrap();
+        if gc_round > rounds.gc_round {
+            // Only fast sync moves the GC round to the threshold clock or
+            // beyond, while the node does not follow the DAG. Its view of those
+            // rounds is incomplete, so they are passed without being counted.
+            if gc_round < threshold_clock_round {
+                let start = rounds.gc_round + 1;
+                let (eq, missing) = calculate_misbehavior_counts_for_range(
+                    recent_refs.iter().map(|r| r.round).collect(),
+                    &rounds.equivocating_rounds,
+                    start,
+                    gc_round,
+                );
+                persisted_changed |= eq > 0 || missing > 0;
+                self.persisted.add_dag_faults(idx, missing, eq);
+            }
+            rounds.equivocating_rounds = rounds.equivocating_rounds.split_off(&(gc_round + 1));
+            rounds.gc_round = gc_round;
         }
+        self.set_in_memory_dag_faults(authority_index, recent_refs, &rounds, threshold_clock_round);
 
-        if eviction_advanced || had_faulty {
+        if persisted_changed {
             let counts = self.persisted.snapshot(idx);
             let persisted = match context.protocol_config.scorer_version_as_option() {
                 Some(2) => MisbehaviorCounts::V2(counts),
@@ -210,6 +192,27 @@ impl MisbehaviorStore {
         } else {
             None
         }
+    }
+
+    /// Sets the in-memory missing proposals and equivocations of one authority
+    /// from the rounds above its GC round and below the threshold clock.
+    fn set_in_memory_dag_faults(
+        &self,
+        authority_index: AuthorityIndex,
+        recent_refs: &BTreeSet<BlockRef>,
+        rounds: &DagFaultRounds,
+        threshold_clock_round: Round,
+    ) {
+        let start = rounds.gc_round + 1;
+        let end = threshold_clock_round.saturating_sub(1);
+        let (eq, missing) = calculate_misbehavior_counts_for_range(
+            recent_refs.iter().map(|r| r.round).collect(),
+            &rounds.equivocating_rounds,
+            start,
+            end,
+        );
+        self.in_memory
+            .set_dag_faults(authority_index.value(), missing, eq);
     }
 
     /// Flush buffered faulty block counts from in_memory to persisted
@@ -616,7 +619,7 @@ impl CommitteeMisbehaviorCounts {
     }
 
     /// Accumulate DAG-observed faults — additive on counters and gauges.
-    /// Used on `persisted` to fold in newly-evicted rounds.
+    /// Used on `persisted` to add the rounds the GC round passed.
     fn add_dag_faults(&self, idx: usize, missing: u64, equiv: u64) {
         let mut c = self.authorities[idx].lock().unwrap();
         c.missing_proposals += missing;
@@ -628,18 +631,6 @@ impl CommitteeMisbehaviorCounts {
     /// Stable read clone of one authority's counters.
     fn snapshot(&self, idx: usize) -> MisbehaviorCountsV2 {
         self.authorities[idx].lock().unwrap().clone()
-    }
-
-    fn reset(&self) {
-        for (m, g) in self.authorities.iter().zip(self.gauges.iter()) {
-            let mut c = m.lock().unwrap();
-            *c = MisbehaviorCountsV2::default();
-            g.block_fault_provable.set(0);
-            g.block_fault_unprovable.set(0);
-            g.missing_proposals.set(0);
-            g.equivocations.set(0);
-            g.invalid_bundle_parts.set(0);
-        }
     }
 
     #[cfg(test)]
@@ -758,9 +749,10 @@ impl MisbehaviorStore {
     }
 
     pub(crate) fn equivocating_rounds(&self, author: AuthorityIndex) -> Vec<Round> {
-        self.equivocating_rounds[author.value()]
+        self.dag_fault_rounds[author.value()]
             .lock()
             .unwrap()
+            .equivocating_rounds
             .iter()
             .copied()
             .collect()
@@ -819,7 +811,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        block_header::{BlockHeaderAPI, BlockHeaderDigest, BlockRef},
+        block_header::{BlockHeaderDigest, BlockRef},
         commit::{Commit, CommitAPI, CommitV3},
         context::Context,
         dag_state::{DagState, DataSource},
@@ -944,49 +936,35 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_update_misbehavior_counts_on_eviction_edge_cases() {
+    async fn test_update_misbehavior_counts_edge_cases() {
         let context = Arc::new(Context::new_for_test(4).0);
         let store = MisbehaviorStore::new(&context);
         let authority_index = AuthorityIndex::new_for_test(0);
         let recent_refs = BTreeSet::new();
 
         // threshold_clock_round=0 → always returns None
-        let result = store.update_misbehavior_counts_on_eviction(
-            authority_index,
-            &recent_refs,
-            0,
-            0,
-            0,
-            &context,
-        );
+        let result = store.update_misbehavior_counts(authority_index, &recent_refs, 0, 0, &context);
         assert!(result.is_none());
 
-        // No eviction (eviction_round == last_eviction_round) AND no buffered
-        // faulty headers → None. (Eviction advance OR a faulty flush is what
-        // triggers a write; here neither happens.)
-        let result = store.update_misbehavior_counts_on_eviction(
-            authority_index,
-            &recent_refs,
-            5,
-            5,
-            5,
-            &context,
-        );
+        // The GC round did not advance AND no buffered faulty headers → None.
+        let result = store.update_misbehavior_counts(authority_index, &recent_refs, 0, 5, &context);
         assert!(result.is_none());
 
-        // Eviction happened with empty refs → missing proposals accumulated
-        let result = store.update_misbehavior_counts_on_eviction(
-            authority_index,
-            &recent_refs,
-            3,
-            0,
-            2,
-            &context,
-        );
+        // The GC round advanced with empty refs → missing proposals counted.
+        let result = store.update_misbehavior_counts(authority_index, &recent_refs, 3, 5, &context);
         assert_eq!(
             result,
             Some(MisbehaviorCounts::new_v2_for_test(0, 0, 3, 0, 0))
         );
+
+        // The GC round reached the threshold clock, as in fast sync: rounds 4
+        // to 6 are passed without being counted.
+        let result = store.update_misbehavior_counts(authority_index, &recent_refs, 6, 5, &context);
+        assert!(result.is_none());
+        assert_eq!(store.persisted_missing_proposals()[0], 3);
+        let result = store.update_misbehavior_counts(authority_index, &recent_refs, 6, 8, &context);
+        assert!(result.is_none());
+        assert_eq!(store.in_memory_missing_proposals()[0], 1);
     }
 
     #[tokio::test]
@@ -1002,38 +980,44 @@ mod tests {
             .collect();
 
         // Repeated arrivals and a further distinct header collapse per slot.
-        store.record_equivocating_slot(author, 5);
-        store.record_equivocating_slot(author, 5);
-        store.record_equivocating_slot(author, 7);
+        store.record_equivocating_slot(author, 5, Round::MAX);
+        store.record_equivocating_slot(author, 5, Round::MAX);
+        store.record_equivocating_slot(author, 7, Round::MAX);
 
-        // No eviction advance: the flags show up in the in-memory window and
-        // no block fault is charged.
-        let result =
-            store.update_misbehavior_counts_on_eviction(author, &recent_refs, 0, 0, 10, &context);
+        // No GC advance: the flags show up in the in-memory window and no
+        // block fault is charged.
+        let result = store.update_misbehavior_counts(author, &recent_refs, 0, 10, &context);
         assert!(result.is_none());
         assert_eq!(store.in_memory_equivocations()[idx], 2);
         assert_eq!(store.in_memory_faulty_blocks_provable()[idx], 0);
 
-        // Eviction advances to round 6: the flag at round 5 folds into
-        // persisted and is pruned; round 7 stays in the in-memory window.
-        let result =
-            store.update_misbehavior_counts_on_eviction(author, &recent_refs, 6, 0, 10, &context);
+        // The GC round advances to 6: the flag at round 5 folds into persisted
+        // and is pruned; round 7 stays in the in-memory window.
+        let result = store.update_misbehavior_counts(author, &recent_refs, 6, 10, &context);
         assert!(result.is_some());
         assert_eq!(store.persisted_equivocations()[idx], 1);
         assert_eq!(store.in_memory_equivocations()[idx], 1);
         assert_eq!(store.equivocating_rounds(author), vec![7]);
 
         // The next advance folds the remaining flag; nothing is counted twice.
-        let result =
-            store.update_misbehavior_counts_on_eviction(author, &recent_refs, 9, 6, 10, &context);
+        let result = store.update_misbehavior_counts(author, &recent_refs, 9, 10, &context);
         assert!(result.is_some());
         assert_eq!(store.persisted_equivocations()[idx], 2);
         assert_eq!(store.in_memory_equivocations()[idx], 0);
         assert!(store.equivocating_rounds(author).is_empty());
 
-        // Reset clears the flags.
-        store.record_equivocating_slot(author, 12);
-        store.reset();
+        // Flags at or below the GC round, or above the ceiling, are
+        // ignored.
+        store.record_equivocating_slot(author, 9, Round::MAX);
+        store.record_equivocating_slot(author, 21, 20);
+        store.record_equivocating_slot(author, 20, 20);
+        assert_eq!(store.equivocating_rounds(author), vec![20]);
+
+        // A flag with no cached header is counted and dropped once the GC
+        // round passes it.
+        let result = store.update_misbehavior_counts(author, &BTreeSet::new(), 20, 21, &context);
+        assert!(result.is_some());
+        assert_eq!(store.persisted_equivocations()[idx], 3);
         assert!(store.equivocating_rounds(author).is_empty());
     }
 
@@ -1062,14 +1046,7 @@ mod tests {
             &ConsensusError::MalformedShard(bcs::Error::Custom("bad".to_string())),
         );
 
-        let result = store.update_misbehavior_counts_on_eviction(
-            authority,
-            &BTreeSet::new(),
-            0,
-            0,
-            1,
-            &context,
-        );
+        let result = store.update_misbehavior_counts(authority, &BTreeSet::new(), 0, 1, &context);
 
         // V1 row: the one bundle part folds into unprovable (1 + 1).
         assert_eq!(result, Some(MisbehaviorCounts::new_v1_for_test(0, 2, 0, 0)));
@@ -1227,6 +1204,97 @@ mod tests {
             persisted_after_first_flush, persisted_after_restart_flush,
             "Persisted counts should not double on restart + flush"
         );
+    }
+
+    /// Repeated restarts give the totals of an uninterrupted run, also when
+    /// the cache holds fewer rounds than the GC round trails the last commit
+    /// by, and for an authority with no header before the restart.
+    #[tokio::test]
+    async fn test_restarts_keep_totals() {
+        for (cached_rounds, gc_depth) in [(5, 5), (20, 2), (5, 0)] {
+            let (mut context, _) = Context::new_for_test(4);
+            context.parameters.dag_state_cached_rounds = cached_rounds;
+            context.protocol_config.set_gc_depth_for_testing(gc_depth);
+            let context = Arc::new(context);
+
+            // Authority 3 is offline for rounds 1-20, authority 0 skips rounds
+            // 25-27 and authority 1 equivocates at round 31.
+            let a = AuthorityIndex::new_for_test;
+            let mut dag_builder = DagBuilder::new(context.clone());
+            dag_builder
+                .layers(1..=20)
+                .authorities(vec![a(3)])
+                .skip_block()
+                .build();
+            dag_builder.layers(21..=24).build();
+            dag_builder
+                .layers(25..=27)
+                .authorities(vec![a(0)])
+                .skip_block()
+                .build();
+            dag_builder.layers(28..=30).build();
+            dag_builder
+                .layers(31..=31)
+                .authorities(vec![a(1)])
+                .equivocate(1)
+                .build();
+            dag_builder.layers(32..=40).build();
+            let commits: Vec<_> = dag_builder
+                .get_sub_dag_and_commits(1..=40)
+                .into_iter()
+                .map(|(_, commit)| commit)
+                .collect();
+
+            let feed = |dag_state: &mut DagState, rounds: std::ops::RangeInclusive<Round>| {
+                dag_state.accept_block_headers(
+                    dag_builder.block_headers(rounds.clone()),
+                    DataSource::Test,
+                );
+                for commit in commits
+                    .iter()
+                    .filter(|commit| rounds.contains(&commit.leader().round))
+                {
+                    dag_state.add_commit(commit.clone());
+                }
+                dag_state.flush();
+            };
+
+            let mut uninterrupted = DagState::new(context.clone(), Arc::new(MemStore::new()));
+            feed(&mut uninterrupted, 1..=40);
+            let expected = vec![
+                MisbehaviorCounts::new_v2_for_test(0, 0, 3, 0, 0),
+                MisbehaviorCounts::new_v2_for_test(0, 0, 0, 1, 0),
+                MisbehaviorCounts::new_v2_for_test(0, 0, 0, 0, 0),
+                MisbehaviorCounts::new_v2_for_test(0, 0, 20, 0, 0),
+            ];
+            assert_eq!(
+                uninterrupted.misbehavior_store().snapshot_totals(),
+                expected,
+                "config {cached_rounds}/{gc_depth}"
+            );
+
+            let store = Arc::new(MemStore::new());
+            let mut dag_state = DagState::new(context.clone(), store.clone());
+            for rounds in [1..=10, 11..=20, 21..=30, 31..=40] {
+                feed(&mut dag_state, rounds);
+                let before = dag_state.misbehavior_store().snapshot_totals();
+                for _ in 0..2 {
+                    drop(dag_state);
+                    dag_state = DagState::new(context.clone(), store.clone());
+                    dag_state.flush();
+                    assert_eq!(
+                        dag_state.misbehavior_store().snapshot_totals(),
+                        before,
+                        "config {cached_rounds}/{gc_depth}"
+                    );
+                }
+            }
+            assert_eq!(
+                dag_state.misbehavior_store().snapshot_totals(),
+                expected,
+                "config {cached_rounds}/{gc_depth}"
+            );
+        }
     }
 
     // ── Error classification tests ────────────────────────────────────────────
@@ -1523,8 +1591,7 @@ mod tests {
 
         // Flush faulty buffer for authority 0 into persisted; leave authority 1
         // unflushed so the snapshot must sum across both buckets.
-        let _ =
-            store.update_misbehavior_counts_on_eviction(a0, &BTreeSet::new(), 0, 0, 1, &context);
+        let _ = store.update_misbehavior_counts(a0, &BTreeSet::new(), 0, 1, &context);
 
         // Record 3 more provable faults on authority 0 — these stay in_memory.
         for _ in 0..3 {
@@ -1562,14 +1629,7 @@ mod tests {
             ),
         ]);
         let recent_refs_by_authority = vec![BTreeSet::new(); committee_size];
-        let evicted_rounds = vec![0; committee_size];
-        store.initialize_misbehavior_counts(
-            recovered,
-            &recent_refs_by_authority,
-            &evicted_rounds,
-            0,
-            &context,
-        );
+        store.initialize_misbehavior_counts(recovered, &recent_refs_by_authority, 0, 0, &context);
 
         let totals = store.snapshot_totals();
         assert_eq!(
@@ -1650,11 +1710,11 @@ mod tests {
         context.protocol_config.set_gc_depth_for_testing(GC_DEPTH);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store);
+        let mut dag_state = DagState::new(context.clone(), store.clone());
 
         // Authority 3 skips rounds 3-4 and is offline for rounds 21-40.
         let offline = AuthorityIndex::new_for_test(3);
-        let mut dag_builder = DagBuilder::new(context);
+        let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder.layers(1..=2).build();
         dag_builder
             .layers(3..=4)
@@ -1686,6 +1746,7 @@ mod tests {
             dag_state.add_commit(commit);
         }
         dag_state.flush();
+        let gc_round_before_sync = dag_state.gc_round_for_last_commit();
 
         // Fast sync stores the commits up to round 40 without their headers.
         // The leader schedule was last updated at the last synced commit.
@@ -1695,6 +1756,18 @@ mod tests {
         }
         dag_state.add_commit_info(ReputationScores::default());
         dag_state.flush();
+        let gc_round_after_sync = dag_state.gc_round_for_last_commit();
+
+        // A restart during fast sync keeps the totals, although the flush that
+        // moved the GC round wrote no counts.
+        let totals_during_sync = dag_state.misbehavior_store().snapshot_totals();
+        drop(dag_state);
+        let mut dag_state = DagState::new(context, store);
+        dag_state.flush();
+        assert_eq!(
+            dag_state.misbehavior_store().snapshot_totals(),
+            totals_during_sync
+        );
 
         // Reinitialization fetches the headers of the last commits, which hold
         // none of authority 3.
@@ -1712,9 +1785,7 @@ mod tests {
         dag_state.set_fast_sync_ongoing_flag(false);
         dag_state.flush();
         dag_state.reinitialize();
-        let evicted_after_reinitialize = dag_state.evicted_header_round(offline);
         dag_state.flush();
-        let evicted_after_next_flush = dag_state.evicted_header_round(offline);
 
         // Authority 3 is back.
         dag_state.accept_block_headers(dag_builder.block_headers(41..=60), DataSource::Test);
@@ -1723,19 +1794,15 @@ mod tests {
         }
         dag_state.flush();
 
-        let evicted_round = dag_state.evicted_header_round(offline);
-        let stored_rounds = dag_builder
-            .block_headers(1..=10)
-            .into_iter()
-            .chain(dag_builder.block_headers(41..=60))
-            .filter(|header| header.author() == offline && header.round() <= evicted_round)
+        // Absent rounds are counted once, except those that fast sync passed.
+        let gc_round = dag_state.gc_round_for_last_commit();
+        let expected = (3..=4)
+            .filter(|&round| round <= gc_round_before_sync)
+            .chain((21..=40).filter(|&round| round > gc_round_after_sync && round <= gc_round))
             .count() as u64;
-        let missing = dag_state.misbehavior_store().persisted_missing_proposals()[offline];
-        assert!(
-            missing <= evicted_round as u64 - stored_rounds,
-            "{missing} missing proposals in rounds 1-{evicted_round}, {stored_rounds} of which \
-             have a stored header; evicted round {evicted_after_reinitialize} after \
-             reinitialization, {evicted_after_next_flush} after the next flush"
+        assert_eq!(
+            dag_state.misbehavior_store().persisted_missing_proposals()[offline],
+            expected
         );
     }
 }

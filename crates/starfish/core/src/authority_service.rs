@@ -1427,8 +1427,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 }
             };
             if equivocation {
-                self.misbehavior_store
-                    .record_equivocating_slot(peer, block_ref.round);
+                self.misbehavior_store.record_equivocating_slot(
+                    peer,
+                    block_ref.round,
+                    far_future_ceiling,
+                );
                 self.context
                     .metrics
                     .node_metrics
@@ -6339,6 +6342,7 @@ mod tests {
             .unwrap();
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         for (authority, _) in context.committee.authorities() {
+            assert!(dag_state.read().evicted_header_round(authority) >= 2);
             assert!(dag_state.read().evicted_transaction_round(authority) >= 2);
         }
         dag_state
@@ -6348,7 +6352,7 @@ mod tests {
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.max_fast_commit_sync_transaction_bytes = byte_budget;
         context.parameters.dag_state_cached_rounds = 5;
-        context.protocol_config.set_gc_depth_for_testing(5);
+        context.protocol_config.set_gc_depth_for_testing(2);
         Arc::new(context)
     }
 
