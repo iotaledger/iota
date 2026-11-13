@@ -7408,6 +7408,7 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-rustls",
+ "hyper-timeout",
  "hyper-util",
  "iota-http",
  "iota-metrics",
