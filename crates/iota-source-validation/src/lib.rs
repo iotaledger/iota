@@ -12,7 +12,7 @@ use iota_sdk::{
     rpc_types::{IotaObjectDataOptions, IotaRawData, IotaRawMovePackage},
 };
 use iota_sdk_types::{Address, ObjectId};
-use move_binary_format::CompiledModule;
+use move_binary_format::{CompiledModule, file_format_common::IOTA_METADATA_KEY};
 use move_compiler::compiled_unit::NamedCompiledModule;
 use move_symbol_pool::Symbol;
 use toolchain::units_for_toolchain;
@@ -392,7 +392,7 @@ impl<'a> BytecodeSourceVerifier<'a> {
                 continue;
             };
 
-            if local_module != on_chain_module {
+            if without_iota_metadata(local_module) != without_iota_metadata(on_chain_module) {
                 errs.push(Error::ModuleBytecodeMismatch {
                     address,
                     package,
@@ -469,6 +469,16 @@ fn substitute_root_address(
 
     *addr = move_core_types::account_address::AccountAddress::new(root.into_bytes());
     Ok(module)
+}
+
+/// `module` without its IOTA runtime metadata. The build adds that metadata to
+/// the modules it publishes only, in the format of the target network's
+/// protocol, so a module's metadata differs between builds of the same source.
+fn without_iota_metadata(mut module: CompiledModule) -> CompiledModule {
+    module
+        .metadata
+        .retain(|metadata| metadata.key != IOTA_METADATA_KEY);
+    module
 }
 
 /// The on-chain addresses for a source package's dependencies

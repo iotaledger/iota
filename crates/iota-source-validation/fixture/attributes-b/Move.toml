@@ -1,0 +1,11 @@
+[package]
+name = "b"
+version = "0.0.1"
+edition = "2024"
+published-at = "$STORAGE_ID"
+
+[dependencies]
+Iota = { local = "$REPO_ROOT/crates/iota-framework/packages/iota-framework" }
+
+[addresses]
+b = "$RUNTIME_ID"
