@@ -21,7 +21,10 @@ use common::{
     start_test_server, start_test_server_with, start_test_server_with_traffic_controller,
 };
 use futures::StreamExt;
-use iota_grpc_server::GrpcServerHandle;
+use iota_grpc_server::{
+    GrpcServerHandle,
+    constants::{MIN_IOTA_SDK_GRPC_CLIENT_VERSION, X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION},
+};
 use iota_grpc_types::{
     field::FieldMaskUtil,
     v1::{
@@ -116,7 +119,9 @@ fn execute_batch(n: usize) -> ExecuteTransactionsRequest {
         .with_transactions(vec![ExecuteTransactionItem::default(); n])
 }
 
-/// Assert that the traffic controller blocks the client within `attempts`.
+/// Assert that the traffic controller blocks the client within `attempts`,
+/// and that the response it answers with carries the minimum SDK client
+/// version.
 async fn assert_client_blocked<F, Fut, T>(attempts: usize, mut request: F)
 where
     F: FnMut() -> Fut,
@@ -128,6 +133,14 @@ where
                 assert!(
                     status.message().contains("Too many requests"),
                     "unexpected block message: {status:?}"
+                );
+                assert_eq!(
+                    status
+                        .metadata()
+                        .get(X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION)
+                        .and_then(|value| value.to_str().ok()),
+                    Some(MIN_IOTA_SDK_GRPC_CLIENT_VERSION),
+                    "blocked response without the minimum SDK client version: {status:?}"
                 );
                 return;
             }

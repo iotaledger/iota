@@ -57,6 +57,7 @@ http-body-util.workspace = true
 hyper = { workspace = true, features = ["client", "http2"] }
 hyper-util.workspace = true
 rcgen.workspace = true
+semver.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
