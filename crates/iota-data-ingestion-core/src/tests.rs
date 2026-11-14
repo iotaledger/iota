@@ -977,3 +977,36 @@ async fn historical_reader_rejects_a_manifest_whose_files_leave_a_gap() {
         reader.shutdown().await.unwrap();
     }
 }
+
+/// The local reader does not send a checkpoint whose sequence number differs from its file name
+/// and keeps running.
+#[tokio::test]
+async fn local_reader_does_not_send_a_checkpoint_with_the_wrong_sequence_number() {
+    let dir = tempfile::tempdir().unwrap();
+    // Both files hold checkpoint 0, so the content of `1.chk` is behind its file name.
+    for file_number in [0, 1] {
+        std::fs::write(
+            dir.path().join(format!("{file_number}.chk")),
+            mock_checkpoint_data_bytes(0),
+        )
+        .unwrap();
+    }
+    let config = CheckpointReaderConfig {
+        reader_options: ReaderOptions {
+            tick_interval_ms: 10,
+            ..Default::default()
+        },
+        ingestion_path: Some(dir.path().to_path_buf()),
+        remote_store_url: None,
+    };
+    let mut reader = CheckpointReader::new(0, config.into()).await.unwrap();
+    let checkpoint = reader.checkpoint().await.unwrap();
+    assert_eq!(checkpoint.checkpoint_summary.sequence_number, 0);
+    // A panic in the reader task closes the channel and ends this wait early.
+    assert!(
+        timeout(Duration::from_secs(2), reader.checkpoint())
+            .await
+            .is_err()
+    );
+    reader.shutdown().await.unwrap();
+}

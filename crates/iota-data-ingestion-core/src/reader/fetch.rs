@@ -27,6 +27,45 @@ pub type CheckpointResult = IngestionResult<(Arc<CheckpointData>, usize)>;
 
 pub(crate) const GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES: usize = 125 * 1024 * 1024;
 
+/// A collection of local checkpoints maintaining contiguous ascending order.
+pub(crate) struct LocalCheckpoints {
+    checkpoints: Vec<Arc<CheckpointData>>,
+    next: CheckpointSequenceNumber,
+}
+
+impl LocalCheckpoints {
+    /// Creates an empty collection expecting the given starting sequence number.
+    pub(crate) fn new(first: CheckpointSequenceNumber) -> Self {
+        Self {
+            checkpoints: Vec::new(),
+            next: first,
+        }
+    }
+
+    /// Appends the checkpoint if its sequence number matches the next expected value, ignoring it
+    /// otherwise.
+    pub(crate) fn push(&mut self, checkpoint: Arc<CheckpointData>) {
+        if checkpoint.checkpoint_summary.sequence_number == self.next {
+            self.next += 1;
+            self.checkpoints.push(checkpoint);
+        }
+    }
+
+    /// Returns `true` if the vector contains no elements.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.checkpoints.is_empty()
+    }
+}
+
+impl IntoIterator for LocalCheckpoints {
+    type Item = Arc<CheckpointData>;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.checkpoints.into_iter()
+    }
+}
+
 /// Managing and processing checkpoint files in a directory.
 pub(crate) trait LocalRead {
     /// Path is used as the source for reading checkpoint files.
@@ -40,17 +79,6 @@ pub(crate) trait LocalRead {
     /// Returns `true` if the given checkpoint sequence number exceeds the
     /// allowed capacity.
     fn exceeds_capacity(&self, checkpoint_number: CheckpointSequenceNumber) -> bool;
-
-    /// Returns `true` if the checkpoint's sequence number is ahead of the
-    /// expected sequence number, indicating a gap in the processed
-    /// checkpoints.
-    fn is_checkpoint_ahead(
-        &self,
-        checkpoint: &CheckpointData,
-        expected_sequence_number: CheckpointSequenceNumber,
-    ) -> bool {
-        checkpoint.checkpoint_summary.sequence_number > expected_sequence_number
-    }
 
     /// Lists unprocessed checkpoint files in the specified directory.
     ///
@@ -80,11 +108,11 @@ pub(crate) trait LocalRead {
     /// [`CheckpointData`]. Stops early if the capacity is exceeded, as
     /// determined by [`LocalRead::exceeds_capacity`], or when
     /// [`MAX_CHECKPOINTS_IN_PROGRESS`] files have been processed.
-    fn read_local_files(&self) -> IngestionResult<Vec<Arc<CheckpointData>>> {
+    fn read_local_files(&self) -> IngestionResult<LocalCheckpoints> {
         // files are already sorted by sequence number in ascending order
         let files = self.list_unprocessed_checkpoint_files()?;
         debug!("unprocessed local files {files:?}");
-        let mut checkpoints = vec![];
+        let mut checkpoints = LocalCheckpoints::new(self.current_checkpoint_number());
         for (_, filename) in files.iter().take(MAX_CHECKPOINTS_IN_PROGRESS) {
             let checkpoint = self.read_checkpoint_file(filename)?;
             if self.exceeds_capacity(checkpoint.checkpoint_summary.sequence_number) {
@@ -102,7 +130,7 @@ pub(crate) trait LocalRead {
     /// exponential backoff retry mechanism to handle transient read errors.
     /// Retries are performed according to the default
     /// [`backoff::ExponentialBackoff`] policy.
-    async fn read_local_files_with_retry(&self) -> IngestionResult<Vec<Arc<CheckpointData>>> {
+    async fn read_local_files_with_retry(&self) -> IngestionResult<LocalCheckpoints> {
         let backoff = backoff::ExponentialBackoff::default();
         backoff::future::retry(backoff, || async {
             self.read_local_files().map_err(|err| {

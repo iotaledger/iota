@@ -38,7 +38,8 @@ use crate::{
         ReaderOptions,
         common::DataLimiter,
         fetch::{
-            GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES, LocalRead, ReadSource, fetch_from_object_store,
+            GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES, LocalCheckpoints, LocalRead, ReadSource,
+            fetch_from_object_store,
         },
         filters::fullnode::TransactionFilter,
     },
@@ -229,10 +230,8 @@ impl LocalRead for CheckpointReaderActor {
 }
 
 impl CheckpointReaderActor {
-    fn should_fetch_from_remote(&self, checkpoints: &[Arc<CheckpointData>]) -> bool {
-        self.remote_store.is_some()
-            && (checkpoints.is_empty()
-                || self.is_checkpoint_ahead(&checkpoints[0], self.current_checkpoint_number))
+    fn should_fetch_from_remote(&self, checkpoints: &LocalCheckpoints) -> bool {
+        self.remote_store.is_some() && checkpoints.is_empty()
     }
 
     /// Fetches checkpoints from the historical object store and streams them to
@@ -457,19 +456,31 @@ impl CheckpointReaderActor {
         }
     }
 
-    /// Attempts to send a checkpoint from remote source to the channel if
-    /// capacity allows.
+    /// Attempts to send a remote checkpoint to the channel and registers it with the data limiter.
     ///
-    /// If the checkpoint's sequence number would exceed the allowed capacity,
-    /// returns `IngestionError::MaxCheckpointsCapacityReached` and does not
-    /// send. Otherwise, adds the checkpoint to the data limiter and sends
-    /// it to the channel.
+    /// The sequence number of the received checkpoint must match the one the reader expects next.
+    /// The reader advances its current checkpoint number by one for every checkpoint it sends, so
+    /// this keeps the checkpoints it sends in order and without gaps.
+    ///
+    /// # Errors
+    ///
+    /// - [`IngestionError::Verification`] if the checkpoint's sequence number is not the one the
+    ///   reader expects next.
+    /// - [`IngestionError::MaxCheckpointsCapacityReached`] if the capacity limit is exceeded.
+    /// - [`IngestionError::Channel`] if the receiver channel is closed.
     async fn send_remote_checkpoint_with_capacity_check(
         &mut self,
         checkpoint: Arc<CheckpointData>,
         size: usize,
     ) -> IngestionResult<()> {
-        if self.exceeds_capacity(checkpoint.checkpoint_summary.sequence_number) {
+        let sequence_number = checkpoint.checkpoint_summary.sequence_number;
+        if sequence_number != self.current_checkpoint_number {
+            return Err(IngestionError::Verification(format!(
+                "expected checkpoint {}, the remote source sent {sequence_number}",
+                self.current_checkpoint_number
+            )));
+        }
+        if self.exceeds_capacity(sequence_number) {
             return Err(IngestionError::MaxCheckpointsCapacityReached);
         }
         self.data_limiter.add(&checkpoint, size);
@@ -478,18 +489,14 @@ impl CheckpointReaderActor {
 
     /// Sends a batch of local checkpoints to the channel in order.
     ///
-    /// Each checkpoint is sent sequentially until a gap is detected (i.e., a
-    /// checkpoint with a sequence number greater than the current
-    /// checkpoint number). If a gap is found, the function breaks early. If
-    /// sending fails, returns the error immediately.
+    /// # Errors
+    ///
+    /// Fails if sending to the channel fails.
     async fn send_local_checkpoints_to_channel(
         &mut self,
-        checkpoints: Vec<Arc<CheckpointData>>,
+        checkpoints: LocalCheckpoints,
     ) -> IngestionResult<()> {
-        for checkpoint in checkpoints {
-            if self.is_checkpoint_ahead(&checkpoint, self.current_checkpoint_number) {
-                break;
-            }
+        for checkpoint in checkpoints.into_iter() {
             self.send_checkpoint_to_channel(checkpoint).await?;
         }
         Ok(())
@@ -497,18 +504,10 @@ impl CheckpointReaderActor {
 
     /// Sends a single checkpoint to the channel and advances the current
     /// checkpoint number.
-    ///
-    /// Asserts that the checkpoint's sequence number matches the expected
-    /// current number. Increments the current checkpoint number after
-    /// sending.
     async fn send_checkpoint_to_channel(
         &mut self,
         checkpoint: Arc<CheckpointData>,
     ) -> IngestionResult<()> {
-        assert_eq!(
-            checkpoint.checkpoint_summary.sequence_number,
-            self.current_checkpoint_number
-        );
         self.checkpoint_tx.send(checkpoint).await.map_err(|_| {
             IngestionError::Channel(
                 "unable to send checkpoint to executor, receiver half closed".to_owned(),
