@@ -13,6 +13,8 @@ use iota_types::{
     transaction::{TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
     utils::to_sender_signed_transaction,
 };
+#[cfg(feature = "tracing")]
+use iota_vm_sdk::DebugConfig;
 use iota_vm_sdk::{
     Address, Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion,
     SignatureStatus, Store, VmSdkError,
@@ -69,6 +71,40 @@ fn standard_signature_is_verified_on_success() {
         matches!(result.signature_status, SignatureStatus::Verified),
         "valid ed25519 signature must report Verified, got {:?}",
         result.signature_status
+    );
+}
+
+/// A transaction signed with a standard scheme is traced like an unsigned one.
+#[cfg(feature = "tracing")]
+#[test]
+fn standard_signature_run_is_traced() {
+    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas = gas_coin(sender);
+    let recipient = Address::from(ObjectId::random());
+
+    let tx = transfer_tx(sender, &gas, recipient, TRANSFER_AMOUNT);
+    let signed = to_sender_signed_transaction(tx, &key).into_data();
+
+    let mut store = InMemoryStore::with_framework();
+    store.insert(gas);
+    let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+    let result = vm
+        .execute_signed(
+            signed,
+            ExecuteOptions::dry_run().with_debug(DebugConfig::default().with_tracing()),
+        )
+        .expect("signed dry-run must succeed");
+    assert!(result.status.is_success(), "transfer must succeed");
+
+    let trace = result
+        .debug
+        .expect("debug artifacts present when capture was requested")
+        .trace
+        .expect("a standard-signature run must capture a trace");
+    assert!(
+        trace.event_count() > 0,
+        "a captured trace must hold the events the engine emitted"
     );
 }
 

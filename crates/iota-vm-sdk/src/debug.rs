@@ -20,8 +20,8 @@ pub struct DebugConfig {
     /// Enable the Move VM gas profiler and choose where the Speedscope JSON
     /// ends up.
     pub profile: Option<ProfileSink>,
-    /// Enable instruction-level execution tracing. Only captured on the
-    /// `MoveAuthenticator` path; see [`with_tracing`](Self::with_tracing).
+    /// Enable instruction-level execution tracing; see
+    /// [`with_tracing`](Self::with_tracing).
     pub trace: bool,
 }
 
@@ -40,14 +40,6 @@ impl DebugConfig {
     ///
     /// Requires the crate's `tracing` feature; without it
     /// [`DebugArtifacts::trace`] stays `None`.
-    ///
-    /// Tracing is only captured for signed transactions that authorize via a
-    /// `MoveAuthenticator`. The unsigned
-    /// [`LocalVm::execute`](crate::LocalVm::execute) path and
-    /// standard-signature transactions run through the engine's dev-inspect
-    /// entry point, which accepts no trace builder; for those,
-    /// [`DebugArtifacts::trace`] stays `None` even when tracing was
-    /// requested.
     #[must_use]
     pub fn with_tracing(mut self) -> Self {
         self.trace = true;
@@ -188,7 +180,6 @@ impl std::fmt::Debug for ExecutionTrace {
 pub struct DebugArtifacts {
     /// Gas profile output, if [`DebugConfig::profile`] was set.
     pub profile: Option<ProfileOutput>,
-    /// Instruction-level execution trace. `None` unless the run went through
-    /// the `MoveAuthenticator` path (see [`DebugConfig::with_tracing`]).
+    /// Instruction-level execution trace, if [`DebugConfig::trace`] was set.
     pub trace: Option<ExecutionTrace>,
 }

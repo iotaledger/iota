@@ -80,7 +80,7 @@ impl ExecutionEnv {
     }
 
     pub(super) fn trace_enabled(&self) -> bool {
-        self.debug.trace
+        self.debug.trace && cfg!(feature = "tracing")
     }
 
     /// Materialise captured artifacts: the gas profile and the finished trace.
