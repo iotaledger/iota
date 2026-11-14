@@ -8,7 +8,7 @@ use std::{collections::HashSet, convert::TryInto, path::PathBuf, str::FromStr, s
 use bcs;
 use fastcrypto::traits::KeyPair;
 use futures::{StreamExt, stream::FuturesUnordered};
-use iota_config::genesis::Genesis;
+use iota_config::{genesis::Genesis, node::AuthorityOverloadConfig};
 use iota_framework::BuiltInFramework;
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
@@ -10196,6 +10196,82 @@ async fn recovered_transactions_count_in_the_consensus_queue_before_their_tasks_
         consensus_adapter.num_inflight_transactions(),
         recovered.len() as u64
     );
+}
+
+/// In the P-COOL flow, [`AuthorityState::reserve_consensus_queue_slot()`]
+/// refuses a transaction when every attestation dry run is taken and no place
+/// is left to wait for one, and names the attestation limit as the source.
+/// The certificate flow does not check that limit.
+#[tokio::test]
+async fn overload_check_refuses_while_every_attestation_dry_run_is_taken() {
+    telemetry_subscribers::init_for_testing();
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object1 = Object::with_owner_for_testing(sender);
+    let gas_object2 = Object::with_owner_for_testing(sender);
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[gas_object1.clone(), gas_object2.clone()])
+        .with_authority_overload_config(AuthorityOverloadConfig {
+            max_concurrent_attestations: Some(1),
+            max_queued_attestations: Some(0),
+            ..Default::default()
+        })
+        .build()
+        .await;
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        100_000,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        50,
+    ));
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let tx = make_transfer_object_transaction(
+        gas_object1.object_ref(),
+        gas_object2.object_ref(),
+        sender,
+        &sender_key,
+        Address::random(),
+        rgp,
+    );
+    let check = |pcool_flow_enabled| {
+        if pcool_flow_enabled {
+            // The P-COOL admission check. The slot it takes is released at
+            // once.
+            authority_state
+                .reserve_consensus_queue_slot(&consensus_adapter, tx.data())
+                .map(drop)
+        } else {
+            authority_state.check_system_overload(&consensus_adapter, tx.data(), false)
+        }
+    };
+
+    check(true).unwrap();
+
+    let permit = authority_state.acquire_attestation_permit().await.unwrap();
+    let result = check(true);
+    assert!(
+        matches!(result, Err(IotaError::ValidatorOverloadedRetryAfter { .. })),
+        "expected an overload rejection, got {result:?}"
+    );
+    assert_eq!(
+        authority_state
+            .metrics
+            .transaction_overload_sources
+            .with_label_values(&["attestation"])
+            .get(),
+        1
+    );
+    assert_eq!(authority_state.metrics.attestations_rejected_total.get(), 1);
+    check(false).unwrap();
+
+    drop(permit);
+    check(true).unwrap();
 }
 
 /// Builds an authority with the P-COOL flow, and with it deny rule

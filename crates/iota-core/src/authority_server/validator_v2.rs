@@ -11,7 +11,7 @@ use iota_network::api::{
     NotifyCapabilitiesResponse, SubmitTxRequest, TxStatus, ValidatorV2,
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectId, TransactionDigest, TransactionEffects};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest, TransactionEffects};
 use iota_types::{
     attestation::{Attestation, AttestedTransaction},
     deny_rule_governance::DenyRuleConfig,
@@ -25,7 +25,7 @@ use iota_types::{
         TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
     },
     traffic_control::Weight,
-    transaction::{SenderSignedTransactionAPI, TransactionEnvelope},
+    transaction::{InputObjectKind, SenderSignedTransactionAPI, TransactionEnvelope},
 };
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -175,6 +175,65 @@ fn check_consensus_transaction_size(
     Ok(())
 }
 
+/// Rejects a submission because the validator is overloaded, and counts it in
+/// [`ValidatorServiceMetrics::num_rejected_tx_during_overload`]. The
+/// rejection weighs nothing in the traffic controller's tally: the client
+/// turned away is not necessarily the one keeping the validator busy.
+fn reject_for_overload(
+    metrics: &ValidatorServiceMetrics,
+    error: IotaError,
+) -> (TxStatusUpdate, Weight) {
+    metrics
+        .num_rejected_tx_during_overload
+        .with_label_values(&[error.as_ref()])
+        .inc();
+
+    (TxStatusUpdate::Rejected { error }, Weight::zero())
+}
+
+/// Counts a refused soft lock under its cause.
+fn count_soft_lock_refusal(metrics: &ValidatorServiceMetrics, error: &IotaError) {
+    match error {
+        IotaError::RecentlyResubmitted { .. } => {
+            metrics.num_rejected_tx_recently_resubmitted.inc();
+        }
+        IotaError::ObjectLockConflict { .. } => {
+            metrics.num_rejected_tx_soft_lock_conflict.inc();
+        }
+        _ => {}
+    }
+}
+
+/// Lists the owned and immutable objects `transaction` names as inputs, gas
+/// coins included. It reads the transaction alone, before validation, so it
+/// cannot distinguish owned inputs from immutable ones; that does no harm to
+/// a check for soft lock conflicts, since no soft lock is taken on an
+/// immutable object. A transaction whose inputs cannot be listed gets an
+/// empty list, and validation refuses it later.
+fn list_owned_or_immutable_inputs(transaction: &TransactionEnvelope) -> Vec<ObjectReference> {
+    transaction
+        .data()
+        .input_objects(false)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|input| match input {
+            InputObjectKind::ImmOrOwnedMoveObject(object_ref) => Some(object_ref),
+            InputObjectKind::SharedMoveObject { .. } | InputObjectKind::MovePackage(_) => None,
+        })
+        .collect()
+}
+
+/// Returns the traffic weight of a rejection the sender causes:
+/// [`Weight::one()`] after the attestation's dry run, which the validator
+/// then ran for nothing, and otherwise what [`normalize()`] gives `error`.
+fn weigh_sender_rejection(error: &IotaError, after_dry_run: bool) -> Weight {
+    if after_dry_run {
+        Weight::one()
+    } else {
+        normalize(error)
+    }
+}
+
 impl ValidatorService {
     async fn submit_tx_impl(
         &self,
@@ -257,10 +316,11 @@ impl ValidatorService {
     /// execution, verifies signature, runs deny checks, and submits to
     /// consensus. Returns the terminal status together with the per-item
     /// traffic weight derived from the outcome: `Weight::one()` for an
-    /// already-executed duplicate (spam-like) and for a transaction too large
-    /// for consensus once attested, `normalize(&error)` for any other rejection
-    /// (signature/epoch errors weigh, others don't), and `Weight::zero()` for a
-    /// successful submission.
+    /// already-executed duplicate (spam-like), for a transaction too large for
+    /// consensus once attested, and for a refused soft lock or a changed owned
+    /// input after the attestation's dry run; `normalize(&error)` for any other
+    /// rejection (signature/epoch errors weigh, others don't); and
+    /// `Weight::zero()` for a successful submission.
     async fn submit_single_tx(
         state: &Arc<AuthorityState>,
         consensus_adapter: &Arc<ConsensusAdapter>,
@@ -293,15 +353,7 @@ impl ValidatorService {
         // drops the slot and releases it.
         let slot = match state.reserve_consensus_queue_slot(consensus_adapter, transaction.data()) {
             Ok(slot) => slot,
-            Err(e) => {
-                metrics
-                    .num_rejected_tx_during_overload
-                    .with_label_values(&[e.as_ref()])
-                    .inc();
-                let weight = normalize(&e);
-
-                return (TxStatusUpdate::Rejected { error: e }, weight);
-            }
+            Err(e) => return reject_for_overload(metrics, e),
         };
 
         // Validate transaction.
@@ -331,6 +383,19 @@ impl ValidatorService {
             metrics.num_rejected_tx_recently_resubmitted.inc();
             let error = IotaError::RecentlyResubmitted { digest: tx_digest };
             let weight = normalize(&error);
+            return (TxStatusUpdate::Rejected { error }, weight);
+        }
+
+        // Refuse a transaction whose inputs another transaction in flight on
+        // this validator holds. Before signature verification, since this
+        // takes no lock and every lock it can find was taken by a transaction
+        // that passed validation. Checked again once a dry run is free; the
+        // lock itself is taken after the dry run.
+        let inputs = list_owned_or_immutable_inputs(&transaction);
+        if let Err(error) = soft_locks.check_conflicts(&tx_digest, &inputs) {
+            count_soft_lock_refusal(metrics, &error);
+            let weight = normalize(&error);
+
             return (TxStatusUpdate::Rejected { error }, weight);
         }
 
@@ -391,10 +456,25 @@ impl ValidatorService {
         let (attestation_data, owned_objects, verified_tx) = if !checks_admitted_inputs() {
             (None, Vec::new(), verified_tx)
         } else if epoch_store.protocol_config().enable_validator_attestation() {
+            let permit = match state.acquire_attestation_permit().await {
+                Ok(permit) => permit,
+                Err(e) => return reject_for_overload(metrics, e),
+            };
+            // Another transaction may have locked these inputs while this one
+            // waited for its dry run.
+            if let Err(error) = soft_locks.check_conflicts(&tx_digest, &inputs) {
+                count_soft_lock_refusal(metrics, &error);
+                let weight = normalize(&error);
+
+                return (TxStatusUpdate::Rejected { error }, weight);
+            }
             let state_for_attest = state.clone();
             let epoch_store_for_attest = epoch_store.clone();
             let governance_for_attest = governance_rules.clone();
             let join_result = tokio::task::spawn_blocking(move || {
+                // Moved in so that the dry run frees its place when it ends,
+                // also when it panics.
+                let _permit = permit;
                 // Built inside the closure: `DenyRuleUnion` borrows, and
                 // `spawn_blocking` requires `'static` captures.
                 let local_deny_config = &state_for_attest.config.transaction_deny_config;
@@ -420,10 +500,12 @@ impl ValidatorService {
             let (result, verified_tx) = match join_result {
                 Ok(pair) => pair,
                 Err(join_err) => {
-                    // A panic inside `attest_transaction` (e.g., an
-                    // arithmetic panic in Move VM dry-run) surfaces here
-                    // as a `JoinError`. Convert to a rejection rather
-                    // than re-panicking on the per-tx task.
+                    // A panic in the dry run reaches this point only where
+                    // panics unwind, as in tests: release builds set
+                    // `panic = 'abort'`, so there it stops the validator. A
+                    // `JoinError` also comes when the runtime shuts down
+                    // before the dry run starts. The transaction is rejected
+                    // rather than panicking again on this submission's task.
                     tracing::error!(?tx_digest, "attest_transaction task failed: {join_err}");
                     let err = IotaError::GenericAuthority {
                         error: format!("attest_transaction task failed: {join_err}"),
@@ -464,6 +546,10 @@ impl ValidatorService {
             }
         };
 
+        // From here on, a rejection the sender causes weighs one if the
+        // attestation's dry run ran.
+        let after_dry_run = attestation_data.is_some();
+
         if let Err(e) = state
             .get_cache_writer()
             .validate_owned_object_versions(&owned_objects)
@@ -477,7 +563,9 @@ impl ValidatorService {
             {
                 return (build_executed(effects), Weight::one());
             }
-            let weight = normalize(&e);
+            // Another transaction of the sender used an owned input meanwhile.
+            let weight = weigh_sender_rejection(&e, after_dry_run);
+
             return (TxStatusUpdate::Rejected { error: e }, weight);
         }
 
@@ -529,16 +617,19 @@ impl ValidatorService {
         // Same-digest resubmission while in flight → rejected (duplicate).
         // Different-digest conflict on same objects → rejected.
         // Placed after the reconfig and size checks so we never acquire locks
-        // that would need releasing on their rejection paths.
-        if let Err(error) = soft_locks.try_acquire(tx_digest, &owned_objects) {
-            if matches!(error, IotaError::RecentlyResubmitted { .. }) {
-                metrics.num_rejected_tx_recently_resubmitted.inc();
-            } else {
-                metrics.num_rejected_tx_soft_lock_conflict.inc();
+        // that would need releasing on their rejection paths. A rejection from
+        // here on drops the guard, which releases the locks. A refusal after
+        // the dry run means the transaction passed both checks for conflicts
+        // together with another one on the same objects.
+        let soft_lock = match soft_locks.try_acquire_guard(tx_digest, &owned_objects) {
+            Ok(soft_lock) => soft_lock,
+            Err(error) => {
+                count_soft_lock_refusal(metrics, &error);
+                let weight = weigh_sender_rejection(&error, after_dry_run);
+
+                return (TxStatusUpdate::Rejected { error }, weight);
             }
-            let weight = normalize(&error);
-            return (TxStatusUpdate::Rejected { error }, weight);
-        }
+        };
         metrics
             .soft_lock_table_size
             .set(soft_locks.lock_count() as i64);
@@ -558,12 +649,13 @@ impl ValidatorService {
                 error = ?e,
                 "releasing soft lock after consensus submit failure",
             );
-            soft_locks.release(&tx_digest);
+            drop(soft_lock);
             metrics
                 .soft_lock_table_size
                 .set(soft_locks.lock_count() as i64);
             return (TxStatusUpdate::Rejected { error: e }, weight);
         }
+        soft_lock.keep();
 
         (TxStatusUpdate::Submitted, Weight::zero())
     }

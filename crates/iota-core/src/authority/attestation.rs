@@ -140,6 +140,8 @@ impl AuthorityState {
             )?;
         }
 
+        self.metrics.attestation_dry_runs_total.inc();
+
         // Capture the `InnerTemporaryStore` from the dry-run: its object maps are the
         // source of truth for the input versions the attestor observed. The account
         // objects are read outside the store, so their observed versions are captured

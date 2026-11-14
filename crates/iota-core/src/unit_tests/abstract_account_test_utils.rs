@@ -359,6 +359,21 @@ impl AbstractAccountTestEnv {
         self.sign_with_move_authenticator(pt, signing_key)
     }
 
+    /// Two transactions sent by the account that pay with the same coin, so at
+    /// most one of them can go through.
+    pub fn account_transactions_on_one_coin(
+        &mut self,
+    ) -> (TransactionEnvelope, TransactionEnvelope) {
+        let gas = self.take_account_gas();
+        let owner_key = self.owner_key.clone();
+        let first = self.add_field_transaction();
+        let first = self.sign_with_move_authenticator_paying_with(first, &owner_key, gas);
+        let second = self.add_field_transaction();
+        let second = self.sign_with_move_authenticator_paying_with(second, &owner_key, gas);
+
+        (first, second)
+    }
+
     /// Like [`Self::account_transaction_signed_with()`], but sponsored by the
     /// funder, which signs with its key and pays with a coin of its own: the
     /// gas owner authorized the transaction whatever the account's
@@ -416,6 +431,17 @@ impl AbstractAccountTestEnv {
         signing_key: &Ed25519PrivateKey,
     ) -> TransactionEnvelope {
         let gas = self.take_account_gas();
+
+        self.sign_with_move_authenticator_paying_with(pt, signing_key, gas)
+    }
+
+    /// Like [`Self::sign_with_move_authenticator()`], but pays with `gas`.
+    fn sign_with_move_authenticator_paying_with(
+        &self,
+        pt: ProgrammableTransaction,
+        signing_key: &Ed25519PrivateKey,
+        gas: ObjectReference,
+    ) -> TransactionEnvelope {
         let tx_data = Transaction::new_programmable(
             self.account_address,
             vec![gas],

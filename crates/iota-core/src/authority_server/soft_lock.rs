@@ -25,7 +25,7 @@
 //! | Tx processed by consensus        | Released in `authority_per_epoch_store` after quarantine               |
 //! | Tx dropped in post-consensus     | Released in `authority_per_epoch_store` after quarantine               |
 //! | Tx forgotten by consensus        | TTL expiry releases locks via background sweep                        |
-//! | Consensus submission fails       | Locks released immediately in error path                              |
+//! | Rejected after locking           | Released when the admission drops its [`SoftLockGuard`]               |
 //! | Crash / restart                  | All soft locks lost → clean slate; post-consensus is authoritative    |
 //! | Epoch boundary                   | Same instance is `clear()`-ed; all locks dropped                      |
 //! | Object version mismatch          | Keyed on full `ObjectReference`; different versions don't conflict          |
@@ -100,6 +100,32 @@ pub struct PreConsensusSoftLocks {
 impl Default for PreConsensusSoftLocks {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// The soft locks one admission took for its transaction. Dropping the guard
+/// releases them; [`Self::keep()`] leaves them held once the transaction is
+/// submitted to consensus.
+#[must_use = "dropping the guard releases the soft locks"]
+pub struct SoftLockGuard {
+    soft_locks: Arc<PreConsensusSoftLocks>,
+    tx_digest: TransactionDigest,
+    release_on_drop: bool,
+}
+
+impl SoftLockGuard {
+    /// Leaves the locks held after the guard is gone, until consensus
+    /// processes or drops the transaction, or the TTL expires.
+    pub fn keep(mut self) {
+        self.release_on_drop = false;
+    }
+}
+
+impl Drop for SoftLockGuard {
+    fn drop(&mut self) {
+        if self.release_on_drop {
+            self.soft_locks.release(&self.tx_digest);
+        }
     }
 }
 
@@ -214,6 +240,66 @@ impl PreConsensusSoftLocks {
         }
 
         self.lock_count.store(inner.locks.len(), Ordering::Relaxed);
+        Ok(())
+    }
+
+    /// Like [`Self::try_acquire()`], but the locks are released when the
+    /// returned guard is dropped, unless [`SoftLockGuard::keep()`] is called.
+    /// An error leaves untouched the locks another admission of the same
+    /// digest holds.
+    pub fn try_acquire_guard(
+        self: &Arc<Self>,
+        tx_digest: TransactionDigest,
+        owned_objects: &[ObjectReference],
+    ) -> Result<SoftLockGuard, IotaError> {
+        self.try_acquire(tx_digest, owned_objects)?;
+
+        Ok(SoftLockGuard {
+            soft_locks: self.clone(),
+            tx_digest,
+            // `try_acquire` takes nothing for an empty set, so the guard must
+            // not release locks another admission of this digest may hold.
+            release_on_drop: self.enabled && !owned_objects.is_empty(),
+        })
+    }
+
+    /// Checks `tx_digest` and `objects` against the soft locks held at this
+    /// moment, as [`Self::try_acquire()`] does, but takes and changes no
+    /// lock, so a submission can be refused before any work is done for it.
+    /// Returns `Ok` when soft locks are disabled or `objects` is empty.
+    ///
+    /// # Errors
+    ///
+    /// [`IotaError::RecentlyResubmitted`] while `tx_digest` is in flight, and
+    /// [`IotaError::ObjectLockConflict`] while another transaction holds an
+    /// unexpired lock on one of `objects`.
+    pub fn check_conflicts(
+        &self,
+        tx_digest: &TransactionDigest,
+        objects: &[ObjectReference],
+    ) -> Result<(), IotaError> {
+        if !self.enabled || objects.is_empty() {
+            return Ok(());
+        }
+
+        let now = Instant::now();
+        let inner = self.inner.lock();
+        if Self::is_in_flight(&inner, tx_digest, now, self.lock_ttl) {
+            return Err(IotaError::RecentlyResubmitted { digest: *tx_digest });
+        }
+        for obj_ref in objects {
+            let held_by_another = inner.locks.get(obj_ref).filter(|record| {
+                record.digest != *tx_digest
+                    && now.duration_since(record.acquired_at) < self.lock_ttl
+            });
+            if let Some(record) = held_by_another {
+                return Err(IotaError::ObjectLockConflict {
+                    obj_ref: *obj_ref,
+                    pending_transaction: record.digest,
+                });
+            }
+        }
+
         Ok(())
     }
 
@@ -550,6 +636,31 @@ mod tests {
         table.try_acquire(tx, &[obj_ref(1, 1)]).unwrap();
         table.try_acquire(tx, &[obj_ref(1, 1)]).unwrap();
         assert!(!table.check_in_flight(&tx));
+    }
+
+    #[test]
+    fn check_conflicts_takes_no_lock() {
+        let table = PreConsensusSoftLocks::with_ttl(Duration::from_secs(60));
+        let held = obj_ref(1, 1);
+        let free = obj_ref(2, 1);
+        let tx_a = digest(1);
+        let tx_b = digest(2);
+
+        table.check_conflicts(&tx_a, &[held, free]).unwrap();
+        assert_eq!(table.lock_count(), 0);
+
+        table.try_acquire(tx_a, &[held]).unwrap();
+        let err = table.check_conflicts(&tx_b, &[free, held]).unwrap_err();
+        assert!(matches!(err, IotaError::ObjectLockConflict { .. }));
+        let err = table.check_conflicts(&tx_a, &[held]).unwrap_err();
+        assert!(matches!(err, IotaError::RecentlyResubmitted { .. }));
+        table.check_conflicts(&tx_b, &[free]).unwrap();
+        assert_eq!(table.lock_count(), 1);
+
+        // An expired lock is no conflict, as for `try_acquire`.
+        let expiring = PreConsensusSoftLocks::with_ttl(Duration::ZERO);
+        expiring.try_acquire(tx_a, &[held]).unwrap();
+        expiring.check_conflicts(&tx_b, &[held]).unwrap();
     }
 
     #[test]
@@ -917,5 +1028,71 @@ mod tests {
         table.sweep_expired();
         table.clear();
         assert_eq!(table.lock_count(), 0);
+    }
+
+    #[test]
+    fn a_dropped_guard_releases_its_locks() {
+        let table = Arc::new(PreConsensusSoftLocks::with_ttl(Duration::from_secs(60)));
+        let tx = digest(1);
+
+        let guard = table
+            .try_acquire_guard(tx, &[obj_ref(1, 1), obj_ref(2, 1)])
+            .unwrap();
+        assert_eq!(table.lock_count(), 2);
+
+        drop(guard);
+        assert_eq!(table.lock_count(), 0);
+        assert!(!table.check_in_flight(&tx));
+    }
+
+    #[test]
+    fn a_kept_guard_leaves_its_locks_held() {
+        let table = Arc::new(PreConsensusSoftLocks::with_ttl(Duration::from_secs(60)));
+        let tx = digest(1);
+
+        table
+            .try_acquire_guard(tx, &[obj_ref(1, 1), obj_ref(2, 1)])
+            .unwrap()
+            .keep();
+        assert_eq!(table.lock_count(), 2);
+        assert!(table.check_in_flight(&tx));
+
+        table.release(&tx);
+        assert_eq!(table.lock_count(), 0);
+    }
+
+    #[test]
+    fn a_refused_guard_leaves_the_holders_locks() {
+        let table = Arc::new(PreConsensusSoftLocks::with_ttl(Duration::from_secs(60)));
+        let obj = obj_ref(1, 1);
+        let holder = table.try_acquire_guard(digest(1), &[obj]).unwrap();
+
+        let same_digest = table.try_acquire_guard(digest(1), &[obj]);
+        assert!(matches!(
+            same_digest,
+            Err(IotaError::RecentlyResubmitted { .. })
+        ));
+        let other_digest = table.try_acquire_guard(digest(2), &[obj]);
+        assert!(matches!(
+            other_digest,
+            Err(IotaError::ObjectLockConflict { .. })
+        ));
+        assert!(table.check_in_flight(&digest(1)));
+        assert_eq!(table.lock_count(), 1);
+
+        drop(holder);
+        assert_eq!(table.lock_count(), 0);
+    }
+
+    #[test]
+    fn a_guard_without_objects_releases_nothing() {
+        let table = Arc::new(PreConsensusSoftLocks::with_ttl(Duration::from_secs(60)));
+        let tx = digest(1);
+        table.try_acquire(tx, &[obj_ref(1, 1)]).unwrap();
+
+        drop(table.try_acquire_guard(tx, &[]).unwrap());
+
+        assert!(table.check_in_flight(&tx));
+        assert_eq!(table.lock_count(), 1);
     }
 }
