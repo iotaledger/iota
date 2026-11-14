@@ -4,19 +4,17 @@
 //! Shared transaction preparation, execution, and event decoding.
 //!
 //! These helpers turn a [`Transaction`] into a checked, ready-to-run
-//! [`PreparedTransaction`], drive it through the Move engine (plain or via a
-//! [`MoveAuthenticator`]), and decode emitted events. They operate on an
-//! [`ExecutionEnv`] and a [`BackingStore`] and never touch the [`LocalVm`]'s
-//! store directly.
+//! [`PreparedSimulation`], drive it through the Move engine via a
+//! [`MoveAuthenticator`], and decode emitted events. They operate on a
+//! [`SimulationEnv`] or an [`ExecutionEnv`] and a [`BackingStore`] and never
+//! touch the [`LocalVm`]'s store directly.
 
-use std::collections::HashSet;
-
-use iota_config::transaction_deny_config::TransactionDenyConfig;
+use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Digest, Event, GasPayment, MoveAuthenticator, ObjectId, ObjectReference, Transaction,
-    TransactionEffects, UserSignature,
+    Address, Digest, Event, MoveAuthenticator, ObjectReference, Transaction, UserSignature,
 };
+use iota_transaction_checks::simulate::{self, PreparedSimulation, SimulationEnv};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRefForExecution, MoveAuthenticatorForExecution,
@@ -24,11 +22,8 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
-    effects::TransactionEffectsAPI,
     error::UserInputError,
-    gas::{IotaGasStatus, fill_in_unset_simulation_gas},
-    gas_coin::mock_simulation_gas_coin,
-    inner_temporary_store::InnerTemporaryStore,
+    gas::IotaGasStatus,
     layout_resolver::LayoutResolver,
     move_authenticator::MoveAuthenticatorExt,
     object::bounded_visitor::BoundedVisitor,
@@ -36,9 +31,8 @@ use iota_types::{
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
         ReceivingObjectReadResult, ReceivingObjects, TransactionAPI,
-        merge_authenticator_input_objects,
     },
-    transaction_executor::{InputCheckRules, SimulateTransactionResult},
+    transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 use move_trace_format::format::MoveTraceBuilder;
 
@@ -46,28 +40,21 @@ use crate::{
     error::{ExecutionError, StoreError, ValidationError, VmError, VmSdkError},
     executor::{
         env::ExecutionEnv,
-        types::{CommandResult, DecodedEvent, ExecutionMode},
+        types::{DecodedEvent, ExecutionMode},
     },
 };
 
-pub(super) struct PreparedTransaction {
-    transaction: Transaction,
-    gas_status: IotaGasStatus,
-    checked_input_objects: CheckedInputObjects,
-    mock_gas_id: Option<ObjectId>,
-}
-
 pub(super) fn prepare_transaction(
-    env: &ExecutionEnv,
+    env: &SimulationEnv<'_>,
     store: &dyn BackingStore,
     mut transaction: Transaction,
     mode: ExecutionMode,
-    deny_config: &TransactionDenyConfig,
     tx_signatures: &[UserSignature],
-    move_authenticators: &[MoveAuthenticator],
     check_coin_deny_list: bool,
-) -> Result<PreparedTransaction, VmSdkError> {
-    iota_transaction_checks::check_user_transaction_validity(&transaction, &env.protocol_config)
+) -> Result<PreparedSimulation, VmSdkError> {
+    // Reject an invalid transaction before fetching its gas objects, which
+    // can mean a network round trip per gas coin.
+    iota_transaction_checks::check_user_transaction_validity(&transaction, env.protocol_config)
         .map_err(|e| ValidationError::new("transaction validity check", e))?;
 
     // Update gas payment references to match actual object versions in the store.
@@ -81,109 +68,27 @@ pub(super) fn prepare_transaction(
     }
     transaction.gas_data_mut().objects = updated_gas;
 
-    let raw_input_object_kinds = transaction
-        .input_objects()
-        .map_err(|e| ValidationError::new("collect input objects", e))?;
-    let receiving_object_refs = transaction.receiving_objects();
-
-    // Apply the deny-list policy before loading input objects from the store: it
-    // gates on transaction-derived data (signers, commands, object ids, the
-    // shared/owned kind) that store loading does not change, so a denied
-    // transaction is rejected without the intervening object I/O.
-    //
-    // The node deny-checks `SenderSignedTransaction::input_objects()`, which merges
-    // every `MoveAuthenticator`'s input objects into the transaction's; mirror
-    // that merge so denied objects are also caught as authenticator inputs.
-    let mut deny_check_input_kinds = raw_input_object_kinds.clone();
-    merge_authenticator_input_objects(
-        move_authenticators,
-        env.protocol_config
-            .move_authenticator_type_arg_packages_as_inputs(),
-        &mut deny_check_input_kinds,
-    )
-    .map_err(|e| ValidationError::new("merge authenticator inputs", e))?;
-    iota_transaction_checks::deny::check_transaction_for_validation(
-        &transaction,
-        tx_signatures,
-        &deny_check_input_kinds,
-        &receiving_object_refs,
-        deny_config,
+    let (checks, fill_in_gas) = match mode {
+        ExecutionMode::DevInspect => (VmChecks::Disabled, true),
+        ExecutionMode::DryRun => (VmChecks::Enabled, true),
+        // `Execute` commits its effects, so it holds a transaction to its own
+        // declared gas the way a validator would.
+        ExecutionMode::Execute => (VmChecks::Enabled, false),
+    };
+    let prepared = simulate::prepare_simulation(
+        env,
         store,
-    )
-    .map_err(|e| ValidationError::new("deny-list check", e))?;
-
-    let mut input_objects = load_input_objects(store, &raw_input_object_kinds)?;
-    let receiving_objects = load_receiving_objects(store, &receiving_object_refs)?;
-
-    // Mint a one-shot mock gas coin if the transaction carries no gas payment,
-    // the same coin the node mints on its simulation paths. `Execute` commits
-    // effects to the store, so it requires a real gas payment.
-    let mock_gas_id = if transaction.gas().is_empty() {
-        if matches!(mode, ExecutionMode::Execute) {
-            return Err(ValidationError::new(
-                "transaction validity check",
-                UserInputError::MissingGasPayment,
-            )
-            .into());
-        }
-        let mock_gas_object = mock_simulation_gas_coin(transaction.gas_data().owner);
-        let mock_gas_object_ref = mock_gas_object.object_ref();
-        transaction.gas_data_mut().objects = vec![mock_gas_object_ref];
-        input_objects.push(ObjectReadResult::new_from_gas_object(&mock_gas_object));
-        Some(mock_gas_object.id())
-    } else {
-        None
-    };
-
-    // `Execute` commits its effects, so it holds a transaction to its own declared
-    // gas the way a validator would; the two simulation modes fill in what the
-    // caller left unset, the same way the node's simulation paths do.
-    if !matches!(mode, ExecutionMode::Execute) {
-        fill_in_unset_simulation_gas(
-            &mut transaction,
-            &input_objects,
-            env.reference_gas_price,
-            &env.protocol_config,
-        );
-    }
-
-    // Dev-inspect meters against the transaction's budget, as filled in above
-    // when the caller declares none, matching the node's dev-inspect entry
-    // point, and drops the input checks a simulation does not need. Every other
-    // mode runs the full input checks.
-    let (input_checks, check_name) = if matches!(mode, ExecutionMode::DevInspect) {
-        (InputCheckRules::RELAXED_UNSAFE, "simulation input check")
-    } else {
-        (InputCheckRules::STRICT, "transaction input check")
-    };
-    // Offline default: the verifier-signing limits may differ from those a
-    // live validator enforces, so this check will not match a real chain.
-    let verifier_signing_config =
-        iota_config::verifier_signing_config::VerifierSigningConfig::default();
-    // Pass `0` for the authenticator gas budget: this crate runs the
-    // authenticator and body together to effects, which is the node's
-    // post-consensus path, where they share the full transaction budget
-    // (`max_auth_gas` caps only the separate pre-consensus signing check,
-    // which this crate does not model). A `0` budget makes
-    // `check_transaction_input` meter at the full transaction budget, as
-    // `check_certificate_input` does. (Move-authentication support is
-    // verified before preparation, so the precondition a non-zero budget
-    // would enforce is already covered.)
-    let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
-        &env.protocol_config,
-        env.reference_gas_price,
-        &transaction,
-        input_objects,
-        &receiving_objects,
-        &env.bytecode_verifier_metrics,
-        iota_transaction_checks::VerifierLimitsSource::NodeConfig(&verifier_signing_config),
-        0,
-        // Authenticator and body run together to effects; with a `0`
-        // authentication budget this flag does not change metering.
-        true,
-        input_checks,
-    )
-    .map_err(|e| ValidationError::new(check_name, e))?;
+        transaction,
+        checks,
+        tx_signatures,
+        fill_in_gas,
+        |input_object_kinds, receiving_object_refs| {
+            Ok::<_, VmSdkError>((
+                load_input_objects(store, input_object_kinds)?,
+                load_receiving_objects(store, receiving_object_refs)?,
+            ))
+        },
+    )?;
 
     if check_coin_deny_list {
         // Regulated-coin deny-list check over the transaction's own inputs and
@@ -191,95 +96,14 @@ pub(super) fn prepare_transaction(
         // `execute_with_move_authenticators`, where they are resolved.
         run_coin_deny_list_check(
             store,
-            transaction.sender(),
-            &checked_input_objects,
-            &receiving_objects,
+            prepared.transaction.sender(),
+            &prepared.checked_input_objects,
+            &prepared.receiving_objects,
             &[],
         )?;
     }
 
-    Ok(PreparedTransaction {
-        transaction,
-        gas_status,
-        checked_input_objects,
-        mock_gas_id,
-    })
-}
-
-pub(super) fn execute_prepared(
-    env: &ExecutionEnv,
-    store: &dyn BackingStore,
-    prepared: PreparedTransaction,
-    mode: ExecutionMode,
-) -> Result<(SimulateTransactionResult, Transaction), VmSdkError> {
-    let PreparedTransaction {
-        transaction,
-        gas_status,
-        checked_input_objects,
-        mock_gas_id,
-    } = prepared;
-
-    let dev_inspect = matches!(mode, ExecutionMode::DevInspect);
-    let (kind, signer, gas_data) = transaction.execution_parts();
-    // `dev_inspect_transaction` accepts no `MoveTraceBuilder`; tracing is only
-    // available on the `authenticate_then_execute_transaction_to_effects` path.
-    let (inner_temp_store, _, effects, execution_result) = env.executor.dev_inspect_transaction(
-        store,
-        &env.protocol_config,
-        env.limits_metrics.clone(),
-        false,
-        &HashSet::new(),
-        &env.epoch_id,
-        env.epoch_timestamp_ms,
-        checked_input_objects,
-        gas_data,
-        gas_status,
-        kind,
-        signer,
-        transaction.digest(),
-        dev_inspect,
-    );
-
-    Ok((
-        simulation_result(
-            store,
-            inner_temp_store,
-            effects,
-            execution_result,
-            mock_gas_id,
-            transaction.gas_data().clone(),
-        ),
-        transaction,
-    ))
-}
-
-/// Assemble the engine's raw outputs into a [`SimulateTransactionResult`].
-fn simulation_result(
-    store: &dyn BackingStore,
-    inner_temp_store: InnerTemporaryStore,
-    effects: TransactionEffects,
-    execution_result: Result<Vec<CommandResult>, iota_types::error::ExecutionError>,
-    mock_gas_id: Option<ObjectId>,
-    gas_data: GasPayment,
-) -> SimulateTransactionResult {
-    let mut input_objects = inner_temp_store.input_objects;
-    iota_types::storage::extend_input_objects_with_loaded_runtime_objects(
-        &mut input_objects,
-        &effects,
-        &inner_temp_store.loaded_runtime_objects,
-        store.as_object_store(),
-    );
-
-    SimulateTransactionResult {
-        input_objects,
-        output_objects: inner_temp_store.written,
-        events: effects.events_digest().map(|_| inner_temp_store.events),
-        effects,
-        execution_result,
-        mock_gas_id,
-        suggested_gas_price: None,
-        gas_data,
-    }
+    Ok(prepared)
 }
 
 /// Run a transaction whose sender and/or sponsor authorize via a
@@ -292,9 +116,10 @@ fn simulation_result(
 /// error: `Err` if any rejected, `Ok` if they all passed, even when the body
 /// failed.
 pub(super) fn execute_with_move_authenticators(
-    env: &ExecutionEnv,
+    env: &SimulationEnv<'_>,
+    executor: &dyn Executor,
     store: &dyn BackingStore,
-    prepared: PreparedTransaction,
+    prepared: PreparedSimulation,
     authenticators: Vec<MoveAuthenticator>,
     auth_digests: (Digest, Option<Digest>),
     check_coin_deny_list: bool,
@@ -307,17 +132,18 @@ pub(super) fn execute_with_move_authenticators(
     ),
     VmSdkError,
 > {
-    let PreparedTransaction {
+    let PreparedSimulation {
         transaction,
         gas_status,
         checked_input_objects,
         mock_gas_id,
+        ..
     } = prepared;
     // Resolve every authenticator, then union each one's inputs into the
     // transaction's checked inputs, enforcing consistency (matching object read
     // results, compatible shared-object kinds) for ids that appear in more than
     // one set.
-    let prepared_auths = prepare_authenticators(store, authenticators, &env.protocol_config)?;
+    let prepared_auths = prepare_authenticators(store, authenticators, env.protocol_config)?;
     let mut union_checked = checked_input_objects;
     for (_, _, inputs) in &prepared_auths {
         let auth_checked = CheckedInputObjects::new_with_checked_transaction_inputs(inputs.clone());
@@ -361,14 +187,13 @@ pub(super) fn execute_with_move_authenticators(
         })
         .collect::<Vec<_>>();
 
-    let (inner_temp_store, _, effects, _timings, execution_result, authentication_error) = env
-        .executor
+    let (inner_temp_store, _, effects, _timings, execution_result, authentication_error) = executor
         .authenticate_then_execute_transaction_to_effects(
             store,
-            &env.protocol_config,
+            env.protocol_config,
             env.limits_metrics.clone(),
             false,
-            &HashSet::new(),
+            env.certificate_deny_set,
             &env.epoch_id,
             env.epoch_timestamp_ms,
             gas_data,
@@ -388,7 +213,7 @@ pub(super) fn execute_with_move_authenticators(
     // The authenticator engine entry point does not return per-command
     // results, so a signed `MoveAuthenticator` run carries none.
     Ok((
-        simulation_result(
+        simulate::simulation_result(
             store,
             inner_temp_store,
             effects,
