@@ -67,6 +67,11 @@ pub struct CommitIndexedReader {
     pub(super) epoch_store: Arc<AuthorityPerEpochStore>,
     /// The horizon, `C - K`.
     horizon: CommitIndex,
+    /// One verdict per shared object and declared initial shared version at
+    /// this commit. This is more than a saved read: a transaction and its Move
+    /// authenticator can declare one shared object with different mutability,
+    /// and [`iota_transaction_checks::checked_input_objects_union()`] asserts
+    /// that both declarations got the same result.
     shared_verdicts: Verdicts<(ObjectId, Version), SharedVerdict>,
     package_verdicts: Verdicts<ObjectId, PackageVerdict>,
 }
