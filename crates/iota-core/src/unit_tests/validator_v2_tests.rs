@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{sync::Arc, time::Duration};
+use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_protocol_config::ProtocolConfig;
@@ -495,6 +495,9 @@ async fn test_submit_single_tx_counts_a_transaction_in_the_consensus_queue_from_
     assert_eq!(consensus_adapter.num_inflight_transactions(), 1);
 }
 
+/// Enables the P-COOL flow and validator attestation, with the checkpoint
+/// summary version that attestation requires, until the returned guard is
+/// dropped.
 fn enable_attestation() -> impl Drop {
     ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
@@ -510,15 +513,17 @@ fn enable_attestation() -> impl Drop {
 /// limit longer than any test waits.
 fn dry_run_limits(max_concurrent: usize, max_queued: usize) -> AuthorityOverloadConfig {
     AuthorityOverloadConfig {
-        max_concurrent_attestations: Some(max_concurrent),
+        max_concurrent_attestations: Some(
+            NonZeroUsize::new(max_concurrent).expect("a test should allow at least one dry run"),
+        ),
         max_queued_attestations: Some(max_queued),
         max_attestation_wait: Some(Duration::from_secs(30)),
         ..Default::default()
     }
 }
 
-/// The submit path of one validator, whose consensus adapter forwards every
-/// message it submits to a channel.
+/// A validator to submit transactions to, whose consensus adapter forwards
+/// every message it submits to a channel.
 #[derive(Clone)]
 struct TestValidator {
     state: Arc<AuthorityState>,
@@ -529,6 +534,8 @@ struct TestValidator {
 }
 
 impl TestValidator {
+    /// A validator that starts with `starting_objects` and uses
+    /// `overload_config`, with the receiver of what it submits to consensus.
     async fn new(
         starting_objects: &[Object],
         overload_config: AuthorityOverloadConfig,
@@ -542,7 +549,7 @@ impl TestValidator {
         Self::from_state(state)
     }
 
-    /// The submit path of a validator the caller built.
+    /// Like [`Self::new()`], for a validator the caller built.
     fn from_state(state: Arc<AuthorityState>) -> (Self, mpsc::Receiver<ConsensusTransaction>) {
         // Each test submits far fewer messages than this.
         let (sender, submitted) = mpsc::channel(16);
@@ -618,7 +625,8 @@ fn transfer(
     to_sender_signed_transaction(tx_data, signing_key)
 }
 
-fn owned_by(owner: Address, count: usize) -> (Vec<ObjectId>, Vec<Object>) {
+/// `count` new objects owned by `owner`, with their ids.
+fn objects_owned_by(owner: Address, count: usize) -> (Vec<ObjectId>, Vec<Object>) {
     let ids: Vec<ObjectId> = (0..count).map(|_| ObjectId::random()).collect();
     let objects = ids
         .iter()
@@ -658,15 +666,16 @@ fn assert_overload_rejection((update, weight): &(TxStatusUpdate, Weight)) {
 
 /// With every dry run taken and no place left to wait, a submission is
 /// refused for overload before its signature is checked, and the refusal
-/// weighs nothing. Once the dry run frees, the same transaction goes through.
+/// weighs nothing. Once the dry run frees, the signature decides: the copy
+/// signed with another key is refused, and the signed one reaches consensus.
 #[tokio::test]
-async fn a_submission_finding_every_dry_run_taken_is_refused_before_its_signature_is_checked() {
+async fn submission_finding_every_dry_run_taken_is_refused_before_its_signature_is_checked() {
     telemetry_subscribers::init_for_testing();
     let _guard = enable_attestation();
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let (_, other_key): (_, AccountPrivateKey) = get_key_pair();
-    let (ids, objects) = owned_by(sender, 2);
+    let (ids, objects) = objects_owned_by(sender, 2);
     let (validator, mut submitted) = TestValidator::new(&objects, dry_run_limits(1, 0)).await;
     let signed = transfer(&validator.state, sender, &sender_key, ids[0], ids[1]);
     let badly_signed = transfer(&validator.state, sender, &other_key, ids[0], ids[1]);
@@ -709,12 +718,12 @@ async fn a_submission_finding_every_dry_run_taken_is_refused_before_its_signatur
 /// A submission that finds every dry run taken waits for one while the queue
 /// has room, and the next submission is refused for overload.
 #[tokio::test]
-async fn a_submission_waits_for_a_free_dry_run_while_the_queue_has_room() {
+async fn submission_waits_for_free_dry_run_while_queue_has_room() {
     telemetry_subscribers::init_for_testing();
     let _guard = enable_attestation();
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
-    let (ids, objects) = owned_by(sender, 4);
+    let (ids, objects) = objects_owned_by(sender, 4);
     let (validator, mut submitted) = TestValidator::new(&objects, dry_run_limits(1, 1)).await;
     let first = transfer(&validator.state, sender, &sender_key, ids[0], ids[1]);
     let second = transfer(&validator.state, sender, &sender_key, ids[2], ids[3]);
@@ -752,12 +761,12 @@ async fn a_submission_waits_for_a_free_dry_run_while_the_queue_has_room() {
 /// gas coin is refused, and so is a resubmission of the first, both before a
 /// dry run of their own.
 #[tokio::test]
-async fn a_second_transaction_on_the_same_gas_coin_is_refused() {
+async fn second_transaction_on_same_gas_coin_is_refused() {
     telemetry_subscribers::init_for_testing();
     let _guard = enable_attestation();
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
-    let (ids, objects) = owned_by(sender, 3);
+    let (ids, objects) = objects_owned_by(sender, 3);
     let (validator, mut submitted) =
         TestValidator::new(&objects, AuthorityOverloadConfig::default()).await;
     let gas = ids[2];
@@ -810,11 +819,11 @@ async fn a_second_transaction_on_the_same_gas_coin_is_refused() {
     assert!(submitted.try_recv().is_err());
 }
 
-/// A Move account's transaction on a coin that an earlier transaction of the
-/// account holds is refused before its signature is checked and before any dry
-/// run, as a transaction signed with keys is.
+/// When an earlier transaction of a Move account holds a soft lock on a coin,
+/// the account's next transaction on that coin is refused before its signature
+/// is checked and before any dry run, as a transaction signed with keys is.
 #[tokio::test]
-async fn a_move_account_transaction_on_a_held_coin_gets_no_dry_run() {
+async fn move_account_transaction_on_held_coin_gets_no_dry_run() {
     telemetry_subscribers::init_for_testing();
     let _guard = enable_attestation();
 
@@ -855,12 +864,12 @@ async fn a_move_account_transaction_on_a_held_coin_gets_no_dry_run() {
 /// A transaction whose inputs another transaction locks while it waits for a
 /// dry run is refused once a dry run frees, before its own dry run.
 #[tokio::test]
-async fn a_lock_taken_while_waiting_for_a_dry_run_refuses_the_transaction_before_it() {
+async fn lock_taken_while_waiting_for_dry_run_refuses_transaction_before_it() {
     telemetry_subscribers::init_for_testing();
     let _guard = enable_attestation();
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
-    let (ids, objects) = owned_by(sender, 2);
+    let (ids, objects) = objects_owned_by(sender, 2);
     let (validator, mut submitted) = TestValidator::new(&objects, dry_run_limits(1, 1)).await;
     let tx = transfer(&validator.state, sender, &sender_key, ids[0], ids[1]);
     let gas = validator.state.get_object(&ids[1]).unwrap().object_ref();
@@ -908,12 +917,12 @@ async fn a_lock_taken_while_waiting_for_a_dry_run_refuses_the_transaction_before
 /// refused when it takes its own locks, and the refusal weighs one: the
 /// validator ran the dry run for nothing.
 #[tokio::test]
-async fn a_lock_refused_after_the_dry_run_weighs_one() {
+async fn lock_refused_after_dry_run_weighs_one() {
     telemetry_subscribers::init_for_testing();
     let _guard = enable_attestation();
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
-    let (ids, objects) = owned_by(sender, 2);
+    let (ids, objects) = objects_owned_by(sender, 2);
     let (validator, mut submitted) =
         TestValidator::new(&objects, AuthorityOverloadConfig::default()).await;
     let tx = transfer(&validator.state, sender, &sender_key, ids[0], ids[1]);
@@ -925,8 +934,8 @@ async fn a_lock_refused_after_the_dry_run_weighs_one() {
         async move { validator.submit(tx).await }
     });
     // The count rises when the dry run starts, after both checks for
-    // conflicts. The test runs on one thread, so the submission cannot take
-    // its locks until the test waits for it below.
+    // conflicts. The submission's task shares the test's single thread, so it
+    // cannot take its locks until the test waits for it below.
     tokio::time::timeout(Duration::from_secs(30), async {
         while validator.state.metrics.attestation_dry_runs_total.get() < 1 {
             tokio::task::yield_now().await;

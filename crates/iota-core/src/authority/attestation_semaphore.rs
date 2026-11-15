@@ -5,6 +5,7 @@
 //! submission may wait for one, and how many may wait.
 
 use std::{
+    num::NonZeroUsize,
     sync::{
         Arc,
         atomic::{AtomicU64, AtomicUsize, Ordering},
@@ -18,12 +19,6 @@ use prometheus_filtered::{Histogram, IntCounter, IntGauge};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 use crate::{authority::AuthorityMetrics, runtime::available_cpu_cores};
-
-/// The retry hint of a rejection. It is longer than the default
-/// [`AuthorityOverloadConfig::max_attestation_wait`] (500 ms), so by the time
-/// a client retries, every submission that was waiting has got a dry run or
-/// been rejected.
-const RETRY_AFTER_SECS: u64 = 1;
 
 /// The number of submissions that may wait when
 /// [`AuthorityOverloadConfig::max_queued_attestations`] is unset.
@@ -42,8 +37,12 @@ const AVERAGE_DRY_RUN_TIME_DIVISOR: u64 = 8;
 pub(crate) struct AttestationSemaphore {
     permits: Arc<Semaphore>,
     max_concurrent: usize,
-    max_waiting: usize,
+    max_queued: usize,
     max_wait: Duration,
+    /// The retry hint of a rejection, the first whole second past `max_wait`,
+    /// so by the time a client retries, every submission that was waiting
+    /// has got a dry run or been rejected.
+    retry_after_secs: u64,
     waiting: AtomicUsize,
     /// Running average of how long a permit is held, in microseconds; zero
     /// until the first permit is released.
@@ -104,18 +103,20 @@ impl AttestationSemaphore {
     pub(crate) fn new(config: &AuthorityOverloadConfig, metrics: &AuthorityMetrics) -> Self {
         let max_concurrent = config
             .max_concurrent_attestations
-            .unwrap_or_else(|| available_cpu_cores() / 4)
-            .clamp(1, Semaphore::MAX_PERMITS);
+            .map_or_else(|| (available_cpu_cores() / 4).max(1), NonZeroUsize::get)
+            .min(Semaphore::MAX_PERMITS);
+        let max_wait = config
+            .max_attestation_wait
+            .unwrap_or(DEFAULT_MAX_ATTESTATION_WAIT);
 
         Self {
             permits: Arc::new(Semaphore::new(max_concurrent)),
             max_concurrent,
-            max_waiting: config
+            max_queued: config
                 .max_queued_attestations
                 .unwrap_or(DEFAULT_MAX_QUEUED_ATTESTATIONS),
-            max_wait: config
-                .max_attestation_wait
-                .unwrap_or(DEFAULT_MAX_ATTESTATION_WAIT),
+            max_wait,
+            retry_after_secs: max_wait.as_secs().saturating_add(1),
             waiting: AtomicUsize::new(0),
             average_dry_run_micros: Arc::new(AtomicU64::new(0)),
             in_progress_gauge: metrics.attestations_in_progress.clone(),
@@ -173,7 +174,7 @@ impl AttestationSemaphore {
             return Ok(());
         }
         let waiting = self.waiting.load(Ordering::Acquire);
-        if waiting >= self.max_waiting || self.expected_wait(waiting) > self.max_wait {
+        if waiting >= self.max_queued || self.expected_wait(waiting) > self.max_wait {
             return Err(self.reject());
         }
 
@@ -194,7 +195,7 @@ impl AttestationSemaphore {
     fn join_queue(&self) -> IotaResult<QueuePlace<'_>> {
         self.waiting
             .try_update(Ordering::AcqRel, Ordering::Acquire, |waiting| {
-                (waiting < self.max_waiting).then_some(waiting + 1)
+                (waiting < self.max_queued).then_some(waiting + 1)
             })
             .map_err(|_| self.reject())?;
         self.waiting_gauge.inc();
@@ -206,15 +207,13 @@ impl AttestationSemaphore {
         self.rejected_counter.inc();
 
         IotaError::ValidatorOverloadedRetryAfter {
-            retry_after_secs: RETRY_AFTER_SECS,
+            retry_after_secs: self.retry_after_secs,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use prometheus_filtered::Registry;
 
     use super::*;
@@ -232,7 +231,9 @@ mod tests {
         max_wait: Duration,
     ) -> (Arc<AttestationSemaphore>, AuthorityMetrics) {
         let config = AuthorityOverloadConfig {
-            max_concurrent_attestations: max_concurrent,
+            max_concurrent_attestations: max_concurrent.map(|max| {
+                NonZeroUsize::new(max).expect("a test should allow at least one dry run")
+            }),
             max_queued_attestations: max_queued,
             max_attestation_wait: Some(max_wait),
             ..Default::default()
@@ -246,12 +247,7 @@ mod tests {
     }
 
     fn is_overload_rejection(result: &IotaResult<impl Sized>) -> bool {
-        matches!(
-            result,
-            Err(IotaError::ValidatorOverloadedRetryAfter {
-                retry_after_secs: RETRY_AFTER_SECS
-            })
-        )
+        matches!(result, Err(IotaError::ValidatorOverloadedRetryAfter { .. }))
     }
 
     async fn wait_until_queued(semaphore: &AttestationSemaphore, count: usize) {
@@ -265,26 +261,37 @@ mod tests {
     }
 
     #[test]
-    fn unset_limits_follow_the_available_cores() {
+    fn unset_limits_take_their_defaults() {
         let metrics = AuthorityMetrics::new(&Registry::new());
         let semaphore = AttestationSemaphore::new(&AuthorityOverloadConfig::default(), &metrics);
 
         let expected = (available_cpu_cores() / 4).max(1);
         assert_eq!(semaphore.permits.available_permits(), expected);
-        assert_eq!(semaphore.max_waiting, DEFAULT_MAX_QUEUED_ATTESTATIONS);
+        assert_eq!(semaphore.max_queued, DEFAULT_MAX_QUEUED_ATTESTATIONS);
         assert_eq!(semaphore.max_wait, DEFAULT_MAX_ATTESTATION_WAIT);
     }
 
-    #[test]
-    fn a_limit_of_zero_dry_runs_still_allows_one() {
-        let (semaphore, _metrics) = semaphore(Some(0), None);
+    #[tokio::test]
+    async fn retry_hint_is_first_whole_second_past_wait() {
+        for (wait_millis, hint) in [(500, 1), (1_000, 2), (1_500, 2)] {
+            let (semaphore, _metrics) =
+                semaphore_with_wait(Some(1), Some(0), Duration::from_millis(wait_millis));
+            let _permit = semaphore.acquire().await.unwrap();
 
-        assert_eq!(semaphore.permits.available_permits(), 1);
-        assert_eq!(semaphore.max_waiting, DEFAULT_MAX_QUEUED_ATTESTATIONS);
+            let result = semaphore.check_overload();
+            assert!(
+                matches!(
+                    result,
+                    Err(IotaError::ValidatorOverloadedRetryAfter { retry_after_secs })
+                        if retry_after_secs == hint
+                ),
+                "a wait of {wait_millis} ms: {result:?}"
+            );
+        }
     }
 
     #[test]
-    fn the_first_dry_run_time_sets_the_average_and_later_ones_move_it() {
+    fn first_dry_run_time_sets_average_and_later_ones_move_it() {
         let average_micros = AtomicU64::new(0);
 
         record_dry_run_time(&average_micros, Duration::from_millis(80));
@@ -295,7 +302,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_submission_that_waits_too_long_is_refused() {
+    async fn submission_that_waits_too_long_is_refused() {
         let (semaphore, metrics) = semaphore_with_wait(Some(1), Some(8), Duration::from_millis(20));
         let _held = semaphore.acquire().await.unwrap();
 
@@ -306,7 +313,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_long_expected_wait_is_refused_before_any_work() {
+    async fn long_expected_wait_is_refused_before_any_work() {
         let (semaphore, metrics) =
             semaphore_with_wait(Some(1), Some(8), Duration::from_millis(100));
         let _held = semaphore.acquire().await.unwrap();
@@ -325,7 +332,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn no_more_dry_runs_than_the_limit_run_at_once() {
+    async fn no_more_dry_runs_than_limit_run_at_once() {
         let (semaphore, metrics) = semaphore(Some(2), Some(64));
         let running = Arc::new(AtomicUsize::new(0));
         let most_running = Arc::new(AtomicUsize::new(0));
@@ -356,7 +363,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_full_queue_rejects_until_a_permit_frees() {
+    async fn full_queue_rejects_until_permit_frees() {
         let (semaphore, metrics) = semaphore(Some(1), Some(1));
         let held = semaphore.acquire().await.unwrap();
         let waiter = tokio::spawn({
@@ -380,7 +387,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn without_a_queue_a_busy_semaphore_rejects_at_once() {
+    async fn busy_semaphore_without_queue_rejects_at_once() {
         let (semaphore, metrics) = semaphore(Some(1), Some(0));
         semaphore.check_overload().unwrap();
 
@@ -394,7 +401,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_cancelled_wait_gives_up_its_place() {
+    async fn cancelled_wait_gives_up_its_place() {
         let (semaphore, metrics) = semaphore(Some(1), Some(1));
         let _held = semaphore.acquire().await.unwrap();
 
@@ -410,7 +417,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_dry_run_that_panics_frees_its_permit() {
+    async fn dry_run_that_panics_frees_its_permit() {
         let (semaphore, metrics) = semaphore(Some(1), Some(0));
         let permit = semaphore.acquire().await.unwrap();
 

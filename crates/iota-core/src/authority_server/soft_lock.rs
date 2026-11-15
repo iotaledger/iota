@@ -264,7 +264,7 @@ impl PreConsensusSoftLocks {
     }
 
     /// Checks `tx_digest` and `objects` against the soft locks held at this
-    /// moment, as [`Self::try_acquire()`] does, but takes and changes no
+    /// moment, as [`Self::try_acquire()`] does, but takes and changes no soft
     /// lock, so a submission can be refused before any work is done for it.
     /// Returns `Ok` when soft locks are disabled or `objects` is empty.
     ///
@@ -638,6 +638,8 @@ mod tests {
         assert!(!table.check_in_flight(&tx));
     }
 
+    /// [`PreConsensusSoftLocks::check_conflicts()`] refuses what
+    /// [`PreConsensusSoftLocks::try_acquire()`] refuses, but takes no lock.
     #[test]
     fn check_conflicts_takes_no_lock() {
         let table = PreConsensusSoftLocks::with_ttl(Duration::from_secs(60));
@@ -1030,8 +1032,10 @@ mod tests {
         assert_eq!(table.lock_count(), 0);
     }
 
+    /// Dropping a guard without [`SoftLockGuard::keep()`] releases its locks,
+    /// so the transaction is no longer in flight.
     #[test]
-    fn a_dropped_guard_releases_its_locks() {
+    fn dropped_guard_releases_its_locks() {
         let table = Arc::new(PreConsensusSoftLocks::with_ttl(Duration::from_secs(60)));
         let tx = digest(1);
 
@@ -1045,8 +1049,10 @@ mod tests {
         assert!(!table.check_in_flight(&tx));
     }
 
+    /// [`SoftLockGuard::keep()`] leaves the locks held after the guard is
+    /// gone, until [`PreConsensusSoftLocks::release()`] frees them.
     #[test]
-    fn a_kept_guard_leaves_its_locks_held() {
+    fn kept_guard_leaves_its_locks_held() {
         let table = Arc::new(PreConsensusSoftLocks::with_ttl(Duration::from_secs(60)));
         let tx = digest(1);
 
@@ -1061,8 +1067,10 @@ mod tests {
         assert_eq!(table.lock_count(), 0);
     }
 
+    /// When [`PreConsensusSoftLocks::try_acquire_guard()`] refuses the same
+    /// digest or another one, the holder's locks stay held.
     #[test]
-    fn a_refused_guard_leaves_the_holders_locks() {
+    fn refused_guard_leaves_holders_locks() {
         let table = Arc::new(PreConsensusSoftLocks::with_ttl(Duration::from_secs(60)));
         let obj = obj_ref(1, 1);
         let holder = table.try_acquire_guard(digest(1), &[obj]).unwrap();
@@ -1084,8 +1092,10 @@ mod tests {
         assert_eq!(table.lock_count(), 0);
     }
 
+    /// A guard for an empty set of objects takes no lock, so dropping it
+    /// leaves the locks another admission of the same digest holds.
     #[test]
-    fn a_guard_without_objects_releases_nothing() {
+    fn guard_without_objects_releases_nothing() {
         let table = Arc::new(PreConsensusSoftLocks::with_ttl(Duration::from_secs(60)));
         let tx = digest(1);
         table.try_acquire(tx, &[obj_ref(1, 1)]).unwrap();

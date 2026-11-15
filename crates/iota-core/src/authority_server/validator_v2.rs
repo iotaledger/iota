@@ -191,7 +191,12 @@ fn reject_for_overload(
     (TxStatusUpdate::Rejected { error }, Weight::zero())
 }
 
-/// Counts a refused soft lock under its cause.
+/// Counts a soft lock refusal in
+/// [`ValidatorServiceMetrics::num_rejected_tx_recently_resubmitted`] when the
+/// transaction is in flight, and in
+/// [`ValidatorServiceMetrics::num_rejected_tx_soft_lock_conflict`] when
+/// another transaction holds a lock on one of its objects. Other errors are
+/// not counted.
 fn count_soft_lock_refusal(metrics: &ValidatorServiceMetrics, error: &IotaError) {
     match error {
         IotaError::RecentlyResubmitted { .. } => {
@@ -206,10 +211,11 @@ fn count_soft_lock_refusal(metrics: &ValidatorServiceMetrics, error: &IotaError)
 
 /// Lists the owned and immutable objects `transaction` names as inputs, gas
 /// coins included. It reads the transaction alone, before validation, so it
-/// cannot distinguish owned inputs from immutable ones; that does no harm to
-/// a check for soft lock conflicts, since no soft lock is taken on an
-/// immutable object. A transaction whose inputs cannot be listed gets an
-/// empty list, and validation refuses it later.
+/// cannot distinguish owned inputs from immutable ones. A check for soft lock
+/// conflicts can use the list anyway: soft locks are taken only on the owned
+/// objects that validation finds once it loads the inputs, so an immutable
+/// object has none. A transaction whose inputs cannot be listed gets an empty
+/// list, and validation refuses it later.
 fn list_owned_or_immutable_inputs(transaction: &TransactionEnvelope) -> Vec<ObjectReference> {
     transaction
         .data()
@@ -318,9 +324,10 @@ impl ValidatorService {
     /// traffic weight derived from the outcome: `Weight::one()` for an
     /// already-executed duplicate (spam-like), for a transaction too large for
     /// consensus once attested, and for a refused soft lock or a changed owned
-    /// input after the attestation's dry run; `normalize(&error)` for any other
-    /// rejection (signature/epoch errors weigh, others don't); and
-    /// `Weight::zero()` for a successful submission.
+    /// input after the attestation's dry run; `Weight::zero()` for a rejection
+    /// because the validator is overloaded and for a successful submission;
+    /// and `normalize(&error)` for any other rejection (signature/epoch errors
+    /// weigh, others don't).
     async fn submit_single_tx(
         state: &Arc<AuthorityState>,
         consensus_adapter: &Arc<ConsensusAdapter>,
@@ -386,11 +393,12 @@ impl ValidatorService {
             return (TxStatusUpdate::Rejected { error }, weight);
         }
 
-        // Refuse a transaction whose inputs another transaction in flight on
-        // this validator holds. Before signature verification, since this
-        // takes no lock and every lock it can find was taken by a transaction
-        // that passed validation. Checked again once a dry run is free; the
-        // lock itself is taken after the dry run.
+        // Refuse a transaction when another transaction in flight on this
+        // validator holds a soft lock on one of its inputs. Before signature
+        // verification, since this takes no lock and every lock it can find
+        // was taken by a transaction that passed validation. With validator
+        // attestation enabled, the check runs again once a dry run is free. The
+        // locks themselves are taken after validation.
         let inputs = list_owned_or_immutable_inputs(&transaction);
         if let Err(error) = soft_locks.check_conflicts(&tx_digest, &inputs) {
             count_soft_lock_refusal(metrics, &error);
@@ -619,8 +627,8 @@ impl ValidatorService {
         // Placed after the reconfig and size checks so we never acquire locks
         // that would need releasing on their rejection paths. A rejection from
         // here on drops the guard, which releases the locks. A refusal after
-        // the dry run means the transaction passed both checks for conflicts
-        // together with another one on the same objects.
+        // the dry run means that another submission on the same objects passed
+        // both checks for conflicts at the same time as this one.
         let soft_lock = match soft_locks.try_acquire_guard(tx_digest, &owned_objects) {
             Ok(soft_lock) => soft_lock,
             Err(error) => {

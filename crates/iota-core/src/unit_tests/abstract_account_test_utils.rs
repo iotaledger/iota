@@ -360,7 +360,7 @@ impl AbstractAccountTestEnv {
     }
 
     /// Two transactions sent by the account that pay with the same coin, so at
-    /// most one of them can go through.
+    /// most one of them can execute.
     pub fn account_transactions_on_one_coin(
         &mut self,
     ) -> (TransactionEnvelope, TransactionEnvelope) {

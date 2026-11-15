@@ -3,7 +3,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, convert::TryInto, path::PathBuf, str::FromStr, sync::Arc};
+use std::{
+    collections::HashSet, convert::TryInto, num::NonZeroUsize, path::PathBuf, str::FromStr,
+    sync::Arc,
+};
 
 use bcs;
 use fastcrypto::traits::KeyPair;
@@ -10748,7 +10751,8 @@ async fn recovered_transactions_count_in_the_consensus_queue_before_their_tasks_
 /// In the P-COOL flow, [`AuthorityState::reserve_consensus_queue_slot()`]
 /// refuses a transaction when every attestation dry run is taken and no place
 /// is left to wait for one, and names the attestation limit as the source.
-/// The certificate flow does not check that limit.
+/// [`AuthorityState::acquire_attestation_permit()`] refuses and counts the
+/// same way. The certificate flow does not check that limit.
 #[tokio::test]
 async fn overload_check_refuses_while_every_attestation_dry_run_is_taken() {
     telemetry_subscribers::init_for_testing();
@@ -10759,7 +10763,7 @@ async fn overload_check_refuses_while_every_attestation_dry_run_is_taken() {
     let authority_state = TestAuthorityBuilder::new()
         .with_starting_objects(&[gas_object1.clone(), gas_object2.clone()])
         .with_authority_overload_config(AuthorityOverloadConfig {
-            max_concurrent_attestations: Some(1),
+            max_concurrent_attestations: NonZeroUsize::new(1),
             max_queued_attestations: Some(0),
             ..Default::default()
         })
@@ -10816,6 +10820,21 @@ async fn overload_check_refuses_while_every_attestation_dry_run_is_taken() {
     );
     assert_eq!(authority_state.metrics.attestations_rejected_total.get(), 1);
     check(false).unwrap();
+
+    let error = authority_state.acquire_attestation_permit().await.err();
+    assert!(
+        matches!(error, Some(IotaError::ValidatorOverloadedRetryAfter { .. })),
+        "expected an overload rejection, got {error:?}"
+    );
+    assert_eq!(
+        authority_state
+            .metrics
+            .transaction_overload_sources
+            .with_label_values(&["attestation"])
+            .get(),
+        2
+    );
+    assert_eq!(authority_state.metrics.attestations_rejected_total.get(), 2);
 
     drop(permit);
     check(true).unwrap();

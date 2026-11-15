@@ -1495,10 +1495,9 @@ pub struct AuthorityOverloadConfig {
     pub max_transaction_manager_queue_length_soft_limit_pct: u32,
 
     /// Maximum number of attestation dry runs the validator runs at once.
-    /// Unset means a quarter of the available cores; the effective value is at
-    /// least 1.
+    /// Unset means a quarter of the available cores, at least one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_concurrent_attestations: Option<usize>,
+    pub max_concurrent_attestations: Option<NonZeroUsize>,
 
     /// Maximum number of submissions that wait for a free attestation dry run,
     /// a bound on the memory they hold. A submission that finds every dry run
@@ -1512,7 +1511,8 @@ pub struct AuthorityOverloadConfig {
     /// Maximum time a submission waits for a free attestation dry run. A
     /// submission that has waited this long, or whose expected wait is longer
     /// when it arrives, is rejected with
-    /// [`IotaError::ValidatorOverloadedRetryAfter`]. Unset means 500 ms.
+    /// [`IotaError::ValidatorOverloadedRetryAfter`], which asks the client to
+    /// retry after the first whole second past this wait. Unset means 500 ms.
     ///
     /// [`IotaError::ValidatorOverloadedRetryAfter`]: iota_types::error::IotaError::ValidatorOverloadedRetryAfter
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2537,6 +2537,20 @@ mod tests {
             config.grpc_api_listener_limits
         );
         assert!(read_back.validator_grpc_listener_limits.is_unset());
+    }
+
+    /// With a limit of zero attestation dry runs at once, a validator could
+    /// attest no transaction, so a config with that limit fails to load.
+    #[test]
+    fn config_with_zero_concurrent_attestations_fails_to_load() {
+        let zero = serde_yaml::from_str::<super::AuthorityOverloadConfig>(
+            "max-concurrent-attestations: 0",
+        );
+        assert!(zero.is_err(), "{zero:?}");
+
+        let one: super::AuthorityOverloadConfig =
+            serde_yaml::from_str("max-concurrent-attestations: 1").unwrap();
+        assert_eq!(one.max_concurrent_attestations, NonZeroUsize::new(1));
     }
 }
 
