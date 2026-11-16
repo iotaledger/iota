@@ -4,7 +4,7 @@
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Identifier, SignatureScheme, StructTag, Transaction, UserSignature,
-    crypto::{Intent, IntentMessage},
+    crypto::{Intent, IntentMessage, PersonalMessage},
 };
 use serde::{Deserialize, Serialize};
 
@@ -87,11 +87,61 @@ pub fn verify_builtin_signature(
     signature_bytes: &[u8],
     tx_data_bytes: &[u8],
 ) -> IotaResult<()> {
+    let (signature, address) = parse_signature_of_public_key(public_key, signature_bytes)?;
+
+    // TODO: it would be nice to avoid this deserialization.
+    let tx_data: Transaction =
+        bcs::from_bytes(tx_data_bytes).map_err(|e| IotaError::InvalidSignature {
+            error: format!("Failed to deserialize transaction data: {e}"),
+        })?;
+    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
+
+    let verify_params = VerifyParams::from_protocol_config(protocol_config);
+
+    signature.verify_claims(&intent_msg, address, &verify_params)
+}
+
+/// Verifies a signature, by `public_key`, of a personal message.
+///
+/// `signature_bytes` is a `UserSignature` in wire format (`flag || payload`)
+/// whose scheme must be the scheme of `public_key`: Ed25519, Secp256k1,
+/// Secp256r1 or Passkey. A MultiSig `public_key` is refused.
+///
+/// `message` is the content of the personal message. The signing message is
+/// `IntentMessage(Intent::personal_message(), PersonalMessage(message))`.
+pub fn verify_personal_message_signature(
+    protocol_config: &ProtocolConfig,
+    public_key: &MovePublicKey,
+    signature_bytes: &[u8],
+    message: &[u8],
+) -> IotaResult<()> {
+    if public_key.scheme() == SignatureScheme::Multisig {
+        return Err(IotaError::InvalidSignature {
+            error: "A MultiSig public key is not accepted for a personal message".into(),
+        });
+    }
+
+    let (signature, address) = parse_signature_of_public_key(public_key, signature_bytes)?;
+
+    let intent_msg =
+        IntentMessage::new(Intent::personal_message(), PersonalMessage(message.into()));
+
+    let verify_params = VerifyParams::from_protocol_config(protocol_config);
+
+    signature.verify_claims(&intent_msg, address, &verify_params)
+}
+
+/// Parses `signature_bytes` as a `UserSignature` whose scheme is the scheme of
+/// `public_key`, and returns it with the address of `public_key`.
+fn parse_signature_of_public_key(
+    public_key: &MovePublicKey,
+    signature_bytes: &[u8],
+) -> IotaResult<(UserSignature, Address)> {
     let expected_scheme = public_key.scheme();
 
     let signature =
         UserSignature::from_bytes(signature_bytes).map_err(|e| IotaError::InvalidSignature {
-            error: format!("Invalid signature bytes in built-in authenticator: {e}"),
+            error: format!("Invalid signature bytes: {e}"),
         })?;
 
     let actual_scheme = match signature.scheme() {
@@ -102,7 +152,7 @@ pub fn verify_builtin_signature(
         | SignatureScheme::PasskeyAuthenticator) => scheme,
         _ => {
             return Err(IotaError::InvalidSignature {
-                error: "Unsupported signature type in built-in authenticator".into(),
+                error: "Unsupported signature type".into(),
             });
         }
     };
@@ -117,19 +167,10 @@ pub fn verify_builtin_signature(
     let address = public_key
         .address()
         .map_err(|e| IotaError::InvalidSignature {
-            error: format!("Invalid public key bytes in built-in authenticator: {e}"),
+            error: format!("Invalid public key bytes: {e}"),
         })?;
 
-    // TODO: it would be nice to avoid this deserialization.
-    let tx_data: Transaction =
-        bcs::from_bytes(tx_data_bytes).map_err(|e| IotaError::InvalidSignature {
-            error: format!("Failed to deserialize transaction data: {e}"),
-        })?;
-    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
-
-    let verify_params = VerifyParams::from_protocol_config(protocol_config);
-
-    signature.verify_claims(&intent_msg, address, &verify_params)
+    Ok((signature, address))
 }
 
 #[cfg(test)]
