@@ -1318,7 +1318,8 @@ async fn test_transaction_dependency_bookkeeping_follows_the_protocol_flag() {
     telemetry_subscribers::init_for_testing();
     let default_tx_gas_budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
     for enabled in [true, false] {
-        let test_setup = TestSetup::new(default_tx_gas_budget, 2 * default_tx_gas_budget).await;
+        let test_setup =
+            TestSetup::new(true, default_tx_gas_budget, 2 * default_tx_gas_budget).await;
         let shared_object = test_setup.create_shared_object().await;
         let owned_object = test_setup.create_owned_object().await;
         let genesis_objects = test_setup
@@ -1338,6 +1339,7 @@ async fn test_transaction_dependency_bookkeeping_follows_the_protocol_flag() {
 
         // Ends at three times the budget, within the allowed overshoot.
         let (transaction, effects) = commit_and_execute_transaction(
+            test_setup.pcool,
             &authority_state,
             &test_setup.package,
             &test_setup.sender,
