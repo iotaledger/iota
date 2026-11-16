@@ -89,7 +89,7 @@ pub struct MetricGroups {
     /// Spam/abuse traffic control, including the transaction-deny config
     /// gauges.
     ///
-    /// Modules: `iota_core::traffic_controller`,
+    /// Modules: `iota_traffic_controller`,
     /// `iota_config::node_config_metrics`.
     pub traffic_control: MetricLevel,
     /// Peer-to-peer networking and state sync.
@@ -209,7 +209,7 @@ impl MetricGroups {
                 "authority_grpc",
             ],
             "traffic-control" => &[
-                "iota_core::traffic_controller",
+                "iota_traffic_controller",
                 "iota_config::node_config_metrics",
             ],
             "network" => &[
@@ -583,7 +583,7 @@ mod tests {
         // place.
         assert_eq!(
             MetricGroups::expand_directives("default=info,traffic-control=off").unwrap(),
-            "default=info,iota_core::traffic_controller=off,\
+            "default=info,iota_traffic_controller=off,\
              iota_config::node_config_metrics=off"
         );
         // The single-collector hardware group expands like any other.
@@ -641,7 +641,7 @@ mod tests {
             MetricGroups::expand_startup_directives("consensus=bogus,traffic-control=off");
         assert_eq!(
             expanded,
-            "iota_core::traffic_controller=off,iota_config::node_config_metrics=off"
+            "iota_traffic_controller=off,iota_config::node_config_metrics=off"
         );
         assert_eq!(errors.len(), 1);
         assert!(
@@ -671,7 +671,7 @@ mod tests {
         assert_eq!(groups.traffic_control, MetricLevel::Off);
         assert_eq!(groups.hardware, MetricLevel::Warn);
         let filter = groups.to_filter_string();
-        assert!(filter.contains("iota_core::traffic_controller=off"));
+        assert!(filter.contains("iota_traffic_controller=off"));
         assert!(filter.contains("starfish_core=warn"));
 
         // A typo'd group name must fail config load instead of silently
