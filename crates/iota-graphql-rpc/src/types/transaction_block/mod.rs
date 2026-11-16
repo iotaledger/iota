@@ -43,8 +43,7 @@ use crate::{
         address::Address,
         base64::Base64,
         cursor::{
-            JsonCursor, Page, Target, check_cursor_not_expired, check_cursors_not_pruned,
-            pruned_checkpoint_viewed_at_error,
+            JsonCursor, Page, Target, oldest_viewable_checkpoint, pruned_checkpoint_viewed_at_error,
         },
         digest::Digest,
         epoch::Epoch,
@@ -529,14 +528,8 @@ impl TransactionBlock {
         // All filters that support fallback were handled above.
         // Remaining filters, handled below, read data only from DB so we check only the DB
         // watermarks.
-        if let Some(cursor_viewed_at) = cursor_viewed_at {
-            check_cursor_not_expired(db, cursor_viewed_at, oldest_available_checkpoint)?;
-        }
-        check_cursors_not_pruned(
-            &page,
-            |cursor| u64::from(cursor.tx_sequence_number),
-            oldest_available_checkpoint,
-        )?;
+        page.check_cursor_not_expired(db, oldest_available_checkpoint)?;
+        page.check_cursors_not_pruned(oldest_available_checkpoint)?;
 
         let Some(cp_bounds) = checkpoint_bounds_from_filter(&filter, checkpoint_viewed_at) else {
             return Ok(TransactionBlockConnection::new(false, false));
@@ -720,7 +713,7 @@ impl TransactionBlock {
             .await?
             .ok_or_else(|| {
                 pruned_checkpoint_viewed_at_error(
-                    db,
+                    oldest_viewable_checkpoint(db),
                     checkpoint_viewed_at,
                     oldest_available_checkpoint,
                 )

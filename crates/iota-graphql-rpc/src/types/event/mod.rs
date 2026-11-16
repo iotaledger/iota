@@ -29,7 +29,7 @@ use crate::{
     types::{
         address::Address,
         base64::Base64,
-        cursor::{Page, Target, check_cursor_not_expired, check_cursors_not_pruned},
+        cursor::{Page, Target},
         date_time::DateTime,
         digest::Digest,
         move_module::MoveModule,
@@ -178,14 +178,8 @@ impl Event {
     ) -> Result<EventConnection, Error> {
         let oldest_available_checkpoint = filter.oldest_available_checkpoint(db);
         let cursor_viewed_at = page.validate_cursor_consistency()?;
-        if let Some(cursor_viewed_at) = cursor_viewed_at {
-            check_cursor_not_expired(db, cursor_viewed_at, oldest_available_checkpoint)?;
-        }
-        check_cursors_not_pruned(
-            &page,
-            |cursor| u64::from(cursor.tx),
-            oldest_available_checkpoint,
-        )?;
+        page.check_cursor_not_expired(db, oldest_available_checkpoint)?;
+        page.check_cursors_not_pruned(oldest_available_checkpoint)?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
         use checkpoints::dsl;
