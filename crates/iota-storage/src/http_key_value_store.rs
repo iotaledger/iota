@@ -369,8 +369,8 @@ impl HttpKVStore {
         })
     }
 
-    /// Allows at most `max` GETs in flight instead of [`MAX_IN_FLIGHT_FETCHES`]; for a store whose
-    /// server allows fewer concurrent HTTP/2 streams.
+    /// Allows at most `max` GETs in flight instead of the default of 200; for a store whose server
+    /// allows fewer concurrent HTTP/2 streams.
     ///
     /// # Panics
     ///
