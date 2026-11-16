@@ -50,7 +50,7 @@ impl GovernanceReadApi {
             inner,
             exchange_rates_cache: Arc::new(Mutex::new(SizedCache::with_size(1))),
             validators_apys_cache: Arc::new(Mutex::new(SizedCache::with_size(1))),
-            self.max_query_staked_objects,
+            max_query_staked_objects,
         }
     }
 
@@ -128,7 +128,7 @@ impl GovernanceReadApi {
                     StructTag::new_staked_iota(),
                 )),
                 None,
-                max_query_staked_objects,
+                self.max_query_staked_objects,
             )
             .await?
         {
@@ -153,7 +153,7 @@ impl GovernanceReadApi {
                     StructTag::new_timelocked_staked_iota(),
                 )),
                 None,
-                max_query_staked_objects,
+                self.max_query_staked_objects,
             )
             .await?
         {
