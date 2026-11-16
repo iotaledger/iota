@@ -353,7 +353,7 @@ pub struct AuthorityMetrics {
     pub(crate) transaction_overload_sources: IntCounterVec,
 
     /// Number of attestation dry runs running now, each counted from the
-    /// checks that come before it.
+    /// checks before it until its transaction's soft locks are taken.
     pub(crate) attestations_in_progress: IntGauge,
     /// Number of submissions waiting for a free attestation dry run.
     pub(crate) attestations_waiting: IntGauge,
@@ -767,8 +767,8 @@ impl AuthorityMetrics {
                 .unwrap(),
             attestations_in_progress: register_int_gauge_with_registry!(
                 "attestations_in_progress",
-                "Number of attestation dry runs running, each counted from the checks that come \
-                    before it",
+                "Number of attestation dry runs running, each counted from the checks before it \
+                    until its transaction's soft locks are taken",
                 registry;
                 MetricLevel::Warn,
             )
@@ -1849,8 +1849,9 @@ impl AuthorityState {
     /// within the limits of
     /// [`AuthorityOverloadConfig::max_concurrent_attestations`],
     /// [`AuthorityOverloadConfig::max_queued_attestations`] and
-    /// [`AuthorityOverloadConfig::max_attestation_wait`]. The dry run must hold
-    /// the permit until it ends.
+    /// [`AuthorityOverloadConfig::max_attestation_wait`]. The permit must be
+    /// held until the dry run has ended and the transaction's soft locks are
+    /// taken.
     ///
     /// # Errors
     ///

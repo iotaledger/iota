@@ -647,6 +647,17 @@ fn digest_of(consensus_transaction: ConsensusTransaction) -> TransactionDigest {
     *attested.transaction.digest()
 }
 
+/// Waits until `count` submissions wait for a dry run on `validator`.
+async fn wait_until_queued(validator: &TestValidator, count: i64) {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        while validator.state.metrics.attestations_waiting.get() < count {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the submissions should wait for a dry run");
+}
+
 fn assert_overload_rejection((update, weight): &(TxStatusUpdate, Weight)) {
     assert!(
         matches!(
@@ -735,13 +746,7 @@ async fn submission_waits_for_free_dry_run_while_queue_has_room() {
 
         async move { validator.submit(first).await }
     });
-    tokio::time::timeout(Duration::from_secs(30), async {
-        while validator.state.metrics.attestations_waiting.get() < 1 {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("the first submission should wait for the dry run");
+    wait_until_queued(&validator, 1).await;
 
     assert_overload_rejection(&validator.submit(second).await);
 
@@ -880,13 +885,7 @@ async fn lock_taken_while_waiting_for_dry_run_refuses_transaction_before_it() {
 
         async move { validator.submit(tx).await }
     });
-    tokio::time::timeout(Duration::from_secs(30), async {
-        while validator.state.metrics.attestations_waiting.get() < 1 {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("the transaction should wait for a dry run");
+    wait_until_queued(&validator, 1).await;
 
     validator
         .soft_locks
@@ -910,6 +909,64 @@ async fn lock_taken_while_waiting_for_dry_run_refuses_transaction_before_it() {
         "a refusal before the dry run weighs nothing"
     );
     assert_eq!(validator.state.metrics.attestation_dry_runs_total.get(), 0);
+    assert!(submitted.try_recv().is_err());
+}
+
+/// A dry run's permit is freed only once its transaction holds its soft locks,
+/// so a transaction on the same coin that waits for that permit is refused
+/// before a dry run of its own.
+#[tokio::test]
+async fn dry_run_permit_is_held_until_soft_locks_are_taken() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_attestation();
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (ids, objects) = objects_owned_by(sender, 3);
+    let (validator, mut submitted) = TestValidator::new(&objects, dry_run_limits(1, 2)).await;
+    let gas = ids[2];
+    let first = transfer(&validator.state, sender, &sender_key, ids[0], gas);
+    let second = transfer(&validator.state, sender, &sender_key, ids[1], gas);
+
+    // Both wait for the one permit, the first ahead of the second.
+    let held = validator.state.acquire_attestation_permit().await.unwrap();
+    let first_submission = tokio::spawn({
+        let validator = validator.clone();
+        let first = first.clone();
+
+        async move { validator.submit(first).await }
+    });
+    wait_until_queued(&validator, 1).await;
+    let second_submission = tokio::spawn({
+        let validator = validator.clone();
+
+        async move { validator.submit(second).await }
+    });
+    wait_until_queued(&validator, 2).await;
+    drop(held);
+
+    let (update, _) = first_submission.await.unwrap();
+    assert!(
+        matches!(update, TxStatusUpdate::Submitted),
+        "expected Submitted, got {update:?}"
+    );
+    assert_eq!(digest_of(submitted.recv().await.unwrap()), *first.digest());
+
+    let (update, weight) = second_submission.await.unwrap();
+    assert!(
+        matches!(
+            update,
+            TxStatusUpdate::Rejected {
+                error: IotaError::ObjectLockConflict { .. }
+            }
+        ),
+        "expected a soft lock conflict, got {update:?}"
+    );
+    assert_eq!(
+        weight.value(),
+        0.0,
+        "a refusal before the dry run weighs nothing"
+    );
+    assert_eq!(validator.state.metrics.attestation_dry_runs_total.get(), 1);
     assert!(submitted.try_recv().is_err());
 }
 

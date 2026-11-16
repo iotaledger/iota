@@ -461,8 +461,8 @@ impl ValidatorService {
         // deny checks, object loading, input checks, coin deny list and a full
         // dry run in one call and produces the attestation payload; otherwise
         // the validation-only function runs.
-        let (attestation_data, owned_objects, verified_tx) = if !checks_admitted_inputs() {
-            (None, Vec::new(), verified_tx)
+        let (attestation_data, owned_objects, verified_tx, permit) = if !checks_admitted_inputs() {
+            (None, Vec::new(), verified_tx, None)
         } else if epoch_store.protocol_config().enable_validator_attestation() {
             let permit = match state.acquire_attestation_permit().await {
                 Ok(permit) => permit,
@@ -480,9 +480,6 @@ impl ValidatorService {
             let epoch_store_for_attest = epoch_store.clone();
             let governance_for_attest = governance_rules.clone();
             let join_result = tokio::task::spawn_blocking(move || {
-                // Moved in so that the dry run frees its place when it ends,
-                // also when it panics.
-                let _permit = permit;
                 // Built inside the closure: `DenyRuleUnion` borrows, and
                 // `spawn_blocking` requires `'static` captures.
                 let local_deny_config = &state_for_attest.config.transaction_deny_config;
@@ -502,11 +499,14 @@ impl ValidatorService {
                     &epoch_store_for_attest,
                     deny_config,
                 );
-                (result, verified_tx)
+                // The permit comes back with the result, so the admission holds
+                // it until its soft locks are taken. A dry run that panics, or
+                // whose submission was dropped, frees it when it ends.
+                (result, verified_tx, permit)
             })
             .await;
-            let (result, verified_tx) = match join_result {
-                Ok(pair) => pair,
+            let (result, verified_tx, permit) = match join_result {
+                Ok(dry_run) => dry_run,
                 Err(join_err) => {
                     // A panic in the dry run reaches this point only where
                     // panics unwind, as in tests: release builds set
@@ -523,7 +523,7 @@ impl ValidatorService {
                 }
             };
             match result {
-                Ok((data, objs)) => (Some(data), objs, verified_tx),
+                Ok((data, objs)) => (Some(data), objs, verified_tx, Some(permit)),
                 Err(e) => {
                     let weight = normalize(&e);
                     return (TxStatusUpdate::Rejected { error: e }, weight);
@@ -546,7 +546,7 @@ impl ValidatorService {
                 .handle_transaction_validation_checks(&verified_tx, epoch_store, deny_config)
                 .await
             {
-                Ok(objs) => (None, objs, verified_tx),
+                Ok(objs) => (None, objs, verified_tx, None),
                 Err(e) => {
                     let weight = normalize(&e);
                     return (TxStatusUpdate::Rejected { error: e }, weight);
@@ -638,6 +638,9 @@ impl ValidatorService {
                 return (TxStatusUpdate::Rejected { error }, weight);
             }
         };
+        // Freed only now, so that a submission on the same objects that gets
+        // this permit next finds these locks in its check for conflicts.
+        drop(permit);
         metrics
             .soft_lock_table_size
             .set(soft_locks.lock_count() as i64);
