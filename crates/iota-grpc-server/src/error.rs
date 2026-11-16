@@ -12,7 +12,7 @@ use tonic::{Code, Status};
 /// The main purpose of this error type is to provide a convenient type for
 /// converting between internal errors and a response that needs to be sent to a
 /// calling client.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RpcError {
     code: Code,
     message: Option<String>,
