@@ -250,7 +250,7 @@ impl ConsensusManagerTrait for StarfishManager {
         self.authority.swap(Some(registered_authority));
 
         // Initialize the client to send transactions to this Starfish instance.
-        self.client.set(client);
+        self.client.set(epoch, client);
 
         // Lets a test see whether the handler meets stored commits only after
         // the replay wait.

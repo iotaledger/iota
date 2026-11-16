@@ -903,6 +903,8 @@ impl ConsensusAdapter {
         };
 
         let mut guard = InflightDropGuard::acquire(&self, tx_type, slot);
+        // A batch holds one kind of transaction, so the first one decides.
+        guard.sample_latency = !transactions[0].kind.is_user_transaction();
 
         // Create the waiter until the node's turn comes to submit to consensus
         let (await_submit, position, positions_moved, preceding_disconnected) =
@@ -1582,6 +1584,10 @@ struct InflightDropGuard<'a> {
     preceding_disconnected: Option<usize>,
     tx_type: &'static str,
     processed_method: ProcessedMethod,
+    /// Whether the submission's latency is reported to the latency observer.
+    /// User transactions are not: at an epoch change they wait for the
+    /// consensus of their epoch to start, which is not consensus latency.
+    sample_latency: bool,
 }
 
 #[derive(PartialEq, Eq, Copy, Clone)]
@@ -1627,6 +1633,7 @@ impl<'a> InflightDropGuard<'a> {
             preceding_disconnected: None,
             tx_type,
             processed_method: ProcessedMethod::Consensus,
+            sample_latency: true,
         }
     }
 }
@@ -1695,7 +1702,8 @@ impl Drop for InflightDropGuard<'_> {
             // Exclude checkpoint-synced and dropped txs from the latency observer:
             // their latency reflects state-sync timing or rejection, not consensus
             // throughput, and would skew the observed consensus latency.
-            if sampled && self.processed_method == ProcessedMethod::Consensus {
+            if self.sample_latency && sampled && self.processed_method == ProcessedMethod::Consensus
+            {
                 self.adapter.latency_observer.report(latency);
             }
         }
