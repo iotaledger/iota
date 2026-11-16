@@ -6,19 +6,21 @@ use std::{collections::HashSet, time::Duration};
 
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
-use iota_protocol_config::ProtocolConfig;
+use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     CheckpointContents, CheckpointSummary, GasCostSummary, Identifier, ObjectId,
     SharedObjectReference, Transaction,
 };
 use iota_types::{
-    base_types::ExecutionDigests,
+    base_types::{ExecutionDigests, random_object_ref},
     crypto::deterministic_random_account_private_key,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSignatureMessage,
         CheckpointSummaryExt, SignedCheckpointSummary,
     },
+    messages_consensus::AuthorityCapabilitiesV1,
     object::Object,
+    supported_protocol_versions::SupportedProtocolVersions,
     transaction::{
         CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI,
     },
@@ -666,4 +668,301 @@ async fn submit_recovered_end_of_publish_crash_recovery() {
                 if it was already in DB, got {end_of_publish_count} EndOfPublish"
         );
     }
+}
+
+/// Builds a capability notification from `authority` that lists
+/// `num_system_packages` system packages, so that its size grows with that
+/// number.
+fn make_capability_notification(
+    authority: AuthorityName,
+    num_system_packages: usize,
+) -> ConsensusTransaction {
+    ConsensusTransaction::new_capability_notification_v1(AuthorityCapabilitiesV1::new(
+        authority,
+        Chain::Unknown,
+        SupportedProtocolVersions::SYSTEM_DEFAULT,
+        vec![random_object_ref(); num_system_packages],
+    ))
+}
+
+/// Builds a capability notification from `authority` larger than
+/// [`ProtocolConfig::max_transaction_size_bytes()`].
+fn make_oversized_capability_notification(
+    authority: AuthorityName,
+    protocol_config: &ProtocolConfig,
+) -> ConsensusTransaction {
+    let max_size = protocol_config.max_transaction_size_bytes();
+    // An object reference takes more than 64 bytes.
+    let transaction = make_capability_notification(authority, (max_size / 64) as usize);
+    assert!(bcs::serialized_size(&transaction).unwrap() as u64 > max_size);
+
+    transaction
+}
+
+/// Returns whether `result` is the error for a submission larger than
+/// consensus accepts.
+fn is_size_limit_exceeded<T>(result: &IotaResult<T>) -> bool {
+    matches!(
+        result,
+        Err(IotaError::UserInput {
+            error: UserInputError::SizeLimitExceeded { .. }
+        })
+    )
+}
+
+/// A consensus client that records every submission, then reports it as
+/// sequenced or, with `refuses_as_too_large` set, returns the error the
+/// Starfish client reports for an oversized submission.
+struct RecordingConsensusClient {
+    refuses_as_too_large: bool,
+    submitted: Arc<Mutex<Vec<ConsensusTransaction>>>,
+    notify: Arc<tokio::sync::Notify>,
+}
+
+impl RecordingConsensusClient {
+    fn new(refuses_as_too_large: bool) -> Self {
+        Self {
+            refuses_as_too_large,
+            submitted: Arc::new(Mutex::new(vec![])),
+            notify: Arc::new(tokio::sync::Notify::new()),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ConsensusClient for RecordingConsensusClient {
+    async fn submit(
+        &self,
+        transactions: &[ConsensusTransaction],
+        _epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> IotaResult<BlockStatusReceiver> {
+        self.submitted.lock().extend_from_slice(transactions);
+        self.notify.notify_one();
+        fp_ensure!(
+            !self.refuses_as_too_large,
+            IotaError::UserInput {
+                error: UserInputError::SizeLimitExceeded {
+                    limit: "serialized consensus transaction size exceeded maximum of 0"
+                        .to_string(),
+                    value: "1".to_string(),
+                }
+            }
+        );
+
+        Ok(with_block_status(BlockStatus::Sequenced(
+            starfish_core::TransactionRef::default(),
+        )))
+    }
+}
+
+/// Builds a consensus adapter for `state` over `consensus_client`, with
+/// `submit_permits` submit permits.
+fn make_consensus_adapter_with_client(
+    state: &AuthorityState,
+    consensus_client: Arc<dyn ConsensusClient>,
+    submit_permits: usize,
+) -> Arc<ConsensusAdapter> {
+    Arc::new(ConsensusAdapter::new(
+        consensus_client,
+        state.checkpoint_store.clone(),
+        state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        submit_permits,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        50,
+    ))
+}
+
+/// A submission fits only within every limit Starfish applies: the size of
+/// each transaction, and the count and the bytes of one block.
+#[test]
+fn consensus_transactions_fit_only_within_the_starfish_limits() {
+    let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+    let authority = AuthorityName::ZERO;
+
+    let small = ConsensusTransaction::new_end_of_publish(authority);
+    check_consensus_transactions_fit(std::slice::from_ref(&small), &protocol_config)
+        .expect("a small transaction should fit");
+
+    let oversized = make_oversized_capability_notification(authority, &protocol_config);
+    assert!(
+        is_size_limit_exceeded(&check_consensus_transactions_fit(
+            std::slice::from_ref(&oversized),
+            &protocol_config
+        )),
+        "a transaction over the size limit should not fit"
+    );
+
+    let too_many = vec![small; protocol_config.max_num_transactions_in_block() as usize + 1];
+    assert!(
+        is_size_limit_exceeded(&check_consensus_transactions_fit(
+            &too_many,
+            &protocol_config
+        )),
+        "more transactions than a block holds should not fit"
+    );
+
+    // Each one within the size limit, all of them over the bytes of a block.
+    let max_size = protocol_config.max_transaction_size_bytes();
+    let half_size = make_capability_notification(authority, (max_size / 2 / 80) as usize);
+    let half_size_bytes = bcs::serialized_size(&half_size).unwrap() as u64;
+    assert!(half_size_bytes <= max_size);
+    let copies = protocol_config.max_transactions_in_block_bytes() / half_size_bytes + 1;
+    assert!(copies <= protocol_config.max_num_transactions_in_block());
+    let too_large_together = vec![half_size; copies as usize];
+    assert!(
+        is_size_limit_exceeded(&check_consensus_transactions_fit(
+            &too_large_together,
+            &protocol_config
+        )),
+        "transactions over the bytes of a block together should not fit"
+    );
+}
+
+/// A submission exactly at a limit fits, as in Starfish, which refuses only
+/// what is over a limit.
+#[test]
+fn consensus_transactions_fit_exactly_at_the_starfish_limits() {
+    let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+    let small = ConsensusTransaction::new_end_of_publish(AuthorityName::ZERO);
+
+    let max_count = protocol_config.max_num_transactions_in_block() as usize;
+    check_consensus_transactions_fit(&vec![small.clone(); max_count], &protocol_config)
+        .expect("as many transactions as a block holds should fit");
+
+    let size = bcs::serialized_size(&small).unwrap() as u64;
+    protocol_config.set_consensus_max_transaction_size_bytes_for_testing(size);
+    check_consensus_transactions_fit(std::slice::from_ref(&small), &protocol_config)
+        .expect("a transaction of exactly the size limit should fit");
+
+    protocol_config.set_consensus_max_transaction_size_bytes_for_testing(size - 1);
+    assert!(
+        is_size_limit_exceeded(&check_consensus_transactions_fit(
+            std::slice::from_ref(&small),
+            &protocol_config
+        )),
+        "a transaction one byte over the size limit should not fit"
+    );
+}
+
+/// [`ConsensusAdapter::submit()`] refuses a transaction larger than consensus
+/// accepts: it is neither stored nor handed to consensus, and takes no submit
+/// permit.
+#[tokio::test]
+async fn submit_refuses_a_transaction_larger_than_consensus_accepts() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let mut consensus_client = MockConsensusClient::new();
+    consensus_client.expect_submit().never();
+    let adapter = make_consensus_adapter_with_client(&state, Arc::new(consensus_client), 1);
+    let oversized =
+        make_oversized_capability_notification(state.name, epoch_store.protocol_config());
+
+    let result = adapter.submit(oversized.clone(), None, &epoch_store);
+
+    assert!(
+        is_size_limit_exceeded(&result),
+        "an oversized transaction should be refused"
+    );
+    assert!(
+        epoch_store
+            .get_all_pending_consensus_transactions()
+            .iter()
+            .all(|transaction| transaction.key() != oversized.key()),
+        "a refused transaction must not be stored for submission"
+    );
+    assert_eq!(adapter.num_inflight_transactions(), 0);
+    adapter
+        .check_consensus_overload()
+        .expect("a refused transaction must hold no submit permit");
+}
+
+/// [`ConsensusAdapter::submit_recovered()`] removes stored transactions larger
+/// than consensus accepts instead of submitting them, and still submits the
+/// others. Only a build that did not check sizes could have stored them.
+#[tokio::test]
+async fn submit_recovered_drops_stored_transactions_larger_than_consensus_accepts() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let oversized =
+        make_oversized_capability_notification(state.name, epoch_store.protocol_config());
+    let end_of_publish = ConsensusTransaction::new_end_of_publish(state.name);
+    epoch_store
+        .insert_pending_consensus_transactions(std::slice::from_ref(&oversized), None)
+        .unwrap();
+    epoch_store
+        .insert_pending_consensus_transactions(&[end_of_publish], None)
+        .unwrap();
+    let consensus_client = RecordingConsensusClient::new(false);
+    let submitted = consensus_client.submitted.clone();
+    let notify = consensus_client.notify.clone();
+    let adapter = make_consensus_adapter_with_client(&state, Arc::new(consensus_client), 1);
+
+    adapter.submit_recovered(&epoch_store);
+
+    assert!(
+        epoch_store
+            .get_all_pending_consensus_transactions()
+            .iter()
+            .all(|transaction| transaction.key() != oversized.key()),
+        "the oversized transaction should be removed from the pending table"
+    );
+    tokio::time::timeout(Duration::from_secs(5), notify.notified())
+        .await
+        .expect("the stored EndOfPublish should still be submitted");
+    let submitted = submitted.lock();
+    assert!(
+        submitted
+            .iter()
+            .any(ConsensusTransaction::is_end_of_publish)
+    );
+    assert!(
+        submitted
+            .iter()
+            .all(|transaction| transaction.key() != oversized.key()),
+        "the oversized transaction must not be submitted"
+    );
+}
+
+/// When consensus refuses a submission as larger than it accepts, the task
+/// submitting it stops instead of retrying: it removes the transaction from
+/// the pending table and frees its submit permit.
+#[tokio::test]
+async fn a_submission_consensus_refuses_as_too_large_is_not_retried() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    // The client refuses even a small transaction, as consensus would if its
+    // limits were lower than those the adapter checks.
+    let consensus_client = RecordingConsensusClient::new(true);
+    let submitted = consensus_client.submitted.clone();
+    let adapter = make_consensus_adapter_with_client(&state, Arc::new(consensus_client), 1);
+    let end_of_publish = ConsensusTransaction::new_end_of_publish(state.name);
+
+    let task = adapter
+        .submit(end_of_publish.clone(), None, &epoch_store)
+        .expect("a small transaction should be accepted for submission");
+    tokio::time::timeout(Duration::from_secs(5), task)
+        .await
+        .expect("the submission task should stop after the refusal")
+        .expect("the submission task should not panic");
+
+    assert_eq!(
+        submitted.lock().len(),
+        1,
+        "a refused submission must not be retried"
+    );
+    assert!(
+        epoch_store
+            .get_all_pending_consensus_transactions()
+            .iter()
+            .all(|transaction| transaction.key() != end_of_publish.key()),
+        "a refused transaction should be removed from the pending table"
+    );
+    assert_eq!(adapter.num_inflight_transactions(), 0);
+    adapter
+        .check_consensus_overload()
+        .expect("the submit permit should be free again");
 }

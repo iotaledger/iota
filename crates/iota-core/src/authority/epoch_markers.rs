@@ -7,7 +7,7 @@
 //! epoch's markers are kept, and an earlier epoch's are removed with a
 //! `drop_cf` rather than a range delete the execution path would read across.
 
-use std::{collections::BTreeMap, ops::Bound, path::Path, sync::Arc};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 use iota_sdk_types::ObjectId;
 use iota_types::{
@@ -23,12 +23,9 @@ use typed_store::{
     traits::Map,
 };
 
-use crate::{
-    epoch_buckets::{
-        BucketReopen, EpochBuckets, PrunedBuckets, absent_if_dropped, bucket_cf_epoch,
-        bucket_metrics_label, dump_page, dump_retention_floor, dump_rows,
-    },
-    progress_logger::ProgressLogger,
+use crate::epoch_buckets::{
+    BucketReopen, EpochBuckets, PrunedBuckets, absent_if_dropped, bucket_cf_epoch,
+    bucket_metrics_label, dump_page, dump_retention_floor, dump_rows,
 };
 
 /// Column-family prefix of the marker buckets; a bucket's family is
@@ -38,9 +35,6 @@ const MARKERS_CF_PREFIX: &str = "marker_e";
 /// Column family holding the earliest-retained-epoch marker
 /// [`EpochBuckets::prune`] persists.
 const EARLIEST_RETAINED_CF: &str = "marker_earliest_retained";
-
-/// Rows one slice of the migration moves before it writes its batch.
-const KEYS_PER_SLICE: usize = 5_000;
 
 /// Historic epochs kept at a reconfiguration, on top of the epoch being
 /// entered: none, as nothing reads a marker outside the running epoch.
@@ -212,55 +206,6 @@ impl EpochMarkers {
             return dump_retention_floor(db, cf_name, page_size, page_number).map(Some);
         }
         Ok(None)
-    }
-
-    /// Moves the markers left in the flat `object_per_epoch_marker_table` into
-    /// the bucket of `epoch`, and deletes the rows of earlier epochs, which
-    /// nothing reads. Safe to rerun after an interrupted run.
-    ///
-    /// Call this before starting any service: until it returns, a marker
-    /// written before the upgrade is unreachable, and a missed marker lets a
-    /// receive or a delete happen twice.
-    // TODO(https://github.com/iotaledger/iota/issues/12712): remove once migrated.
-    pub fn migrate_flat_markers(
-        &self,
-        flat: &DBMap<(EpochId, ObjectKey), MarkerValue>,
-        epoch: EpochId,
-    ) -> IotaResult<()> {
-        let mut progress =
-            ProgressLogger::new("epoch marker migration", "markers", flat.estimated_len()?);
-        // Resume above the last key read: restarting at the front would walk
-        // the tombstones of every row deleted so far again.
-        let mut resume_above = None;
-        loop {
-            let mut moved = Vec::new();
-            let mut keys = Vec::new();
-            let slice = match resume_above {
-                Some(last) => flat.safe_range_iter((Bound::Excluded(last), Bound::Unbounded)),
-                None => flat.safe_iter(),
-            };
-            for row in slice.take(KEYS_PER_SLICE) {
-                let ((row_epoch, key), marker) = row?;
-                if row_epoch == epoch {
-                    moved.push((key, marker));
-                }
-                keys.push((row_epoch, key));
-            }
-            if keys.is_empty() {
-                progress.finish();
-                return Ok(());
-            }
-            let mut batch = flat.batch();
-            if !moved.is_empty() {
-                let bucket = self.ensure(epoch)?;
-                batch.insert_batch(&bucket.markers, moved)?;
-            }
-            let read = keys.len();
-            resume_above = keys.last().copied();
-            batch.delete_batch(flat, keys)?;
-            batch.write()?;
-            progress.advance(read as u64);
-        }
     }
 
     /// Drops every bucket below the epoch being entered, after making sure

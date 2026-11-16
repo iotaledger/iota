@@ -97,56 +97,6 @@ async fn entering_an_epoch_drops_every_earlier_bucket() {
     );
 }
 
-/// The migration moves the running epoch's flat rows into its bucket, deletes
-/// the rows of earlier epochs, and empties the flat table.
-#[tokio::test]
-async fn the_migration_files_the_running_epoch_and_drops_the_rest() {
-    let (perpetual, markers, _dir) = test_markers();
-    let running = ObjectId::random();
-    let over = ObjectId::random();
-    let flat = &perpetual.object_per_epoch_marker_table;
-    flat.insert(
-        &(5, ObjectKey(running, 1u64.into())),
-        &MarkerValue::OwnedDeleted,
-    )
-    .unwrap();
-    flat.insert(
-        &(4, ObjectKey(over, 1u64.into())),
-        &MarkerValue::OwnedDeleted,
-    )
-    .unwrap();
-
-    markers.migrate_flat_markers(flat, 5).unwrap();
-
-    assert_eq!(
-        markers.get_marker_value(&running, &1u64.into(), 5).unwrap(),
-        Some(MarkerValue::OwnedDeleted)
-    );
-    assert_eq!(
-        markers.get_marker_value(&over, &1u64.into(), 4).unwrap(),
-        None
-    );
-    assert!(flat.safe_iter().next().is_none());
-}
-
-/// Running the migration again on a drained table is a no-op.
-#[tokio::test]
-async fn the_migration_is_idempotent() {
-    let (perpetual, markers, _dir) = test_markers();
-    let id = ObjectId::random();
-    let flat = &perpetual.object_per_epoch_marker_table;
-    flat.insert(&(2, ObjectKey(id, 1u64.into())), &MarkerValue::OwnedDeleted)
-        .unwrap();
-
-    markers.migrate_flat_markers(flat, 2).unwrap();
-    markers.migrate_flat_markers(flat, 2).unwrap();
-
-    assert_eq!(
-        markers.get_marker_value(&id, &1u64.into(), 2).unwrap(),
-        Some(MarkerValue::OwnedDeleted)
-    );
-}
-
 /// A read that races the expiry of its epoch's bucket answers as if the
 /// bucket were already gone.
 #[tokio::test]

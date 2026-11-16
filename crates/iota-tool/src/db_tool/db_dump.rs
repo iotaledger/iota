@@ -206,7 +206,7 @@ pub fn duplicate_objects_summary(db_path: PathBuf) -> anyhow::Result<(usize, usi
 }
 
 pub fn compact(db_path: PathBuf) -> anyhow::Result<()> {
-    super::ensure_migrated(&db_path)?;
+    AuthorityPerpetualTables::ensure_per_epoch_layout(&db_path)?;
     let perpetual = AuthorityPerpetualTables::open(
         &db_path,
         Some(AuthorityPerpetualTablesOptions {

@@ -26,7 +26,7 @@ use iota_types::{
     base_types::{AuthorityName, CommitRound},
     committee::{Committee, EpochId, StakeUnit},
     crypto::{AuthorityKeyPair, RandomnessSignature},
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{ConsensusTransaction, VersionedDkgConfirmation, VersionedDkgMessage},
 };
@@ -484,8 +484,7 @@ impl RandomnessManager {
             fail_point_skip_sending = true;
         });
         if !fail_point_skip_sending {
-            self.consensus_adapter
-                .submit_to_consensus(&[transaction], &epoch_store)?;
+            self.submit_dkg_transaction(transaction, &epoch_store)?;
         }
 
         epoch_store
@@ -562,8 +561,7 @@ impl RandomnessManager {
                         fail_point_skip_sending = true;
                     });
                     if !fail_point_skip_sending {
-                        self.consensus_adapter
-                            .submit_to_consensus(&[transaction], &epoch_store)?;
+                        self.submit_dkg_transaction(transaction, &epoch_store)?;
                     }
 
                     let elapsed = self.dkg_start_time.get().map(|t| t.elapsed().as_millis());
@@ -881,6 +879,43 @@ impl RandomnessManager {
         self.epoch_store
             .upgrade()
             .ok_or(IotaError::EpochEnded(self.epoch))
+    }
+
+    /// Submits the DKG Message or Confirmation `transaction` to consensus.
+    ///
+    /// When `transaction` is refused as larger than consensus accepts, the
+    /// function logs the refusal and returns `Ok(())` instead of the error.
+    /// DKG then goes on without the transaction, as it does without the
+    /// Messages and Confirmations other parties do not send.
+    ///
+    /// # Errors
+    ///
+    /// Any other error from [`SubmitToConsensus::submit_to_consensus()`].
+    fn submit_dkg_transaction(
+        &self,
+        transaction: ConsensusTransaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> IotaResult {
+        let key = transaction.key();
+
+        match self
+            .consensus_adapter
+            .submit_to_consensus(&[transaction], epoch_store)
+        {
+            Err(
+                error @ IotaError::UserInput {
+                    error: UserInputError::SizeLimitExceeded { .. },
+                },
+            ) => {
+                error!(
+                    "random beacon: {key:?} is refused as larger than consensus accepts, so DKG \
+                        goes on without it: {error:?}"
+                );
+
+                Ok(())
+            }
+            result => result,
+        }
     }
 
     fn randomness_dkg_info_from_committee(
@@ -1768,5 +1803,106 @@ mod tests {
         }
         assert_eq!(DkgStatus::Pending, faulty_manager.dkg_status());
         let _ = faulty_manager.advance_dkg(&mut output, 0).await;
+    }
+
+    /// DKG goes on when its Message and its Confirmation are refused as larger
+    /// than consensus accepts: neither is stored or handed to consensus, and
+    /// the manager still merges the Messages it receives.
+    #[tokio::test]
+    async fn dkg_goes_on_without_transactions_larger_than_consensus_accepts() {
+        telemetry_subscribers::init_for_testing();
+
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .committee_size(NonZeroUsize::new(4).unwrap())
+                .with_reference_gas_price(500)
+                .build();
+
+        let mut protocol_config =
+            ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config.set_random_beacon_dkg_version_for_testing(1);
+        // Smaller than any DKG Message or Confirmation, since the authority
+        // name in each is longer.
+        protocol_config.set_consensus_max_transaction_size_bytes_for_testing(32);
+
+        let mut epoch_stores = Vec::new();
+        let mut randomness_managers = Vec::new();
+        for validator in network_config.validator_configs.iter() {
+            let mut mock_consensus_client = MockConsensusClient::new();
+            mock_consensus_client.expect_submit().never();
+
+            let state = TestAuthorityBuilder::new()
+                .with_protocol_config(protocol_config.clone())
+                .with_genesis_and_keypair(&network_config.genesis, validator.authority_key_pair())
+                .build()
+                .await;
+            let consensus_adapter = Arc::new(ConsensusAdapter::new(
+                Arc::new(mock_consensus_client),
+                CheckpointStore::new_for_tests(),
+                state.name,
+                Arc::new(ConnectionMonitorStatusForTests {}),
+                100_000,
+                100_000,
+                None,
+                None,
+                ConsensusAdapterMetrics::new_test(),
+                50,
+            ));
+            let epoch_store = state.epoch_store_for_testing();
+            let randomness_manager = RandomnessManager::try_new(
+                Arc::downgrade(&epoch_store),
+                Box::new(consensus_adapter),
+                iota_network::randomness::Handle::new_stub(),
+                validator.authority_key_pair(),
+            )
+            .await
+            .unwrap();
+
+            epoch_stores.push(epoch_store);
+            randomness_managers.push(randomness_manager);
+        }
+
+        // Every manager starts DKG, and its Message is refused. Each Message
+        // is built a second time to deliver it as consensus would.
+        let mut dkg_messages = Vec::new();
+        for (randomness_manager, epoch_store) in randomness_managers.iter_mut().zip(&epoch_stores) {
+            randomness_manager.start_dkg().await.unwrap();
+
+            let dkg_message = VersionedDkgMessage::create(
+                protocol_config.dkg_version(),
+                randomness_manager.party.clone(),
+            )
+            .unwrap();
+            let transaction =
+                ConsensusTransaction::new_randomness_dkg_message(epoch_store.name, &dkg_message);
+            assert!(
+                bcs::serialized_size(&transaction).unwrap() as u64
+                    > protocol_config.max_transaction_size_bytes()
+            );
+            dkg_messages.push(dkg_message);
+        }
+
+        // Every manager merges the Messages, and its Confirmation is refused.
+        for randomness_manager in randomness_managers.iter_mut() {
+            for (epoch_store, dkg_message) in epoch_stores.iter().zip(&dkg_messages) {
+                randomness_manager
+                    .add_message(&epoch_store.name, dkg_message.clone())
+                    .unwrap();
+            }
+            randomness_manager
+                .advance_dkg(&mut ConsensusCommitOutput::new(0, 0), 0)
+                .await
+                .unwrap();
+            assert!(randomness_manager.used_messages.initialized());
+            assert_eq!(DkgStatus::Pending, randomness_manager.dkg_status());
+        }
+
+        for epoch_store in &epoch_stores {
+            assert!(
+                epoch_store
+                    .get_all_pending_consensus_transactions()
+                    .is_empty()
+            );
+        }
     }
 }
