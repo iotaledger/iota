@@ -1451,6 +1451,9 @@ impl IotaNode {
         epoch_store
             .set_randomness_manager(randomness_manager)
             .await?;
+        epoch_store
+            .epoch_metrics()
+            .record_epoch_change_stage_now(epoch_store.epoch(), "randomness_ready");
 
         let consensus_handler_initializer = ConsensusHandlerInitializer::new(
             state.clone(),
@@ -2087,6 +2090,12 @@ impl IotaNode {
                 return Ok(());
             }
 
+            // Every checkpoint of the epoch has been executed: the epoch change
+            // starts here.
+            let epoch_metrics = cur_epoch_store.epoch_metrics().clone();
+            let next_epoch = cur_epoch_store.epoch() + 1;
+            epoch_metrics.begin_epoch_change(next_epoch);
+
             // Safe to call because we are in the middle of reconfiguration.
             let latest_system_state = self
                 .state
@@ -2166,6 +2175,7 @@ impl IotaNode {
                     hasher.clone(),
                 )
                 .await?;
+            epoch_metrics.record_epoch_change_stage_now(next_epoch, "new_epoch_store_live");
             self.sync_summaries_to_epoch_end.store(
                 Self::sync_summaries_to_epoch_end(&self.config, &new_epoch_store),
                 Ordering::Relaxed,
@@ -2207,6 +2217,8 @@ impl IotaNode {
                     }
                 }
                 info!("Checkpoint service has shut down.");
+                epoch_metrics
+                    .record_epoch_change_stage_now(next_epoch, "checkpoint_service_stopped");
 
                 fail_point_async!("reconfig_before_consensus_shutdown");
 
@@ -2324,6 +2336,7 @@ impl IotaNode {
             self.state.epoch_db_pruner().prune_old_epoch_dbs().await;
 
             epoch_store = new_epoch_store;
+            epoch_metrics.record_epoch_change_stage_now(next_epoch, "reconfiguration_finished");
             info!("Reconfiguration finished");
         }
     }
