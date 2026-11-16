@@ -266,7 +266,8 @@ fn should_reauthenticate(
 }
 
 impl AttestationVerdictContext<'_> {
-    /// Re-runs Move authentication at the recorded versions. Returns
+    /// Re-runs Move authentication at the recorded versions, with at most
+    /// `max_auth_gas`, as execution runs it. Returns
     /// [`AuthenticationFailureBlame::Attestor`] when the re-run fails too, with
     /// the units it consumed, or with zero when the claimed units cannot fund a
     /// re-run, an authenticator cannot be resolved at the recorded state, or
@@ -291,8 +292,12 @@ impl AttestationVerdictContext<'_> {
             .attestation
             .computation_units()
             .saturating_mul(gas_price);
+        // An honest dry run gives the authenticators at most `max_auth_gas`,
+        // as execution does, so an authentication that passes only above it
+        // refutes the attestation too.
+        let rerun_budget = attested_budget.min(self.protocol_config.max_auth_gas());
         let Ok(gas_status) = IotaGasStatus::new(
-            attested_budget,
+            rerun_budget,
             gas_price,
             self.reference_gas_price,
             self.protocol_config,
