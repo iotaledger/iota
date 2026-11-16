@@ -521,17 +521,17 @@ impl TransactionBlock {
             .await;
         }
 
+        // All filters that support fallback were handled above.
+        // Remaining filters, handled below, read data only from DB so we check only the DB
+        // watermarks.
         if let Some(cursor_viewed_at) = cursor_viewed_at {
             check_cursor_not_expired(db, cursor_viewed_at, oldest_available_checkpoint)?;
         }
+        check_cursors_not_pruned_from_db(&page, oldest_available_checkpoint)?;
 
         let Some(cp_bounds) = checkpoint_bounds_from_filter(&filter, checkpoint_viewed_at) else {
             return Ok(ScanConnection::new(false, false));
         };
-
-        // All filters that support fallback were handled above.
-        // Remaining filters, handled below, read data only from DB so we check only the DB
-        // watermarks.
         if *cp_bounds.end() < oldest_available_checkpoint.db_checkpoint() {
             return Err(Error::DataPruned {
                 message: "all transactions in the requested checkpoint range have been pruned"
@@ -539,7 +539,9 @@ impl TransactionBlock {
                 oldest_available_checkpoint,
             });
         }
-        check_cursors_not_pruned_from_db(&page, oldest_available_checkpoint)?;
+        // If part of the data is pruned, we serve what we have in the DB
+        let cp_bounds = (*cp_bounds.start()).max(oldest_available_checkpoint.db_checkpoint())
+            ..=*cp_bounds.end();
 
         use transactions::dsl as tx;
         let (prev, next, transactions, tx_bounds): (
@@ -549,14 +551,7 @@ impl TransactionBlock {
             Option<TxBounds>,
         ) = db
             .execute_repeatable(move |conn| {
-                let Some(tx_bounds) = TxBounds::query(
-                    conn,
-                    cp_bounds,
-                    oldest_available_checkpoint,
-                    scan_limit,
-                    &page,
-                )?
-                else {
+                let Some(tx_bounds) = TxBounds::query(conn, cp_bounds, scan_limit, &page)? else {
                     return Ok::<_, diesel::result::Error>((false, false, Vec::new(), None));
                 };
 

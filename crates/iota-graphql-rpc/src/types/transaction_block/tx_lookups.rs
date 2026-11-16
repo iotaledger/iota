@@ -61,10 +61,7 @@ use std::{
 };
 
 use diesel::{ExpressionMethods, QueryDsl};
-use iota_indexer::{
-    ingestion::common::CommitterTables,
-    pruning::oldest_available_checkpoint::OldestAvailableCheckpoint, schema::checkpoints,
-};
+use iota_indexer::{ingestion::common::CommitterTables, schema::pruner_cp_watermark};
 
 use crate::{
     data::{Conn, DbConnection, pg::bytea_literal},
@@ -148,45 +145,41 @@ impl TxBounds {
     /// there are any inconsistencies or invalid combinations, i.e. `after`
     /// cursor is greater than the upper bound, return None.
     ///
-    /// When `cp_bounds` starts at or below `oldest_available`, the lower bound
-    /// is the first transaction the database serves.
+    /// `cp_bounds` must lie in the range the database has data for. A
+    /// checkpoint missing from `pruner_cp_watermark` fails with `NotFound`.
     pub(crate) fn query(
         conn: &mut Conn,
         cp_bounds: RangeInclusive<u64>,
-        oldest_available: OldestAvailableCheckpoint,
         scan_limit: Option<u64>,
         page: &Page<Cursor>,
     ) -> Result<Option<Self>, diesel::result::Error> {
         let (cp_lo, cp_hi) = (*cp_bounds.start(), *cp_bounds.end());
 
-        // To map `cp_lo` to tx sequence number we need to read `network_total_transactions` of the
-        // previous cp. We can do it only if it's not pruned.
-        let cp_prev = (cp_lo > oldest_available.db_checkpoint()).then(|| cp_lo - 1);
-
-        use checkpoints::dsl;
-        let seqs: Vec<i64> = cp_prev
-            .into_iter()
-            .chain([cp_hi])
-            .map(|cp| cp as i64)
-            .collect();
-        let network_totals: HashMap<i64, i64> = conn
+        use pruner_cp_watermark::dsl;
+        let tx_ranges: HashMap<i64, (i64, i64)> = conn
             .results(move || {
-                dsl::checkpoints
-                    .select((dsl::sequence_number, dsl::network_total_transactions))
-                    .filter(dsl::sequence_number.eq_any(seqs.clone()))
+                dsl::pruner_cp_watermark
+                    .select((
+                        dsl::checkpoint_sequence_number,
+                        dsl::min_tx_sequence_number,
+                        dsl::max_tx_sequence_number,
+                    ))
+                    .filter(dsl::checkpoint_sequence_number.eq_any([cp_lo as i64, cp_hi as i64]))
             })?
             .into_iter()
+            .map(|(cp, min_tx, max_tx): (i64, i64, i64)| (cp, (min_tx, max_tx)))
             .collect();
-        // A missing row means that the checkpoint doesn't exist.
-        let network_total_transactions =
-            |cp: u64| network_totals.get(&(cp as i64)).map(|total| *total as u64);
-
-        let Some(tx_hi) = network_total_transactions(cp_hi) else {
-            return Ok(None);
+        // Both checkpoints should be in the range the database has data for.
+        let tx_range = |cp: u64| {
+            tx_ranges
+                .get(&(cp as i64))
+                .copied()
+                .ok_or(diesel::result::Error::NotFound)
         };
-        let tx_lo = cp_prev
-            .and_then(network_total_transactions)
-            .unwrap_or(oldest_available.db_tx() as u64);
+
+        let (tx_lo, _) = tx_range(cp_lo)?;
+        let (_, tx_hi_inclusive) = tx_range(cp_hi)?;
+        let (tx_lo, tx_hi) = (tx_lo as u64, tx_hi_inclusive as u64 + 1);
 
         // If the cursors point outside checkpoint bounds, we can return early.
         if matches!(page.after(), Some(a) if tx_hi <= u64::from(a.tx_sequence_number).saturating_add(1))

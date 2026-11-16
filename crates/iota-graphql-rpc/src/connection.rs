@@ -93,8 +93,8 @@ where
     /// The oldest checkpoint this page can contain data from. Anything before
     /// it has been pruned and is not listed. Zero when nothing has been
     /// pruned, or when the historical fallback serves the whole history. Null
-    /// when the query was not run, e.g. because its filters cannot match
-    /// anything.
+    /// for `multiGetTransactionBlocks`, and for a nested `transactionBlocks`
+    /// whose filter contradicts its parent's.
     async fn oldest_available_checkpoint(&self) -> Option<UInt53> {
         self.oldest_available_checkpoint.map(UInt53::new_unchecked)
     }
