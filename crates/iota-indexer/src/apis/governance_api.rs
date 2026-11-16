@@ -34,9 +34,6 @@ use tokio::sync::Mutex;
 
 use crate::{apis::common, errors::IndexerError, read::IndexerReader};
 
-/// Maximum amount of staked objects for querying.
-const MAX_QUERY_STAKED_OBJECTS: usize = 1000;
-
 type ValidatorTable = (Address, ObjectId, ObjectId, u64, bool);
 
 #[derive(Clone)]
@@ -53,7 +50,7 @@ impl GovernanceReadApi {
             inner,
             exchange_rates_cache: Arc::new(Mutex::new(SizedCache::with_size(1))),
             validators_apys_cache: Arc::new(Mutex::new(SizedCache::with_size(1))),
-            max_query_staked_objects,
+            self.max_query_staked_objects,
         }
     }
 
@@ -131,7 +128,7 @@ impl GovernanceReadApi {
                     StructTag::new_staked_iota(),
                 )),
                 None,
-                MAX_QUERY_STAKED_OBJECTS,
+                max_query_staked_objects,
             )
             .await?
         {
@@ -156,7 +153,7 @@ impl GovernanceReadApi {
                     StructTag::new_timelocked_staked_iota(),
                 )),
                 None,
-                MAX_QUERY_STAKED_OBJECTS,
+                max_query_staked_objects,
             )
             .await?
         {
