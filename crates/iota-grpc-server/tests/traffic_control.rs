@@ -23,7 +23,7 @@ use common::{
 use futures::StreamExt;
 use iota_grpc_server::{
     GrpcServerHandle,
-    constants::{MIN_IOTA_SDK_GRPC_CLIENT_VERSION, X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION},
+    constants::{MIN_IOTA_SDK_GRPC_CLIENT_VERSION, X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN},
 };
 use iota_grpc_types::{
     field::FieldMaskUtil,
@@ -137,7 +137,7 @@ where
                 assert_eq!(
                     status
                         .metadata()
-                        .get(X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION)
+                        .get(X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN)
                         .and_then(|value| value.to_str().ok()),
                     Some(MIN_IOTA_SDK_GRPC_CLIENT_VERSION),
                     "blocked response without the minimum SDK client version: {status:?}"

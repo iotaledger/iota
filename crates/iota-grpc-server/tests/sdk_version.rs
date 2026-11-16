@@ -11,7 +11,7 @@ use std::sync::Arc;
 use common::{MockGrpcStateReader, start_test_server};
 use iota_grpc_server::{
     GrpcServerHandle,
-    constants::{MIN_IOTA_SDK_GRPC_CLIENT_VERSION, X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION},
+    constants::{MIN_IOTA_SDK_GRPC_CLIENT_VERSION, X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN},
 };
 use iota_grpc_types::v1::{
     ledger_service::{GetServiceInfoRequest, ledger_service_client::LedgerServiceClient},
@@ -42,7 +42,7 @@ async fn connect_ledger_client(handle: &GrpcServerHandle) -> LedgerServiceClient
 
 fn min_iota_sdk_grpc_client_version(metadata: &MetadataMap) -> &str {
     metadata
-        .get(X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION)
+        .get(X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN)
         .expect("response carries the minimum SDK version header")
         .to_str()
         .unwrap()

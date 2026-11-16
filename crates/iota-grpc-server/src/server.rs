@@ -27,7 +27,7 @@ use tonic::service::Routes;
 use crate::{
     GrpcCheckpointDataBroadcaster, GrpcReader, GrpcServerMetrics, LedgerGrpcService,
     MovePackageGrpcService, StateGrpcService, TransactionExecutionGrpcService,
-    constants::{MIN_IOTA_SDK_GRPC_CLIENT_VERSION, X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION},
+    constants::{MIN_IOTA_SDK_GRPC_CLIENT_VERSION, X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN},
     metrics::GrpcMetricsLayer,
     server_timing::ServerTimingLayer,
     traffic_control::TrafficControlLayer,
@@ -276,7 +276,7 @@ pub async fn start_grpc_server(
 /// Adds the lowest supported `iota-sdk-grpc-client` version to a response.
 fn insert_min_client_version<B>(mut response: http::Response<B>) -> http::Response<B> {
     response.headers_mut().insert(
-        X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION,
+        X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN,
         http::HeaderValue::from_static(MIN_IOTA_SDK_GRPC_CLIENT_VERSION),
     );
     response

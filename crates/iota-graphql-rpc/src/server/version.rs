@@ -17,14 +17,14 @@ use crate::{
 
 pub(crate) static VERSION_HEADER: HeaderName = HeaderName::from_static("x-iota-rpc-version");
 // TODO(https://github.com/iotaledger/iota/issues/13598): replace with
-// `iota_sdk_graphql_client::X_MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION` once an
+// `iota_sdk_graphql_client::X_IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN` once an
 // `iota-sdk-graphql-client` release has it, and test that the bundled
 // `iota-sdk-graphql-client` accepts the minimum.
-pub(crate) static MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION_HEADER: HeaderName =
-    HeaderName::from_static("x-min-iota-sdk-graphql-client-version");
+pub(crate) static IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER: HeaderName =
+    HeaderName::from_static("x-iota-sdk-graphql-client-version-min");
 
 /// Lowest `iota-sdk-graphql-client` version able to decode this service's
-/// responses, sent in the [`MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION_HEADER`] of every response.
+/// responses, sent in the [`IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER`] of every response.
 ///
 /// Bump this alongside SDK releases containing wire-visible changes (e.g., new enum variants or
 /// renamed fields) to force older clients to reject the service and fail safely rather than
@@ -123,7 +123,7 @@ pub(crate) async fn set_version_middleware(
         HeaderValue::from_static(version.full),
     );
     headers.insert(
-        MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION_HEADER.clone(),
+        IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER.clone(),
         HeaderValue::from_static(MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION),
     );
     response
@@ -249,7 +249,7 @@ mod tests {
         assert_eq!(
             response
                 .headers()
-                .get(&MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION_HEADER),
+                .get(&IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER),
             Some(&HeaderValue::from_static(
                 MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION
             ))
@@ -269,7 +269,7 @@ mod tests {
         assert_eq!(
             response
                 .headers()
-                .get(&MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION_HEADER),
+                .get(&IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER),
             Some(&HeaderValue::from_static(
                 MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION
             ))

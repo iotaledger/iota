@@ -8,13 +8,13 @@ use crate::error::RpcError;
 /// Name of the response header carrying
 /// [`MIN_IOTA_SDK_GRPC_CLIENT_VERSION`].
 // TODO(https://github.com/iotaledger/iota/issues/13598): replace with
-// `iota_grpc_types::headers::X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION`
+// `iota_grpc_types::headers::X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN`
 // once an `iota-sdk-grpc-types` release has it, and test that the bundled
 // `iota-sdk-grpc-client` accepts the minimum.
-pub const X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION: &str = "x-min-iota-sdk-grpc-client-version";
+pub const X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN: &str = "x-iota-sdk-grpc-client-version-min";
 
 /// Lowest `iota-sdk-grpc-client` version able to decode this node's gRPC
-/// responses, sent in the [`X_MIN_IOTA_SDK_GRPC_CLIENT_VERSION`] header of
+/// responses, sent in the [`X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN`] header of
 /// every response.
 ///
 /// Raise it to the SDK release that ships a wire-visible change (a new enum
