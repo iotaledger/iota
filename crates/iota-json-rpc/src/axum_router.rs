@@ -454,6 +454,15 @@ mod tests {
     }
 
     #[test]
+    fn a_busy_server_has_zero_error_weight() {
+        // `handle_traffic_resp` reads the code of a response back as a number.
+        assert_eq!(
+            normalize(ErrorCode::from(ErrorCode::ServerIsBusy.code())),
+            Weight::zero()
+        );
+    }
+
+    #[test]
     fn client_errors_have_full_error_weight() {
         assert_eq!(normalize(ErrorCode::ParseError), Weight::one());
         assert_eq!(normalize(ErrorCode::InvalidParams), Weight::one());
