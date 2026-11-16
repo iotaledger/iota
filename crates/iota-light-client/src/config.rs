@@ -5,8 +5,11 @@
 use core::str::FromStr;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Result, anyhow, bail};
-use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+use anyhow::{Context, Result, anyhow, bail};
+use iota_config::{
+    genesis::Genesis,
+    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
+};
 use iota_sdk_types::CheckpointDigest;
 use iota_types::digests::{get_mainnet_chain_identifier, get_testnet_chain_identifier};
 use serde::{Deserialize, Serialize};
@@ -29,8 +32,8 @@ pub struct Config {
     pub checkpoints_dir: PathBuf,
     /// The URL to download the genesis.blob file from.
     pub genesis_blob_download_url: Option<Url>,
-    /// The digest of the genesis checkpoint. A genesis blob that does not match
-    /// it is rejected.
+    /// The digest of the genesis checkpoint, checkpoint 0 of the network. A
+    /// genesis blob that does not match it is rejected.
     pub genesis_checkpoint_digest: CheckpointDigest,
     /// Flag to enable automatic syncing before running one of the check
     /// commands.
@@ -50,7 +53,8 @@ impl Config {
     }
 
     /// Creates the necessary checkpoint directory and files if not already
-    /// present.
+    /// present. A downloaded genesis blob is written only if it matches
+    /// `genesis_checkpoint_digest`.
     pub async fn setup(&self) -> Result<()> {
         // Create the checkpoints directory if it doesn't exist yet
         if !self.checkpoints_dir.is_dir() {
@@ -76,6 +80,11 @@ impl Config {
                             .to_vec()
                     }
                 };
+                let genesis: Genesis = bcs::from_bytes(&contents)
+                    .with_context(|| format!("unable to parse the genesis blob from {url}"))?;
+                genesis
+                    .verified_committee(self.genesis_checkpoint_digest)
+                    .with_context(|| format!("rejected the genesis blob from {url}"))?;
                 write_file_atomically(&self.genesis_blob_file_path(), &contents)?;
             }
         }
@@ -148,6 +157,7 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
+    use iota_swarm_config::network_config_builder::ConfigBuilder;
     use tempfile::TempDir;
 
     use super::*;
@@ -170,6 +180,14 @@ mod tests {
         };
         config.validate().expect("invalid");
         (config, temp_dir)
+    }
+
+    fn genesis_blob() -> (Genesis, PathBuf, TempDir) {
+        let dir = TempDir::new().unwrap();
+        let genesis = ConfigBuilder::new(&dir).build().genesis;
+        let blob = dir.path().join("source.blob");
+        genesis.save(&blob).unwrap();
+        (genesis, blob, dir)
     }
 
     #[test]
@@ -201,21 +219,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn setup_copies_the_genesis_blob_from_a_file_url() {
-        let source_dir = TempDir::new().unwrap();
-        let source = source_dir.path().join("source.blob");
-        std::fs::write(&source, b"genesis bytes").unwrap();
+    async fn setup_copies_a_matching_genesis_blob_from_a_file_url() {
+        let (genesis, blob, _blob_dir) = genesis_blob();
         let (mut config, temp_dir) = create_test_config();
         std::fs::remove_file(config.genesis_blob_file_path()).unwrap();
-        config.genesis_blob_download_url = Some(Url::from_file_path(&source).unwrap());
+        config.genesis_blob_download_url = Some(Url::from_file_path(&blob).unwrap());
+        config.genesis_checkpoint_digest = *genesis.checkpoint().digest();
 
         config.setup().await.unwrap();
 
         assert_eq!(
             std::fs::read(config.genesis_blob_file_path()).unwrap(),
-            b"genesis bytes"
+            std::fs::read(&blob).unwrap()
         );
         assert_eq!(std::fs::read_dir(temp_dir.path()).unwrap().count(), 2);
+    }
+
+    #[tokio::test]
+    async fn setup_writes_nothing_for_a_genesis_blob_that_does_not_match_the_digest() {
+        let (_genesis, blob, _blob_dir) = genesis_blob();
+        let (mut config, temp_dir) = create_test_config();
+        std::fs::remove_file(config.genesis_blob_file_path()).unwrap();
+        config.genesis_blob_download_url = Some(Url::from_file_path(&blob).unwrap());
+
+        let error = format!("{:#}", config.setup().await.unwrap_err());
+
+        assert!(
+            error.contains("does not match the expected digest"),
+            "{error}"
+        );
+        assert_eq!(std::fs::read_dir(temp_dir.path()).unwrap().count(), 0);
     }
 
     #[test]

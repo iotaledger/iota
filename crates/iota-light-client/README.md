@@ -35,7 +35,7 @@ checkpoints_dir: "checkpoints_mainnet"
 # A URL to download or copy the genesis blob file from (optional if genesis blob is already present in checkpoints_dir)
 genesis_blob_download_url: "https://dbfiles.mainnet.iota.cafe/genesis.blob"
 
-# The base58 digest of the genesis checkpoint (mandatory). A genesis blob that does not match it is rejected.
+# The base58 digest of the genesis checkpoint, checkpoint 0 of the network (mandatory). A genesis blob that does not match it is rejected.
 genesis_checkpoint_digest: "7gzPnGnmjqvpmF7NXTCmtacXLqx1cMaJFV6GCmi1peqr"
 
 # A flag to set whether the light client should always sync before checking an object or a transaction for inclusion (mandatory)
@@ -51,7 +51,7 @@ checkpoint_store_config:
   object-store-connection-limit: 20
 ```
 
-The crate ships `mainnet.yaml` and `testnet.yaml` with the genesis checkpoint digests of those networks.
+The crate ships `mainnet.yaml` and `testnet.yaml` with the genesis checkpoint digests of those networks. For another network, the value is the `digest` of checkpoint 0 as the full node's `iota_getCheckpoint` RPC returns it; a pin taken from the node the light client is meant to check proves nothing on its own.
 
 ## Sync
 
