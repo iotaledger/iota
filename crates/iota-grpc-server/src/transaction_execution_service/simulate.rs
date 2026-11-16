@@ -20,7 +20,6 @@ use iota_grpc_types::{
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
-    error::IotaError,
     transaction::TransactionAPI,
     transaction_executor::{
         SimulateTransactionResult as InternalSimulateResult, TransactionExecutor, VmChecks,
@@ -194,18 +193,7 @@ async fn simulate_single_transaction(
         mock_gas_id,
         suggested_gas_price,
         gas_data,
-    } = executor
-        .simulate_transaction(transaction_data.clone(), vm_checks)
-        .map_err(|e| {
-            RpcError::new(
-                if matches!(e, IotaError::UserInput { .. }) {
-                    tonic::Code::InvalidArgument
-                } else {
-                    tonic::Code::Internal
-                },
-                format!("transaction simulation failed: {e}"),
-            )
-        })?;
+    } = super::run_simulation(executor, transaction_data.clone(), vm_checks).await?;
 
     // Build the response
     let mut response = SimulatedTransaction::default();

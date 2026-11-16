@@ -23,6 +23,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionAPI,
 };
+use jsonrpsee::{core::ClientError, types::error::ErrorCode};
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -272,6 +273,66 @@ async fn test_zero_gas_budget_is_reported_as_the_gas_used() -> Result<(), anyhow
     let reported: Transaction = bcs::from_bytes(&raw_txn_data)?;
     assert_ne!(reported.gas_budget(), 0);
     assert_eq!(reported.gas_price(), reference_gas_price);
+
+    Ok(())
+}
+
+/// While the fullnode runs as many simulations as it allows, dry runs and dev
+/// inspects are refused with the `ServerIsBusy` code, and are served again once
+/// one simulation ends.
+#[sim_test]
+async fn simulations_over_the_cap_are_refused_as_busy() -> Result<(), anyhow::Error> {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+    let other_address = cluster.get_address_1();
+
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(other_address, Some(1_000));
+        builder.finish()
+    };
+    let kind_bytes = Base64::from_bytes(&TransactionKind::new_programmable(pt.clone()).to_bcs());
+    let transaction_bytes = Base64::from_bytes(
+        &Transaction::V1(TransactionV1 {
+            kind: TransactionKind::new_programmable(pt),
+            sender: address,
+            gas_payment: GasPayment {
+                objects: vec![],
+                owner: address,
+                price: 0,
+                budget: 0,
+            },
+            expiration: TransactionExpiration::None,
+        })
+        .to_bcs(),
+    );
+
+    let state = cluster.fullnode_handle.iota_node.with(|node| node.state());
+    let mut permits =
+        std::iter::from_fn(|| state.try_acquire_simulation_permit()).collect::<Vec<_>>();
+    assert!(!permits.is_empty());
+
+    let error_code = |error: ClientError| match error {
+        ClientError::Call(error) => error.code(),
+        other => panic!("expected an error from the method, got {other}"),
+    };
+    let error = http_client
+        .dry_run_transaction_block(transaction_bytes.clone())
+        .await
+        .unwrap_err();
+    assert_eq!(error_code(error), ErrorCode::ServerIsBusy.code());
+    let error = http_client
+        .dev_inspect_transaction_block(address, kind_bytes, None, None, None)
+        .await
+        .unwrap_err();
+    assert_eq!(error_code(error), ErrorCode::ServerIsBusy.code());
+
+    permits.pop();
+    let response = http_client
+        .dry_run_transaction_block(transaction_bytes)
+        .await?;
+    assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
 
     Ok(())
 }
