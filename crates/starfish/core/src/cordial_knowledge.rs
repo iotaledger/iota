@@ -95,7 +95,7 @@ pub(crate) struct CordialKnowledge {
     /// tuple of (ancestors, who knows the block header).
     cordial_knowledge: Vec<BTreeMap<Round, AHashMap<BlockHeaderDigest, (Ancestors, AuthoritySet)>>>,
     /// Own shard chosen for each slot, shared by all connections.
-    chosen_own_shards: Vec<BTreeMap<Round, TransactionRef>>,
+    chosen_own_shards: BTreeMap<(Round, AuthorityIndex), TransactionRef>,
     /// Own shards at or below this round must not be disseminated.
     own_shard_floor: Round,
     /// Each Connection Knowledge corresponds to one peer. Upon reception of a
@@ -321,7 +321,7 @@ impl CordialKnowledge {
                 cordial_knowledge_receiver,
                 eviction_rounds_receiver,
                 cordial_knowledge: vec![BTreeMap::new(); num_authorities],
-                chosen_own_shards: vec![BTreeMap::new(); num_authorities],
+                chosen_own_shards: BTreeMap::new(),
                 own_shard_floor,
                 last_useful_shards_from_peer_round: vec![None; num_authorities],
                 connection_knowledges: connection_knowledges.clone(),
@@ -846,10 +846,9 @@ impl CordialKnowledge {
         &mut self,
         transaction_ref: TransactionRef,
     ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
-        let author = transaction_ref.author;
-        let round = transaction_ref.round;
-        let chosen_ref = self.chosen_own_shards[author].get(&round);
-        if round <= self.own_shard_floor || chosen_ref == Some(&transaction_ref) {
+        let slot = (transaction_ref.round, transaction_ref.author);
+        let chosen_ref = self.chosen_own_shards.get(&slot);
+        if transaction_ref.round <= self.own_shard_floor || chosen_ref == Some(&transaction_ref) {
             return None;
         }
         if chosen_ref.is_some() {
@@ -860,7 +859,7 @@ impl CordialKnowledge {
                 .inc();
             return None;
         }
-        self.chosen_own_shards[author].insert(round, transaction_ref);
+        self.chosen_own_shards.insert(slot, transaction_ref);
 
         let mut vec_msgs: Vec<Vec<ConnectionKnowledgeMessage>> =
             Vec::with_capacity(self.cordial_knowledge.len());
@@ -891,9 +890,9 @@ impl CordialKnowledge {
             *btree_map = btree_map.split_off(&split_round);
         }
         self.own_shard_floor = max(self.own_shard_floor, evicted_rounds.shards);
-        for chosen_shards in &mut self.chosen_own_shards {
-            *chosen_shards = chosen_shards.split_off(&(self.own_shard_floor + 1));
-        }
+        self.chosen_own_shards = self
+            .chosen_own_shards
+            .split_off(&(self.own_shard_floor + 1, AuthorityIndex::MIN));
 
         // Prepare message for per-connection knowledge about eviction
         self.prepare_evict_msgs(evicted_rounds)
