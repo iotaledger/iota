@@ -42,7 +42,9 @@ use iota_grpc_types::{
 };
 use iota_traffic_controller::TrafficController;
 use iota_types::{
-    traffic_control::{ClientIdSource, PolicyConfig, PolicyType, Weight},
+    traffic_control::{
+        AccessRules, ClientIdSource, DefaultAction, PolicyConfig, PolicyType, Weight,
+    },
     transaction_executor::TransactionExecutor,
 };
 use tonic::{Code, transport::Channel};
@@ -340,7 +342,7 @@ async fn a_unary_call_reset_while_its_handler_awaits_accrues_spam() {
 
     let client = Some(IpAddr::from([127, 0, 0, 1]));
     tokio::time::timeout(Duration::from_secs(10), async {
-        while traffic_controller.check(&client, &None) {
+        while traffic_controller.check(&client, &None).is_served() {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })
@@ -664,16 +666,21 @@ async fn read_errors_do_not_feed_the_error_policy() {
     }
 }
 
-/// An allowlist admits the clients it names. The node resolves no client IP for
-/// a request that arrives without the `x-forwarded-for` header it reads, so it
-/// refuses that request, and serves one that names a listed client.
+/// With the default action `deny`, the node serves only the clients that its
+/// allow rules name. The node resolves no client IP for a request that arrives
+/// without the `x-forwarded-for` header it reads, so it refuses that request,
+/// and serves one that names an allowed client.
 #[tokio::test]
-async fn an_allowlist_refuses_an_unidentified_request_over_grpc() {
+async fn the_default_deny_refuses_an_unidentified_request_over_grpc() {
     const LISTED: &str = "10.0.0.7";
     let handle = server_with_policy(
         PolicyConfig {
             client_id_source: ClientIdSource::XForwardedFor(1),
-            allow_list: Some(vec![LISTED.to_string()]),
+            access_rules: AccessRules {
+                allow: vec![LISTED.to_string()],
+                default: DefaultAction::Deny,
+                ..Default::default()
+            },
             dry_run: false,
             ..Default::default()
         },
@@ -691,7 +698,7 @@ async fn an_allowlist_refuses_an_unidentified_request_over_grpc() {
     client
         .execute_transactions(forwarded_for(LISTED, execute_batch(1)))
         .await
-        .expect("a request naming an allowlisted client is served");
+        .expect("a request naming an allowed client is served");
 }
 
 /// `message` as a request carrying an `x-forwarded-for` header that names

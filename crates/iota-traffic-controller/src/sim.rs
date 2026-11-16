@@ -16,7 +16,7 @@ use rand::RngExt;
 use tokio::time;
 use tracing::error;
 
-use crate::{TrafficController, policies::TrafficTally};
+use crate::{ClientAccess, TrafficController, policies::TrafficTally};
 
 #[derive(Debug, Clone, Default)]
 pub struct TrafficSimMetrics {
@@ -114,17 +114,19 @@ impl TrafficSim {
 
         while start.elapsed() < duration {
             let client = Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, task_num)));
-            let allowed = controller.check(&client, &None);
-            if allowed {
+            let access = controller.check(&client, &None);
+            if access.is_served() {
                 currently_blocked = false;
-                controller.tally(TrafficTally::new(
-                    client,
-                    // TODO add proxy IP for testing
-                    None,
-                    // TODO add weight adjustments
-                    None,
-                    Weight::one(),
-                ));
+                if access != ClientAccess::Allowed {
+                    controller.tally(TrafficTally::new(
+                        client,
+                        // TODO add proxy IP for testing
+                        None,
+                        // TODO add weight adjustments
+                        None,
+                        Weight::one(),
+                    ));
+                }
             } else {
                 if !currently_blocked {
                     currently_blocked = true;
