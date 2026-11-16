@@ -64,7 +64,10 @@ pub async fn build_json_rpc_server(
     ))?;
     builder.register_module(TransactionBuilderApi::from(reader.clone()))?;
     builder.register_module(MoveUtilsApi::new(reader.clone()))?;
-    builder.register_module(GovernanceReadApi::new(reader.clone()))?;
+    builder.register_module(GovernanceReadApi::new(
+        reader.clone(),
+        config.max_query_staked_objects,
+    ))?;
     builder.register_module(ReadApi::new(reader.clone(), fullnode_grpc_client.clone()))?;
     builder.register_module(CoinReadApi::new(reader.clone())?)?;
     builder.register_module(ExtendedApi::new(reader.clone()))?;
