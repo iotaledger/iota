@@ -2901,7 +2901,7 @@ async fn setup_handler_object_state_outside_committee(
     // The builder's genesis committee holds its own generated validator keys,
     // so a node signing with a fresh key is outside it.
     let (_, keypair): (_, iota_types::crypto::AuthorityKeyPair) = get_key_pair();
-    build_handler_object_state_setup(genesis_objects, None, Some(&keypair)).await
+    build_handler_object_state_setup(genesis_objects, None, Some(&keypair), None).await
 }
 
 /// Like [`setup_handler_object_state`], under the protocol config override the caller
@@ -2910,18 +2910,31 @@ async fn setup_handler_object_state_with_config_guard(
     genesis_objects: Vec<Object>,
     config_guard: Option<OverrideGuard>,
 ) -> HandlerObjectStateSetup {
-    build_handler_object_state_setup(genesis_objects, config_guard, None).await
+    build_handler_object_state_setup(genesis_objects, config_guard, None, None).await
+}
+
+/// Like [`setup_handler_object_state`] with the flags on, but for a validator
+/// whose local config is `deny_config`.
+async fn setup_handler_object_state_with_deny_config(
+    genesis_objects: Vec<Object>,
+    deny_config: iota_config::transaction_deny_config::TransactionDenyConfig,
+) -> HandlerObjectStateSetup {
+    build_handler_object_state_setup(genesis_objects, None, None, Some(deny_config)).await
 }
 
 async fn build_handler_object_state_setup(
     genesis_objects: Vec<Object>,
     _config_guard: Option<OverrideGuard>,
     keypair: Option<&iota_types::crypto::AuthorityKeyPair>,
+    deny_config: Option<iota_config::transaction_deny_config::TransactionDenyConfig>,
 ) -> HandlerObjectStateSetup {
-    let builder = match keypair {
+    let mut builder = match keypair {
         Some(keypair) => TestAuthorityBuilder::new().with_keypair(keypair),
         None => TestAuthorityBuilder::new(),
     };
+    if let Some(deny_config) = deny_config {
+        builder = builder.with_transaction_deny_config(deny_config);
+    }
     let authority = builder.build().await;
     for object in genesis_objects {
         authority.insert_genesis_object(object);
@@ -4794,7 +4807,10 @@ async fn cut_off_attestor_copies_drop_once_the_horizon_reaches_its_refuted_total
             PostConsensusDecision::DroppedCopy,
         )],
     };
+    let unused_before = input_reads(&s.authority, "unused");
     assert_eq!(s.validate_copies_at(k + 1, copies(&s)).await, cut_off);
+    // The cut-off attestor's copy is not read ahead.
+    assert_eq!(input_reads(&s.authority, "unused"), unused_before);
     assert_eq!(
         s.authority
             .metrics
@@ -5089,6 +5105,70 @@ async fn checkpoint_bookkeeping_does_not_wait_for_the_quarantine() {
             .overlay_size_for_testing(),
         0
     );
+}
+
+/// The rows of later checkpoints are in the table while the outputs of an
+/// earlier checkpoint are not written yet, as on a running node whose
+/// executor works on several checkpoints at once. The reader answers as it
+/// does after each checkpoint's outputs are written.
+#[tokio::test]
+async fn rows_written_ahead_of_an_earlier_checkpoints_outputs_read_the_same() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_handler_object_state(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+
+    // Three checkpoints of one commit each. Each transfer consumes the
+    // outputs of the one before.
+    let mut references = vec![s.latest_ref(&gas_id)];
+    let mut effects = Vec::new();
+    for commit in 1..=3 {
+        let transfer = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, sender);
+        effects.push(
+            s.execute_with_assigned_commit(vec![transfer], commit)
+                .remove(0),
+        );
+        references.push(s.latest_ref(&gas_id));
+    }
+    // The rows of all three are written, in checkpoint order, before the
+    // outputs of the first.
+    for effects in &effects {
+        s.epoch_store
+            .persist_checkpoint_bookkeeping([effects])
+            .unwrap();
+    }
+
+    let horizon_distance = s.horizon_distance();
+    // Every version of the gas coin as of every horizon from before the
+    // first commit to the last.
+    let verdicts = || {
+        let mut verdicts = Vec::new();
+        for horizon in 0..=3 {
+            for reference in &references {
+                verdicts.push(match s.read_owned(horizon + horizon_distance, *reference) {
+                    OwnedVerdict::Keep(_) => "keep",
+                    OwnedVerdict::Drop(_) => "drop",
+                    OwnedVerdict::Missing(_) => "missing",
+                });
+            }
+        }
+        verdicts
+    };
+    let with_rows_ahead = verdicts();
+    // As of the last commit only the latest version is kept.
+    assert_eq!(with_rows_ahead[12..], ["drop", "drop", "drop", "keep"]);
+
+    for effects in &effects {
+        s.commit_outputs(&[*effects.transaction_digest()]);
+        assert_eq!(verdicts(), with_rows_ahead);
+    }
 }
 
 #[tokio::test]
@@ -5443,6 +5523,62 @@ async fn reader_keeps_a_shared_deletion_from_its_tombstone_row_before_the_marker
     assert_deleted_by(s.read_shared(14, &shared_id, initial), &deletion_effects);
 }
 
+/// A reader that answered a shared input as existing keeps that answer for
+/// the rest of its commit, also once a deletion above the horizon executes
+/// meanwhile. A new reader at the same commit answers the deletion. Both are
+/// kept inputs, so the commit's decisions are the same either way.
+#[tokio::test]
+async fn reader_keeps_its_first_shared_verdict_through_a_deletion_above_the_horizon() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let deleter_gas_id = ObjectId::random();
+    let s = setup_handler_object_state(
+        vec![
+            Object::with_id_owner_for_testing(gas_id, sender),
+            Object::with_id_owner_for_testing(deleter_gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let share_effects =
+        s.assigned_commit_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared_ref = *share_effects.created()[0].reference();
+    let shared_id = shared_ref.object_id;
+    let initial = initial_shared_version(share_effects.created()[0].owner());
+    let reused = || {
+        s.epoch_store
+            .metrics
+            .consensus_handler_validation_reader_reused_verdicts
+            .with_label_values(&["shared"])
+            .get()
+    };
+
+    // Commit 14, horizon 10: shared at 5, so it exists.
+    let reader = s.reader_at(14);
+    assert_eq!(
+        reader.read_shared(shared_id, initial).unwrap(),
+        SharedVerdict::Exists
+    );
+
+    let deletion_effects = s.assigned_commit_shared_object_basics_call(
+        "delete",
+        vec![s.shared_arg(&shared_id)],
+        &deleter_gas_id,
+        sender,
+        &sender_key,
+        11,
+    );
+
+    assert_eq!(reused(), 0);
+    assert_eq!(
+        reader.read_shared(shared_id, initial).unwrap(),
+        SharedVerdict::Exists
+    );
+    assert_eq!(reused(), 1);
+    assert_deleted_by(s.read_shared(14, &shared_id, initial), &deletion_effects);
+    assert_eq!(reused(), 1);
+}
+
 // ---------------------------------------------------------------------------
 // P-COOL deterministic-validation loader
 // ---------------------------------------------------------------------------
@@ -5467,6 +5603,9 @@ async fn package_store_view_follows_the_reader() {
     assert_eq!(package.object().id(), s.package_id);
 
     s.record_package_published_at(11);
+    // A reader answers a package once per commit, so the row is read
+    // through a new one.
+    let reader = s.reader_at(12);
     assert!(
         BackingPackageStore::get_package_object(&reader, &s.package_id)
             .unwrap()
@@ -7825,6 +7964,11 @@ async fn later_copy_is_validated_after_a_copy_fails_on_its_authenticator() {
             Some(vec![digest, digest])
         );
     }
+    // On the first run the honest copy was read ahead although a copy of its
+    // digest came before it. The replay read it in the loop.
+    assert_eq!(input_reads(&s.authority, "ahead"), 1);
+    assert_eq!(input_reads(&s.authority, "inline"), 1);
+    assert_eq!(input_reads(&s.authority, "unused"), 0);
 
     let error: IotaError = UserInputError::Unsupported("saved drop".to_string()).into();
     s.epoch_store
@@ -11087,7 +11231,7 @@ async fn setup_validators_with_a_shared_regulated_coin(
     let mut validators = Vec::new();
     let mut coins = Vec::new();
     for _ in 0..2 {
-        let s = build_handler_object_state_setup(genesis.clone(), None, None).await;
+        let s = build_handler_object_state_setup(genesis.clone(), None, None, None).await;
         let (_, publish_effects) = build_and_try_publish_test_package(
             &s.authority,
             &publisher,
@@ -12803,4 +12947,457 @@ async fn validation_at_commit_never_keeps_an_account_input_a_receive_moved() {
         }
         other => panic!("expected the received version to drop, got {other:?}"),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Inputs read ahead of the validation loop
+// ---------------------------------------------------------------------------
+
+/// How many transactions `authority` read the inputs of so far, `ahead` of
+/// the loop, `inline` in it, or `unused`.
+fn input_reads(authority: &AuthorityState, when: &str) -> u64 {
+    authority
+        .metrics
+        .consensus_handler_validation_input_reads
+        .with_label_values(&[when])
+        .get()
+}
+
+/// An authority validating with `readers` readers, holding one object owned
+/// by `sender` for each of `ids`.
+async fn authority_with_readers(
+    readers: usize,
+    sender: Address,
+    ids: &[ObjectId],
+) -> Arc<AuthorityState> {
+    let authority = TestAuthorityBuilder::new()
+        .with_post_consensus_validation_readers(readers.try_into().unwrap())
+        .build()
+        .await;
+    for id in ids {
+        authority.insert_genesis_object(Object::with_id_owner_for_testing(*id, sender));
+    }
+    publish_object_basics(authority).await.0
+}
+
+/// What validating `transactions` at commit 1 returns and keeps, in a form
+/// two authorities can be compared by.
+async fn validation_outcome(
+    authority: &Arc<AuthorityState>,
+    transactions: &[TransactionEnvelope],
+) -> (
+    Vec<(TransactionDigest, String, PostConsensusDecision)>,
+    BTreeSet<(ObjectReference, TransactionDigest)>,
+    Vec<TransactionDigest>,
+    Vec<TransactionDigest>,
+) {
+    let epoch_store = authority.epoch_store_for_testing();
+    let mut sequenced: Vec<_> = transactions
+        .iter()
+        .map(|transaction| {
+            make_user_tx_v1_verified(epoch_store.verify_transaction(transaction.clone()).unwrap())
+        })
+        .collect();
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            authority,
+            &epoch_store,
+            1,
+            &Default::default(),
+            &mut sequenced,
+        )
+        .await
+        .unwrap();
+    (
+        dropped
+            .into_iter()
+            .map(|(digest, error, decision)| (digest, format!("{error:?}"), decision))
+            .collect(),
+        locks.into_iter().collect(),
+        user_tx_digests,
+        sequenced
+            .iter()
+            .filter_map(|tx| tx.0.transaction.user_transaction_digest())
+            .collect(),
+    )
+}
+
+/// A commit with valid transfers, a transfer losing its object to an earlier
+/// one, a duplicate, inputs the reader drops or does not see, and a transfer
+/// whose gas coin an earlier dropped one names. Validated with four readers
+/// and with one, it gives the same drops with the same errors and decisions,
+/// the same locks and the same kept transactions in the same order.
+#[tokio::test]
+async fn reading_inputs_ahead_gives_the_decisions_of_reading_them_inline() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let recipient = Address::random();
+    let objects: Vec<_> = (0..8).map(|_| ObjectId::random()).collect();
+    let gas: Vec<_> = (0..12).map(|_| ObjectId::random()).collect();
+    let ids: Vec<_> = objects.iter().chain(&gas).copied().collect();
+
+    let ahead = authority_with_readers(4, sender, &ids).await;
+    let inline = authority_with_readers(1, sender, &ids).await;
+    let reference = |id: &ObjectId| {
+        let reference = ahead.get_object(id).unwrap().object_ref();
+        assert_eq!(reference, inline.get_object(id).unwrap().object_ref());
+        reference
+    };
+    let rgp = ahead.reference_gas_price_for_testing().unwrap();
+    assert_eq!(rgp, inline.reference_gas_price_for_testing().unwrap());
+    let transfer = |object: ObjectReference, gas: &ObjectId| {
+        make_transfer_object_transaction(
+            object,
+            reference(gas),
+            sender,
+            &sender_key,
+            recipient,
+            rgp,
+        )
+    };
+
+    let mut transactions: Vec<_> = (0..6)
+        .map(|i| transfer(reference(&objects[i]), &gas[i]))
+        .collect();
+    // Loses object 0 to the first transfer.
+    transactions.push(transfer(reference(&objects[0]), &gas[6]));
+    // The same copy as the second transfer.
+    transactions.push(transactions[1].clone());
+    // A version object 6 never had, and an object that does not exist.
+    let fresh = reference(&objects[6]);
+    transactions.push(transfer(
+        ObjectReference::new(fresh.object_id, Version::from_u64(1_000), fresh.digest),
+        &gas[8],
+    ));
+    transactions.push(transfer(random_object_ref(), &gas[9]));
+    // Object 6 at its real version, and a transfer on the gas coin of the
+    // transaction dropped for the version above.
+    transactions.push(transfer(fresh, &gas[10]));
+    transactions.push(transfer(reference(&objects[7]), &gas[8]));
+
+    let with_readers = validation_outcome(&ahead, &transactions).await;
+    let with_one = validation_outcome(&inline, &transactions).await;
+    assert_eq!(with_readers, with_one);
+    let (dropped, _, user_tx_digests, kept) = with_readers;
+    assert_eq!(user_tx_digests.len(), 11);
+    assert_eq!(dropped.len(), 3);
+    assert_eq!(kept.len(), 8);
+
+    // Every first copy is read ahead. The loop takes all but the read of the
+    // loser of object 0, which it drops at the lock check.
+    assert_eq!(input_reads(&ahead, "ahead"), 10);
+    assert_eq!(input_reads(&ahead, "inline"), 0);
+    assert_eq!(input_reads(&ahead, "unused"), 1);
+    assert_eq!(input_reads(&inline, "ahead"), 0);
+    assert_eq!(input_reads(&inline, "inline"), 10);
+}
+
+/// A transaction whose owned input a transaction of an earlier commit
+/// locked is read ahead, then dropped by the lock check. Its read is counted
+/// unused and the drop carries the lock conflict, not the read's result.
+#[tokio::test]
+async fn a_read_ahead_the_loop_does_not_take_is_dropped_unused() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let object = ObjectId::random();
+    let gas = [ObjectId::random(), ObjectId::random()];
+    let authority = authority_with_readers(4, sender, &[object, gas[0], gas[1]]).await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let reference = |id: &ObjectId| authority.get_object(id).unwrap().object_ref();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let transfer = |gas: &ObjectId| {
+        epoch_store
+            .verify_transaction(make_transfer_object_transaction(
+                reference(&object),
+                reference(gas),
+                sender,
+                &sender_key,
+                Address::random(),
+                rgp,
+            ))
+            .unwrap()
+    };
+    let winner = transfer(&gas[0]);
+    let loser = transfer(&gas[1]);
+    // The winner's lock, as a commit before this one left it.
+    seed_quarantined_lock(&epoch_store, reference(&object), *winner.digest());
+
+    let mut transactions = vec![make_user_tx_v1_verified(loser.clone())];
+    let (dropped, _, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        2,
+        &Default::default(),
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert!(transactions.is_empty());
+    assert_eq!(dropped.len(), 1);
+    assert!(matches!(dropped[0].1, IotaError::ObjectLockConflict { .. }));
+    assert_eq!(input_reads(&authority, "ahead"), 0);
+    assert_eq!(input_reads(&authority, "inline"), 0);
+    assert_eq!(input_reads(&authority, "unused"), 1);
+}
+
+/// A replayed commit and a transaction deferred at an earlier commit read
+/// nothing ahead of the loop.
+#[tokio::test]
+async fn a_replayed_commit_and_a_deferred_transaction_read_nothing_ahead() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let objects = [ObjectId::random(), ObjectId::random()];
+    let gas = [ObjectId::random(), ObjectId::random()];
+    let authority =
+        authority_with_readers(4, sender, &[objects[0], objects[1], gas[0], gas[1]]).await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let reference = |id: &ObjectId| authority.get_object(id).unwrap().object_ref();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let transfer = |i: usize| {
+        make_transfer_object_transaction(
+            reference(&objects[i]),
+            reference(&gas[i]),
+            sender,
+            &sender_key,
+            Address::random(),
+            rgp,
+        )
+    };
+
+    let first = [transfer(0)];
+    let first_run = validation_outcome(&authority, &first).await;
+    assert_eq!(input_reads(&authority, "ahead"), 1);
+    // The same commit again repeats its saved decisions.
+    assert_eq!(validation_outcome(&authority, &first).await, first_run);
+    assert_eq!(input_reads(&authority, "ahead"), 1);
+    assert_eq!(input_reads(&authority, "unused"), 0);
+
+    let deferred = epoch_store.verify_transaction(transfer(1)).unwrap();
+    let previously_deferred = std::collections::HashMap::from([(
+        *deferred.digest(),
+        (
+            crate::authority::transaction_deferral::DeferralKey::new_for_consensus_round(2, 1),
+            None,
+        ),
+    )]);
+    let inline_before = input_reads(&authority, "inline");
+    let mut transactions = vec![make_user_tx_v1_verified(deferred)];
+    post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        2,
+        &previously_deferred,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+    assert_eq!(transactions.len(), 1);
+    assert_eq!(input_reads(&authority, "ahead"), 1);
+    assert_eq!(input_reads(&authority, "inline"), inline_before);
+    assert_eq!(input_reads(&authority, "unused"), 0);
+}
+
+/// With every thread of the blocking pool busy, no other reader starts. The
+/// commit is validated by the handler's own reader and does not wait for a
+/// free thread. Not under the simulator: it has no blocking pool to fill and
+/// cannot build a runtime of its own.
+#[cfg(not(msim))]
+#[test]
+fn validation_does_not_wait_for_a_reader_the_blocking_pool_has_not_started() {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .max_blocking_threads(1)
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+        let objects = [ObjectId::random(), ObjectId::random()];
+        let gas = [ObjectId::random(), ObjectId::random()];
+        let authority =
+            authority_with_readers(4, sender, &[objects[0], objects[1], gas[0], gas[1]]).await;
+        let reference = |id: &ObjectId| authority.get_object(id).unwrap().object_ref();
+        let rgp = authority.reference_gas_price_for_testing().unwrap();
+        let transfers: Vec<_> = (0..2)
+            .map(|i| {
+                make_transfer_object_transaction(
+                    reference(&objects[i]),
+                    reference(&gas[i]),
+                    sender,
+                    &sender_key,
+                    Address::random(),
+                    rgp,
+                )
+            })
+            .collect();
+
+        // Hold the pool's only thread until the commit is validated.
+        let (running, is_running) = tokio::sync::oneshot::channel();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let holder = tokio::task::spawn_blocking(move || {
+            running.send(()).unwrap();
+            released.recv().unwrap();
+        });
+        is_running.await.unwrap();
+
+        let outcome = tokio::time::timeout(
+            Duration::from_secs(60),
+            validation_outcome(&authority, &transfers),
+        )
+        .await
+        .expect("validation waited for a thread of the blocking pool");
+        let (dropped, _, _, kept) = outcome;
+        assert!(dropped.is_empty());
+        assert_eq!(kept.len(), 2);
+        assert_eq!(input_reads(&authority, "ahead"), 2);
+
+        release.send(()).unwrap();
+        holder.await.unwrap();
+    });
+}
+
+#[test]
+fn validation_readers_are_a_third_of_the_cores_between_one_and_sixteen() {
+    use super::validation_readers_for;
+
+    for (cores, readers) in [
+        (1, 1),
+        (4, 1),
+        (8, 2),
+        (16, 5),
+        (32, 10),
+        (48, 16),
+        (96, 16),
+    ] {
+        assert_eq!(validation_readers_for(cores), readers, "{cores} cores");
+    }
+}
+
+/// Transactions that `submit_tx` rejects for what they contain are also
+/// dropped at a commit, with the same error, when another validator
+/// sequences them.
+#[tokio::test]
+async fn invalid_transactions_are_dropped_at_the_commit_with_the_exact_error() {
+    telemetry_subscribers::init_for_testing();
+    let s = setup_handler_object_state(vec![], true).await;
+
+    let cases: Vec<_> = crate::rejection_cases::rejection_cases(&s.authority)
+        .into_iter()
+        .filter(|case| case.at_commit.is_some())
+        .collect();
+    let transactions: Vec<_> = cases
+        .iter()
+        .map(|case| VerifiedTransaction::new_unchecked(case.tx.clone()))
+        .collect();
+
+    let result = s.validate_at(1, &transactions).await;
+
+    assert!(
+        result.kept.is_empty(),
+        "no invalid transaction may be kept: {:?}",
+        result.kept
+    );
+    let dropped: std::collections::HashMap<_, _> = result.dropped.into_iter().collect();
+    for case in &cases {
+        eprintln!("case: {}", case.name);
+        let error = dropped
+            .get(case.tx.digest())
+            .unwrap_or_else(|| panic!("the transaction must be dropped: {}", case.name));
+        case.at_commit.as_ref().unwrap()(error);
+    }
+}
+
+/// A transaction paid for by a sponsor, signed by both, is kept.
+#[tokio::test]
+async fn sponsored_transaction_is_kept_at_the_commit() {
+    telemetry_subscribers::init_for_testing();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (sponsor, sponsor_key): (Address, AccountPrivateKey) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_handler_object_state(
+        vec![
+            Object::with_id_owner_for_testing(object_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sponsor),
+        ],
+        true,
+    )
+    .await;
+
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder
+            .transfer_object(Address::random(), s.latest_ref(&object_id))
+            .unwrap();
+        builder.finish()
+    };
+    let tx = Transaction::new_with_gas_data(
+        iota_sdk_types::TransactionKind::new_programmable(pt),
+        sender,
+        iota_sdk_types::GasPayment {
+            objects: vec![s.latest_ref(&gas_id)],
+            owner: sponsor,
+            price: s.rgp,
+            budget: iota_types::transaction::TEST_ONLY_GAS_UNIT_FOR_TRANSFER * s.rgp,
+        },
+    );
+    let tx = iota_types::utils::to_sender_signed_transaction_with_multi_signers(
+        tx,
+        vec![&sender_key, &sponsor_key],
+    );
+    let digest = *tx.digest();
+
+    let result = s
+        .validate_at(1, &[VerifiedTransaction::new_unchecked(tx)])
+        .await;
+
+    assert_eq!(result.kept, vec![digest]);
+    assert!(result.dropped.is_empty(), "{:?}", result.dropped);
+}
+
+/// A transaction the validator's local deny config rejects at admission is
+/// kept at the commit, where only the deny rules from governance apply: a
+/// local config differs between validators and would fork their decisions.
+#[tokio::test]
+async fn local_deny_config_is_not_applied_at_the_commit() {
+    telemetry_subscribers::init_for_testing();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_handler_object_state_with_deny_config(
+        vec![
+            Object::with_id_owner_for_testing(object_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        iota_config::transaction_deny_config::TransactionDenyConfigBuilder::new()
+            .disable_user_transaction()
+            .add_denied_address(sender)
+            .add_denied_object(object_id)
+            .build(),
+    )
+    .await;
+    let tx = s.build_transfer(&object_id, &gas_id, sender, &sender_key, Address::random());
+    let digest = *tx.digest();
+
+    let denied = s
+        .authority
+        .handle_transaction_validation_checks(
+            &tx,
+            &s.epoch_store,
+            &s.authority.config.transaction_deny_config,
+        )
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            denied,
+            IotaError::UserInput {
+                error: UserInputError::TransactionDenied { .. }
+            }
+        ),
+        "admission must deny the transaction, got {denied:?}"
+    );
+
+    let result = s.validate_at(1, &[tx]).await;
+
+    assert_eq!(result.kept, vec![digest]);
+    assert!(result.dropped.is_empty(), "{:?}", result.dropped);
 }

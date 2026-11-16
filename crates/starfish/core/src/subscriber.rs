@@ -710,7 +710,6 @@ mod test {
         f.dag_state
             .write()
             .set_last_commit(TrustedCommit::new_for_test(
-                &f.context,
                 1,
                 CommitDigest::MIN,
                 f.context.clock.timestamp_utc_ms(),

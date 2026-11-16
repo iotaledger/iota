@@ -114,7 +114,7 @@ use iota_types::{
     },
     traffic_control::{PolicyConfig, TrafficControlReconfigParams},
     transaction::*,
-    transaction_executor::{SimulateTransactionResult, VmChecks},
+    transaction_executor::{InputCheckRules, SimulateTransactionResult, VmChecks},
 };
 use itertools::Itertools;
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
@@ -156,7 +156,7 @@ use crate::{
     authority_client::NetworkAuthorityClient,
     checkpoints::{CheckpointBuilderError, CheckpointBuilderResult, CheckpointStore},
     congestion_tracker::CongestionTracker,
-    consensus_adapter::ConsensusAdapter,
+    consensus_adapter::{ConsensusAdapter, InflightSlot},
     epoch::committee_store::CommitteeStore,
     epoch_buckets::PrunedBuckets,
     epoch_end_db_snapshot::{EpochEndDbSnapshotHandle, HandOver},
@@ -264,8 +264,6 @@ pub mod epoch_markers;
 pub mod epoch_start_configuration;
 pub mod historic_ledger;
 pub mod historic_objects;
-pub mod ledger_backlog_migration;
-pub mod object_backlog_sweep;
 pub mod object_retention;
 pub mod shared_object_congestion_tracker;
 pub mod shared_object_version_manager;
@@ -372,6 +370,11 @@ pub struct AuthorityMetrics {
     /// result (keep, drop or missing) and the reason that decided it. Only with
     /// the P-COOL flow on.
     pub consensus_handler_validation_reader_verdicts: IntCounterVec,
+    /// Transactions whose inputs post-consensus validation read, by when:
+    /// `ahead` of the validation loop and used by it, `inline` in the loop,
+    /// or `unused`, read ahead for a transaction the loop dropped before
+    /// its inputs mattered. Only with the P-COOL flow on.
+    pub consensus_handler_validation_input_reads: IntCounterVec,
     /// The commit being validated minus the highest fully executed commit, set
     /// once per commit. Only with the P-COOL flow on.
     pub consensus_handler_commit_execution_lag: IntGauge,
@@ -869,6 +872,12 @@ impl AuthorityMetrics {
                 &["verdict", "reason"],
                 registry,
             ).unwrap(),
+            consensus_handler_validation_input_reads: register_int_counter_vec_with_registry!(
+                "consensus_handler_validation_input_reads",
+                "Transactions whose inputs post-consensus validation read, by when: ahead of the validation loop, inline in it, or unused",
+                &["when"],
+                registry,
+            ).unwrap(),
             consensus_handler_commit_execution_lag: register_int_gauge_with_registry!(
                 "consensus_handler_commit_execution_lag",
                 "The consensus commit being validated minus the highest fully executed commit",
@@ -1064,6 +1073,8 @@ impl ObjectStore for ObjectStoreWithHistoricFallback<'_> {
 }
 
 pub struct AuthorityState {
+    /// The `Arc` this state lives in, for [`Self::shared`].
+    this: Weak<AuthorityState>,
     // Fixed size, static, identity of the authority
     /// The name of this authority.
     pub name: AuthorityName,
@@ -1352,6 +1363,18 @@ impl AuthorityState {
         result.map_err(|error| IotaError::MoveAuthenticatorExecutionFailure {
             error: error.to_string(),
         })
+    }
+
+    /// The `Arc` this state lives in.
+    ///
+    /// # Panics
+    ///
+    /// Never while the caller holds the reference: a state is only ever
+    /// built inside its `Arc`.
+    pub(crate) fn shared(&self) -> Arc<AuthorityState> {
+        self.this
+            .upgrade()
+            .expect("a borrowed authority state is alive")
     }
 
     /// Like [`Self::handle_transaction_validation_checks`], but for
@@ -1663,89 +1686,117 @@ impl AuthorityState {
             .check_system_overload_at_execution
     }
 
-    /// Checks system overload conditions before accepting a transaction.
+    /// Checks system overload conditions before accepting a transaction in
+    /// the certificate flow: authority overload (execution latency), the
+    /// execution scheduler (execution queue), consensus adapter (queue
+    /// limit), and writeback cache backpressure.
     ///
-    /// In certificate-less (P-COOL) mode: only checks consensus
-    /// queue overload, since execution-based overload will be handled
-    /// post-consensus.
-    ///
-    /// In certificate mode: runs all checks — authority overload
-    /// (execution latency), the execution scheduler (execution queue),
-    /// consensus adapter (queue limit), and writeback cache backpressure.
+    /// The P-COOL flow uses
+    /// [`AuthorityState::reserve_consensus_queue_slot()`] instead, which
+    /// counts the transaction in the consensus queue and then checks only
+    /// the queue, since execution-based overload is handled after
+    /// consensus.
     pub(crate) fn check_system_overload(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
         tx: &SenderSignedTransaction,
         do_authority_overload_check: bool,
-        pcool_flow_enabled: bool,
     ) -> IotaResult {
-        if pcool_flow_enabled {
-            // Graduated shedding: 0% to 100% as consensus queue fills from soft
-            // to hard limit.
-            self.check_consensus_queue_graduated_limits(consensus_adapter, tx)
-                .tap_err(|_| {
-                    self.update_overload_metrics("consensus");
-                })?;
-
-            // NOTE: graduated shedding at 100% already rejects everything at or above
-            // `max_pending_transactions`, so the queue-length part of the check below
-            // is redundant but harmless. But `check_consensus_overload()` should be
-            // kept here because it also verifies that `submit_semaphore` has permits
-            // (see `check_consensus_hard_limits` in consensus_adapter.rs), which is a
-            // separate concurrency limit not covered by the graduated shedding.
-            consensus_adapter.check_consensus_overload().tap_err(|_| {
-                self.update_overload_metrics("consensus");
+        if do_authority_overload_check {
+            self.check_authority_overload(tx).tap_err(|_| {
+                self.update_overload_metrics("execution_queue");
             })?;
-        } else {
-            if do_authority_overload_check {
-                self.check_authority_overload(tx).tap_err(|_| {
-                    self.update_overload_metrics("execution_queue");
-                })?;
-            }
-            self.execution_scheduler
-                .check_execution_overload(self.overload_config(), tx)
-                .tap_err(|_| {
-                    self.update_overload_metrics("execution_pending");
-                })?;
-            consensus_adapter.check_consensus_overload().tap_err(|_| {
-                self.update_overload_metrics("consensus");
+        }
+        self.execution_scheduler
+            .check_execution_overload(self.overload_config(), tx)
+            .tap_err(|_| {
+                self.update_overload_metrics("execution_pending");
             })?;
+        consensus_adapter.check_consensus_overload().tap_err(|_| {
+            self.update_overload_metrics("consensus");
+        })?;
 
-            let pending_tx_count = self
-                .get_cache_commit()
-                .approximate_pending_transaction_count();
-            if pending_tx_count
-                > self
-                    .config
-                    .execution_cache_config
-                    .writeback_cache
-                    .backpressure_threshold_for_rpc()
-            {
-                return Err(IotaError::ValidatorOverloadedRetryAfter {
-                    retry_after_secs: 10,
-                });
-            }
+        let pending_tx_count = self
+            .get_cache_commit()
+            .approximate_pending_transaction_count();
+        if pending_tx_count
+            > self
+                .config
+                .execution_cache_config
+                .writeback_cache
+                .backpressure_threshold_for_rpc()
+        {
+            return Err(IotaError::ValidatorOverloadedRetryAfter {
+                retry_after_secs: 10,
+            });
         }
 
         Ok(())
     }
 
-    /// Rejects `tx_data` via graduated shedding based on consensus queue
-    /// length. Scales from 0% at the soft limit to 100% at
-    /// `max_pending_transactions`. Returns `ValidatorOverloadedRetryAfter`
-    /// for probabilistic rejection (shedding percentage < 100%, via
-    /// `overload_monitor_accept_tx`) or `TooManyTransactionsPendingConsensus`
-    /// for unconditional rejection (shedding percentage >= 100%). Updates
+    /// Takes a P-COOL transaction's [`InflightSlot`] in the consensus queue,
+    /// then runs graduated shedding against
+    /// [`InflightSlot::queue_length_before()`], which also counts admissions
+    /// still in progress, and the permit check of
+    /// [`ConsensusAdapter::check_submit_permits()`]. Returns the slot, to be
+    /// passed to [`ConsensusAdapter::submit_with_slot()`]; on an error, the
+    /// slot is released.
+    ///
+    /// # Errors
+    ///
+    /// [`IotaError::ValidatorOverloadedRetryAfter`] when graduated shedding
+    /// rejects the transaction between the soft and hard limits, and
+    /// [`IotaError::TooManyTransactionsPendingConsensus`] when the queue has
+    /// reached `max_pending_transactions` or `submit_semaphore` has no
+    /// permits left.
+    pub(crate) fn reserve_consensus_queue_slot(
+        &self,
+        consensus_adapter: &Arc<ConsensusAdapter>,
+        tx: &SenderSignedTransaction,
+    ) -> IotaResult<InflightSlot> {
+        let slot = consensus_adapter.reserve_inflight_slot();
+
+        // Graduated shedding: 0% to 100% as the consensus queue fills from the
+        // soft to the hard limit.
+        self.check_consensus_queue_graduated_limits(
+            consensus_adapter,
+            tx,
+            slot.queue_length_before() as usize,
+        )
+        .tap_err(|_| {
+            self.update_overload_metrics("consensus");
+        })?;
+
+        // Graduated shedding at 100% already rejects everything at or above
+        // `max_pending_transactions`, judged by the queue before this slot.
+        // `check_consensus_overload()` would count the queue as it is now,
+        // including slots taken after this one, and reject transactions that
+        // had room, so only the `submit_semaphore` permits are checked: a
+        // separate concurrency limit that graduated shedding does not cover.
+        consensus_adapter.check_submit_permits().tap_err(|_| {
+            self.update_overload_metrics("consensus");
+        })?;
+
+        Ok(slot)
+    }
+
+    /// Rejects `tx` via graduated shedding at `queue_length`, the number of
+    /// other transactions in the consensus queue. Scales from 0% at the soft
+    /// limit to 100% at `max_pending_transactions`. Returns
+    /// [`IotaError::ValidatorOverloadedRetryAfter`] for probabilistic
+    /// rejection (shedding percentage < 100%, via
+    /// [`overload_monitor_accept_tx()`]) or
+    /// [`IotaError::TooManyTransactionsPendingConsensus`] for unconditional
+    /// rejection (shedding percentage >= 100%). Updates the
     /// `consensus_queue_load_shedding_percentage` metric.
     fn check_consensus_queue_graduated_limits(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
         tx: &SenderSignedTransaction,
+        queue_length: usize,
     ) -> IotaResult {
-        let num_inflight_txs = consensus_adapter.num_inflight_transactions() as usize;
-
         let shedding_pct = compute_graduated_load_shedding_percentage(
-            num_inflight_txs,
+            queue_length,
             consensus_adapter.max_pending_transactions(),
             consensus_adapter.graduated_load_shedding_soft_limit_pct(),
         );
@@ -2828,23 +2879,12 @@ impl AuthorityState {
         mut transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
-        if transaction.kind().is_system() {
-            return Err(IotaError::UnsupportedFeature {
-                error: "simulate does not support system transactions".to_string(),
-            });
-        }
-
-        transaction.check_serialized_size(epoch_store.protocol_config())?;
-
-        // Cheap validity checks for a transaction, including input size limits.
-        // This does not check if gas objects are missing since we may create a
-        // mock gas object. It checks for other transaction input validity.
-        transaction.validity_check_no_gas_check(epoch_store.protocol_config())?;
-
-        // The full validity check caps the gas payment size alongside requiring a
-        // gas payment at all, which a simulation relaxes so it can mock one. The cap
-        // still applies, and is cheapest before any object is loaded.
-        transaction.check_gas_payment_size(epoch_store.protocol_config())?;
+        // A missing gas payment is allowed here, since we may create a mock gas
+        // object below.
+        iota_transaction_checks::check_user_transaction_validity(
+            &transaction,
+            epoch_store.protocol_config(),
+        )?;
 
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();
@@ -2893,60 +2933,18 @@ impl AuthorityState {
         // `authenticator_gas_budget` to 0.
         let authenticator_gas_budget = 0;
 
-        // Checks enabled -> DRY-RUN, it means we are simulating a real TX
-        // Checks disabled -> DEV-INSPECT, more relaxed Move VM checks
-        let (gas_status, checked_input_objects) = if checks.enabled() {
-            iota_transaction_checks::check_transaction_input(
-                protocol_config,
-                epoch_store.reference_gas_price(),
-                &transaction,
-                input_objects,
-                &receiving_objects,
-                &self.metrics.bytecode_verifier_metrics,
-                VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
-                authenticator_gas_budget,
-                false,
-            )?
-        } else {
-            // Execution smashes the gas coins and reserves the whole budget from them
-            // before running any command, treating the input checks as having verified
-            // that they are gas coins at all — so with those checks skipped here, this
-            // has to stand in for them. With the checks enabled,
-            // `check_transaction_input` covers it.
-            iota_types::gas::check_gas_coins_cover_budget_in_simulation(
-                &input_objects,
-                transaction.gas(),
-                transaction.gas_budget(),
-            )?;
-
-            let checked_input_objects = iota_transaction_checks::check_simulation_input(
-                protocol_config,
-                transaction.kind(),
-                input_objects,
-                receiving_objects,
-            )?;
-
-            // Execution verifies the packages a transaction publishes with neither a
-            // limit nor a meter, trusting signing to have bounded them — so with the
-            // signing-time checks skipped here, this has to bound them. The node's
-            // own limits reject nothing that signing would accept. With the checks
-            // enabled, `check_transaction_input` covers it.
-            iota_transaction_checks::check_non_system_packages_to_be_published(
-                &transaction,
-                protocol_config,
-                &self.metrics.bytecode_verifier_metrics,
-                VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
-            )?;
-
-            let gas_status = IotaGasStatus::new(
-                transaction.gas_budget(),
-                transaction.gas_price(),
-                epoch_store.reference_gas_price(),
-                protocol_config,
-            )?;
-
-            (gas_status, checked_input_objects)
-        };
+        let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
+            protocol_config,
+            epoch_store.reference_gas_price(),
+            &transaction,
+            input_objects,
+            &receiving_objects,
+            &self.metrics.bytecode_verifier_metrics,
+            VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
+            authenticator_gas_budget,
+            false,
+            InputCheckRules::from(checks),
+        )?;
 
         // Create a new executor for the simulation
         let executor = iota_execution::executor(
@@ -3279,7 +3277,8 @@ impl AuthorityState {
                 traffic_controller_metrics,
             ))
         });
-        let state = Arc::new(AuthorityState {
+        let state = Arc::new_cyclic(|this| AuthorityState {
+            this: this.clone(),
             name,
             secret,
             execution_lock: RwLock::new(epoch),
@@ -6867,6 +6866,7 @@ impl AuthorityState {
                 verifier_limits_source,
                 authenticator_gas_budget,
                 is_execute_transaction_to_effects,
+                InputCheckRules::STRICT,
             )?;
 
         Ok((
@@ -6934,6 +6934,7 @@ impl AuthorityState {
                 verifier_limits_source,
                 authenticator_gas_budget,
                 false,
+                InputCheckRules::STRICT,
             )?;
 
         Ok((tx_checked_input_objects, per_authenticator_checked_inputs))

@@ -6,28 +6,34 @@ use std::{collections::HashSet, time::Duration};
 
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
-use iota_protocol_config::ProtocolConfig;
+use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     CheckpointContents, CheckpointSummary, GasCostSummary, Identifier, ObjectId,
     SharedObjectReference, Transaction,
+    crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
-    base_types::ExecutionDigests,
-    crypto::deterministic_random_account_private_key,
+    base_types::{ExecutionDigests, random_object_ref},
+    crypto::{
+        AuthoritySignature, IotaAuthoritySignature as _, deterministic_random_account_private_key,
+    },
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSignatureMessage,
         CheckpointSummaryExt, SignedCheckpointSummary,
     },
+    messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     object::Object,
+    supported_protocol_versions::SupportedProtocolVersions,
     transaction::{
         CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI,
+        VerifiedTransaction,
     },
     utils::{make_committee_key_num, to_sender_signed_transaction},
 };
 use move_core_types::account_address::AccountAddress;
 use parking_lot::Mutex;
 use rand::{RngExt, SeedableRng, rngs::StdRng};
-use starfish_core::{BlockRef, BlockStatus};
+use starfish_core::BlockStatus;
 use tokio::time::sleep;
 
 use super::*;
@@ -58,51 +64,59 @@ pub fn test_gas_objects() -> Vec<Object> {
     GAS_OBJECTS.with(|v| v.clone())
 }
 
+/// Fixture: one signed transaction per test gas object, each creating an
+/// object through a mutable use of `shared_object`.
+pub fn test_shared_object_transactions(
+    authority: &AuthorityState,
+    shared_object: &Object,
+) -> Vec<VerifiedTransaction> {
+    let epoch_store = authority.load_epoch_store_one_call_per_task();
+    let (sender, sender_key) = deterministic_random_account_private_key();
+    let rgp = epoch_store.reference_gas_price();
+
+    let shared_object_arg = CallArg::Shared(SharedObjectReference::new(
+        shared_object.id(),
+        shared_object.version(),
+        true,
+    ));
+    test_gas_objects()
+        .into_iter()
+        .map(|gas_object| {
+            // Object digest may be different in genesis than originally generated.
+            let gas_object = authority.get_object(&gas_object.id()).unwrap();
+            let tx = Transaction::new_move_call(
+                sender,
+                ObjectId::FRAMEWORK,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("create"),
+                // type_args
+                vec![],
+                gas_object.object_ref(),
+                // args
+                vec![
+                    shared_object_arg.clone(),
+                    CallArg::Pure(16u64.to_le_bytes().to_vec()),
+                    CallArg::pure(&AccountAddress::new(sender.into_bytes())),
+                ],
+                rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+                rgp,
+            )
+            .unwrap();
+            epoch_store
+                .verify_transaction(to_sender_signed_transaction(tx, &sender_key))
+                .unwrap()
+        })
+        .collect()
+}
+
 /// Fixture: a few test certificates containing a shared object.
 pub async fn test_certificates(
     authority: &AuthorityState,
     shared_object: Object,
 ) -> Vec<CertifiedTransaction> {
     let epoch_store = authority.load_epoch_store_one_call_per_task();
-    let (sender, sender_key) = deterministic_random_account_private_key();
-    let rgp = epoch_store.reference_gas_price();
-
     let mut certificates = Vec::new();
-    let shared_object_arg = CallArg::Shared(SharedObjectReference::new(
-        shared_object.id(),
-        shared_object.version(),
-        true,
-    ));
-    for gas_object in test_gas_objects() {
-        // Object digest may be different in genesis than originally generated.
-        let gas_object = authority.get_object(&gas_object.id()).unwrap();
-        // Make a sample transaction.
-        let module = "object_basics";
-        let function = "create";
-
-        let tx = Transaction::new_move_call(
-            sender,
-            ObjectId::FRAMEWORK,
-            Identifier::from_static(module),
-            Identifier::from_static(function),
-            // type_args
-            vec![],
-            gas_object.object_ref(),
-            // args
-            vec![
-                shared_object_arg.clone(),
-                CallArg::Pure(16u64.to_le_bytes().to_vec()),
-                CallArg::pure(&AccountAddress::new(sender.into_bytes())),
-            ],
-            rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-            rgp,
-        )
-        .unwrap();
-
-        let transaction = epoch_store
-            .verify_transaction(to_sender_signed_transaction(tx, &sender_key))
-            .unwrap();
-
+    for transaction in test_shared_object_transactions(authority, &shared_object) {
         // Submit the transaction and assemble a certificate.
         let response = authority
             .handle_transaction(&epoch_store, transaction.clone())
@@ -118,6 +132,39 @@ pub async fn test_certificates(
         certificates.push(certificate);
     }
     certificates
+}
+
+/// Fixture: the transactions of `test_certificates` as consensus messages, as
+/// certificates or as `UserTransactionV1`s, with the digest of each.
+pub async fn test_consensus_transactions(
+    authority: &AuthorityState,
+    shared_object: Object,
+    user_transactions: bool,
+) -> Vec<(ConsensusTransaction, TransactionDigest)> {
+    if user_transactions {
+        test_shared_object_transactions(authority, &shared_object)
+            .into_iter()
+            .map(|transaction| {
+                let digest = *transaction.digest();
+                (
+                    ConsensusTransaction::new_user_transaction(transaction.into()),
+                    digest,
+                )
+            })
+            .collect()
+    } else {
+        test_certificates(authority, shared_object)
+            .await
+            .into_iter()
+            .map(|certificate| {
+                let digest = *certificate.digest();
+                (
+                    ConsensusTransaction::new_certificate_message(&authority.name, certificate),
+                    digest,
+                )
+            })
+            .collect()
+    }
 }
 
 pub fn make_consensus_adapter_for_test(
@@ -145,7 +192,10 @@ pub fn make_consensus_adapter_for_test(
         ) -> IotaResult<BlockStatusReceiver> {
             let sequenced_transactions: Vec<SequencedConsensusTransaction> = transactions
                 .iter()
-                .map(|txn| SequencedConsensusTransaction::new_test(txn.clone()))
+                .map(|txn| SequencedConsensusTransaction {
+                    certificate_author: self.state.name,
+                    ..SequencedConsensusTransaction::new_test(txn.clone())
+                })
                 .collect();
 
             let checkpoint_service = Arc::new(CheckpointServiceNoop {});
@@ -247,8 +297,9 @@ pub fn make_consensus_adapter_for_test(
     ))
 }
 
+#[rstest::rstest]
 #[tokio::test]
-async fn submit_transaction_to_consensus_adapter() {
+async fn submit_transaction_to_consensus_adapter(#[values(false, true)] user_transactions: bool) {
     telemetry_subscribers::init_for_testing();
 
     // Initialize an authority with a (owned) gas object and a shared object; then
@@ -257,7 +308,7 @@ async fn submit_transaction_to_consensus_adapter() {
     let shared_object = Object::shared_for_testing();
     objects.push(shared_object.clone());
     let state = init_state_with_objects(objects).await;
-    let certificate = test_certificates(&state, shared_object)
+    let (transaction, _) = test_consensus_transactions(&state, shared_object, user_transactions)
         .await
         .pop()
         .unwrap();
@@ -266,16 +317,16 @@ async fn submit_transaction_to_consensus_adapter() {
     // Make a new consensus adapter instance.
     let block_status_receivers = vec![
         with_block_status(BlockStatus::GarbageCollected(
-            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            starfish_core::TransactionRef::default(),
         )),
         with_block_status(BlockStatus::GarbageCollected(
-            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            starfish_core::TransactionRef::default(),
         )),
         with_block_status(BlockStatus::GarbageCollected(
-            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            starfish_core::TransactionRef::default(),
         )),
         with_block_status(BlockStatus::Sequenced(
-            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            starfish_core::TransactionRef::default(),
         )),
     ];
     let adapter = make_consensus_adapter_for_test(
@@ -288,7 +339,6 @@ async fn submit_transaction_to_consensus_adapter() {
     // Submit the transaction and ensure the adapter reports success to the caller.
     // Note that consensus may drop some transactions (so we may need to
     // resubmit them).
-    let transaction = ConsensusTransaction::new_certificate_message(&state.name, certificate);
     let waiter = adapter
         .submit(
             transaction.clone(),
@@ -299,8 +349,11 @@ async fn submit_transaction_to_consensus_adapter() {
     waiter.await.unwrap();
 }
 
+#[rstest::rstest]
 #[tokio::test]
-async fn submit_multiple_transactions_to_consensus_adapter() {
+async fn submit_multiple_transactions_to_consensus_adapter(
+    #[values(false, true)] user_transactions: bool,
+) {
     telemetry_subscribers::init_for_testing();
 
     // Initialize an authority with a (owned) gas object and a shared object; then
@@ -309,16 +362,17 @@ async fn submit_multiple_transactions_to_consensus_adapter() {
     let shared_object = Object::shared_for_testing();
     objects.push(shared_object.clone());
     let state = init_state_with_objects(objects).await;
-    let certificates = test_certificates(&state, shared_object).await;
+    let consensus_transactions =
+        test_consensus_transactions(&state, shared_object, user_transactions).await;
     let epoch_store = state.epoch_store_for_testing();
 
     // Mark the first two transactions to be "executed via checkpoint" and the other
     // two to appear via consensus output.
-    assert_eq!(certificates.len(), 4);
+    assert_eq!(consensus_transactions.len(), 4);
 
     let mut process_via_checkpoint = HashSet::new();
-    process_via_checkpoint.insert(*certificates[0].digest());
-    process_via_checkpoint.insert(*certificates[1].digest());
+    process_via_checkpoint.insert(consensus_transactions[0].1);
+    process_via_checkpoint.insert(consensus_transactions[1].1);
 
     // Make a new consensus adapter instance.
     let adapter = make_consensus_adapter_for_test(
@@ -326,16 +380,16 @@ async fn submit_multiple_transactions_to_consensus_adapter() {
         process_via_checkpoint,
         false,
         vec![with_block_status(BlockStatus::Sequenced(
-            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            starfish_core::TransactionRef::default(),
         ))],
     );
 
     // Submit the transaction and ensure the adapter reports success to the caller.
     // Note that consensus may drop some transactions (so we may need to
     // resubmit them).
-    let transactions = certificates
+    let transactions = consensus_transactions
         .into_iter()
-        .map(|certificate| ConsensusTransaction::new_certificate_message(&state.name, certificate))
+        .map(|(transaction, _)| transaction)
         .collect::<Vec<_>>();
 
     let waiter = adapter
@@ -346,6 +400,122 @@ async fn submit_multiple_transactions_to_consensus_adapter() {
         )
         .unwrap();
     waiter.await.unwrap();
+}
+
+/// With no free submit permit, user transactions, `EndOfPublish` and a
+/// forwarded capability notification wait for one, while this validator's own
+/// checkpoint signature is still submitted and processed.
+#[tokio::test]
+async fn only_high_priority_messages_skip_exhausted_submit_semaphore() {
+    let shared_object = Object::shared_for_testing();
+    let mut objects = test_gas_objects();
+    objects.push(shared_object.clone());
+    let state = init_state_with_objects(objects).await;
+    let certificates = test_certificates(&state, shared_object).await;
+    let raw_transactions = certificates
+        .iter()
+        .cloned()
+        .map(|certificate| ConsensusTransaction::new_user_transaction(certificate.into_unsigned()))
+        .collect::<Vec<_>>();
+    let certified_transactions = certificates
+        .into_iter()
+        .map(|certificate| ConsensusTransaction::new_certificate_message(&state.name, certificate))
+        .collect::<Vec<_>>();
+    let epoch_store = state.epoch_store_for_testing();
+    let mut adapter = make_consensus_adapter_for_test(
+        state.clone(),
+        HashSet::new(),
+        false,
+        vec![with_block_status(BlockStatus::Sequenced(
+            starfish_core::TransactionRef::default(),
+        ))],
+    );
+    Arc::get_mut(&mut adapter).unwrap().submit_semaphore = Semaphore::new(0);
+    let assert_waits = |mut waiter: JoinHandle<()>| {
+        let adapter = adapter.clone();
+        async move {
+            assert!(
+                tokio::time::timeout(Duration::from_millis(100), &mut waiter)
+                    .await
+                    .is_err()
+            );
+            assert_eq!(adapter.metrics.sequencing_in_flight_semaphore_wait.get(), 1);
+            waiter.abort();
+            assert!(waiter.await.unwrap_err().is_cancelled());
+        }
+    };
+
+    for transactions in [
+        &certified_transactions[..1],
+        &raw_transactions[..1],
+        &certified_transactions[..2],
+        &raw_transactions[..2],
+    ] {
+        let waiter = adapter
+            .submit_batch(
+                transactions,
+                Some(&epoch_store.get_reconfig_state_read_lock_guard()),
+                &epoch_store,
+            )
+            .unwrap();
+        assert_waits(waiter).await;
+    }
+
+    let capabilities = AuthorityCapabilitiesV1::new(
+        state.name,
+        Chain::Unknown,
+        SupportedProtocolVersions::SYSTEM_DEFAULT,
+        vec![],
+    );
+    let signature = AuthoritySignature::new_secure(
+        &IntentMessage::new(
+            Intent::iota_app(IntentScope::AuthorityCapabilities),
+            &capabilities,
+        ),
+        &epoch_store.epoch(),
+        &*state.secret,
+    );
+    for transaction in [
+        ConsensusTransaction::new_end_of_publish(state.name),
+        ConsensusTransaction::new_signed_capability_notification_v1(
+            SignedAuthorityCapabilitiesV1::new_from_data_and_sig(capabilities, signature),
+        ),
+    ] {
+        assert_waits(adapter.submit(transaction, None, &epoch_store).unwrap()).await;
+    }
+
+    let summary = CheckpointSummary::new_with_protocol_config(
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        epoch_store.epoch(),
+        0,
+        10,
+        &CheckpointContents::new_with_digests_only_for_tests([ExecutionDigests::random()]),
+        None,
+        GasCostSummary::default(),
+        None,
+        100,
+        Vec::new(),
+        Vec::new(),
+        Default::default(),
+    );
+    let transaction =
+        ConsensusTransaction::new_checkpoint_signature_message(CheckpointSignatureMessage {
+            summary: SignedCheckpointSummary::new(
+                epoch_store.epoch(),
+                summary,
+                &*state.secret,
+                state.name,
+            ),
+        });
+    let key = SequencedConsensusTransactionKey::External(transaction.key());
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        adapter.submit(transaction, None, &epoch_store).unwrap(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(epoch_store.is_consensus_message_processed(&key).unwrap());
 }
 
 #[sim_test]
@@ -365,7 +535,7 @@ async fn submit_checkpoint_signature_to_consensus_adapter() {
         HashSet::new(),
         false,
         vec![with_block_status(BlockStatus::Sequenced(
-            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            starfish_core::TransactionRef::default(),
         ))],
     );
 
@@ -473,7 +643,7 @@ async fn submit_checkpoint_signature_to_consensus_adapter() {
 /// are submitted instead of one.
 #[tokio::test]
 async fn submit_recovered_end_of_publish_crash_recovery() {
-    use starfish_core::{BlockRef, BlockStatus};
+    use starfish_core::BlockStatus;
     use tokio::sync::Notify;
 
     use crate::mock_consensus::with_block_status;
@@ -500,7 +670,7 @@ async fn submit_recovered_end_of_publish_crash_recovery() {
             self.notify.notify_one();
 
             Ok(with_block_status(BlockStatus::Sequenced(
-                starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+                starfish_core::TransactionRef::default(),
             )))
         }
     }
@@ -666,4 +836,301 @@ async fn submit_recovered_end_of_publish_crash_recovery() {
                 if it was already in DB, got {end_of_publish_count} EndOfPublish"
         );
     }
+}
+
+/// Builds a capability notification from `authority` that lists
+/// `num_system_packages` system packages, so that its size grows with that
+/// number.
+fn make_capability_notification(
+    authority: AuthorityName,
+    num_system_packages: usize,
+) -> ConsensusTransaction {
+    ConsensusTransaction::new_capability_notification_v1(AuthorityCapabilitiesV1::new(
+        authority,
+        Chain::Unknown,
+        SupportedProtocolVersions::SYSTEM_DEFAULT,
+        vec![random_object_ref(); num_system_packages],
+    ))
+}
+
+/// Builds a capability notification from `authority` larger than
+/// [`ProtocolConfig::max_transaction_size_bytes()`].
+fn make_oversized_capability_notification(
+    authority: AuthorityName,
+    protocol_config: &ProtocolConfig,
+) -> ConsensusTransaction {
+    let max_size = protocol_config.max_transaction_size_bytes();
+    // An object reference takes more than 64 bytes.
+    let transaction = make_capability_notification(authority, (max_size / 64) as usize);
+    assert!(bcs::serialized_size(&transaction).unwrap() as u64 > max_size);
+
+    transaction
+}
+
+/// Returns whether `result` is the error for a submission larger than
+/// consensus accepts.
+fn is_size_limit_exceeded<T>(result: &IotaResult<T>) -> bool {
+    matches!(
+        result,
+        Err(IotaError::UserInput {
+            error: UserInputError::SizeLimitExceeded { .. }
+        })
+    )
+}
+
+/// A consensus client that records every submission, then reports it as
+/// sequenced or, with `refuses_as_too_large` set, returns the error the
+/// Starfish client reports for an oversized submission.
+struct RecordingConsensusClient {
+    refuses_as_too_large: bool,
+    submitted: Arc<Mutex<Vec<ConsensusTransaction>>>,
+    notify: Arc<tokio::sync::Notify>,
+}
+
+impl RecordingConsensusClient {
+    fn new(refuses_as_too_large: bool) -> Self {
+        Self {
+            refuses_as_too_large,
+            submitted: Arc::new(Mutex::new(vec![])),
+            notify: Arc::new(tokio::sync::Notify::new()),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ConsensusClient for RecordingConsensusClient {
+    async fn submit(
+        &self,
+        transactions: &[ConsensusTransaction],
+        _epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> IotaResult<BlockStatusReceiver> {
+        self.submitted.lock().extend_from_slice(transactions);
+        self.notify.notify_one();
+        fp_ensure!(
+            !self.refuses_as_too_large,
+            IotaError::UserInput {
+                error: UserInputError::SizeLimitExceeded {
+                    limit: "serialized consensus transaction size exceeded maximum of 0"
+                        .to_string(),
+                    value: "1".to_string(),
+                }
+            }
+        );
+
+        Ok(with_block_status(BlockStatus::Sequenced(
+            starfish_core::TransactionRef::default(),
+        )))
+    }
+}
+
+/// Builds a consensus adapter for `state` over `consensus_client`, with
+/// `submit_permits` submit permits.
+fn make_consensus_adapter_with_client(
+    state: &AuthorityState,
+    consensus_client: Arc<dyn ConsensusClient>,
+    submit_permits: usize,
+) -> Arc<ConsensusAdapter> {
+    Arc::new(ConsensusAdapter::new(
+        consensus_client,
+        state.checkpoint_store.clone(),
+        state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        submit_permits,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        50,
+    ))
+}
+
+/// A submission fits only within every limit Starfish applies: the size of
+/// each transaction, and the count and the bytes of one block.
+#[test]
+fn consensus_transactions_fit_only_within_the_starfish_limits() {
+    let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+    let authority = AuthorityName::ZERO;
+
+    let small = ConsensusTransaction::new_end_of_publish(authority);
+    check_consensus_transactions_fit(std::slice::from_ref(&small), &protocol_config)
+        .expect("a small transaction should fit");
+
+    let oversized = make_oversized_capability_notification(authority, &protocol_config);
+    assert!(
+        is_size_limit_exceeded(&check_consensus_transactions_fit(
+            std::slice::from_ref(&oversized),
+            &protocol_config
+        )),
+        "a transaction over the size limit should not fit"
+    );
+
+    let too_many = vec![small; protocol_config.max_num_transactions_in_block() as usize + 1];
+    assert!(
+        is_size_limit_exceeded(&check_consensus_transactions_fit(
+            &too_many,
+            &protocol_config
+        )),
+        "more transactions than a block holds should not fit"
+    );
+
+    // Each one within the size limit, all of them over the bytes of a block.
+    let max_size = protocol_config.max_transaction_size_bytes();
+    let half_size = make_capability_notification(authority, (max_size / 2 / 80) as usize);
+    let half_size_bytes = bcs::serialized_size(&half_size).unwrap() as u64;
+    assert!(half_size_bytes <= max_size);
+    let copies = protocol_config.max_transactions_in_block_bytes() / half_size_bytes + 1;
+    assert!(copies <= protocol_config.max_num_transactions_in_block());
+    let too_large_together = vec![half_size; copies as usize];
+    assert!(
+        is_size_limit_exceeded(&check_consensus_transactions_fit(
+            &too_large_together,
+            &protocol_config
+        )),
+        "transactions over the bytes of a block together should not fit"
+    );
+}
+
+/// A submission exactly at a limit fits, as in Starfish, which refuses only
+/// what is over a limit.
+#[test]
+fn consensus_transactions_fit_exactly_at_the_starfish_limits() {
+    let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+    let small = ConsensusTransaction::new_end_of_publish(AuthorityName::ZERO);
+
+    let max_count = protocol_config.max_num_transactions_in_block() as usize;
+    check_consensus_transactions_fit(&vec![small.clone(); max_count], &protocol_config)
+        .expect("as many transactions as a block holds should fit");
+
+    let size = bcs::serialized_size(&small).unwrap() as u64;
+    protocol_config.set_consensus_max_transaction_size_bytes_for_testing(size);
+    check_consensus_transactions_fit(std::slice::from_ref(&small), &protocol_config)
+        .expect("a transaction of exactly the size limit should fit");
+
+    protocol_config.set_consensus_max_transaction_size_bytes_for_testing(size - 1);
+    assert!(
+        is_size_limit_exceeded(&check_consensus_transactions_fit(
+            std::slice::from_ref(&small),
+            &protocol_config
+        )),
+        "a transaction one byte over the size limit should not fit"
+    );
+}
+
+/// [`ConsensusAdapter::submit()`] refuses a transaction larger than consensus
+/// accepts: it is neither stored nor handed to consensus, and takes no submit
+/// permit.
+#[tokio::test]
+async fn submit_refuses_a_transaction_larger_than_consensus_accepts() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let mut consensus_client = MockConsensusClient::new();
+    consensus_client.expect_submit().never();
+    let adapter = make_consensus_adapter_with_client(&state, Arc::new(consensus_client), 1);
+    let oversized =
+        make_oversized_capability_notification(state.name, epoch_store.protocol_config());
+
+    let result = adapter.submit(oversized.clone(), None, &epoch_store);
+
+    assert!(
+        is_size_limit_exceeded(&result),
+        "an oversized transaction should be refused"
+    );
+    assert!(
+        epoch_store
+            .get_all_pending_consensus_transactions()
+            .iter()
+            .all(|transaction| transaction.key() != oversized.key()),
+        "a refused transaction must not be stored for submission"
+    );
+    assert_eq!(adapter.num_inflight_transactions(), 0);
+    adapter
+        .check_consensus_overload()
+        .expect("a refused transaction must hold no submit permit");
+}
+
+/// [`ConsensusAdapter::submit_recovered()`] removes stored transactions larger
+/// than consensus accepts instead of submitting them, and still submits the
+/// others. Only a build that did not check sizes could have stored them.
+#[tokio::test]
+async fn submit_recovered_drops_stored_transactions_larger_than_consensus_accepts() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let oversized =
+        make_oversized_capability_notification(state.name, epoch_store.protocol_config());
+    let end_of_publish = ConsensusTransaction::new_end_of_publish(state.name);
+    epoch_store
+        .insert_pending_consensus_transactions(std::slice::from_ref(&oversized), None)
+        .unwrap();
+    epoch_store
+        .insert_pending_consensus_transactions(&[end_of_publish], None)
+        .unwrap();
+    let consensus_client = RecordingConsensusClient::new(false);
+    let submitted = consensus_client.submitted.clone();
+    let notify = consensus_client.notify.clone();
+    let adapter = make_consensus_adapter_with_client(&state, Arc::new(consensus_client), 1);
+
+    adapter.submit_recovered(&epoch_store);
+
+    assert!(
+        epoch_store
+            .get_all_pending_consensus_transactions()
+            .iter()
+            .all(|transaction| transaction.key() != oversized.key()),
+        "the oversized transaction should be removed from the pending table"
+    );
+    tokio::time::timeout(Duration::from_secs(5), notify.notified())
+        .await
+        .expect("the stored EndOfPublish should still be submitted");
+    let submitted = submitted.lock();
+    assert!(
+        submitted
+            .iter()
+            .any(ConsensusTransaction::is_end_of_publish)
+    );
+    assert!(
+        submitted
+            .iter()
+            .all(|transaction| transaction.key() != oversized.key()),
+        "the oversized transaction must not be submitted"
+    );
+}
+
+/// When consensus refuses a submission as larger than it accepts, the task
+/// submitting it stops instead of retrying: it removes the transaction from
+/// the pending table and frees its submit permit.
+#[tokio::test]
+async fn a_submission_consensus_refuses_as_too_large_is_not_retried() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    // The client refuses even a small transaction, as consensus would if its
+    // limits were lower than those the adapter checks.
+    let consensus_client = RecordingConsensusClient::new(true);
+    let submitted = consensus_client.submitted.clone();
+    let adapter = make_consensus_adapter_with_client(&state, Arc::new(consensus_client), 1);
+    let end_of_publish = ConsensusTransaction::new_end_of_publish(state.name);
+
+    let task = adapter
+        .submit(end_of_publish.clone(), None, &epoch_store)
+        .expect("a small transaction should be accepted for submission");
+    tokio::time::timeout(Duration::from_secs(5), task)
+        .await
+        .expect("the submission task should stop after the refusal")
+        .expect("the submission task should not panic");
+
+    assert_eq!(
+        submitted.lock().len(),
+        1,
+        "a refused submission must not be retried"
+    );
+    assert!(
+        epoch_store
+            .get_all_pending_consensus_transactions()
+            .iter()
+            .all(|transaction| transaction.key() != end_of_publish.key()),
+        "a refused transaction should be removed from the pending table"
+    );
+    assert_eq!(adapter.num_inflight_transactions(), 0);
+    adapter
+        .check_consensus_overload()
+        .expect("the submit permit should be free again");
 }

@@ -5,7 +5,12 @@
 //! and the store handles, and takes each input through its read steps, from
 //! the first read to a result.
 
-use std::{cell::RefCell, collections::BTreeSet, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::{BTreeSet, HashMap},
+    hash::Hash,
+    sync::Arc,
+};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, Version};
@@ -22,6 +27,8 @@ use iota_types::{
         error::{Error as StorageError, Result as StorageResult},
     },
 };
+use once_cell::sync::OnceCell;
+use parking_lot::Mutex;
 
 use super::{
     AccountVerdict, DropKind, DropReason, DynamicFieldAtHorizon, KeptObject, MissingKind,
@@ -53,12 +60,39 @@ pub fn horizon(protocol_config: &ProtocolConfig, commit_index: CommitIndex) -> C
 }
 
 /// Reads inputs as of one consensus commit. Built once per commit and passed
-/// to every transition that touches a store.
+/// to every transition that touches a store. A shared or package input read
+/// a second time at the commit gets the first read's verdict.
 pub struct CommitIndexedReader {
     pub(super) cache: Arc<dyn ObjectCacheRead>,
     pub(super) epoch_store: Arc<AuthorityPerEpochStore>,
     /// The horizon, `C - K`.
     horizon: CommitIndex,
+    shared_verdicts: Verdicts<(ObjectId, Version), SharedVerdict>,
+    package_verdicts: Verdicts<ObjectId, PackageVerdict>,
+}
+
+/// The verdict of each input read so far at a commit. One caller reads an
+/// input and every other caller of it, on any thread, waits for that read
+/// and gets its verdict. A read that fails is not kept, so a later caller
+/// reads again.
+struct Verdicts<K, V>(Mutex<HashMap<K, Arc<OnceCell<V>>>>);
+
+impl<K: Eq + Hash, V: Clone> Verdicts<K, V> {
+    fn new() -> Self {
+        Self(Mutex::new(HashMap::new()))
+    }
+
+    /// The verdict of `key`, from `read` when no caller has read it yet, and
+    /// whether this call got it without reading.
+    fn get_or_read(&self, key: K, read: impl FnOnce() -> IotaResult<V>) -> IotaResult<(V, bool)> {
+        let verdict = self.0.lock().entry(key).or_default().clone();
+        let mut reused = true;
+        let verdict = verdict.get_or_try_init(|| {
+            reused = false;
+            read()
+        })?;
+        Ok((verdict.clone(), reused))
+    }
 }
 
 impl CommitIndexedReader {
@@ -72,6 +106,8 @@ impl CommitIndexedReader {
             cache,
             epoch_store,
             horizon,
+            shared_verdicts: Verdicts::new(),
+            package_verdicts: Verdicts::new(),
         }
     }
 
@@ -136,8 +172,29 @@ impl CommitIndexedReader {
     /// read. A drop is checked against the lowest row of `id`, so that a
     /// validator that executed the creation of `id` above the horizon answers
     /// as one that did not. A storage error is returned as `Err`, never as a
-    /// result.
+    /// result. The same input read again at this commit gets the same
+    /// verdict without another read.
     pub fn read_shared(
+        &self,
+        id: ObjectId,
+        initial_shared_version: Version,
+    ) -> IotaResult<SharedVerdict> {
+        let (verdict, reused) = self
+            .shared_verdicts
+            .get_or_read((id, initial_shared_version), || {
+                self.read_shared_once(id, initial_shared_version)
+            })?;
+        if reused {
+            self.epoch_store
+                .metrics
+                .consensus_handler_validation_reader_reused_verdicts
+                .with_label_values(&["shared"])
+                .inc();
+        }
+        Ok(verdict)
+    }
+
+    fn read_shared_once(
         &self,
         id: ObjectId,
         initial_shared_version: Version,
@@ -219,8 +276,23 @@ impl CommitIndexedReader {
     /// store is read first, because a package input names no version, then
     /// the row. The package module doc explains the order. A storage error is
     /// returned as `Err`, never as a result, and so is an id that names a Move
-    /// object (`UserInputError::MoveObjectAsPackage`).
+    /// object (`UserInputError::MoveObjectAsPackage`). The same package read
+    /// again at this commit gets the same verdict without another read.
     pub fn read_package(&self, id: ObjectId) -> IotaResult<PackageVerdict> {
+        let (verdict, reused) = self
+            .package_verdicts
+            .get_or_read(id, || self.read_package_once(id))?;
+        if reused {
+            self.epoch_store
+                .metrics
+                .consensus_handler_validation_reader_reused_verdicts
+                .with_label_values(&["package"])
+                .inc();
+        }
+        Ok(verdict)
+    }
+
+    fn read_package_once(&self, id: ObjectId) -> IotaResult<PackageVerdict> {
         let loaded = match PackageReader::start(id, self.horizon).read_package(self)? {
             PackageLookup::Loaded(loaded) => loaded,
             PackageLookup::Missing(reason) => return Ok(PackageVerdict::Missing(reason)),
@@ -442,5 +514,33 @@ impl BackingPackageStore for CommitIndexedReader {
             PackageVerdict::Visible(package) => Some(package),
             PackageVerdict::Missing(_) => None,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+
+    use super::*;
+
+    /// A read that fails is not kept, so the next caller reads again. A read
+    /// that succeeds is the last one for its input.
+    #[test]
+    fn a_failed_read_is_read_again_and_a_verdict_is_read_once() {
+        let verdicts = Verdicts::<u8, u8>::new();
+        let reads = Cell::new(0);
+        let read = |result: IotaResult<u8>| {
+            verdicts.get_or_read(7, || {
+                reads.set(reads.get() + 1);
+                result
+            })
+        };
+
+        assert!(read(Err(IotaError::Storage("failed".to_string()))).is_err());
+        assert_eq!(reads.get(), 1);
+        assert_eq!(read(Ok(3)).unwrap(), (3, false));
+        assert_eq!(reads.get(), 2);
+        assert_eq!(read(Ok(9)).unwrap(), (3, true));
+        assert_eq!(reads.get(), 2);
     }
 }

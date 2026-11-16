@@ -625,7 +625,7 @@ pub(crate) async fn backfill_checkpoint_summaries(
     // Open the stopped node's existing stores in place. The committee store
     // already holds the genesis committee (from restore/sync), so it is opened
     // without re-supplying one.
-    db_tool::ensure_migrated(&node_db_path.join("store"))?;
+    AuthorityPerpetualTables::ensure_per_epoch_layout(&node_db_path.join("store"))?;
     let (perpetual_db, historic_objects, historic_ledger, epoch_markers) =
         AuthorityPerpetualTables::open_with_historic_objects(
             &node_db_path.join("store"),

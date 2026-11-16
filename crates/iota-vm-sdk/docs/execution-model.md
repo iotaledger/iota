@@ -19,7 +19,9 @@ does not cap the budget there.
 | Post-consensus cert exec (no authenticators)   | `check_certificate_input`                        | `0`            | `true`           | **full tx budget**               | `execute_transaction_to_effects`                   | body only                                                                                                 |
 
 The gas-coin **balance** is always checked against the full transaction budget,
-in every phase.
+in every phase. Every phase applies `InputCheckRules::STRICT`: `check_transaction_input`
+takes it as an argument and the two certificate functions apply it themselves;
+only a dev inspect relaxes any check.
 
 ## SDK modes
 
@@ -28,7 +30,7 @@ effects are committed:
 
 | Mode         | Input check                                                                         | Gas price                                   | Gas budget                                                    | Mock gas coin if none supplied? | Commits to store? |
 | ------------ | ----------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------- | ------------------------------- | ----------------- |
-| `DevInspect` | the same relaxed checks as the node's dev-inspect                                   | declared, or the reference gas price if `0` | declared, or the coins' balance capped at `max_tx_gas` if `0` | yes                             | no                |
+| `DevInspect` | `check_transaction_input` with `InputCheckRules::RELAXED_UNSAFE`                    | declared, or the reference gas price if `0` | declared, or the coins' balance capped at `max_tx_gas` if `0` | yes                             | no                |
 | `DryRun`     | `check_transaction_input` (authenticator budget `0` → meters at the full tx budget) | declared, or the reference gas price if `0` | declared, or the coins' balance capped at `max_tx_gas` if `0` | yes                             | no                |
 | `Execute`    | `check_transaction_input` (authenticator budget `0` → meters at the full tx budget) | declared                                    | declared                                                      | no — requires real gas          | yes, on success   |
 
@@ -40,11 +42,12 @@ effects, so it holds a transaction to its own declared gas the way a validator
 would.
 
 Whatever the budget resolves to, the gas coins have to cover it — the engine
-smashes the whole budget off them before running any command. `DryRun` gets that
-check from `check_transaction_input`; `DevInspect` skips that check and so
-carries its own, rejecting an under-funded coin with `GasBalanceTooLow` rather
-than letting the engine hit an invariant violation. A zero budget is capped at
-what the coins hold, so estimating does not require holding `max_tx_gas` — but
+smashes the whole budget off them before running any command. Every mode gets
+that check from `check_transaction_input`, which rejects an under-funded coin
+with `GasBalanceTooLow`; `RELAXED_UNSAFE` drops the bounds on the budget itself,
+not the balance check. A zero budget is capped at
+what the coins hold, and never falls below the minimum a transaction may
+declare, so estimating does not require holding `max_tx_gas` — but
 the budget is still held back for the whole programmable transaction, so a
 transaction that also pays out of its gas coin has to declare a budget leaving
 room for that.
@@ -63,16 +66,10 @@ differ only in the mock-gas rule and whether effects are committed.
 
 ### Authenticator outcome
 
-The authenticator path runs the authenticators and body together to effects. On
-failure the cause is ambiguous, so:
-
-- Failure in a command **after** the authenticators' fake command 0 → a body
-  abort, never a rejection. The authenticators passed; no re-run.
-- Failure in command 0 or unattributed → re-run the authenticators alone (via
-  `authenticate_transaction`) to tell a rejection from a body abort. The re-run
-  meters at the same budget the combined run used (the full tx budget outside
-  `DevInspect`, matching post-consensus), so it never reports a rejection for a
-  run the combined execution had enough gas for.
+The authenticator path runs the authenticators and body together to effects.
+The engine returns the authentication error separately from the effects: an
+authenticator rejection is `SignatureStatus::Failed`, a body abort stays
+`Verified`.
 
 A protocol version that predates Move authentication (no `max_auth_gas`) is
 rejected up front with `UnsupportedProtocolVersion` rather than reaching the

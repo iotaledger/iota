@@ -1387,7 +1387,6 @@ mod tests {
         let commit_index = 1;
 
         let last_commit = TrustedCommit::new_for_test(
-            &context,
             commit_index,
             CommitDigest::MIN,
             context.clock.timestamp_utc_ms(),
