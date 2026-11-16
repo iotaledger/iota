@@ -35,6 +35,15 @@ pub trait TransactionExecutor: Send + Sync {
         checks: VmChecks,
     ) -> Result<SimulateTransactionResult, IotaError>;
 
+    /// Takes a permit to run one simulation; hold the returned value for the
+    /// whole simulation. `None` when the executor already runs as many
+    /// simulations as it allows, in which case the caller refuses the
+    /// simulation. Executors that do not limit simulations always return a
+    /// value.
+    fn try_acquire_simulation_permit(&self) -> Option<Box<dyn Send + Sync>> {
+        Some(Box::new(()))
+    }
+
     /// Wait until the given transactions are in a checkpoint and the RPC
     /// indexes include that checkpoint.
     ///
