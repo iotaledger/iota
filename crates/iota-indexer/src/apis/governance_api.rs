@@ -44,14 +44,16 @@ pub struct GovernanceReadApi {
     inner: IndexerReader,
     exchange_rates_cache: Arc<Mutex<SizedCache<EpochId, Vec<ValidatorExchangeRates>>>>,
     validators_apys_cache: Arc<Mutex<SizedCache<EpochId, BTreeMap<Address, f64>>>>,
+    max_query_staked_objects: usize,
 }
 
 impl GovernanceReadApi {
-    pub fn new(inner: IndexerReader) -> Self {
+    pub fn new(inner: IndexerReader, max_query_staked_objects: usize) -> Self {
         Self {
             inner,
             exchange_rates_cache: Arc::new(Mutex::new(SizedCache::with_size(1))),
             validators_apys_cache: Arc::new(Mutex::new(SizedCache::with_size(1))),
+            max_query_staked_objects,
         }
     }
 
