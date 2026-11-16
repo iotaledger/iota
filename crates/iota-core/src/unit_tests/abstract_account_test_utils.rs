@@ -16,8 +16,8 @@ use iota_move_build::BuildConfig;
 use iota_sdk_crypto::{Signer, ed25519::Ed25519PrivateKey};
 use iota_sdk_types::{
     Address, Argument, Ed25519Signature, Identifier, MoveAuthenticator, MoveAuthenticatorV1,
-    ObjectId, ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, Transaction,
-    TransactionEffects, TypeTag, UserSignature,
+    ObjectId, ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, StructTag,
+    Transaction, TransactionEffects, TypeTag, UserSignature,
 };
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
@@ -589,5 +589,71 @@ impl AbstractAccountTestEnv {
             "rotating the authenticator function must succeed, got {:?}",
             effects.status()
         );
+    }
+
+    /// Freezes one of the account's coins, paying with another, and returns
+    /// the coin's reference from before the freeze, when the account owned it,
+    /// and from after, when it is immutable.
+    pub async fn freeze_account_coin(&mut self) -> (ObjectReference, ObjectReference) {
+        let coin = self.take_account_gas();
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let coin_arg = builder.obj(CallArg::ImmutableOrOwned(coin)).unwrap();
+            builder.programmable_move_call(
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                Identifier::from_static("transfer"),
+                Identifier::from_static("public_freeze_object"),
+                vec![StructTag::new_gas_coin().into()],
+                vec![coin_arg],
+            );
+
+            builder.finish()
+        };
+        let current_key = self.owner_key.clone();
+        let tx = self.sign_with_move_authenticator(pt, &current_key);
+        let effects = self.submit(tx, None).await;
+        assert!(
+            effects.status().is_success(),
+            "freezing the coin must succeed, got {:?}",
+            effects.status()
+        );
+        let frozen = self
+            .authority
+            .get_object(&coin.object_id)
+            .unwrap()
+            .object_ref();
+
+        (coin, frozen)
+    }
+
+    /// A transaction sent by the account that pays with `gas`, and whose
+    /// authenticator takes `authenticator_input` as one more argument after the
+    /// signature.
+    pub fn account_transaction_with_authenticator_input(
+        &mut self,
+        gas: ObjectReference,
+        authenticator_input: ObjectReference,
+    ) -> TransactionEnvelope {
+        let pt = self.add_field_transaction();
+        let tx_data = Transaction::new_programmable(
+            self.account_address,
+            vec![gas],
+            pt,
+            self.budget(),
+            self.rgp(),
+        );
+        let signature: Ed25519Signature = self.owner_key.sign(tx_data.digest().bytes());
+        let signature_arg = CallArg::Pure(bcs::to_bytes(&Hex::encode(signature.bytes())).unwrap());
+        let authenticator =
+            UserSignature::MoveAuthenticator(MoveAuthenticator::V1(MoveAuthenticatorV1::new(
+                vec![
+                    signature_arg,
+                    CallArg::ImmutableOrOwned(authenticator_input),
+                ],
+                vec![],
+                self.account,
+            )));
+
+        TransactionEnvelope::from_user_sig_data(tx_data, vec![authenticator])
     }
 }

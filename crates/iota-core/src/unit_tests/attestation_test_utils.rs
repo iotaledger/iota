@@ -11,6 +11,7 @@ use std::{collections::HashMap, sync::Arc};
 use iota_sdk_types::{ObjectReference, TransactionDigest, TransactionEffects};
 use iota_types::{
     attestation::{Attestation, AttestationData, AttestationRecord, AttestedTransaction},
+    error::IotaResult,
     messages_consensus::ConsensusTransaction,
     transaction::TransactionEnvelope,
 };
@@ -35,21 +36,30 @@ impl AbstractAccountTestEnv {
     /// Runs the attestor's own dry-run, which is how a genuine attestation is
     /// produced. Only succeeds while authentication still passes.
     pub fn attest(&self, tx: &TransactionEnvelope) -> Attestation {
-        let epoch_store = self.authority.epoch_store_for_testing();
-        let verified = epoch_store.verify_transaction(tx.clone()).unwrap();
         let (payload, _) = self
-            .authority
-            .attest_transaction(
-                &verified,
-                &epoch_store,
-                &self.authority.config.transaction_deny_config,
-                |_| Ok(()),
-            )
+            .try_attest(tx)
             .expect("attesting must succeed while authentication passes");
         Attestation::Authority {
             payload,
             authority_index: authority_index(),
         }
+    }
+
+    /// Runs the attestor's own dry run and returns its result, a refusal
+    /// included.
+    pub fn try_attest(
+        &self,
+        tx: &TransactionEnvelope,
+    ) -> IotaResult<(AttestationData, Vec<ObjectReference>)> {
+        let epoch_store = self.authority.epoch_store_for_testing();
+        let verified = epoch_store.verify_transaction(tx.clone()).unwrap();
+
+        self.authority.attest_transaction(
+            &verified,
+            &epoch_store,
+            &self.authority.config.transaction_deny_config,
+            |_| Ok(()),
+        )
     }
 
     /// An attestation vouching for the transaction at the given versions, as a
