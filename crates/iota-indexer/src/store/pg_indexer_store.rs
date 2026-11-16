@@ -1115,7 +1115,7 @@ impl PgIndexerStore {
                     let elapsed = guard.stop_and_record();
                     info!(
                         elapsed,
-                        "Advanced epoch partition {} for table {}", last_partition, table
+                        "Advanced epoch partition {last_partition} for table {table}"
                     );
                 }
             } else {
