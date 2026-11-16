@@ -176,7 +176,7 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::Recover => true,
             ReasonToCreateBlock::QuorumSubscribersExist => true,
             ReasonToCreateBlock::KnownLastBlock => true,
-            ReasonToCreateBlock::FastSyncComplete => true,
+            ReasonToCreateBlock::FastSyncComplete => false,
         }
     }
 }
