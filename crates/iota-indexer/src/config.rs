@@ -117,7 +117,7 @@ pub struct JsonRpcConfig {
     /// by iotax_getStakes and iotax_getTimelockedStakes.
     #[arg(
         long,
-        default_value_t = 2000,
+        default_value_t = 1000,
         env = "MAX_QUERY_STAKED_OBJECTS",
         help = "Maximum number of StakedIota / TimelockedStakedIota objects returned by iotax_getStakes and iotax_getTimelockedStakes"
     )]
