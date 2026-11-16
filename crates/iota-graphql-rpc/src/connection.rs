@@ -5,14 +5,37 @@
 use std::{borrow::Cow, marker::PhantomData};
 
 use async_graphql::{
-    Object, ObjectType, OutputType, TypeName,
+    Object, ObjectType, OutputType, SimpleObject, TypeName,
     connection::{
         ConnectionNameType, CursorType, DefaultConnectionName, DefaultEdgeName, Edge, EdgeNameType,
         EmptyFields, EnableNodesField, NodesFieldSwitcherSealed, PageInfo,
     },
 };
+use iota_indexer::pruning::oldest_available_checkpoint::OldestAvailableCheckpoint;
 
 use crate::types::uint53::UInt53;
+
+/// The `oldestAvailableCheckpoint` field, to be added to a connection as its
+/// additional fields.
+#[derive(SimpleObject, Default)]
+pub(crate) struct OldestAvailableCheckpointField {
+    /// The oldest checkpoint this page can contain data from. Anything before
+    /// it has been pruned and is not listed. Zero when nothing has been
+    /// pruned, or when the historical fallback serves the whole history. Null
+    /// when no bound applies to the page, such as a lookup by digest, or a
+    /// page whose filters contradict each other.
+    pub oldest_available_checkpoint: Option<UInt53>,
+}
+
+impl From<OldestAvailableCheckpoint> for OldestAvailableCheckpointField {
+    fn from(oldest_available_checkpoint: OldestAvailableCheckpoint) -> Self {
+        Self {
+            oldest_available_checkpoint: Some(UInt53::new_unchecked(u64::from(
+                oldest_available_checkpoint,
+            ))),
+        }
+    }
+}
 
 /// Mirrors the `Connection` type from async-graphql, with the exception that if
 /// `start_cursor` and/ or `end_cursor` is set on the struct, then when
@@ -26,6 +49,7 @@ use crate::types::uint53::UInt53;
 pub(crate) struct ScanConnection<
     Cursor,
     Node,
+    ConnectionFields = EmptyFields,
     EdgeFields = EmptyFields,
     Name = DefaultConnectionName,
     EdgeName = DefaultEdgeName,
@@ -33,6 +57,7 @@ pub(crate) struct ScanConnection<
 > where
     Cursor: CursorType + Send + Sync,
     Node: OutputType,
+    ConnectionFields: ObjectType,
     EdgeFields: ObjectType,
     Name: ConnectionNameType,
     EdgeName: EdgeNameType,
@@ -46,17 +71,17 @@ pub(crate) struct ScanConnection<
     pub has_next_page: bool,
     pub start_cursor: Option<String>,
     pub end_cursor: Option<String>,
-    /// The oldest checkpoint the page can contain data from, when the query
-    /// reads historical data.
-    pub oldest_available_checkpoint: Option<u64>,
+    /// Additional fields, flattened into the connection.
+    pub additional_fields: ConnectionFields,
 }
 
 #[Object(name_type)]
-impl<Cursor, Node, EdgeFields, Name, EdgeName>
-    ScanConnection<Cursor, Node, EdgeFields, Name, EdgeName, EnableNodesField>
+impl<Cursor, Node, ConnectionFields, EdgeFields, Name, EdgeName>
+    ScanConnection<Cursor, Node, ConnectionFields, EdgeFields, Name, EdgeName, EnableNodesField>
 where
     Cursor: CursorType + Send + Sync,
     Node: OutputType,
+    ConnectionFields: ObjectType,
     EdgeFields: ObjectType,
     Name: ConnectionNameType,
     EdgeName: EdgeNameType,
@@ -90,27 +115,25 @@ where
         self.edges.iter().map(|e| &e.node).collect()
     }
 
-    /// The oldest checkpoint this page can contain data from. Anything before
-    /// it has been pruned and is not listed. Zero when nothing has been
-    /// pruned, or when the historical fallback serves the whole history. Null
-    /// for `multiGetTransactionBlocks`, and for a nested `transactionBlocks`
-    /// whose filter contradicts its parent's.
-    async fn oldest_available_checkpoint(&self) -> Option<UInt53> {
-        self.oldest_available_checkpoint.map(UInt53::new_unchecked)
+    #[graphql(flatten)]
+    #[inline]
+    async fn additional_fields(&self) -> &ConnectionFields {
+        &self.additional_fields
     }
 }
 
-impl<Cursor, Node, NodesField, EdgeFields, Name, EdgeName>
-    ScanConnection<Cursor, Node, EdgeFields, Name, EdgeName, NodesField>
+impl<Cursor, Node, NodesField, ConnectionFields, EdgeFields, Name, EdgeName>
+    ScanConnection<Cursor, Node, ConnectionFields, EdgeFields, Name, EdgeName, NodesField>
 where
     Cursor: CursorType + Send + Sync,
     Node: OutputType,
+    ConnectionFields: ObjectType + Default,
     EdgeFields: ObjectType,
     Name: ConnectionNameType,
     EdgeName: EdgeNameType,
     NodesField: NodesFieldSwitcherSealed,
 {
-    /// Create a new connection.
+    /// Create a new connection, with default additional fields.
     #[inline]
     pub fn new(has_previous_page: bool, has_next_page: bool) -> Self {
         ScanConnection {
@@ -122,16 +145,17 @@ where
             has_next_page,
             start_cursor: None,
             end_cursor: None,
-            oldest_available_checkpoint: None,
+            additional_fields: ConnectionFields::default(),
         }
     }
 }
 
-impl<Cursor, Node, EdgeFields, Name, EdgeName, NodesField> TypeName
-    for ScanConnection<Cursor, Node, EdgeFields, Name, EdgeName, NodesField>
+impl<Cursor, Node, ConnectionFields, EdgeFields, Name, EdgeName, NodesField> TypeName
+    for ScanConnection<Cursor, Node, ConnectionFields, EdgeFields, Name, EdgeName, NodesField>
 where
     Cursor: CursorType + Send + Sync,
     Node: OutputType,
+    ConnectionFields: ObjectType,
     EdgeFields: ObjectType,
     Name: ConnectionNameType,
     EdgeName: EdgeNameType,

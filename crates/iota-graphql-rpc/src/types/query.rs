@@ -19,7 +19,6 @@ use serde::de::DeserializeOwned;
 
 use crate::{
     config::{DEFAULT_PAGE_SIZE, ServiceConfig},
-    connection::ScanConnection,
     error::Error,
     mutation::Mutation,
     server::{builder::get_write_api, watermark_task::Watermark},
@@ -44,7 +43,9 @@ use crate::{
         owner::Owner,
         protocol_config::ProtocolConfigs,
         subscription::Subscription,
-        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+        transaction_block::{
+            self, TransactionBlock, TransactionBlockConnection, TransactionBlockFilter,
+        },
         transaction_metadata::TransactionMetadata,
         type_filter::ExactTypeFilter,
         uint53::UInt53,
@@ -519,7 +520,7 @@ impl Query {
             deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
         )]
         scan_limit: Option<u64>,
-    ) -> Result<ScanConnection<String, TransactionBlock>> {
+    ) -> Result<TransactionBlockConnection> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
 
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
