@@ -8,6 +8,7 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fs::File,
     io::Write,
+    num::NonZeroUsize,
     path::{Path, PathBuf},
     pin::Pin,
     sync::{
@@ -131,7 +132,10 @@ use prometheus_filtered::{
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tap::TapFallible;
 use tokio::{
-    sync::{Notify, RwLock, mpsc, mpsc::unbounded_channel, oneshot, watch},
+    sync::{
+        Notify, OwnedSemaphorePermit, RwLock, Semaphore, mpsc, mpsc::unbounded_channel, oneshot,
+        watch,
+    },
     task::JoinHandle,
 };
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -1199,6 +1203,9 @@ pub struct AuthorityState {
 
     /// Traffic controller for IOTA core servers (json-rpc, validator service)
     pub traffic_controller: Option<Arc<TrafficController>>,
+    /// One permit per simulation the node may run at once, shared by every
+    /// API that simulates transactions.
+    simulation_permits: Arc<Semaphore>,
     /// Set when a consumer wants a database snapshot of the perpetual store at
     /// each epoch boundary. See [`Self::hand_over_epoch_end_db_snapshot`].
     epoch_end_db_snapshots: Option<EpochEndDbSnapshotHandle>,
@@ -2923,6 +2930,10 @@ impl AuthorityState {
         self.simulate_transaction_in_epoch(&epoch_store, transaction, checks)
     }
 
+    pub fn try_acquire_simulation_permit(&self) -> Option<OwnedSemaphorePermit> {
+        self.simulation_permits.clone().try_acquire_owned().ok()
+    }
+
     /// Same as [`AuthorityState::simulate_transaction`], for callers that
     /// already hold an epoch store.
     ///
@@ -3371,6 +3382,15 @@ impl AuthorityState {
         });
         let attestation_semaphore =
             AttestationSemaphore::new(&config.authority_overload_config, &metrics);
+        let simulation_permits = Arc::new(Semaphore::new(
+            config
+                .max_concurrent_simulations
+                .unwrap_or_else(|| {
+                    std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN)
+                })
+                .get()
+                .min(Semaphore::MAX_PERMITS),
+        ));
         let state = Arc::new_cyclic(|this| AuthorityState {
             this: this.clone(),
             name,
@@ -3396,6 +3416,7 @@ impl AuthorityState {
             chain_identifier,
             congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
             traffic_controller,
+            simulation_permits,
             epoch_end_db_snapshots,
             historic_bucket_expiry,
             historic_bucket_work_stopped: Arc::new(AtomicBool::new(false)),
