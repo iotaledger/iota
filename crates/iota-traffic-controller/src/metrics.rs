@@ -196,3 +196,25 @@ impl TrafficControllerMetrics {
         Self::new(&Registry::new())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use iota_metrics::{MetricGroups, MetricLevel};
+
+    use super::*;
+
+    #[test]
+    fn the_traffic_control_metric_group_covers_these_metrics() {
+        let groups = MetricGroups {
+            traffic_control: MetricLevel::Off,
+            ..MetricGroups::default()
+        };
+        let (filter, _) = groups.startup_filter(None);
+        let registry = Registry::new_custom(None, None, Some(Arc::new(filter))).unwrap();
+        let metrics = TrafficControllerMetrics::new(&registry);
+        metrics.tallies.inc();
+        assert!(registry.gather().is_empty());
+    }
+}
