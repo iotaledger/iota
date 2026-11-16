@@ -27,7 +27,7 @@ use iota_sdk_types::{
     OwnedObjectReference, Owner, ProgrammableTransaction, RandomnessRound, SharedObjectReference,
     StructTag, Transaction, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
     TransactionExpiration, TransactionKind, TransactionV1, TypeTag, Version, VersionAssignment,
-    crypto::{Intent, IntentScope},
+    crypto::{Intent, IntentScope, PersonalMessage},
 };
 use iota_types::{
     attestation::AttestedTransaction,
@@ -5622,6 +5622,81 @@ pub fn dev_inspect_with_budget(
         expiration: TransactionExpiration::None,
     });
     authority.simulate_transaction_in_epoch(&epoch_store, transaction, VmChecks::Disabled)
+}
+
+/// Simulates on `fullnode`, with the Move VM checks relaxed so that a PTB can
+/// call the package function `public_key::verify_personal_message_signature`,
+/// a transaction that checks the signature of `message`, as a personal message,
+/// by `signer`. Returns the result of the check and the computation cost of the
+/// transaction.
+fn verify_personal_message_signature_in_ptb(
+    fullnode: &AuthorityState,
+    signer: &AccountPrivateKey,
+    message: &[u8],
+) -> (bool, u64) {
+    let signature = signer
+        .sign_personal_message(&PersonalMessage(message.into()))
+        .unwrap();
+    let mut prefixed_public_key = vec![signature.scheme().to_u8()];
+    prefixed_public_key.extend_from_slice(signer.public_key().as_ref());
+
+    let mut builder = ProgrammableTransactionBuilder::new();
+    let prefixed_public_key = builder.pure(prefixed_public_key).unwrap();
+    let public_key = builder.command(Command::new_move_call(
+        ObjectId::FRAMEWORK,
+        Identifier::from_static("public_key"),
+        Identifier::from_static("from_prefixed_bytes"),
+        vec![],
+        vec![prefixed_public_key],
+    ));
+    let signature = builder.pure(signature.to_bytes()).unwrap();
+    let message = builder.pure(message.to_vec()).unwrap();
+    builder.command(Command::new_move_call(
+        ObjectId::FRAMEWORK,
+        Identifier::from_static("public_key"),
+        Identifier::from_static("verify_personal_message_signature"),
+        vec![],
+        vec![public_key, signature, message],
+    ));
+    let kind = TransactionKind::new_programmable(builder.finish());
+    let rgp = fullnode.reference_gas_price_for_testing().unwrap();
+    let result = dev_inspect(fullnode, Address::random(), kind, Some(rgp)).unwrap();
+    assert!(
+        result.effects.status().is_success(),
+        "{:?}",
+        result.effects.status()
+    );
+
+    let (_, return_values) = result.execution_result.unwrap().pop().unwrap();
+    let (is_valid, _) = &return_values[0];
+    (
+        bcs::from_bytes(is_valid).unwrap(),
+        result.effects.gas_cost_summary().computation_cost,
+    )
+}
+
+#[tokio::test]
+async fn test_verify_personal_message_signature_longer_message_costs_more_gas() {
+    // With the default rounding step both transactions would be charged the
+    // same computation cost.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_gas_rounding_step_for_testing(1);
+        config
+    });
+    let (_, fullnode) = init_state_validator_with_fullnode().await;
+    let (_, signer): (_, AccountPrivateKey) = get_key_pair();
+
+    let (short_is_valid, short_cost) =
+        verify_personal_message_signature_in_ptb(&fullnode, &signer, &[7; 16]);
+    let (long_is_valid, long_cost) =
+        verify_personal_message_signature_in_ptb(&fullnode, &signer, &[7; 16_000]);
+
+    assert!(short_is_valid);
+    assert!(long_is_valid);
+    assert!(
+        long_cost > short_cost,
+        "the longer message cost {long_cost}, the shorter one {short_cost}"
+    );
 }
 
 /// Resolve a simulation's events for display the way the RPC layer does: over

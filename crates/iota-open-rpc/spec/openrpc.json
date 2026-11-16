@@ -2184,6 +2184,12 @@
                 "public_key_to_iota_address_impl_cost_base": {
                   "u64": "52"
                 },
+                "public_key_verify_personal_message_signature_impl_cost_base": {
+                  "u64": "4225"
+                },
+                "public_key_verify_personal_message_signature_impl_msg_cost_per_byte": {
+                  "u64": "2"
+                },
                 "random_beacon_dkg_timeout_round": {
                   "u32": "3000"
                 },
