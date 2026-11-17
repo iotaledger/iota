@@ -190,8 +190,9 @@ pub(crate) fn scores_by_committee_member_index(
 /// owns its parameters and the math for the matching `MisbehaviorObservations`
 /// version. `Scoreboard` delegates here and stores the result.
 ///
-/// Per-version variants are tied to the corresponding observations variant:
-/// `V1(ScorerV1)` consumes only `MisbehaviorObservationsV1`. The unwrap from
+/// Each variant consumes one observations variant: `V1(ScorerV1)` only
+/// `MisbehaviorObservationsV1`, `V2` and `V3` only `MisbehaviorObservationsV2`.
+/// The unwrap from
 /// the `MisbehaviorObservations` enum happens here at the dispatch boundary,
 /// so per-version scorer impls take typed inputs and never re-match.
 enum VersionedScorer {
@@ -262,7 +263,6 @@ impl VersionedScorer {
                 let median = scorer.median_report(voting_power, &reporters_v2);
                 Some(scorer.score_from_median(voting_power, &median))
             }
-            // Scores only through `Scoreboard::finalize_scores()`.
             Self::V3(_) => None,
         }
     }
@@ -1540,16 +1540,20 @@ mod tests {
 
     #[test]
     fn v3_closes_the_last_gap_at_the_end_of_publish_quorum() {
-        // 30 absent rounds are within the allowance of 70. A last gap of
-        // `V3_MIN_GAP` rounds up to round 990 adds 50 of them; one round less
-        // is too short to count.
-        let mut stats = v3_present_stats();
-        stats.absent_rounds[0] = 30;
-        stats.num_committed_header_rounds[0] = 900;
-        stats.last_committed_header_round[0] = V3_ROUND - V3_GC_DEPTH - V3_MIN_GAP;
+        // With a minimum gap of 80, authority 0's last gap of 80 rounds up to
+        // round 990 counts as an absence of 8 % of the rounds, above the
+        // allowance of 7 %; one round less is too short to count.
+        let min_gap = 80;
+        let mut stats = ConsensusStatsV2::new(4, min_gap);
+        stats.last_committed_header_round = vec![V3_ROUND; 4];
+        stats.num_committed_header_rounds = vec![V3_ROUND; 4];
+        let last = V3_ROUND - V3_GC_DEPTH - min_gap;
+        stats.last_committed_header_round[0] = last;
+        stats.num_committed_header_rounds[0] = last;
         // 65536 * (1_000_000 - 80_000) / 930_000 = 64831.
         assert_eq!(v3_scores(&[None, None, None, None], &stats)[0], 64831);
         stats.last_committed_header_round[0] += 1;
+        stats.num_committed_header_rounds[0] += 1;
         assert_eq!(v3_scores(&[None, None, None, None], &stats)[0], MAX_SCORE);
     }
 
@@ -1663,14 +1667,19 @@ mod tests {
 
     #[test]
     fn earlier_scorers_do_not_score_at_the_end_of_publish_quorum() {
-        let scoreboard = mock_scoreboard(V3_VOTING_POWER.to_vec());
-        let scores = scoreboard.finalize_scores(
-            &mock_aggregator(4),
-            V3_QUORUM,
-            &ConsensusStats::V2(v3_present_stats()),
-            V3_ROUND,
-        );
-        assert_eq!(scores, None);
+        for version in [1, 2] {
+            let config = mock_protocol_config_with_scorer(version);
+            let scoreboard = Scoreboard::new(V3_VOTING_POWER.to_vec(), &config);
+            let aggregator =
+                ReportAggregator::new(MisbehaviorReportVersion::from_protocol(&config), 4);
+            let scores = scoreboard.finalize_scores(
+                &aggregator,
+                V3_QUORUM,
+                &ConsensusStats::V2(v3_present_stats()),
+                V3_ROUND,
+            );
+            assert_eq!(scores, None, "scorer version {version}");
+        }
     }
 
     #[test]
@@ -1733,8 +1742,10 @@ mod tests {
         // (39323 * 65536 + 19660 * 49152 + 6553 * 57344) / 65536 = 59801.
         // 65465 * 59801 / 65536 = 59736; one division at the end would give
         // 59737.
+        // One gap of 71 rounds, the rest with a header.
         let mut stats = v3_present_stats();
         stats.absent_rounds[0] = 71;
+        stats.num_committed_header_rounds[0] = V3_ROUND - 71;
         let reports = [
             None,
             v3_report_about_0(2, 3, 0, 0),
@@ -1746,26 +1757,39 @@ mod tests {
 
     #[test]
     fn earlier_scorers_pass_their_current_scores_to_the_change_epoch() {
-        let scoreboard = mock_scoreboard(vec![10, 20, 30]);
-        let aggregator = mock_aggregator(3);
-        set_reports(
-            &aggregator,
-            &[(
+        // One report of an equivocation by authority 0.
+        let equivocation = || vec![1, 0, 0];
+        for (version, report) in [
+            (
+                1,
+                report_v1(&[vec![0; 3], vec![0; 3], vec![0; 3], equivocation()]),
+            ),
+            (
+                2,
                 report_v2(&[
                     vec![0; 3],
                     vec![0; 3],
                     vec![0; 3],
-                    vec![1, 0, 0],
+                    equivocation(),
                     vec![0; 3],
                 ]),
-                1,
-            )],
-        );
-        scoreboard.update_scores(&aggregator);
-        assert_eq!(
-            scoreboard.scores_for_change_epoch(),
-            scoreboard.current_scores()
-        );
-        assert_eq!(scoreboard.scores_for_change_epoch()[0], 0);
+            ),
+        ] {
+            let config = mock_protocol_config_with_scorer(version);
+            let scoreboard = Scoreboard::new(vec![10, 20, 30], &config);
+            let aggregator =
+                ReportAggregator::new(MisbehaviorReportVersion::from_protocol(&config), 3);
+            set_reports(&aggregator, &[(report, 1)]);
+            scoreboard.update_scores(&aggregator);
+            assert_eq!(
+                scoreboard.scores_for_change_epoch(),
+                scoreboard.current_scores()
+            );
+            assert_eq!(
+                scoreboard.scores_for_change_epoch()[0],
+                0,
+                "scorer version {version}"
+            );
+        }
     }
 }

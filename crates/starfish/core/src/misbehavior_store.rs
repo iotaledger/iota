@@ -1160,9 +1160,13 @@ mod tests {
             );
             let result =
                 store.update_misbehavior_counts(authority, &BTreeSet::new(), 0, 1, &context);
-            assert!(
-                matches!(result, Some(MisbehaviorCounts::V2(_))),
-                "scorer version {version} must persist V2 rows, got {result:?}"
+            let Some(MisbehaviorCounts::V2(counts)) = result else {
+                panic!("scorer version {version} must persist V2 rows, got {result:?}");
+            };
+            assert_eq!(
+                (counts.faulty_blocks_unprovable, counts.invalid_bundle_parts),
+                (0, 1),
+                "scorer version {version}"
             );
         }
     }

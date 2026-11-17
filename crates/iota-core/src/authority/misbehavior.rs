@@ -27,7 +27,6 @@ impl MisbehaviorReportVersion {
     pub fn from_protocol(protocol_config: &ProtocolConfig) -> Self {
         match protocol_config.scorer_version_as_option() {
             None | Some(1) => Self::V1,
-            // Scorer version 3 reads the same counts as version 2.
             Some(2) | Some(3) => Self::V2,
             Some(version) => panic!("Unsupported scorer version {version}"),
         }
