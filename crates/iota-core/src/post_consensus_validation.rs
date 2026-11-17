@@ -1162,7 +1162,9 @@ enum DependencyVerdict {
     /// this commit.
     Failed,
     /// The dependency is not a root of an earlier commit of this epoch, is
-    /// not deferred, and has not been kept in this commit so far.
+    /// not deferred, and has not been kept in this commit so far. This
+    /// includes a dependency of an earlier epoch, which only admission rejects
+    /// for good.
     NotVisibleYet,
 }
 
