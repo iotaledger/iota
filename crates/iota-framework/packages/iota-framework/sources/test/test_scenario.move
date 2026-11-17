@@ -88,7 +88,7 @@ public struct TxContextBuilder has drop {
     gas_price: u64,
     gas_budget: u64,
     sponsor: Option<address>,
-    // when not set, the context keeps the chain identifier it already has
+    // when not set, the context keeps the chain identifier of the test
     chain_identifier: Option<vector<u8>>,
 }
 
@@ -117,7 +117,9 @@ public struct TransactionEffects has drop {
 //
 
 /// Create a new `TxContextBuilder` with the given `sender` address.
-/// Also provides default for all other fields.
+/// Also provides default for all other fields, except the chain identifier: unless
+/// `set_chain_identifier` is called, the context keeps the chain identifier of the test,
+/// which an earlier scenario of the same test may have set.
 public fun ctx_builder_from_sender(sender: address): TxContextBuilder {
     TxContextBuilder {
         sender,
@@ -148,7 +150,7 @@ public fun ctx_builder_from_context(ctx: &TxContext): TxContextBuilder {
         gas_price: ctx.gas_price(),
         gas_budget: ctx.gas_budget(),
         sponsor: ctx.sponsor(),
-        chain_identifier: option::none(),
+        chain_identifier: option::some(ctx.chain_identifier()),
     }
 }
 
