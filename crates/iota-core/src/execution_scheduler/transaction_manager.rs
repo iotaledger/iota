@@ -342,10 +342,6 @@ struct Inner {
     /// insertion order is preserved.
     input_objects: HashMap<ObjectId, TransactionQueue>,
 
-    /// Stores age info for all transactions waiting on the execution of the
-    /// transaction named by their transaction dependency input.
-    dependency_waiters: HashMap<TransactionDigest, TransactionQueue>,
-
     /// Maps object IDs to the highest observed sequence number of the object.
     /// When the value is `None`, indicates that the object is immutable,
     /// corresponding to an `InputKey` with no sequence number.
@@ -371,7 +367,6 @@ impl Inner {
             epoch,
             missing_inputs: HashMap::with_capacity(MIN_HASHMAP_CAPACITY),
             input_objects: HashMap::with_capacity(MIN_HASHMAP_CAPACITY),
-            dependency_waiters: HashMap::with_capacity(MIN_HASHMAP_CAPACITY),
             available_objects_cache: AvailableObjectsCache::new(metrics),
             pending_transactions: HashMap::with_capacity(MIN_HASHMAP_CAPACITY),
             executing_transactions: HashSet::with_capacity(MIN_HASHMAP_CAPACITY),
@@ -399,18 +394,21 @@ impl Inner {
             return ready_transactions;
         };
 
-        let input_txns = self.waiting_queue_mut(&input_key).unwrap_or_else(|| {
-            panic!("# of transactions waiting on input {input_key:?} cannot be 0")
-        });
-        for digest in digests.iter() {
-            let age_opt = input_txns.remove(digest).expect("digest must be in map");
-            metrics
-                .transaction_manager_transaction_queue_age_s
-                .observe(age_opt.elapsed().as_secs_f64());
-        }
+        // Queue ages are kept per object only.
+        if let Some(id) = input_key.object_id() {
+            let input_txns = self.input_objects.get_mut(&id).unwrap_or_else(|| {
+                panic!("# of transactions waiting on object {id:?} cannot be 0")
+            });
+            for digest in digests.iter() {
+                let age_opt = input_txns.remove(digest).expect("digest must be in map");
+                metrics
+                    .transaction_manager_transaction_queue_age_s
+                    .observe(age_opt.elapsed().as_secs_f64());
+            }
 
-        if input_txns.is_empty() {
-            self.remove_waiting_queue(&input_key);
+            if input_txns.is_empty() {
+                self.input_objects.remove(&id);
+            }
         }
 
         for digest in digests {
@@ -431,44 +429,9 @@ impl Inner {
         ready_transactions
     }
 
-    /// The queue of transactions waiting on `input_key`: by object for an
-    /// object key, by digest for an executed-transaction key.
-    fn waiting_queue_mut(&mut self, input_key: &InputKey) -> Option<&mut TransactionQueue> {
-        match input_key {
-            InputKey::ExecutedTransaction { digest } => self.dependency_waiters.get_mut(digest),
-            InputKey::VersionedObject { id, .. } | InputKey::Package { id } => {
-                self.input_objects.get_mut(id)
-            }
-        }
-    }
-
-    /// The queue of transactions waiting on `input_key`, created if absent.
-    fn waiting_queue_entry(&mut self, input_key: &InputKey) -> &mut TransactionQueue {
-        match input_key {
-            InputKey::ExecutedTransaction { digest } => {
-                self.dependency_waiters.entry(*digest).or_default()
-            }
-            InputKey::VersionedObject { id, .. } | InputKey::Package { id } => {
-                self.input_objects.entry(*id).or_default()
-            }
-        }
-    }
-
-    fn remove_waiting_queue(&mut self, input_key: &InputKey) {
-        match input_key {
-            InputKey::ExecutedTransaction { digest } => {
-                self.dependency_waiters.remove(digest);
-            }
-            InputKey::VersionedObject { id, .. } | InputKey::Package { id } => {
-                self.input_objects.remove(id);
-            }
-        }
-    }
-
     fn maybe_reserve_capacity(&mut self) {
         self.missing_inputs.maybe_reserve_capacity();
         self.input_objects.maybe_reserve_capacity();
-        self.dependency_waiters.maybe_reserve_capacity();
         self.pending_transactions.maybe_reserve_capacity();
         self.executing_transactions.maybe_reserve_capacity();
     }
@@ -478,7 +441,6 @@ impl Inner {
     fn maybe_shrink_capacity(&mut self) {
         self.missing_inputs.maybe_shrink_capacity();
         self.input_objects.maybe_shrink_capacity();
-        self.dependency_waiters.maybe_shrink_capacity();
         self.pending_transactions.maybe_shrink_capacity();
         self.executing_transactions.maybe_shrink_capacity();
     }
@@ -800,8 +762,13 @@ impl TransactionManager {
                         inner.missing_inputs.entry(key).or_default().insert(digest),
                         "Duplicated transaction {digest:?} for missing object {key:?}"
                     );
-                    let input_txns = inner.waiting_queue_entry(&key);
-                    input_txns.insert(digest, pending_transaction_enqueue_time);
+                    if let Some(id) = key.object_id() {
+                        inner
+                            .input_objects
+                            .entry(id)
+                            .or_default()
+                            .insert(digest, pending_transaction_enqueue_time);
+                    }
                 }
             }
 
@@ -1083,11 +1050,6 @@ impl TransactionManager {
             inner.input_objects.is_empty(),
             "Input objects: {:?}",
             inner.input_objects
-        );
-        assert!(
-            inner.dependency_waiters.is_empty(),
-            "Dependency waiters: {:?}",
-            inner.dependency_waiters
         );
         assert!(
             inner.pending_transactions.is_empty(),
