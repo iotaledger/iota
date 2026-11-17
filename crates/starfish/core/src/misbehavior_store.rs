@@ -163,20 +163,26 @@ impl MisbehaviorStore {
 
         let mut rounds = self.dag_fault_rounds[idx].lock().unwrap();
         if gc_round > rounds.gc_round {
+            let start = rounds.gc_round + 1;
+            let header_rounds: Vec<Round> = recent_refs.iter().map(|r| r.round).collect();
+            let (eq, _) = calculate_misbehavior_counts_for_range(
+                header_rounds.clone(),
+                &rounds.equivocating_rounds,
+                start,
+                gc_round,
+            );
             // Only fast sync moves the GC round to the threshold clock or
-            // beyond, while the node does not follow the DAG. Its view of those
-            // rounds is incomplete, so they are passed without being counted.
-            if gc_round < threshold_clock_round {
-                let start = rounds.gc_round + 1;
-                let (eq, missing) = calculate_misbehavior_counts_for_range(
-                    recent_refs.iter().map(|r| r.round).collect(),
-                    &rounds.equivocating_rounds,
-                    start,
-                    gc_round,
-                );
-                persisted_changed |= eq > 0 || missing > 0;
-                self.persisted.add_dag_faults(idx, missing, eq);
-            }
+            // beyond, and it flushes before any synced header is accepted. The
+            // node did not follow the rounds from the clock on, so no proposal
+            // there counts as missing; the equivocations it saw still count.
+            let (_, missing) = calculate_misbehavior_counts_for_range(
+                header_rounds,
+                &rounds.equivocating_rounds,
+                start,
+                gc_round.min(threshold_clock_round.saturating_sub(1)),
+            );
+            persisted_changed |= eq > 0 || missing > 0;
+            self.persisted.add_dag_faults(idx, missing, eq);
             rounds.equivocating_rounds = rounds.equivocating_rounds.split_off(&(gc_round + 1));
             rounds.gc_round = gc_round;
         }
@@ -957,11 +963,14 @@ mod tests {
             Some(MisbehaviorCounts::new_v2_for_test(0, 0, 3, 0, 0))
         );
 
-        // The GC round reached the threshold clock, as in fast sync: rounds 4
-        // to 6 are passed without being counted.
+        // The GC round passed the threshold clock, as in fast sync: round 4,
+        // below the clock, still counts; rounds 5 and 6 were not followed.
         let result = store.update_misbehavior_counts(authority_index, &recent_refs, 6, 5, &context);
-        assert!(result.is_none());
-        assert_eq!(store.persisted_missing_proposals()[0], 3);
+        assert_eq!(
+            result,
+            Some(MisbehaviorCounts::new_v2_for_test(0, 0, 4, 0, 0))
+        );
+        assert_eq!(store.persisted_missing_proposals()[0], 4);
         let result = store.update_misbehavior_counts(authority_index, &recent_refs, 6, 8, &context);
         assert!(result.is_none());
         assert_eq!(store.in_memory_missing_proposals()[0], 1);
@@ -1019,6 +1028,44 @@ mod tests {
         assert!(result.is_some());
         assert_eq!(store.persisted_equivocations()[idx], 3);
         assert!(store.equivocating_rounds(author).is_empty());
+    }
+
+    /// When fast sync moves the GC round past the threshold clock, the rounds
+    /// the node followed still count, and so do the equivocations it saw in
+    /// the rounds it did not follow; those rounds add no missing proposals.
+    #[tokio::test]
+    async fn test_gc_round_past_the_threshold_clock_keeps_observed_faults() {
+        let context = Arc::new(Context::new_for_test(4).0);
+        let store = MisbehaviorStore::new(&context);
+        let author = AuthorityIndex::new_for_test(1);
+        let idx = author.value();
+        // One cached header per round 1..=9, with round 8 missing.
+        let recent_refs: BTreeSet<BlockRef> = (1..=9)
+            .filter(|&round| round != 8)
+            .map(|round| BlockRef::new(round, author, BlockHeaderDigest::MIN))
+            .collect();
+        store.record_equivocating_slot(author, 5, Round::MAX);
+        store.record_equivocating_slot(author, 12, Round::MAX);
+        store.record_equivocating_slot(author, 25, Round::MAX);
+
+        let result = store.update_misbehavior_counts(author, &recent_refs, 0, 10, &context);
+        assert!(result.is_none());
+        assert_eq!(store.in_memory_equivocations()[idx], 1);
+        assert_eq!(store.in_memory_missing_proposals()[idx], 1);
+
+        // The GC round jumps to 20 with the clock at 10.
+        let result = store.update_misbehavior_counts(author, &recent_refs, 20, 10, &context);
+        assert!(result.is_some());
+        assert_eq!(store.persisted_equivocations()[idx], 2);
+        assert_eq!(store.persisted_missing_proposals()[idx], 1);
+        assert_eq!(store.equivocating_rounds(author), vec![25]);
+        assert_eq!(store.in_memory_equivocations()[idx], 0);
+        assert_eq!(store.in_memory_missing_proposals()[idx], 0);
+
+        // Once the clock passes the flag at round 25, it shows in memory.
+        let result = store.update_misbehavior_counts(author, &recent_refs, 20, 30, &context);
+        assert!(result.is_none());
+        assert_eq!(store.in_memory_equivocations()[idx], 1);
     }
 
     #[tokio::test]
@@ -1700,6 +1747,7 @@ mod tests {
     /// An author whose last committed header is not fetched for
     /// reinitialization after fast sync has no header in memory. Its rounds
     /// must still count at most once, and never when its header is stored.
+    /// Faults in the rounds the node followed before fast sync are kept.
     #[tokio::test]
     async fn test_no_double_counting_after_fast_sync() {
         const CACHED_ROUNDS: Round = 5;
@@ -1712,16 +1760,24 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
-        // Authority 3 skips rounds 3-4 and is offline for rounds 21-40.
+        // Authority 1 equivocates at round 7. Authority 3 skips rounds 8-9,
+        // above the GC round when fast sync starts, and is offline for rounds
+        // 21-40.
+        let equivocator = AuthorityIndex::new_for_test(1);
         let offline = AuthorityIndex::new_for_test(3);
         let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder.layers(1..=2).build();
+        dag_builder.layers(1..=6).build();
         dag_builder
-            .layers(3..=4)
+            .layers(7..=7)
+            .authorities(vec![equivocator])
+            .equivocate(1)
+            .build();
+        dag_builder
+            .layers(8..=9)
             .authorities(vec![offline])
             .skip_block()
             .build();
-        dag_builder.layers(5..=20).build();
+        dag_builder.layers(10..=20).build();
         dag_builder
             .layers(21..=40)
             .authorities(vec![offline])
@@ -1796,13 +1852,17 @@ mod tests {
 
         // Absent rounds are counted once, except those that fast sync passed.
         let gc_round = dag_state.gc_round_for_last_commit();
-        let expected = (3..=4)
-            .filter(|&round| round <= gc_round_before_sync)
+        assert!(gc_round_before_sync < 8);
+        let expected = (8..=9)
             .chain((21..=40).filter(|&round| round > gc_round_after_sync && round <= gc_round))
             .count() as u64;
         assert_eq!(
             dag_state.misbehavior_store().persisted_missing_proposals()[offline],
             expected
+        );
+        assert_eq!(
+            dag_state.misbehavior_store().persisted_equivocations()[equivocator],
+            1
         );
     }
 }
