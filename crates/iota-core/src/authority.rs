@@ -2026,11 +2026,17 @@ impl AuthorityState {
     /// on successful execution; crashed execution has no observable effect and
     /// can be retried.
     ///
-    /// It is caller's responsibility to ensure input objects are available and
-    /// locks are set. If this cannot be satisfied by the caller,
-    /// `wait_for_certificate_execution()` should be called instead.
+    /// It is caller's responsibility to ensure input objects are available,
+    /// the transaction named by the transaction dependency input has executed
+    /// unless this one was cancelled at sequencing, and locks are set. If this
+    /// cannot be satisfied by the caller, `wait_for_certificate_execution()`
+    /// should be called instead.
     ///
     /// Should only be called within iota-core.
+    ///
+    /// # Panics
+    ///
+    /// If an input object or the effects of that dependency are absent.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub fn try_execute_immediately(
         &self,
@@ -2085,6 +2091,16 @@ impl AuthorityState {
         )
     }
 
+    /// Reads the input objects of `transaction` at the versions in
+    /// `assigned_shared_object_versions`, together with the outcome of the
+    /// transaction named by its transaction dependency input unless
+    /// `transaction` was cancelled at sequencing.
+    ///
+    /// # Panics
+    ///
+    /// If an input object or the effects of that dependency are absent. The
+    /// execution scheduler releases a transaction only once both are
+    /// available; other callers must make sure of it themselves.
     pub fn read_objects_for_execution(
         &self,
         tx_lock: &TxLockGuard,
