@@ -3391,3 +3391,27 @@ mod consensus_stats {
         assert_eq!(bcs::to_bytes(&v1).unwrap(), bytes);
     }
 }
+
+/// Scores recorded in a commit output are loaded again when the store opens.
+#[tokio::test]
+async fn final_validator_scores_are_loaded_when_the_store_opens() {
+    let _guard =
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_scorer_version_for_testing(3);
+            config.set_consensus_absent_rounds_min_gap_for_testing(10);
+            config.set_calculate_validator_scores_for_testing(true);
+            config
+        });
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    let scores: Vec<u64> = (0..store.committee().num_members() as u64).collect();
+    let mut output = ConsensusCommitOutput::new(0, 0);
+    output.record_final_validator_scores(scores.clone());
+    output.set_default_commit_stats_for_testing();
+    let mut batch: DBBatch = store.db_batch_for_test();
+    output.write_to_batch(&store, &mut batch).unwrap();
+    batch.write().unwrap();
+
+    let reopened = reopen(&authority_state, &store);
+    assert_eq!(reopened.scoreboard.scores_for_change_epoch(), scores);
+}
