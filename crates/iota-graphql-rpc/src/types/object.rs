@@ -36,7 +36,7 @@ use crate::{
     filter, or_filter,
     raw_query::RawQuery,
     types::{
-        available_range::AvailableRange,
+        available_range::LedgerView,
         balance::{self, Balance},
         base64::Base64,
         big_int::BigInt,
@@ -859,13 +859,12 @@ impl Object {
 
         let max_available_range = db.max_available_range;
 
-        let Some((prev, next, results)) = db
+        let Some((checkpoint_viewed_at, (prev, next, results))) = db
             .execute_repeatable(move |conn| {
-                if !AvailableRange::is_checkpoint_in_backward_history_range(
-                    conn,
-                    checkpoint_viewed_at,
-                    max_available_range,
-                )? {
+                let ledger_view = LedgerView::resolve(conn, max_available_range)?;
+                let Some(checkpoint_viewed_at) =
+                    ledger_view.resolve_checkpoint(checkpoint_viewed_at)
+                else {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
@@ -875,7 +874,7 @@ impl Object {
                     backward_objects_query(&filter, checkpoint_viewed_at, &page),
                 )?;
                 let results: Vec<StoredBackwardObject> = results_iter.collect();
-                Ok(Some((prev, next, results)))
+                Ok(Some((checkpoint_viewed_at, (prev, next, results))))
             })
             .await?
         else {
@@ -1913,14 +1912,11 @@ impl Loader<LatestAtKey> for Db {
                 .into_iter()
                 .map(|(checkpoint_viewed_at, ids)| {
                     self.execute_repeatable(move |conn| {
-                        if !AvailableRange::is_checkpoint_in_backward_history_range(
-                            conn,
-                            checkpoint_viewed_at,
-                            max_available_range,
-                        )? {
-                            return Ok::<Vec<(u64, StoredHistoryObject)>, diesel::result::Error>(
-                                vec![],
-                            );
+                        let ledger_view = LedgerView::resolve(conn, max_available_range)?;
+                        let Some(view_checkpoint) =
+                            ledger_view.resolve_checkpoint(checkpoint_viewed_at)
+                        else {
+                            return Ok::<_, diesel::result::Error>(vec![]);
                         };
 
                         let filter = ObjectFilter {
@@ -1930,7 +1926,7 @@ impl Loader<LatestAtKey> for Db {
 
                         let results: Vec<StoredBackwardObject> = conn.results(move || {
                             consistent::query(
-                                checkpoint_viewed_at,
+                                view_checkpoint,
                                 &Page::bounded(ids.len() as u64),
                                 |q| filter.apply(q),
                             )
@@ -1942,7 +1938,8 @@ impl Loader<LatestAtKey> for Db {
                             .map(|r| {
                                 (
                                     checkpoint_viewed_at,
-                                    r.into_stored_history(checkpoint_viewed_at),
+                                    view_checkpoint,
+                                    r.into_stored_history(view_checkpoint),
                                 )
                             })
                             .collect())
@@ -1954,12 +1951,14 @@ impl Loader<LatestAtKey> for Db {
 
         let mut results = HashMap::new();
         for group in groups {
-            for (checkpoint_viewed_at, stored) in
+            for (checkpoint_viewed_at, view_checkpoint, stored) in
                 group.map_err(|e| Error::Internal(format!("Failed to fetch objects: {e}")))?
             {
                 let active_object = ActiveObject::try_from(stored)?;
-                let object = Object::from_active_object(active_object, checkpoint_viewed_at, None);
+                let object = Object::from_active_object(active_object, view_checkpoint, None);
 
+                // The key must match the requested key, which can differ from
+                // the checkpoint of the view.
                 let key = LatestAtKey {
                     id: object.address,
                     checkpoint_viewed_at,

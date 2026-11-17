@@ -22,7 +22,7 @@ use crate::{
     filter,
     raw_query::RawQuery,
     types::{
-        available_range::AvailableRange,
+        available_range::LedgerView,
         base64::Base64,
         cursor::{Page, Target},
         iota_address::IotaAddress,
@@ -202,13 +202,12 @@ impl DynamicField {
 
         let max_available_range = db.max_available_range;
 
-        let Some((prev, next, results)) = db
+        let Some((checkpoint_viewed_at, (prev, next, results))) = db
             .execute_repeatable(move |conn| {
-                if !AvailableRange::is_checkpoint_in_backward_history_range(
-                    conn,
-                    checkpoint_viewed_at,
-                    max_available_range,
-                )? {
+                let ledger_view = LedgerView::resolve(conn, max_available_range)?;
+                let Some(checkpoint_viewed_at) =
+                    ledger_view.resolve_checkpoint(checkpoint_viewed_at)
+                else {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
@@ -219,11 +218,14 @@ impl DynamicField {
                     }
                 };
 
-                Ok(Some(page.paginate_raw_query::<StoredBackwardObject>(
-                    conn,
+                Ok(Some((
                     checkpoint_viewed_at,
-                    query,
-                )?))
+                    page.paginate_raw_query::<StoredBackwardObject>(
+                        conn,
+                        checkpoint_viewed_at,
+                        query,
+                    )?,
+                )))
             })
             .await?
         else {

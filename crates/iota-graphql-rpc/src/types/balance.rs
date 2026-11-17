@@ -23,7 +23,7 @@ use crate::{
     filter, query,
     raw_query::RawQuery,
     types::{
-        available_range::AvailableRange,
+        available_range::LedgerView,
         big_int::BigInt,
         cursor::{self, Page, RawPaginated, ScanLimited, Target},
         iota_address::IotaAddress,
@@ -84,13 +84,12 @@ impl Balance {
         let max_available_range = db.max_available_range;
         let stored: Option<StoredBalance> = db
             .execute_repeatable(move |conn| {
-                if !AvailableRange::is_checkpoint_in_backward_history_range(
-                    conn,
-                    checkpoint_viewed_at,
-                    max_available_range,
-                )? {
+                let ledger_view = LedgerView::resolve(conn, max_available_range)?;
+                let Some(checkpoint_viewed_at) =
+                    ledger_view.resolve_checkpoint(checkpoint_viewed_at)
+                else {
                     return Ok::<_, diesel::result::Error>(None);
-                }
+                };
 
                 conn.result(move || {
                     balance_query(address, Some(coin_type.clone()), checkpoint_viewed_at)
@@ -121,15 +120,14 @@ impl Balance {
 
         let max_available_range = db.max_available_range;
 
-        let Some((prev, next, results)) = db
+        let Some((checkpoint_viewed_at, (prev, next, results))) = db
             .execute_repeatable(move |conn| {
-                if !AvailableRange::is_checkpoint_in_backward_history_range(
-                    conn,
-                    checkpoint_viewed_at,
-                    max_available_range,
-                )? {
+                let ledger_view = LedgerView::resolve(conn, max_available_range)?;
+                let Some(checkpoint_viewed_at) =
+                    ledger_view.resolve_checkpoint(checkpoint_viewed_at)
+                else {
                     return Ok::<_, diesel::result::Error>(None);
-                }
+                };
 
                 let result = page.paginate_raw_query::<StoredBalance>(
                     conn,
@@ -137,7 +135,7 @@ impl Balance {
                     balance_query(address, None, checkpoint_viewed_at),
                 )?;
 
-                Ok(Some(result))
+                Ok(Some((checkpoint_viewed_at, result)))
             })
             .await?
         else {
