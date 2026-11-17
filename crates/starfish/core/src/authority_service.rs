@@ -1332,10 +1332,10 @@ pub(crate) fn check_shard_transaction_author(
 ) -> ConsensusResult<()> {
     let index = shard.author();
     if !context.committee.is_valid_index(index) {
-        return Err(ConsensusError::InvalidAuthorityIndexRequested {
+        return Err(ConsensusError::InvalidShardAuthor {
+            peer,
             index,
             max: context.committee.size(),
-            peer,
         });
     }
     Ok(())
@@ -6119,10 +6119,10 @@ mod tests {
         let result = check_shard_transaction_author(&shard, peer, &context);
         assert!(matches!(
             result,
-            Err(ConsensusError::InvalidAuthorityIndexRequested {
+            Err(ConsensusError::InvalidShardAuthor {
+                peer: err_peer,
                 index,
                 max: 4,
-                peer: err_peer,
             }) if index == invalid_author && err_peer == peer
         ));
 
@@ -6236,6 +6236,9 @@ mod tests {
         );
 
         // A shard whose author is outside the committee is charged to the peer.
+        let bundle_parts_before = misbehavior_store.snapshot_totals()[peer.value()]
+            .as_v2()
+            .invalid_bundle_parts;
         let outside = AuthorityIndex::new_for_test(context.committee.size() as u8);
         let shard = crate::block_header::ShardWithProof::new(
             vec![],
@@ -6251,10 +6254,14 @@ mod tests {
         );
         assert!(matches!(
             result,
-            Err(ConsensusError::InvalidAuthorityIndexRequested { .. })
+            Err(ConsensusError::InvalidShardAuthor { .. })
         ));
         let totals = misbehavior_store.snapshot_totals();
-        assert_eq!(totals[peer.value()].as_v2().faulty_blocks_unprovable, 1);
+        assert_eq!(
+            totals[peer.value()].as_v2().invalid_bundle_parts,
+            bundle_parts_before + 1
+        );
+        assert_eq!(totals[peer.value()].as_v2().faulty_blocks_unprovable, 0);
     }
 
     /// A server whose batch size exceeds the requester's still stops at twice

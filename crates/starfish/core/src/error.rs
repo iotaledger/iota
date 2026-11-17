@@ -419,6 +419,13 @@ pub(crate) enum ConsensusError {
         limit: usize,
     },
 
+    #[error("Peer {peer} sent a shard of authority {index} outside the committee of size {max}")]
+    InvalidShardAuthor {
+        peer: AuthorityIndex,
+        index: AuthorityIndex,
+        max: usize,
+    },
+
     #[error("Peer {peer} relayed a second shard for slot (author {author}, round {round})")]
     SecondShardForSlot {
         peer: AuthorityIndex,

@@ -67,7 +67,7 @@ use crate::{
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, DataSource},
-    encoder::create_encoder,
+    encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
@@ -454,70 +454,88 @@ pub(crate) fn verify_transactions_commitments(
     peer: AuthorityIndex,
     serialized_transactions: BTreeMap<TransactionRef, Bytes>,
 ) -> ConsensusResult<BTreeMap<TransactionRef, CommitmentVerifiedTransactions>> {
-    let reject = |e: ConsensusError| {
-        misbehavior_store.record_fetch_fault(peer, &e);
-        e
-    };
     let mut verified_transactions_map = BTreeMap::new();
     let mut encoder = create_encoder(context);
     let size_limit = serialized_transactions_size_limit(context);
     for (transaction_ref, inner_serialized_transactions) in serialized_transactions {
-        // Range-check the author and round before any consumer indexes the
-        // committee by author.
-        if !context.committee.is_valid_index(transaction_ref.author) {
-            return Err(reject(ConsensusError::InvalidAuthorityIndexRequested {
-                index: transaction_ref.author,
-                max: context.committee.size(),
-                peer,
-            }));
-        }
-        if transaction_ref.round == GENESIS_ROUND {
-            return Err(reject(ConsensusError::UnexpectedGenesisRequested { peer }));
-        }
-        // Bound the peer-supplied payload before erasure-encoding it.
-        if inner_serialized_transactions.len() > size_limit {
-            return Err(reject(ConsensusError::SerializedTransactionsTooLarge {
-                size: inner_serialized_transactions.len(),
-                limit: size_limit,
-            }));
-        }
-        // Step 1: Verify that the transaction commitment matches.
-        if transaction_ref.transactions_commitment
-            != TransactionsCommitment::compute_transactions_commitment(
-                &inner_serialized_transactions,
-                context,
-                &mut encoder,
-            )?
-        {
-            return Err(reject(ConsensusError::TransactionCommitmentFailure {
-                round: transaction_ref.round,
-                author: transaction_ref.author,
-                peer,
-            }));
-        }
-
-        // Step 2: Deserialize the actual transactions vector.
-        let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
-            .map_err(ConsensusError::MalformedTransactions)
-            .inspect_err(|_| {
-                misbehavior_store.record_faulty_transactions(
+        let verified_transactions = verify_transactions_commitment(
+            context,
+            &mut encoder,
+            size_limit,
+            peer,
+            transaction_ref,
+            inner_serialized_transactions,
+        )
+        .inspect_err(|e| match e {
+            ConsensusError::MalformedTransactions(_) => misbehavior_store
+                .record_faulty_transactions(
                     Some(Slot::new(transaction_ref.round, transaction_ref.author)),
                     [peer],
-                );
-            })?;
-
-        // Step 3: Create a CommitmentVerifiedTransactions instance and insert into map
-        let verified_transactions = CommitmentVerifiedTransactions::new(
-            transactions,
-            transaction_ref,
-            None,
-            inner_serialized_transactions,
-        );
-
+                ),
+            e => misbehavior_store.record_fetch_fault(peer, e),
+        })?;
         verified_transactions_map.insert(transaction_ref, verified_transactions);
     }
 
     Ok(verified_transactions_map)
+}
+
+/// Checks one payload against the commitment in `transaction_ref`, then
+/// parses it. A parse failure is returned only for a payload that matches the
+/// commitment.
+fn verify_transactions_commitment(
+    context: &Arc<Context>,
+    encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
+    size_limit: usize,
+    peer: AuthorityIndex,
+    transaction_ref: TransactionRef,
+    inner_serialized_transactions: Bytes,
+) -> ConsensusResult<CommitmentVerifiedTransactions> {
+    // Range-check the author and round before any consumer indexes the
+    // committee by author.
+    if !context.committee.is_valid_index(transaction_ref.author) {
+        return Err(ConsensusError::InvalidAuthorityIndexRequested {
+            index: transaction_ref.author,
+            max: context.committee.size(),
+            peer,
+        });
+    }
+    if transaction_ref.round == GENESIS_ROUND {
+        return Err(ConsensusError::UnexpectedGenesisRequested { peer });
+    }
+    // Bound the peer-supplied payload before erasure-encoding it.
+    if inner_serialized_transactions.len() > size_limit {
+        return Err(ConsensusError::SerializedTransactionsTooLarge {
+            size: inner_serialized_transactions.len(),
+            limit: size_limit,
+        });
+    }
+    // Step 1: Verify that the transaction commitment matches.
+    if transaction_ref.transactions_commitment
+        != TransactionsCommitment::compute_transactions_commitment(
+            &inner_serialized_transactions,
+            context,
+            encoder,
+        )?
+    {
+        return Err(ConsensusError::TransactionCommitmentFailure {
+            round: transaction_ref.round,
+            author: transaction_ref.author,
+            peer,
+        });
+    }
+
+    // Step 2: Deserialize the actual transactions vector.
+    let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
+        .map_err(ConsensusError::MalformedTransactions)?;
+
+    // Step 3: Create a CommitmentVerifiedTransactions instance.
+    Ok(CommitmentVerifiedTransactions::new(
+        transactions,
+        transaction_ref,
+        None,
+        inner_serialized_transactions,
+    ))
 }
 
 /// How much of a requested commit range a fetch response actually delivered.

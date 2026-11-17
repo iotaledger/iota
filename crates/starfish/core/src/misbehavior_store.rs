@@ -406,8 +406,7 @@ enum FaultType {
     /// Relayed bundle part (additional header or shard) that is corrupt,
     /// invalid, or one the peer had no right to relay, and isn't tied to a
     /// verified author. Charged to the sending peer. Errors in the bundle's
-    /// framing and metadata, and a shard author outside the committee, are
-    /// unprovable faults of the peer.
+    /// framing and metadata are unprovable faults of the peer.
     BundlePart,
     /// Not counted as misbehavior.
     Untracked,
@@ -458,15 +457,16 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::UnexpectedLastOwnHeader { .. } => FaultType::Unprovable,
 
         // Relayed bundle parts that are corrupt or invalid (additional-header
-        // round, shard structure/proof) or that the peer had no right to relay
-        // (a second shard for one slot). We know which peer relayed them but
-        // can't tie them to a verified author.
+        // round, shard author, structure or proof) or that the peer had no
+        // right to relay (a second shard for one slot). We know which peer
+        // relayed them but can't tie them to a verified author.
         ConsensusError::MalformedShard(_)
         | ConsensusError::TooBigHeaderRoundInABundle { .. }
         | ConsensusError::TooBigShardRoundInABundle { .. }
         | ConsensusError::IncorrectShardProof { .. }
         | ConsensusError::UnrequestedHeaderOutOfWindow { .. }
         | ConsensusError::SerializedShardTooLarge { .. }
+        | ConsensusError::InvalidShardAuthor { .. }
         | ConsensusError::SecondShardForSlot { .. } => FaultType::BundlePart,
 
         // Checks that run only after the author's signature is verified, so the
@@ -1627,6 +1627,11 @@ mod tests {
                 peer: AuthorityIndex::new_for_test(0),
                 size: 100,
                 limit: 50,
+            },
+            ConsensusError::InvalidShardAuthor {
+                peer: AuthorityIndex::new_for_test(0),
+                index: AuthorityIndex::new_for_test(4),
+                max: 4,
             },
             ConsensusError::SecondShardForSlot {
                 peer: AuthorityIndex::new_for_test(0),
