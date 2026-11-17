@@ -184,7 +184,7 @@ pub enum PackageVerdict {
 /// The reader's result for one dynamic field, as of the horizon. The check
 /// that reads the field decides from it.
 #[must_use]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DynamicFieldAtHorizon {
     /// The field's object at the version live at the horizon.
     Live(Object),
