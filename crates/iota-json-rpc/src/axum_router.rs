@@ -69,6 +69,13 @@ impl<L> JsonRpcService<L> {
     }
 }
 
+/// Request extension with the IP address of the client of a request: the one
+/// traffic control charges, or the address of the connection when traffic
+/// control resolves none. A server that calls a fullnode for its users, such
+/// as the indexer, names this client to the fullnode.
+#[derive(Clone, Copy, Debug)]
+pub struct RequestClientIp(pub IpAddr);
+
 /// Request extension through which a simulation method reserves gas from its
 /// client's simulation gas balance. It carries the client of the request and
 /// what the traffic controller decided for it.
@@ -102,11 +109,17 @@ pub(crate) fn reserve_simulation_gas(
 }
 
 impl<L: Logger> JsonRpcService<L> {
-    /// The call data of one request. Its extensions are the service's, with a
-    /// [`SimulationGasHandle`] for the request added when traffic control is
-    /// on.
-    fn call_data(&self, client: Option<IpAddr>, access: ClientAccess) -> CallData<'_, L> {
+    /// The call data of one request. Its extensions are the service's, with
+    /// the [`RequestClientIp`] of the request, and a [`SimulationGasHandle`]
+    /// for it when traffic control is on.
+    fn call_data(
+        &self,
+        client: Option<IpAddr>,
+        access: ClientAccess,
+        request_client: RequestClientIp,
+    ) -> CallData<'_, L> {
         let mut extensions = self.extensions.clone();
+        extensions.insert(request_client);
         if let Some(traffic_controller) = &self.traffic_controller {
             extensions.insert(SimulationGasHandle {
                 traffic_controller: traffic_controller.clone(),
@@ -165,6 +178,7 @@ pub async fn json_rpc_handler<L: Logger>(
         Some(traffic_controller) => traffic_controller.forwarded_client(client, &headers),
         None => client,
     };
+    let request_client = RequestClientIp(client.unwrap_or(client_addr.ip()));
     // Check whether the client may be served before reading the body, so a
     // refused client's body is neither read nor parsed.
     let access = match &service.traffic_controller {
@@ -192,8 +206,15 @@ pub async fn json_rpc_handler<L: Logger>(
     let api_version = headers
         .get(CLIENT_TARGET_API_VERSION_HEADER)
         .and_then(|h| h.to_str().ok());
-    let response =
-        process_raw_request(&service, api_version, raw_request.get(), client, access).await;
+    let response = process_raw_request(
+        &service,
+        api_version,
+        raw_request.get(),
+        client,
+        access,
+        request_client,
+    )
+    .await;
 
     ok_response(response.into_result())
 }
@@ -231,9 +252,15 @@ async fn process_raw_request<L: Logger>(
     raw_request: &str,
     client: Option<IpAddr>,
     access: ClientAccess,
+    request_client: RequestClientIp,
 ) -> MethodResponse {
     let response = if let Ok(request) = serde_json::from_str::<Request>(raw_request) {
-        process_request(request, api_version, service.call_data(client, access)).await
+        process_request(
+            request,
+            api_version,
+            service.call_data(client, access, request_client),
+        )
+        .await
     } else if let Ok(_batch) = serde_json::from_str::<Vec<&RawValue>>(raw_request) {
         MethodResponse::error(
             Id::Null,
@@ -325,14 +352,15 @@ mod tests {
     };
     use iota_traffic_controller::{ClientAccess, TrafficController};
     use iota_types::traffic_control::{
-        AccessRuleList, AccessRules, ClientIdSource, PolicyConfig, PolicyType,
-        SimulationGasLimitConfig, Weight,
+        AccessRuleList, AccessRules, ClientIdSource, FORWARDED_CLIENT_IP_HEADER, PolicyConfig,
+        PolicyType, SimulationGasLimitConfig, Weight,
     };
     use jsonrpsee::{Extensions, core::server::Methods, types::ErrorCode};
     use tower::ServiceExt;
 
     use super::{
-        JsonRpcService, TOO_MANY_REQUESTS_MSG, json_rpc_handler, normalize, reserve_simulation_gas,
+        JsonRpcService, RequestClientIp, TOO_MANY_REQUESTS_MSG, json_rpc_handler, normalize,
+        reserve_simulation_gas,
     };
     use crate::routing_layer::RpcRouter;
 
@@ -476,6 +504,94 @@ mod tests {
             })
             .unwrap();
         module.into()
+    }
+
+    /// A module with one method, `test_client`, that answers the
+    /// [`RequestClientIp`] of its request.
+    fn client_methods() -> Methods {
+        let mut module = jsonrpsee::RpcModule::new(());
+        module
+            .register_method("test_client", |_, _, ext| {
+                ext.get::<RequestClientIp>()
+                    .map(|client| client.0.to_string())
+            })
+            .unwrap();
+        module.into()
+    }
+
+    /// The `test_client` answer of `router` to a request with one client IP
+    /// header for each of `users`.
+    async fn request_client(router: &axum::Router, users: &[&str]) -> String {
+        let mut request = Request::post("/")
+            .extension(ConnectInfo(CLIENT))
+            .header("content-type", "application/json");
+        for user in users {
+            request = request.header(FORWARDED_CLIENT_IP_HEADER, *user);
+        }
+        let body = r#"{"jsonrpc":"2.0","id":1,"method":"test_client"}"#;
+        let response = router
+            .clone()
+            .oneshot(request.body(Body::from(body)).unwrap())
+            .await
+            .unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        response["result"]
+            .as_str()
+            .unwrap_or_else(|| panic!("no result in {response}"))
+            .to_string()
+    }
+
+    /// A method sees the user that a forwarder names in one client IP header as
+    /// the client of the request, and the connection address for any other
+    /// request, also when traffic control is off.
+    #[tokio::test]
+    async fn a_method_sees_the_client_of_its_request() {
+        let (router, _) = router_with_policy_config_and_methods(
+            PolicyConfig {
+                access_rules: AccessRules {
+                    forwarders: vec![CLIENT.ip().to_string()],
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            client_methods(),
+        );
+        assert_eq!(
+            request_client(&router, &["198.51.100.7"]).await,
+            "198.51.100.7"
+        );
+        assert_eq!(request_client(&router, &[]).await, "127.0.0.1");
+        // A repeated header names no single user.
+        assert_eq!(
+            request_client(&router, &["198.51.100.7", "198.51.100.8"]).await,
+            "127.0.0.1"
+        );
+
+        let (router, _) =
+            router_with_policy_config_and_methods(PolicyConfig::default(), client_methods());
+        assert_eq!(
+            request_client(&router, &["198.51.100.7"]).await,
+            "127.0.0.1"
+        );
+
+        let service = JsonRpcService::new(
+            client_methods(),
+            RpcRouter::new(HashMap::new(), false),
+            (),
+            None,
+            None,
+            Extensions::new(),
+        );
+        let router = axum::Router::new()
+            .route("/", post(json_rpc_handler::<()>))
+            .with_state(service);
+        assert_eq!(
+            request_client(&router, &["198.51.100.7"]).await,
+            "127.0.0.1"
+        );
     }
 
     /// A gas limit of 100, equal to the computation limit of one transaction
