@@ -168,10 +168,7 @@ fn parse_masks_and_filters(
     let transactions_mask = read_mask.subtree("transactions");
 
     // Extract the mask applied to each event if events are requested
-    let events_mask = read_mask.subtree("events").map(|mask| {
-        mask.subtree("events")
-            .unwrap_or_else(FieldMaskTree::new_wildcard)
-    });
+    let events_mask = read_mask.subtree("events");
 
     // Convert proto filters to internal filters
     let (transaction_filter, event_filter) = convert_filters(transactions_filter, events_filter)?;

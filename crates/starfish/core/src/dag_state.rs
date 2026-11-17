@@ -4167,7 +4167,7 @@ mod test {
         }
 
         for commit in commits.clone() {
-            dag_state.add_commit(commit.clone());
+            dag_state.add_commit(commit);
         }
         dag_state.update_last_solid_subdag_base(subdag_bases.last().unwrap().clone());
 

@@ -553,7 +553,7 @@ impl AuthorityPerpetualTables {
             if !compacted_tables.contains(sst_file.column_family_name.as_str()) {
                 continue;
             }
-            let file_path = db_path.join(sst_file.name.clone().trim_matches('/'));
+            let file_path = db_path.join(sst_file.name.trim_matches('/'));
             let last_modified = std::fs::metadata(file_path)?.modified()?;
             if sst_file.level < 1
                 || sst_file.start_key.is_none()

@@ -21,7 +21,7 @@ use iota_types::{
     metrics::BytecodeVerifierMetrics,
     object::ObjectRead,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionAPI},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionAPI, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
 use move_binary_format::{
@@ -37,7 +37,11 @@ use move_package::source_package::manifest_parser;
 use prometheus_filtered::Registry;
 
 use crate::authority::{
-    authority_tests::{call_move, init_state_with_ids, send_and_confirm_transaction},
+    AuthorityState,
+    authority_tests::{
+        call_move, init_state_with_ids, rejection_error, send_and_confirm_transaction,
+        sequence_user_transaction_and_get_drop_error,
+    },
     move_integration_tests::{
         build_and_publish_test_package, build_multi_publish_txns, build_package,
         build_test_package, run_multi_txns,
@@ -534,11 +538,13 @@ async fn test_publish_non_canonical_version_header_before_the_check() {
 }
 
 /// A module using one of the deprecated global storage instructions is rejected
-/// at signing, so it is never certified or executed.
+/// at signing, so it is never certified or executed. As a `UserTransactionV1`
+/// it is dropped at the commit with the same error.
+#[rstest::rstest]
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
-async fn test_publish_deprecated_bytes_modules() {
-    assert_rejected_at_signing(publish_module_using_global_storage().await);
+async fn test_publish_deprecated_bytes_modules(#[values(false, true)] user_transaction: bool) {
+    assert_rejected_at_signing(publish_module_using_global_storage(user_transaction).await);
 }
 
 /// The same holds before execution rejects these instructions when it
@@ -551,7 +557,29 @@ async fn test_publish_deprecated_bytes_modules_before_the_flag() {
         config
     });
 
-    assert_rejected_at_signing(publish_module_using_global_storage().await);
+    assert_rejected_at_signing(publish_module_using_global_storage(false).await);
+}
+
+/// Post-consensus validation takes the flag from the protocol config, so
+/// before the flag it does not reject these instructions and the commit keeps
+/// such a publish as a `UserTransactionV1`.
+#[tokio::test]
+#[cfg_attr(msim, ignore)]
+async fn test_user_transaction_deprecated_bytes_modules_kept_at_the_commit_before_the_flag() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_deprecate_global_storage_ops_for_testing(false);
+        config
+    });
+
+    let (authority, transaction) = sign_module_using_global_storage().await;
+    let transaction = authority
+        .epoch_store_for_testing()
+        .verify_transaction(transaction)
+        .unwrap();
+    let (scheduled, error) =
+        sequence_user_transaction_and_get_drop_error(&authority, transaction).await;
+    assert_eq!(scheduled, 1);
+    assert!(error.is_none(), "{error:?}");
 }
 
 fn assert_rejected_at_signing(result: Result<ExecutionStatus, IotaError>) {
@@ -569,8 +597,27 @@ fn assert_rejected_at_signing(result: Result<ExecutionStatus, IotaError>) {
 
 /// Publish a test package, then the same package with a private function added
 /// that uses a deprecated global storage instruction, and return the outcome of
-/// the second publish.
-async fn publish_module_using_global_storage() -> Result<ExecutionStatus, IotaError> {
+/// the second publish. With `user_transaction`, the second publish is sequenced
+/// as a `UserTransactionV1` and the result is the error it is dropped with.
+async fn publish_module_using_global_storage(
+    user_transaction: bool,
+) -> Result<ExecutionStatus, IotaError> {
+    let (authority, transaction) = sign_module_using_global_storage().await;
+    if user_transaction {
+        let transaction = authority
+            .epoch_store_for_testing()
+            .verify_transaction(transaction)
+            .unwrap();
+        return Err(rejection_error(&authority, transaction, true).await);
+    }
+    send_and_confirm_transaction(&authority, transaction)
+        .await
+        .map(|(_, effects)| effects.status().clone())
+}
+
+/// Publish a test package, then sign a publish of the same package with a
+/// private function added that uses a deprecated global storage instruction.
+async fn sign_module_using_global_storage() -> (Arc<AuthorityState>, TransactionEnvelope) {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -609,10 +656,7 @@ async fn publish_module_using_global_storage() -> Result<ExecutionStatus, IotaEr
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         rgp,
     );
-    let transaction = to_sender_signed_transaction(tx, &sender_key);
-    send_and_confirm_transaction(&authority, transaction)
-        .await
-        .map(|(_, effects)| effects.status().clone())
+    (authority, to_sender_signed_transaction(tx, &sender_key))
 }
 
 /// The node's limits reject these modules whatever the protocol flag; the

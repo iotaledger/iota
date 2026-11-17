@@ -2208,6 +2208,8 @@ impl IotaNode {
                 }
                 info!("Checkpoint service has shut down.");
 
+                fail_point_async!("reconfig_before_consensus_shutdown");
+
                 consensus_manager.shutdown().await;
                 info!("Consensus has shut down.");
 
