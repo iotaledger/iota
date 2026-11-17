@@ -416,7 +416,9 @@ pub enum UserInputError {
         command_idx: usize,
         argument_idx: usize,
     },
-    #[error("A transaction with a transaction dependency input must set an epoch expiration")]
+    #[error(
+        "A transaction with a transaction dependency input must set an epoch expiration equal to the current epoch"
+    )]
     TransactionDependencyRequiresExpiration,
 }
 

@@ -2927,6 +2927,39 @@ fn transaction_dependency_input_cannot_be_used_by_a_command() {
     );
 }
 
+/// A dependent has to expire with the current epoch. An earlier epoch is
+/// expired and a later one is refused, while a transaction without a
+/// dependency may expire in a later epoch.
+#[test]
+fn transaction_dependency_input_requires_the_current_epoch() {
+    let config = config_with_transaction_dependencies();
+    let check = |with_dependency: bool, expiration_epoch: u64| {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        if with_dependency {
+            builder.transaction_dependency(TransactionDigest::random());
+        }
+        builder
+            .transfer_object(dbg_addr(1), random_object_ref())
+            .unwrap();
+        let transaction =
+            transaction_with_dependency_input(builder.finish(), Some(expiration_epoch));
+        SenderSignedTransaction::new(transaction, vec![]).validity_check(&TxValidityCheckContext {
+            config: &config,
+            epoch: 3,
+        })
+    };
+
+    check(true, 3).unwrap();
+    assert_eq!(check(true, 2).unwrap_err(), IotaError::TransactionExpired);
+    assert_eq!(
+        check(true, 4).unwrap_err(),
+        IotaError::UserInput {
+            error: UserInputError::TransactionDependencyRequiresExpiration
+        }
+    );
+    check(false, 4).unwrap();
+}
+
 #[test]
 fn transaction_dependency_input_is_unsupported_before_its_protocol_version() {
     let mut builder = ProgrammableTransactionBuilder::new();

@@ -2371,6 +2371,18 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
         tx.validity_check(context.config)
             .map_err(Into::<IotaError>::into)?;
 
+        // A dependency can only be satisfied within one epoch, so a dependent
+        // has to expire with the current one. An earlier epoch was refused
+        // above as expired.
+        if tx.transaction_dependency().is_some() {
+            fp_ensure!(
+                matches!(tx.expiration(), TransactionExpiration::Epoch(epoch) if *epoch == context.epoch),
+                IotaError::UserInput {
+                    error: UserInputError::TransactionDependencyRequiresExpiration
+                }
+            );
+        }
+
         move_authenticators_validity_check(self, context.config)?;
 
         Ok(tx_size)
