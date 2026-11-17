@@ -36,7 +36,7 @@ use iota_types::{
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
         ReceivingObjectReadResult, ReceivingObjects, TransactionAPI,
-        merge_authenticator_input_objects,
+        TransactionDependencyReadResult, merge_authenticator_input_objects,
     },
     transaction_executor::{InputCheckRules, SimulateTransactionResult},
 };
@@ -114,6 +114,16 @@ pub(super) fn prepare_transaction(
 
     let mut input_objects = load_input_objects(store, &raw_input_object_kinds)?;
     let receiving_objects = load_receiving_objects(store, &receiving_object_refs)?;
+
+    // The store keeps no executed transactions, so a dependency is assumed to
+    // succeed, as when a node simulates a transaction whose dependency it has
+    // not executed.
+    if let Some(dependency) = transaction.transaction_dependency() {
+        input_objects.set_transaction_dependency(TransactionDependencyReadResult {
+            digest: dependency,
+            succeeded: true,
+        });
+    }
 
     // Mint a one-shot mock gas coin if the transaction carries no gas payment,
     // the same coin the node mints on its simulation paths. `Execute` commits
