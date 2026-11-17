@@ -504,18 +504,21 @@ async fn deferred_dependency_chain_finishes_before_the_epoch_changes() {
         )
     };
 
-    assert_executed_successfully(&submit(&cluster, increment().await).await);
+    // All gas coins are funded before the first increment leaves its debt,
+    // which shrinks with every commit.
+    let first_increment = increment().await;
     let dependency = increment().await;
     let dependency_digest = *dependency.digest();
     let dependent = signed(&cluster, 1_000, Some(dependency_digest)).await;
     let dependent_digest = *dependent.digest();
+    assert_executed_successfully(&submit(&cluster, first_increment).await);
     let epoch = current_epoch(&cluster);
     let validators = cluster.swarm.validator_node_handles();
 
     // The dependent is submitted once its dependency is sequenced, so
     // post-consensus validation keeps it. The epoch closes once both are
     // sequenced, while the dependency is still deferred.
-    let (_, _, epoch_changed) = futures::join!(
+    let (dependency_outcome, dependent_outcome, epoch_changed) = futures::join!(
         submit(&cluster, dependency),
         async {
             match tokio::time::timeout(
@@ -585,36 +588,30 @@ async fn deferred_dependency_chain_finishes_before_the_epoch_changes() {
             }
 
             tokio::time::timeout(EPOCH_CHANGE_DEADLINE, async {
-                cluster.wait_for_epoch(Some(epoch + 1)).await;
+                cluster
+                    .wait_for_epoch_with_timeout(Some(epoch + 1), EPOCH_CHANGE_DEADLINE)
+                    .await;
                 cluster.wait_for_epoch_all_nodes(epoch + 1).await;
             })
             .await
         },
     );
     epoch_changed.expect("the epoch must change once the dependency chain finishes");
-
-    let digests = [dependency_digest, dependent_digest];
-    let effects = cluster
-        .fullnode_handle
-        .iota_node
-        .with_async(|node| async move {
-            node.state()
-                .get_transaction_cache_reader()
-                .notify_read_executed_effects_for_testing("", &digests)
-                .await
-        })
-        .await;
-    for effects in &effects {
-        assert!(effects.status().is_success(), "{effects:?}");
-        assert_eq!(effects.epoch(), epoch, "{effects:?}");
-    }
-    assert!(effects[1].dependencies().contains(&dependency_digest));
+    let dependency_effects = assert_executed_successfully(&dependency_outcome);
+    let dependent_effects = assert_executed_successfully(&dependent_outcome);
+    assert_eq!(dependency_effects.epoch(), epoch, "{dependency_effects:?}");
+    assert_eq!(dependent_effects.epoch(), epoch, "{dependent_effects:?}");
+    assert!(
+        dependent_effects
+            .dependencies()
+            .contains(&dependency_digest)
+    );
 
     // Both gas coins pay for a transfer in the next epoch.
     let rgp = cluster.get_reference_gas_price().await;
-    for effects in &effects {
+    for effects in [dependency_effects, dependent_effects] {
         let next = TestTransactionBuilder::new(sender, *effects.gas_object().reference(), rgp)
-            .programmable(transfer(1_000))
+            .transfer_iota(Some(1_000), Address::random())
             .build();
         assert_executed_successfully(&submit(&cluster, cluster.sign_transaction(&next)).await);
     }
