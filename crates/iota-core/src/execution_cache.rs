@@ -521,15 +521,22 @@ pub trait ObjectCacheRead: Send + Sync {
             )
         });
 
-        let executed_transaction_results =
-            executed_transaction_keys.iter().map(|(idx, _)| *idx).zip(
-                self.try_multi_transactions_executed(
-                    &executed_transaction_keys
-                        .iter()
-                        .map(|(_, digest)| *digest)
-                        .collect::<Vec<_>>(),
-                )?,
-            );
+        let executed_transaction_results = if executed_transaction_keys.is_empty() {
+            vec![]
+        } else {
+            executed_transaction_keys
+                .iter()
+                .map(|(idx, _)| *idx)
+                .zip(
+                    self.try_multi_transactions_executed(
+                        &executed_transaction_keys
+                            .iter()
+                            .map(|(_, digest)| *digest)
+                            .collect::<Vec<_>>(),
+                    )?,
+                )
+                .collect()
+        };
 
         let mut results = versioned_results
             .into_iter()
