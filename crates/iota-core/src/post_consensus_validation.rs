@@ -619,7 +619,6 @@ pub async fn validate_and_resolve_conflicts(
                 dependency,
                 commit_index,
                 &decisions,
-                previously_deferred,
                 epoch_store,
                 authority_state,
             )? {
@@ -1186,7 +1185,6 @@ fn dependency_verdict(
     dependency: TransactionDigest,
     commit_index: CommitIndex,
     decisions: &CommitDecisions,
-    previously_deferred: &PreviouslyDeferredTransactions,
     epoch_store: &Arc<AuthorityPerEpochStore>,
     authority_state: &AuthorityState,
 ) -> IotaResult<DependencyVerdict> {
@@ -1198,9 +1196,9 @@ fn dependency_verdict(
             | PostConsensusDecision::DroppedCopy => DependencyVerdict::NotVisibleYet,
         });
     }
-    if previously_deferred.contains_key(&dependency)
-        || epoch_store.is_deferred_transaction(&dependency)
-    {
+    // One reloaded from deferral at this commit is decided above, as it is
+    // validated before its dependent.
+    if epoch_store.is_deferred_transaction(&dependency) {
         return Ok(DependencyVerdict::Pending);
     }
     let Some(root_commit) = epoch_store.root_commit_of(&dependency)? else {

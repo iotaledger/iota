@@ -28,8 +28,11 @@ use typed_store::Map;
 use crate::{
     authority::{
         AuthorityState, ExecutionEnv,
-        authority_per_epoch_store::{AuthorityPerEpochStore, ExecutionIndicesWithStats},
+        authority_per_epoch_store::{
+            AuthorityPerEpochStore, ExecutionIndicesWithStats, PreviouslyDeferredTransactions,
+        },
         authority_test_utils::init_state_with_objects,
+        transaction_deferral::DeferralKey,
     },
     checkpoints::CheckpointServiceNoop,
     consensus_handler::{ConsensusCommitInfo, VerifiedSequencedConsensusTransaction},
@@ -136,6 +139,21 @@ impl Setup {
         Vec<TransactionDigest>,
         Vec<(TransactionDigest, IotaError, PostConsensusDecision)>,
     ) {
+        self.validate_with_deferred(commit_index, transactions, &Default::default())
+            .await
+    }
+
+    /// Like [`Self::validate`], with `previously_deferred` the transactions
+    /// of `transactions` reloaded from deferral.
+    async fn validate_with_deferred(
+        &self,
+        commit_index: u64,
+        transactions: Vec<TransactionEnvelope>,
+        previously_deferred: &PreviouslyDeferredTransactions,
+    ) -> (
+        Vec<TransactionDigest>,
+        Vec<(TransactionDigest, IotaError, PostConsensusDecision)>,
+    ) {
         let mut sequenced: Vec<_> = transactions
             .into_iter()
             .map(sequenced_user_transaction)
@@ -146,7 +164,7 @@ impl Setup {
                 &self.authority,
                 &self.epoch_store,
                 commit_index,
-                &Default::default(),
+                previously_deferred,
                 &mut sequenced,
             )
             .await
@@ -224,6 +242,26 @@ async fn dependency_sequenced_later_in_the_commit_is_validated_first() {
     let dependent_digest = *dependent.digest();
 
     let (kept, dropped) = setup.validate(20, vec![dependent, dependency]).await;
+
+    assert!(dropped.is_empty(), "{dropped:?}");
+    assert_eq!(kept, vec![dependency_digest, dependent_digest]);
+}
+
+#[tokio::test]
+async fn dependency_reloaded_from_deferral_keeps_the_dependent() {
+    let setup = setup(2).await;
+    let dependency = setup.transfer(0, 1_000, None);
+    let dependency_digest = *dependency.digest();
+    let dependent = setup.transfer(1, 1_000, Some(dependency_digest));
+    let dependent_digest = *dependent.digest();
+    let previously_deferred = PreviouslyDeferredTransactions::from([(
+        dependency_digest,
+        (DeferralKey::new_for_consensus_round(20, 19), None),
+    )]);
+
+    let (kept, dropped) = setup
+        .validate_with_deferred(20, vec![dependent, dependency], &previously_deferred)
+        .await;
 
     assert!(dropped.is_empty(), "{dropped:?}");
     assert_eq!(kept, vec![dependency_digest, dependent_digest]);
