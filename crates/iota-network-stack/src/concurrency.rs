@@ -23,7 +23,7 @@ use std::{
     num::NonZeroUsize,
     pin::Pin,
     sync::{Arc, Mutex, PoisonError},
-    task::{Context, Poll, ready},
+    task::{Context, Poll, Waker},
     time::Duration,
 };
 
@@ -228,6 +228,15 @@ struct Held<B, D> {
     _until_deadline: Option<D>,
 }
 
+/// State a `ReclaimableBody` shares with its deadline timer.
+struct Shared<B, D> {
+    held: Option<Held<B, D>>,
+    /// Waker of the last poll that found the inner body pending. Taking the
+    /// inner body drops the waker it registered, so the timer wakes this one
+    /// for the transport to poll again and send the trailers.
+    waker: Option<Waker>,
+}
+
 pin_project! {
     /// Response body that gives up its contents when a deadline passes before
     /// it has been sent. The transport polls a body only when the receiver
@@ -238,7 +247,7 @@ pin_project! {
     /// stays until the body itself is dropped, once the stream has been
     /// written, reset or abandoned.
     pub struct ReclaimableBody<B, D, E> {
-        held: Arc<Mutex<Option<Held<B, D>>>>,
+        shared: Arc<Mutex<Shared<B, D>>>,
         _until_end: Option<E>,
         timer: Option<AbortHandle>,
         // Whether a reclaimed body has handed over its trailers.
@@ -254,7 +263,12 @@ pin_project! {
             // cancelling it, so the contents are taken here for
             // `until_deadline` to be released with the body, not some time
             // after.
-            let _released = this.held.lock().unwrap_or_else(PoisonError::into_inner).take();
+            let _released = this
+                .shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .held
+                .take();
         }
     }
 }
@@ -269,11 +283,14 @@ where
     /// dropped.
     pub fn new(inner: B, until_deadline: Option<D>, until_end: Option<E>) -> Self {
         Self {
-            held: Arc::new(Mutex::new(Some(Held {
-                inner,
-                pending: Bytes::new(),
-                _until_deadline: until_deadline,
-            }))),
+            shared: Arc::new(Mutex::new(Shared {
+                held: Some(Held {
+                    inner,
+                    pending: Bytes::new(),
+                    _until_deadline: until_deadline,
+                }),
+                waker: None,
+            })),
             _until_end: until_end,
             timer: None,
             ended: false,
@@ -290,12 +307,19 @@ where
         on_reclaim: impl FnOnce() + Send + 'static,
     ) -> Self {
         let mut body = Self::new(inner, until_deadline, until_end);
-        let held = body.held.clone();
+        let shared = body.shared.clone();
         let timer = tokio::spawn(async move {
             tokio::time::sleep(deadline).await;
-            let reclaimed = held.lock().unwrap_or_else(PoisonError::into_inner).take();
+            let (reclaimed, waker) = {
+                let mut shared = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                (shared.held.take(), shared.waker.take())
+            };
             if reclaimed.is_some() {
+                drop(reclaimed);
                 on_reclaim();
+                if let Some(waker) = waker {
+                    waker.wake();
+                }
             }
         });
         body.timer = Some(timer.abort_handle());
@@ -328,8 +352,9 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
         let this = self.project();
-        let mut held = this.held.lock().unwrap_or_else(PoisonError::into_inner);
-        let Some(state) = held.as_mut() else {
+        let mut shared = this.shared.lock().unwrap_or_else(PoisonError::into_inner);
+        let shared = &mut *shared;
+        let Some(state) = shared.held.as_mut() else {
             // The status goes in trailers, the way a gRPC server reports an
             // error after the headers. An error from the body would make the
             // transport reset the stream, which the client reads as
@@ -340,7 +365,18 @@ where
             return Poll::Ready(Some(Ok(Frame::trailers(deadline_exceeded_trailers()))));
         };
         if state.pending.is_empty() {
-            match ready!(Pin::new(&mut state.inner).poll_frame(cx)) {
+            let Poll::Ready(frame) = Pin::new(&mut state.inner).poll_frame(cx) else {
+                if this.timer.is_some()
+                    && !shared
+                        .waker
+                        .as_ref()
+                        .is_some_and(|waker| waker.will_wake(cx.waker()))
+                {
+                    shared.waker = Some(cx.waker().clone());
+                }
+                return Poll::Pending;
+            };
+            match frame {
                 None => {
                     // The stream is over; nothing is left to reclaim.
                     if let Some(timer) = this.timer.take() {
@@ -373,16 +409,16 @@ where
     }
 
     fn is_end_stream(&self) -> bool {
-        let held = self.held.lock().unwrap_or_else(PoisonError::into_inner);
-        match held.as_ref() {
+        let shared = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
+        match shared.held.as_ref() {
             Some(state) => state.pending.is_empty() && state.inner.is_end_stream(),
             None => self.ended,
         }
     }
 
     fn size_hint(&self) -> http_body::SizeHint {
-        let held = self.held.lock().unwrap_or_else(PoisonError::into_inner);
-        match held.as_ref() {
+        let shared = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
+        match shared.held.as_ref() {
             Some(state) => {
                 let pending = state.pending.len() as u64;
                 let mut hint = state.inner.size_hint();
@@ -802,6 +838,35 @@ mod tests {
 
         drop(body);
         assert!(reclaimed_end.load(Ordering::SeqCst));
+    }
+
+    /// A reader already waiting on an idle inner body must be woken at the
+    /// deadline to receive the trailers.
+    #[tokio::test]
+    async fn the_deadline_wakes_a_reader_waiting_on_the_body() {
+        let mut body = ReclaimableBody::<_, DropFlag, DropFlag>::with_deadline(
+            PendingBody,
+            None,
+            None,
+            DEADLINE,
+            || {},
+        );
+
+        // A task of its own, so that only the body can wake the reader.
+        let reader = tokio::spawn(async move { next_frame(&mut body).await });
+        let frame = tokio::time::timeout(DEADLINE * 10, reader)
+            .await
+            .expect("the deadline must wake the waiting reader")
+            .unwrap()
+            .expect("a reclaimed body must end with trailers, not a bare end")
+            .expect("a reclaimed body must not fail, which would reset the stream");
+        let trailers = frame
+            .into_trailers()
+            .unwrap_or_else(|_| panic!("a reclaimed body must not yield data"));
+        assert_eq!(
+            Status::from_header_map(&trailers).map(|status| status.code()),
+            Some(tonic::Code::DeadlineExceeded)
+        );
     }
 
     #[tokio::test]
