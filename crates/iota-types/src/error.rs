@@ -394,7 +394,9 @@ pub enum UserInputError {
         object_id: ObjectId,
         version: Option<Version>,
     },
-    #[error("Transaction {digest} that this transaction depends on has not been executed yet")]
+    #[error(
+        "Transaction {digest} that this transaction depends on is not among the executed transactions"
+    )]
     TransactionDependencyNotFound { digest: TransactionDigest },
     #[error(
         "Transaction {digest} that this transaction depends on failed, was cancelled, or was rejected"
