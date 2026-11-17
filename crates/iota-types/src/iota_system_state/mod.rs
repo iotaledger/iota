@@ -8,6 +8,7 @@ use anyhow::Result;
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_sdk_move_types::{
+    MoveType,
     iota_framework::dynamic_field::Field,
     iota_system::{
         iota_system::IotaSystemState as IotaSystemStateWrapper, validator_wrapper::Validator,
@@ -24,7 +25,6 @@ use self::{
 #[cfg(not(target_arch = "wasm32"))]
 use crate::iota_system_state::epoch_start_iota_system_state::EpochStartSystemState;
 use crate::{
-    MoveTypeTagTrait,
     committee::CommitteeWithNetworkMetadata,
     dynamic_field::{get_dynamic_field_from_store, get_dynamic_field_object_from_store},
     error::IotaError,
@@ -433,7 +433,7 @@ pub fn get_validator_from_table<K>(
     protocol_version: Option<u64>,
 ) -> Result<IotaValidatorSummary, IotaError>
 where
-    K: MoveTypeTagTrait + Serialize + DeserializeOwned + fmt::Debug,
+    K: MoveType + Serialize + DeserializeOwned + fmt::Debug,
 {
     let wrapper: Validator =
         get_dynamic_field_from_store(object_store, table_id, key).map_err(|err| {
