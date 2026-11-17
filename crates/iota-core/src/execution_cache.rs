@@ -790,7 +790,9 @@ pub trait ObjectCacheRead: Send + Sync {
     /// wait until all of them become available, so that the transaction
     /// can start execution.
     /// `input_and_receiving_keys` contains both input objects and receiving
-    /// input objects, including canceled objects.
+    /// input objects, including canceled objects. An
+    /// `InputKey::ExecutedTransaction` is never notified here; wait for it with
+    /// `TransactionCacheRead::notify_read_executed_effects_digests`.
     /// TODO: Eventually this can return the objects read results,
     /// so that execution does not need to load them again.
     fn notify_read_input_objects<'a>(

@@ -1228,10 +1228,6 @@ impl WritebackCache {
 
         self.executed_effects_digests_notify_read
             .notify(&tx_digest, &effects_digest);
-        // Dependents waiting in the execution scheduler for this transaction
-        // to execute.
-        self.object_notify_read
-            .notify(&InputKey::ExecutedTransaction { digest: tx_digest }, &());
 
         self.metrics
             .pending_notify_read
