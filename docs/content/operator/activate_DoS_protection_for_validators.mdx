@@ -50,6 +50,7 @@ policy-config:
     allow: ["203.0.113.7", "198.51.100.0/24"]  # Never counted or blocked
     deny: ["192.0.2.0/24"]  # Refused unless an allow rule matches
     default: limit  # or deny: refuse every client that no allow rule names
+    forwarders: ["10.0.0.5"]  # Fullnode only: services that name their users in x-iota-client-ip
   
   # How long to block direct client IPs (in seconds)
   connection-blocklist-ttl-sec: 60
@@ -121,7 +122,7 @@ A fullnode simulates transactions for free: gRPC `SimulateTransactions` and `Vie
 
 Both values must be above 0. The example values above are not measured defaults: with them a client can run four simulations at the cap back to back, and then about one every five seconds. Measure what your clients simulate before you set them.
 
-The policies count an IPv6 client by its `ipv6-prefix-len` prefix, and so does the gas limit: the addresses of one prefix share one balance. Clients whose IP the node cannot resolve share one balance. Clients that an allow rule serves have no gas limit. A GraphQL server or an indexer simulates through the fullnode's gRPC API, so all of its users share the balance of its IP. Do not give either one an allow rule for that reason: simulation through it would then have no limit. In dry run mode the node serves a simulation over the limit, and counts it in `traffic_control_num_dry_run_simulation_gas_refusals`.
+The policies count an IPv6 client by its `ipv6-prefix-len` prefix, and so does the gas limit: the addresses of one prefix share one balance. Clients whose IP the node cannot resolve share one balance. Clients that an allow rule serves have no gas limit. A GraphQL server or an indexer simulates through the fullnode's gRPC API, so all of its users share the balance of its IP, unless the fullnode lists it as a forwarder (see "Trusted Forwarders" below). Do not give either one an allow rule: simulation through it would then have no limit. In dry run mode the node serves a simulation over the limit, and counts it in `traffic_control_num_dry_run_simulation_gas_refusals`.
 
 The admin API changes the values at runtime. It can turn the limit on for a node whose `policy-config` has no `simulation-gas-limit`, given both values, but it cannot turn the limit off:
 
@@ -130,6 +131,27 @@ curl -X POST 'http://127.0.0.1:1337/traffic-control?simulation_gas_per_sec=10000
 ```
 
 The change lasts until the node restarts. The balances are kept, and cut to a lower `burst-gas` at their next refill.
+
+## Trusted Forwarders
+
+A GraphQL server and an indexer serve dry runs, dev inspects and view calls by calling the gRPC API of a fullnode, and name the user of each call in the `x-iota-client-ip` header. List them in `access-rules.forwarders` of the fullnode, so that the fullnode treats each user as its own client:
+
+```yaml
+policy-config:
+  access-rules:
+    forwarders: ["10.0.0.5", "10.0.1.0/24"]
+```
+
+- A forwarder is an IP address or a CIDR network, written like an access rule.
+- For a request from a forwarder that carries the header, the fullnode takes the IP address in the header as the client, for the access rules, the blocklist, the spam and error policies and the simulation gas limit. It does not count the request for the forwarder. `traffic_control_forwarded_requests` counts these requests. With `default: deny`, the fullnode thus refuses a user that no allow rule names, even when an allow rule names the forwarder.
+- A request from a forwarder without the header, with the header more than once, or with a value that is not an IP address, is the forwarder's own.
+- The fullnode ignores the header from every other client.
+- The fullnode trusts the header by the IP address of the forwarder alone, so the forwarder must connect to the fullnode directly, or through a proxy that keeps the address of the forwarder. With `client-id-source: x-forwarded-for` the forwarders match the client that that header names, and the node logs a warning at startup.
+- GraphQL and the indexer name the address that connects to them, and send it to the fullnode they call whether or not that fullnode lists them. Behind a load balancer or a proxy, that is the address of the load balancer or the proxy, so all users behind it share one client. Do not give that address an allow rule: simulation through it would then have no limit.
+- When the fullnode refuses a call (`RESOURCE_EXHAUSTED`), GraphQL answers with the code `TOO_MANY_REQUESTS`, and the indexer with the `ServerIsBusy` error code (-32009), with the message of the fullnode. This holds for every call of the indexer to the fullnode, not only simulations.
+- Validators do not apply `forwarders`, though they still check that each entry is an IP address or a CIDR network.
+
+`iota-tool admin traffic-control rules list` and `GET /traffic-control/rules` show the forwarders. They are set in the configuration only.
 
 ## Non-Proxy Mode Configuration
 
@@ -280,7 +302,7 @@ The admin API of the node (`admin-interface-address`, `127.0.0.1:1337` by defaul
 `block` and `unblock` take an IP address, or an IPv6 prefix as the blocklist names it, such as `2001:db8:1:2::/64`:
 
 - A manual block of an IPv6 address blocks its whole `ipv6-prefix-len` prefix.
-- A manual block refuses the client when it connects to the node. Like the access rules, it does not refuse requests that reach the node through a fullnode.
+- A manual block refuses the client when it connects to the node, and a user that a forwarder names. Like the access rules, it does not refuse requests that reach the node through a fullnode.
 - A manual block never shortens a block in force. When it outlasts a block whose line the node logged, the node logs the block line again.
 - The node rejects a manual block of a client that an allow rule serves, since a firewall that acts on the block line would ban that client.
 - Under dry run the node keeps the block, but still serves the client.
@@ -308,6 +330,7 @@ After enabling the `TrafficController`, monitor your node's metrics to ensure le
 - `traffic_control_simulation_gas_charged`, `traffic_control_simulation_gas_refusals` and `traffic_control_num_dry_run_simulation_gas_refusals`
 - `traffic_control_simulation_gas_per_sec` and `traffic_control_simulation_burst_gas`
 - `traffic_control_unresolved_client_requests`
+- `traffic_control_forwarded_requests`
 - `connection_blocklist_ttl_sec`
 - `proxy_blocklist_ttl_sec`
 
