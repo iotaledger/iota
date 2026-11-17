@@ -19,6 +19,10 @@
 //!   the fixed budgets that match the `max_auth_gas` values currently configured for live IOTA
 //!   networks ([`MaxAuthGas::NETWORKS`]).
 //!
+//! The budgets only apply under `cargo simtest`. Under plain `cargo nextest` the validators run
+//! with the devnet value, so both entry points run that one budget
+//! ([`MaxAuthGas::DEVNET`]).
+//!
 //! The dials a developer typically wants to tweak live near the top of the
 //! file under "Tunable test parameters": the [`MaxAuthGas`] enum, the
 //! [`NUM_OF_CYCLES`] slice for the benchmark scenario, the precomputed
@@ -83,9 +87,13 @@ enum MaxAuthGas {
 }
 
 impl MaxAuthGas {
+    /// The value on devnet, which the validators of a test cluster run with
+    /// when the budget of the test does not reach them.
+    const DEVNET: MaxAuthGas = MaxAuthGas::G1m;
+
     /// Fixed budgets matching the `max_auth_gas` values currently configured
     /// for live IOTA networks.
-    const NETWORKS: &'static [MaxAuthGas] = &[MaxAuthGas::G20k, MaxAuthGas::G1m];
+    const NETWORKS: &'static [MaxAuthGas] = &[MaxAuthGas::G20k, MaxAuthGas::DEVNET];
 
     /// Every fixed numeric budget the test sweeps over.
     const ALL: &'static [MaxAuthGas] = &[
@@ -191,11 +199,6 @@ struct Expectation {
 
 /// Expected `authenticate` outcome per `(package, max_auth_gas)` pair.
 ///
-/// The budget only applies under `cargo simtest`. The `max_auth_gas`
-/// override is kept per thread, and only the simulator runs the validators
-/// on the test's thread; under plain `cargo nextest` they use the devnet
-/// value, so every budget is expected to behave as [`MaxAuthGas::G1m`].
-///
 /// To extend or correct this matrix:
 /// 1. Add the new package's arm here (or adjust an existing one).
 /// 2. Run the test in discovery mode (temporarily disable the `assert_eq!` in
@@ -204,8 +207,6 @@ struct Expectation {
 fn expected_outcome(name: &str, budget: MaxAuthGas) -> Expectation {
     use MaxAuthGas::*;
     use Outcome::{Fail, Pass};
-
-    let budget = if cfg!(msim) { budget } else { G1m };
 
     let authenticate = match name {
         // Plain ed25519 authenticators — pass under every budget.
@@ -291,20 +292,24 @@ fn expected_outcome(name: &str, budget: MaxAuthGas) -> Expectation {
     Expectation { authenticate }
 }
 
-/// Maximum number of authentication cycles each `max_auth_gas` budget
-/// can absorb before `authenticate_super_heavy` aborts with
-/// `OUT_OF_GAS`. The values are measured rather than computed because
-/// the per-cycle cost is not strictly linear across budgets: the cost of an
-/// instruction grows with the number of instructions executed. Above G1m
-/// only the counts in [`NUM_OF_CYCLES`] were tried, so the value is the
-/// largest of those that fits.
+/// Number of authentication cycles each `max_auth_gas` budget is known to
+/// absorb before `authenticate_super_heavy` aborts with `OUT_OF_GAS`. The
+/// values are measured rather than computed because the per-cycle cost is
+/// not strictly linear across budgets: the cost of an instruction grows with
+/// the number of instructions executed.
+///
+/// Up to G1m the value is the measured limit. Above G1m only the counts in
+/// [`NUM_OF_CYCLES`] were tried, so the value is a lower bound, the largest
+/// of those counts that fits; the limit lies between it and the next count.
 fn expected_super_heavy(cycles: u64, budget: MaxAuthGas) -> Outcome {
     use MaxAuthGas::*;
     use Outcome::{Fail, Pass};
 
     let max_cycles: u64 = match budget {
+        // Measured limits.
         G20k => 7,
         G1m => 209,
+        // Lower bounds: the largest of `NUM_OF_CYCLES` that fits.
         G5m | G25m | G125m => 200,
         G625m | G1250m => 1_000,
     };
@@ -404,6 +409,15 @@ async fn test_abstract_iota_accounts_examples_across_network_max_auth_gas_budget
 async fn run_across_max_auth_gas_budgets(budgets: &[MaxAuthGas]) -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
 
+    // The `max_auth_gas` override is kept per thread, and only the simulator
+    // runs the validators on the test's thread. Outside it they run with the
+    // devnet value whatever the budget, so every budget would check the same.
+    let budgets: &[MaxAuthGas] = if cfg!(msim) {
+        budgets
+    } else {
+        &[MaxAuthGas::DEVNET]
+    };
+
     // Per-budget result groups, kept for the final printed summary.
     let mut groups: Vec<(MaxAuthGas, Vec<PackageResult>)> = Vec::new();
 
@@ -436,9 +450,8 @@ async fn run_across_max_auth_gas_budgets(budgets: &[MaxAuthGas]) -> Result<(), a
         results.push(run_whitelist_sponsorship(&env).await);
         results.push(run_sponsorship_ed25519(&env).await);
         results.extend(run_account_for_benchmarks(&env, NUM_OF_CYCLES).await);
-        // Outside the simulator the budget does not reach the validators (see
-        // `expected_outcome`) and a refused transaction is retried in real
-        // time, so the scenarios that grow an input run only in it.
+        // Outside the simulator a refused transaction is retried in real time,
+        // so the scenarios that grow an input run only in it.
         if cfg!(msim) {
             results.extend(run_onesig_deep_proofs(&env, ONESIG_PROOF_DEPTHS).await);
             results.extend(run_spending_limit_withdrawals(&env, SPENDING_LIMIT_WITHDRAWALS).await);
@@ -1082,20 +1095,20 @@ async fn create_onesig_account(
 /// from the transaction's digest, so every proof is valid.
 async fn run_onesig_deep_proofs(env: &TestEnvironment, depths: &[usize]) -> Vec<PackageResult> {
     let make_label = |depth: usize| format!("onesig#depth={depth}");
-    let fail_all = |error: String, slot: &str| -> Vec<PackageResult> {
+    let fail_all = |error: String, step: FailedStep| -> Vec<PackageResult> {
         depths
             .iter()
-            .map(|&depth| placeholder_result(make_label(depth), error.clone(), slot))
+            .map(|&depth| placeholder_result(make_label(depth), error.clone(), step))
             .collect()
     };
 
     let (pkg_id, metadata_ref, _resp) = match env.publish_example_with_metadata("onesig").await {
         Ok(v) => v,
-        Err(e) => return fail_all(format!("{e:?}"), "publish"),
+        Err(e) => return fail_all(format!("{e:?}"), FailedStep::Publish),
     };
     let account_ref = match create_onesig_account(env, pkg_id, metadata_ref).await {
         Ok(v) => v,
-        Err(e) => return fail_all(format!("{e:?}"), "create"),
+        Err(e) => return fail_all(format!("{e:?}"), FailedStep::Create),
     };
 
     let aa_sender: Address = account_ref.object_id.into();
@@ -1159,17 +1172,17 @@ async fn run_spending_limit_withdrawals(
     counts: &[usize],
 ) -> Vec<PackageResult> {
     let make_label = |count: usize| format!("spending_limit#withdrawals={count}");
-    let fail_all = |error: String, slot: &str| -> Vec<PackageResult> {
+    let fail_all = |error: String, step: FailedStep| -> Vec<PackageResult> {
         counts
             .iter()
-            .map(|&count| placeholder_result(make_label(count), error.clone(), slot))
+            .map(|&count| placeholder_result(make_label(count), error.clone(), step))
             .collect()
     };
 
     let (pkg_id, metadata_ref, _resp) =
         match env.publish_example_with_metadata("spending_limit").await {
             Ok(v) => v,
-            Err(e) => return fail_all(format!("{e:?}"), "publish"),
+            Err(e) => return fail_all(format!("{e:?}"), FailedStep::Publish),
         };
 
     let total: u64 = counts.iter().map(|&count| count as u64).sum();
@@ -1184,7 +1197,7 @@ async fn run_spending_limit_withdrawals(
             "ed25519_authenticator",
         ) {
             Ok(v) => v,
-            Err(e) => return fail_all(format!("{e:?}"), "create"),
+            Err(e) => return fail_all(format!("{e:?}"), FailedStep::Create),
         };
         let pk_arg = b.pure(env.owner_pk_bytes()).unwrap();
         // The example refuses a limit of 0, so the limit stays one above
@@ -1201,7 +1214,7 @@ async fn run_spending_limit_withdrawals(
     };
     let account_ref = match create_account_with_pt(env, create_pt).await {
         Ok(v) => v,
-        Err(e) => return fail_all(format!("{e:?}"), "create"),
+        Err(e) => return fail_all(format!("{e:?}"), FailedStep::Create),
     };
     let account_arg = CallArg::Shared(SharedObjectReference {
         object_id: account_ref.object_id,
@@ -1225,7 +1238,7 @@ async fn run_spending_limit_withdrawals(
         b.finish()
     };
     if let Err(e) = execute_owner_pt(env, deposit_pt).await {
-        return fail_all(format!("deposit: {e:?}"), "create");
+        return fail_all(format!("deposit: {e:?}"), FailedStep::Create);
     }
 
     let aa_sender: Address = account_ref.object_id.into();
@@ -2029,24 +2042,24 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
     r
 }
 
-/// A result row for a scenario that stopped at `slot` (`"publish"`,
-/// `"create"` or `"auth"`) with `error`, the steps before it passed.
-fn placeholder_result(label: String, error: String, slot: &str) -> PackageResult {
+/// The step a scenario stopped at before it could authenticate.
+#[derive(Clone, Copy)]
+enum FailedStep {
+    Publish,
+    Create,
+}
+
+/// A result row for a scenario that stopped at `step` with `error`, the steps
+/// before it passed.
+fn placeholder_result(label: String, error: String, step: FailedStep) -> PackageResult {
     let mut r = PackageResult::new(label);
-    match slot {
-        "publish" => r.publish_err = Some(error),
-        "create" => {
+    match step {
+        FailedStep::Publish => r.publish_err = Some(error),
+        FailedStep::Create => {
             r.publish_ok = true;
             r.create_outcome = Outcome::Fail;
             r.create_err = Some(error);
         }
-        "auth" => {
-            r.publish_ok = true;
-            r.create_outcome = Outcome::Pass;
-            r.authenticate_outcome = Outcome::Fail;
-            r.authenticate_err = Some(error);
-        }
-        _ => unreachable!("unknown placeholder slot"),
     }
     r
 }
@@ -2066,8 +2079,8 @@ async fn run_account_for_benchmarks(
 ) -> Vec<PackageResult> {
     let make_label = |cycles: u64| format!("account_for_benchmarks#cycles={cycles}");
 
-    let placeholder = |cycles: u64, error: String, where_: &str| {
-        placeholder_result(make_label(cycles), error, where_)
+    let placeholder = |cycles: u64, error: String, step: FailedStep| {
+        placeholder_result(make_label(cycles), error, step)
     };
 
     // 1. Publish the package and capture the metadata ref.
@@ -2080,7 +2093,7 @@ async fn run_account_for_benchmarks(
             let err = format!("{e:?}");
             return cycle_counts
                 .iter()
-                .map(|&c| placeholder(c, err.clone(), "publish"))
+                .map(|&c| placeholder(c, err.clone(), FailedStep::Publish))
                 .collect();
         }
     };
@@ -2109,7 +2122,7 @@ async fn run_account_for_benchmarks(
             let err = format!("{e:?}");
             return cycle_counts
                 .iter()
-                .map(|&c| placeholder(c, err.clone(), "create"))
+                .map(|&c| placeholder(c, err.clone(), FailedStep::Create))
                 .collect();
         }
     };
@@ -2146,7 +2159,7 @@ async fn run_account_for_benchmarks(
             let err = format!("create_bench_objects submit: {e:?}");
             return cycle_counts
                 .iter()
-                .map(|&c| placeholder(c, err.clone(), "create"))
+                .map(|&c| placeholder(c, err.clone(), FailedStep::Create))
                 .collect();
         }
     };
@@ -2154,7 +2167,7 @@ async fn run_account_for_benchmarks(
         let err = format!("create_bench_objects status: {:?}", bench_effects.status());
         return cycle_counts
             .iter()
-            .map(|&c| placeholder(c, err.clone(), "create"))
+            .map(|&c| placeholder(c, err.clone(), FailedStep::Create))
             .collect();
     }
     let bench_refs: Vec<ObjectReference> = bench_effects
@@ -2560,9 +2573,7 @@ fn simple_sender_clock_ptb() -> ProgrammableTransaction {
 }
 
 fn keccak256(bytes: &[u8]) -> Vec<u8> {
-    let mut h = Keccak256::default();
-    h.update(bytes);
-    h.finalize().to_vec()
+    Keccak256::digest(bytes).to_vec()
 }
 
 /// `keccak256(min(left, right) || max(left, right))`, a node of a sorted-pair
