@@ -1842,7 +1842,7 @@ impl LocalExec {
             .await?;
 
         let transaction_dependency = self
-            .resolve_transaction_dependency(&orig_tx, effects.dependencies())
+            .resolve_transaction_dependency(&orig_tx, &effects)
             .await?;
 
         Ok(OnChainTransactionInfo {
@@ -1964,22 +1964,28 @@ impl LocalExec {
     }
 
     /// The outcome of the transaction named by `transaction`'s dependency
-    /// input, read from the dependency's own effects. `None` when
-    /// `effects_dependencies`, the dependencies in the effects of
-    /// `transaction`, do not include the dependency; they include it whenever
-    /// execution read it.
+    /// input, read from the dependency's own effects, when `effects`, the
+    /// effects of `transaction`, show that execution read it: no shared object
+    /// has a cancellation version, and the dependencies include the
+    /// dependency. A transaction cancelled at sequencing never reads its
+    /// dependency, which can still be among its dependencies as the previous
+    /// transaction of an input object.
     async fn resolve_transaction_dependency(
         &self,
         transaction: &SenderSignedTransaction,
-        effects_dependencies: &[TransactionDigest],
+        effects: &impl IotaTransactionBlockEffectsAPI,
     ) -> Result<Option<TransactionDependencyReadResult>, ReplayEngineError> {
         let Some(digest) = transaction.transaction().transaction_dependency() else {
             return Ok(None);
         };
-        if !effects_dependencies.contains(&digest) {
+        let cancelled_at_sequencing = effects
+            .shared_objects()
+            .iter()
+            .any(|shared_object| shared_object.version.is_canceled());
+        if cancelled_at_sequencing || !effects.dependencies().contains(&digest) {
             return Ok(None);
         }
-        let effects = self
+        let dependency_effects = self
             .fetcher
             .get_transaction(&digest)
             .await?
@@ -1989,7 +1995,7 @@ impl LocalExec {
             })?;
         Ok(Some(TransactionDependencyReadResult {
             digest,
-            succeeded: effects.status().is_ok(),
+            succeeded: dependency_effects.status().is_ok(),
         }))
     }
 
