@@ -24,7 +24,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
-    connection::ScanConnection,
     consistency::Checkpointed,
     data::{Conn, DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
@@ -35,7 +34,9 @@ use crate::{
         digest::Digest,
         epoch::Epoch,
         gas::GasCostSummary,
-        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+        transaction_block::{
+            self, TransactionBlock, TransactionBlockConnection, TransactionBlockFilter,
+        },
         uint53::UInt53,
     },
 };
@@ -233,7 +234,7 @@ impl Checkpoint {
             deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
         )]
         scan_limit: Option<u64>,
-    ) -> Result<ScanConnection<String, TransactionBlock>> {
+    ) -> Result<TransactionBlockConnection> {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let Some(filter) = filter
@@ -243,7 +244,7 @@ impl Checkpoint {
                 ..Default::default()
             })
         else {
-            return Ok(ScanConnection::new(false, false));
+            return Ok(TransactionBlockConnection::new(false, false));
         };
 
         TransactionBlock::paginate(ctx, page, filter, self.checkpoint_viewed_at, scan_limit)
