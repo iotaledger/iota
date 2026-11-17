@@ -307,6 +307,9 @@ mod checked {
     /// The authenticators and the body are metered on `gas_status`. Under the
     /// protocol feature flag `limit_move_authentication_gas_at_execution`, the
     /// authenticators share at most `max_auth_gas` of it, as before consensus.
+    /// When they run out of it, the status is `InsufficientGas`, as when the
+    /// budget runs out, and the source of the error returned names
+    /// `max_auth_gas`.
     #[instrument(
         name = "tx_authenticate_then_execute_to_effects",
         level = "debug",
@@ -469,8 +472,8 @@ mod checked {
                 let auth_gas_limit = protocol_config
                     .limit_move_authentication_gas_at_execution()
                     .then(|| protocol_config.max_auth_gas());
-                let (authentication_result, gas_owner_authorized) =
-                    gas_charger.with_gas_limit(auth_gas_limit, |gas_charger| {
+                let ((authentication_result, gas_owner_authorized), gas_limited) = gas_charger
+                    .with_gas_limit(auth_gas_limit, |gas_charger| {
                         run_move_authenticators(
                             &mut temporary_store,
                             gas_charger,
@@ -480,6 +483,13 @@ mod checked {
                             enable_pcool,
                             run_authenticator,
                         )
+                    });
+                let authentication_result =
+                    authentication_result.map_err(|error| match auth_gas_limit {
+                        Some(max_auth_gas) if gas_limited => {
+                            name_max_auth_gas_when_out_of_gas(error, max_auth_gas)
+                        }
+                        _ => error,
                     });
 
                 // A resolution failure goes through the same reporting as an
@@ -714,6 +724,32 @@ mod checked {
                 );
                 (result, gas_owner_authorized)
             }
+        }
+    }
+
+    /// Says in the source of `error` that the Move authenticators ran out of
+    /// `max_auth_gas`, when `error` is them running out of gas while limited to
+    /// it. The status is that of running out of the gas budget, but a larger
+    /// budget does not give the authenticators more gas.
+    fn name_max_auth_gas_when_out_of_gas(
+        error: ExecutionError,
+        max_auth_gas: u64,
+    ) -> ExecutionError {
+        if !matches!(error.kind(), ExecutionErrorKind::InsufficientGas) {
+            return error;
+        }
+        let message = format!(
+            "the Move authenticators ran out of max_auth_gas ({max_auth_gas}), not of the gas budget"
+        );
+        let message = match error.source() {
+            Some(source) => format!("{message}: {source}"),
+            None => message,
+        };
+        let out_of_max_auth_gas =
+            ExecutionError::new_with_source(ExecutionErrorKind::InsufficientGas, message);
+        match error.command() {
+            Some(command) => out_of_max_auth_gas.with_command_index(command),
+            None => out_of_max_auth_gas,
         }
     }
 

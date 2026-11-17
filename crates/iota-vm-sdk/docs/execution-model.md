@@ -86,7 +86,10 @@ separately:
   per-mode budget — the **post-consensus** path. The authenticators are held
   to `max_auth_gas` of it only when `limit_move_authentication_gas_at_execution`
   is on; without it, `execute_signed` on its own accepts an authenticator that
-  would exceed `max_auth_gas` at signing.
+  would exceed `max_auth_gas` at signing. Authenticators that run out of
+  `max_auth_gas` fail with `InsufficientGas`, the status of a gas budget that
+  is too low; the source of `ExecutionResult::execution_error` names
+  `max_auth_gas` to tell the two apart.
 - `check_signing_authentication` runs only the pre-consensus authenticator set
   under `max_auth_gas` — the **pre-consensus** signing check. It produces no
   effects; use it to tell whether a validator would admit the transaction for

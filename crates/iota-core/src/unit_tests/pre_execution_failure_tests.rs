@@ -1156,6 +1156,16 @@ impl TestChain {
 
     /// Executes `tx` on the authority, skipping the consensus handler.
     fn execute(&self, tx: TransactionEnvelope, env: ExecutionEnv) -> TransactionEffects {
+        self.execute_with_error(tx, env).0
+    }
+
+    /// Like [`Self::execute`], and returns the execution error, if any, next to
+    /// the effects.
+    fn execute_with_error(
+        &self,
+        tx: TransactionEnvelope,
+        env: ExecutionEnv,
+    ) -> (TransactionEffects, Option<ExecutionError>) {
         let epoch_store = self.authority.epoch_store_for_testing();
         let verified = epoch_store.verify_transaction(tx).unwrap();
         let executable =
@@ -1164,7 +1174,6 @@ impl TestChain {
         self.authority
             .try_execute_immediately(&executable, env, &epoch_store)
             .unwrap()
-            .0
     }
 
     /// Assigns `executable` to a commit of its own when the bookkeeping is on,
@@ -1335,7 +1344,13 @@ impl MoveAccountSponsorSetup {
 
     /// Executes the sponsored transfer.
     fn execute(&self) -> TransactionEffects {
-        self.chain.execute(
+        self.execute_with_error().0
+    }
+
+    /// Like [`Self::execute`], and returns the execution error, if any, next to
+    /// the effects.
+    fn execute_with_error(&self) -> (TransactionEffects, Option<ExecutionError>) {
+        self.chain.execute_with_error(
             self.transfer.clone(),
             ExecutionEnv::new().with_assigned_versions(self.assigned_versions.clone()),
         )
@@ -1488,6 +1503,49 @@ async fn failing_move_account_sponsor_failure_is_reported_when_both_fail() {
         effects.status()
     );
     assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
+}
+
+/// At execution the Move authenticators get at most `max_auth_gas`. When they
+/// run out of it, the status is that of a gas budget that is too low, so the
+/// error names `max_auth_gas`.
+#[tokio::test]
+async fn authenticators_out_of_max_auth_gas_name_it_in_the_error() {
+    // Less than a gas unit costs at the reference gas price.
+    const MAX_AUTH_GAS: u64 = 1;
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_max_auth_gas_for_testing(MAX_AUTH_GAS);
+        config
+    });
+    let setup = MoveAccountSponsorSetup::new(
+        &MoveAccountSponsorInputs::random(),
+        TestAccount::Account(TestAuthenticator::Passes),
+        TestAccount::Account(TestAuthenticator::Passes),
+        SponsorSignature::Second,
+    )
+    .await;
+    assert!(setup.chain.reference_gas_price() > MAX_AUTH_GAS);
+
+    let (effects, error) = setup.execute_with_error();
+
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionErrorKind::MoveAuthentication {
+                error: Box::new(ExecutionErrorKind::InsufficientGas),
+            },
+            command: None,
+        }
+    );
+    let error = error.expect("the failed authentication must be reported");
+    let source = error
+        .source()
+        .as_ref()
+        .expect("the error must say what ran out")
+        .to_string();
+    assert!(
+        source.contains(&format!("max_auth_gas ({MAX_AUTH_GAS})")),
+        "{source}"
+    );
 }
 
 /// Without the P-COOL flow, as on Mainnet and Testnet, authenticators keep
