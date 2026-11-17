@@ -1948,7 +1948,7 @@ fn equivocation_report(
     let mut equivocations = zeros();
     equivocations[offender] = 1;
     match scorer_version {
-        Some(2) => VersionedMisbehaviorReport::new_v2(
+        Some(2) | Some(3) => VersionedMisbehaviorReport::new_v2(
             reporter,
             0,
             MisbehaviorObservationsV2 {
