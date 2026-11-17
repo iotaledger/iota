@@ -2645,7 +2645,6 @@ pub enum IotaCallArg {
     Pure(IotaPureValue),
     /// The transaction this transaction depends on: it executes only after
     /// that transaction executed successfully. Not usable by a command.
-    #[serde(rename_all = "camelCase")]
     TransactionDependency {
         #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
