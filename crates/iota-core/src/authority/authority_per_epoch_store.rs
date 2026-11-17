@@ -3511,13 +3511,11 @@ impl AuthorityPerEpochStore {
                     ?dependency,
                     "deferring the transaction until its dependency is scheduled"
                 );
-                authority_metrics
-                    .consensus_handler_dependency_deferred_transactions
-                    .inc();
-                let result = SchedulingResult::Defer(
-                    DeferralKey::new_for_consensus_round(commit_round + 1, deferred_from_round),
-                    DeferralReason::Congestion(Vec::new()),
-                );
+                let deferral_key =
+                    DeferralKey::new_for_consensus_round(commit_round + 1, deferred_from_round);
+                self.count_dependency_deferral(&deferral_key, authority_metrics);
+                let result =
+                    SchedulingResult::Defer(deferral_key, DeferralReason::Congestion(Vec::new()));
                 tracing::Span::current()
                     .record("scheduling_result", tracing::field::debug(&result));
                 return result;
@@ -3551,9 +3549,7 @@ impl AuthorityPerEpochStore {
                         "deferring the transaction until its dependency ends within a commit's \
                          budget"
                     );
-                    authority_metrics
-                        .consensus_handler_dependency_deferred_transactions
-                        .inc();
+                    self.count_dependency_deferral(&deferral_key, authority_metrics);
                     SchedulingResult::Defer(deferral_key, DeferralReason::Congestion(Vec::new()))
                 }
                 SequencingResult::Schedule(start_time) => SchedulingResult::Schedule(start_time),
@@ -3566,6 +3562,25 @@ impl AuthorityPerEpochStore {
         // Record the result of scheduling for tracing.
         tracing::Span::current().record("scheduling_result", tracing::field::debug(&result));
         result
+    }
+
+    /// Counts a deferral for the transaction dependency, unless `deferral_key`
+    /// is past the deferral limit and `handle_scheduling_result` cancels the
+    /// transaction instead.
+    fn count_dependency_deferral(
+        &self,
+        deferral_key: &DeferralKey,
+        authority_metrics: &AuthorityMetrics,
+    ) {
+        if transaction_deferral_within_limit(
+            deferral_key,
+            self.protocol_config()
+                .max_deferral_rounds_for_congestion_control(),
+        ) {
+            authority_metrics
+                .consensus_handler_dependency_deferred_transactions
+                .inc();
+        }
     }
 
     /// Assign a sequence number for the shared objects of the input transaction

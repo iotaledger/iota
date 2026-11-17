@@ -2531,6 +2531,7 @@ async fn test_dependency_chain_waits_no_longer_than_the_deferral_limit() {
     }
 
     let round = max_deferral_rounds + 1;
+    let dependency_deferrals = sequencing.dependency_deferrals();
     let (scheduled, assigned) = sequencing
         .sequence(
             chain[next..].iter().map(sequenced).collect(),
@@ -2544,6 +2545,7 @@ async fn test_dependency_chain_waits_no_longer_than_the_deferral_limit() {
         scheduled.into_iter().collect::<BTreeSet<_>>(),
         chain[next..].iter().map(|tx| *tx.digest()).collect()
     );
+    assert_eq!(sequencing.dependency_deferrals(), dependency_deferrals);
     for index in next..LENGTH {
         let version = assigned_version(&assigned, &chain[index], objects[index].id()).unwrap();
         let cancelled = (index - next) % 2 == 1;
@@ -2611,6 +2613,7 @@ async fn test_dependent_of_a_deferred_dependency_is_cancelled_past_the_deferral_
         scheduled.into_iter().collect::<BTreeSet<_>>(),
         BTreeSet::from([*shared_dependent.digest(), *owned_dependent.digest()])
     );
+    assert_eq!(sequencing.dependency_deferrals(), 0);
     for (transaction, cancelled_object) in [
         (&shared_dependent, other.id()),
         (&owned_dependent, sequencing.gas_ids[2]),
