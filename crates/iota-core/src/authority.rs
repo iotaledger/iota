@@ -106,7 +106,7 @@ use iota_types::{
     move_authenticator::MoveAuthenticatorExt,
     object::{Object, ObjectRead, ObjectSet, PastObjectRead},
     storage::{
-        BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore,
+        BackingPackageStore, BackingStore, InputKey, ObjectKey, ObjectOrTombstone, ObjectStore,
         OwnedObjectCursor, TrackingBackingStore,
     },
     supported_protocol_versions::{
@@ -168,7 +168,8 @@ use crate::{
     },
     execution_driver::execution_process,
     execution_scheduler::{
-        ExecutionSchedulerAPI, ExecutionSchedulerWrapper, transaction_manager::AttestationSource,
+        ExecutionSchedulerAPI, ExecutionSchedulerWrapper, transaction_dependency_input_key,
+        transaction_manager::AttestationSource,
     },
     global_state_hasher::{GlobalStateHashStore, GlobalStateHasher},
     metrics::{LatencyObserver, RateTracker},
@@ -2128,28 +2129,25 @@ impl AuthorityState {
             epoch_store.epoch(),
         )?;
 
-        // The outcome of the transaction named by the dependency input. A
-        // transaction cancelled at sequencing executes as cancelled without
-        // reading its dependency, so it does not wait for it in the scheduler.
-        // Otherwise the scheduler released this transaction only once the
-        // dependency's effects were committed.
-        if let Some(dependency) = transaction.data().transaction().transaction_dependency() {
-            if input_objects.get_cancelled_objects().is_none() {
-                let effects = self
-                    .get_transaction_cache_reader()
-                    .get_executed_effects(&dependency)
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "transaction {:?} depends on transaction {dependency}, whose effects \
-                             are absent although the scheduler released the dependent",
-                            transaction.digest()
-                        )
-                    });
-                input_objects.set_transaction_dependency(TransactionDependencyReadResult {
-                    digest: dependency,
-                    succeeded: effects.status().is_success(),
+        // Read exactly when the scheduler waited for it, so that its effects
+        // are present here.
+        if let Some(InputKey::ExecutedTransaction { digest: dependency }) =
+            transaction_dependency_input_key(transaction, &assigned_shared_object_versions)
+        {
+            let effects = self
+                .get_transaction_cache_reader()
+                .get_executed_effects(&dependency)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "transaction {:?} depends on transaction {dependency}, whose effects \
+                         are absent although the scheduler released the dependent",
+                        transaction.digest()
+                    )
                 });
-            }
+            input_objects.set_transaction_dependency(TransactionDependencyReadResult {
+                digest: dependency,
+                succeeded: effects.status().is_success(),
+            });
         }
 
         transaction.split_input_objects_into_groups_for_reading(input_objects)

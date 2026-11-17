@@ -10,7 +10,7 @@
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, GasCostSummary, ObjectId, ObjectReference,
-    SharedObjectReference, TransactionDigest, TransactionEffects,
+    SharedObjectReference, TransactionDigest, TransactionEffects, Version, VersionAssignment,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -190,6 +190,42 @@ async fn dependent_of_a_successful_transaction_executes() {
     assert!(effects.status().is_success(), "{effects:?}");
     assert!(effects.dependencies().contains(&dependency_digest));
     assert!(!effects.created().is_empty());
+}
+
+/// A dependent cancelled at sequencing executes as cancelled without reading
+/// its dependency, which this node does not have.
+#[tokio::test]
+async fn dependent_cancelled_at_sequencing_does_not_read_its_dependency() {
+    let setup = setup().await;
+    let dependency = TransactionDigest::random();
+    let dependent = setup.transfer(1, 1_000, Some(dependency), true);
+    let certificate = init_certified_transaction(dependent, &setup.authority);
+    let cancelled = vec![VersionAssignment::new(
+        setup.shared.id(),
+        Version::new_congested_with_suggested_gas_price(1_000).unwrap(),
+    )];
+
+    let (effects, _) = setup
+        .authority
+        .try_execute_for_test(
+            &certificate,
+            ExecutionEnv::new().with_assigned_versions(cancelled),
+        )
+        .unwrap();
+    let effects = effects.inner().data();
+
+    let ExecutionStatus::Failure { error, .. } = effects.status() else {
+        panic!("a cancelled dependent succeeded: {effects:?}");
+    };
+    assert!(
+        matches!(
+            error,
+            ExecutionError::ExecutionCanceledDueToSharedObjectCongestion { .. }
+                | ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 { .. }
+        ),
+        "{error:?}"
+    );
+    assert!(!effects.dependencies().contains(&dependency));
 }
 
 #[tokio::test]
