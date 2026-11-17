@@ -7,6 +7,7 @@
 //! not reject them and execution decides. The dependents of a Move account go
 //! through consensus, as under the P-COOL flow.
 
+use iota_config::transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder};
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, GasCostSummary, ObjectId, ObjectReference,
@@ -131,13 +132,18 @@ impl Setup {
         &self,
         transaction: TransactionEnvelope,
     ) -> IotaResult<(AttestationData, Vec<ObjectReference>)> {
+        self.attest_with_deny_config(transaction, &self.authority.config.transaction_deny_config)
+    }
+
+    fn attest_with_deny_config(
+        &self,
+        transaction: TransactionEnvelope,
+        deny_config: &TransactionDenyConfig,
+    ) -> IotaResult<(AttestationData, Vec<ObjectReference>)> {
         let epoch_store = self.authority.epoch_store_for_testing();
         let verified = epoch_store.verify_transaction(transaction)?;
-        self.authority.attest_transaction(
-            &verified,
-            &epoch_store,
-            &self.authority.config.transaction_deny_config,
-        )
+        self.authority
+            .attest_transaction(&verified, &epoch_store, deny_config)
     }
 }
 
@@ -244,6 +250,31 @@ async fn attestor_refuses_a_dependent_of_a_failed_transaction() {
             Err(IotaError::UserInput {
                 error: UserInputError::TransactionDependencyFailed { digest }
             }) if *digest == failing_digest
+        ),
+        "{result:?}"
+    );
+}
+
+/// A deny rule is reported before a failed dependency.
+#[tokio::test]
+async fn attestor_reports_a_denial_before_a_failed_dependency() {
+    let setup = setup().await;
+    let failing = setup.transfer(0, u64::MAX, None, false);
+    let failing_digest = *failing.digest();
+    assert!(!setup.execute(failing, false).status().is_success());
+
+    let dependent = setup.transfer(1, 1_000, Some(failing_digest), false);
+    let deny_config = TransactionDenyConfigBuilder::new()
+        .add_denied_address(setup.sender)
+        .build();
+    let result = setup.attest_with_deny_config(dependent, &deny_config);
+
+    assert!(
+        matches!(
+            &result,
+            Err(IotaError::UserInput {
+                error: UserInputError::TransactionDenied { .. }
+            })
         ),
         "{result:?}"
     );
