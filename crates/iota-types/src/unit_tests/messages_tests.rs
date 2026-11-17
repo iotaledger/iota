@@ -2926,11 +2926,11 @@ fn transaction_dependency_input_is_unsupported_before_its_protocol_version() {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder.transaction_dependency(TransactionDigest::random());
     let transaction = transaction_with_dependency_input(builder.finish(), Some(3));
-    let config = ProtocolConfig::get_for_version(ProtocolVersion::new(40), Chain::Unknown);
-    assert!(!config.enable_transaction_dependencies());
+    let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+    config.set_enable_transaction_dependencies_for_testing(false);
 
     assert!(matches!(
         transaction.validity_check(&config),
-        Err(UserInputError::Unsupported(_))
+        Err(UserInputError::Unsupported(msg)) if msg == "transaction dependency inputs are not enabled"
     ));
 }
