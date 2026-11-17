@@ -611,7 +611,7 @@ impl DagBuilder {
             );
             references.push(block.reference());
             self.record_own_block(block.reference());
-            self.block_headers.insert(block.reference(), block.clone());
+            self.block_headers.insert(block.reference(), block);
         }
         let mut rng = rand::make_rng::<StdRng>();
         let unique_transaction_acks: Vec<BlockRef> = transaction_acks
@@ -1205,7 +1205,7 @@ impl<'a> LayerBuilder<'a> {
                 self.dag_builder
                     .transactions
                     .insert(block_header.reference(), verified_transactions.clone());
-                self.block_headers.push(block_header.clone());
+                self.block_headers.push(block_header);
                 self.transactions.push(verified_transactions);
             }
         }

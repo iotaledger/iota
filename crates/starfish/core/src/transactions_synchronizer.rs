@@ -800,7 +800,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             //   them to the core for processing.
             if let Some((transactions_guard, active_request_guard)) = inflight_transactions_map
                 .lock_transactions_and_active_request(
-                    authority_transaction_refs.clone(),
+                    authority_transaction_refs,
                     authority,
                     context
                         .parameters
