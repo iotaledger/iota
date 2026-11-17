@@ -675,8 +675,8 @@ async fn dependency_from_an_earlier_epoch_is_rejected_pcool_flow() {
 }
 
 /// A dependency input without an epoch expiration is invalid in either flow.
-#[sim_test]
-async fn dependent_without_epoch_expiration_is_invalid() {
+async fn dependent_without_epoch_expiration_is_invalid(pcool: bool) {
+    let _pcool_guard = override_pcool_flow(pcool);
     let cluster = TestClusterBuilder::new().build().await;
     let sender = cluster.get_address_0();
     let rgp = cluster.get_reference_gas_price().await;
@@ -701,4 +701,14 @@ async fn dependent_without_epoch_expiration_is_invalid() {
         error.contains("epoch expiration") || error.contains("RequiresExpiration"),
         "{error}"
     );
+}
+
+#[sim_test]
+async fn dependent_without_epoch_expiration_is_invalid_certificate_flow() {
+    dependent_without_epoch_expiration_is_invalid(false).await;
+}
+
+#[sim_test]
+async fn dependent_without_epoch_expiration_is_invalid_pcool_flow() {
+    dependent_without_epoch_expiration_is_invalid(true).await;
 }
