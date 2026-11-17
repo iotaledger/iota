@@ -28,7 +28,7 @@ use crate::{
         builtin_authenticator_functions::{
             BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME, BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME,
             builtin_authenticator_function_ref_v1, is_builtin_authenticator_function_ref,
-            verify_builtin_signature, verify_personal_message_signature,
+            verify_builtin_signature, verify_personal_message,
         },
         public_key::MovePublicKey,
     },
@@ -267,36 +267,36 @@ fn verify_builtin_signature_error_invalid_tx_data_bytes() {
     ));
 }
 
-// === verify_personal_message_signature() happy path ===
+// === verify_personal_message() happy path ===
 
 #[test]
-fn verify_personal_message_signature_ok_ed25519() {
+fn verify_personal_message_ok_ed25519() {
     let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
-    let verifier = personal_message_signature_verifier(&key_pair);
+    let verifier = personal_message_verifier(&key_pair);
     assert!(verifier.verify().is_ok());
 }
 
 #[test]
-fn verify_personal_message_signature_ok_secp256k1() {
+fn verify_personal_message_ok_secp256k1() {
     let key_pair = SimpleKeypair::from(Secp256k1PrivateKey::random_with(seeded_rng()));
-    let verifier = personal_message_signature_verifier(&key_pair);
+    let verifier = personal_message_verifier(&key_pair);
     assert!(verifier.verify().is_ok());
 }
 
 #[test]
-fn verify_personal_message_signature_ok_secp256r1() {
+fn verify_personal_message_ok_secp256r1() {
     let key_pair = SimpleKeypair::from(Secp256r1PrivateKey::random_with(seeded_rng()));
-    let verifier = personal_message_signature_verifier(&key_pair);
+    let verifier = personal_message_verifier(&key_pair);
     assert!(verifier.verify().is_ok());
 }
 
 #[test]
-fn verify_personal_message_signature_ok_passkey() {
+fn verify_personal_message_ok_passkey() {
     let key_pair = SimpleKeypair::from(Secp256r1PrivateKey::random_with(seeded_rng()));
     // The challenge is the signing digest of the personal message.
     let challenge = personal_message_intent(PERSONAL_MESSAGE).signing_digest();
 
-    let verifier = PersonalMessageSignatureVerifier {
+    let verifier = PersonalMessageVerifier {
         public_key: passkey_public_key(&key_pair),
         signature: passkey_signature(&key_pair, &challenge).to_bytes(),
         message: PERSONAL_MESSAGE.to_vec(),
@@ -304,32 +304,40 @@ fn verify_personal_message_signature_ok_passkey() {
     assert!(verifier.verify().is_ok());
 }
 
-// === verify_personal_message_signature() errors ===
+// === verify_personal_message() errors ===
 
 #[test]
-fn verify_personal_message_signature_error_other_public_key() {
+fn verify_personal_message_error_other_public_key() {
     let mut rng = seeded_rng();
     let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut rng));
     let other_key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut rng));
-    let mut verifier = personal_message_signature_verifier(&key_pair);
+    let mut verifier = personal_message_verifier(&key_pair);
     verifier.public_key = MovePublicKey::from(&other_key_pair);
 
-    assert!(verifier.verify().is_err());
+    assert!(matches!(
+        verifier.verify().unwrap_err(),
+        IotaError::IncorrectSigner { error }
+            if error.contains("Incorrect signer")
+    ));
 }
 
 #[test]
-fn verify_personal_message_signature_error_other_message() {
+fn verify_personal_message_error_other_message() {
     let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
-    let mut verifier = personal_message_signature_verifier(&key_pair);
+    let mut verifier = personal_message_verifier(&key_pair);
     verifier.message = b"another message".to_vec();
 
-    assert!(verifier.verify().is_err());
+    assert!(matches!(
+        verifier.verify().unwrap_err(),
+        IotaError::InvalidSignature { error }
+            if error.contains("Fail to verify user sig")
+    ));
 }
 
 #[test]
-fn verify_personal_message_signature_error_transaction_intent() {
+fn verify_personal_message_error_transaction_intent() {
     let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
-    let mut verifier = personal_message_signature_verifier(&key_pair);
+    let mut verifier = personal_message_verifier(&key_pair);
     // The same bytes, signed with the transaction intent.
     let intent_msg = IntentMessage::new(
         Intent::iota_transaction(),
@@ -338,11 +346,15 @@ fn verify_personal_message_signature_error_transaction_intent() {
     let sig: SimpleSignature = key_pair.sign(&intent_msg.signing_digest());
     verifier.signature = UserSignature::Simple(sig).to_bytes();
 
-    assert!(verifier.verify().is_err());
+    assert!(matches!(
+        verifier.verify().unwrap_err(),
+        IotaError::InvalidSignature { error }
+            if error.contains("Fail to verify user sig")
+    ));
 }
 
 #[test]
-fn verify_personal_message_signature_error_passkey_transaction_intent_challenge() {
+fn verify_personal_message_error_passkey_transaction_intent_challenge() {
     let key_pair = SimpleKeypair::from(Secp256r1PrivateKey::random_with(seeded_rng()));
     // The challenge is the digest of the same bytes with the transaction
     // intent.
@@ -352,21 +364,25 @@ fn verify_personal_message_signature_error_passkey_transaction_intent_challenge(
     )
     .signing_digest();
 
-    let verifier = PersonalMessageSignatureVerifier {
+    let verifier = PersonalMessageVerifier {
         public_key: passkey_public_key(&key_pair),
         signature: passkey_signature(&key_pair, &challenge).to_bytes(),
         message: PERSONAL_MESSAGE.to_vec(),
     };
-    assert!(verifier.verify().is_err());
+    assert!(matches!(
+        verifier.verify().unwrap_err(),
+        IotaError::InvalidSignature { error }
+            if error.contains("passkey challenge does not match expected message")
+    ));
 }
 
 #[test]
-fn verify_personal_message_signature_error_sig_scheme_mismatch() {
+fn verify_personal_message_error_sig_scheme_mismatch() {
     let mut rng = seeded_rng();
     // Signature is ED25519 but the public key is Secp256k1.
     let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut rng));
     let secp256k1_key_pair = SimpleKeypair::from(Secp256k1PrivateKey::random_with(&mut rng));
-    let mut verifier = personal_message_signature_verifier(&key_pair);
+    let mut verifier = personal_message_verifier(&key_pair);
     verifier.public_key = MovePublicKey::from(&secp256k1_key_pair);
 
     assert!(matches!(
@@ -377,9 +393,24 @@ fn verify_personal_message_signature_error_sig_scheme_mismatch() {
 }
 
 #[test]
-fn verify_personal_message_signature_error_invalid_sig_bytes() {
+fn verify_personal_message_error_sig_scheme_mismatch_malformed_signature() {
     let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
-    let mut verifier = personal_message_signature_verifier(&key_pair);
+    let mut verifier = personal_message_verifier(&key_pair);
+    // The Passkey flag followed by bytes that do not decode: a decode before
+    // the scheme comparison would return another error.
+    verifier.signature = vec![SignatureScheme::PasskeyAuthenticator.to_u8(), 0xFF, 0xFF];
+
+    assert!(matches!(
+        verifier.verify().unwrap_err(),
+        IotaError::InvalidSignature { error }
+            if error.contains("Signature scheme mismatch")
+    ));
+}
+
+#[test]
+fn verify_personal_message_error_invalid_sig_bytes() {
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
+    let mut verifier = personal_message_verifier(&key_pair);
     // An unrecognized scheme flag so UserSignature rejects it.
     verifier.signature = vec![0xAB, 0xCD, 0xEF];
 
@@ -391,33 +422,50 @@ fn verify_personal_message_signature_error_invalid_sig_bytes() {
 }
 
 #[test]
-fn verify_personal_message_signature_error_multisig_public_key() {
-    let mut rng = seeded_rng();
-    let kp1 = Secp256k1PrivateKey::random_with(&mut rng);
-    let kp2 = Secp256r1PrivateKey::random_with(&mut rng);
-    let multisig_public_key = MultisigCommittee::new(
-        vec![
-            MultisigMember::new(kp1.public_key(), 1),
-            MultisigMember::new(kp2.public_key(), 1),
-        ],
-        1,
-    )
-    .unwrap();
+fn verify_personal_message_error_empty_sig_bytes() {
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(seeded_rng()));
+    let mut verifier = personal_message_verifier(&key_pair);
+    verifier.signature = vec![];
+
+    assert!(matches!(
+        verifier.verify().unwrap_err(),
+        IotaError::InvalidSignature { error }
+            if error.contains("Invalid signature bytes")
+    ));
+}
+
+#[test]
+fn verify_personal_message_error_multisig_public_key() {
+    let (secp256k1_member, committee) = multisig_committee();
 
     // A MultiSig signature of the personal message that reaches the threshold.
     let msg = personal_message_intent(PERSONAL_MESSAGE).signing_digest();
-    let sig1: SimpleSignature = kp1.sign(&msg);
+    let sig: SimpleSignature = secp256k1_member.sign(&msg);
     let multisig = UserSignature::Multisig(
-        MultisigAggregatedSignature::new(vec![sig1.into()], multisig_public_key.clone()).unwrap(),
+        MultisigAggregatedSignature::new(vec![sig.into()], committee.clone()).unwrap(),
     );
 
-    let verifier = PersonalMessageSignatureVerifier {
-        public_key: MovePublicKey::new(
-            SignatureScheme::Multisig,
-            bcs::to_bytes(&multisig_public_key).unwrap(),
-        )
-        .unwrap(),
+    let verifier = PersonalMessageVerifier {
+        public_key: multisig_public_key(&committee),
         signature: multisig.to_bytes(),
+        message: PERSONAL_MESSAGE.to_vec(),
+    };
+    assert!(matches!(
+        verifier.verify().unwrap_err(),
+        IotaError::InvalidSignature { error }
+            if error.contains("MultiSig public key is not accepted")
+    ));
+}
+
+#[test]
+fn verify_personal_message_error_multisig_public_key_malformed_signature() {
+    let (_, committee) = multisig_committee();
+
+    let verifier = PersonalMessageVerifier {
+        public_key: multisig_public_key(&committee),
+        // The MultiSig flag followed by bytes that do not decode: a decode
+        // before the MultiSig check would return another error.
+        signature: vec![SignatureScheme::Multisig.to_u8(), 0xFF, 0xFF],
         message: PERSONAL_MESSAGE.to_vec(),
     };
     assert!(matches!(
@@ -450,17 +498,17 @@ impl BuiltinSignatureVerifier {
     }
 }
 
-/// Calls `verify_personal_message_signature` with the arguments for a signed
+/// Calls `verify_personal_message` with the arguments for a signed
 /// personal message.
-struct PersonalMessageSignatureVerifier {
+struct PersonalMessageVerifier {
     public_key: MovePublicKey,
     signature: Vec<u8>,
     message: Vec<u8>,
 }
 
-impl PersonalMessageSignatureVerifier {
+impl PersonalMessageVerifier {
     fn verify(&self) -> Result<(), IotaError> {
-        verify_personal_message_signature(
+        verify_personal_message(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             &self.public_key,
             &self.signature,
@@ -525,18 +573,38 @@ fn personal_message_intent(message: &[u8]) -> IntentMessage<PersonalMessage<'_>>
 }
 
 /// Signs `PERSONAL_MESSAGE` with `key_pair` and returns the
-/// `PersonalMessageSignatureVerifier` for it.
-fn personal_message_signature_verifier(
-    key_pair: &SimpleKeypair,
-) -> PersonalMessageSignatureVerifier {
+/// `PersonalMessageVerifier` for it.
+fn personal_message_verifier(key_pair: &SimpleKeypair) -> PersonalMessageVerifier {
     let intent_msg = personal_message_intent(PERSONAL_MESSAGE);
     let sig: SimpleSignature = key_pair.sign(&intent_msg.signing_digest());
 
-    PersonalMessageSignatureVerifier {
+    PersonalMessageVerifier {
         public_key: MovePublicKey::from(key_pair),
         signature: UserSignature::Simple(sig).to_bytes(),
         message: PERSONAL_MESSAGE.to_vec(),
     }
+}
+
+/// Returns a 1-of-2 MultiSig committee of a Secp256k1 and a Secp256r1 key,
+/// with the private key of its Secp256k1 member.
+fn multisig_committee() -> (Secp256k1PrivateKey, MultisigCommittee) {
+    let mut rng = seeded_rng();
+    let secp256k1_member = Secp256k1PrivateKey::random_with(&mut rng);
+    let secp256r1_member = Secp256r1PrivateKey::random_with(&mut rng);
+    let committee = MultisigCommittee::new(
+        vec![
+            MultisigMember::new(secp256k1_member.public_key(), 1),
+            MultisigMember::new(secp256r1_member.public_key(), 1),
+        ],
+        1,
+    )
+    .unwrap();
+    (secp256k1_member, committee)
+}
+
+/// Returns the MultiSig public key of `committee`.
+fn multisig_public_key(committee: &MultisigCommittee) -> MovePublicKey {
+    MovePublicKey::new(SignatureScheme::Multisig, bcs::to_bytes(committee).unwrap()).unwrap()
 }
 
 /// Returns the Passkey public key of the Secp256r1 `key_pair`.
