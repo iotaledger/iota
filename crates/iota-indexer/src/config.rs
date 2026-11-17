@@ -114,14 +114,28 @@ pub struct JsonRpcConfig {
     pub rpc_client_url: String,
 
     /// Maximum number of StakedIota / TimelockedStakedIota objects returned
-    /// by iotax_getStakes and iotax_getTimelockedStakes.
+    /// by iotax_getStakes and iotax_getTimelockedStakes. Must be at least 1000.
     #[arg(
         long,
-        default_value_t = 1000,
+        default_value_t = Self::DEFAULT_MAX_QUERY_STAKED_OBJECTS,
         env = "MAX_QUERY_STAKED_OBJECTS",
-        help = "Maximum number of StakedIota / TimelockedStakedIota objects returned by iotax_getStakes and iotax_getTimelockedStakes"
+        value_parser = parse_max_query_staked_objects,
     )]
     pub max_query_staked_objects: usize,
+}
+
+impl JsonRpcConfig {
+    pub const DEFAULT_MAX_QUERY_STAKED_OBJECTS: usize = 1_000;
+}
+
+fn parse_max_query_staked_objects(value: &str) -> Result<usize, String> {
+    let limit = value
+        .parse::<usize>()
+        .map_err(|e| format!("invalid stake query limit: {e}"))?;
+    if limit < JsonRpcConfig::DEFAULT_MAX_QUERY_STAKED_OBJECTS || i64::try_from(limit).is_err() {
+        return Err("stake query limit must be between 1000 and i64::MAX".to_owned());
+    }
+    Ok(limit)
 }
 
 #[derive(Args, Debug, Clone)]
@@ -546,6 +560,66 @@ mod test {
 
         // fullnode rpc url must be present
         parse_args::<JsonRpcConfig>([]).unwrap_err();
+    }
+
+    #[test]
+    fn stake_query_limit() {
+        const CHILD: &str = "IOTA_TEST_STAKE_LIMIT_EXPECTED";
+        if let Ok(expected) = std::env::var(CHILD) {
+            let mut args = vec!["--rpc-client-url=http://example.com".to_owned()];
+            if let Ok(limit) = std::env::var("IOTA_TEST_STAKE_LIMIT_CLI") {
+                args.push(format!("--max-query-staked-objects={limit}"));
+            }
+            let result = parse_args::<JsonRpcConfig>(args.iter().map(String::as_str));
+            if expected == "error" {
+                assert!(result.is_err(), "unexpectedly accepted limit");
+            } else {
+                assert_eq!(
+                    result.unwrap().max_query_staked_objects,
+                    expected.parse::<usize>().unwrap()
+                );
+            }
+            return;
+        }
+
+        for (env_limit, cli_limit, expected) in [
+            (None, None, "1000"),
+            (None, Some("0"), "error"),
+            (None, Some("999"), "error"),
+            (None, Some("1000"), "1000"),
+            (None, Some("1500"), "1500"),
+            (None, Some("-1"), "error"),
+            (None, Some("9223372036854775808"), "error"),
+            (Some("999"), None, "error"),
+            (Some("0"), None, "error"),
+            (Some("1000"), None, "1000"),
+            (Some("1500"), None, "1500"),
+            (Some("invalid"), None, "error"),
+            (Some("9223372036854775808"), None, "error"),
+            (Some("999"), Some("1500"), "1500"),
+            (Some("1500"), Some("999"), "error"),
+        ] {
+            let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+            command
+                .args(["--exact", "config::test::stake_query_limit"])
+                .env(CHILD, expected)
+                .env_remove("MAX_QUERY_STAKED_OBJECTS")
+                .env_remove("IOTA_TEST_STAKE_LIMIT_CLI");
+            if let Some(limit) = env_limit {
+                command.env("MAX_QUERY_STAKED_OBJECTS", limit);
+            }
+            if let Some(limit) = cli_limit {
+                command.env("IOTA_TEST_STAKE_LIMIT_CLI", limit);
+            }
+            let output = command.output().unwrap();
+            assert!(
+                output.status.success()
+                    && String::from_utf8_lossy(&output.stdout).contains("1 passed"),
+                "env={env_limit:?}, cli={cli_limit:?}: stdout: {}, stderr: {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
     }
 
     #[test]

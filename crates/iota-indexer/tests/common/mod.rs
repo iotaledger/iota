@@ -442,6 +442,7 @@ async fn start_indexer_reader(
         historic_fallback_options: Default::default(),
         rpc_address,
         rpc_client_url: fullnode_rpc_url.into(),
+        max_query_staked_objects: JsonRpcConfig::DEFAULT_MAX_QUERY_STAKED_OBJECTS,
     };
 
     let pool = new_connection_pool(

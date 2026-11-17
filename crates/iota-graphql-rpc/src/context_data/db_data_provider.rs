@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use iota_indexer::{
     apis::GovernanceReadApi,
+    config::JsonRpcConfig,
     db::{ConnectionPoolConfig, DbUrl},
     historical_fallback::HistoricalFallbackReader,
     metrics::IndexerMetrics,
@@ -127,7 +128,10 @@ impl PgManager {
         &self,
         stake: NativeStakedIota,
     ) -> Result<RpcStakedIota, Error> {
-        let governance_api = GovernanceReadApi::new(self.inner.clone());
+        let governance_api = GovernanceReadApi::new(
+            self.inner.clone(),
+            JsonRpcConfig::DEFAULT_MAX_QUERY_STAKED_OBJECTS,
+        );
 
         let mut delegated_stakes = governance_api
             .get_delegated_stakes(vec![stake])

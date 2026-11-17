@@ -1,14 +1,24 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use diesel::RunQueryDsl;
+use iota_indexer::{
+    apis::GovernanceReadApi,
+    pruning::watermark_task::WatermarkCache,
+    read::IndexerReader,
+    schema::objects,
+    store::{PgIndexerStore, diesel_macro::spawn_blocking_task},
+};
 use iota_json_rpc_api::{
-    GovernanceReadApiClient, QUERY_MAX_RESULT_LIMIT, TransactionBuilderClient,
+    GovernanceReadApiClient, GovernanceReadApiServer, QUERY_MAX_RESULT_LIMIT,
+    TransactionBuilderClient,
 };
 use iota_json_rpc_types::{
-    DelegatedStake, DelegatedTimelockedStake, StakeStatus, TransactionBlockBytes,
+    DelegatedStake, DelegatedTimelockedStake, IotaObjectDataFilter, StakeStatus,
+    TransactionBlockBytes,
 };
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
@@ -23,6 +33,43 @@ use crate::common::{
     indexer_wait_for_object, indexer_wait_for_transaction, input_size_limit_exceeded_msg,
     rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
 };
+
+async fn add_stake_rows(
+    store: &PgIndexerStore,
+    reader: &IndexerReader,
+    owner: Address,
+    stake_type: StructTag,
+) {
+    let mut rows = reader
+        .get_owned_objects_in_blocking_task(
+            owner,
+            Some(IotaObjectDataFilter::StructType(stake_type)),
+            None,
+            1,
+        )
+        .await
+        .unwrap();
+    let row = rows.pop().expect("stake object should be indexed");
+    // Distinct row keys let the query exercise limits above 1000 without
+    // creating that many on-chain stakes.
+    let rows: Vec<_> = (0..1002)
+        .map(|_| {
+            let mut row = row.clone();
+            row.object_id = ObjectId::random().as_bytes().to_vec();
+            row
+        })
+        .collect();
+    let pool = store.blocking_cp();
+    spawn_blocking_task(move || {
+        let mut connection = pool.get().unwrap();
+        diesel::insert_into(objects::table)
+            .values(&rows)
+            .execute(&mut connection)
+            .unwrap();
+    })
+    .await
+    .unwrap();
+}
 
 #[tokio::test]
 async fn test_staking() {
@@ -101,6 +148,19 @@ async fn test_staking() {
             estimated_reward: _
         }
     ));
+
+    let reader = IndexerReader::new(store.blocking_cp(), WatermarkCache::new());
+    add_stake_rows(store, &reader, sender, StructTag::new_staked_iota()).await;
+    for limit in [1001, 1002] {
+        let api = GovernanceReadApi::new(reader.clone(), limit);
+        let stakes = GovernanceReadApiServer::get_stakes(&api, sender)
+            .await
+            .unwrap();
+        assert_eq!(
+            stakes.iter().map(|pool| pool.stakes.len()).sum::<usize>(),
+            limit
+        );
+    }
 }
 
 #[tokio::test]
@@ -318,6 +378,25 @@ async fn test_timelocked_staking() {
             estimated_reward: _
         }
     ));
+
+    let reader = IndexerReader::new(store.blocking_cp(), WatermarkCache::new());
+    add_stake_rows(
+        store,
+        &reader,
+        sender,
+        StructTag::new_timelocked_staked_iota(),
+    )
+    .await;
+    for limit in [1001, 1002] {
+        let api = GovernanceReadApi::new(reader.clone(), limit);
+        let stakes = GovernanceReadApiServer::get_timelocked_stakes(&api, sender)
+            .await
+            .unwrap();
+        assert_eq!(
+            stakes.iter().map(|pool| pool.stakes.len()).sum::<usize>(),
+            limit
+        );
+    }
 }
 
 #[tokio::test]

@@ -10,7 +10,7 @@ use async_graphql::{
     *,
 };
 use futures::TryFutureExt;
-use iota_indexer::apis::GovernanceReadApi;
+use iota_indexer::{apis::GovernanceReadApi, config::JsonRpcConfig};
 use iota_json_rpc::governance_api::mean_apy_from_exchange_rates;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
 use iota_sdk_types::Address as NativeAddress;
@@ -75,7 +75,10 @@ impl Loader<u64> for Db {
             .spawn_blocking(move |this| this.get_latest_iota_system_state())
             .await
             .map_err(|_| Error::Internal("Failed to fetch latest IOTA system state".to_string()))?;
-        let governance_api = GovernanceReadApi::new(self.inner.clone());
+        let governance_api = GovernanceReadApi::new(
+            self.inner.clone(),
+            JsonRpcConfig::DEFAULT_MAX_QUERY_STAKED_OBJECTS,
+        );
 
         let (candidate_rates, pending_rates) = tokio::try_join!(
             governance_api
