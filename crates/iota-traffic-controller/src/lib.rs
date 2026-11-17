@@ -15,7 +15,7 @@ mod simulation_gas;
 
 use std::{
     fmt::Debug,
-    net::{IpAddr, SocketAddr},
+    net::{IpAddr, Ipv6Addr, SocketAddr},
     str,
     sync::Arc,
     time::Instant,
@@ -24,14 +24,16 @@ use std::{
 use iota_types::{
     error::IotaError,
     traffic_control::{
-        AccessRuleList, ClientIdSource, PolicyConfig, PolicyType, TrafficControlReconfigParams,
+        AccessRuleList, AccessRules, BlockedClient, BlockedClients, ClientGasBalance,
+        ClientIdSource, ClientUsage, DefaultAction, PolicyConfig, PolicyType,
+        TrafficControlReconfigParams, TrafficControlStatus,
     },
 };
-use tracing::error;
+use tracing::{error, warn};
 
 use self::{
-    block_log::BlockReason,
-    client_access::{ClientAccessManager, client_prefix, parse_access_rule},
+    block_log::{BlockReason, client_name},
+    client_access::{ClientAccessManager, client_prefix, ipv6_prefix_len_of, parse_access_rule},
     metrics::TrafficControllerMetrics,
     simulation_gas::SimulationGasLimiter,
 };
@@ -154,7 +156,145 @@ impl TrafficController {
             proxy_blocklist_ttl_sec: Some(proxy_blocklist_ttl_sec),
             simulation_gas_per_sec: simulation_gas.as_ref().map(|limit| limit.gas_per_sec),
             simulation_burst_gas: simulation_gas.map(|limit| limit.burst_gas),
+            default_action: Some(self.client_access.access_rules().default),
         }
+    }
+
+    /// The settings in force, with the number of rules and of blocked
+    /// clients.
+    pub fn status(&self) -> TrafficControlStatus {
+        let (connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec) =
+            self.client_access.blocklist_ttls_sec();
+        let rules = self.client_access.access_rules();
+        TrafficControlStatus {
+            error_threshold: self.policies.error.client_threshold(),
+            spam_threshold: self.policies.spam.client_threshold(),
+            dry_run: self.client_access.dry_run(),
+            connection_blocklist_ttl_sec,
+            proxy_blocklist_ttl_sec,
+            default_action: rules.default,
+            allow_rules: rules.allow.len(),
+            deny_rules: rules.deny.len(),
+            blocked_clients: self.client_access.blocked_len(),
+            simulation_gas_limit: self.simulation_gas.settings(),
+        }
+    }
+
+    /// The settings in force in the shape of `policy-config`: the config the
+    /// node started with, with every change the admin API made since.
+    pub fn runtime_policy_config(&self) -> PolicyConfig {
+        let mut config = PolicyConfig::clone(&self.policy_config);
+        let (connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec) =
+            self.client_access.blocklist_ttls_sec();
+        config.dry_run = self.client_access.dry_run();
+        config.connection_blocklist_ttl_sec = connection_blocklist_ttl_sec;
+        config.proxy_blocklist_ttl_sec = proxy_blocklist_ttl_sec;
+        for (policy_type, policy) in [
+            (&mut config.spam_policy_type, &self.policies.spam),
+            (&mut config.error_policy_type, &self.policies.error),
+        ] {
+            match (policy_type, policy.client_threshold()) {
+                (PolicyType::FreqThreshold(freq), Some(threshold)) => {
+                    freq.client_threshold = threshold
+                }
+                (PolicyType::TestNConnIP(count), Some(threshold)) => *count = threshold,
+                _ => {}
+            }
+        }
+        config.access_rules = self.client_access.access_rules();
+        config.simulation_gas_limit = self.simulation_gas.settings();
+        config
+    }
+
+    /// The access rules in force, each in its canonical form.
+    pub fn access_rules(&self) -> AccessRules {
+        self.client_access.access_rules()
+    }
+
+    /// The clients the node refuses until their blocks expire, at most `limit`
+    /// of them.
+    pub fn blocklist(&self, limit: usize) -> BlockedClients {
+        self.client_access.blocklist(limit)
+    }
+
+    /// Refuses `client` for `ttl_sec` seconds with the reason `manual` when it
+    /// connects to this node, and returns its block in force. Like the access
+    /// rules, it does not refuse requests that reach this node through a
+    /// fullnode. `client` is an IP address, or an IPv6 prefix as the blocklist
+    /// names it; an IPv6 address is blocked with its whole `ipv6-prefix-len`
+    /// prefix. Logs the block line outside dry run. A block in force that
+    /// lasts longer keeps its expiration and its reason. The block lasts until
+    /// it expires or the node restarts. Rejects a client that an allow rule
+    /// serves. Under dry run the node still serves the client.
+    pub fn block_client(&self, client: &str, ttl_sec: u64) -> Result<BlockedClient, IotaError> {
+        let client = self.parse_client(client)?;
+        self.client_access
+            .block_manually(client, ttl_sec)
+            .map_err(IotaError::InvalidAdminRequest)
+    }
+
+    /// Whether dry run is on, in which case the node serves every client.
+    pub fn dry_run(&self) -> bool {
+        self.client_access.dry_run()
+    }
+
+    /// Drops the blocks of `client`, as a direct client and as one that
+    /// reached this node through a fullnode, and returns whether it had one in
+    /// force. `client` is an IP address, or an IPv6 prefix as the blocklist
+    /// names it. Also drops what the spam and error policies counted for
+    /// the client, and its simulation gas balance, so that its next request
+    /// does not block it again at once. Logs the unblock line for a block
+    /// whose block line was logged.
+    pub fn unblock_client(&self, client: &str) -> Result<bool, IotaError> {
+        let client = self.parse_client(client)?;
+        self.policies.spam.forget(client);
+        self.policies.error.forget(client);
+        self.simulation_gas.forget(Some(client));
+        Ok(self.client_access.unblock(client))
+    }
+
+    /// The `top` clients with the lowest simulation gas balances, lowest
+    /// first, and up to `top` blocked clients. The spam and error policies
+    /// cannot report what they counted for a client without charging it, so
+    /// their usage is not listed.
+    pub fn client_usage(&self, top: usize) -> ClientUsage {
+        let (balances, omitted_gas_balances) =
+            self.simulation_gas.lowest_balances(top, Instant::now());
+        let ipv6_prefix_len = self.policy_config.ipv6_prefix_len;
+        ClientUsage {
+            gas_balances: balances
+                .into_iter()
+                .map(|(client, gas)| ClientGasBalance {
+                    client: client.map(|client| client_name(client, ipv6_prefix_len)),
+                    gas,
+                })
+                .collect(),
+            omitted_gas_balances,
+            blocked: self.client_access.blocklist(top),
+        }
+    }
+
+    /// The blocklist key of `client`: an IP address, or an IPv6 prefix with
+    /// its length as the blocklist names it, such as `2001:db8:1:2::/64`.
+    fn parse_client(&self, client: &str) -> Result<IpAddr, IotaError> {
+        let ipv6_prefix_len = self.policy_config.ipv6_prefix_len;
+        let invalid = || {
+            IotaError::InvalidAdminRequest(format!(
+                "{client:?} is not an IP address, nor an IPv6 prefix as the blocklist names it"
+            ))
+        };
+        let address = match client.split_once('/') {
+            None => client.parse::<IpAddr>().map_err(|_| invalid())?,
+            Some((address, prefix_len)) => {
+                let address = address.parse::<Ipv6Addr>().map_err(|_| invalid())?;
+                let prefix_len = prefix_len.parse::<u8>().map_err(|_| invalid())?;
+                if prefix_len != ipv6_prefix_len_of(address, ipv6_prefix_len) {
+                    return Err(invalid());
+                }
+                IpAddr::V6(address)
+            }
+        };
+        Ok(client_prefix(address, ipv6_prefix_len))
     }
 
     /// Sets the computation limit of one transaction,
@@ -240,6 +380,7 @@ impl TrafficController {
             proxy_blocklist_ttl_sec,
             simulation_gas_per_sec,
             simulation_burst_gas,
+            default_action,
         } = params;
         let updates = [
             (
@@ -278,6 +419,17 @@ impl TrafficController {
         );
         self.simulation_gas
             .reconfigure(simulation_gas_per_sec, simulation_burst_gas);
+        if let Some(default_action) = default_action {
+            if self.client_access.set_default_action(default_action)
+                && default_action == DefaultAction::Deny
+            {
+                warn!(
+                    "The admin API set the default action deny: outside dry run the node \
+                     refuses every client that no allow rule names, on a validator also the \
+                     other nodes that send it requests"
+                );
+            }
+        }
 
         Ok(self.get_current_state())
     }
@@ -1175,6 +1327,350 @@ mod tests {
             .expect("both values turn the limit on");
         assert_eq!(state.simulation_gas_per_sec, Some(10));
         assert_eq!(state.simulation_burst_gas, Some(20));
+    }
+
+    #[tokio::test]
+    async fn a_manual_block_refuses_the_client_and_logs_it() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        let mut block = None;
+        let log = capture_plain(|| block = Some(controller.block_client("10.0.0.1", 300).unwrap()));
+        let block = block.unwrap();
+        let [line] = log.block_lines().try_into().unwrap();
+        assert!(
+            line.ends_with("client_blocked client=10.0.0.1 reason=manual ttl_secs=300"),
+            "{line}"
+        );
+        assert_eq!(
+            controller.check(&Some(CLIENT), &None),
+            ClientAccess::Refused
+        );
+        assert_eq!(
+            (block.client.as_str(), block.proxied, block.reason),
+            ("10.0.0.1", false, BlockReason::Manual)
+        );
+        assert!((299..=300).contains(&block.seconds_left), "{block:?}");
+        assert_eq!(controller.blocklist(10).clients, vec![block]);
+    }
+
+    #[tokio::test]
+    async fn the_admin_api_rejects_an_invalid_manual_block() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        for (client, ttl_sec) in [
+            ("10.0.0.1", 0),
+            ("10.0.0.1", MAX_BLOCKLIST_TTL_SEC + 1),
+            ("not-an-address", 60),
+            ("10.0.0.0/24", 60),
+            // The blocklist names this client 2001:db8:1:2::/64.
+            ("2001:db8:1:2::/48", 60),
+        ] {
+            assert!(matches!(
+                controller.block_client(client, ttl_sec),
+                Err(IotaError::InvalidAdminRequest(_))
+            ));
+        }
+        assert_eq!(controller.blocklist(10).clients, vec![]);
+    }
+
+    #[tokio::test]
+    async fn a_manual_block_of_a_client_an_allow_rule_serves_is_rejected() {
+        let controller = TrafficController::init_for_test(PolicyConfig {
+            access_rules: AccessRules {
+                allow: vec!["10.0.0.0/24".to_string(), "2001:db8:1:2::7".to_string()],
+                ..Default::default()
+            },
+            ..policy_config(false, PolicyKind::Spam)
+        });
+        let log = capture_plain(|| {
+            for client in ["10.0.0.1", "2001:db8:1:2::5"] {
+                let Err(IotaError::InvalidAdminRequest(message)) =
+                    controller.block_client(client, 60)
+                else {
+                    panic!("the block of {client} was not rejected");
+                };
+                assert!(message.contains("remove the rule first"), "{message}");
+            }
+        });
+        assert_eq!(log.block_lines(), Vec::<String>::new());
+        assert_eq!(controller.blocklist(10).clients, vec![]);
+        controller.block_client("10.0.1.1", 60).unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_manual_block_that_outlasts_a_logged_block_is_logged_again() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        let log = capture_plain(|| {
+            controller.tally(breach(PolicyKind::Spam));
+            let shorter = controller.block_client("10.0.0.1", 60).unwrap();
+            assert_eq!(shorter.reason, BlockReason::Spam);
+            assert!((119..=120).contains(&shorter.seconds_left), "{shorter:?}");
+            let longer = controller.block_client("10.0.0.1", 3600).unwrap();
+            assert_eq!(longer.reason, BlockReason::Manual);
+            assert!((3599..=3600).contains(&longer.seconds_left), "{longer:?}");
+        });
+        let lines = log.block_lines();
+        assert_eq!(lines.len(), 2, "{lines:?}");
+        assert!(lines[0].ends_with("reason=spam ttl_secs=120"), "{lines:?}");
+        assert!(
+            lines[1].ends_with("reason=manual ttl_secs=3600"),
+            "{lines:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_ipv6_client_is_blocked_and_unblocked_by_the_name_the_blocklist_gives() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        let block = controller.block_client("2001:db8:1:2::5", 60).unwrap();
+        assert_eq!(block.client, "2001:db8:1:2::/64");
+        let other = IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 1, 2, 0, 0, 0, 9));
+        assert_eq!(controller.check(&Some(other), &None), ClientAccess::Refused);
+
+        assert!(controller.unblock_client(&block.client).unwrap());
+        assert!(controller.check(&Some(other), &None).is_served());
+    }
+
+    #[tokio::test]
+    async fn an_unblocked_client_starts_again_with_its_whole_burst() {
+        let controller = TrafficController::init_for_test(PolicyConfig {
+            spam_policy_type: PolicyType::TestNConnIP(3),
+            ..policy_config(false, PolicyKind::Spam)
+        });
+        let tally = || TrafficTally::new(Some(CLIENT), None, None, Weight::one());
+        for _ in 0..3 {
+            controller.tally(tally());
+        }
+        assert!(!controller.check(&Some(CLIENT), &None).is_served());
+
+        let log = capture_plain(|| assert!(controller.unblock_client("10.0.0.1").unwrap()));
+        assert!(
+            log.lines()
+                .iter()
+                .any(|line| line.ends_with("client_unblocked client=10.0.0.1")),
+            "{:?}",
+            log.lines()
+        );
+        assert!(controller.check(&Some(CLIENT), &None).is_served());
+        // The policy forgot the tallies before the unblock.
+        controller.tally(tally());
+        controller.tally(tally());
+        assert!(controller.check(&Some(CLIENT), &None).is_served());
+        assert!(!controller.unblock_client("10.0.0.1").unwrap());
+    }
+
+    #[tokio::test]
+    async fn an_unblock_forgets_the_errors_of_the_client() {
+        let controller = TrafficController::init_for_test(PolicyConfig {
+            error_policy_type: PolicyType::TestNConnIP(2),
+            ..policy_config(false, PolicyKind::Error)
+        });
+        for _ in 0..2 {
+            controller.tally(breach(PolicyKind::Error));
+        }
+        assert!(!controller.check(&Some(CLIENT), &None).is_served());
+
+        assert!(controller.unblock_client("10.0.0.1").unwrap());
+        controller.tally(breach(PolicyKind::Error));
+        assert!(controller.check(&Some(CLIENT), &None).is_served());
+    }
+
+    #[tokio::test]
+    async fn an_unblock_gives_the_client_a_full_gas_balance() {
+        let controller = gas_limited(false, vec![]);
+        controller
+            .reserve_simulation_gas(Some(CLIENT), ClientAccess::Limited)
+            .unwrap()
+            .unwrap()
+            .settle(60, 1);
+        assert_eq!(controller.client_usage(10).gas_balances.len(), 1);
+
+        assert!(!controller.unblock_client("10.0.0.1").unwrap());
+        assert_eq!(controller.client_usage(10).gas_balances, vec![]);
+    }
+
+    #[tokio::test]
+    async fn an_unblock_drops_the_block_of_a_client_behind_a_fullnode() {
+        let controller = TrafficController::init_for_test(PolicyConfig {
+            spam_policy_type: freq_threshold(1),
+            ..policy_config(false, PolicyKind::Spam)
+        });
+        let tally = || TrafficTally::new(None, Some(CLIENT), None, Weight::one());
+        let mut burst = 0;
+        while controller.check(&None, &Some(CLIENT)).is_served() {
+            assert!(burst < 100, "the policy never blocked the client");
+            controller.tally(tally());
+            burst += 1;
+        }
+        assert_eq!(controller.status().blocked_clients, 1);
+
+        let log = capture_plain(|| assert!(controller.unblock_client("10.0.0.1").unwrap()));
+        assert!(controller.check(&None, &Some(CLIENT)).is_served());
+        assert_eq!(controller.status().blocked_clients, 0);
+        // The node never logged a block line for it.
+        assert!(
+            !log.lines()
+                .iter()
+                .any(|line| line.contains("client_unblocked")),
+            "{:?}",
+            log.lines()
+        );
+        // The policy forgot the tallies before the unblock.
+        for _ in 1..burst {
+            controller.tally(tally());
+        }
+        assert!(controller.check(&None, &Some(CLIENT)).is_served());
+    }
+
+    #[tokio::test]
+    async fn a_client_blocked_directly_and_behind_a_fullnode_counts_once() {
+        let controller = TrafficController::init_for_test(PolicyConfig {
+            spam_policy_type: freq_threshold(0),
+            ..policy_config(false, PolicyKind::Spam)
+        });
+        controller.tally(TrafficTally::new(None, Some(CLIENT), None, Weight::one()));
+        controller.block_client("10.0.0.1", 60).unwrap();
+        assert_eq!(controller.blocklist(10).clients.len(), 2);
+        assert_eq!(controller.status().blocked_clients, 1);
+    }
+
+    #[tokio::test]
+    async fn a_manual_block_under_dry_run_is_kept_and_its_unblock_is_not_logged() {
+        let controller = TrafficController::init_for_test(policy_config(true, PolicyKind::Spam));
+        let log = capture_plain(|| {
+            controller.block_client("10.0.0.1", 300).unwrap();
+            assert!(controller.dry_run());
+            assert!(controller.check(&Some(CLIENT), &None).is_served());
+            assert_eq!(controller.blocklist(10).clients.len(), 1);
+            assert!(controller.unblock_client("10.0.0.1").unwrap());
+        });
+        assert_eq!(log.lines(), Vec::<String>::new());
+    }
+
+    #[tokio::test]
+    async fn the_admin_api_warns_when_it_sets_the_default_deny() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        let deny = || {
+            controller
+                .admin_reconfigure(TrafficControlReconfigParams {
+                    default_action: Some(DefaultAction::Deny),
+                    ..Default::default()
+                })
+                .unwrap()
+        };
+        let warned = |log: &block_log::tests::CapturedLog| {
+            log.lines()
+                .iter()
+                .any(|line| line.contains("WARN") && line.contains("default action deny"))
+        };
+        assert!(warned(&capture_plain(|| {
+            deny();
+        })));
+        assert!(!warned(&capture_plain(|| {
+            deny();
+        })));
+    }
+
+    #[tokio::test]
+    async fn a_listing_says_how_many_entries_it_left_out() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        for last in 1..=5 {
+            controller
+                .block_client(&format!("10.0.0.{last}"), 60)
+                .unwrap();
+        }
+        let blocklist = controller.blocklist(2);
+        let clients = blocklist
+            .clients
+            .iter()
+            .map(|block| block.client.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(clients, ["10.0.0.1", "10.0.0.2"]);
+        assert_eq!(blocklist.omitted, 3);
+        assert_eq!(controller.status().blocked_clients, 5);
+    }
+
+    #[tokio::test]
+    async fn the_runtime_config_holds_the_changes_of_the_admin_api() {
+        let controller = TrafficController::init_for_test(PolicyConfig {
+            spam_policy_type: freq_threshold(100),
+            dry_run: true,
+            ..Default::default()
+        });
+        controller
+            .admin_reconfigure(TrafficControlReconfigParams {
+                spam_threshold: Some(200),
+                dry_run: Some(false),
+                connection_blocklist_ttl_sec: Some(90),
+                default_action: Some(DefaultAction::Deny),
+                simulation_gas_per_sec: Some(10),
+                simulation_burst_gas: Some(20),
+                ..Default::default()
+            })
+            .unwrap();
+        controller
+            .add_access_rule(AccessRuleList::Allow, "198.51.100.7/24")
+            .unwrap();
+
+        let config = controller.runtime_policy_config();
+        let PolicyType::FreqThreshold(spam) = &config.spam_policy_type else {
+            panic!("the spam policy rate limits");
+        };
+        assert_eq!(spam.client_threshold, 200);
+        assert!(!config.dry_run);
+        assert_eq!(config.connection_blocklist_ttl_sec, 90);
+        assert_eq!(
+            config.access_rules,
+            AccessRules {
+                allow: vec!["198.51.100.0/24".to_string()],
+                deny: vec![],
+                default: DefaultAction::Deny,
+            }
+        );
+        assert_eq!(
+            config.simulation_gas_limit,
+            Some(SimulationGasLimitConfig {
+                gas_per_sec: 10,
+                burst_gas: 20
+            })
+        );
+        let status = controller.status();
+        assert_eq!(status.default_action, DefaultAction::Deny);
+        assert_eq!(status.allow_rules, 1);
+    }
+
+    #[tokio::test]
+    async fn the_admin_api_sets_the_default_action() {
+        let controller = TrafficController::init_for_test(policy_config(false, PolicyKind::Spam));
+        assert!(controller.check(&Some(CLIENT), &None).is_served());
+        controller
+            .admin_reconfigure(TrafficControlReconfigParams {
+                default_action: Some(DefaultAction::Deny),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(
+            controller.check(&Some(CLIENT), &None),
+            ClientAccess::Refused
+        );
+    }
+
+    #[tokio::test]
+    async fn the_client_usage_lists_the_lowest_gas_balances_first() {
+        let controller = gas_limited(false, vec![]);
+        let low = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 2));
+        controller
+            .reserve_simulation_gas(Some(CLIENT), ClientAccess::Limited)
+            .unwrap()
+            .unwrap()
+            .settle(30, 1);
+        controller
+            .reserve_simulation_gas(Some(low), ClientAccess::Limited)
+            .unwrap()
+            .unwrap()
+            .settle(60, 1);
+        let usage = controller.client_usage(1);
+        assert_eq!(usage.gas_balances.len(), 1);
+        assert_eq!(usage.gas_balances[0].client.as_deref(), Some("10.0.0.2"));
+        assert!((40..=41).contains(&usage.gas_balances[0].gas), "{usage:?}");
+        assert_eq!(usage.omitted_gas_balances, 1);
     }
 
     fn denying_by_default() -> TrafficController {

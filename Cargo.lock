@@ -7371,6 +7371,7 @@ dependencies = [
  "rustc_version_runtime",
  "rustls",
  "serde",
+ "serde_json",
  "serde_yaml",
  "tap",
  "telemetry-subscribers",

@@ -7,6 +7,7 @@
 //! a policy, until their blocks expire.
 
 use std::{
+    collections::HashSet,
     net::{IpAddr, Ipv6Addr},
     sync::{
         Arc,
@@ -19,7 +20,10 @@ use arc_swap::ArcSwap;
 use dashmap::{DashMap, mapref::entry::Entry};
 use iota_common::fatal;
 use iota_metrics::spawn_monitored_task;
-use iota_types::traffic_control::{AccessRuleList, ClientIdSource, DefaultAction, PolicyConfig};
+use iota_types::traffic_control::{
+    AccessRuleList, AccessRules, BlockedClient, BlockedClients, ClientIdSource, DefaultAction,
+    PolicyConfig,
+};
 use ipnet::{IpNet, Ipv4Net};
 use parking_lot::Mutex;
 use prometheus_filtered::IntGauge;
@@ -29,7 +33,7 @@ use tracing::{debug, warn};
 
 use crate::{
     ClientAccess,
-    block_log::{BlockReason, log_block},
+    block_log::{BlockReason, client_name, log_block, log_unblock},
     metrics::TrafficControllerMetrics,
     policies::PolicyResponse,
 };
@@ -76,9 +80,9 @@ impl BlocklistTtls {
     }
 }
 
-/// The clients that breached a policy, which the node refuses until their
-/// blocks expire. It holds each client as [`client_prefix`] gives it, cut with
-/// `ipv6_prefix_len`. A background task drops expired blocks until the
+/// The clients that breached a policy or that an operator blocked, which the
+/// node refuses until their blocks expire. It holds each client as [`client_prefix`] gives it, cut
+/// with `ipv6_prefix_len`. A background task drops expired blocks until the
 /// blocklist is dropped.
 struct Blocklist {
     clients: BlockMap,
@@ -172,7 +176,43 @@ impl Blocklist {
     /// Refuses `client` for the connection TTL, and logs the block line when
     /// this starts a block outside dry run. No-op while the TTL is zero.
     fn block_client(&self, client: IpAddr, reason: BlockReason, dry_run: &AtomicBool) {
-        let ttl_secs = self.ttls.connection_blocklist_ttl_sec();
+        self.block_client_for(
+            client,
+            reason,
+            self.ttls.connection_blocklist_ttl_sec(),
+            dry_run,
+        );
+    }
+
+    /// Refuses the direct client `client` for `ttl_secs` with the reason
+    /// `manual`, and returns its block in force, or `None` when an unblock at
+    /// the same time dropped it. Logs the block line outside dry run, also
+    /// when the block outlasts one whose line was logged.
+    fn block_manually(
+        &self,
+        client: IpAddr,
+        ttl_secs: u64,
+        dry_run: &AtomicBool,
+    ) -> Option<BlockedClient> {
+        self.block_client_for(client, BlockReason::Manual, ttl_secs, dry_run);
+        let block = self.clients.get(&client)?;
+        self.describe(
+            client,
+            false,
+            block.reason,
+            block.expiration,
+            SystemTime::now(),
+        )
+    }
+
+    /// Refuses `client` for `ttl_secs`, as [`Self::block_client`] does.
+    fn block_client_for(
+        &self,
+        client: IpAddr,
+        reason: BlockReason,
+        ttl_secs: u64,
+        dry_run: &AtomicBool,
+    ) {
         if insert_block(
             &self.clients,
             &self.metrics.connection_ip_blocklist_len,
@@ -223,6 +263,91 @@ impl Blocklist {
                 gauge.set(ttl_sec as i64);
             }
         }
+    }
+
+    /// Drops the blocks of `client`, as a direct client and as one that
+    /// reached this node through a fullnode, and returns whether it had one in
+    /// force. Logs the unblock line for a direct block whose block line was
+    /// logged.
+    fn unblock(&self, client: IpAddr) -> bool {
+        let now = SystemTime::now();
+        let mut in_force = false;
+        if let Some((_, block)) = self.clients.remove(&client) {
+            self.metrics.connection_ip_blocklist_len.dec();
+            if now < block.expiration {
+                in_force = true;
+                if block.logged {
+                    log_unblock(client, self.ipv6_prefix_len);
+                }
+            }
+        }
+        if let Some((_, block)) = self.proxied_clients.remove(&client) {
+            self.metrics.proxy_ip_blocklist_len.dec();
+            in_force |= now < block.expiration;
+        }
+        in_force
+    }
+
+    /// How many clients have a block in force, as a direct client, as one
+    /// that reached this node through a fullnode, or as both.
+    fn len_in_force(&self) -> usize {
+        let now = SystemTime::now();
+        let mut clients = HashSet::new();
+        for blocks in [&self.clients, &self.proxied_clients] {
+            clients.extend(
+                blocks
+                    .iter()
+                    .filter(|entry| now < entry.value().expiration)
+                    .map(|entry| *entry.key()),
+            );
+        }
+        clients.len()
+    }
+
+    /// The blocks in force, direct clients first, and each kind ordered by
+    /// client. At most `limit` are listed.
+    fn list(&self, limit: usize) -> BlockedClients {
+        let now = SystemTime::now();
+        let mut blocks = Vec::new();
+        for (map, proxied) in [(&self.clients, false), (&self.proxied_clients, true)] {
+            let mut kind = map
+                .iter()
+                .filter(|entry| now < entry.value().expiration)
+                .map(|entry| (*entry.key(), entry.value().reason, entry.value().expiration))
+                .collect::<Vec<_>>();
+            kind.sort_unstable_by_key(|(client, ..)| *client);
+            blocks.extend(
+                kind.into_iter()
+                    .map(|(client, reason, expiration)| (client, proxied, reason, expiration)),
+            );
+        }
+        let omitted = blocks.len().saturating_sub(limit);
+        blocks.truncate(limit);
+        let clients = blocks
+            .into_iter()
+            .filter_map(|(client, proxied, reason, expiration)| {
+                self.describe(client, proxied, reason, expiration, now)
+            })
+            .collect();
+        BlockedClients { clients, omitted }
+    }
+
+    /// The block of `client` as the admin API reports it, or `None` once it
+    /// has expired at `now`.
+    fn describe(
+        &self,
+        client: IpAddr,
+        proxied: bool,
+        reason: BlockReason,
+        expiration: SystemTime,
+        now: SystemTime,
+    ) -> Option<BlockedClient> {
+        Some(BlockedClient {
+            client: client_name(client, self.ipv6_prefix_len),
+            proxied,
+            reason,
+            seconds_left: seconds_left(expiration, now)?,
+        })
     }
 
     /// Logs the blocks that dry run kept from being logged, now that the node
@@ -414,6 +539,89 @@ impl ClientAccessManager {
         set_rule_metrics(&rules, &self.metrics);
         self.rules.store(Arc::new(rules));
         changed
+    }
+
+    /// Refuses the direct client `client`, a blocklist key, for `ttl_sec`
+    /// seconds with the reason `manual`, and returns its block in force. Logs
+    /// the block line outside dry run. A block in force that lasts longer keeps
+    /// its expiration and its reason. Rejects a TTL of 0 or above
+    /// [`MAX_BLOCKLIST_TTL_SEC`], and a client that an allow rule serves,
+    /// since a firewall that acts on the block line would ban it.
+    pub(crate) fn block_manually(
+        &self,
+        client: IpAddr,
+        ttl_sec: u64,
+    ) -> Result<BlockedClient, String> {
+        if !(1..=MAX_BLOCKLIST_TTL_SEC).contains(&ttl_sec) {
+            return Err(format!(
+                "The TTL of a manual block must be between 1 and {MAX_BLOCKLIST_TTL_SEC} seconds"
+            ));
+        }
+        let prefix_len = match client {
+            IpAddr::V4(_) => 32,
+            IpAddr::V6(address) => ipv6_prefix_len_of(address, self.blocklist.ipv6_prefix_len),
+        };
+        let network = IpNet::new(client, prefix_len).map_err(|err| err.to_string())?;
+        // Held until the block is in, so that no allow rule for the client is
+        // added in between.
+        let _update = self.rules_update.lock();
+        let rules = self.rules.load();
+        if let Some(rule) = rules
+            .allow
+            .iter()
+            .find(|rule| rule.contains(&network) || network.contains(*rule))
+        {
+            return Err(format!(
+                "The allow rule {rule} serves {}; remove the rule first",
+                client_name(client, self.blocklist.ipv6_prefix_len)
+            ));
+        }
+        self.blocklist
+            .block_manually(client, ttl_sec, &self.dry_run)
+            .ok_or_else(|| {
+                format!(
+                    "An unblock of {} at the same time dropped the block",
+                    client_name(client, self.blocklist.ipv6_prefix_len)
+                )
+            })
+    }
+
+    /// Drops the blocks of `client`, a blocklist key, and returns whether it
+    /// had one in force.
+    pub(crate) fn unblock(&self, client: IpAddr) -> bool {
+        self.blocklist.unblock(client)
+    }
+
+    /// The blocks in force, at most `limit` of them.
+    pub(crate) fn blocklist(&self, limit: usize) -> BlockedClients {
+        self.blocklist.list(limit)
+    }
+
+    /// How many clients have a block in force, as a direct client, as one
+    /// that reached this node through a fullnode, or as both.
+    pub(crate) fn blocked_len(&self) -> usize {
+        self.blocklist.len_in_force()
+    }
+
+    /// The access rules in force, each in its canonical form.
+    pub(crate) fn access_rules(&self) -> AccessRules {
+        let rules = self.rules.load();
+        let names = |rules: &[IpNet]| rules.iter().map(IpNet::to_string).collect();
+        AccessRules {
+            allow: names(&rules.allow),
+            deny: names(&rules.deny),
+            default: rules.default,
+        }
+    }
+
+    /// Puts `default` in force as the default action, from the next check on,
+    /// and returns whether it changed.
+    pub(crate) fn set_default_action(&self, default: DefaultAction) -> bool {
+        self.update_rules(|rules| {
+            let changed = rules.default != default;
+            rules.default = default;
+            changed
+        })
     }
 
     /// Refuses each client that a policy reports as breaching it. The
@@ -608,8 +816,8 @@ fn blocked(client: &Option<IpAddr>, blocklist: &BlockMap) -> bool {
 /// Blocks a client for `ttl_secs`, counting it only when it was not already
 /// blocked so that the gauge matches the blocklist length. A TTL of zero
 /// blocks nothing. Returns whether to log the block: when `log` returns true,
-/// once per block rather than once per breach, and again once the block has
-/// expired.
+/// once per block rather than once per breach, again once the block has
+/// expired, and again when a manual block outlasts the logged one.
 fn insert_block(
     blocklist: &BlockMap,
     len_gauge: &IntGauge,
@@ -644,20 +852,33 @@ fn insert_block(
             let active = now < block.expiration;
             let already_logged = block.logged && active;
             // A breach never shortens an active block, so that the block lasts
-            // at least as long as its log line told the firewall.
-            let expiration = if active {
-                block.expiration.max(expiration)
+            // at least as long as its log line told the firewall. The block
+            // that sets the expiration gives the reason.
+            let (expiration, reason) = if active && block.expiration > expiration {
+                (block.expiration, block.reason)
             } else {
-                expiration
+                (expiration, reason)
             };
+            // A manual block that outlasts a logged one is logged again, so
+            // that the firewall keeps its ban as long. A breach is not, since
+            // it can repeat on every request.
+            let outlasts_logged =
+                already_logged && reason == BlockReason::Manual && expiration > block.expiration;
             *block = Block {
                 expiration,
                 reason,
                 logged: already_logged || log,
             };
-            log && !already_logged
+            log && (!already_logged || outlasts_logged)
         }
     }
+}
+
+/// The whole seconds, rounded up, from `now` until `expiration`, or `None`
+/// once it has passed.
+fn seconds_left(expiration: SystemTime, now: SystemTime) -> Option<u64> {
+    let remaining = expiration.duration_since(now).ok()?;
+    Some(remaining.as_secs_f64().ceil() as u64)
 }
 
 /// Waits for the next tick of a background loop, returning false once the

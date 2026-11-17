@@ -260,7 +260,45 @@ impl SimulationGasLimiter {
         }
     }
 
-    fn max_computation(&self) -> u64 {
+    /// Drops the balance of `client`, which starts again with a full one.
+    pub(crate) fn forget(&self, client: Option<IpAddr>) {
+        self.balances.lock().pop(&client);
+    }
+
+    /// The `top` lowest balances as of `now`, lowest first, and how many
+    /// balances were left out. A full balance is not listed.
+    pub(crate) fn lowest_balances(
+        &self,
+        top: usize,
+        now: Instant,
+    ) -> (Vec<(Option<IpAddr>, u64)>, usize) {
+        let Some(settings) = self.settings.load_full() else {
+            return (vec![], 0);
+        };
+        // Copied out first, so that simulations wait on the lock only for the
+        // copy.
+        let copied = self
+            .balances
+            .lock()
+            .iter()
+            .map(|(client, balance)| (*client, balance.gas, balance.refilled_at))
+            .collect::<Vec<_>>();
+        let mut balances = copied
+            .into_iter()
+            .map(|(client, gas, refilled_at)| {
+                let mut balance = GasBalance { gas, refilled_at };
+                balance.refill(now, &settings);
+                (client, balance.gas)
+            })
+            .filter(|(_, gas)| *gas < settings.burst_gas)
+            .collect::<Vec<_>>();
+        balances.sort_unstable_by_key(|(client, gas)| (*gas, *client));
+        let omitted = balances.len().saturating_sub(top);
+        balances.truncate(top);
+        (balances, omitted)
+    }
+
+    pub(crate) fn max_computation(&self) -> u64 {
         self.max_computation.load(Ordering::Relaxed)
     }
 
