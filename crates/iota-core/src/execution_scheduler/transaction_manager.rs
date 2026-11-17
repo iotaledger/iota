@@ -311,6 +311,12 @@ impl AvailableObjectsCache {
         self.unbounded_cache_enabled -= 1;
     }
 
+    /// Whether an enqueue is between its availability check without the lock
+    /// and its recheck of this cache.
+    fn is_unbounded(&self) -> bool {
+        self.unbounded_cache_enabled > 0
+    }
+
     fn insert(&mut self, object: &InputKey) {
         self.cache.insert(object);
         if self.unbounded_cache_enabled == 0 {
@@ -898,8 +904,6 @@ impl TransactionManager {
         epoch_store: &AuthorityPerEpochStore,
     ) {
         let _scope = monitored_scope("TransactionManager::notify_commit");
-        // The committed transaction itself, for dependents waiting on it.
-        output_object_keys.push(InputKey::ExecutedTransaction { digest: *digest });
         let reconfig_lock = self.inner.read();
         {
             let commit_time = Instant::now();
@@ -913,6 +917,16 @@ impl TransactionManager {
                     digest
                 );
                 return;
+            }
+
+            // The committed transaction itself, for its dependents. One being
+            // enqueued may have missed it in the store and not be waiting yet;
+            // it rechecks the cache, so the key goes there meanwhile.
+            let executed = InputKey::ExecutedTransaction { digest: *digest };
+            if inner.missing_inputs.contains_key(&executed)
+                || inner.available_objects_cache.is_unbounded()
+            {
+                output_object_keys.push(executed);
             }
 
             self.objects_available_locked(
