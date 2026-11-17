@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use async_graphql::{connection::Connection, dataloader::Loader, *};
+use async_graphql::{dataloader::Loader, *};
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper};
 use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{models::epoch::QueryableEpochInfo, schema::epochs};
@@ -19,7 +19,7 @@ use crate::{
     types::{
         big_int::BigInt,
         chain_identifier::ChainIdentifierCache,
-        checkpoint::{self, Checkpoint},
+        checkpoint::{self, Checkpoint, CheckpointConnection},
         cursor::Page,
         date_time::DateTime,
         protocol_config::ProtocolConfigs,
@@ -219,7 +219,7 @@ impl Epoch {
         after: Option<checkpoint::Cursor>,
         last: Option<u64>,
         before: Option<checkpoint::Cursor>,
-    ) -> Result<Connection<String, Checkpoint>> {
+    ) -> Result<CheckpointConnection> {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
         let epoch = self.stored.epoch as u64;
         Checkpoint::paginate(

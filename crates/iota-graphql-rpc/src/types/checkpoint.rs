@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
+    connection::OldestAvailableCheckpointField,
     consistency::Checkpointed,
     data::{Conn, DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
@@ -40,6 +41,10 @@ use crate::{
         uint53::UInt53,
     },
 };
+
+/// A page of checkpoints, reporting `oldestAvailableCheckpoint`.
+pub(crate) type CheckpointConnection =
+    Connection<String, Checkpoint, OldestAvailableCheckpointField>;
 
 /// Filter either by the digest, or the sequence number, or neither, to get the
 /// latest checkpoint.
@@ -423,27 +428,32 @@ impl Checkpoint {
     ///
     /// A cursor or epoch in the pruned range is served from the fallback KV
     /// store when configured, otherwise the request errors.
+    ///
+    /// The connection reports the oldest checkpoint the page has data from.
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<Cursor>,
         filter: Option<u64>,
         checkpoint_viewed_at: u64,
-    ) -> Result<Connection<String, Checkpoint>, Error> {
+    ) -> Result<CheckpointConnection, Error> {
+        let oldest_available_checkpoint = Self::oldest_available_checkpoint(db);
+        let empty_page =
+            || Connection::with_additional_fields(false, false, oldest_available_checkpoint.into());
+
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
         if page.limit() == 0 {
-            return Ok(Connection::new(false, false));
+            return Ok(empty_page());
         }
 
         let Some((absolute_lo_incl, absolute_hi_incl)) =
             Self::pagination_range(db, filter, checkpoint_viewed_at).await?
         else {
-            return Ok(Connection::new(false, false));
+            return Ok(empty_page());
         };
 
         // Without a fallback, anything below the pruning watermark is unreachable
-        let oldest_available_checkpoint = Self::oldest_available_checkpoint(db);
         let absolute_lo_incl = absolute_lo_incl.max(u64::from(oldest_available_checkpoint));
 
         let available_range = absolute_lo_incl..=absolute_hi_incl;
@@ -458,7 +468,7 @@ impl Checkpoint {
         let Some(page_range) =
             page.narrow_to_available_range(&available_range, oldest_available_checkpoint)?
         else {
-            return Ok(Connection::new(false, false));
+            return Ok(empty_page());
         };
 
         // Take `limit` sequence numbers from the appropriate end of the page range.
@@ -496,7 +506,11 @@ impl Checkpoint {
         let has_prev = fetched_lo > absolute_lo_incl;
         let has_next = fetched_hi < absolute_hi_incl;
 
-        let mut conn = Connection::new(has_prev, has_next);
+        let mut conn = Connection::with_additional_fields(
+            has_prev,
+            has_next,
+            oldest_available_checkpoint.into(),
+        );
         for stored in all_rows {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             conn.edges.push(Edge::new(
