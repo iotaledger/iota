@@ -50,6 +50,11 @@ pub(crate) struct Page<C> {
     /// `(after, before)`, this field states whether the entries up to limit
     /// are taken from the `Front` or `Back` of that range.
     end: End,
+
+    /// Whether the page reads a consistent view. In a consistent view, the
+    /// rows at the `after` and `before` cursors must be in the results. In a
+    /// live view, these rows can change or go away between two pages.
+    consistent: bool,
 }
 
 /// Whether the page is extracted from the beginning or the end of the range
@@ -167,6 +172,7 @@ impl<C> Page<C> {
                 before,
                 limit: limit.unwrap_or(limits.default_page_size as u64),
                 end: End::Front,
+                consistent: true,
             },
 
             (None, after, Some(limit), before) => Page {
@@ -174,6 +180,7 @@ impl<C> Page<C> {
                 before,
                 limit,
                 end: End::Back,
+                consistent: true,
             },
         };
 
@@ -192,6 +199,7 @@ impl<C> Page<C> {
             before: None,
             limit,
             end: End::Front,
+            consistent: true,
         }
     }
 
@@ -248,16 +256,20 @@ impl<C> Page<C>
 where
     C: LiveCursor,
 {
-    /// Sets the checkpoint sequence number of the page cursors to
-    /// `checkpoint_viewed_at`.
+    /// Prepares the page to read a live view at `checkpoint_viewed_at`.
     ///
-    /// In a live view, the latest checkpoint can change between two pages.
-    /// Call this before the query, so that the page cursors agree with the
-    /// cursors that the query builds at `checkpoint_viewed_at`.
-    pub(crate) fn set_checkpoint_viewed_at(&mut self, checkpoint_viewed_at: u64) {
+    /// In a live view, the latest checkpoint can change between two pages,
+    /// and the rows at the page cursors can change or go away. This method:
+    ///
+    /// 1. Sets the checkpoint of the page cursors to `checkpoint_viewed_at`, so that they agree
+    ///    with the cursors that the query builds.
+    /// 2. Marks the page as not consistent, so that [`Page::paginate_results`] does not reject the
+    ///    page when the rows at the page cursors are missing.
+    pub(crate) fn set_live_view(&mut self, checkpoint_viewed_at: u64) {
         for cursor in self.after.iter_mut().chain(self.before.iter_mut()) {
             cursor.set_checkpoint_viewed_at(checkpoint_viewed_at);
         }
+        self.consistent = false;
     }
 }
 
@@ -505,13 +517,19 @@ impl<C: CursorType + ScanLimited + Eq + Clone + Send + Sync + 'static> Page<C> {
                 // Page drawn from the front, and the cursor for the first element does not match
                 // `after`. If that cursor is not from a scan limit, then it must have appeared in
                 // the previous page, and should also be at the tip of the current page. This
-                // absence implies the bound was invalid, so we return an empty result.
-                (Some(a), Some(f), _, _, End::Front) if f != *a && !a.is_scan_limited() => {
+                // absence implies the bound was invalid, so we return an empty result. A live view
+                // does not apply this check, because the row at `after` can change or go away
+                // between two pages.
+                (Some(a), Some(f), _, _, End::Front)
+                    if self.consistent && f != *a && !a.is_scan_limited() =>
+                {
                     return (false, false, vec![].into_iter());
                 }
 
                 // Similar to above case, but for back of results.
-                (_, _, Some(l), Some(b), End::Back) if l != *b && !b.is_scan_limited() => {
+                (_, _, Some(l), Some(b), End::Back)
+                    if self.consistent && l != *b && !b.is_scan_limited() =>
+                {
                     return (false, false, vec![].into_iter());
                 }
 
@@ -843,6 +861,7 @@ mod tests {
                 before: None,
                 limit: 20,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -861,6 +880,7 @@ mod tests {
                 before: None,
                 limit: 20,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -879,6 +899,7 @@ mod tests {
                 before: None,
                 limit: 10,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -897,6 +918,7 @@ mod tests {
                 ),
                 limit: 20,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -915,6 +937,7 @@ mod tests {
                 ),
                 limit: 10,
                 end: Back,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -941,6 +964,7 @@ mod tests {
                 ),
                 limit: 10,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -967,6 +991,7 @@ mod tests {
                 ),
                 limit: 10,
                 end: Back,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
@@ -993,6 +1018,7 @@ mod tests {
                 ),
                 limit: 20,
                 end: Front,
+                consistent: true,
             }"#]];
         expect.assert_eq(&format!("{page:#?}"));
     }
