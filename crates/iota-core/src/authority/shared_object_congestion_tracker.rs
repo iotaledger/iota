@@ -658,12 +658,14 @@ impl SharedObjectCongestionTracker {
             .filter(|end_time| *end_time > 0);
 
         let shared_input_objects = transaction.shared_input_objects();
-        if shared_input_objects.is_empty() && self.worker_slots.is_none() {
-            // This is an owned-object-only transaction and execution-worker
-            // congestion control is disabled. No need to defer. It starts when
-            // its dependency ends, so the transactions that depend on it start
-            // no earlier.
-            return SequencingResult::Schedule(dependency_end.unwrap_or(0));
+        if shared_input_objects.is_empty()
+            && self.worker_slots.is_none()
+            && dependency_end.is_none()
+        {
+            // This is an owned-object-only transaction with no dependency end
+            // to wait for, and execution-worker congestion control is
+            // disabled. No need to defer.
+            return SequencingResult::Schedule(0);
         }
 
         let congestion_limit = if let Some(congestion_limit) = self
@@ -3117,6 +3119,21 @@ mod transaction_dependency_tests {
             *owned_only.digest(),
         );
         assert_eq!(start_time(schedule(&mut tracker, &dependent)), 15);
+    }
+
+    #[test]
+    fn owned_only_dependent_without_worker_control_is_deferred_past_the_budget() {
+        let mut tracker = tracker(15);
+        let dependency = build_transaction(&[(ObjectId::random(), true)], 12, TEST_ONLY_GAS_PRICE);
+        schedule_and_bump(&mut tracker, &dependency);
+
+        let owned_only =
+            build_transaction_with_dependency(&[], 5, TEST_ONLY_GAS_PRICE, *dependency.digest());
+        let SequencingResult::DeferForDependency(_, digest) = schedule(&mut tracker, &owned_only)
+        else {
+            panic!("expected a deferral for the dependency");
+        };
+        assert_eq!(digest, *dependency.digest());
     }
 
     #[test]
