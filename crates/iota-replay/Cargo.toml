@@ -28,7 +28,7 @@ serde_json.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
 shellexpand.workspace = true
-similar = "2.4.0"
+similar.workspace = true
 tabled.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "time"] }

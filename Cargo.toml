@@ -345,6 +345,7 @@ serial_test = "2.0.0"
 shellexpand = "3.1.0"
 # datatest-stable = "0.1.2"
 signature = "1.6.0"
+similar = "2.4.0"
 snap = "1.1.0"
 static_assertions = "1.1.0"
 strum = { version = "0.27.1", features = ["derive"] }
