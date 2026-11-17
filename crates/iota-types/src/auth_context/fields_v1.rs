@@ -145,6 +145,12 @@ impl MoveObjectArg {
 
 /// Mirrors [`crate::transaction::CallArg`], matching the BCS layout expected
 /// by the Move-side `ptb_call_arg::CallArg`.
+///
+/// A transaction dependency input has no variant of its own. It is shown as
+/// `Pure` holding the BCS bytes of the digest, exactly like an unused pure
+/// input with the same bytes. A Move authenticator therefore cannot use the
+/// inputs to check that a transaction depends on a given digest; only the
+/// bytes returned by `auth_context::tx_data_bytes` tell the two apart.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MoveCallArg {
     Pure(Vec<u8>),
