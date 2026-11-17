@@ -273,32 +273,40 @@ async fn pipelined_dependent_of_a_failed_transaction_never_succeeds(pcool: bool)
     let failing = signed(&cluster, u64::MAX, None).await;
     let failing_digest = *failing.digest();
     let dependent = signed(&cluster, 1_000, Some(failing_digest)).await;
-    let dependent_digest = *dependent.digest();
     let dependent_gas = dependent.data().transaction().gas()[0];
 
     let (failing_outcome, dependent_outcome) =
         futures::join!(submit(&cluster, failing), submit(&cluster, dependent));
-    let Outcome::Executed(effects) = &failing_outcome else {
+    let Outcome::Executed(failing_effects) = failing_outcome else {
         panic!("the failing transaction was rejected instead of executed");
     };
-    assert!(!effects.status().is_success());
+    assert!(!failing_effects.status().is_success());
     assert_cancelled(&dependent_outcome, failing_digest);
 
-    let mut executed_digests = vec![failing_digest];
-    if let Outcome::Executed(effects) = &dependent_outcome {
+    let mut executed = vec![failing_effects];
+    if let Outcome::Executed(effects) = dependent_outcome {
         // Cancelled with effects: the gas coin moves on, so the sender can
         // reuse it.
         assert!(effects.gas_object().reference().version > dependent_gas.version);
-        executed_digests.push(dependent_digest);
+        executed.push(effects);
     }
 
     // A fullnode that only replays checkpoints reaches the same effects.
     let fullnode = cluster.spawn_new_fullnode().await.iota_node;
-    fullnode
-        .state()
-        .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing("", &executed_digests)
-        .await;
+    let digests: Vec<_> = executed
+        .iter()
+        .map(|effects| *effects.transaction_digest())
+        .collect();
+    let replayed = tokio::time::timeout(
+        SUBMISSION_TIMEOUT,
+        fullnode
+            .state()
+            .get_transaction_cache_reader()
+            .notify_read_executed_effects_for_testing("", &digests),
+    )
+    .await
+    .expect("the new fullnode must execute the transactions");
+    assert_eq!(replayed, executed);
 }
 
 #[sim_test]
@@ -470,11 +478,15 @@ async fn dependent_sequenced_before_its_dependency_fails_is_cancelled_at_executi
 
     // A fullnode that only replays checkpoints reaches the same effects.
     let fullnode = cluster.spawn_new_fullnode().await.iota_node;
-    let replayed = fullnode
-        .state()
-        .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing("", &[failing_digest, dependent_digest])
-        .await;
+    let replayed = tokio::time::timeout(
+        SUBMISSION_TIMEOUT,
+        fullnode
+            .state()
+            .get_transaction_cache_reader()
+            .notify_read_executed_effects_for_testing("", &[failing_digest, dependent_digest]),
+    )
+    .await
+    .expect("the new fullnode must execute the transactions");
     assert_eq!(replayed, [failing_effects, dependent_effects]);
 }
 
