@@ -493,7 +493,7 @@ pub(crate) struct ConsensusOutputCache {
     pub(super) deferred_transactions_v2: Mutex<BTreeMap<DeferralKey, Vec<DeferredTransaction>>>,
 
     // The digests of the deferred transactions, rebuilt from the maps above at
-    // the end of each commit. Only the consensus handler reads it.
+    // the end of each commit. Read by the consensus handler and by admission.
     deferred_transaction_digests: Mutex<HashSet<TransactionDigest>>,
 
     // user_signatures_for_checkpoints is written to by consensus handler and read from by
