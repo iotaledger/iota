@@ -240,6 +240,22 @@ fn weigh_sender_rejection(error: &IotaError, after_dry_run: bool) -> Weight {
     }
 }
 
+/// Returns the traffic weight of a rejection by
+/// [`ExecutionCacheWrite::validate_owned_object_versions()`]: what
+/// [`weigh_sender_rejection()`] gives for an [`IotaError::UserInput`] error,
+/// and otherwise what [`normalize()`] gives `error`.
+///
+/// [`ExecutionCacheWrite::validate_owned_object_versions()`]: crate::execution_cache::ExecutionCacheWrite::validate_owned_object_versions
+fn weigh_owned_input_rejection(error: &IotaError, after_dry_run: bool) -> Weight {
+    if matches!(error, IotaError::UserInput { .. }) {
+        // Another transaction of the sender used an owned input meanwhile.
+        weigh_sender_rejection(error, after_dry_run)
+    } else {
+        // The validator failed to read its own store.
+        normalize(error)
+    }
+}
+
 impl ValidatorService {
     async fn submit_tx_impl(
         &self,
@@ -571,8 +587,7 @@ impl ValidatorService {
             {
                 return (build_executed(effects), Weight::one());
             }
-            // Another transaction of the sender used an owned input meanwhile.
-            let weight = weigh_sender_rejection(&e, after_dry_run);
+            let weight = weigh_owned_input_rejection(&e, after_dry_run);
 
             return (TxStatusUpdate::Rejected { error: e }, weight);
         }

@@ -21,7 +21,7 @@ use iota_types::{
 };
 use tokio::sync::mpsc;
 
-use super::ValidatorService;
+use super::{ValidatorService, weigh_owned_input_rejection};
 use crate::{
     authority::{
         AuthorityState, abstract_account_test_utils::AbstractAccountTestEnv,
@@ -1022,4 +1022,30 @@ async fn lock_refused_after_dry_run_weighs_one() {
     );
     assert_eq!(validator.soft_locks.lock_count(), 1);
     assert!(submitted.try_recv().is_err());
+}
+
+/// The check of the owned inputs' versions also fails when the validator
+/// cannot read its own store. The sender does not cause that, so the rejection
+/// weighs nothing although the dry run ran.
+#[test]
+fn failed_store_read_after_dry_run_weighs_nothing() {
+    let error = IotaError::Storage("read failed".to_string());
+
+    assert_eq!(weigh_owned_input_rejection(&error, true).value(), 0.0);
+}
+
+/// The check reports an owned input that another transaction of the sender
+/// used meanwhile as a user input error, here a missing object. Without a dry
+/// run, the same rejection weighs nothing.
+#[test]
+fn used_owned_input_weighs_one_after_dry_run() {
+    let error = IotaError::UserInput {
+        error: UserInputError::ObjectNotFound {
+            object_id: ObjectId::new([1; 32]),
+            version: None,
+        },
+    };
+
+    assert_eq!(weigh_owned_input_rejection(&error, true).value(), 1.0);
+    assert_eq!(weigh_owned_input_rejection(&error, false).value(), 0.0);
 }
