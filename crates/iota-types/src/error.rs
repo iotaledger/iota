@@ -966,8 +966,6 @@ impl IotaError {
                     UserInputError::InputObjectNotAvailableAtCommit { .. } => false,
                     // The dependency may still be submitted or executed.
                     UserInputError::TransactionDependencyNotFound { .. } => true,
-                    UserInputError::TransactionDependencyFailed { .. }
-                    | UserInputError::TransactionDependencyNotInCurrentEpoch { .. } => false,
                     _ => false,
                 }
             }
@@ -1081,10 +1079,6 @@ pub fn categorize(error: &IotaError) -> ErrorCategory {
                 ErrorCategory::InvalidTransaction
             }
             UserInputError::TransactionDependencyNotFound { .. } => ErrorCategory::Aborted,
-            UserInputError::TransactionDependencyFailed { .. }
-            | UserInputError::TransactionDependencyNotInCurrentEpoch { .. } => {
-                ErrorCategory::InvalidTransaction
-            }
             _ => ErrorCategory::InvalidTransaction,
         },
         IotaError::InvalidSignature { .. }
