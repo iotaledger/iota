@@ -28,8 +28,9 @@ use iota_types::{
 
 use super::TransactionReadSource;
 use crate::{
-    error::RpcError, merge::Merge, transaction_execution_service::CommandResultsReadSource,
-    types::GrpcReader, validation::validate_read_mask,
+    error::RpcError, merge::Merge, traffic_control::TallyHandle,
+    transaction_execution_service::CommandResultsReadSource, types::GrpcReader,
+    validation::validate_read_mask,
 };
 
 /// Simulate a batch of transactions.
@@ -124,6 +125,7 @@ use crate::{
 pub async fn simulate_transactions(
     reader: &Arc<GrpcReader>,
     executor: &Arc<dyn TransactionExecutor>,
+    tally_handle: Option<&TallyHandle>,
     config: &iota_config::node::GrpcApiConfig,
     request: SimulateTransactionsRequest,
 ) -> Result<SimulateTransactionsResponse, RpcError> {
@@ -139,13 +141,21 @@ pub async fn simulate_transactions(
     // Simulate each transaction sequentially, collecting per-item results
     let mut transaction_results = Vec::with_capacity(request.transactions.len());
     for item in &request.transactions {
-        let result =
-            match simulate_single_transaction(reader, executor, config, item, &read_mask).await {
-                Ok(tx) => SimulateTransactionResult::default().with_simulated_transaction(tx),
-                Err(error) => {
-                    SimulateTransactionResult::default().with_error(error.into_status_proto())
-                }
-            };
+        let result = match simulate_single_transaction(
+            reader,
+            executor,
+            tally_handle,
+            config,
+            item,
+            &read_mask,
+        )
+        .await
+        {
+            Ok(tx) => SimulateTransactionResult::default().with_simulated_transaction(tx),
+            Err(error) => {
+                SimulateTransactionResult::default().with_error(error.into_status_proto())
+            }
+        };
         transaction_results.push(result);
     }
 
@@ -156,6 +166,7 @@ pub async fn simulate_transactions(
 async fn simulate_single_transaction(
     reader: &Arc<GrpcReader>,
     executor: &Arc<dyn TransactionExecutor>,
+    tally_handle: Option<&TallyHandle>,
     config: &iota_config::node::GrpcApiConfig,
     item: &SimulateTransactionItem,
     read_mask: &FieldMaskTree,
@@ -193,7 +204,7 @@ async fn simulate_single_transaction(
         mock_gas_id,
         suggested_gas_price,
         gas_data,
-    } = super::run_simulation(executor, transaction_data.clone(), vm_checks).await?;
+    } = super::run_simulation(executor, tally_handle, transaction_data.clone(), vm_checks).await?;
 
     // Build the response
     let mut response = SimulatedTransaction::default();
