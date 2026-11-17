@@ -109,7 +109,11 @@ pub fn verify_builtin_signature(
 ///
 /// `message` is the content of the personal message. The signing message is
 /// `IntentMessage(Intent::personal_message(), PersonalMessage(message))`.
-pub fn verify_personal_message_signature(
+///
+/// The verification rules taken from `protocol_config` apply only to MultiSig
+/// signatures, so they have no effect here. The parameter lets a later
+/// protocol version change the check.
+pub fn verify_personal_message(
     protocol_config: &ProtocolConfig,
     public_key: &MovePublicKey,
     signature_bytes: &[u8],
@@ -133,26 +137,38 @@ pub fn verify_personal_message_signature(
 
 /// Parses `signature_bytes` as a `UserSignature` whose scheme is the scheme of
 /// `public_key`, and returns it with the address of `public_key`.
+///
+/// A signature of another scheme is refused before it is decoded.
 fn parse_signature_of_public_key(
     public_key: &MovePublicKey,
     signature_bytes: &[u8],
 ) -> IotaResult<(UserSignature, Address)> {
     let expected_scheme = public_key.scheme();
 
-    let signature =
-        UserSignature::from_bytes(signature_bytes).map_err(|e| IotaError::InvalidSignature {
-            error: format!("Invalid signature bytes: {e}"),
+    // The scheme is read from the flag byte, because decoding the whole
+    // signature costs more: for a Passkey signature it parses
+    // `clientDataJSON` as JSON.
+    let flag = signature_bytes
+        .first()
+        .ok_or_else(|| IotaError::InvalidSignature {
+            error: "Invalid signature bytes: missing signature scheme flag".into(),
         })?;
-
-    let actual_scheme = match signature.scheme() {
-        scheme @ (SignatureScheme::Ed25519
-        | SignatureScheme::Secp256k1
-        | SignatureScheme::Secp256r1
-        | SignatureScheme::Multisig
-        | SignatureScheme::PasskeyAuthenticator) => scheme,
-        _ => {
+    let actual_scheme = match SignatureScheme::from_byte(*flag) {
+        Ok(
+            scheme @ (SignatureScheme::Ed25519
+            | SignatureScheme::Secp256k1
+            | SignatureScheme::Secp256r1
+            | SignatureScheme::Multisig
+            | SignatureScheme::PasskeyAuthenticator),
+        ) => scheme,
+        Ok(_) => {
             return Err(IotaError::InvalidSignature {
                 error: "Unsupported signature type".into(),
+            });
+        }
+        Err(e) => {
+            return Err(IotaError::InvalidSignature {
+                error: format!("Invalid signature bytes: {e}"),
             });
         }
     };
@@ -163,6 +179,11 @@ fn parse_signature_of_public_key(
             ),
         });
     }
+
+    let signature =
+        UserSignature::from_bytes(signature_bytes).map_err(|e| IotaError::InvalidSignature {
+            error: format!("Invalid signature bytes: {e}"),
+        })?;
 
     let address = public_key
         .address()
