@@ -148,6 +148,20 @@ impl StoredWatermark {
         }
     }
 
+    /// Creates a value from both the lower and upper bounds.
+    pub fn from_bounds(
+        entity: &str,
+        upper_bound: WatermarkUpperBounds,
+        lower_bound: WatermarkLowerBounds,
+    ) -> Self {
+        StoredWatermark {
+            current_epoch: upper_bound.current_epoch,
+            max_committed_cp: upper_bound.max_committed_cp,
+            max_committed_tx: upper_bound.max_committed_tx,
+            ..Self::from_lower_bound_update(entity, lower_bound)
+        }
+    }
+
     pub fn entity(&self) -> Option<PrunableTable> {
         PrunableTable::from_str(&self.entity).ok()
     }
