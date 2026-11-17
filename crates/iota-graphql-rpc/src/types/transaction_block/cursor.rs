@@ -12,7 +12,7 @@ use iota_indexer::{models::transactions::StoredTransaction, schema::transactions
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    consistency::Checkpointed,
+    consistency::{Checkpointed, TransactionCursor},
     filter,
     raw_query::RawQuery,
     types::{
@@ -53,6 +53,12 @@ pub struct TxLookup {
 impl Checkpointed for Cursor {
     fn checkpoint_viewed_at(&self) -> u64 {
         u64::from(self.checkpoint_viewed_at)
+    }
+}
+
+impl TransactionCursor for Cursor {
+    fn tx_sequence_number(&self) -> u64 {
+        u64::from(self.tx_sequence_number)
     }
 }
 
