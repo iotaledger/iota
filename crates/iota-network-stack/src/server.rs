@@ -37,8 +37,9 @@ use crate::{
 /// It bounds the time until the response headers are returned, including
 /// waiting for an admission slot and receiving the request, so a peer that
 /// never finishes sending cannot hold a slot for good. Sending the response
-/// body is bounded by `response_send_timeout` of
-/// [`ServerBuilder::add_service_with_concurrency_limit`] instead.
+/// body is not bounded by it; for a service added with
+/// [`ServerBuilder::add_service_with_concurrency_limit`], it is bounded by
+/// that service's `response_send_timeout`.
 pub const DEFAULT_GRPC_REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
 
 pub struct ServerBuilder<M: MetricsCallbackProvider = DefaultMetricsCallbackProvider> {
@@ -794,7 +795,9 @@ mod test {
     async fn a_response_the_client_does_not_read_gives_back_its_slot_after_the_send_timeout() {
         // Far smaller than the response, so the response stalls unless read.
         const CLIENT_WINDOW: u32 = 1024;
-        const SEND_TIMEOUT: Duration = Duration::from_millis(300);
+        // A real listener cannot run on a paused clock, so the margin must
+        // cover a slow machine between the first two requests.
+        const SEND_TIMEOUT: Duration = Duration::from_secs(2);
 
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let server = Config::new()

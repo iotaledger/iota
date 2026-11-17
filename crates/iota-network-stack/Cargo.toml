@@ -39,6 +39,7 @@ iota-multiaddr.workspace = true
 # external dependencies
 http-body-util.workspace = true
 hyper = { workspace = true, features = ["client", "http2"] }
+tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies
 iota-metrics = { workspace = true, features = ["test-utils"] }

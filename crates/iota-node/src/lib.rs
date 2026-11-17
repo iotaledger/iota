@@ -1659,9 +1659,10 @@ impl IotaNode {
         const VALIDATOR_GRPC_MAX_CONNECTION_IDLE: Duration = Duration::from_secs(300);
         // A response holds its admission slot until it has been sent, and a
         // client that stops reading would otherwise hold it for good. The
-        // longest legitimate response is a `GetTxStatus` stream, which waits at
-        // most 30 s for its transactions; twice that leaves room for a slow
-        // reader.
+        // timeout counts from the headers, so it also ends a response that is
+        // being read. A `GetTxStatus` stream waits at most 30 s for its
+        // transactions; a `SubmitTx` stream has no bound of its own and ends
+        // within this timeout unless the validator is badly overloaded.
         const VALIDATOR_GRPC_RESPONSE_SEND_TIMEOUT: Duration = Duration::from_secs(60);
 
         let limits = &config.validator_grpc_listener_limits;

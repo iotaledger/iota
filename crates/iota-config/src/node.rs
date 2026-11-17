@@ -109,14 +109,12 @@ pub struct NodeConfig {
     ///
     /// A request is in flight from admission until its response has been
     /// sent, so a `SubmitTx` or `GetTxStatus` stream counts while it streams;
-    /// a `GetTxStatus` stream waits up to 30 s for its transactions, and a
-    /// response the client stops reading gives up its slot after 60 s. A
-    /// request over the limit waits for a slot, or is rejected if
+    /// a `GetTxStatus` stream waits up to 30 s for its transactions. A
+    /// response not fully sent 60 s after its headers gives up its slot and
+    /// ends with `DEADLINE_EXCEEDED`, whether or not the client is still
+    /// reading. A request over the limit waits for a slot, or is rejected if
     /// `grpc_load_shed` is set.
     ///
-    /// The default is generous: requests spend most of that time waiting
-    /// rather than on-CPU, and the limit is meant to keep a request flood from
-    /// growing queues and memory without bound, not to throttle normal load.
     /// A lower value must leave room for every `GetTxStatus` stream open at
     /// peak.
     ///

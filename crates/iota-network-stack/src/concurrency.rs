@@ -235,6 +235,9 @@ struct Shared<B, D> {
     /// inner body drops the waker it registered, so the timer wakes this one
     /// for the transport to poll again and send the trailers.
     waker: Option<Waker>,
+    /// Whether the inner body has ended, after which the timer, which may
+    /// already be running when it is aborted, leaves the contents alone.
+    finished: bool,
 }
 
 pin_project! {
@@ -290,6 +293,7 @@ where
                     _until_deadline: until_deadline,
                 }),
                 waker: None,
+                finished: false,
             })),
             _until_end: until_end,
             timer: None,
@@ -312,6 +316,9 @@ where
             tokio::time::sleep(deadline).await;
             let (reclaimed, waker) = {
                 let mut shared = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                if shared.finished {
+                    return;
+                }
                 (shared.held.take(), shared.waker.take())
             };
             if reclaimed.is_some() {
@@ -379,6 +386,7 @@ where
             match frame {
                 None => {
                     // The stream is over; nothing is left to reclaim.
+                    shared.finished = true;
                     if let Some(timer) = this.timer.take() {
                         timer.abort();
                     }
@@ -386,12 +394,15 @@ where
                 }
                 Some(Err(error)) => return Poll::Ready(Some(Err(error.into()))),
                 Some(Ok(frame)) => match frame.into_data() {
-                    // Without a deadline nothing is reclaimed, so the chunk goes out whole.
-                    Ok(data) if this.timer.is_none() => {
+                    // Without a deadline nothing is reclaimed, and a chunk that
+                    // fits in one frame frees all of its buffer once sent, so
+                    // either goes out whole.
+                    Ok(data) if this.timer.is_none() || data.len() <= MAX_FRAME_BYTES => {
                         return Poll::Ready(Some(Ok(Frame::data(data))));
                     }
                     Ok(data) => state.pending = data,
                     Err(frame) => {
+                        shared.finished = true;
                         if let Some(timer) = this.timer.take() {
                             timer.abort();
                         }
@@ -475,7 +486,7 @@ mod tests {
     /// Long enough that no test reaches it unless it is the subject.
     const SEND_TIMEOUT: Duration = Duration::from_secs(60);
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn load_shedding_rejects_requests_over_the_limit() {
         let release = Arc::new(tokio::sync::Notify::new());
         let service = ServiceConcurrencyLimit::new(
@@ -501,7 +512,7 @@ mod tests {
         assert!(response.headers().get("grpc-status").is_none());
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn without_load_shedding_requests_over_the_limit_wait() {
         let release = Arc::new(tokio::sync::Notify::new());
         let service = ServiceConcurrencyLimit::new(
@@ -526,7 +537,7 @@ mod tests {
         second.await.unwrap().unwrap();
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn limits_are_independent_per_service() {
         let release = Arc::new(tokio::sync::Notify::new());
         let blocking = BlockingService {
@@ -607,7 +618,7 @@ mod tests {
             .is_some_and(|status| *status == (tonic::Code::ResourceExhausted as i32).to_string())
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn a_streaming_response_holds_its_slot_until_the_body_is_dropped() {
         let service = streaming(true, SEND_TIMEOUT);
 
@@ -625,7 +636,7 @@ mod tests {
         assert!(!is_shed(&admitted));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn without_load_shedding_requests_wait_for_a_streaming_response_to_end() {
         let service = streaming(false, SEND_TIMEOUT);
 
@@ -650,7 +661,7 @@ mod tests {
     /// A body that is never read, as when the client grants no flow-control
     /// window, must give back its slot once the send timeout passes, and end
     /// with `DEADLINE_EXCEEDED` if it is read afterwards.
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn a_response_not_sent_in_time_gives_back_its_slot() {
         const SHORT_SEND_TIMEOUT: Duration = Duration::from_millis(50);
         let service = streaming(true, SHORT_SEND_TIMEOUT);
@@ -693,7 +704,7 @@ mod tests {
     }
 
     /// The send timeout must not change a response that is read in time.
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn a_response_read_in_time_is_delivered_whole_and_frees_its_slot() {
         const LEN: usize = 200 * 1024;
         let service = ServiceConcurrencyLimit::new(
@@ -740,7 +751,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn the_guard_survives_the_end_of_the_stream() {
         let dropped = Arc::new(AtomicBool::new(false));
         let mut body = PermitGuardedBody::new(Body::default(), Some(DropFlag(dropped.clone())));
@@ -753,7 +764,7 @@ mod tests {
         assert!(dropped.load(Ordering::SeqCst));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn dropping_an_unfinished_body_releases_the_guard() {
         let dropped = Arc::new(AtomicBool::new(false));
         let mut body = PermitGuardedBody::new(PendingBody, Some(DropFlag(dropped.clone())));
@@ -790,7 +801,7 @@ mod tests {
         std::future::poll_fn(|cx| Pin::new(&mut *body).poll_frame(cx)).await
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn reclaimable_body_hands_over_frames_of_bounded_size() {
         let inner = http_body_util::Full::new(Bytes::from(vec![7u8; MAX_FRAME_BYTES * 2 + 5]));
         let mut body = ReclaimableBody::<_, DropFlag, DropFlag>::with_deadline(
@@ -815,7 +826,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn the_deadline_reclaims_the_body_and_keeps_the_end_guard() {
         let (reclaimed_deadline, until_deadline) = flag();
         let (reclaimed_end, until_end) = flag();
@@ -842,7 +853,7 @@ mod tests {
 
     /// A reader already waiting on an idle inner body must be woken at the
     /// deadline to receive the trailers.
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn the_deadline_wakes_a_reader_waiting_on_the_body() {
         let mut body = ReclaimableBody::<_, DropFlag, DropFlag>::with_deadline(
             PendingBody,
@@ -869,7 +880,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn a_body_read_to_the_end_is_never_reclaimed() {
         let (reclaimed_deadline, until_deadline) = flag();
         let (reported, on_reclaim) = report();
@@ -890,7 +901,7 @@ mod tests {
         assert!(reclaimed_deadline.load(Ordering::SeqCst));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn dropping_a_reclaimable_body_stops_its_deadline() {
         let (reported, on_reclaim) = report();
         let body = ReclaimableBody::<_, DropFlag, DropFlag>::with_deadline(
@@ -908,7 +919,7 @@ mod tests {
 
     /// The guards are released by the drop itself, without waiting for the
     /// runtime to cancel the deadline's timer.
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn dropping_a_reclaimable_body_releases_both_guards_at_once() {
         let (deadline_released, until_deadline) = flag();
         let (end_released, until_end) = flag();
@@ -925,7 +936,7 @@ mod tests {
         assert!(end_released.load(Ordering::SeqCst));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn the_deadline_frees_the_buffer_behind_a_piece_already_handed_over() {
         let response = Bytes::from(vec![7u8; MAX_FRAME_BYTES * 2]);
         let mut body = ReclaimableBody::<_, DropFlag, DropFlag>::with_deadline(
@@ -951,7 +962,27 @@ mod tests {
         drop((piece, body));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
+    async fn a_chunk_that_fits_in_one_frame_is_handed_over_without_a_copy() {
+        let chunk = Bytes::from(vec![7u8; MAX_FRAME_BYTES]);
+        let mut body = ReclaimableBody::<_, DropFlag, DropFlag>::with_deadline(
+            http_body_util::Full::new(chunk.clone()),
+            None,
+            None,
+            Duration::from_secs(3600),
+            || {},
+        );
+
+        let frame = next_frame(&mut body)
+            .await
+            .unwrap()
+            .unwrap()
+            .into_data()
+            .unwrap();
+        assert_eq!(frame.as_ptr(), chunk.as_ptr());
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn a_body_without_a_deadline_hands_over_frames_whole() {
         let chunk = Bytes::from(vec![7u8; MAX_FRAME_BYTES * 2 + 5]);
         let mut body = ReclaimableBody::<_, DropFlag, DropFlag>::new(
