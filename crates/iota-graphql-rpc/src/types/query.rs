@@ -108,7 +108,14 @@ impl Query {
             .extend()?;
         let write_api = get_write_api(ctx).extend()?;
         let results = write_api
-            .view_function_call(function_name, type_args, call_args)
+            .view_function_call(
+                // The fullnode limits the simulation when the write API
+                // forwards it.
+                &axum::http::Extensions::new(),
+                function_name,
+                type_args,
+                call_args,
+            )
             .await?;
 
         results.try_into().extend()

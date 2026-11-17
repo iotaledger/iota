@@ -48,7 +48,7 @@ pub trait WriteApi {
     /// Calls a Move view function. The function must be declared with the `#[view]`
     /// attribute.
     #[rustfmt::skip]
-    #[method(name = "view")]
+    #[method(name = "view", with_extensions)]
     async fn view_function_call(
         &self,
         /// The fully qualified function name `<package_id>::<module_name>::<function_name>`, where the function is declared with the `#[view]` attribute. E.g. `0x1234::counter::value`.
@@ -62,7 +62,7 @@ pub trait WriteApi {
     /// transaction (or Move call) with any arguments. Detailed results are
     /// provided, including both the transaction effects and any return values.
     #[rustfmt::skip]
-    #[method(name = "devInspectTransactionBlock")]
+    #[method(name = "devInspectTransactionBlock", with_extensions)]
     async fn dev_inspect_transaction_block(
         &self,
         #[schemars(with = "AddressSchema")]
@@ -82,7 +82,7 @@ pub trait WriteApi {
 
     /// Return transaction execution effects including the gas cost summary,
     /// while the effects are not committed to the chain.
-    #[method(name = "dryRunTransactionBlock")]
+    #[method(name = "dryRunTransactionBlock", with_extensions)]
     async fn dry_run_transaction_block(
         &self,
         #[schemars(with = "Base64Schema")] tx_bytes: Base64,
