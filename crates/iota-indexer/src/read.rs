@@ -2953,9 +2953,12 @@ impl DataReader for IndexerReader {
     }
 
     async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
-        let epoch_info = GovernanceReadApi::new(self.clone())
-            .get_epoch_info(None)
-            .await?;
+        let epoch_info = GovernanceReadApi::new(
+            self.clone(),
+            crate::config::JsonRpcConfig::DEFAULT_MAX_QUERY_STAKED_OBJECTS,
+        )
+        .get_epoch_info(None)
+        .await?;
         Ok(epoch_info
             .reference_gas_price
             .ok_or_else(|| anyhow::anyhow!("missing latest reference_gas_price"))?)

@@ -176,6 +176,8 @@ pub async fn start_test_indexer_impl(
                 historic_fallback_options: Default::default(),
                 rpc_address: reader_mode_rpc_url.parse().unwrap(),
                 rpc_client_url: rpc_url,
+                max_query_staked_objects:
+                    crate::config::JsonRpcConfig::DEFAULT_MAX_QUERY_STAKED_OBJECTS,
             };
             let pool = store.blocking_cp();
             let store_clone = store.clone();
