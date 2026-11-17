@@ -113,7 +113,10 @@ use iota_types::{
     supported_protocol_versions::{
         ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
-    traffic_control::{PolicyConfig, TrafficControlReconfigParams},
+    traffic_control::{
+        AccessRuleList, AccessRules, BlockedClient, BlockedClients, ClientUsage, PolicyConfig,
+        TrafficControlReconfigParams, TrafficControlStatus,
+    },
     transaction::*,
     transaction_executor::{InputCheckRules, SimulateTransactionResult, VmChecks},
 };
@@ -2301,13 +2304,88 @@ impl AuthorityState {
         &self,
         params: TrafficControlReconfigParams,
     ) -> Result<TrafficControlReconfigParams, IotaError> {
-        if let Some(traffic_controller) = self.traffic_controller.as_ref() {
-            traffic_controller.admin_reconfigure(params)
-        } else {
-            Err(IotaError::InvalidAdminRequest(
+        self.traffic_controller_for_admin()?
+            .admin_reconfigure(params)
+    }
+
+    /// The traffic control settings in force.
+    pub fn traffic_control_status(&self) -> IotaResult<TrafficControlStatus> {
+        Ok(self.traffic_controller_for_admin()?.status())
+    }
+
+    /// Whether traffic control runs in dry run, in which case the node serves
+    /// every client.
+    pub fn traffic_control_dry_run(&self) -> IotaResult<bool> {
+        Ok(self.traffic_controller_for_admin()?.dry_run())
+    }
+
+    /// The traffic control settings in force, in the shape of `policy-config`.
+    pub fn traffic_control_policy_config(&self) -> IotaResult<PolicyConfig> {
+        Ok(self.traffic_controller_for_admin()?.runtime_policy_config())
+    }
+
+    /// The access rules of traffic control in force.
+    pub fn traffic_control_access_rules(&self) -> IotaResult<AccessRules> {
+        Ok(self.traffic_controller_for_admin()?.access_rules())
+    }
+
+    /// Adds an access rule to `list`, and returns whether `list` did not hold
+    /// it already.
+    pub fn add_traffic_control_access_rule(
+        &self,
+        list: AccessRuleList,
+        rule: &str,
+    ) -> IotaResult<bool> {
+        self.traffic_controller_for_admin()?
+            .add_access_rule(list, rule)
+    }
+
+    /// Removes an access rule from `list`, and returns whether `list` held it.
+    pub fn remove_traffic_control_access_rule(
+        &self,
+        list: AccessRuleList,
+        rule: &str,
+    ) -> IotaResult<bool> {
+        self.traffic_controller_for_admin()?
+            .remove_access_rule(list, rule)
+    }
+
+    /// The clients that traffic control refuses, at most `limit` of them.
+    pub fn traffic_control_blocklist(&self, limit: usize) -> IotaResult<BlockedClients> {
+        Ok(self.traffic_controller_for_admin()?.blocklist(limit))
+    }
+
+    /// Refuses `client`, an IP address or an IPv6 prefix as the blocklist
+    /// names it, for `ttl_sec` seconds, and returns its block in force.
+    pub fn block_traffic_control_client(
+        &self,
+        client: &str,
+        ttl_sec: u64,
+    ) -> IotaResult<BlockedClient> {
+        self.traffic_controller_for_admin()?
+            .block_client(client, ttl_sec)
+    }
+
+    /// Drops the blocks of `client`, an IP address or an IPv6 prefix as the
+    /// blocklist names it, and returns whether it had one in force.
+    pub fn unblock_traffic_control_client(&self, client: &str) -> IotaResult<bool> {
+        self.traffic_controller_for_admin()?.unblock_client(client)
+    }
+
+    /// The `top` clients with the lowest simulation gas balances, and up to
+    /// `top` blocked clients.
+    pub fn traffic_control_client_usage(&self, top: usize) -> IotaResult<ClientUsage> {
+        Ok(self.traffic_controller_for_admin()?.client_usage(top))
+    }
+
+    /// The traffic controller, or the error the admin API answers with when
+    /// traffic control is off.
+    fn traffic_controller_for_admin(&self) -> IotaResult<&TrafficController> {
+        self.traffic_controller.as_deref().ok_or_else(|| {
+            IotaError::InvalidAdminRequest(
                 "Traffic controller is not configured on this node".to_string(),
-            ))
-        }
+            )
+        })
     }
 
     #[instrument(level = "trace", skip_all)]

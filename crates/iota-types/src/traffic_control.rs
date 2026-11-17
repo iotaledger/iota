@@ -73,6 +73,10 @@ pub struct TrafficControlReconfigParams {
     pub simulation_gas_per_sec: Option<u64>,
     /// Sets `burst-gas` of the simulation gas limit.
     pub simulation_burst_gas: Option<u64>,
+    /// Sets the default action of the access rules. Outside dry run, `deny`
+    /// refuses every client that no allow rule names. On a validator this also
+    /// refuses the other nodes that send it requests.
+    pub default_action: Option<DefaultAction>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -196,6 +200,82 @@ pub enum PolicyType {
     /// tests that do not expect request errors in order to verify that the
     /// error policy is not invoked
     TestPanicOnInvocation,
+}
+
+/// Why the node refuses a client on its blocklist.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum BlockReason {
+    /// The client exceeded the limit of the spam policy.
+    Spam,
+    /// The client exceeded the limit of the error policy.
+    Error,
+    /// An operator blocked the client through the admin API.
+    Manual,
+}
+
+impl std::fmt::Display for BlockReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Spam => "spam",
+            Self::Error => "error",
+            Self::Manual => "manual",
+        })
+    }
+}
+
+/// The traffic control settings in force, as the admin API reports them.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+pub struct TrafficControlStatus {
+    pub error_threshold: Option<u64>,
+    pub spam_threshold: Option<u64>,
+    pub dry_run: bool,
+    pub connection_blocklist_ttl_sec: u64,
+    pub proxy_blocklist_ttl_sec: u64,
+    pub default_action: DefaultAction,
+    pub allow_rules: usize,
+    pub deny_rules: usize,
+    /// The clients with a block in force, as direct clients, as clients that
+    /// reached the node through a fullnode, or as both.
+    pub blocked_clients: usize,
+    pub simulation_gas_limit: Option<SimulationGasLimitConfig>,
+}
+
+/// A client on the blocklist. `client` is an IP address, or an IPv6 prefix
+/// such as `2001:db8:1:2::/64`, as the block log line names it.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+pub struct BlockedClient {
+    pub client: String,
+    /// Whether the client reached the node through a fullnode.
+    pub proxied: bool,
+    pub reason: BlockReason,
+    pub seconds_left: u64,
+}
+
+/// Part of the blocklist: `omitted` clients were left out to keep the list
+/// within its limit.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+pub struct BlockedClients {
+    pub clients: Vec<BlockedClient>,
+    pub omitted: usize,
+}
+
+/// The simulation gas balance of a client that has not got all of its
+/// `burst-gas`. `client` is `None` for the clients whose IP the node could
+/// not resolve, which share one balance.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+pub struct ClientGasBalance {
+    pub client: Option<String>,
+    pub gas: u64,
+}
+
+/// The clients with the lowest simulation gas balances, lowest first, and the
+/// clients on the blocklist. `omitted_*` count those left out.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+pub struct ClientUsage {
+    pub gas_balances: Vec<ClientGasBalance>,
+    pub omitted_gas_balances: usize,
+    pub blocked: BlockedClients,
 }
 
 /// The gas each client may spend on simulations, which run transactions for
