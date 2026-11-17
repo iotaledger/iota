@@ -244,9 +244,10 @@ impl TransactionBlockFilter {
                 true,
             );
         }
-        // The general query reads the lookup tables of its subqueries, and
-        // `transactions` for the contents.
-        let mut tables = vec![Transactions];
+        // The general query reads the lookup tables of its subqueries,
+        // `transactions` for the contents, and `pruner_cp_watermark` to map
+        // its checkpoint range to transactions.
+        let mut tables = vec![Transactions, PrunerCpWatermark];
         tables.extend(subquery_tables(self));
         OldestAvailableCheckpoint::for_tables(&db.inner, &tables, false)
     }

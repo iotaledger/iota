@@ -250,7 +250,7 @@ where
 /// [`Page::validate_cursor_consistency`]) is a checkpoint that has been pruned
 /// from the `checkpoints` table. The error reports
 /// `oldest_available_checkpoint`, the bound of the data the page reads.
-pub(crate) fn check_cursor_not_pruned(
+pub(crate) fn check_cursor_not_expired(
     db: &Db,
     cursor_viewed_at: u64,
     oldest_available_checkpoint: OldestAvailableCheckpoint,

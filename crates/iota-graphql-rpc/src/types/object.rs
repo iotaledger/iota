@@ -30,7 +30,6 @@ use serde::{Deserialize, Serialize};
 use crate::{
     backward_view::{HistoricalFilter, consistent, historical},
     config::DEFAULT_PAGE_SIZE,
-    connection::ScanConnection,
     consistency::{Checkpointed, UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER},
     data::{DataLoader, Db, DbConnection, QueryExecutor, package_resolver::PackageResolver},
     error::Error,
@@ -54,7 +53,9 @@ use crate::{
         move_package::MovePackage,
         owner::{Owner, OwnerImpl},
         stake::StakedIota,
-        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+        transaction_block::{
+            self, TransactionBlock, TransactionBlockConnection, TransactionBlockFilter,
+        },
         type_filter::{ExactTypeFilter, TypeFilter},
         uint53::UInt53,
     },
@@ -293,7 +294,7 @@ pub(crate) struct HistoricalObjectCursor {
             ty = "Option<u64>",
             deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
         ),
-        ty = "ScanConnection<String, TransactionBlock>",
+        ty = "TransactionBlockConnection",
         desc = "The transaction blocks that sent objects to this object."
     ),
     field(
@@ -544,7 +545,7 @@ impl Object {
             deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
         )]
         scan_limit: Option<u64>,
-    ) -> Result<ScanConnection<String, TransactionBlock>> {
+    ) -> Result<TransactionBlockConnection> {
         ObjectImpl(self)
             .received_transaction_blocks(ctx, first, after, last, before, filter, scan_limit)
             .await
@@ -701,7 +702,7 @@ impl ObjectImpl<'_> {
         before: Option<transaction_block::Cursor>,
         filter: Option<TransactionBlockFilter>,
         scan_limit: Option<u64>,
-    ) -> Result<ScanConnection<String, TransactionBlock>> {
+    ) -> Result<TransactionBlockConnection> {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let Some(filter) = filter
@@ -711,7 +712,7 @@ impl ObjectImpl<'_> {
                 ..Default::default()
             })
         else {
-            return Ok(ScanConnection::new(false, false));
+            return Ok(TransactionBlockConnection::new(false, false));
         };
 
         TransactionBlock::paginate(ctx, page, filter, self.0.checkpoint_viewed_at, scan_limit)
