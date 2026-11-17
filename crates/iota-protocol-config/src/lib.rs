@@ -1868,11 +1868,11 @@ pub struct ProtocolConfig {
     // raw_bytes: &vector<u8>): address`
     public_key_to_iota_address_impl_cost_base: Option<u64>,
     // Cost params for the Move native function
-    // `public_key::verify_personal_message_impl(public_key: &PublicKey, signature:
+    // `public_key::verify_personal_message_signature_impl(public_key: &PublicKey, signature:
     // &vector<u8>, message: &vector<u8>): bool`
-    public_key_verify_personal_message_impl_cost_base: Option<u64>,
-    public_key_verify_personal_message_impl_msg_cost_per_byte: Option<u64>,
-    public_key_verify_personal_message_impl_sig_cost_per_byte: Option<u64>,
+    public_key_verify_personal_message_signature_impl_cost_base: Option<u64>,
+    public_key_verify_personal_message_signature_impl_msg_cost_per_byte: Option<u64>,
+    public_key_verify_personal_message_signature_impl_sig_cost_per_byte: Option<u64>,
 
     // Upper bound on the computation units a `ClaimAccount` is charged, after rounding.
     //
@@ -3223,9 +3223,9 @@ impl ProtocolConfig {
             ecdsa_r1_secp256r1_validate_pubkey_cost_base: None,
             multisig_multisig_validate_pubkey_cost_base: None,
             public_key_to_iota_address_impl_cost_base: None,
-            public_key_verify_personal_message_impl_cost_base: None,
-            public_key_verify_personal_message_impl_msg_cost_per_byte: None,
-            public_key_verify_personal_message_impl_sig_cost_per_byte: None,
+            public_key_verify_personal_message_signature_impl_cost_base: None,
+            public_key_verify_personal_message_signature_impl_msg_cost_per_byte: None,
+            public_key_verify_personal_message_signature_impl_sig_cost_per_byte: None,
 
             claim_account_max_computation_units: None,
             claim_account_storage_bytes_bound: None,
@@ -4065,9 +4065,11 @@ impl ProtocolConfig {
                     cfg.ecdsa_r1_secp256r1_validate_pubkey_cost_base = Some(52);
                     cfg.multisig_multisig_validate_pubkey_cost_base = Some(52);
                     cfg.public_key_to_iota_address_impl_cost_base = Some(52);
-                    cfg.public_key_verify_personal_message_impl_cost_base = Some(4225);
-                    cfg.public_key_verify_personal_message_impl_msg_cost_per_byte = Some(2);
-                    cfg.public_key_verify_personal_message_impl_sig_cost_per_byte = Some(2);
+                    cfg.public_key_verify_personal_message_signature_impl_cost_base = Some(4225);
+                    cfg.public_key_verify_personal_message_signature_impl_msg_cost_per_byte =
+                        Some(2);
+                    cfg.public_key_verify_personal_message_signature_impl_sig_cost_per_byte =
+                        Some(2);
                 }
                 // Use this template when making changes:
                 //

@@ -5627,11 +5627,11 @@ pub fn dev_inspect_with_budget(
 }
 
 /// Simulates on `fullnode`, with the Move VM checks relaxed so that a PTB can
-/// call the package function `public_key::verify_personal_message`, a
+/// call the package function `public_key::verify_personal_message_signature`, a
 /// transaction that checks `signature` of `message`, as a personal message, by
 /// the public key of `signer`. Returns the result of the check and the
 /// computation cost of the transaction.
-fn verify_personal_message_in_ptb(
+fn verify_personal_message_signature_in_ptb(
     fullnode: &AuthorityState,
     signer: &AccountPrivateKey,
     signature: Vec<u8>,
@@ -5654,7 +5654,7 @@ fn verify_personal_message_in_ptb(
     builder.command(Command::new_move_call(
         ObjectId::FRAMEWORK,
         Identifier::from_static("public_key"),
-        Identifier::from_static("verify_personal_message"),
+        Identifier::from_static("verify_personal_message_signature"),
         vec![],
         vec![public_key, signature, message],
     ));
@@ -5685,7 +5685,7 @@ fn personal_message_signature(signer: &AccountPrivateKey, message: &[u8]) -> Vec
 }
 
 /// How many bytes longer the long argument is in the gas tests of
-/// `public_key::verify_personal_message`. A multiple of 1000 bytes, so that
+/// `public_key::verify_personal_message_signature`. A multiple of 1000 bytes, so that
 /// their cost is a whole number of gas units for any cost per byte, and the
 /// rounding of the total cost does not change the difference between the two
 /// transactions.
@@ -5700,7 +5700,7 @@ fn personal_message_extra_bytes_cost(fullnode: &AuthorityState, cost_per_byte: u
 }
 
 #[tokio::test]
-async fn verify_personal_message_charges_per_message_byte() {
+async fn verify_personal_message_signature_charges_per_message_byte() {
     // With the default rounding step both transactions would be charged the
     // same computation cost.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -5712,13 +5712,13 @@ async fn verify_personal_message_charges_per_message_byte() {
     let short_message = vec![7; 16];
     let long_message = vec![7; 16 + PERSONAL_MESSAGE_EXTRA_BYTES];
 
-    let (short_is_valid, short_cost) = verify_personal_message_in_ptb(
+    let (short_is_valid, short_cost) = verify_personal_message_signature_in_ptb(
         &fullnode,
         &signer,
         personal_message_signature(&signer, &short_message),
         &short_message,
     );
-    let (long_is_valid, long_cost) = verify_personal_message_in_ptb(
+    let (long_is_valid, long_cost) = verify_personal_message_signature_in_ptb(
         &fullnode,
         &signer,
         personal_message_signature(&signer, &long_message),
@@ -5730,7 +5730,7 @@ async fn verify_personal_message_charges_per_message_byte() {
     let msg_cost_per_byte = fullnode
         .epoch_store_for_testing()
         .protocol_config()
-        .public_key_verify_personal_message_impl_msg_cost_per_byte();
+        .public_key_verify_personal_message_signature_impl_msg_cost_per_byte();
     assert_eq!(
         long_cost - short_cost,
         personal_message_extra_bytes_cost(&fullnode, msg_cost_per_byte)
@@ -5738,7 +5738,7 @@ async fn verify_personal_message_charges_per_message_byte() {
 }
 
 #[tokio::test]
-async fn verify_personal_message_charges_per_signature_byte() {
+async fn verify_personal_message_signature_charges_per_signature_byte() {
     // With the default rounding step both transactions would be charged the
     // same computation cost.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -5754,16 +5754,17 @@ async fn verify_personal_message_charges_per_signature_byte() {
     let mut long_signature = signature.clone();
     long_signature.extend([0; PERSONAL_MESSAGE_EXTRA_BYTES]);
 
-    let (is_valid, cost) = verify_personal_message_in_ptb(&fullnode, &signer, signature, &message);
+    let (is_valid, cost) =
+        verify_personal_message_signature_in_ptb(&fullnode, &signer, signature, &message);
     let (long_is_valid, long_cost) =
-        verify_personal_message_in_ptb(&fullnode, &signer, long_signature, &message);
+        verify_personal_message_signature_in_ptb(&fullnode, &signer, long_signature, &message);
 
     assert!(is_valid);
     assert!(!long_is_valid);
     let sig_cost_per_byte = fullnode
         .epoch_store_for_testing()
         .protocol_config()
-        .public_key_verify_personal_message_impl_sig_cost_per_byte();
+        .public_key_verify_personal_message_signature_impl_sig_cost_per_byte();
     assert_eq!(
         long_cost - cost,
         personal_message_extra_bytes_cost(&fullnode, sig_cost_per_byte)

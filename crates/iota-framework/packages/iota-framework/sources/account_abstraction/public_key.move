@@ -128,12 +128,12 @@ public fun to_iota_address(self: &PublicKey): address {
 /// scheme than `self`.
 ///
 /// The gas cost grows with the length of `message` and of `signature`.
-public(package) fun verify_personal_message(
+public(package) fun verify_personal_message_signature(
     self: &PublicKey,
     signature: &vector<u8>,
     message: &vector<u8>,
 ): bool {
-    verify_personal_message_impl(self, signature, message)
+    verify_personal_message_signature_impl(self, signature, message)
 }
 
 // === Private Functions ===
@@ -169,8 +169,8 @@ fun validate_public_key(scheme: SignatureScheme, raw_bytes: &vector<u8>) {
 native fun to_iota_address_impl(flag: u8, raw_bytes: &vector<u8>): address;
 
 /// Returns `true` if `signature` is a valid signature, by `public_key`, of `message` signed as an
-/// IOTA personal message. See `verify_personal_message`.
-native fun verify_personal_message_impl(
+/// IOTA personal message. See `verify_personal_message_signature`.
+native fun verify_personal_message_signature_impl(
     public_key: &PublicKey,
     signature: &vector<u8>,
     message: &vector<u8>,
