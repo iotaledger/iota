@@ -970,58 +970,84 @@ async fn dry_run_permit_is_held_until_soft_locks_are_taken() {
     assert!(submitted.try_recv().is_err());
 }
 
-/// A transaction whose inputs another transaction locks during its dry run is
-/// refused when it takes its own locks, and the refusal weighs one: the
-/// validator ran the dry run for nothing.
-#[tokio::test]
-async fn lock_refused_after_dry_run_weighs_one() {
-    telemetry_subscribers::init_for_testing();
-    let _guard = enable_attestation();
-
-    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
-    let (ids, objects) = objects_owned_by(sender, 2);
-    let (validator, mut submitted) =
-        TestValidator::new(&objects, AuthorityOverloadConfig::default()).await;
-    let tx = transfer(&validator.state, sender, &sender_key, ids[0], ids[1]);
-    let gas = validator.state.get_object(&ids[1]).unwrap().object_ref();
-
-    let submission = tokio::spawn({
-        let validator = validator.clone();
-
-        async move { validator.submit(tx).await }
-    });
-    // The count rises when the dry run starts, after both checks for
-    // conflicts. The submission's task shares the test's single thread, so it
-    // cannot take its locks until the test waits for it below.
-    tokio::time::timeout(Duration::from_secs(30), async {
-        while validator.state.metrics.attestation_dry_runs_total.get() < 1 {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("the dry run should start");
-    validator
-        .soft_locks
-        .try_acquire(TransactionDigest::new([9; 32]), &[gas])
+/// A transaction whose inputs another transaction locks after its two checks
+/// for conflicts is refused when it takes its own locks, and the refusal weighs
+/// one: the validator ran the dry run for nothing. Not under the simulator: it
+/// has no blocking pool to fill and cannot build a runtime of its own.
+#[cfg(not(msim))]
+#[test]
+fn lock_refused_after_dry_run_weighs_one() {
+    // The dry run needs a thread of the blocking pool. The pool gets one
+    // thread, and the test holds it, so the dry run cannot start before the
+    // test has taken the conflicting lock.
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .max_blocking_threads(1)
+        .enable_all()
+        .build()
         .unwrap();
+    runtime.block_on(async {
+        telemetry_subscribers::init_for_testing();
+        let _guard = enable_attestation();
 
-    let (update, weight) = submission.await.unwrap();
-    assert!(
-        matches!(
-            update,
-            TxStatusUpdate::Rejected {
-                error: IotaError::ObjectLockConflict { .. }
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+        let (ids, objects) = objects_owned_by(sender, 2);
+        let (validator, mut submitted) =
+            TestValidator::new(&objects, AuthorityOverloadConfig::default()).await;
+        let tx = transfer(&validator.state, sender, &sender_key, ids[0], ids[1]);
+        let gas = validator.state.get_object(&ids[1]).unwrap().object_ref();
+
+        // Hold the pool's only thread until the conflicting lock is taken.
+        let (running, is_running) = tokio::sync::oneshot::channel();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let holder = tokio::task::spawn_blocking(move || {
+            running.send(()).unwrap();
+            released.recv().unwrap();
+        });
+        is_running.await.unwrap();
+
+        let submission = tokio::spawn({
+            let validator = validator.clone();
+
+            async move { validator.submit(tx).await }
+        });
+        // A submission holds its permit from before its second check for
+        // conflicts until its locks are taken, and it awaits only its dry run
+        // in between. The submission's task shares the test's single thread,
+        // so once the count rises, the submission has passed both checks and
+        // waits for its dry run.
+        tokio::time::timeout(Duration::from_secs(30), async {
+            while validator.state.metrics.attestations_in_progress.get() < 1 {
+                tokio::task::yield_now().await;
             }
-        ),
-        "expected a soft lock conflict, got {update:?}"
-    );
-    assert_eq!(
-        weight.value(),
-        1.0,
-        "a refusal after the dry run weighs one"
-    );
-    assert_eq!(validator.soft_locks.lock_count(), 1);
-    assert!(submitted.try_recv().is_err());
+        })
+        .await
+        .expect("the submission should get a dry run permit");
+        validator
+            .soft_locks
+            .try_acquire(TransactionDigest::new([9; 32]), &[gas])
+            .unwrap();
+        release.send(()).unwrap();
+        holder.await.unwrap();
+
+        let (update, weight) = submission.await.unwrap();
+        assert!(
+            matches!(
+                update,
+                TxStatusUpdate::Rejected {
+                    error: IotaError::ObjectLockConflict { .. }
+                }
+            ),
+            "expected a soft lock conflict, got {update:?}"
+        );
+        assert_eq!(
+            weight.value(),
+            1.0,
+            "a refusal after the dry run weighs one"
+        );
+        assert_eq!(validator.state.metrics.attestation_dry_runs_total.get(), 1);
+        assert_eq!(validator.soft_locks.lock_count(), 1);
+        assert!(submitted.try_recv().is_err());
+    });
 }
 
 /// The check of the owned inputs' versions also fails when the validator
