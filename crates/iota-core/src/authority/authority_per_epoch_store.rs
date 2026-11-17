@@ -420,9 +420,9 @@ impl CongestionControlParameters {
 pub(crate) type PreviouslyDeferredTransactions =
     HashMap<TransactionDigest, (DeferralKey, Option<u64>)>;
 
-/// What the sequencing pass of a commit knows so far about the commit's
-/// transactions, so a transaction with a dependency input is scheduled only
-/// once its dependency is a root.
+/// What `process_consensus_transactions` knows so far about the commit's
+/// transactions while it schedules them, so a transaction with a dependency
+/// input is scheduled only once its dependency is a root.
 pub(crate) struct CommitDependencyState {
     /// Every transaction of the commit with a digest, before sequencing.
     batch: HashSet<TransactionDigest>,
