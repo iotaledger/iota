@@ -264,8 +264,9 @@ native fun replace(
 );
 
 #[test_only]
-/// Set the chain identifier returned by `chain_identifier`. It is kept by every
-/// `TxContext` created afterwards in the test.
+/// Set the chain identifier returned by `chain_identifier`. A test has one chain
+/// identifier: every `TxContext` of the test reads the new value, including those
+/// created before the call.
 public fun set_chain_identifier_for_testing(_self: &mut TxContext, chain_identifier: vector<u8>) {
     assert!(chain_identifier.length() == CHAIN_IDENTIFIER_LENGTH, EBadChainIdentifierLength);
     replace_chain_identifier(chain_identifier);
