@@ -798,7 +798,11 @@ fn print_rules(rules: &AccessRules, output: &mut Output<'_>) -> Result<()> {
     }
     let mut table = Table::new();
     table.set_header(["List", "Rule"]);
-    for (list, rules) in [("allow", &rules.allow), ("deny", &rules.deny)] {
+    for (list, rules) in [
+        ("allow", &rules.allow),
+        ("deny", &rules.deny),
+        ("forwarders", &rules.forwarders),
+    ] {
         for rule in rules {
             table.add_row([list, rule]);
         }
@@ -1425,7 +1429,9 @@ mod tests {
 
     #[tokio::test]
     async fn listings_print_as_tables_or_json() {
-        let node = start_admin_server(policy()).await;
+        let mut policy_config = policy();
+        policy_config.access_rules.forwarders = vec!["10.0.0.5".to_string()];
+        let node = start_admin_server(policy_config).await;
         for client in ["203.0.113.9", "203.0.113.10", "203.0.113.11"] {
             run(
                 &node.url,
@@ -1464,6 +1470,11 @@ mod tests {
             .unwrap()
             .out;
         assert!(out.contains("198.51.100.0/24"), "{out}");
+        assert!(
+            out.lines()
+                .any(|line| line.contains("forwarders") && line.contains("10.0.0.5")),
+            "{out}"
+        );
         assert!(out.ends_with("Default action: limit\n"), "{out}");
     }
 
