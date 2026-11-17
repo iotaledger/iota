@@ -592,6 +592,7 @@ pub(crate) mod tests {
         leader_schedule::LeaderSchedule,
         storage::{Store, WriteBatch, mem_store::MemStore},
         transaction::{TransactionClient, TransactionConsumer},
+        transaction_ref::TransactionRef,
     };
 
     // TODO: complete the Mock for thread dispatcher to be used from several tests
@@ -605,9 +606,14 @@ pub(crate) mod tests {
         quorum_subscribers_exists: Mutex<bool>,
         reinitialize_components_calls: Mutex<usize>,
         reinitialize_components_should_fail: Mutex<bool>,
+        transactions: Mutex<BTreeMap<TransactionRef, CommitmentVerifiedTransactions>>,
     }
 
     impl MockCoreThreadDispatcher {
+        pub(crate) fn added_transactions(&self) -> Vec<CommitmentVerifiedTransactions> {
+            self.transactions.lock().values().cloned().collect()
+        }
+
         pub(crate) async fn get_and_drain_blocks(&self) -> Vec<VerifiedBlock> {
             let mut blocks = self.blocks.lock();
             blocks.drain(0..).collect()
@@ -695,10 +701,16 @@ pub(crate) mod tests {
 
         async fn add_transactions(
             &self,
-            _transactions: Vec<CommitmentVerifiedTransactions>,
+            transactions: Vec<CommitmentVerifiedTransactions>,
             _source: DataSource,
         ) -> Result<(), CoreError> {
-            unimplemented!()
+            let mut added = self.transactions.lock();
+            for transaction in transactions {
+                added
+                    .entry(transaction.transaction_ref())
+                    .or_insert(transaction);
+            }
+            Ok(())
         }
 
         async fn add_shards(&self, _shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError> {
