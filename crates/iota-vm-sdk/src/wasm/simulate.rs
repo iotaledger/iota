@@ -5,8 +5,10 @@
 //! and surface a JS-friendly result.
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use iota_protocol_config::{Chain, ProtocolVersion};
-use iota_sdk_types::{OwnedObjectReference, SenderSignedTransaction, Transaction, UserSignature};
+use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::{
+    CheckpointDigest, OwnedObjectReference, SenderSignedTransaction, Transaction, UserSignature,
+};
 use iota_types::{
     digests::{ChainIdentifier, get_mainnet_chain_identifier, get_testnet_chain_identifier},
     effects::TransactionEffectsAPI,
@@ -53,22 +55,14 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
     }
     store.seed(seed);
 
-    let (chain, chain_identifier) = match req.chain.as_deref() {
-        None => (Chain::Unknown, ChainIdentifier::default()),
-        Some("mainnet") => (Chain::Mainnet, get_mainnet_chain_identifier()),
-        Some("testnet") => (Chain::Testnet, get_testnet_chain_identifier()),
-        Some(other) => {
-            return Err(JsError::new(&format!(
-                "unknown chain \"{other}\": expected \"mainnet\" or \"testnet\", or omit it"
-            )));
-        }
-    };
+    let chain_identifier =
+        request_chain_identifier(req.chain.as_deref(), req.chain_identifier.as_deref())?;
     let ctx = ChainContext {
         protocol_version: ProtocolVersion::new(req.protocol_version),
         reference_gas_price: req.reference_gas_price,
         epoch_id: req.epoch_id,
         epoch_timestamp_ms: req.epoch_timestamp_ms,
-        chain,
+        chain: chain_identifier.chain(),
         chain_identifier,
     };
     let mut vm = LocalVm::new(ctx, store).map_err(err_to_js)?;
@@ -205,4 +199,38 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
     // `move_value_to_json` renders every 64-bit-plus integer as a string.
     let json = serde_json::to_string(&out).map_err(|e| JsError::new(&e.to_string()))?;
     js_sys::JSON::parse(&json).map_err(|e| JsError::new(&format!("{e:?}")))
+}
+
+/// The chain identifier a request runs with: `chain_identifier` when set,
+/// otherwise the identifier of `chain`, otherwise all zeros.
+///
+/// Fails when `chain` is not `"mainnet"` or `"testnet"`, when
+/// `chain_identifier` is not a base-58 digest, or when both are set and name
+/// different chains.
+fn request_chain_identifier(
+    chain: Option<&str>,
+    chain_identifier: Option<&str>,
+) -> Result<ChainIdentifier, JsError> {
+    let known = match chain {
+        None => None,
+        Some(name @ "mainnet") => Some((name, get_mainnet_chain_identifier())),
+        Some(name @ "testnet") => Some((name, get_testnet_chain_identifier())),
+        Some(other) => {
+            return Err(JsError::new(&format!(
+                "unknown chain \"{other}\": expected \"mainnet\" or \"testnet\", or omit it"
+            )));
+        }
+    };
+    let Some(digest) = chain_identifier else {
+        return Ok(known.map(|(_, id)| id).unwrap_or_default());
+    };
+    let given = CheckpointDigest::from_base58(digest)
+        .map(ChainIdentifier::from)
+        .map_err(|e| JsError::new(&format!("chain_identifier: {e}")))?;
+    if let Some((name, _)) = known.filter(|(_, id)| *id != given) {
+        return Err(JsError::new(&format!(
+            "chain_identifier {digest} is not the identifier of {name}"
+        )));
+    }
+    Ok(given)
 }
