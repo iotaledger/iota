@@ -113,7 +113,7 @@ pub fn verify_builtin_signature(
 /// The verification rules taken from `protocol_config` apply only to MultiSig
 /// signatures, so they have no effect here. The parameter lets a later
 /// protocol version change the check.
-pub fn verify_personal_message(
+pub fn verify_personal_message_signature(
     protocol_config: &ProtocolConfig,
     public_key: &MovePublicKey,
     signature_bytes: &[u8],
