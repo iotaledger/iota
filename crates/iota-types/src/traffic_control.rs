@@ -408,6 +408,14 @@ pub enum DefaultAction {
 /// dry run the node serves the clients that steps 2 to 4 refuse, and counts
 /// them.
 ///
+/// `forwarders` names the services, such as GraphQL and the indexer, that
+/// call a fullnode for their own users and name each user in the
+/// [`FORWARDED_CLIENT_IP_HEADER`] header. The fullnode then takes that user as
+/// the client of the request, for the rules and every policy, and does not
+/// count the forwarder. The header is ignored from any other client, and a
+/// forwarder's request without exactly one such header holding an IP address
+/// is the forwarder's own. Validators do not apply `forwarders`.
+///
 /// ```yaml
 /// access-rules:
 ///   allow:
@@ -416,6 +424,8 @@ pub enum DefaultAction {
 ///   deny:
 ///     - 192.0.2.0/24
 ///   default: limit
+///   forwarders:
+///     - 10.0.0.5
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
@@ -426,7 +436,13 @@ pub struct AccessRules {
     pub deny: Vec<String>,
     #[serde(default)]
     pub default: DefaultAction,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub forwarders: Vec<String>,
 }
+
+/// The header in which a forwarder (see [`AccessRules`]) names the user it
+/// calls the node for, as an IP address.
+pub const FORWARDED_CLIENT_IP_HEADER: &str = "x-iota-client-ip";
 
 impl AccessRules {
     /// Whether these rules do the same as no `access-rules` in the config.

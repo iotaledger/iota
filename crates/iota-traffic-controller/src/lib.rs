@@ -25,8 +25,9 @@ use iota_types::{
     error::IotaError,
     traffic_control::{
         AccessRuleList, AccessRules, BlockReason, BlockedClient, BlockedClients, ClientGasBalance,
-        ClientIdSource, ClientUsage, DEFAULT_DENY_WARNING, DefaultAction, PolicyConfig, PolicyType,
-        TrafficControlReconfigParams, TrafficControlStatus,
+        ClientIdSource, ClientUsage, DEFAULT_DENY_WARNING, DefaultAction,
+        FORWARDED_CLIENT_IP_HEADER, PolicyConfig, PolicyType, TrafficControlReconfigParams,
+        TrafficControlStatus,
     },
 };
 use tracing::{error, warn};
@@ -204,6 +205,23 @@ impl TrafficController {
         config.access_rules = self.client_access.access_rules();
         config.simulation_gas_limit = self.simulation_gas.settings();
         config
+    }
+
+    /// The client of a request that `client` sent with `headers`: the user
+    /// that a forwarder names in one [`FORWARDED_CLIENT_IP_HEADER`] header,
+    /// and `client` for any other request. Check and tally the request to the
+    /// client this returns.
+    pub fn forwarded_client(
+        &self,
+        client: Option<IpAddr>,
+        headers: &http::HeaderMap,
+    ) -> Option<IpAddr> {
+        let forwarded: Vec<&[u8]> = headers
+            .get_all(FORWARDED_CLIENT_IP_HEADER)
+            .iter()
+            .map(http::HeaderValue::as_bytes)
+            .collect();
+        self.client_access.forwarded_client(client, &forwarded)
     }
 
     /// The access rules in force, each in its canonical form.
@@ -552,6 +570,7 @@ pub fn canonical_access_rules(rules: &AccessRules) -> Result<AccessRules, String
         allow: canonical(&rules.allow)?,
         deny: canonical(&rules.deny)?,
         default: rules.default,
+        forwarders: canonical(&rules.forwarders)?,
     })
 }
 
@@ -1721,6 +1740,7 @@ mod tests {
                 allow: vec!["198.51.100.0/24".to_string()],
                 deny: vec![],
                 default: DefaultAction::Deny,
+                forwarders: vec![],
             }
         );
         assert_eq!(
@@ -2009,6 +2029,7 @@ mod tests {
             allow: vec!["203.0.113.7".to_string(), "::ffff:10.0.0.0/104".to_string()],
             deny: vec!["2001:db8::1".to_string(), "198.51.100.7/24".to_string()],
             default: DefaultAction::Deny,
+            forwarders: vec!["10.0.0.5/24".to_string()],
         };
         let controller = TrafficController::init_for_test(PolicyConfig {
             access_rules: rules.clone(),
@@ -2017,6 +2038,7 @@ mod tests {
         let canonical = canonical_access_rules(&rules).unwrap();
         assert_eq!(canonical, controller.access_rules());
         assert_eq!(canonical.allow, ["203.0.113.7/32", "10.0.0.0/8"]);
+        assert_eq!(canonical.forwarders, ["10.0.0.0/24"]);
         let error = canonical_access_rules(&AccessRules {
             deny: vec!["10.0.0.300".to_string()],
             ..Default::default()
