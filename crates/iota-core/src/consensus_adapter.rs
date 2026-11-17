@@ -883,6 +883,7 @@ impl ConsensusAdapter {
         // (in practice all CertifiedTransaction or all UserTransactionV1).
         // Single-tx submits can be any kind.
         let is_soft_bundle = transactions.len() > 1;
+        let high_priority = !is_soft_bundle && is_high_priority(&transactions[0]);
 
         let mut transaction_keys = Vec::new();
 
@@ -902,6 +903,8 @@ impl ConsensusAdapter {
         };
 
         let mut guard = InflightDropGuard::acquire(&self, tx_type, slot);
+        // A batch holds one kind of transaction, so the first one decides.
+        guard.sample_latency = !transactions[0].kind.is_user_transaction();
 
         // Create the waiter until the node's turn comes to submit to consensus
         let (await_submit, position, positions_moved, preceding_disconnected) =
@@ -973,12 +976,17 @@ impl ConsensusAdapter {
             guard.positions_moved = Some(positions_moved);
             guard.preceding_disconnected = Some(preceding_disconnected);
 
-            let _permit: SemaphorePermit = self
-                .submit_semaphore
-                .acquire()
-                .count_in_flight(self.metrics.sequencing_in_flight_semaphore_wait.clone())
-                .await
-                .expect("Consensus adapter does not close semaphore");
+            let _permit: Option<SemaphorePermit> = if high_priority {
+                None
+            } else {
+                Some(
+                    self.submit_semaphore
+                        .acquire()
+                        .count_in_flight(self.metrics.sequencing_in_flight_semaphore_wait.clone())
+                        .await
+                        .expect("Consensus adapter does not close semaphore"),
+                )
+            };
             let _in_flight_submission_guard =
                 GaugeGuard::acquire(&self.metrics.sequencing_in_flight_submissions);
 
@@ -1430,6 +1438,26 @@ impl CheckConnection for ConnectionMonitorStatusForTests {
     }
 }
 
+/// Whether a lone `transaction` goes ahead of this validator's own user
+/// transactions: it skips the submit semaphore and uses the consensus priority
+/// lane. Any other kind, including a new one, keeps the normal path.
+pub(crate) fn is_high_priority(transaction: &ConsensusTransaction) -> bool {
+    // Only messages this validator creates for itself, at a rate it bounds,
+    // and whose position against its user transactions no handler relies on.
+    // `EndOfPublish` is not one: peers drop this validator's user transactions
+    // sequenced after it.
+    matches!(
+        transaction.kind,
+        ConsensusTransactionKind::CheckpointSignature(_)
+            | ConsensusTransactionKind::CapabilityNotificationV1(_)
+            | ConsensusTransactionKind::RandomnessDkgMessage(..)
+            | ConsensusTransactionKind::RandomnessDkgConfirmation(..)
+            | ConsensusTransactionKind::MisbehaviorReport(_)
+            | ConsensusTransactionKind::OverloadNotificationV1(..)
+            | ConsensusTransactionKind::TransactionDenyRuleProposal(_)
+    )
+}
+
 pub fn get_position_in_list(
     search_authority: AuthorityName,
     positions: Vec<AuthorityName>,
@@ -1556,6 +1584,10 @@ struct InflightDropGuard<'a> {
     preceding_disconnected: Option<usize>,
     tx_type: &'static str,
     processed_method: ProcessedMethod,
+    /// Whether the submission's latency is reported to the latency observer.
+    /// User transactions are not: at an epoch change they wait for the
+    /// consensus of their epoch to start, which is not consensus latency.
+    sample_latency: bool,
 }
 
 #[derive(PartialEq, Eq, Copy, Clone)]
@@ -1601,6 +1633,7 @@ impl<'a> InflightDropGuard<'a> {
             preceding_disconnected: None,
             tx_type,
             processed_method: ProcessedMethod::Consensus,
+            sample_latency: true,
         }
     }
 }
@@ -1669,7 +1702,8 @@ impl Drop for InflightDropGuard<'_> {
             // Exclude checkpoint-synced and dropped txs from the latency observer:
             // their latency reflects state-sync timing or rejection, not consensus
             // throughput, and would skew the observed consensus latency.
-            if sampled && self.processed_method == ProcessedMethod::Consensus {
+            if self.sample_latency && sampled && self.processed_method == ProcessedMethod::Consensus
+            {
                 self.adapter.latency_observer.report(latency);
             }
         }

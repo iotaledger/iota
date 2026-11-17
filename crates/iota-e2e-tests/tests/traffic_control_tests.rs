@@ -27,6 +27,7 @@ use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_traffic_controller::sim::TrafficSim;
 use iota_types::{
     error::IotaError,
+    messages_grpc::{GetTxStatusRequest, TxStatusQuery, TxStatusUpdate},
     quorum_driver_types::ExecuteTransactionRequestType,
     traffic_control::{
         FreqThresholdConfig, PolicyConfig, PolicyType, TrafficControlReconfigParams, Weight,
@@ -87,13 +88,13 @@ async fn test_validator_traffic_control_ok() -> Result<(), anyhow::Error> {
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
-        // In this test, the validator gRPC API is receiving some requests that don't count towards
-        // the policy and two requests that do (/iota.validator.Validator/CertifiedTransactionV1 for
-        // an already executed transaction). However, the counter is updated only after the response
-        // is generated, but the limit is checked before we handle the request, so at the end we end
-        // up with 2 handled requests even if the limit is set to 1 and only the subsequent request
-        // would be rejected. Set the limit to the actual number of requests, so that it's
-        // not flaky on slower runners.
+        // In this test, the validator gRPC API is receiving the fullnode's `submit_tx` and
+        // `get_tx_status` requests, which don't count towards the policy, and two `get_tx_status`
+        // requests for an already executed transaction, which do. However, the counter is updated
+        // only after the response is generated, but the limit is checked before we handle the
+        // request, so at the end we end up with 2 handled requests even if the limit is set to 1
+        // and only the subsequent request would be rejected. Set the limit to the actual number of
+        // requests, so that it's not flaky on slower runners.
         spam_policy_type: PolicyType::TestNConnIP(2),
         // This should never be invoked when set as an error policy
         // as we are not sending requests that error
@@ -666,6 +667,7 @@ async fn assert_traffic_control_ok(mut test_cluster: TestCluster) -> Result<(), 
 
     let txn = txns.swap_remove(0);
     let tx_digest = txn.digest();
+    let first_digest = *tx_digest;
 
     // Test request with ExecuteTransactionRequestType::WaitForLocalExecution
     let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
@@ -740,6 +742,32 @@ async fn assert_traffic_control_ok(mut test_cluster: TestCluster) -> Result<(), 
     } = response;
     assert_eq!(effects.unwrap().transaction_digest(), tx_digest);
     assert!(!confirmed_local_execution.unwrap());
+
+    // Only a `get_tx_status` of an already executed transaction counts towards
+    // the spam policy of a validator. Send two to one validator.
+    let client = test_cluster
+        .authority_aggregator()
+        .authority_clients
+        .values()
+        .next()
+        .unwrap()
+        .clone();
+    for _ in 0..2 {
+        let request = GetTxStatusRequest {
+            queries: vec![TxStatusQuery {
+                transaction_digest: first_digest,
+                include_details: false,
+            }],
+        };
+        let statuses = client
+            .authority_client()
+            .get_tx_status(request, None)
+            .await?;
+        assert!(
+            matches!(statuses[..], [(_, TxStatusUpdate::Executed { .. })]),
+            "expected the executed transaction's status, got {statuses:?}"
+        );
+    }
 
     Ok(())
 }

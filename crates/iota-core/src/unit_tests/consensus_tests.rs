@@ -10,19 +10,23 @@ use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     CheckpointContents, CheckpointSummary, GasCostSummary, Identifier, ObjectId,
     SharedObjectReference, Transaction,
+    crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
     base_types::{ExecutionDigests, random_object_ref},
-    crypto::deterministic_random_account_private_key,
+    crypto::{
+        AuthoritySignature, IotaAuthoritySignature as _, deterministic_random_account_private_key,
+    },
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSignatureMessage,
         CheckpointSummaryExt, SignedCheckpointSummary,
     },
-    messages_consensus::AuthorityCapabilitiesV1,
+    messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     object::Object,
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{
         CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI,
+        VerifiedTransaction,
     },
     utils::{make_committee_key_num, to_sender_signed_transaction},
 };
@@ -60,51 +64,59 @@ pub fn test_gas_objects() -> Vec<Object> {
     GAS_OBJECTS.with(|v| v.clone())
 }
 
+/// Fixture: one signed transaction per test gas object, each creating an
+/// object through a mutable use of `shared_object`.
+pub fn test_shared_object_transactions(
+    authority: &AuthorityState,
+    shared_object: &Object,
+) -> Vec<VerifiedTransaction> {
+    let epoch_store = authority.load_epoch_store_one_call_per_task();
+    let (sender, sender_key) = deterministic_random_account_private_key();
+    let rgp = epoch_store.reference_gas_price();
+
+    let shared_object_arg = CallArg::Shared(SharedObjectReference::new(
+        shared_object.id(),
+        shared_object.version(),
+        true,
+    ));
+    test_gas_objects()
+        .into_iter()
+        .map(|gas_object| {
+            // Object digest may be different in genesis than originally generated.
+            let gas_object = authority.get_object(&gas_object.id()).unwrap();
+            let tx = Transaction::new_move_call(
+                sender,
+                ObjectId::FRAMEWORK,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("create"),
+                // type_args
+                vec![],
+                gas_object.object_ref(),
+                // args
+                vec![
+                    shared_object_arg.clone(),
+                    CallArg::Pure(16u64.to_le_bytes().to_vec()),
+                    CallArg::pure(&AccountAddress::new(sender.into_bytes())),
+                ],
+                rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+                rgp,
+            )
+            .unwrap();
+            epoch_store
+                .verify_transaction(to_sender_signed_transaction(tx, &sender_key))
+                .unwrap()
+        })
+        .collect()
+}
+
 /// Fixture: a few test certificates containing a shared object.
 pub async fn test_certificates(
     authority: &AuthorityState,
     shared_object: Object,
 ) -> Vec<CertifiedTransaction> {
     let epoch_store = authority.load_epoch_store_one_call_per_task();
-    let (sender, sender_key) = deterministic_random_account_private_key();
-    let rgp = epoch_store.reference_gas_price();
-
     let mut certificates = Vec::new();
-    let shared_object_arg = CallArg::Shared(SharedObjectReference::new(
-        shared_object.id(),
-        shared_object.version(),
-        true,
-    ));
-    for gas_object in test_gas_objects() {
-        // Object digest may be different in genesis than originally generated.
-        let gas_object = authority.get_object(&gas_object.id()).unwrap();
-        // Make a sample transaction.
-        let module = "object_basics";
-        let function = "create";
-
-        let tx = Transaction::new_move_call(
-            sender,
-            ObjectId::FRAMEWORK,
-            Identifier::from_static(module),
-            Identifier::from_static(function),
-            // type_args
-            vec![],
-            gas_object.object_ref(),
-            // args
-            vec![
-                shared_object_arg.clone(),
-                CallArg::Pure(16u64.to_le_bytes().to_vec()),
-                CallArg::pure(&AccountAddress::new(sender.into_bytes())),
-            ],
-            rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-            rgp,
-        )
-        .unwrap();
-
-        let transaction = epoch_store
-            .verify_transaction(to_sender_signed_transaction(tx, &sender_key))
-            .unwrap();
-
+    for transaction in test_shared_object_transactions(authority, &shared_object) {
         // Submit the transaction and assemble a certificate.
         let response = authority
             .handle_transaction(&epoch_store, transaction.clone())
@@ -120,6 +132,39 @@ pub async fn test_certificates(
         certificates.push(certificate);
     }
     certificates
+}
+
+/// Fixture: the transactions of `test_certificates` as consensus messages, as
+/// certificates or as `UserTransactionV1`s, with the digest of each.
+pub async fn test_consensus_transactions(
+    authority: &AuthorityState,
+    shared_object: Object,
+    user_transactions: bool,
+) -> Vec<(ConsensusTransaction, TransactionDigest)> {
+    if user_transactions {
+        test_shared_object_transactions(authority, &shared_object)
+            .into_iter()
+            .map(|transaction| {
+                let digest = *transaction.digest();
+                (
+                    ConsensusTransaction::new_user_transaction(transaction.into()),
+                    digest,
+                )
+            })
+            .collect()
+    } else {
+        test_certificates(authority, shared_object)
+            .await
+            .into_iter()
+            .map(|certificate| {
+                let digest = *certificate.digest();
+                (
+                    ConsensusTransaction::new_certificate_message(&authority.name, certificate),
+                    digest,
+                )
+            })
+            .collect()
+    }
 }
 
 pub fn make_consensus_adapter_for_test(
@@ -147,7 +192,10 @@ pub fn make_consensus_adapter_for_test(
         ) -> IotaResult<BlockStatusReceiver> {
             let sequenced_transactions: Vec<SequencedConsensusTransaction> = transactions
                 .iter()
-                .map(|txn| SequencedConsensusTransaction::new_test(txn.clone()))
+                .map(|txn| SequencedConsensusTransaction {
+                    certificate_author: self.state.name,
+                    ..SequencedConsensusTransaction::new_test(txn.clone())
+                })
                 .collect();
 
             let checkpoint_service = Arc::new(CheckpointServiceNoop {});
@@ -249,8 +297,9 @@ pub fn make_consensus_adapter_for_test(
     ))
 }
 
+#[rstest::rstest]
 #[tokio::test]
-async fn submit_transaction_to_consensus_adapter() {
+async fn submit_transaction_to_consensus_adapter(#[values(false, true)] user_transactions: bool) {
     telemetry_subscribers::init_for_testing();
 
     // Initialize an authority with a (owned) gas object and a shared object; then
@@ -259,7 +308,7 @@ async fn submit_transaction_to_consensus_adapter() {
     let shared_object = Object::shared_for_testing();
     objects.push(shared_object.clone());
     let state = init_state_with_objects(objects).await;
-    let certificate = test_certificates(&state, shared_object)
+    let (transaction, _) = test_consensus_transactions(&state, shared_object, user_transactions)
         .await
         .pop()
         .unwrap();
@@ -290,7 +339,6 @@ async fn submit_transaction_to_consensus_adapter() {
     // Submit the transaction and ensure the adapter reports success to the caller.
     // Note that consensus may drop some transactions (so we may need to
     // resubmit them).
-    let transaction = ConsensusTransaction::new_certificate_message(&state.name, certificate);
     let waiter = adapter
         .submit(
             transaction.clone(),
@@ -301,8 +349,11 @@ async fn submit_transaction_to_consensus_adapter() {
     waiter.await.unwrap();
 }
 
+#[rstest::rstest]
 #[tokio::test]
-async fn submit_multiple_transactions_to_consensus_adapter() {
+async fn submit_multiple_transactions_to_consensus_adapter(
+    #[values(false, true)] user_transactions: bool,
+) {
     telemetry_subscribers::init_for_testing();
 
     // Initialize an authority with a (owned) gas object and a shared object; then
@@ -311,16 +362,17 @@ async fn submit_multiple_transactions_to_consensus_adapter() {
     let shared_object = Object::shared_for_testing();
     objects.push(shared_object.clone());
     let state = init_state_with_objects(objects).await;
-    let certificates = test_certificates(&state, shared_object).await;
+    let consensus_transactions =
+        test_consensus_transactions(&state, shared_object, user_transactions).await;
     let epoch_store = state.epoch_store_for_testing();
 
     // Mark the first two transactions to be "executed via checkpoint" and the other
     // two to appear via consensus output.
-    assert_eq!(certificates.len(), 4);
+    assert_eq!(consensus_transactions.len(), 4);
 
     let mut process_via_checkpoint = HashSet::new();
-    process_via_checkpoint.insert(*certificates[0].digest());
-    process_via_checkpoint.insert(*certificates[1].digest());
+    process_via_checkpoint.insert(consensus_transactions[0].1);
+    process_via_checkpoint.insert(consensus_transactions[1].1);
 
     // Make a new consensus adapter instance.
     let adapter = make_consensus_adapter_for_test(
@@ -335,9 +387,9 @@ async fn submit_multiple_transactions_to_consensus_adapter() {
     // Submit the transaction and ensure the adapter reports success to the caller.
     // Note that consensus may drop some transactions (so we may need to
     // resubmit them).
-    let transactions = certificates
+    let transactions = consensus_transactions
         .into_iter()
-        .map(|certificate| ConsensusTransaction::new_certificate_message(&state.name, certificate))
+        .map(|(transaction, _)| transaction)
         .collect::<Vec<_>>();
 
     let waiter = adapter
@@ -348,6 +400,122 @@ async fn submit_multiple_transactions_to_consensus_adapter() {
         )
         .unwrap();
     waiter.await.unwrap();
+}
+
+/// With no free submit permit, user transactions, `EndOfPublish` and a
+/// forwarded capability notification wait for one, while this validator's own
+/// checkpoint signature is still submitted and processed.
+#[tokio::test]
+async fn only_high_priority_messages_skip_exhausted_submit_semaphore() {
+    let shared_object = Object::shared_for_testing();
+    let mut objects = test_gas_objects();
+    objects.push(shared_object.clone());
+    let state = init_state_with_objects(objects).await;
+    let certificates = test_certificates(&state, shared_object).await;
+    let raw_transactions = certificates
+        .iter()
+        .cloned()
+        .map(|certificate| ConsensusTransaction::new_user_transaction(certificate.into_unsigned()))
+        .collect::<Vec<_>>();
+    let certified_transactions = certificates
+        .into_iter()
+        .map(|certificate| ConsensusTransaction::new_certificate_message(&state.name, certificate))
+        .collect::<Vec<_>>();
+    let epoch_store = state.epoch_store_for_testing();
+    let mut adapter = make_consensus_adapter_for_test(
+        state.clone(),
+        HashSet::new(),
+        false,
+        vec![with_block_status(BlockStatus::Sequenced(
+            starfish_core::TransactionRef::default(),
+        ))],
+    );
+    Arc::get_mut(&mut adapter).unwrap().submit_semaphore = Semaphore::new(0);
+    let assert_waits = |mut waiter: JoinHandle<()>| {
+        let adapter = adapter.clone();
+        async move {
+            assert!(
+                tokio::time::timeout(Duration::from_millis(100), &mut waiter)
+                    .await
+                    .is_err()
+            );
+            assert_eq!(adapter.metrics.sequencing_in_flight_semaphore_wait.get(), 1);
+            waiter.abort();
+            assert!(waiter.await.unwrap_err().is_cancelled());
+        }
+    };
+
+    for transactions in [
+        &certified_transactions[..1],
+        &raw_transactions[..1],
+        &certified_transactions[..2],
+        &raw_transactions[..2],
+    ] {
+        let waiter = adapter
+            .submit_batch(
+                transactions,
+                Some(&epoch_store.get_reconfig_state_read_lock_guard()),
+                &epoch_store,
+            )
+            .unwrap();
+        assert_waits(waiter).await;
+    }
+
+    let capabilities = AuthorityCapabilitiesV1::new(
+        state.name,
+        Chain::Unknown,
+        SupportedProtocolVersions::SYSTEM_DEFAULT,
+        vec![],
+    );
+    let signature = AuthoritySignature::new_secure(
+        &IntentMessage::new(
+            Intent::iota_app(IntentScope::AuthorityCapabilities),
+            &capabilities,
+        ),
+        &epoch_store.epoch(),
+        &*state.secret,
+    );
+    for transaction in [
+        ConsensusTransaction::new_end_of_publish(state.name),
+        ConsensusTransaction::new_signed_capability_notification_v1(
+            SignedAuthorityCapabilitiesV1::new_from_data_and_sig(capabilities, signature),
+        ),
+    ] {
+        assert_waits(adapter.submit(transaction, None, &epoch_store).unwrap()).await;
+    }
+
+    let summary = CheckpointSummary::new_with_protocol_config(
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        epoch_store.epoch(),
+        0,
+        10,
+        &CheckpointContents::new_with_digests_only_for_tests([ExecutionDigests::random()]),
+        None,
+        GasCostSummary::default(),
+        None,
+        100,
+        Vec::new(),
+        Vec::new(),
+        Default::default(),
+    );
+    let transaction =
+        ConsensusTransaction::new_checkpoint_signature_message(CheckpointSignatureMessage {
+            summary: SignedCheckpointSummary::new(
+                epoch_store.epoch(),
+                summary,
+                &*state.secret,
+                state.name,
+            ),
+        });
+    let key = SequencedConsensusTransactionKey::External(transaction.key());
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        adapter.submit(transaction, None, &epoch_store).unwrap(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(epoch_store.is_consensus_message_processed(&key).unwrap());
 }
 
 #[sim_test]
