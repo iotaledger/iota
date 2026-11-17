@@ -16,7 +16,6 @@ byteorder.workspace = true
 bytes.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
-notify = "6.1.1"
 object_store.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -39,6 +38,9 @@ iota-sdk-types.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
 prometheus-filtered.workspace = true
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+notify = "6.1.1"
 
 [dev-dependencies]
 # external dependencies

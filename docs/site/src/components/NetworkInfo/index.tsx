@@ -41,12 +41,6 @@ function L1(props: NetworkProps) {
             <table>
               <tbody>
                 <tr>
-                  <th>Websocket</th>
-                  <td>
-                    <CodeBlock>{props.rpc.json.official.websocket}</CodeBlock>
-                  </td>
-                </tr>
-                <tr>
                   <th>Indexer</th>
                   <td>
                     <CodeBlock>{props.rpc.json.official.indexer}</CodeBlock>
@@ -67,12 +61,6 @@ function L1(props: NetworkProps) {
                   <>
                     <div><strong>{provider.provider}</strong></div>
                     <CodeBlock>{provider.core}</CodeBlock>
-                  </>
-                )}
-                {provider.websocket && (
-                  <>
-                    <div><strong>{provider.provider} Websocket</strong></div>
-                    <CodeBlock>{provider.websocket}</CodeBlock>
                   </>
                 )}
                 {provider.indexer && (

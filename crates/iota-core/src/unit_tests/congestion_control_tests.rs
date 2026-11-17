@@ -15,6 +15,7 @@ use iota_sdk_types::{
     TransactionDigest, TransactionEffects, TransactionKind, Version,
 };
 use iota_types::{
+    attestation::AttestedTransaction,
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
@@ -39,6 +40,7 @@ use crate::{
         },
         authority_test_utils::{
             init_state_with_ids, init_state_with_objects, init_transfer_transaction,
+            send_batch_user_transactions_no_execution, send_user_transaction_and_execute,
         },
         authority_tests::{
             build_programmable_transaction, certify_shared_obj_transaction_no_execution,
@@ -67,6 +69,7 @@ pub const TEST_ONLY_GAS_UNIT: u64 = 10_000;
 // Note that TestSetup is currently purposely created for
 // test_congestion_control_execution_cancellation.
 struct TestSetup {
+    pcool: bool,
     setup_authority_state: Arc<AuthorityState>,
     protocol_config: ProtocolConfig,
     sender: Address,
@@ -77,6 +80,7 @@ struct TestSetup {
 
 impl TestSetup {
     async fn new(
+        pcool: bool,
         max_execution_duration_per_commit: u64,
         max_congestion_limit_overshoot_per_commit: u64,
     ) -> Self {
@@ -84,6 +88,12 @@ impl TestSetup {
 
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config.set_enable_pcool_flow_for_testing(pcool);
+        if pcool {
+            // Consecutive commits here reuse the objects the previous commit
+            // executed, so validation must see that commit's results.
+            protocol_config.set_pcool_deterministic_validation_horizon_distance_for_testing(1);
+        }
         protocol_config.set_per_object_congestion_control_mode_for_testing(
             PerObjectCongestionControlMode::TotalGasBudget,
         );
@@ -120,6 +130,7 @@ impl TestSetup {
         .await;
 
         Self {
+            pcool,
             setup_authority_state,
             protocol_config,
             sender,
@@ -289,8 +300,11 @@ async fn build_test_transaction(
 
 // Creates a transaction that touches the shared objects provided and the owned
 // object provided. The transaction is passed through a fake consensus and then
-// the congestion control before being executed.
+// the congestion control before being executed, as a certificate or, with
+// `pcool`, as a `UserTransactionV1` that goes through post-consensus
+// validation.
 async fn commit_and_execute_transaction(
+    pcool: bool,
     authority_state: &AuthorityState,
     package: &ObjectReference,
     sender: &Address,
@@ -312,12 +326,17 @@ async fn commit_and_execute_transaction(
     )
     .await;
 
-    let execution_effects =
+    let execution_effects = if pcool {
+        send_user_transaction_and_execute(authority_state, transaction.clone())
+            .await
+            .1
+    } else {
         send_and_confirm_transaction_(authority_state, None, transaction.clone(), true)
             .await
             .unwrap()
             .1
-            .into_data();
+            .into_data()
+    };
     (transaction, execution_effects)
 }
 
@@ -333,15 +352,25 @@ async fn commit_and_execute_transaction(
 // in the scheduler instead of executing them to cancelled effects.
 #[sim_test]
 async fn test_congestion_control_execution_cancellation_transaction_manager() {
-    congestion_control_execution_cancellation(false).await;
+    congestion_control_execution_cancellation(false, false).await;
 }
 
 #[sim_test]
 async fn test_congestion_control_execution_cancellation_execution_scheduler() {
-    congestion_control_execution_cancellation(true).await;
+    congestion_control_execution_cancellation(true, false).await;
 }
 
-async fn congestion_control_execution_cancellation(use_execution_scheduler: bool) {
+#[sim_test]
+async fn test_congestion_control_execution_cancellation_transaction_manager_pcool_flow() {
+    congestion_control_execution_cancellation(false, true).await;
+}
+
+#[sim_test]
+async fn test_congestion_control_execution_cancellation_execution_scheduler_pcool_flow() {
+    congestion_control_execution_cancellation(true, true).await;
+}
+
+async fn congestion_control_execution_cancellation(use_execution_scheduler: bool, pcool: bool) {
     telemetry_subscribers::init_for_testing();
     // Select the scheduler before the authorities are built (the env vars are
     // read by ExecutionSchedulerWrapper::new).
@@ -351,7 +380,7 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
     // limit is equal to one default transaction's gas budget, and the overshoot
     // allowed is also equal to one default transaction's gas budget.
     let default_tx_gas_budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
-    let test_setup = TestSetup::new(default_tx_gas_budget, default_tx_gas_budget).await;
+    let test_setup = TestSetup::new(pcool, default_tx_gas_budget, default_tx_gas_budget).await;
 
     // Creates 2 shared objects and 1 owned object.
     let shared_object_1 = test_setup.create_shared_object().await;
@@ -440,6 +469,7 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
     // Runs a transaction that touches shared_object_1, shared_object_2 and a owned
     // object.
     let (congested_tx, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
@@ -488,21 +518,48 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
 
     // Run the same transaction in `authority_state_2`, but using the above effects
     // for the execution.
-    let (cert, _) = certify_shared_obj_transaction_no_execution(&authority_state_2, congested_tx)
-        .await
-        .unwrap();
-    let assigned_versions = authority_state_2
-        .epoch_store_for_testing()
-        .acquire_shared_version_assignments_from_effects(
-            &VerifiedExecutableTransaction::new_from_certificate(cert.clone()),
-            &effects,
-            authority_state_2.get_object_cache_reader().as_ref(),
-        )
-        .unwrap();
-    let (effects_2, execution_error) = authority_state_2.execute_for_test(
-        &cert,
-        ExecutionEnv::new().with_assigned_versions(assigned_versions),
-    );
+    let (effects_2, execution_error) = if pcool {
+        let (scheduled, _) =
+            send_batch_user_transactions_no_execution(&authority_state_2, &[congested_tx], true)
+                .await;
+        let congested_tx = scheduled
+            .iter()
+            .find_map(|schedulable| schedulable.as_tx().cloned())
+            .expect("the second authority sequences the transaction");
+        let assigned_versions = authority_state_2
+            .epoch_store_for_testing()
+            .acquire_shared_version_assignments_from_effects(
+                &congested_tx,
+                &effects,
+                authority_state_2.get_object_cache_reader().as_ref(),
+            )
+            .unwrap();
+        authority_state_2
+            .try_execute_immediately(
+                &congested_tx,
+                ExecutionEnv::new().with_assigned_versions(assigned_versions),
+                &authority_state_2.epoch_store_for_testing(),
+            )
+            .unwrap()
+    } else {
+        let (cert, _) =
+            certify_shared_obj_transaction_no_execution(&authority_state_2, congested_tx)
+                .await
+                .unwrap();
+        let assigned_versions = authority_state_2
+            .epoch_store_for_testing()
+            .acquire_shared_version_assignments_from_effects(
+                &VerifiedExecutableTransaction::new_from_certificate(cert.clone()),
+                &effects,
+                authority_state_2.get_object_cache_reader().as_ref(),
+            )
+            .unwrap();
+        let (effects_2, execution_error) = authority_state_2.execute_for_test(
+            &cert,
+            ExecutionEnv::new().with_assigned_versions(assigned_versions),
+        );
+        (effects_2.data().clone(), execution_error)
+    };
 
     // Should result in the same cancellation.
     assert_eq!(
@@ -512,20 +569,29 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
             suggested_gas_price,
         }
     );
-    assert_eq!(&effects, effects_2.data())
+    assert_eq!(effects, effects_2)
 }
 
 // Tests that congestion control and debt tracking work as expected when there
 // is a burst of traffic and overshoot is allowed.
 #[sim_test]
 async fn test_congestion_control_debt_tracking() {
+    congestion_control_debt_tracking(false).await;
+}
+
+#[sim_test]
+async fn test_congestion_control_debt_tracking_pcool_flow() {
+    congestion_control_debt_tracking(true).await;
+}
+
+async fn congestion_control_debt_tracking(pcool: bool) {
     telemetry_subscribers::init_for_testing();
 
     // Creates a test setup with a protocol config such that the the congestion
     // limit is equal to one default transaction's gas budget, and the overshoot
     // allowed is twice the default transaction's gas budget.
     let default_tx_gas_budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
-    let test_setup = TestSetup::new(default_tx_gas_budget, 2 * default_tx_gas_budget).await;
+    let test_setup = TestSetup::new(pcool, default_tx_gas_budget, 2 * default_tx_gas_budget).await;
 
     // Creates 2 shared objects and 1 owned object.
     let shared_object_1 = test_setup.create_shared_object().await;
@@ -554,6 +620,7 @@ async fn test_congestion_control_debt_tracking() {
     // This will result in an overshoot of 2*default_tx_gas_budget, but should be
     // executed successfully.
     let (_, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
@@ -602,6 +669,7 @@ async fn test_congestion_control_debt_tracking() {
     // default_gas_budget from existing debt, and an extra 0.5*default_gas_budget
     // from this tx), and should be executed successfully.
     let (_, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
@@ -658,6 +726,7 @@ async fn test_congestion_control_debt_tracking() {
     // [default_gas_budget]) which exceeds the allowed
     // overshoot, and should be cancelled.
     let (_, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
@@ -741,6 +810,7 @@ async fn test_congestion_control_debt_tracking() {
     // + transaction [2.5*default_gas_budget] - congestion limit
     // [default_gas_budget]).
     let (_, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
@@ -795,6 +865,7 @@ async fn test_congestion_control_debt_tracking() {
     // shared object 1, resulting in a total overshoot of
     // 2.5*default_tx_gas_budget.
     let (_, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
@@ -883,6 +954,7 @@ async fn test_congestion_control_debt_tracking() {
     // only an owned object. The shared object debt from commit 5 should not have
     // any impact so this transaction should be executed successfully.
     let (_, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
@@ -933,6 +1005,7 @@ async fn test_congestion_control_debt_tracking() {
     // with gas budget of 3*default_tx_gas_budget that touches both of them
     // and an owned object should be executed successfully.
     let (_, effects) = commit_and_execute_transaction(
+        test_setup.pcool,
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
@@ -997,7 +1070,6 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
     // costs one unit under TotalTxCount), so exactly one transaction per
     // commit is scheduled and the other is deferred.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_per_object_congestion_control_mode_for_testing(
             PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -1069,7 +1141,10 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
     };
     let seq = |tx: &VerifiedTransaction| {
         VerifiedSequencedConsensusTransaction::new_test(ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone().into())),
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                tx.clone().into(),
+                None,
+            ))),
             tracking_id: Default::default(),
         })
     };
@@ -1081,7 +1156,7 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
         let epoch_store = epoch_store.clone();
         let authority = &authority;
         async move {
-            let mut output = ConsensusCommitOutput::new(round);
+            let mut output = ConsensusCommitOutput::new(round, round);
             // Roots are prefilled per transaction by randomness use, as the
             // commit boundary does; scheduling filters out deferred ones.
             let mut non_randomness_roots = BTreeSet::new();
@@ -1125,7 +1200,7 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
                     &[],
                     &Arc::new(CheckpointServiceNoop {}),
                     authority.get_object_cache_reader().as_ref(),
-                    &ConsensusCommitInfo::new_for_test(round, 0, true),
+                    &ConsensusCommitInfo::new_for_test(round, round, 0, true),
                     &mut non_randomness_roots,
                     &mut randomness_roots,
                     PreviouslyDeferredTransactions::default(),
@@ -1248,7 +1323,6 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
     // one transaction can be scheduled per commit; no deferral allowance, so
     // the transaction that does not fit is cancelled immediately.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_per_object_congestion_control_mode_for_testing(
             PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -1306,7 +1380,9 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
         .iter()
         .map(|tx| {
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone().into())),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(tx.clone().into(), None),
+                )),
                 tracking_id: Default::default(),
             })
         })
@@ -1395,6 +1471,9 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
             authority_2.get_object_cache_reader().as_ref(),
         )
         .unwrap();
+    // The second authority executes the transaction outside the consensus
+    // handler, so it is assigned a commit first, as the handler would.
+    epoch_store_2.assign_to_a_new_commit_for_testing(&[cancelled_tx.key()]);
     let (effects_2, _) = authority_2
         .try_execute_immediately(
             &cancelled_tx,
@@ -1419,10 +1498,7 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
     // touching disjoint objects, one is scheduled and the other is deferred
     // by the worker limit alone and then cancelled (no deferral allowance).
     let default_tx_gas_budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
-    let mut test_setup = TestSetup::new(default_tx_gas_budget, 0).await;
-    test_setup
-        .protocol_config
-        .set_enable_pcool_flow_for_testing(true);
+    let mut test_setup = TestSetup::new(true, default_tx_gas_budget, 0).await;
     test_setup
         .protocol_config
         .set_max_concurrent_execution_workers_for_testing(1);
@@ -1496,7 +1572,9 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
         .iter()
         .map(|tx| {
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone())),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(tx.clone(), None),
+                )),
                 tracking_id: Default::default(),
             })
         })
@@ -1586,7 +1664,6 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
     // Same setup as the owned-object-only cancellation test: one execution
     // worker, one transaction per commit, no deferral allowance.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
         config.set_per_object_congestion_control_mode_for_testing(
             PerObjectCongestionControlMode::TotalTxCount,
         );
@@ -1651,7 +1728,9 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
         .iter()
         .map(|tx| {
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone())),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(tx.clone(), None),
+                )),
                 tracking_id: Default::default(),
             })
         })
@@ -1739,6 +1818,9 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
             authority_2.get_object_cache_reader().as_ref(),
         )
         .unwrap();
+    // The second authority executes the transaction outside the consensus
+    // handler, so it is assigned a commit first, as the handler would.
+    epoch_store_2.assign_to_a_new_commit_for_testing(&[cancelled_tx.key()]);
     let (effects_2, _) = authority_2
         .try_execute_immediately(
             &cancelled_tx,

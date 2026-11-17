@@ -20,7 +20,7 @@ use object_store::ObjectStore;
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
 use tokio::{
-    sync::mpsc::{self},
+    sync::{mpsc, watch},
     task::JoinHandle,
     time::timeout,
 };
@@ -38,7 +38,8 @@ use crate::{
         ReaderOptions,
         common::DataLimiter,
         fetch::{
-            GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES, LocalRead, ReadSource, fetch_from_object_store,
+            GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES, LocalCheckpoints, LocalRead, ReadSource,
+            fetch_from_object_store,
         },
         filters::fullnode::TransactionFilter,
     },
@@ -194,9 +195,9 @@ struct CheckpointReaderActor {
     last_pruned_watermark: CheckpointSequenceNumber,
     /// Channel for sending checkpoints to WorkerPools.
     checkpoint_tx: mpsc::Sender<Arc<CheckpointData>>,
-    /// Sends a garbage collection (GC) signal to prune checkpoint files below
+    /// Receives the latest garbage collection (GC) signal to prune checkpoint files below
     /// the specified watermark.
-    gc_signal_rx: mpsc::Receiver<CheckpointSequenceNumber>,
+    gc_signal_rx: watch::Receiver<CheckpointSequenceNumber>,
     /// Remote checkpoint reader for fetching checkpoints from the network.
     remote_store: Option<Arc<RemoteStore>>,
     /// Shutdown signal for the actor.
@@ -229,10 +230,8 @@ impl LocalRead for CheckpointReaderActor {
 }
 
 impl CheckpointReaderActor {
-    fn should_fetch_from_remote(&self, checkpoints: &[Arc<CheckpointData>]) -> bool {
-        self.remote_store.is_some()
-            && (checkpoints.is_empty()
-                || self.is_checkpoint_ahead(&checkpoints[0], self.current_checkpoint_number))
+    fn should_fetch_from_remote(&self, checkpoints: &LocalCheckpoints) -> bool {
+        self.remote_store.is_some() && checkpoints.is_empty()
     }
 
     /// Fetches checkpoints from the historical object store and streams them to
@@ -279,6 +278,13 @@ impl CheckpointReaderActor {
             .enumerate()
             .filter_map(|(index, metadata)| (index >= start_index).then_some(metadata))
         {
+            // We check capacity before downloading the file. This way, once its
+            // checkpoints are collected into memory we ensure that all will be
+            // sent through the channel.
+            if self.exceeds_capacity(self.current_checkpoint_number) {
+                return Err(IngestionError::MaxCheckpointsCapacityReached);
+            }
+
             let checkpoints = timeout(
                 Duration::from_secs(self.reader_options.timeout_secs),
                 historical_reader.iter_for_file(metadata.file_path()),
@@ -293,9 +299,24 @@ impl CheckpointReaderActor {
             .filter(|c| c.checkpoint_summary.sequence_number >= self.current_checkpoint_number)
             .collect::<Vec<CheckpointData>>();
 
+            // A file that fails to decode part way ends early, so check that it
+            // holds every checkpoint the manifest lists for it before sending any.
+            let expected = self.current_checkpoint_number..metadata.checkpoint_seq_range.end;
+            if !checkpoints
+                .iter()
+                .map(|c| c.checkpoint_summary.sequence_number)
+                .eq(expected.clone())
+            {
+                return Err(IngestionError::HistoryRead(format!(
+                    "checkpoint file {} does not hold checkpoints {expected:?}",
+                    metadata.file_path()
+                )));
+            }
+
             for checkpoint in checkpoints {
                 let size = bcs::serialized_size(&checkpoint)?;
-                self.send_remote_checkpoint_with_capacity_check(Arc::new(checkpoint), size)
+                self.data_limiter.add(&checkpoint, size);
+                self.send_checkpoint_to_channel(Arc::new(checkpoint))
                     .await?;
             }
         }
@@ -435,19 +456,31 @@ impl CheckpointReaderActor {
         }
     }
 
-    /// Attempts to send a checkpoint from remote source to the channel if
-    /// capacity allows.
+    /// Attempts to send a remote checkpoint to the channel and registers it with the data limiter.
     ///
-    /// If the checkpoint's sequence number would exceed the allowed capacity,
-    /// returns `IngestionError::MaxCheckpointsCapacityReached` and does not
-    /// send. Otherwise, adds the checkpoint to the data limiter and sends
-    /// it to the channel.
+    /// The sequence number of the received checkpoint must match the one the reader expects next.
+    /// The reader advances its current checkpoint number by one for every checkpoint it sends, so
+    /// this keeps the checkpoints it sends in order and without gaps.
+    ///
+    /// # Errors
+    ///
+    /// - [`IngestionError::Verification`] if the checkpoint's sequence number is not the one the
+    ///   reader expects next.
+    /// - [`IngestionError::MaxCheckpointsCapacityReached`] if the capacity limit is exceeded.
+    /// - [`IngestionError::Channel`] if the receiver channel is closed.
     async fn send_remote_checkpoint_with_capacity_check(
         &mut self,
         checkpoint: Arc<CheckpointData>,
         size: usize,
     ) -> IngestionResult<()> {
-        if self.exceeds_capacity(checkpoint.checkpoint_summary.sequence_number) {
+        let sequence_number = checkpoint.checkpoint_summary.sequence_number;
+        if sequence_number != self.current_checkpoint_number {
+            return Err(IngestionError::Verification(format!(
+                "expected checkpoint {}, the remote source sent {sequence_number}",
+                self.current_checkpoint_number
+            )));
+        }
+        if self.exceeds_capacity(sequence_number) {
             return Err(IngestionError::MaxCheckpointsCapacityReached);
         }
         self.data_limiter.add(&checkpoint, size);
@@ -456,18 +489,14 @@ impl CheckpointReaderActor {
 
     /// Sends a batch of local checkpoints to the channel in order.
     ///
-    /// Each checkpoint is sent sequentially until a gap is detected (i.e., a
-    /// checkpoint with a sequence number greater than the current
-    /// checkpoint number). If a gap is found, the function breaks early. If
-    /// sending fails, returns the error immediately.
+    /// # Errors
+    ///
+    /// Fails if sending to the channel fails.
     async fn send_local_checkpoints_to_channel(
         &mut self,
-        checkpoints: Vec<Arc<CheckpointData>>,
+        checkpoints: LocalCheckpoints,
     ) -> IngestionResult<()> {
-        for checkpoint in checkpoints {
-            if self.is_checkpoint_ahead(&checkpoint, self.current_checkpoint_number) {
-                break;
-            }
+        for checkpoint in checkpoints.into_iter() {
             self.send_checkpoint_to_channel(checkpoint).await?;
         }
         Ok(())
@@ -475,18 +504,10 @@ impl CheckpointReaderActor {
 
     /// Sends a single checkpoint to the channel and advances the current
     /// checkpoint number.
-    ///
-    /// Asserts that the checkpoint's sequence number matches the expected
-    /// current number. Increments the current checkpoint number after
-    /// sending.
     async fn send_checkpoint_to_channel(
         &mut self,
         checkpoint: Arc<CheckpointData>,
     ) -> IngestionResult<()> {
-        assert_eq!(
-            checkpoint.checkpoint_summary.sequence_number,
-            self.current_checkpoint_number
-        );
         self.checkpoint_tx.send(checkpoint).await.map_err(|_| {
             IngestionError::Channel(
                 "unable to send checkpoint to executor, receiver half closed".to_owned(),
@@ -498,6 +519,11 @@ impl CheckpointReaderActor {
 
     /// Sync from either local or remote source new checkpoints to be processed
     /// by the executor.
+    ///
+    /// # Errors
+    ///
+    /// Fails if the local files can't be read or sending to the channel fails. Errors from a remote
+    /// source are treated as transient, so they are retried and never returned.
     async fn sync(&mut self) -> IngestionResult<()> {
         let mut remote_source = ReadSource::Local;
         let checkpoints = self.read_local_files_with_retry().await?;
@@ -533,12 +559,15 @@ impl CheckpointReaderActor {
         loop {
             tokio::select! {
                 _ = self.token.cancelled() => break,
-                Some(watermark) = self.gc_signal_rx.recv() => {
+                Ok(()) = self.gc_signal_rx.changed() => {
+                    let watermark = *self.gc_signal_rx.borrow_and_update();
                     self.data_limiter.gc(watermark);
                     self.gc_processed_files(watermark).expect("failed to clean the directory");
                 }
                 Ok(Some(_)) | Err(_) = timeout(Duration::from_millis(self.reader_options.tick_interval_ms), inotify_rx.recv())  => {
-                    self.sync().await.expect("failed to read checkpoint files");
+                    if let Err(err) = self.sync().await {
+                        break error!("checkpoint reader stopped: {err}");
+                    }
                 }
             }
         }
@@ -553,7 +582,7 @@ impl CheckpointReaderActor {
 /// the actual checkpoint fetching and streaming logic.
 pub(crate) struct CheckpointReader {
     handle: JoinHandle<()>,
-    gc_signal_tx: mpsc::Sender<CheckpointSequenceNumber>,
+    gc_signal_tx: watch::Sender<CheckpointSequenceNumber>,
     checkpoint_rx: mpsc::Receiver<Arc<CheckpointData>>,
     token: CancellationToken,
 }
@@ -572,7 +601,7 @@ impl CheckpointReader {
         }
 
         let (checkpoint_tx, checkpoint_rx) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
-        let (gc_signal_tx, gc_signal_rx) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
+        let (gc_signal_tx, gc_signal_rx) = watch::channel(starting_checkpoint_number);
 
         let remote_store = if let Some(url) = config.base.remote_store_url {
             Some(Arc::new(
@@ -624,13 +653,17 @@ impl CheckpointReader {
     ///
     /// Transmits a watermark to the checkpoint reader, indicating that all
     /// checkpoints below this watermark can be safely pruned or cleaned up.
-    /// The signal is sent over an internal channel to the checkpoint reader
-    /// task.
-    pub(crate) async fn send_gc_signal(
+    /// The new watermark replaces the previous one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IngestionError::Channel`] if the checkpoint reader task
+    /// stopped.
+    pub(crate) fn send_gc_signal(
         &self,
         watermark: CheckpointSequenceNumber,
     ) -> IngestionResult<()> {
-        self.gc_signal_tx.send(watermark).await.map_err(|_| {
+        self.gc_signal_tx.send(watermark).map_err(|_| {
             IngestionError::Channel(
                 "unable to send GC operation to checkpoint reader, receiver half closed".into(),
             )

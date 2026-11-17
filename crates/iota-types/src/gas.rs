@@ -17,7 +17,10 @@ pub mod checked {
     use crate::{
         ObjectId,
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
-        gas_model::{gas_v1::IotaGasStatus as IotaGasStatusV1, tables::GasStatus},
+        gas_model::{
+            gas_v1::{IotaGasStatus as IotaGasStatusV1, min_transaction_cost},
+            tables::GasStatus,
+        },
         object::{MoveStructExt, Object},
         transaction::{InputObjects, ObjectReadResult, TransactionAPI},
     };
@@ -63,7 +66,7 @@ pub mod checked {
             reference_gas_price: u64,
             config: &ProtocolConfig,
         ) -> IotaResult<Self> {
-            Self::check_gas_preconditions(gas_price, reference_gas_price, config)?;
+            check_gas_price_bounds(gas_price, reference_gas_price, config)?;
 
             Ok(Self::V1(IotaGasStatusV1::new_with_budget(
                 gas_budget,
@@ -81,41 +84,83 @@ pub mod checked {
 
         // This is the only public API on IotaGasStatus, all other gas related
         // operations should go through `GasCharger`
+        //
+        // `bounded_budget` selects whether the budget itself must fall between the
+        // protocol minimum and maximum. The gas coins are required to be
+        // address-owned and to cover the budget either way.
         pub fn check_gas_balance(
             &self,
             gas_objs: &[&ObjectReadResult],
             gas_budget: u64,
+            bounded_budget: bool,
         ) -> UserInputResult {
             match self {
-                Self::V1(status) => status.check_gas_balance(gas_objs, gas_budget),
+                Self::V1(status) => status.check_gas_balance(gas_objs, gas_budget, bounded_budget),
             }
         }
+    }
 
-        fn check_gas_preconditions(
-            gas_price: u64,
-            reference_gas_price: u64,
-            config: &ProtocolConfig,
-        ) -> IotaResult<()> {
-            // Common checks. We may pull them into version specific status as needed, but
-            // they are unlikely to change.
+    /// Validates the transaction's declared gas price and budget against the
+    /// epoch reference gas price and the protocol config bounds.
+    ///
+    /// Payload-only: reads no objects and no frontier state, so it is safe to
+    /// run post-consensus before version assignment. Shares the price checks
+    /// with `IotaGasStatus::new` and the budget-bound checks with
+    /// `IotaGasStatusV1::check_gas_balance`, without touching gas coins.
+    pub fn check_gas_bounds(
+        config: &ProtocolConfig,
+        reference_gas_price: u64,
+        gas_price: u64,
+        gas_budget: u64,
+    ) -> UserInputResult<()> {
+        check_gas_price_bounds(gas_price, reference_gas_price, config)?;
+        check_gas_budget_bounds(
+            gas_budget,
+            min_transaction_cost(config, gas_price),
+            config.max_tx_gas(),
+        )
+    }
 
-            // The gas price must be greater than or equal to the reference gas price.
-            if gas_price < reference_gas_price {
-                return Err(UserInputError::GasPriceUnderRGP {
-                    gas_price,
-                    reference_gas_price,
-                }
-                .into());
-            }
-            if gas_price > config.max_gas_price() {
-                return Err(UserInputError::GasPriceTooHigh {
-                    max_gas_price: config.max_gas_price(),
-                }
-                .into());
-            }
-
-            Ok(())
+    /// Checks the declared gas price against the epoch reference gas price and
+    /// the protocol config maximum.
+    pub(crate) fn check_gas_price_bounds(
+        gas_price: u64,
+        reference_gas_price: u64,
+        config: &ProtocolConfig,
+    ) -> UserInputResult<()> {
+        if gas_price < reference_gas_price {
+            return Err(UserInputError::GasPriceUnderRGP {
+                gas_price,
+                reference_gas_price,
+            });
         }
+        if gas_price > config.max_gas_price() {
+            return Err(UserInputError::GasPriceTooHigh {
+                max_gas_price: config.max_gas_price(),
+            });
+        }
+        Ok(())
+    }
+
+    /// Checks the declared gas budget against the given bounds.
+    pub(crate) fn check_gas_budget_bounds(
+        gas_budget: u64,
+        min_budget: u64,
+        max_budget: u64,
+    ) -> UserInputResult<()> {
+        if gas_budget > max_budget {
+            return Err(UserInputError::GasBudgetTooHigh {
+                gas_budget,
+                max_budget,
+            });
+        }
+        if gas_budget < min_budget {
+            return Err(UserInputError::GasBudgetTooLow {
+                gas_budget,
+                min_budget,
+            });
+        }
+        Ok(())
     }
 
     // Helper functions to deal with gas coins operations.
@@ -215,46 +260,8 @@ pub mod checked {
             reported.budget = gas_used;
         }
     }
-
-    /// Checks that every object `gas` refers to is an address-owned gas coin
-    /// present in `input_objects`, and that their combined balance covers
-    /// `gas_budget`.
-    pub fn check_gas_coins_cover_budget_in_simulation(
-        input_objects: &InputObjects,
-        gas: &[ObjectReference],
-        gas_budget: u64,
-    ) -> UserInputResult {
-        let objects: HashMap<_, _> = input_objects
-            .iter()
-            .map(|object| (object.id(), object))
-            .collect();
-
-        let mut gas_balance = 0u128;
-        for gas_ref in gas {
-            let read = objects
-                .get(&gas_ref.object_id)
-                .ok_or(UserInputError::ObjectNotFound {
-                    object_id: gas_ref.object_id,
-                    version: Some(gas_ref.version),
-                })?;
-            // `as_object` returning `None` means the object was deleted, which makes
-            // it a shared one, and gas cannot be shared.
-            let object = read.as_object().ok_or(UserInputError::MissingGasPayment)?;
-            if !object.is_address_owned() {
-                return Err(UserInputError::GasObjectNotOwnedObject {
-                    owner: object.owner,
-                });
-            }
-            gas_balance += get_gas_balance(object)? as u128;
-        }
-
-        if gas_balance < gas_budget as u128 {
-            return Err(UserInputError::GasBalanceTooLow {
-                gas_balance,
-                needed_gas_amount: gas_budget as u128,
-            });
-        }
-
-        Ok(())
-    }
 }
+
+#[cfg(test)]
+#[path = "unit_tests/gas_tests.rs"]
+mod gas_tests;

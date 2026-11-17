@@ -72,13 +72,14 @@ fn is_balance(s: &StructTag) -> Option<TypeTag> {
 mod tests {
     use std::str::FromStr;
 
+    use iota_sdk_move_types::iota_framework::object::UID;
     use move_core_types::{
         account_address::AccountAddress, annotated_value as A, identifier::Identifier,
         language_storage::StructTag,
     };
 
     use super::*;
-    use crate::id::UID;
+    use crate::move_layout::MoveLayout;
 
     #[test]
     fn test_traverse_balance() {

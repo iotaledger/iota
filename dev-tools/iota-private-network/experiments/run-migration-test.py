@@ -1845,7 +1845,7 @@ def parse_args() -> argparse.Namespace:
         "-r",
         "--release-network",
         default="testnet",
-        choices=("devnet", "testnet", "mainnet", "alphanet"),
+        choices=("devnet", "testnet", "mainnet"),
         help="Release network to pull the old image from Docker Hub (default: testnet)",
     )
     parser.add_argument(
@@ -1883,7 +1883,7 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Chain override for protocol feature flags. Default: empty, which "
             "inherits from --release-network (testnet/mainnet set the matching "
-            "override; devnet/alphanet = none). Controls which features are "
+            "override; devnet = none). Controls which features are "
             "enabled at each protocol version."
         ),
     )

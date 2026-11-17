@@ -21,6 +21,12 @@ fun test_id_generation() {
 }
 
 #[test]
+#[expected_failure(abort_code = tx_context::EBadTxHashLength)]
+fun test_derive_id_bad_tx_hash_length() {
+    tx_context::derive_id_for_testing(b"A", 0);
+}
+
+#[test]
 fun test_tx_context_returned_refs_consistency() {
     use std::unit_test::assert_eq;
 

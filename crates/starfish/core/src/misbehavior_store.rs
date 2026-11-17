@@ -337,10 +337,10 @@ impl MisbehaviorStore {
         }
     }
 
-    /// Attributes a fetch response the collector rejected to the peer that
-    /// served it: the peer is both the sender and the only party the error
-    /// can name. The block classifier decides the fault type, leaving
-    /// transport failures untracked.
+    /// Attributes a rejected fetch response to the peer that served it: the
+    /// peer is both the sender and the only party the error can name. The
+    /// block classifier decides the fault type, leaving transport failures
+    /// untracked.
     pub(crate) fn record_fetch_fault(&self, peer: AuthorityIndex, error: &ConsensusError) {
         self.record_faulty_block(peer, peer, error);
     }
@@ -375,7 +375,10 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // block that repeats or lowers the peer's own round is charged the
         // same way: the signed header proves authorship, not the send order.
         // So is a fetch response with more entries than the request allows,
-        // or with an entry larger than any valid one.
+        // with an entry larger than any valid one, or with commits after its
+        // transactions. So is a commit-sync response an honest server never
+        // sends: it serves only the certified commit chain it stores, with the
+        // first commit's transactions whole.
         ConsensusError::WrongEpoch { .. }
         | ConsensusError::UnexpectedGenesisHeader
         | ConsensusError::UnexpectedAuthority(..)
@@ -394,7 +397,16 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::TooManyCommitsFromPeer { .. }
         | ConsensusError::TooManyCommitVoteHeaders { .. }
         | ConsensusError::SerializedBlockHeaderTooLarge { .. }
-        | ConsensusError::StreamedBlockRoundNotIncreasing { .. } => FaultType::Unprovable,
+        | ConsensusError::StreamedBlockRoundNotIncreasing { .. }
+        | ConsensusError::CommitDataAfterTransactions { .. }
+        | ConsensusError::MalformedCommit(_)
+        | ConsensusError::WrongCommitVersion { .. }
+        | ConsensusError::InvalidAuthorityIndexRequested { .. }
+        | ConsensusError::UnexpectedStartCommit { .. }
+        | ConsensusError::UnexpectedCommitSequence { .. }
+        | ConsensusError::NotEnoughCommitVotes { .. }
+        | ConsensusError::FetchedTransactionsMismatch { .. }
+        | ConsensusError::TooManyCommitSyncEntries { .. } => FaultType::Unprovable,
 
         // Relayed bundle parts that are corrupt or invalid (framing,
         // additional-header round, shard structure/proof) or that the peer had
@@ -435,12 +447,11 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         ConsensusError::BlockHeaderEquivocation { .. }
 
         // Not attributable as misbehavior from a signed block alone: subjective
-        // rejections, commit-chain and commit-sync inconsistencies, fetch-shape
-        // mismatches, reconstruction and encoder failures, storage, network
+        // rejections, commit-sync inconsistencies, fetch-shape mismatches,
+        // reconstruction and encoder failures, storage, network
         // transport, request-shape checks, local lifecycle signals, and version
         // mismatches that may stem from a benign upgrade misconfiguration rather
         // than a faulty peer.
-        | ConsensusError::MalformedCommit(_)
         | ConsensusError::UnexpectedGenesisRequested { .. }
         | ConsensusError::NotEnoughHeadersFetched { .. }
         | ConsensusError::UnexpectedLastOwnHeader { .. }
@@ -449,9 +460,9 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // tracked again here.
         | ConsensusError::UnrequestedTransactionFetched { .. }
         | ConsensusError::UnexpectedTransactionForCommit { .. }
+        | ConsensusError::TransactionsOutOfCommitOrder { .. }
         | ConsensusError::TooManyAuthoritiesProvided(_)
         | ConsensusError::InvalidSizeOfHighestAcceptedRounds(..)
-        | ConsensusError::InvalidAuthorityIndexRequested { .. }
         | ConsensusError::TransactionCommitmentMismatch { .. }
         | ConsensusError::SynchronizerSaturated(_)
         | ConsensusError::TransactionSynchronizerSaturated
@@ -460,12 +471,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::MissingBlockHeader { .. }
         | ConsensusError::CommitRangeExceededAfterScanning { .. }
         | ConsensusError::NoCommitReceived { .. }
-        | ConsensusError::UnexpectedStartCommit { .. }
-        | ConsensusError::UnexpectedCommitSequence { .. }
-        | ConsensusError::NotEnoughCommitVotes { .. }
-        | ConsensusError::SerializedCommitTooLarge { .. }
+        | ConsensusError::TooManyCommitBytes { .. }
         | ConsensusError::InvalidCommitRange { .. }
-        | ConsensusError::FetchedTransactionsMismatch { .. }
         | ConsensusError::RocksDBFailure(_)
         | ConsensusError::NetworkConfig(_)
         | ConsensusError::NetworkClientConnection(_)
@@ -479,14 +486,10 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::ShardsDecodingFailed(_)
         | ConsensusError::InsufficientShardsInDecoder(..)
         | ConsensusError::ShardsVecIsTooSmall(..)
-        | ConsensusError::InconsistentTransactionRefVariants
-        | ConsensusError::TransactionRefVariantMismatch { .. }
         | ConsensusError::FailedToFetchBlockHeaders { .. }
         | ConsensusError::MissingVotingBlockHeaderInStorage { .. }
         | ConsensusError::WrongShardVersion { .. }
-        | ConsensusError::WrongCommitVersionForFlags { .. }
-        | ConsensusError::WrongBlockHeaderVersionForFlag { .. }
-        | ConsensusError::OversizedCommitAlreadyServed
+        | ConsensusError::WrongBlockHeaderVersion { .. }
         | ConsensusError::TransactionsNotAvailable { .. } => FaultType::Untracked,
     }
 }
@@ -816,10 +819,12 @@ mod tests {
 
     use super::*;
     use crate::{
-        block_header::{BlockHeaderDigest, BlockRef},
+        block_header::{BlockHeaderAPI, BlockHeaderDigest, BlockRef},
+        commit::{Commit, CommitAPI, CommitV3},
         context::Context,
         dag_state::{DagState, DataSource},
         error::ConsensusError,
+        leader_scoring::ReputationScores,
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
     };
@@ -1383,6 +1388,38 @@ mod tests {
                 round: 4,
                 last_round: 5,
             },
+            ConsensusError::TooManyCommitSyncEntries {
+                peer: AuthorityIndex::new_for_test(0),
+                limit: 4,
+            },
+            // Commit lists an honest server never sends.
+            ConsensusError::MalformedCommit(bcs::Error::Custom("bad".to_string())),
+            ConsensusError::WrongCommitVersion { actual: "V2" },
+            ConsensusError::InvalidAuthorityIndexRequested {
+                index: AuthorityIndex::new_for_test(4),
+                max: 4,
+                peer: AuthorityIndex::new_for_test(0),
+            },
+            ConsensusError::UnexpectedStartCommit {
+                peer: AuthorityIndex::new_for_test(0),
+                start: 1,
+                commit: Box::new(Commit::V3(CommitV3::default())),
+            },
+            ConsensusError::UnexpectedCommitSequence {
+                peer: AuthorityIndex::new_for_test(0),
+                prev_commit: Box::new(Commit::V3(CommitV3::default())),
+                curr_commit: Box::new(Commit::V3(CommitV3::default())),
+            },
+            ConsensusError::NotEnoughCommitVotes {
+                stake: 0,
+                peer: AuthorityIndex::new_for_test(0),
+                commit: Box::new(Commit::V3(CommitV3::default())),
+            },
+            ConsensusError::FetchedTransactionsMismatch {
+                peer: AuthorityIndex::new_for_test(0),
+                expected: 3,
+                received: 1,
+            },
         ];
         for e in cases {
             let (prov, unprov, bundle) = classify_via_record(e);
@@ -1436,33 +1473,27 @@ mod tests {
 
     #[tokio::test]
     async fn test_untracked_errors() {
-        // Subjective rejections, commit-chain inconsistencies, and fetch-shape
-        // errors are not block header faults — they belong to separate metrics
-        // and should not increment the faulty_blocks counters.
+        // Subjective rejections, commit lists an honest server can send, and
+        // fetch-shape errors are not block header faults — they belong to
+        // separate metrics and should not increment the faulty_blocks counters.
         let authority = AuthorityIndex::new_for_test(1);
         let cases: &[ConsensusError] = &[
             ConsensusError::BlockRejected {
                 block_ref: BlockRef::MIN,
                 reason: "test".to_string(),
             },
-            // Commit-chain inconsistencies.
+            // Commit lists an honest server can send.
             ConsensusError::NoCommitReceived { peer: authority },
-            ConsensusError::MalformedCommit(bcs::Error::Custom("bad".to_string())),
-            ConsensusError::SerializedCommitTooLarge {
+            ConsensusError::TooManyCommitBytes {
                 peer: authority,
                 size: 2,
                 limit: 1,
             },
-            // Fetch shortfalls (client-side truncation can produce them).
+            // Fetch shortfall (client-side truncation can produce it).
             ConsensusError::NotEnoughHeadersFetched {
                 peer: authority,
                 requested: 5,
                 received: 3,
-            },
-            ConsensusError::FetchedTransactionsMismatch {
-                peer: authority,
-                expected: 3,
-                received: 1,
             },
             // Version mismatch may be a benign upgrade misconfiguration, so it
             // is not charged as misbehavior.
@@ -1604,5 +1635,107 @@ mod tests {
         let peer_counts = store.in_memory.snapshot(1);
         assert_eq!(peer_counts.faulty_blocks_provable, 0);
         assert_eq!(peer_counts.faulty_blocks_unprovable, 2);
+    }
+
+    /// An author whose last committed header is not fetched for
+    /// reinitialization after fast sync has no header in memory. Its rounds
+    /// must still count at most once, and never when its header is stored.
+    #[tokio::test]
+    async fn test_no_double_counting_after_fast_sync() {
+        const CACHED_ROUNDS: Round = 5;
+        const GC_DEPTH: Round = 2;
+        let committee_size = 4;
+        let (mut context, _) = Context::new_for_test(committee_size);
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context.protocol_config.set_gc_depth_for_testing(GC_DEPTH);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        // Authority 3 skips rounds 3-4 and is offline for rounds 21-40.
+        let offline = AuthorityIndex::new_for_test(3);
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=2).build();
+        dag_builder
+            .layers(3..=4)
+            .authorities(vec![offline])
+            .skip_block()
+            .build();
+        dag_builder.layers(5..=20).build();
+        dag_builder
+            .layers(21..=40)
+            .authorities(vec![offline])
+            .skip_block()
+            .build();
+        dag_builder.layers(41..=60).build();
+
+        let mut commits_before_sync = Vec::new();
+        let mut synced_commits = Vec::new();
+        let mut commits_after_sync = Vec::new();
+        for (_, commit) in dag_builder.get_sub_dag_and_commits(1..=60) {
+            match commit.leader().round {
+                ..=10 => commits_before_sync.push(commit),
+                11..=40 => synced_commits.push(commit),
+                _ => commits_after_sync.push(commit),
+            }
+        }
+
+        // The node follows the DAG up to round 10.
+        dag_state.accept_block_headers(dag_builder.block_headers(1..=10), DataSource::Test);
+        for commit in commits_before_sync {
+            dag_state.add_commit(commit);
+        }
+        dag_state.flush();
+
+        // Fast sync stores the commits up to round 40 without their headers.
+        // The leader schedule was last updated at the last synced commit.
+        dag_state.set_fast_sync_ongoing_flag(true);
+        for commit in synced_commits {
+            dag_state.add_commit(commit);
+        }
+        dag_state.add_commit_info(ReputationScores::default());
+        dag_state.flush();
+
+        // Reinitialization fetches the headers of the last commits, which hold
+        // none of authority 3.
+        let fetched_refs: BTreeSet<BlockRef> = dag_state
+            .get_block_refs_for_recent_commits(10)
+            .into_iter()
+            .collect();
+        assert!(fetched_refs.iter().all(|r| r.author != offline));
+        let fetched_headers = dag_builder
+            .block_headers(11..=40)
+            .into_iter()
+            .filter(|header| fetched_refs.contains(&header.reference()))
+            .collect();
+        dag_state.accept_block_headers(fetched_headers, DataSource::FastCommitSyncer);
+        dag_state.set_fast_sync_ongoing_flag(false);
+        dag_state.flush();
+        dag_state.reinitialize();
+        let evicted_after_reinitialize = dag_state.evicted_header_round(offline);
+        dag_state.flush();
+        let evicted_after_next_flush = dag_state.evicted_header_round(offline);
+
+        // Authority 3 is back.
+        dag_state.accept_block_headers(dag_builder.block_headers(41..=60), DataSource::Test);
+        for commit in commits_after_sync {
+            dag_state.add_commit(commit);
+        }
+        dag_state.flush();
+
+        let evicted_round = dag_state.evicted_header_round(offline);
+        let stored_rounds = dag_builder
+            .block_headers(1..=10)
+            .into_iter()
+            .chain(dag_builder.block_headers(41..=60))
+            .filter(|header| header.author() == offline && header.round() <= evicted_round)
+            .count() as u64;
+        let missing = dag_state.misbehavior_store().persisted_missing_proposals()[offline];
+        assert!(
+            missing <= evicted_round as u64 - stored_rounds,
+            "{missing} missing proposals in rounds 1-{evicted_round}, {stored_rounds} of which \
+             have a stored header; evicted round {evicted_after_reinitialize} after \
+             reinitialization, {evicted_after_next_flush} after the next flush"
+        );
     }
 }

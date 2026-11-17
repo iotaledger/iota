@@ -22,11 +22,12 @@ use iota_types::{
 };
 use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
 use reqwest::{
-    Client, Url,
+    Client, StatusCode, Url,
     header::{CONTENT_LENGTH, HeaderValue},
 };
 use serde::{Deserialize, Serialize};
 use tap::TapFallible;
+use tokio::sync::Semaphore;
 use tracing::{error, info, instrument, trace, warn};
 
 use crate::{
@@ -36,11 +37,29 @@ use crate::{
     key_value_store_metrics::KeyValueStoreMetrics,
 };
 
+/// How long a GET may wait for the next part of its answer. A GET that waits longer fails the
+/// read, so a key that never answers does not hold up the call, while a large value that keeps
+/// arriving is not cut off.
+const FETCH_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// How long one GET may take in total, also while its answer keeps arriving.
+const FETCH_TOTAL_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How many GETs may be in flight at once. All GETs share one HTTP/2 connection, and a GET beyond
+/// the server's concurrent-stream limit waits inside the client with its [`FETCH_TIMEOUT`] already
+/// running, so a busy but healthy store would time out. GETs beyond this limit wait for a slot
+/// before their timeout starts. Matches the stream limit of iota-rest-kv, which keeps hyper's
+/// default of 200.
+const MAX_IN_FLIGHT_FETCHES: usize = 200;
+
+/// Reads a trusted HTTP key-value store. Its checks catch data stored under the
+/// wrong key, not forged data: signatures are not verified.
 pub struct HttpKVStore {
     base_url: Url,
     client: Client,
     cache: MokaCache<Url, Bytes>,
     metrics: Arc<KeyValueStoreMetrics>,
+    fetch_slots: Semaphore,
 }
 
 pub fn encode_digest<T: AsRef<[u8]>>(digest: &T) -> String {
@@ -322,7 +341,12 @@ impl HttpKVStore {
         info!("creating HttpKVStore with base_url: {}", base_url);
 
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let client = Client::builder().http2_prior_knowledge().build().unwrap();
+        let client = Client::builder()
+            .http2_prior_knowledge()
+            .read_timeout(FETCH_TIMEOUT)
+            .timeout(FETCH_TOTAL_TIMEOUT)
+            .build()
+            .unwrap();
 
         let base_url = if base_url.ends_with('/') {
             base_url.to_string()
@@ -341,7 +365,20 @@ impl HttpKVStore {
             client,
             cache,
             metrics,
+            fetch_slots: Semaphore::new(MAX_IN_FLIGHT_FETCHES),
         })
+    }
+
+    /// Allows at most `max` GETs in flight instead of the default of 200; for a store whose server
+    /// allows fewer concurrent HTTP/2 streams.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `max` is 0, with which every GET would wait forever.
+    pub fn with_max_in_flight_fetches(mut self, max: usize) -> Self {
+        assert!(max > 0, "at least one GET must be allowed in flight");
+        self.fetch_slots = Semaphore::new(max);
+        self
     }
 
     fn get_url(&self, key: &Key) -> IotaResult<Url> {
@@ -353,12 +390,41 @@ impl HttpKVStore {
         Url::from_str(joined.as_str()).into_iota_result()
     }
 
-    async fn multi_fetch(&self, uris: Vec<Key>) -> Vec<IotaResult<Option<Bytes>>> {
-        let uris_vec = uris.to_vec();
-        let fetches = stream::iter(uris_vec.into_iter().map(|url| self.fetch(url)));
-        fetches.buffered(uris.len()).collect::<Vec<_>>().await
+    fn evict(&self, keys: impl IntoIterator<Item = Key>) {
+        for key in keys {
+            if let Ok(url) = self.get_url(&key) {
+                self.cache.invalidate(&url);
+            }
+        }
     }
 
+    /// Fetches every key: one entry per key, in key order, with `None` for a
+    /// key the store does not have.
+    ///
+    /// # Errors
+    ///
+    /// Fails if any fetch fails.
+    async fn multi_fetch(&self, uris: Vec<Key>) -> IotaResult<Vec<Option<Bytes>>> {
+        let uris_vec = uris.to_vec();
+        let fetches = stream::iter(uris_vec.into_iter().map(|url| self.fetch(url)));
+        // Waits for every fetch, also after one fails, so that the others still
+        // cache what they read for a retry.
+        fetches
+            .buffered(uris.len())
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect()
+    }
+
+    /// Fetches one key, with `None` if the store does not have it.
+    ///
+    /// # Errors
+    ///
+    /// Fails if the URL cannot be built, if the request or reading the body
+    /// fails, and on an HTTP status other than success, `404 Not Found` and
+    /// `400 Bad Request`. The error text reaches clients, so it leaves out the
+    /// store's URL.
     async fn fetch(&self, key: Key) -> IotaResult<Option<Bytes>> {
         let url = self.get_url(&key)?;
 
@@ -378,11 +444,18 @@ impl HttpKVStore {
             .with_label_values(&["http_cache", "url"])
             .inc();
 
+        // Held until the body is read: the stream stays open until then.
+        let _slot = self
+            .fetch_slots
+            .acquire()
+            .await
+            .expect("the fetch semaphore is never closed");
         let resp = self
             .client
             .get(url.clone())
             .send()
             .await
+            .map_err(|err| request_failed(&url, err))
             .into_iota_result()?;
         trace!(
             "got response {} for url: {}, len: {:?}",
@@ -392,16 +465,35 @@ impl HttpKVStore {
                 .get(CONTENT_LENGTH)
                 .unwrap_or(&HeaderValue::from_static("0"))
         );
-        // return None if 400
-        if resp.status().is_success() {
-            let bytes = resp.bytes().await.into_iota_result()?;
-            self.cache.insert(url, bytes.clone());
+        match resp.status() {
+            status if status.is_success() => {
+                let bytes = resp
+                    .bytes()
+                    .await
+                    .map_err(|err| request_failed(&url, err))
+                    .into_iota_result()?;
+                self.cache.insert(url, bytes.clone());
 
-            Ok(Some(bytes))
-        } else {
-            Ok(None)
+                Ok(Some(bytes))
+            }
+            // The store answers 400 for a key it cannot parse, which a retry
+            // does not change.
+            StatusCode::NOT_FOUND | StatusCode::BAD_REQUEST => Ok(None),
+            status => {
+                warn!("key-value store returned {status} for url: {url}");
+                Err(IotaError::Storage(format!(
+                    "key-value store returned {status} for {key:?}"
+                )))
+            }
         }
     }
+}
+
+/// Logs a failed request and drops the URL from the error, whose text reaches
+/// clients.
+fn request_failed(url: &Url, err: reqwest::Error) -> reqwest::Error {
+    warn!("key-value store request failed for url: {url}: {err:?}");
+    err.without_url()
 }
 
 fn deser<K, T>(key: &K, bytes: &[u8]) -> Option<T>
@@ -414,19 +506,8 @@ where
         .ok()
 }
 
-fn map_fetch<'a, K>(fetch: (&'a IotaResult<Option<Bytes>>, &'a K)) -> Option<(&'a Bytes, &'a K)>
-where
-    K: std::fmt::Debug,
-{
-    let (fetch, key) = fetch;
-    match fetch {
-        Ok(Some(bytes)) => Some((bytes, key)),
-        Ok(None) => None,
-        Err(err) => {
-            warn!("Error fetching key: {:?}, error: {:?}", key, err);
-            None
-        }
-    }
+fn map_fetch<'a, K>((fetch, key): (&'a Option<Bytes>, &'a K)) -> Option<(&'a Bytes, &'a K)> {
+    fetch.as_ref().map(|bytes| (bytes, key))
 }
 
 fn multi_split_slice<'a, T>(slice: &'a [T], lengths: &'a [usize]) -> Vec<&'a [T]> {
@@ -442,24 +523,32 @@ fn multi_split_slice<'a, T>(slice: &'a [T], lengths: &'a [usize]) -> Vec<&'a [T]
         .collect()
 }
 
-fn deser_check_digest<T, D>(
-    digest: &D,
-    bytes: &Bytes,
-    get_expected_digest: impl FnOnce(&T) -> D,
-) -> Option<T>
+/// The keys whose fetch returned data that was then rejected.
+fn rejected_keys<'a, K: Copy, T>(
+    fetches: &'a [Option<Bytes>],
+    keys: &'a [K],
+    values: &'a [Option<T>],
+) -> impl Iterator<Item = K> + 'a {
+    fetches
+        .iter()
+        .zip(keys)
+        .zip(values)
+        .filter(|((fetch, _), value)| fetch.is_some() && value.is_none())
+        .map(|((_, key), _)| *key)
+}
+
+/// Decodes `bytes` and keeps the value only if `key_of` gives back `key`.
+fn deser_check_key<T, K>(key: &K, bytes: &Bytes, key_of: impl FnOnce(&T) -> K) -> Option<T>
 where
-    D: std::fmt::Debug + PartialEq,
+    K: std::fmt::Debug + PartialEq,
     T: for<'de> Deserialize<'de>,
 {
-    deser(digest, bytes).and_then(|o: T| {
-        let expected_digest = get_expected_digest(&o);
-        if expected_digest == *digest {
+    deser(key, bytes).and_then(|o: T| {
+        let actual = key_of(&o);
+        if actual == *key {
             Some(o)
         } else {
-            error!(
-                "Digest mismatch - expected: {:?}, got: {:?}",
-                digest, expected_digest,
-            );
+            error!("Key mismatch - expected: {key:?}, got: {actual:?}");
             None
         }
     })
@@ -482,7 +571,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .chain(effects_keys.iter().map(|fx| Key::TransactionEffects(*fx)))
             .collect::<Vec<_>>();
 
-        let fetches = self.multi_fetch(keys).await;
+        let fetches = self.multi_fetch(keys).await?;
         let txn_slice = fetches[..num_txns].to_vec();
         let fx_slice = fetches[num_txns..num_txns + num_effects].to_vec();
 
@@ -493,7 +582,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .map(map_fetch)
             .map(|maybe_bytes| {
                 maybe_bytes.and_then(|(bytes, digest)| {
-                    deser_check_digest(digest, bytes, |tx: &TransactionEnvelope| *tx.digest())
+                    deser_check_key(digest, bytes, |tx: &TransactionEnvelope| *tx.digest())
                 })
             })
             .collect::<Vec<_>>();
@@ -505,7 +594,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .map(map_fetch)
             .map(|maybe_bytes| {
                 maybe_bytes.and_then(|(bytes, digest)| {
-                    deser_check_digest(digest, bytes, |fx: &TransactionEffects| {
+                    deser_check_key(digest, bytes, |fx: &TransactionEffects| {
                         *fx.transaction_digest()
                     })
                 })
@@ -545,7 +634,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
         let contents_len = checkpoint_contents.len();
         let summaries_by_digest_len = checkpoint_summaries_by_digest.len();
 
-        let fetches = self.multi_fetch(keys).await;
+        let fetches = self.multi_fetch(keys).await?;
 
         let input_slices = [summaries_len, contents_len, summaries_by_digest_len];
 
@@ -556,11 +645,13 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .zip(checkpoint_summaries.iter())
             .map(map_fetch)
             .map(|maybe_bytes| {
-                maybe_bytes
-                    .and_then(|(bytes, seq)| deser::<_, CertifiedCheckpointSummary>(seq, bytes))
+                maybe_bytes.and_then(|(bytes, seq)| {
+                    deser_check_key(seq, bytes, |s: &CertifiedCheckpointSummary| {
+                        s.data().sequence_number
+                    })
+                })
             })
             .collect::<Vec<_>>();
-
         let contents_results = result_slices[1]
             .iter()
             .zip(checkpoint_contents.iter())
@@ -576,10 +667,28 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .map(map_fetch)
             .map(|maybe_bytes| {
                 maybe_bytes.and_then(|(bytes, digest)| {
-                    deser_check_digest(digest, bytes, |s: &CertifiedCheckpointSummary| *s.digest())
+                    deser_check_key(digest, bytes, |s: &CertifiedCheckpointSummary| *s.digest())
                 })
             })
             .collect::<Vec<_>>();
+
+        // A rejected entry would otherwise stay cached and keep being rejected.
+        self.evict(
+            rejected_keys(result_slices[0], checkpoint_summaries, &summaries_results)
+                .map(Key::CheckpointSummary)
+                .chain(
+                    rejected_keys(result_slices[1], checkpoint_contents, &contents_results)
+                        .map(Key::CheckpointContents),
+                )
+                .chain(
+                    rejected_keys(
+                        result_slices[2],
+                        checkpoint_summaries_by_digest,
+                        &summaries_by_digest_results,
+                    )
+                    .map(Key::CheckpointSummaryByDigest),
+                ),
+        );
 
         Ok((
             summaries_results,
@@ -621,7 +730,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .map(|key| Key::ObjectKey(*key))
             .collect::<Vec<_>>();
 
-        let fetches = self.multi_fetch(keys).await;
+        let fetches = self.multi_fetch(keys).await?;
 
         let results = fetches
             .iter()
@@ -643,7 +752,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .map(|digest| Key::TransactionToCheckpoint(*digest))
             .collect::<Vec<_>>();
 
-        let fetches = self.multi_fetch(keys).await;
+        let fetches = self.multi_fetch(keys).await?;
 
         let results = fetches
             .iter()
@@ -669,7 +778,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .collect::<Vec<_>>();
         Ok(self
             .multi_fetch(keys)
-            .await
+            .await?
             .iter()
             .zip(digests.iter())
             .map(map_fetch)
@@ -677,5 +786,17 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
                 maybe_bytes.and_then(|(bytes, key)| deser::<_, TransactionEvents>(&key, bytes))
             })
             .collect::<Vec<_>>())
+    }
+
+    async fn evict_objects(&self, object_keys: &[ObjectKey]) {
+        self.evict(object_keys.iter().map(|key| Key::ObjectKey(*key)));
+    }
+
+    async fn evict_events_by_tx_digests(&self, digests: &[TransactionDigest]) {
+        self.evict(
+            digests
+                .iter()
+                .map(|digest| Key::EventsByTransactionDigest(*digest)),
+        );
     }
 }

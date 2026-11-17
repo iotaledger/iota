@@ -1,0 +1,114 @@
+---
+description: 'How to connect IotaGrpcClient to a public network, a custom node or localnet, and how to configure message size, health checks and cancellation.'
+tags:
+  - how-to
+  - ts-sdk
+  - typescript
+  - grpc
+teams:
+  - iotaledger/tooling
+---
+
+# Connect to a Node
+
+To create an `IotaGrpcClient`, give it exactly one of `network`, `url` or `transport`.
+
+## Connect to a public network
+
+Pass the network's name:
+
+```ts
+import { IotaGrpcClient } from '@iota/grpc';
+
+const client = new IotaGrpcClient({ network: 'mainnet' });
+```
+
+The names map to these endpoints, also exported as `GRPC_URLS`:
+
+| `network`  | Endpoint                         |
+| ---------- | -------------------------------- |
+| `mainnet`  | `https://grpc.mainnet.iota.cafe` |
+| `testnet`  | `https://grpc.testnet.iota.cafe` |
+| `devnet`   | `https://grpc.devnet.iota.cafe`  |
+| `localnet` | `http://localhost:50051`         |
+
+They are gRPC endpoints, separate from the JSON-RPC ones, so the `IOTA_NETWORKS` variable that `@iota/iota-sdk` reads has no effect on them.
+
+## Connect to another node
+
+Pass the node's gRPC URL:
+
+```ts
+const client = new IotaGrpcClient({ url: 'https://my-node.example.com:50051' });
+```
+
+## Connect to a local network
+
+A local network does not serve gRPC unless you turn it on. Start [`iota-localnet`](../../references/cli/localnet.mdx) with the API enabled and bound to an address:
+
+```sh
+iota-localnet start --with-faucet \
+    --node-config-override fullnode:enable-grpc-api=true \
+    --node-config-override "fullnode:grpc-api-config={address: '0.0.0.0:50051'}"
+```
+
+Then connect with `{ network: 'localnet' }`.
+
+## Use your own transport
+
+The client has no options for extra headers, interceptors or timeouts. If you need them, build a [Connect](https://connectrpc.com/docs/node/using-clients) transport yourself and pass it in as `transport`. This one adds an authorization header to every call:
+
+```ts
+import { createGrpcTransport } from '@connectrpc/connect-node';
+import { GRPC_URLS, IotaGrpcClient } from '@iota/grpc';
+
+const transport = createGrpcTransport({
+    baseUrl: GRPC_URLS.mainnet,
+    interceptors: [
+        (next) => async (request) => {
+            request.header.set('authorization', `Bearer ${process.env.NODE_TOKEN}`);
+            return next(request);
+        },
+    ],
+});
+
+const client = new IotaGrpcClient({ transport });
+```
+
+`createGrpcNodeTransport({ network })` and `createGrpcNodeTransport({ url })` return the same transport the client would build by itself.
+
+## Set the message size
+
+The node splits large responses, such as a checkpoint with many transactions, into several messages. `maxMessageSizeBytes` sets the size limit for each message. The default is 4 MiB, and the node accepts anything from 1 MiB to 128 MiB. Values outside that range throw a `RangeError`.
+
+```ts
+const client = new IotaGrpcClient({
+    network: 'mainnet',
+    maxMessageSizeBytes: 16 * 1024 * 1024,
+});
+```
+
+The client reassembles the pieces before returning, so this setting only changes how many messages go over the wire. The result is the same.
+
+## Check that the node is healthy
+
+`getHealth` succeeds if the node's latest executed checkpoint is recent enough. If it is older than `thresholdMs` (5 seconds unless you set it), the call throws a `TransportError` with code `Unavailable`:
+
+```ts
+const { body } = await client.getHealth({ thresholdMs: 60_000n });
+
+console.log(body.executedCheckpointHeight);
+```
+
+`getServiceInfo` tells you the node's current epoch and checkpoint height, and the oldest checkpoint it still serves. To find out which chain the node is on and which version it runs, read `metadata.chain` and `metadata.serverVersion`, which come with every response.
+
+## Cancel a call
+
+Every method accepts an `AbortSignal` as `signal`. Aborting it cancels the call, which then throws a `TransportError` with code `Canceled`:
+
+```ts
+const controller = new AbortController();
+process.on('SIGINT', () => controller.abort());
+
+const { body } = await client.getObjects(['0x5'], { signal: controller.signal });
+```

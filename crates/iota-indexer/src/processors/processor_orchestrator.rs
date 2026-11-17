@@ -88,11 +88,9 @@ where
                 // last committed cursor on the next start.
                 tasks.shutdown().await;
             }
-            _ = async {
-                while let Some(res) = tasks.join_next().await {
-                    res.expect("processor orchestrator should not run into errors.");
-                }
-            } => {}
+            Some(res) = tasks.join_next() => {
+                res.expect("processor orchestrator should not run into errors.");
+            }
         }
     }
 }

@@ -1095,6 +1095,98 @@ impl DBMetrics {
             .with_label_values(&[db_name])
             .dec();
     }
+    /// Removes `cf_name`'s series from every per-column-family metric, for a
+    /// column family that has been dropped: a store that drops one per epoch
+    /// would otherwise keep publishing the series of every epoch it held.
+    pub fn remove_column_family(&self, cf_name: &str) {
+        macro_rules! remove {
+            ($($metric:expr),* $(,)?) => {
+                $(
+                    // Absent if the column family was never used.
+                    let _ = $metric.remove_label_values(&[cf_name]);
+                )*
+            };
+        }
+        remove!(
+            self.cf_metrics.rocksdb_total_sst_files_size,
+            self.cf_metrics.rocksdb_total_blob_files_size,
+            self.cf_metrics.rocksdb_total_num_files,
+            self.cf_metrics.rocksdb_num_level0_files,
+            self.cf_metrics.rocksdb_current_size_active_mem_tables,
+            self.cf_metrics.rocksdb_size_all_mem_tables,
+            self.cf_metrics.rocksdb_num_snapshots,
+            self.cf_metrics.rocksdb_oldest_snapshot_time,
+            self.cf_metrics.rocksdb_actual_delayed_write_rate,
+            self.cf_metrics.rocksdb_is_write_stopped,
+            self.cf_metrics.rocksdb_block_cache_capacity,
+            self.cf_metrics.rocksdb_block_cache_usage,
+            self.cf_metrics.rocksdb_block_cache_pinned_usage,
+            self.cf_metrics.rocksdb_estimate_table_readers_mem,
+            self.cf_metrics.rocksdb_num_immutable_mem_tables,
+            self.cf_metrics.rocksdb_mem_table_flush_pending,
+            self.cf_metrics.rocksdb_compaction_pending,
+            self.cf_metrics.rocksdb_estimate_pending_compaction_bytes,
+            self.cf_metrics.rocksdb_num_running_compactions,
+            self.cf_metrics.rocksdb_num_running_flushes,
+            self.cf_metrics.rocksdb_estimate_oldest_key_time,
+            self.cf_metrics.rocksdb_background_errors,
+            self.cf_metrics.rocksdb_estimated_num_keys,
+            self.cf_metrics.rocksdb_base_level,
+            self.op_metrics.rocksdb_iter_latency_seconds,
+            self.op_metrics.rocksdb_iter_bytes,
+            self.op_metrics.rocksdb_iter_keys,
+            self.op_metrics.rocksdb_get_latency_seconds,
+            self.op_metrics.rocksdb_get_bytes,
+            self.op_metrics.rocksdb_multiget_latency_seconds,
+            self.op_metrics.rocksdb_multiget_bytes,
+            self.op_metrics.rocksdb_put_latency_seconds,
+            self.op_metrics.rocksdb_put_bytes,
+            self.op_metrics.rocksdb_batch_put_bytes,
+            self.op_metrics.rocksdb_delete_latency_seconds,
+            self.op_metrics.rocksdb_deletes,
+            self.op_metrics.rocksdb_very_slow_puts_count,
+            self.op_metrics.rocksdb_very_slow_puts_duration_ms,
+            self.read_perf_ctx_metrics.user_key_comparison_count,
+            self.read_perf_ctx_metrics.block_cache_hit_count,
+            self.read_perf_ctx_metrics.block_read_count,
+            self.read_perf_ctx_metrics.block_read_byte,
+            self.read_perf_ctx_metrics.block_read_nanos,
+            self.read_perf_ctx_metrics.block_checksum_nanos,
+            self.read_perf_ctx_metrics.block_decompress_nanos,
+            self.read_perf_ctx_metrics.get_read_bytes,
+            self.read_perf_ctx_metrics.multiget_read_bytes,
+            self.read_perf_ctx_metrics.get_snapshot_nanos,
+            self.read_perf_ctx_metrics.get_from_memtable_nanos,
+            self.read_perf_ctx_metrics.get_from_memtable_count,
+            self.read_perf_ctx_metrics.get_post_process_nanos,
+            self.read_perf_ctx_metrics.get_from_output_files_nanos,
+            self.read_perf_ctx_metrics.db_mutex_lock_nanos,
+            self.read_perf_ctx_metrics.db_condition_wait_nanos,
+            self.read_perf_ctx_metrics.merge_operator_nanos,
+            self.read_perf_ctx_metrics.read_index_block_nanos,
+            self.read_perf_ctx_metrics.read_filter_block_nanos,
+            self.read_perf_ctx_metrics.new_table_block_iter_nanos,
+            self.read_perf_ctx_metrics.block_seek_nanos,
+            self.read_perf_ctx_metrics.find_table_nanos,
+            self.read_perf_ctx_metrics.bloom_memtable_hit_count,
+            self.read_perf_ctx_metrics.bloom_memtable_miss_count,
+            self.read_perf_ctx_metrics.bloom_sst_hit_count,
+            self.read_perf_ctx_metrics.bloom_sst_miss_count,
+            self.read_perf_ctx_metrics.key_lock_wait_time,
+            self.read_perf_ctx_metrics.key_lock_wait_count,
+            self.read_perf_ctx_metrics.internal_delete_skipped_count,
+            self.read_perf_ctx_metrics.internal_skipped_count,
+            self.write_perf_ctx_metrics.write_wal_nanos,
+            self.write_perf_ctx_metrics.write_memtable_nanos,
+            self.write_perf_ctx_metrics.write_delay_nanos,
+            self.write_perf_ctx_metrics.write_pre_and_post_process_nanos,
+            self.write_perf_ctx_metrics.write_db_mutex_lock_nanos,
+            self.write_perf_ctx_metrics.write_db_condition_wait_nanos,
+            self.write_perf_ctx_metrics.write_key_lock_wait_nanos,
+            self.write_perf_ctx_metrics.write_key_lock_wait_count,
+        );
+    }
+
     pub fn get() -> &'static Arc<DBMetrics> {
         // Lazily initialize against the global default registry when no explicit
         // `init` has run. `get_or_init` ensures the rocksdb metrics are

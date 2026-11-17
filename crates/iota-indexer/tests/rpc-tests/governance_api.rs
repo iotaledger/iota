@@ -477,37 +477,36 @@ async fn test_timelocked_unstaking() {
     assert_eq!(res.len(), 0);
 }
 
-#[test]
-fn get_latest_iota_system_state_v2() {
-    let ApiTestSetup {
-        runtime,
-        store,
-        client,
-        cluster,
-    } = ApiTestSetup::get_or_init();
+#[tokio::test]
+async fn get_latest_iota_system_state_v2() {
+    // We use dedicated cluster since we are changing epochs
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("governance_get_latest_iota_system_state_v2"),
+        None,
+        None,
+    )
+    .await;
 
-    runtime.block_on(async move {
-        // ensure that the system state is updated
-        cluster.force_new_epoch().await;
-        // when epoch is advanced, the indexer should catch up the latest checkpoint to
-        // reflect the end of epoch checkpoint changes
-        indexer_wait_for_latest_checkpoint(store, cluster).await;
+    // ensure that the system state is updated
+    cluster.force_new_epoch().await;
+    // when epoch is advanced, the indexer should catch up the latest checkpoint to
+    // reflect the end of epoch checkpoint changes
+    indexer_wait_for_latest_checkpoint(store, cluster).await;
 
-        let system_state = client
-            .get_latest_iota_system_state_v2()
-            .await
-            .unwrap()
-            .into();
+    let system_state = client
+        .get_latest_iota_system_state_v2()
+        .await
+        .unwrap()
+        .into();
 
-        let IotaSystemStateSummary::V2(system_state_v2) = system_state else {
-            panic!("expected IotaSystemStateSummaryV2");
-        };
-        assert_eq!(
-            system_state_v2.protocol_version,
-            ProtocolVersion::MAX.as_u64()
-        );
-        assert_eq!(system_state_v2.system_state_version, 2);
-    });
+    let IotaSystemStateSummary::V2(system_state_v2) = system_state else {
+        panic!("expected IotaSystemStateSummaryV2");
+    };
+    assert_eq!(
+        system_state_v2.protocol_version,
+        ProtocolVersion::MAX.as_u64()
+    );
+    assert_eq!(system_state_v2.system_state_version, 2);
 }
 
 #[test]

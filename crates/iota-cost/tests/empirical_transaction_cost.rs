@@ -102,6 +102,9 @@ async fn create_txes(test_cluster: &TestCluster) -> BTreeMap<CommonTransactionCo
 
     let mut ret = BTreeMap::new();
     let (sender, mut gas_objects) = test_cluster.wallet.get_one_account().await.unwrap();
+    // In object-id order rather than the listing's balance order, which puts
+    // the coins the setup above spent from last, where `pop` takes them first.
+    gas_objects.sort_by_key(|gas| gas.object_id);
     let gas_price = test_cluster.get_reference_gas_price().await;
 
     // Publish
@@ -166,7 +169,7 @@ async fn create_txes(test_cluster: &TestCluster) -> BTreeMap<CommonTransactionCo
     for n in 0..4 {
         let gas = gas_objects.pop().unwrap();
         let coin = gas_objects.pop().unwrap();
-        let split_tx = split_n_tx(n, gas, coin, gas_price, sender).await.clone();
+        let split_tx = split_n_tx(n, gas, coin, gas_price, sender).await;
         ret.insert(CommonTransactionCosts::SplitCoin(n as usize), split_tx);
     }
 

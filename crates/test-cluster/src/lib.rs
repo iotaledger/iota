@@ -21,7 +21,8 @@ use iota_config::{
     transaction_deny_config::TransactionDenyConfig,
 };
 use iota_core::{
-    authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
+    authority_aggregator::AuthorityAggregator,
+    authority_client::{NetworkAuthorityClient, validator_v2::ValidatorV2API},
 };
 use iota_grpc_client::read_mask_fields::TransactionField;
 use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
@@ -54,6 +55,7 @@ use iota_swarm_config::{
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
+    node_config_override::NodeConfigOverride,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -61,16 +63,16 @@ use iota_types::{
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
-    error::IotaResult,
+    error::{IotaError, IotaResult},
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
-    messages_grpc::HandleCertificateRequestV1,
+    messages_grpc::{HandleCertificateRequestV1, TxStatusUpdate},
     object::Object,
     quorum_driver_types::{ExecuteTransactionRequestType, ExecuteTransactionRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
-    traffic_control::{PolicyConfig, RemoteFirewallConfig},
+    traffic_control::PolicyConfig,
     transaction::{CertifiedTransaction, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
@@ -135,12 +137,16 @@ impl Drop for PcoolFlowOverride {
         unsafe {
             std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
             std::env::remove_var("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW");
+            std::env::remove_var(
+                "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            );
         }
     }
 }
 
 /// Sets the P-COOL protocol flag for every node of a test cluster built while
-/// the returned guard is alive.
+/// the returned guard is alive. Turning the flow off also turns validator
+/// attestation off, since attestation cannot run without the flow.
 ///
 /// `ProtocolConfig::apply_overrides_for_testing` is thread-local and does not
 /// reach the tasks a cluster spawns, so the flag goes through the protocol
@@ -153,8 +159,47 @@ pub fn override_pcool_flow(enabled: bool) -> PcoolFlowOverride {
             "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW",
             enabled.to_string(),
         );
+        if !enabled {
+            std::env::set_var(
+                "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+                "false",
+            );
+        }
     }
     PcoolFlowOverride
+}
+
+/// Reverts the validator attestation flag override when dropped.
+#[must_use = "the override only holds while the guard is alive"]
+pub struct ValidatorAttestationOverride;
+
+impl Drop for ValidatorAttestationOverride {
+    fn drop(&mut self) {
+        // SAFETY: paired with `override_validator_attestation`; both run on the
+        // test thread, outside the cluster's lifetime.
+        unsafe {
+            std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
+            std::env::remove_var(
+                "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            );
+        }
+    }
+}
+
+/// Sets the validator attestation flag for every node of a test cluster built
+/// while the returned guard is alive, leaving the P-COOL flow as the protocol
+/// version has it. See [`override_pcool_flow`] for why this goes through the
+/// environment.
+pub fn override_validator_attestation(enabled: bool) -> ValidatorAttestationOverride {
+    // SAFETY: called before the cluster is built, on the test thread.
+    unsafe {
+        std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
+        std::env::set_var(
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            enabled.to_string(),
+        );
+    }
+    ValidatorAttestationOverride
 }
 
 impl TestCluster {
@@ -697,14 +742,20 @@ impl TestCluster {
     }
 
     /// Different from `execute_transaction`, this function returns raw
-    /// effects, events and extra objects returned by the validators,
-    /// aggregated manually (without authority aggregator). It also does not
-    /// check whether the transaction is executed successfully. In order to
-    /// keep the fullnode up-to-date so that latter queries can read consistent
-    /// results, it executes the transaction again through the fullnode's gRPC
-    /// API. This is less efficient and verbose, but can be used if more
-    /// details are needed from the execution results, and if the transaction
-    /// is expected to fail.
+    /// effects and events, and does not check whether the transaction is
+    /// executed successfully. It can be used if more details are needed from
+    /// the execution results, and if the transaction is expected to fail.
+    ///
+    /// With the certificate flow, the effects and events are the ones the
+    /// validators returned, aggregated manually (without authority
+    /// aggregator). To keep the fullnode up-to-date so that latter queries
+    /// can read consistent results, the transaction is executed again through
+    /// the fullnode's gRPC API.
+    ///
+    /// With the P-COOL flow there is no certificate to hand to the validators.
+    /// The transaction goes through the fullnode's transaction orchestrator,
+    /// and the effects are the fullnode's own; they are not compared with the
+    /// validators'.
     pub async fn execute_transaction_return_raw_effects(
         &self,
         tx: TransactionEnvelope,
@@ -755,6 +806,55 @@ impl TestCluster {
             response.effects.effects,
             response.events.unwrap_or_default(),
         ))
+    }
+
+    /// Sends `tx` to one validator with `submit_tx` and returns the single
+    /// status update it answers with.
+    ///
+    /// Opens a new connection to the validator, so it also reaches one that
+    /// was restarted, unlike the clients of [`Self::authority_aggregator`].
+    pub async fn submit_tx_to_validator(
+        &self,
+        authority: &AuthorityName,
+        tx: TransactionEnvelope,
+    ) -> Result<TxStatusUpdate, IotaError> {
+        let client = {
+            let config = self.swarm.node(authority).unwrap().config();
+            NetworkAuthorityClient::connect_lazy(
+                &config
+                    .network_address
+                    .clone()
+                    .rewrite_udp_to_tcp()
+                    .rewrite_http_to_https(),
+                config.network_private_key().public_key(),
+            )
+        };
+        let mut updates = client
+            .submit_tx(vec![tx], Some(SocketAddr::new([127, 0, 0, 1].into(), 0)))
+            .await?;
+        assert_eq!(
+            updates.len(),
+            1,
+            "one transaction gets one status update, got: {updates:?}"
+        );
+        Ok(updates.remove(0).1)
+    }
+
+    /// Sends `tx` to one validator with `submit_tx`, expects the validator to
+    /// reject it, and returns the error.
+    pub async fn submit_tx_expecting_rejection(
+        &self,
+        authority: &AuthorityName,
+        tx: TransactionEnvelope,
+    ) -> IotaError {
+        let update = self
+            .submit_tx_to_validator(authority, tx)
+            .await
+            .expect("the submit_tx stream should open");
+        let TxStatusUpdate::Rejected { error } = update else {
+            panic!("expected the transaction to be rejected, got: {update:?}");
+        };
+        error
     }
 
     pub fn authority_aggregator(&self) -> Arc<AuthorityAggregator<NetworkAuthorityClient>> {
@@ -1130,8 +1230,8 @@ pub struct TestClusterBuilder {
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
+    fullnode_num_epochs_to_retain_for_indexes: Option<u64>,
     fullnode_policy_config: Option<PolicyConfig>,
-    fullnode_fw_config: Option<RemoteFirewallConfig>,
     fullnode_enable_grpc_api: bool,
     fullnode_state_snapshot_config: Option<StateSnapshotConfig>,
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
@@ -1140,6 +1240,7 @@ pub struct TestClusterBuilder {
     validator_global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig,
     disable_address_verification_cooldown: bool,
     chain_override: Option<Chain>,
+    node_config_overrides: Vec<NodeConfigOverride>,
 }
 
 impl TestClusterBuilder {
@@ -1163,8 +1264,8 @@ impl TestClusterBuilder {
             execution_cache_config: None,
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
+            fullnode_num_epochs_to_retain_for_indexes: None,
             fullnode_policy_config: None,
-            fullnode_fw_config: None,
             fullnode_enable_grpc_api: true,
             fullnode_state_snapshot_config: None,
             fullnode_grpc_api_config: None,
@@ -1174,7 +1275,13 @@ impl TestClusterBuilder {
                 true,
             ),
             disable_address_verification_cooldown: false,
+            node_config_overrides: vec![],
         }
+    }
+
+    pub fn with_fullnode_num_epochs_to_retain_for_indexes(mut self, epochs: Option<u64>) -> Self {
+        self.fullnode_num_epochs_to_retain_for_indexes = epochs;
+        self
     }
 
     pub fn with_fullnode_run_with_range(mut self, run_with_range: Option<RunWithRange>) -> Self {
@@ -1186,11 +1293,6 @@ impl TestClusterBuilder {
 
     pub fn with_fullnode_policy_config(mut self, config: Option<PolicyConfig>) -> Self {
         self.fullnode_policy_config = config;
-        self
-    }
-
-    pub fn with_fullnode_fw_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
-        self.fullnode_fw_config = config;
         self
     }
 
@@ -1387,6 +1489,15 @@ impl TestClusterBuilder {
         self
     }
 
+    /// Apply the given overrides to every node config the cluster starts with.
+    pub fn with_node_config_overrides(
+        mut self,
+        node_config_overrides: Vec<NodeConfigOverride>,
+    ) -> Self {
+        self.node_config_overrides = node_config_overrides;
+        self
+    }
+
     pub async fn build(mut self) -> TestCluster {
         // We can add a faucet account to the `GenesisConfig` if there was no
         // `NetworkConfig` provided. Only either a `GenesisConfig` or a
@@ -1468,8 +1579,10 @@ impl TestClusterBuilder {
                     .unwrap_or(self.validator_supported_protocol_versions_config.clone()),
             )
             .with_fullnode_run_with_range(self.fullnode_run_with_range)
-            .with_fullnode_policy_config(self.fullnode_policy_config.clone())
-            .with_fullnode_fw_config(self.fullnode_fw_config.clone());
+            .with_fullnode_num_epochs_to_retain_for_indexes(
+                self.fullnode_num_epochs_to_retain_for_indexes,
+            )
+            .with_fullnode_policy_config(self.fullnode_policy_config.clone());
 
         if let Some(chain) = self.chain_override {
             builder = builder.with_chain_override(chain);
@@ -1534,6 +1647,9 @@ impl TestClusterBuilder {
         }
         if self.disable_address_verification_cooldown {
             builder = builder.with_disabled_address_verification_cooldown();
+        }
+        if !self.node_config_overrides.is_empty() {
+            builder = builder.with_node_config_overrides(self.node_config_overrides.clone());
         }
 
         let mut swarm = builder.build();

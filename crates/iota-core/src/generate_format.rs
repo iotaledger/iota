@@ -28,6 +28,7 @@ use iota_sdk_types::{
     },
 };
 use iota_types::{
+    attestation::AttestationVerdict,
     base_types::{ExecutionData, ExecutionDigests},
     crypto::{
         AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
@@ -37,7 +38,8 @@ use iota_types::{
     effects::TransactionEffectsExtForTesting,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContentsExt, FullCheckpointContents,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointVersionSpecificData,
+        FullCheckpointContents,
     },
     messages_grpc::ObjectInfoRequestKind,
     object::{MoveStructExt, ObjectInner},
@@ -150,7 +152,6 @@ fn get_registry() -> Result<Registry> {
         .unwrap();
 
     let (addr, kp): (_, AuthorityKeyPair) = get_key_pair();
-    let (s_addr, s_kp): (_, fastcrypto::ed25519::Ed25519KeyPair) = get_key_pair();
     let pk: AuthorityPublicKeyBytes = kp.public().into();
     tracer.trace_value(&mut samples, &addr).unwrap();
     tracer.trace_value(&mut samples, &kp).unwrap();
@@ -165,9 +166,6 @@ fn get_registry() -> Result<Registry> {
     };
     tracer.trace_value(&mut samples, &committee_member).unwrap();
 
-    tracer.trace_value(&mut samples, &s_addr).unwrap();
-    tracer.trace_value(&mut samples, &s_kp).unwrap();
-
     // We have two signature types: one for Authority Signatures, which don't
     // include the PubKey ...
     let sig: AuthoritySignature = Signer::sign(&kp, b"hello world");
@@ -181,15 +179,16 @@ fn get_registry() -> Result<Registry> {
     let sig: SimpleSignature = kp1.sign(b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
-    let multisig_pk = MultisigCommittee::new(
+    // `MultisigCommittee::new` rejects partially signed committees mixing Ed25519 with other key
+    // schemes, but this one is signed by every member below.
+    let multisig_pk = MultisigCommittee::new_unchecked(
         vec![
             MultisigMember::new(kp1.public_key(), 1),
             MultisigMember::new(kp2.public_key(), 1),
             MultisigMember::new(kp3.public_key(), 1),
         ],
         2,
-    )
-    .unwrap();
+    );
 
     let digest = IntentMessage::new(
         Intent::iota_transaction(),
@@ -544,6 +543,10 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<UnchangedSharedKind>(&samples).unwrap();
     tracer.trace_type::<TransactionEffects>(&samples).unwrap();
     tracer.trace_type::<CheckpointSummary>(&samples).unwrap();
+    tracer
+        .trace_type::<CheckpointVersionSpecificData>(&samples)
+        .unwrap();
+    tracer.trace_type::<AttestationVerdict>(&samples).unwrap();
     tracer.trace_type::<CheckpointCommitment>(&samples).unwrap();
     tracer
         .trace_type::<ConsensusDeterminedVersionAssignments>(&samples)

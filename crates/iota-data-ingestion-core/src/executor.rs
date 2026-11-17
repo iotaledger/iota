@@ -286,6 +286,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
 
         let mut worker_pools_shutdown_signals = vec![];
         let mut checkpoint_limit_reached = None;
+        let mut reader_error = None;
 
         loop {
             // the min watermark represents the lowest watermark that
@@ -312,7 +313,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                                 .map_err(|err| IngestionError::ProgressStore(err.to_string()))?;
                             let seq_number = self.progress_store.min_watermark()?;
                             if seq_number > reader_checkpoint_number {
-                                checkpoint_reader.send_gc_signal(seq_number).await?;
+                                checkpoint_reader.send_gc_signal(seq_number)?;
                                 reader_checkpoint_number = seq_number;
                             }
                             self.metrics.data_ingestion_checkpoint
@@ -324,7 +325,13 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                         }
                     }
                 }
-                Some(checkpoint) = checkpoint_reader.checkpoint(), if !self.token.is_cancelled() => {
+                checkpoint = checkpoint_reader.checkpoint(), if !self.token.is_cancelled() => {
+                    let Some(checkpoint) = checkpoint else {
+                        reader_error = Some(IngestionError::Channel("checkpoint reader stopped".into()));
+                        // start garceful shutdown sequence.
+                        self.token.cancel();
+                        continue;
+                    };
                     // once upper limit reached skip sending new checkpoints to workers.
                     if self.should_shutdown(&checkpoint, &mut checkpoint_limit_reached) {
                         continue;
@@ -354,7 +361,10 @@ impl<P: ProgressStore> IndexerExecutor<P> {
             }
         }
 
-        Ok(self.progress_store.stats())
+        match reader_error {
+            Some(err) => Err(err),
+            None => Ok(self.progress_store.stats()),
+        }
     }
 
     /// Check if the current ingestion limit has been reached.

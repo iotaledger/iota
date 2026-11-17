@@ -1,7 +1,7 @@
 # iota-json-rpc
 
 The `iota-json-rpc` library crate provides a flexible framework for building JSON-RPC servers to expose IOTA APIs.
-It supports requests over HTTP and WebSocket, and is primarily to spawn a nested service in the `iota-indexer`
+It serves requests over HTTP, and is primarily used to spawn a nested service in the `iota-indexer`
 or `iota-node` applications.
 
 It provides module implementations for various JSON-RPC server traits (
@@ -19,26 +19,33 @@ type `IotaRpcModule` trait. The trait provides module information such as a list
 The following example shows how to build, register RPC modules and start the server:
 
 ```rust
-// Create a new `JsonRpcServerBuilder` with version information and a Prometheus registry
-let mut builder = JsonRpcServerBuilder::new(env!("CARGO_PKG_VERSION"), prometheus::default_registry());
-
-// Register the RPC modules that should be included in the server.
-let reader = IndexerReader::new(env!("DATABASE_CONNECTION_URL")) ?;
-builder.register_module(TransactionBuilderApi::new(reader.clone())) ?;
-builder.register_module(GovernanceReadApi::new(reader.clone())) ?;
-builder.register_module(CoinReadApi::new(reader.clone())) ?;
-
-// Define the default socket address for the server, parsing the IP address correctly.
-let default_socket_addr: SocketAddr = SocketAddr::new(
-    "0.0.0.0".parse().unwrap(),  // Correctly parse the IP address
-    9000,
+// Create a new `JsonRpcServerBuilder` with version information and a Prometheus registry. The last
+// two arguments are an optional traffic controller and its policy.
+let mut builder = JsonRpcServerBuilder::new(
+    env!("CARGO_PKG_VERSION"),
+    prometheus::default_registry(),
+    None,
+    None,
 );
 
-// Specify a custom runtime for the server, if needed.
+// Register the RPC modules that should be included in the server. Here, `reader` is the indexer's
+// `IndexerReader`.
+builder.register_module(TransactionBuilderApi::from(reader.clone()))?;
+builder.register_module(GovernanceReadApi::new(reader.clone()))?;
+builder.register_module(CoinReadApi::new(reader.clone())?)?;
+
+// The address the server listens on.
+let listen_address = SocketAddr::new("0.0.0.0".parse().unwrap(), 9000);
+
+// Run the server on a specific Tokio runtime instead of the current one, if needed.
 let custom_runtime: Option<tokio::runtime::Handle> = None;
 
+// Cancelling this token shuts the server down gracefully. The server also cancels it when it
+// stops for another reason. Pass `None` to run the server until the process exits.
+let cancel = CancellationToken::new();
+
 // Start the server.
-builder
-.start(default_socket_addr, custom_runtime, Some(ServerType::Http))
-.await?;
+let handle = builder
+    .start(listen_address, custom_runtime, Some(cancel.clone()))
+    .await?;
 ```

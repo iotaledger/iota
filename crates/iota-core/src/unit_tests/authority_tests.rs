@@ -19,8 +19,9 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_crypto::IotaSigner as _;
+use iota_sdk_move_types::iota_system::iota_system::IotaSystemState as IotaSystemStateWrapper;
 use iota_sdk_types::{
-    Address, Argument, CanceledTransaction, CheckpointSequenceNumber, Command,
+    Address, Argument, CanceledTransaction, CheckpointContents, CheckpointSequenceNumber, Command,
     ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
     GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference,
     OwnedObjectReference, Owner, ProgrammableTransaction, RandomnessRound, SharedObjectReference,
@@ -29,7 +30,10 @@ use iota_sdk_types::{
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
-    base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
+    attestation::AttestedTransaction,
+    base_types::{
+        AuthorityName, ExecutionDigests, TxContext, dbg_addr, dbg_object_id, random_object_ref,
+    },
     committee::Committee,
     crypto::{
         AccountPrivateKey, AggregateAuthorityPublicKey, AuthorityKeyPair, AuthoritySignInfo,
@@ -41,15 +45,18 @@ use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     execution::SharedInput,
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::{GasCoin, SIMULATION_GAS_COIN_VALUE},
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::PackageStoreWithFallback,
-    iota_system_state::{IotaSystemStateTrait, IotaSystemStateWrapper},
+    iota_system_state::IotaSystemStateTrait,
+    messages_checkpoint::CheckpointContentsExt,
     messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest, TransactionInfoRequest},
-    object::{GAS_VALUE_FOR_TESTING, MoveStructExt, OBJECT_START_VERSION, Object},
+    object::{GAS_VALUE_FOR_TESTING, MoveStructExt, OBJECT_START_VERSION, Object, PastObjectRead},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
+    signature::VerifyParams,
     supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
     transaction::{
         CallArg, CancelledObjects, MAX_PROGRAMMABLE_TX_INPUTS, SenderSignedTransactionAPI,
@@ -99,6 +106,8 @@ use crate::{
     consensus_handler::SequencedConsensusTransaction,
     execution_cache::ExecutionCacheCommit,
     execution_scheduler::ExecutionSchedulerAPI,
+    post_consensus_validation::PostConsensusDecision,
+    storage::{GrpcReadStore, RocksDbStore},
     test_utils::{
         init_state_parameters_from_rng, make_transfer_object_transaction, set_scheduler_env,
     },
@@ -1080,6 +1089,106 @@ async fn test_dev_inspect_on_validator() {
     assert!(result.is_err())
 }
 
+/// A dev inspect may call private and `public(package)` Move functions, but not
+/// such natives: they rely on their Move callers to check the arguments.
+#[tokio::test]
+async fn test_dev_inspect_rejects_non_public_natives() {
+    let (_validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+    let sender = Address::random();
+
+    let assert_rejected = |pt: ProgrammableTransaction, target: &str| {
+        let result = dev_inspect(
+            &fullnode,
+            sender,
+            TransactionKind::new_programmable(pt),
+            None,
+        )
+        .unwrap_or_else(|e| panic!("{target}: {e}"));
+        assert!(
+            matches!(
+                result.effects.status(),
+                ExecutionStatus::Failure {
+                    error: ExecutionError::NonEntryFunctionInvoked,
+                    ..
+                }
+            ),
+            "{target}: {:?}",
+            result.effects.status()
+        );
+    };
+
+    // An end index past the end of the string.
+    assert_rejected(
+        ProgrammableTransaction {
+            inputs: vec![
+                CallArg::pure(&b"A".to_vec()),
+                CallArg::pure(&0_u64),
+                CallArg::pure(&2_u64),
+            ],
+            commands: vec![Command::new_move_call(
+                ObjectId::STD,
+                Identifier::from_static("string"),
+                Identifier::from_static("internal_sub_string"),
+                vec![],
+                vec![Argument::Input(0), Argument::Input(1), Argument::Input(2)],
+            )],
+        },
+        "0x1::string::internal_sub_string",
+    );
+
+    // The visibility check comes before arguments are read, so no arguments are
+    // needed to reach it.
+    let mut natives = 0;
+    for package in BuiltInFramework::iter_system_packages() {
+        for module in package.modules() {
+            for fdef in module.function_defs() {
+                if !fdef.is_native()
+                    || fdef.is_entry
+                    || fdef.visibility == file_format::Visibility::Public
+                {
+                    continue;
+                }
+                let function = module.identifier_at(module.function_handle_at(fdef.function).name);
+                assert_rejected(
+                    ProgrammableTransaction {
+                        inputs: vec![],
+                        commands: vec![Command::new_move_call(
+                            package.id,
+                            Identifier::new(module.self_id().name().as_str()).unwrap(),
+                            Identifier::new(function.as_str()).unwrap(),
+                            vec![],
+                            vec![],
+                        )],
+                    },
+                    &format!("{}::{function}", module.self_id()),
+                );
+                natives += 1;
+            }
+        }
+    }
+    assert!(natives > 0, "the framework should have non-public natives");
+
+    // The rule is limited to natives: a private Move function stays callable.
+    let result = dev_inspect(
+        &fullnode,
+        sender,
+        TransactionKind::new_programmable(ProgrammableTransaction {
+            inputs: vec![CallArg::pure(&b'a')],
+            commands: vec![Command::new_move_call(
+                ObjectId::STD,
+                Identifier::from_static("ascii"),
+                Identifier::from_static("char_to_uppercase"),
+                vec![],
+                vec![Argument::Input(0)],
+            )],
+        }),
+        None,
+    )
+    .unwrap();
+    assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+}
+
 #[tokio::test]
 async fn test_dry_run_on_validator() {
     let (validator, _fullnode, transaction, _gas_object_id, _shared_object_id) =
@@ -1243,40 +1352,12 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
 async fn test_simulate_rejects_a_gas_payment_that_is_not_a_gas_coin() {
     let sender = Address::random();
     let recipient = Address::random();
-    let (validator, fullnode, _object_basics) =
-        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
-
-    let max_tx_gas = validator
-        .epoch_store_for_testing()
-        .protocol_config()
-        .max_tx_gas();
-
-    // A funded gas coin, so the combined balance covers any budget.
-    let funded_coin = Object::new_gas_with_balance_and_owner_for_testing(max_tx_gas * 4, sender);
-    // An owned object of the same sender that is not a coin at all.
-    let not_a_coin_id = ObjectId::random();
-    let not_a_coin = Object::new_move(
-        MoveStruct::new(
-            StructTag::new(
-                Address::FRAMEWORK,
-                Identifier::from_static("object_basics"),
-                Identifier::from_static("Object"),
-                vec![],
-            )
-            .into(),
-            OBJECT_START_VERSION,
-            // A Move object's contents lead with its own id.
-            bcs::to_bytes(&(not_a_coin_id, 7u64)).unwrap(),
-        )
-        .unwrap(),
-        Owner::Address(sender),
-        TransactionDigest::GENESIS_MARKER,
-    );
-
-    for object in [funded_coin.clone(), not_a_coin.clone()] {
-        validator.insert_genesis_object(object.clone());
-        fullnode.insert_genesis_object(object);
-    }
+    let (_validator, fullnode, _object_basics, gas, extra) =
+        simulation_fixture(sender, |package| {
+            vec![object_basics_object(package, Owner::Address(sender))]
+        })
+        .await;
+    let not_a_coin = &extra[0];
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -1284,20 +1365,10 @@ async fn test_simulate_rejects_a_gas_payment_that_is_not_a_gas_coin() {
         builder.finish()
     };
 
-    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
-        let transaction = Transaction::V1(TransactionV1 {
-            kind: TransactionKind::new_programmable(pt.clone()),
-            sender,
-            gas_payment: GasPayment {
-                objects: vec![funded_coin.object_ref(), not_a_coin.object_ref()],
-                owner: sender,
-                price: 0,
-                budget: 0,
-            },
-            expiration: TransactionExpiration::None,
-        });
-
-        let Err(error) = fullnode.simulate_transaction(transaction, checks) else {
+    for (checks, result) in
+        simulate_under_both_checks(&fullnode, sender, vec![gas, not_a_coin.object_ref()], &pt)
+    {
+        let Err(error) = result else {
             panic!("{checks:?} should reject a gas payment that is not a gas coin");
         };
         assert!(
@@ -1305,10 +1376,651 @@ async fn test_simulate_rejects_a_gas_payment_that_is_not_a_gas_coin() {
                 error,
                 IotaError::UserInput {
                     error: UserInputError::InvalidGasObject { object_id }
-                } if object_id == not_a_coin_id
+                } if object_id == not_a_coin.id()
             ),
             "unexpected error for {checks:?}: {error:?}"
         );
+    }
+}
+
+/// Simulates `pt` under both [`VmChecks`], returning what each produced.
+///
+/// The input checks a simulation shares with a signing validator must reject
+/// the same transaction either way, so a test asserting one of them asserts it
+/// over this.
+fn simulate_under_both_checks(
+    fullnode: &Arc<AuthorityState>,
+    sender: Address,
+    gas: Vec<ObjectReference>,
+    pt: &ProgrammableTransaction,
+) -> Vec<(VmChecks, IotaResult<SimulateTransactionResult>)> {
+    [VmChecks::Enabled, VmChecks::Disabled]
+        .into_iter()
+        .map(|checks| {
+            let transaction = Transaction::V1(TransactionV1 {
+                kind: TransactionKind::new_programmable(pt.clone()),
+                sender,
+                gas_payment: GasPayment {
+                    objects: gas.clone(),
+                    owner: sender,
+                    price: 0,
+                    budget: 0,
+                },
+                expiration: TransactionExpiration::None,
+            });
+            (checks, fullnode.simulate_transaction(transaction, checks))
+        })
+        .collect()
+}
+
+/// A labeled test case: `expected` describes what the test wants from running
+/// `input` through the check under test.
+struct Case<T, F> {
+    label: &'static str,
+    input: T,
+    expected: F,
+}
+
+/// A command that touches none of the object inputs, so a test can assert on
+/// what the input checks make of those inputs rather than on what running them
+/// would do. The two pure arguments are the last two inputs.
+fn create_object_command(package: ObjectId, first_pure_input: u16) -> Command {
+    Command::new_move_call(
+        package,
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("create"),
+        vec![],
+        vec![
+            Argument::Input(first_pure_input),
+            Argument::Input(first_pure_input + 1),
+        ],
+    )
+}
+
+/// An `object_basics::Object` with `id` as its own id and the given owner,
+/// ready to insert as a genesis object.
+fn object_basics_object_with_id(package: ObjectId, id: ObjectId, owner: Owner) -> Object {
+    Object::new_move(
+        MoveStruct::new(
+            StructTag::new(
+                Address::from(package),
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("Object"),
+                vec![],
+            )
+            .into(),
+            OBJECT_START_VERSION,
+            // A Move object's contents lead with its own id.
+            bcs::to_bytes(&(id, 7u64)).unwrap(),
+        )
+        .unwrap(),
+        owner,
+        TransactionDigest::GENESIS_MARKER,
+    )
+}
+
+/// An `object_basics::Object` with the given owner, ready to insert as a
+/// genesis object.
+fn object_basics_object(package: ObjectId, owner: Owner) -> Object {
+    object_basics_object_with_id(package, ObjectId::random(), owner)
+}
+
+/// Sets up a validator and a fullnode with `object_basics` published and a gas
+/// coin that covers any budget, plus whatever extra objects the caller needs
+/// on both nodes.
+async fn simulation_fixture(
+    sender: Address,
+    extra_objects: impl Fn(ObjectId) -> Vec<Object>,
+) -> (
+    Arc<AuthorityState>,
+    Arc<AuthorityState>,
+    ObjectId,
+    ObjectReference,
+    Vec<Object>,
+) {
+    let (validator, fullnode, object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+    let max_tx_gas = validator
+        .epoch_store_for_testing()
+        .protocol_config()
+        .max_tx_gas();
+    let gas_coin = Object::new_gas_with_balance_and_owner_for_testing(max_tx_gas * 4, sender);
+    let extra = extra_objects(object_basics.object_id);
+
+    for object in std::iter::once(gas_coin.clone()).chain(extra.iter().cloned()) {
+        validator.insert_genesis_object(object.clone());
+        fullnode.insert_genesis_object(object);
+    }
+
+    (
+        validator,
+        fullnode,
+        object_basics.object_id,
+        gas_coin.object_ref(),
+        extra,
+    )
+}
+
+/// A package named as an owned object is rejected by both check modes: the
+/// engine has no way to treat a package as a Move value.
+#[tokio::test]
+async fn test_simulate_rejects_a_package_used_as_an_object() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, _) =
+        simulation_fixture(sender, |_| vec![]).await;
+    let package = fullnode.get_object(&object_basics).unwrap();
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::ImmutableOrOwned(package.object_ref()),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        let Err(error) = result else {
+            panic!("{checks:?} should reject a package used as an object");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::MovePackageAsObject { object_id }
+                } if object_id == object_basics
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
+
+/// A system transaction is rejected by both check modes.
+#[tokio::test]
+async fn test_simulate_rejects_a_system_transaction() {
+    let sender = Address::random();
+    let (_validator, fullnode, _object_basics, gas, _) =
+        simulation_fixture(sender, |_| vec![]).await;
+
+    let transaction = Transaction::V1(TransactionV1 {
+        kind: TransactionKind::EndOfEpoch(vec![]),
+        sender,
+        gas_payment: GasPayment {
+            objects: vec![gas],
+            owner: sender,
+            price: 0,
+            budget: 0,
+        },
+        expiration: TransactionExpiration::None,
+    });
+
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        let Err(error) = fullnode.simulate_transaction(transaction.clone(), checks) else {
+            panic!("{checks:?} should reject a system transaction");
+        };
+        assert!(
+            matches!(error, IotaError::UnsupportedFeature { .. }),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
+
+/// A child object named as an owned input is rejected by both check modes: it
+/// has to be reached through its parent, not passed directly.
+#[tokio::test]
+async fn test_simulate_rejects_a_child_object_used_as_owned() {
+    let sender = Address::random();
+    let parent_id = ObjectId::random();
+    let (_validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![object_basics_object(package, Owner::Object(parent_id))]
+    })
+    .await;
+    let child = &extra[0];
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::ImmutableOrOwned(child.object_ref()),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        let Err(error) = result else {
+            panic!("{checks:?} should reject a child object used as an owned input");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::InvalidChildObjectArgument { child_id, parent_id: p }
+                } if child_id == child.id() && p == parent_id
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
+
+/// A shared object input whose declared initial version does not match the
+/// object's real initial version is rejected by a dry run, and runs in a dev
+/// inspect.
+#[tokio::test]
+async fn test_dev_inspect_accepts_a_shared_object_with_a_wrong_initial_version() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, _) =
+        simulation_fixture(sender, |_| vec![]).await;
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::Shared(SharedObjectReference::new(
+                ObjectId::CLOCK,
+                Version::from(2),
+                false,
+            )),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        if checks.enabled() {
+            assert!(
+                matches!(
+                    result,
+                    Err(IotaError::UserInput {
+                        error: UserInputError::SharedObjectStartingVersionMismatch
+                    })
+                ),
+                "unexpected result for {checks:?}: {:?}",
+                result.as_ref().err()
+            );
+        } else {
+            let result = result.unwrap_or_else(|error| panic!("{checks:?}: {error:?}"));
+            assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+        }
+    }
+}
+
+/// A mutable `Clock` input is rejected in a dev inspect even when its declared
+/// initial version is wrong, which a dev inspect does not check on its own.
+#[tokio::test]
+async fn test_simulate_rejects_a_mutable_clock_with_a_wrong_initial_version() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, _) =
+        simulation_fixture(sender, |_| vec![]).await;
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::Shared(SharedObjectReference::new(
+                ObjectId::CLOCK,
+                Version::from(2),
+                true,
+            )),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        let error = match result {
+            Err(IotaError::UserInput { error }) => error,
+            Err(error) => panic!("unexpected error for {checks:?}: {error:?}"),
+            Ok(_) => panic!("{checks:?} should reject a mutable Clock"),
+        };
+        if checks.enabled() {
+            assert!(
+                matches!(error, UserInputError::SharedObjectStartingVersionMismatch),
+                "unexpected error for {checks:?}: {error:?}"
+            );
+        } else {
+            assert!(
+                matches!(
+                    error,
+                    UserInputError::ImmutableParameterExpected { object_id } if object_id == ObjectId::CLOCK
+                ),
+                "unexpected error for {checks:?}: {error:?}"
+            );
+        }
+    }
+}
+
+/// A shared object named as an owned input is rejected by a dry run. A dev
+/// inspect runs it as the shared object it is: it can be mutated, and stays
+/// shared.
+#[tokio::test]
+async fn test_dev_inspect_accepts_a_shared_object_used_as_owned() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![object_basics_object(
+            package,
+            Owner::Shared(OBJECT_START_VERSION),
+        )]
+    })
+    .await;
+    let shared = &extra[0];
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::ImmutableOrOwned(shared.object_ref()),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+        ],
+        commands: vec![Command::new_move_call(
+            object_basics,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("set_value"),
+            vec![],
+            vec![Argument::Input(0), Argument::Input(1)],
+        )],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        if checks.enabled() {
+            assert!(
+                matches!(
+                    result,
+                    Err(IotaError::UserInput {
+                        error: UserInputError::NotSharedObject
+                    })
+                ),
+                "unexpected result for {checks:?}: {:?}",
+                result.as_ref().err()
+            );
+        } else {
+            let result = result.unwrap_or_else(|error| panic!("{checks:?}: {error:?}"));
+            assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+            let mutated = result
+                .effects
+                .mutated()
+                .into_iter()
+                .find(|mutated| mutated.reference().object_id == shared.id())
+                .expect("the shared object should be mutated");
+            assert_eq!(mutated.owner(), &Owner::Shared(OBJECT_START_VERSION));
+        }
+    }
+}
+
+/// An address-owned object named as a shared input is rejected by both check
+/// modes.
+#[tokio::test]
+async fn test_simulate_rejects_an_owned_object_used_as_shared() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![object_basics_object(package, Owner::Address(sender))]
+    })
+    .await;
+    let owned = &extra[0];
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::Shared(SharedObjectReference::new(
+                owned.id(),
+                OBJECT_START_VERSION,
+                true,
+            )),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        assert!(
+            matches!(
+                result,
+                Err(IotaError::UserInput {
+                    error: UserInputError::NotSharedObject
+                })
+            ),
+            "unexpected result for {checks:?}: {:?}",
+            result.as_ref().err()
+        );
+    }
+}
+
+/// A gas payment that lists the same coin twice is rejected by both check
+/// modes.
+#[tokio::test]
+async fn test_simulate_rejects_a_gas_coin_listed_twice() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, _) =
+        simulation_fixture(sender, |_| vec![]).await;
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 0)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas, gas], &pt) {
+        let Err(error) = result else {
+            panic!("{checks:?} should reject a gas coin listed twice");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::MutableObjectUsedMoreThanOnce { object_id }
+                } if object_id == gas.object_id
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
+
+type SystemObjectCase = Case<CallArg, fn(&UserInputError) -> bool>;
+
+/// Clock and the Randomness state taken mutably, and the AuthenticatorState
+/// taken at all, are rejected by both check modes. Naming one as an owned
+/// input is rejected too: `InputCheckRules::shared_object_as_owned_input` does
+/// not cover these objects.
+#[tokio::test]
+async fn test_simulate_rejects_a_system_object_misuse() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        // No test genesis creates the authenticator state object; insert a shared
+        // object under its id instead, since the check matches on the id first.
+        vec![object_basics_object_with_id(
+            package,
+            ObjectId::AUTHENTICATOR_STATE,
+            Owner::Shared(Version::INITIAL_SHARED_VERSION),
+        )]
+    })
+    .await;
+    let random_initial_version =
+        get_randomness_state_obj_initial_shared_version(fullnode.get_object_store()).unwrap();
+    let authenticator_state = extra[0].object_ref();
+    let clock = fullnode.get_object(&ObjectId::CLOCK).unwrap().object_ref();
+    let randomness_state = fullnode
+        .get_object(&ObjectId::RANDOMNESS_STATE)
+        .unwrap()
+        .object_ref();
+
+    let cases: [SystemObjectCase; 6] = [
+        Case {
+            label: "Clock taken mutably",
+            input: CallArg::CLOCK_MUTABLE,
+            expected: |error| {
+                matches!(
+                    error,
+                    UserInputError::ImmutableParameterExpected { object_id } if *object_id == ObjectId::CLOCK
+                )
+            },
+        },
+        Case {
+            label: "the Randomness state taken mutably",
+            input: CallArg::Shared(SharedObjectReference::new(
+                ObjectId::RANDOMNESS_STATE,
+                random_initial_version,
+                true,
+            )),
+            expected: |error| {
+                matches!(
+                    error,
+                    UserInputError::ImmutableParameterExpected { object_id } if *object_id == ObjectId::RANDOMNESS_STATE
+                )
+            },
+        },
+        Case {
+            label: "the AuthenticatorState taken as an input",
+            input: CallArg::Shared(SharedObjectReference::new(
+                ObjectId::AUTHENTICATOR_STATE,
+                Version::INITIAL_SHARED_VERSION,
+                false,
+            )),
+            expected: |error| {
+                matches!(
+                    error,
+                    UserInputError::InaccessibleSystemObject { object_id } if *object_id == ObjectId::AUTHENTICATOR_STATE
+                )
+            },
+        },
+        Case {
+            label: "the Clock named as an owned input",
+            input: CallArg::ImmutableOrOwned(clock),
+            expected: |error| matches!(error, UserInputError::NotSharedObject),
+        },
+        Case {
+            label: "the Randomness state named as an owned input",
+            input: CallArg::ImmutableOrOwned(randomness_state),
+            expected: |error| matches!(error, UserInputError::NotSharedObject),
+        },
+        Case {
+            label: "the AuthenticatorState named as an owned input",
+            input: CallArg::ImmutableOrOwned(authenticator_state),
+            expected: |error| matches!(error, UserInputError::NotSharedObject),
+        },
+    ];
+
+    for case in cases {
+        let pt = ProgrammableTransaction {
+            inputs: vec![
+                case.input,
+                CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+                CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+            ],
+            commands: vec![create_object_command(object_basics, 1)],
+        };
+
+        for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+            let Err(error) = result else {
+                panic!("{checks:?} should reject {}", case.label);
+            };
+            let error = UserInputError::try_from(error).unwrap();
+            assert!(
+                (case.expected)(&error),
+                "unexpected error for {checks:?}, {}: {error:?}",
+                case.label
+            );
+        }
+    }
+}
+
+/// A mismatched input object digest is rejected by a dry run and accepted by a
+/// dev inspect.
+///
+/// The digest is an optimistic-concurrency token for submission, which a dev
+/// inspect does not do, and nothing in execution reads it — the object is
+/// loaded by id and version either way.
+#[tokio::test]
+async fn test_simulate_input_object_digest_is_checked_only_with_checks_enabled() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![object_basics_object(package, Owner::Address(sender))]
+    })
+    .await;
+    let owned = &extra[0];
+    let object_ref = owned.object_ref();
+    let wrong_digest = ObjectReference::new(
+        object_ref.object_id,
+        object_ref.version,
+        ObjectDigest::new([9; 32]),
+    );
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::ImmutableOrOwned(wrong_digest),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        match checks {
+            VmChecks::Enabled => {
+                let Err(error) = result else {
+                    panic!("a dry run should reject a mismatched input object digest");
+                };
+                assert!(
+                    matches!(
+                        error,
+                        IotaError::UserInput {
+                            error: UserInputError::InvalidObjectDigest { object_id, .. }
+                        } if object_id == owned.id()
+                    ),
+                    "unexpected error for {checks:?}: {error:?}"
+                );
+            }
+            VmChecks::Disabled => {
+                let result =
+                    result.expect("a dev inspect should accept a mismatched input object digest");
+                assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+            }
+        }
+    }
+}
+
+/// An owned input object whose owner is not the sender is rejected by a dry
+/// run and accepted by a dev inspect.
+#[tokio::test]
+async fn test_simulate_input_object_owner_is_checked_only_with_checks_enabled() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![object_basics_object(
+            package,
+            Owner::Address(Address::random()),
+        )]
+    })
+    .await;
+    let owned = &extra[0];
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::ImmutableOrOwned(owned.object_ref()),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        match checks {
+            VmChecks::Enabled => {
+                let Err(error) = result else {
+                    panic!("a dry run should reject an owned input owned by a different address");
+                };
+                assert!(
+                    matches!(
+                        error,
+                        IotaError::UserInput {
+                            error: UserInputError::IncorrectUserSignature { .. }
+                        }
+                    ),
+                    "unexpected error for {checks:?}: {error:?}"
+                );
+            }
+            VmChecks::Disabled => {
+                let result = result.expect(
+                    "a dev inspect should accept an owned input owned by a different address",
+                );
+                assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+            }
+        }
     }
 }
 
@@ -1358,8 +2070,208 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     assert_eq!(result.effects.status(), &ExecutionStatus::Success);
 }
 
+/// What one entry point produced for a transaction: the execution status on
+/// success where one is available, or the input-check error.
+type EntryPointResult = Result<Option<ExecutionStatus>, UserInputError>;
+type EntryPointCase = Case<ProgrammableTransaction, fn(&'static str, &EntryPointResult) -> bool>;
+
+/// Runs `pt` through every entry point that applies the input checks: a dry
+/// run and a dev inspect on `fullnode`, and `validator` signing it.
+async fn check_under_all_entry_points(
+    validator: &Arc<AuthorityState>,
+    fullnode: &Arc<AuthorityState>,
+    sender: Address,
+    sender_key: &AccountPrivateKey,
+    gas: ObjectReference,
+    pt: &ProgrammableTransaction,
+) -> Vec<(&'static str, EntryPointResult)> {
+    let mut results: Vec<(&'static str, EntryPointResult)> =
+        simulate_under_both_checks(fullnode, sender, vec![gas], pt)
+            .into_iter()
+            .map(|(checks, result)| {
+                let label = if checks.enabled() {
+                    "dry run"
+                } else {
+                    "dev inspect"
+                };
+                let result = result
+                    .map(|r| Some(r.effects.status().clone()))
+                    .map_err(|error| {
+                        UserInputError::try_from(error)
+                            .unwrap_or_else(|error| panic!("{label}: {error}"))
+                    });
+                (label, result)
+            })
+            .collect();
+
+    let rgp = validator.reference_gas_price_for_testing().unwrap();
+    let tx = Transaction::new_programmable(
+        sender,
+        vec![gas],
+        pt.clone(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        rgp,
+    );
+    let signed = to_sender_signed_transaction(tx, sender_key);
+    let verified = validator
+        .epoch_store_for_testing()
+        .verify_transaction(signed)
+        .unwrap();
+    let epoch_store = validator.load_epoch_store_one_call_per_task();
+    let response = validator.handle_transaction(&epoch_store, verified).await;
+    let label = "validator signing";
+    results.push((
+        label,
+        response.map(|_| None).map_err(|error| {
+            UserInputError::try_from(error).unwrap_or_else(|error| panic!("{label}: {error}"))
+        }),
+    ));
+
+    results
+}
+
+/// The input checks reject the same transaction the same way at every entry
+/// point a transaction can come through: a dry run, a dev inspect, and
+/// validator signing. Where a dev inspect relaxes a check, the case says so.
+#[tokio::test]
+async fn test_input_checks_agree_across_entry_points() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![
+            object_basics_object(package, Owner::Object(ObjectId::random())),
+            object_basics_object(package, Owner::Address(Address::random())),
+            object_basics_object(package, Owner::Shared(OBJECT_START_VERSION)),
+            object_basics_object(package, Owner::Address(sender)),
+            // The two nodes have separate genesis, so a system object taken
+            // from one of them has a digest the other rejects. Insert a shared
+            // object under the authenticator state's id instead, since the
+            // check matches on the id.
+            object_basics_object_with_id(
+                package,
+                ObjectId::AUTHENTICATOR_STATE,
+                Owner::Shared(OBJECT_START_VERSION),
+            ),
+        ]
+    })
+    .await;
+    let [child, foreign, shared, sender_owned, authenticator_state] =
+        <[Object; 5]>::try_from(extra).unwrap();
+    let package = fullnode.get_object(&object_basics).unwrap();
+
+    let owned_pt = |object_ref: ObjectReference| ProgrammableTransaction {
+        inputs: vec![
+            CallArg::ImmutableOrOwned(object_ref),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+    let shared_pt = |shared_ref: SharedObjectReference| ProgrammableTransaction {
+        inputs: vec![
+            CallArg::Shared(shared_ref),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    let cases: [EntryPointCase; 7] = [
+        Case {
+            label: "a package used as an object",
+            input: owned_pt(package.object_ref()),
+            expected: |_entry_point, result| matches!(result, Err(error) if matches!(error, UserInputError::MovePackageAsObject { .. })),
+        },
+        Case {
+            label: "a child object used as owned",
+            input: owned_pt(child.object_ref()),
+            expected: |_entry_point, result| matches!(result, Err(error) if matches!(error, UserInputError::InvalidChildObjectArgument { .. })),
+        },
+        Case {
+            label: "an owned object used as shared",
+            input: shared_pt(SharedObjectReference::new(
+                sender_owned.id(),
+                OBJECT_START_VERSION,
+                true,
+            )),
+            expected: |_entry_point, result| matches!(result, Err(error) if matches!(error, UserInputError::NotSharedObject)),
+        },
+        Case {
+            // The initial shared version is not checked in a dev inspect.
+            label: "a shared object with a wrong initial version",
+            input: shared_pt(SharedObjectReference::new(
+                ObjectId::CLOCK,
+                Version::from(2),
+                false,
+            )),
+            expected: |entry_point, result| {
+                if entry_point == "dev inspect" {
+                    matches!(result, Ok(Some(ExecutionStatus::Success)))
+                } else {
+                    matches!(result, Err(error) if matches!(error, UserInputError::SharedObjectStartingVersionMismatch))
+                }
+            },
+        },
+        Case {
+            // A dev inspect accepts a shared object named as an owned input,
+            // but not one of the system objects with their own input rules.
+            label: "the AuthenticatorState used as owned",
+            input: owned_pt(authenticator_state.object_ref()),
+            expected: |_entry_point, result| matches!(result, Err(error) if matches!(error, UserInputError::NotSharedObject)),
+        },
+        Case {
+            // A dev inspect accepts a shared object named as an owned input.
+            label: "a shared object used as owned",
+            input: owned_pt(shared.object_ref()),
+            expected: |entry_point, result| {
+                if entry_point == "dev inspect" {
+                    matches!(result, Ok(Some(ExecutionStatus::Success)))
+                } else {
+                    matches!(result, Err(error) if matches!(error, UserInputError::NotSharedObject))
+                }
+            },
+        },
+        Case {
+            // The owner check is relaxed for a dev inspect, so this entry point
+            // legitimately does not agree with the other two.
+            label: "an owned input owned by a different address",
+            input: owned_pt(foreign.object_ref()),
+            expected: |entry_point, result| {
+                if entry_point == "dev inspect" {
+                    matches!(result, Ok(Some(ExecutionStatus::Success)))
+                } else {
+                    matches!(result, Err(error) if matches!(error, UserInputError::IncorrectUserSignature { .. }))
+                }
+            },
+        },
+    ];
+
+    for case in cases {
+        let results = check_under_all_entry_points(
+            &validator,
+            &fullnode,
+            sender,
+            &sender_key,
+            gas,
+            &case.input,
+        )
+        .await;
+
+        for (entry_point, result) in &results {
+            assert!(
+                (case.expected)(entry_point, result),
+                "{}: {entry_point} produced an unexpected result: {result:?}",
+                case.label
+            );
+        }
+    }
+}
+
 #[tokio::test]
 async fn test_handle_transfer_transaction_bad_signature() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -1387,11 +2299,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        authority_state
-            .config
-            .network_key_pair()
-            .public()
-            .to_owned(),
+        authority_state.config.network_private_key().public_key(),
     )
     .await
     .unwrap();
@@ -1486,6 +2394,138 @@ async fn test_handle_shared_object_with_max_sequence_number() {
     assert_eq!(
         UserInputError::try_from(response.unwrap_err()).unwrap(),
         UserInputError::InvalidSequenceNumber,
+    );
+}
+
+/// Sequences enough empty commits that every transaction executed so far is
+/// at or below the horizon of the next commit. Validation at a commit does
+/// not see what was executed above its horizon.
+pub async fn sequence_past_executed_transactions(authority: &Arc<AuthorityState>) {
+    let epoch_store = authority.epoch_store_for_testing();
+    let horizon_distance = epoch_store
+        .protocol_config()
+        .pcool_deterministic_validation_horizon_distance();
+    for _ in 0..horizon_distance {
+        let (schedulables, _) = epoch_store
+            .process_consensus_transactions_for_tests(
+                vec![],
+                &Arc::new(CheckpointServiceNoop {}),
+                authority.get_object_cache_reader().as_ref(),
+                &authority.metrics,
+                true,
+                authority,
+            )
+            .await
+            .unwrap();
+        assert!(schedulables.is_empty());
+    }
+}
+
+/// Sequences `transaction` as a `UserTransactionV1` in a commit after
+/// everything executed so far, and returns what that commit schedules, with
+/// the error saved for a drop.
+pub async fn sequence_user_transaction_and_get_drop_error(
+    authority: &Arc<AuthorityState>,
+    transaction: VerifiedTransaction,
+) -> (usize, Option<IotaError>) {
+    sequence_past_executed_transactions(authority).await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let digest = *transaction.digest();
+    let commit_index = epoch_store
+        .handler_object_state_for_testing()
+        .next_commit_index_for_testing();
+    let (schedulables, _) = epoch_store
+        .process_consensus_transactions_for_tests(
+            vec![SequencedConsensusTransaction::new_test(
+                ConsensusTransaction::new_user_transaction(transaction.into()),
+            )],
+            &Arc::new(CheckpointServiceNoop {}),
+            authority.get_object_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority,
+        )
+        .await
+        .unwrap();
+    let saved_drop = epoch_store
+        .post_consensus_decision(commit_index, digest)
+        .unwrap()
+        .filter(|saved| saved.decision != PostConsensusDecision::Kept)
+        .map(|saved| saved.error());
+    (schedulables.len(), saved_drop)
+}
+
+/// The error `transaction` is turned away with: at admission as a certificate
+/// flow transaction, or dropped at the next commit as a `UserTransactionV1`.
+pub async fn rejection_error(
+    authority: &Arc<AuthorityState>,
+    transaction: VerifiedTransaction,
+    user_transaction: bool,
+) -> IotaError {
+    if user_transaction {
+        let (scheduled, error) =
+            sequence_user_transaction_and_get_drop_error(authority, transaction).await;
+        assert_eq!(scheduled, 0);
+        error.expect("the commit must drop the transaction")
+    } else {
+        let epoch_store = authority.load_epoch_store_one_call_per_task();
+        authority
+            .handle_transaction(&epoch_store, transaction)
+            .await
+            .unwrap_err()
+    }
+}
+
+#[tokio::test]
+async fn test_user_transaction_v1_with_max_sequence_number_dropped_at_commit() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let object_id: ObjectId = ObjectId::random();
+    let gas_object_id = ObjectId::random();
+    let authority_state = init_state_with_ids_and_versions(vec![
+        (sender, object_id, Version::MAX_VALID_EXCL),
+        (sender, gas_object_id, Version::default()),
+    ])
+    .await;
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).unwrap();
+    let transfer_transaction = init_transfer_transaction(
+        &authority_state,
+        sender,
+        &sender_key,
+        dbg_addr(2),
+        object.object_ref(),
+        gas_object.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+
+    let (scheduled, error) =
+        sequence_user_transaction_and_get_drop_error(&authority_state, transfer_transaction).await;
+
+    assert_eq!(scheduled, 0);
+    assert_eq!(
+        error,
+        Some(IotaError::UserInput {
+            error: UserInputError::InvalidSequenceNumber
+        })
+    );
+}
+
+#[tokio::test]
+async fn test_user_transaction_v1_shared_object_with_max_sequence_number_dropped_at_commit() {
+    let (authority, _fullnode, transaction, _, _) =
+        construct_shared_object_transaction_with_version(Some(Version::MAX_VALID_EXCL)).await;
+
+    let (scheduled, error) =
+        sequence_user_transaction_and_get_drop_error(&authority, transaction).await;
+
+    assert_eq!(scheduled, 0);
+    assert_eq!(
+        error,
+        Some(IotaError::UserInput {
+            error: UserInputError::InvalidSequenceNumber
+        })
     );
 }
 
@@ -1994,8 +3034,9 @@ async fn test_publish_module_no_dependencies_ok() {
     signed_effects.into_data().status().unwrap();
 }
 
+#[rstest::rstest]
 #[tokio::test]
-async fn test_publish_non_existing_dependent_module() {
+async fn test_publish_non_existing_dependent_module(#[values(false, true)] user_transaction: bool) {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_payment_object_id = ObjectId::random();
     let gas_payment_object = Object::with_id_owner_for_testing(gas_payment_object_id, sender);
@@ -2049,11 +3090,9 @@ async fn test_publish_non_existing_dependent_module() {
     );
     let transaction = to_sender_signed_transaction(tx, &sender_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
-    let response = authority
-        .handle_transaction(&epoch_store, transaction)
-        .await;
+    let error = rejection_error(&authority, transaction, user_transaction).await;
     assert!(matches!(
-        response.unwrap_err(),
+        error,
         IotaError::UserInput {
             error: UserInputError::DependentPackageNotFound { .. }
         }
@@ -2401,8 +3440,9 @@ async fn test_handle_transfer_iota_with_amount_insufficient_gas() {
     assert_eq!(error, &ExecutionError::InsufficientCoinBalance)
 }
 
+#[rstest::rstest]
 #[tokio::test]
-async fn test_missing_package() {
+async fn test_missing_package(#[values(false, true)] user_transaction: bool) {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, _object_basics) =
@@ -2426,17 +3466,16 @@ async fn test_missing_package() {
     .unwrap();
     let transaction = to_sender_signed_transaction(tx, &sender_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
-    let result = authority_state
-        .handle_transaction(&epoch_store, transaction)
-        .await;
+    let error = rejection_error(&authority_state, transaction, user_transaction).await;
     assert!(matches!(
-        UserInputError::try_from(result.unwrap_err()).unwrap(),
+        UserInputError::try_from(error).unwrap(),
         UserInputError::DependentPackageNotFound { .. }
     ));
 }
 
+#[rstest::rstest]
 #[tokio::test]
-async fn test_type_argument_dependencies() {
+async fn test_type_argument_dependencies(#[values(false, true)] user_transaction: bool) {
     let (s1, s1_key): (_, AccountPrivateKey) = get_key_pair();
     let (s2, s2_key): (_, AccountPrivateKey) = get_key_pair();
     let (s3, s3_key): (_, AccountPrivateKey) = get_key_pair();
@@ -2526,12 +3565,10 @@ async fn test_type_argument_dependencies() {
     .unwrap();
     let transaction = to_sender_signed_transaction(tx, &s3_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
-    let result = authority_state
-        .handle_transaction(&epoch_store, transaction)
-        .await;
+    let error = rejection_error(&authority_state, transaction, user_transaction).await;
 
     assert!(matches!(
-        UserInputError::try_from(result.unwrap_err()).unwrap(),
+        UserInputError::try_from(error).unwrap(),
         UserInputError::DependentPackageNotFound { .. }
     ));
 }
@@ -3150,12 +4187,20 @@ async fn test_authority_persist() {
     let tmp_dir = iota_common::tempdir();
     let path = tmp_dir.path().to_path_buf();
 
-    let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));
+    let (perpetual_tables, historic_objects, historic_ledger, epoch_markers) =
+        AuthorityPerpetualTables::open_with_historic_objects(&path, None).unwrap();
+    let historic_ledger = Arc::new(historic_ledger);
     // Create an authority
-    let store =
-        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis)
-            .await
-            .unwrap();
+    let store = AuthorityStore::open_with_committee_for_testing(
+        Arc::new(perpetual_tables),
+        Arc::new(historic_objects),
+        historic_ledger.clone(),
+        Arc::new(epoch_markers),
+        &committee,
+        &genesis,
+    )
+    .await
+    .unwrap();
     let authority = init_state(&genesis, authority_key, store).await;
 
     // Create an object
@@ -3168,6 +4213,8 @@ async fn test_authority_persist() {
 
     // Close the authority
     drop(authority);
+    // The ledger buckets hold their own reference to the database.
+    drop(historic_ledger);
 
     // TODO: The right fix is to invoke some function on DBMap and release the
     // rocksdb arc references being held in the background thread but this will
@@ -3178,11 +4225,18 @@ async fn test_authority_persist() {
     let seed = [1u8; 32];
     let (genesis, authority_key) = init_state_parameters_from_rng(&mut StdRng::from_seed(seed));
     let committee = genesis.committee().unwrap();
-    let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));
-    let store =
-        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis)
-            .await
-            .unwrap();
+    let (perpetual_tables, historic_objects, historic_ledger, epoch_markers) =
+        AuthorityPerpetualTables::open_with_historic_objects(&path, None).unwrap();
+    let store = AuthorityStore::open_with_committee_for_testing(
+        Arc::new(perpetual_tables),
+        Arc::new(historic_objects),
+        Arc::new(historic_ledger),
+        Arc::new(epoch_markers),
+        &committee,
+        &genesis,
+    )
+    .await
+    .unwrap();
     let authority2 = init_state(&genesis, authority_key, store).await;
     let obj2 = authority2.get_object(&object_id).unwrap();
 
@@ -3600,6 +4654,124 @@ fn build_and_commit(
     cache_commit.commit_transaction_outputs(epoch, batch, txs);
 }
 
+/// Response-assembling reads find the versions a checkpoint commit moved into
+/// the historic buckets. The pre-images are genesis objects, so no cached copy
+/// can answer instead.
+#[tokio::test]
+async fn test_response_reads_resolve_relocated_versions() {
+    use iota_types::storage::{ObjectKey, ObjectStore};
+    use typed_store::Map;
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let recipient = dbg_addr(2);
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
+    let authority_state =
+        init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
+
+    let transferred_pre_image = authority_state.get_object(&object_id).unwrap();
+    let gas_pre_image = authority_state.get_object(&gas_object_id).unwrap();
+
+    let certificate = init_certified_transfer_transaction(
+        sender,
+        &sender_key,
+        recipient,
+        transferred_pre_image.object_ref(),
+        gas_pre_image.object_ref(),
+        &authority_state,
+    );
+    let effects = authority_state
+        .wait_for_certificate_execution(&certificate, &authority_state.epoch_store_for_testing())
+        .await
+        .unwrap();
+    effects.status().unwrap();
+
+    build_and_commit(
+        authority_state.get_cache_commit(),
+        authority_state.epoch_store_for_testing().epoch(),
+        &[*effects.transaction_digest()],
+        0,
+    );
+
+    let perpetual = &authority_state.database_for_testing().perpetual_tables;
+    for pre_image in [&transferred_pre_image, &gas_pre_image] {
+        let key = ObjectKey(pre_image.id(), pre_image.version());
+        assert_eq!(
+            perpetual.objects.get(&key).unwrap(),
+            None,
+            "the commit must have moved {key:?} out of the live table"
+        );
+    }
+
+    // Serves `iota_tryGetPastObject` and the JSON-RPC balance- and
+    // object-change assembly.
+    let past_object = authority_state
+        .get_past_object_read(&object_id, transferred_pre_image.version())
+        .unwrap();
+    match past_object {
+        PastObjectRead::VersionFound(_, object, _) => {
+            assert_eq!(object, transferred_pre_image)
+        }
+        other => panic!("expected the relocated version, got {other:?}"),
+    }
+
+    // Serves fullnode execute-transaction responses and validator gRPC
+    // responses.
+    let input_objects = authority_state
+        .get_transaction_input_objects(&effects)
+        .unwrap();
+    for pre_image in [&transferred_pre_image, &gas_pre_image] {
+        assert!(
+            input_objects.contains(pre_image),
+            "the input objects must carry the relocated {:?}",
+            pre_image.id()
+        );
+    }
+
+    // Serves the gRPC read API, which reads the same pre-images through its
+    // own store rather than through `AuthorityState`.
+    let grpc_read_store = GrpcReadStore::new(
+        authority_state.clone(),
+        RocksDbStore::new(
+            authority_state.execution_cache_trait_pointers.clone(),
+            authority_state.committee_store().clone(),
+            authority_state.checkpoint_store.clone(),
+        ),
+    );
+    for pre_image in [&transferred_pre_image, &gas_pre_image] {
+        assert_eq!(
+            grpc_read_store
+                .try_get_object_by_key(&pre_image.id(), pre_image.version())
+                .unwrap()
+                .as_ref(),
+            Some(pre_image),
+            "the gRPC read store must serve the relocated version"
+        );
+    }
+
+    // Serves the JSON-RPC owner, coin and stake reads, which resolve an index
+    // row by the version it names, and a commit moves that version before
+    // the index update for its checkpoint is written.
+    let object_store = authority_state.object_store_with_historic_fallback();
+    for pre_image in [&transferred_pre_image, &gas_pre_image] {
+        assert_eq!(
+            object_store
+                .try_get_object_by_key(&pre_image.id(), pre_image.version())
+                .unwrap()
+                .as_ref(),
+            Some(pre_image),
+            "the owner reads must serve the relocated version"
+        );
+    }
+    let keys = [&transferred_pre_image, &gas_pre_image]
+        .map(|pre_image| ObjectKey(pre_image.id(), pre_image.version()));
+    assert_eq!(
+        object_store.try_multi_get_objects_by_key(&keys).unwrap(),
+        vec![Some(transferred_pre_image), Some(gas_pre_image)],
+        "a batched read must serve the relocated versions too"
+    );
+}
+
 #[tokio::test]
 async fn test_store_revert_wrap_move_call() {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
@@ -3802,7 +4974,350 @@ async fn test_store_get_dynamic_field() {
     assert_eq!(TypeTag::Bool, fields[0].name.type_tag)
 }
 
+/// `AuthorityState::get_owner_objects` returns exactly the sender's
+/// address-owned objects, not the object-owned field.
+#[tokio::test]
+async fn test_owner_objects_queryable_through_authority_state() {
+    let (authority_state, outer_id, gas_object_id, sender, fields) =
+        create_and_retrieve_df(&Identifier::from_static("add_field")).await;
+
+    let mut owned: Vec<_> = authority_state
+        .get_owner_objects(sender, None, 50, None, usize::MAX)
+        .unwrap()
+        .0
+        .iter()
+        .map(|(object, _)| object.id())
+        .collect();
+    owned.sort();
+    let mut expected = vec![gas_object_id, outer_id];
+    expected.sort();
+    assert_eq!(
+        owned, expected,
+        "the sender's objects must be served through the owner index"
+    );
+    assert!(
+        !owned.contains(&fields[0].object_id),
+        "the object-owned field must not appear under the sender"
+    );
+}
+
+/// `AuthorityState::get_dynamic_fields` returns one entry per index row, with
+/// `None` for a field that no longer resolves, so page sizes and cursors hold.
+#[tokio::test]
+async fn test_get_dynamic_fields_returns_one_entry_per_index_row() {
+    use typed_store::Map;
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let indexes = authority_state.rpc_indexes_store.clone().unwrap();
+
+    let parent = ObjectId::random();
+    // Index rows whose objects do not exist: unresolvable fields.
+    let mut ids: Vec<ObjectId> = (0..3).map(|_| ObjectId::random()).collect();
+    ids.sort();
+    for field_id in &ids {
+        indexes
+            .tables()
+            .dynamic_field
+            .insert(
+                &iota_types::storage::DynamicFieldKey::new(parent, *field_id),
+                &(),
+            )
+            .unwrap();
+    }
+
+    let rows = authority_state.get_dynamic_fields(parent, None, 2).unwrap();
+    assert_eq!(
+        rows.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+        ids[..2],
+        "each index row must occupy one slot, resolvable or not"
+    );
+    assert!(rows.iter().all(|(_, info)| info.is_none()));
+
+    // The cursor continues from the last returned row.
+    let rows = authority_state
+        .get_dynamic_fields(parent, Some(ids[1]), 2)
+        .unwrap();
+    assert_eq!(rows.iter().map(|(id, _)| *id).collect::<Vec<_>>(), ids[2..]);
+}
+
+/// A node with executed checkpoints but no index database, as after a
+/// formal-snapshot restore, rebuilds the RPC indexes on open.
+#[tokio::test]
+async fn test_rpc_index_rebuild_on_open() {
+    let authority_state = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .build()
+        .await;
+
+    let owner = dbg_addr(1);
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    authority_state.insert_genesis_objects(std::slice::from_ref(&gas_object));
+
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&genesis_checkpoint)
+        .unwrap();
+
+    let index_dir = iota_common::tempdir();
+    let index_store = crate::rpc_indexes::RpcIndexesStore::new(
+        index_dir.path().to_path_buf(),
+        None,
+        &prometheus_filtered::Registry::default(),
+        std::collections::BTreeSet::from([crate::rpc_indexes::IndexGroup::JsonRpc]),
+        Some(128),
+        None,
+        &authority_state.database_for_testing(),
+        checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+
+    // The live-object scan finished before the open returned: the object
+    // that is in no local checkpoint is already indexed.
+    let owned: Vec<_> = index_store
+        .get_owner_objects(
+            owner,
+            None,
+            10,
+            None,
+            usize::MAX,
+            authority_state.get_object_store().as_ref(),
+        )
+        .unwrap()
+        .0;
+    assert_eq!(owned.len(), 1);
+    assert_eq!(owned[0].0.id(), gas_object.id());
+    let balance = index_store
+        .get_balance(owner, TypeTag::from(StructTag::new_gas()))
+        .unwrap();
+    assert_eq!(balance.num_coins, 1);
+
+    // The background history replay indexes the genesis transaction.
+    index_store.wait_for_history_backfill_for_testing().await;
+    let genesis_contents = checkpoint_store
+        .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
+        .unwrap()
+        .unwrap();
+    let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
+    assert_eq!(
+        index_store.lookup_digest(&genesis_tx_digest).unwrap(),
+        Some(0)
+    );
+}
+
+/// History replay needs no objects, so it covers checkpoints whose object
+/// versions have expired.
+#[tokio::test]
+async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
+    use typed_store::Map;
+
+    let authority_state = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .build()
+        .await;
+
+    let owner = dbg_addr(1);
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    authority_state.insert_genesis_objects(std::slice::from_ref(&gas_object));
+
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&genesis_checkpoint)
+        .unwrap();
+
+    // Delete a genesis output object, as an expired bucket would.
+    let genesis_contents = checkpoint_store
+        .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
+        .unwrap()
+        .unwrap();
+    let genesis_digests = genesis_contents.iter().next().unwrap();
+    let genesis_effects = authority_state
+        .database_for_testing()
+        .get_effects(&genesis_digests.effects)
+        .unwrap()
+        .unwrap();
+    let pruned_ref = *genesis_effects.created()[0].reference();
+    authority_state
+        .database_for_testing()
+        .perpetual_tables
+        .objects
+        .remove(&iota_types::storage::ObjectKey(
+            pruned_ref.object_id,
+            pruned_ref.version,
+        ))
+        .unwrap();
+
+    let index_dir = iota_common::tempdir();
+    let index_store = crate::rpc_indexes::RpcIndexesStore::new(
+        index_dir.path().to_path_buf(),
+        None,
+        &prometheus_filtered::Registry::default(),
+        std::collections::BTreeSet::from([crate::rpc_indexes::IndexGroup::JsonRpc]),
+        Some(128),
+        None,
+        &authority_state.database_for_testing(),
+        checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+
+    index_store.wait_for_history_backfill_for_testing().await;
+    let genesis_tx_digest = genesis_digests.transaction;
+    assert_eq!(
+        index_store.lookup_digest(&genesis_tx_digest).unwrap(),
+        Some(0)
+    );
+
+    let owned: Vec<_> = index_store
+        .get_owner_objects(
+            owner,
+            None,
+            10,
+            None,
+            usize::MAX,
+            authority_state.get_object_store().as_ref(),
+        )
+        .unwrap()
+        .0;
+    assert_eq!(owned.len(), 1);
+    assert_eq!(owned[0].0.id(), gas_object.id());
+}
+
+/// History replay skips checkpoints below the pruned watermark, while the
+/// live-object scan still covers the live state.
+#[tokio::test]
+async fn test_rpc_index_rebuild_skips_contents_pruned_checkpoints() {
+    let authority_state = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .build()
+        .await;
+
+    let owner = dbg_addr(1);
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    authority_state.insert_genesis_objects(std::slice::from_ref(&gas_object));
+
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&genesis_checkpoint)
+        .unwrap();
+    checkpoint_store
+        .update_highest_pruned_checkpoint(&genesis_checkpoint)
+        .unwrap();
+
+    let index_dir = iota_common::tempdir();
+    let index_store = crate::rpc_indexes::RpcIndexesStore::new(
+        index_dir.path().to_path_buf(),
+        None,
+        &prometheus_filtered::Registry::default(),
+        std::collections::BTreeSet::from([crate::rpc_indexes::IndexGroup::JsonRpc]),
+        Some(128),
+        None,
+        &authority_state.database_for_testing(),
+        checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+
+    index_store.wait_for_history_backfill_for_testing().await;
+    let genesis_contents = checkpoint_store
+        .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
+        .unwrap()
+        .unwrap();
+    let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
+    assert_eq!(index_store.lookup_digest(&genesis_tx_digest).unwrap(), None);
+
+    let owned: Vec<_> = index_store
+        .get_owner_objects(
+            owner,
+            None,
+            10,
+            None,
+            usize::MAX,
+            authority_state.get_object_store().as_ref(),
+        )
+        .unwrap()
+        .0;
+    assert_eq!(owned.len(), 1);
+    assert_eq!(owned[0].0.id(), gas_object.id());
+}
+
+/// Runs an executed transaction through the per-checkpoint RPC indexing
+/// path, as the checkpoint executor does after executing a checkpoint.
+fn rpc_index_transaction(
+    authority_state: &AuthorityState,
+    checkpoint_seq: CheckpointSequenceNumber,
+    transaction: TransactionEnvelope,
+    effects: TransactionEffects,
+) {
+    let events = effects.events_digest().map(|_| {
+        authority_state
+            .get_transaction_events(effects.transaction_digest())
+            .unwrap()
+    });
+    let input_objects = authority_state
+        .get_transaction_input_objects(&effects)
+        .unwrap();
+    let output_objects = authority_state
+        .get_transaction_output_objects(&effects)
+        .unwrap();
+
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let checkpoint_data = CheckpointData {
+        checkpoint_summary: crate::test_utils::executed_checkpoint(
+            epoch_store.epoch(),
+            checkpoint_seq,
+        )
+        .into_inner(),
+        checkpoint_contents: CheckpointContents::new_with_digests_only_for_tests([
+            ExecutionDigests::new(*effects.transaction_digest(), effects.digest()),
+        ]),
+        transactions: vec![CheckpointTransaction {
+            transaction,
+            effects,
+            events,
+            input_objects,
+            output_objects,
+        }],
+    };
+
+    let rpc_indexes_store = authority_state.rpc_indexes_store.as_ref().unwrap();
+    rpc_indexes_store
+        .index_checkpoint(&checkpoint_data)
+        .unwrap();
+    rpc_indexes_store
+        .commit_update_for_checkpoint(checkpoint_seq)
+        .unwrap();
+}
+
 async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<DynamicFieldInfo>) {
+    let (_, _, _, sender, fields) = create_and_retrieve_df(function).await;
+    (sender, fields)
+}
+
+async fn create_and_retrieve_df(
+    function: &Identifier,
+) -> (
+    Arc<AuthorityState>,
+    ObjectId,
+    ObjectId,
+    Address,
+    Vec<DynamicFieldInfo>,
+) {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
@@ -3860,7 +5375,7 @@ async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<Dyn
         &sender_key,
     );
 
-    let add_cert = init_certified_transaction(add_txn, &authority_state);
+    let add_cert = init_certified_transaction(add_txn.clone(), &authority_state);
 
     let add_effects = authority_state
         .execute_for_test(&add_cert, ExecutionEnv::new())
@@ -3874,15 +5389,55 @@ async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<Dyn
     );
     assert_eq!(add_effects.created().len(), 1);
 
+    rpc_index_transaction(&authority_state, 0, add_txn, add_effects);
+
+    let fields = authority_state
+        .get_dynamic_fields(outer_v0.object_id, None, usize::MAX)
+        .unwrap()
+        .into_iter()
+        .filter_map(|x| x.1)
+        .collect();
     (
+        authority_state,
+        outer_v0.object_id,
+        gas_object_id,
         sender,
-        authority_state
-            .get_dynamic_fields(outer_v0.object_id, None, usize::MAX)
-            .unwrap()
-            .into_iter()
-            .map(|x| x.1)
-            .collect(),
+        fields,
     )
+}
+
+/// `get_dynamic_field_object_id` resolves a dynamic object field to the value
+/// object's id, also when given the wrapped name type, and a plain dynamic
+/// field to the `Field` object's id.
+#[tokio::test]
+async fn test_dynamic_object_field_lookup_with_wrapped_name_type() {
+    let (authority_state, parent, _, _, fields) =
+        create_and_retrieve_df(&Identifier::from_static("add_ofield_with_address_name")).await;
+    assert_eq!(fields.len(), 1);
+    let value_object_id = fields[0].object_id;
+    let name_type = fields[0].name.type_tag.clone();
+
+    let id = authority_state
+        .get_dynamic_field_object_id(parent, name_type.clone(), &fields[0].bcs_name)
+        .unwrap();
+    assert_eq!(id, Some(value_object_id));
+
+    let wrapped_name_type = TypeTag::Struct(Box::new(
+        DynamicFieldInfo::dynamic_object_field_wrapper(name_type),
+    ));
+    let id = authority_state
+        .get_dynamic_field_object_id(parent, wrapped_name_type, &fields[0].bcs_name)
+        .unwrap();
+    assert_eq!(id, Some(value_object_id));
+
+    // A plain dynamic field's id is the `Field` object's own.
+    let (authority_state, parent, _, _, fields) =
+        create_and_retrieve_df(&Identifier::from_static("add_field_with_address_name")).await;
+    assert_eq!(fields.len(), 1);
+    let id = authority_state
+        .get_dynamic_field_object_id(parent, fields[0].name.type_tag.clone(), &fields[0].bcs_name)
+        .unwrap();
+    assert_eq!(id, Some(fields[0].object_id));
 }
 
 #[tokio::test]
@@ -3969,6 +5524,140 @@ async fn test_dynamic_object_field_address_name_parsing() {
         fields[0].name.type_tag
     );
     assert_eq!(json!(sender), fields[0].name.value);
+}
+
+/// Serves several versions of the same object, the highest as the live one.
+struct VersionedObjects(Vec<Object>);
+
+impl iota_types::storage::ObjectStore for VersionedObjects {
+    fn try_get_object(
+        &self,
+        object_id: &ObjectId,
+    ) -> iota_types::storage::error::Result<Option<Object>> {
+        Ok(self
+            .0
+            .iter()
+            .filter(|o| o.id() == *object_id)
+            .max_by_key(|o| o.version())
+            .cloned())
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectId,
+        version: iota_types::base_types::VersionNumber,
+    ) -> iota_types::storage::error::Result<Option<Object>> {
+        Ok(self
+            .0
+            .iter()
+            .find(|o| o.id() == *object_id && o.version() == version)
+            .cloned())
+    }
+}
+
+/// A dynamic object field resolves to its child's latest version, and to
+/// nothing when the child is gone.
+#[tokio::test]
+async fn test_dynamic_object_field_child_is_read_at_its_latest_version() {
+    use iota_sdk_types::ObjectData;
+    use iota_types::object::MoveStructExt;
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object_id = ObjectId::random();
+    let (authority_state, object_basics) =
+        init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
+
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let create_outer_effects = create_move_object(
+        &object_basics.object_id,
+        &authority_state,
+        &gas_object_id,
+        &sender,
+        &sender_key,
+    )
+    .await
+    .unwrap();
+    let create_inner_effects = create_move_object(
+        &object_basics.object_id,
+        &authority_state,
+        &gas_object_id,
+        &sender,
+        &sender_key,
+    )
+    .await
+    .unwrap();
+    let outer_v0 = *create_outer_effects.created()[0].reference();
+    let inner_v0 = *create_inner_effects.created()[0].reference();
+
+    let add_txn = to_sender_signed_transaction(
+        Transaction::new_move_call(
+            sender,
+            object_basics.object_id,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("add_ofield"),
+            vec![],
+            *create_inner_effects.gas_object().reference(),
+            vec![
+                CallArg::ImmutableOrOwned(outer_v0),
+                CallArg::ImmutableOrOwned(inner_v0),
+            ],
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
+            rgp,
+        )
+        .unwrap(),
+        &sender_key,
+    );
+    let add_cert = init_certified_transaction(add_txn, &authority_state);
+    let add_effects = authority_state
+        .execute_for_test(&add_cert, ExecutionEnv::new())
+        .0
+        .into_message();
+    assert!(add_effects.status().is_success());
+
+    let wrapper = authority_state
+        .get_object(&add_effects.created()[0].reference().object_id)
+        .unwrap();
+    let child = authority_state.get_object(&inner_v0.object_id).unwrap();
+
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let mut layout_resolver = epoch_store.executor().type_layout_resolver(Box::new(
+        authority_state.get_backing_package_store().clone(),
+    ));
+    let resolve =
+        |object_store: &dyn iota_types::storage::ObjectStore,
+         layout_resolver: &mut dyn iota_types::layout_resolver::LayoutResolver| {
+            crate::rpc_indexes::jsonrpc_api::try_create_dynamic_field_info(
+                &wrapper,
+                object_store,
+                layout_resolver,
+            )
+            .unwrap()
+        };
+
+    let info = resolve(
+        authority_state.get_object_store().as_ref(),
+        layout_resolver.as_mut(),
+    )
+    .unwrap();
+    assert!(matches!(info.type_, DynamicFieldType::DynamicObject));
+    assert_eq!(info.object_id, inner_v0.object_id);
+    assert_eq!(info.version, child.version());
+
+    // `borrow_mut` leaves the wrapper at its old version.
+    let mut mutated_child = child.clone();
+    let bumped = child.version().next().unwrap();
+    match &mut mutated_child.data {
+        ObjectData::Struct(move_object) => move_object.increment_version_to(bumped),
+        _ => panic!("the child must be a move object"),
+    }
+    let both_versions = VersionedObjects(vec![child, mutated_child]);
+    let info = resolve(&both_versions, layout_resolver.as_mut()).unwrap();
+    assert_eq!(
+        info.version, bumped,
+        "the child must be read at its latest version, not the wrapper's"
+    );
+
+    assert!(resolve(&VersionedObjects(vec![]), layout_resolver.as_mut()).is_none());
 }
 
 #[tokio::test]
@@ -4920,7 +6609,61 @@ async fn make_test_transaction(
     gas_price: Option<u64>,
     gas_budget: Option<u64>,
 ) -> VerifiedCertificate {
-    // Make a sample transaction.
+    let transaction = make_signed_test_transaction(
+        sender,
+        sender_key,
+        owned_objects,
+        shared_objects,
+        gas_object_ref,
+        authorities,
+        arg_value,
+        gas_price,
+        gas_budget,
+    );
+
+    let committee = authorities[0].clone_committee_for_testing();
+    let mut sigs = vec![];
+
+    for authority in authorities {
+        use iota_types::transaction::CertifiedTransaction;
+
+        let epoch_store = authority.load_epoch_store_one_call_per_task();
+        let transaction = transaction.clone();
+        let transaction = epoch_store.verify_transaction(transaction).unwrap();
+        let response = authority
+            .handle_transaction(&epoch_store, transaction.clone())
+            .await
+            .unwrap();
+        let vote = response.status.into_signed_for_testing();
+        sigs.push(vote);
+        if let Ok(cert) =
+            CertifiedTransaction::new(transaction.clone().into_message(), sigs.clone(), &committee)
+        {
+            return cert
+                .try_into_verified_for_testing(
+                    &committee,
+                    &VerifyParams::from_protocol_config(epoch_store.protocol_config()),
+                )
+                .unwrap();
+        }
+    }
+
+    unreachable!("couldn't form cert")
+}
+
+/// Signs the `object_basics::set_value` call that `make_test_transaction`
+/// certifies.
+fn make_signed_test_transaction(
+    sender: &Address,
+    sender_key: &AccountPrivateKey,
+    owned_objects: &[Object],
+    shared_objects: &[(ObjectId, Version, bool)],
+    gas_object_ref: &ObjectReference,
+    authorities: &[&AuthorityState],
+    arg_value: u64,
+    gas_price: Option<u64>,
+    gas_budget: Option<u64>,
+) -> TransactionEnvelope {
     let module = "object_basics";
     let function = "set_value";
 
@@ -4959,33 +6702,51 @@ async fn make_test_transaction(
     )
     .unwrap();
 
-    let transaction = to_sender_signed_transaction(tx, sender_key);
+    to_sender_signed_transaction(tx, sender_key)
+}
 
-    let committee = authorities[0].clone_committee_for_testing();
-    let mut sigs = vec![];
-
-    for authority in authorities {
-        use iota_types::transaction::CertifiedTransaction;
-
-        let epoch_store = authority.load_epoch_store_one_call_per_task();
-        let transaction = transaction.clone();
-        let transaction = epoch_store.verify_transaction(transaction).unwrap();
-        let response = authority
-            .handle_transaction(&epoch_store, transaction.clone())
-            .await
-            .unwrap();
-        let vote = response.status.into_signed_for_testing();
-        sigs.push(vote.clone());
-        if let Ok(cert) =
-            CertifiedTransaction::new(transaction.clone().into_message(), sigs.clone(), &committee)
-        {
-            return cert
-                .try_into_verified_for_testing(&committee, &Default::default())
-                .unwrap();
-        }
+/// `make_test_transaction` for the certificate flow, or the same transaction
+/// left as a `UserTransactionV1` when `pcool` is set.
+async fn make_test_transaction_for_flow(
+    pcool: bool,
+    sender: &Address,
+    sender_key: &AccountPrivateKey,
+    owned_objects: &[Object],
+    shared_objects: &[(ObjectId, Version, bool)],
+    gas_object_ref: &ObjectReference,
+    authorities: &[&AuthorityState],
+    arg_value: u64,
+    gas_price: Option<u64>,
+    gas_budget: Option<u64>,
+) -> TestTransaction {
+    if pcool {
+        TestTransaction::UserTransaction(make_signed_test_transaction(
+            sender,
+            sender_key,
+            owned_objects,
+            shared_objects,
+            gas_object_ref,
+            authorities,
+            arg_value,
+            gas_price,
+            gas_budget,
+        ))
+    } else {
+        TestTransaction::Certificate(
+            make_test_transaction(
+                sender,
+                sender_key,
+                owned_objects,
+                shared_objects,
+                gas_object_ref,
+                authorities,
+                arg_value,
+                gas_price,
+                gas_budget,
+            )
+            .await,
+        )
     }
-
-    unreachable!("couldn't form cert")
 }
 
 async fn prepare_authority_and_shared_object_cert()
@@ -5062,6 +6823,7 @@ async fn test_execute_randomness_state_update_records_key_to_digest() {
     let key = TransactionKey::RandomnessRound(epoch_store.epoch(), round);
     assert_eq!(epoch_store.tx_key_to_digest(&key).unwrap(), None);
 
+    epoch_store.assign_to_a_new_commit_for_testing(&[key]);
     authority
         .try_execute_immediately(
             &transaction,
@@ -5200,15 +6962,19 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
         // Submit as UserTransactionV1 — no certificates needed.
         let transactions = vec![
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(shared_tx)),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(shared_tx, None),
+                )),
                 tracking_id: Default::default(),
             }),
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(clock_tx)),
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    AttestedTransaction::new(clock_tx, None),
+                )),
                 tracking_id: Default::default(),
             }),
         ];
-        authority_state
+        let (scheduled, assigned_versions) = authority_state
             .epoch_store_for_testing()
             .process_consensus_transactions_for_tests(
                 transactions,
@@ -5219,7 +6985,8 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
                 &authority_state,
             )
             .await
-            .unwrap()
+            .unwrap();
+        (drop_attestations(scheduled), assigned_versions)
     } else {
         // Submit as certificates (original path).
         let mut certificates = vec![];
@@ -5411,6 +7178,216 @@ async fn test_consensus_message_processed() {
             .epoch_store_for_testing()
             .get_next_object_version(&shared_object_id),
     );
+}
+
+/// The `UserTransactionV1` counterpart of `test_consensus_message_processed`.
+/// On the first validator every transaction is sequenced, executed, then
+/// sequenced again in a later commit. On the second validator it is either
+/// sequenced first, or executed from the first validator's effects before it
+/// is sequenced. Every copy after the first must change nothing.
+#[tokio::test]
+async fn test_user_transaction_v1_sequenced_in_two_commits() {
+    telemetry_subscribers::init_for_testing();
+
+    const ITERATIONS: u32 = 8;
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_objects = create_gas_objects(ITERATIONS, sender);
+    let shared_object_id = ObjectId::random();
+    let shared_object = {
+        let move_struct = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+        let owner = Owner::Shared(move_struct.version());
+        Object::new_move(move_struct, owner, TransactionDigest::GENESIS_MARKER)
+    };
+    let initial_shared_version = shared_object.version();
+    let mut genesis_objects = gas_objects.clone();
+    genesis_objects.push(shared_object);
+
+    let dir = tempfile::TempDir::new().unwrap();
+    let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir)
+        .committee_size(2.try_into().unwrap())
+        .with_objects(genesis_objects.clone())
+        .build();
+    let genesis = network_config.genesis;
+    let key1 = network_config.validator_configs[0]
+        .authority_key_pair()
+        .copy();
+    let key2 = network_config.validator_configs[1]
+        .authority_key_pair()
+        .copy();
+    let authority1 =
+        init_state_with_objects_and_committee(genesis_objects.clone(), &genesis, &key1).await;
+    let authority2 = init_state_with_objects_and_committee(genesis_objects, &genesis, &key2).await;
+    let rgp = authority1.reference_gas_price_for_testing().unwrap();
+
+    let sequence = |authority: Arc<AuthorityState>, transaction: TransactionEnvelope| async move {
+        let (schedulables, assigned_versions) = authority
+            .epoch_store_for_testing()
+            .process_consensus_transactions_for_tests(
+                vec![SequencedConsensusTransaction::new_test(
+                    ConsensusTransaction::new_user_transaction(transaction),
+                )],
+                &Arc::new(CheckpointServiceNoop {}),
+                authority.get_object_cache_reader().as_ref(),
+                &authority.metrics,
+                true,
+                &authority,
+            )
+            .await
+            .unwrap();
+        (
+            schedulables
+                .into_iter()
+                .map(|schedulable| schedulable.as_tx().unwrap().clone())
+                .collect::<Vec<_>>(),
+            assigned_versions.into_map(),
+        )
+    };
+    let execute = |authority: Arc<AuthorityState>,
+                   executable: VerifiedExecutableTransaction,
+                   assigned_versions: Vec<VersionAssignment>| async move {
+        let epoch_store = authority.epoch_store_for_testing();
+        let digest = *executable.digest();
+        epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
+        authority.execution_scheduler().enqueue_transactions(
+            vec![(
+                executable,
+                ExecutionEnv::new().with_assigned_versions(assigned_versions),
+            )],
+            &epoch_store,
+        );
+        tokio::time::timeout(
+            std::time::Duration::from_secs(20),
+            authority
+                .get_transaction_cache_reader()
+                .try_notify_read_executed_effects("", &[digest]),
+        )
+        .await
+        .expect("the transaction did not execute")
+        .unwrap()
+        .pop()
+        .unwrap()
+    };
+    let next_version = |authority: &AuthorityState| {
+        authority
+            .epoch_store_for_testing()
+            .get_next_object_version(&shared_object_id)
+    };
+
+    // Every combination of the second validator's two choices, twice.
+    let choices = [(false, false), (false, true), (true, false), (true, true)]
+        .into_iter()
+        .cycle();
+    for (gas_object, (sequenced_first, sequenced_again)) in gas_objects.iter().zip(choices) {
+        let gas_ref = authority1
+            .get_object(&gas_object.id())
+            .unwrap()
+            .object_ref();
+        let data = Transaction::new_move_call(
+            sender,
+            ObjectId::FRAMEWORK,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("create"),
+            vec![],
+            gas_ref,
+            vec![
+                CallArg::Shared(SharedObjectReference::new(
+                    shared_object_id,
+                    initial_shared_version,
+                    true,
+                )),
+                CallArg::Pure(16u64.to_le_bytes().to_vec()),
+                CallArg::pure(&AccountAddress::new(sender.into_bytes())),
+            ],
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
+            rgp,
+        )
+        .unwrap();
+        let transaction: TransactionEnvelope = authority1
+            .epoch_store_for_testing()
+            .verify_transaction(to_sender_signed_transaction(data, &sender_key))
+            .unwrap()
+            .into();
+        let digest = *transaction.digest();
+
+        let (mut executables, assigned_versions) =
+            sequence(authority1.clone(), transaction.clone()).await;
+        assert_eq!(executables.len(), 1);
+        let executable = executables.pop().unwrap();
+        let effects1 = execute(
+            authority1.clone(),
+            executable.clone(),
+            assigned_versions
+                .get(&executable.key())
+                .cloned()
+                .unwrap_or_default(),
+        )
+        .await;
+        let next_version1 = next_version(&authority1);
+
+        let (second_copy, second_copy_versions) =
+            sequence(authority1.clone(), transaction.clone()).await;
+        assert!(
+            second_copy.is_empty(),
+            "a second copy must not be scheduled"
+        );
+        assert!(second_copy_versions.is_empty());
+        assert_eq!(next_version1, next_version(&authority1));
+        assert_eq!(
+            authority1
+                .get_transaction_cache_reader()
+                .get_executed_effects(&digest)
+                .unwrap(),
+            effects1
+        );
+
+        let effects2 = if sequenced_first {
+            let (mut executables, assigned_versions) =
+                sequence(authority2.clone(), transaction.clone()).await;
+            assert_eq!(executables.len(), 1);
+            let executable = executables.pop().unwrap();
+            let assigned = assigned_versions
+                .get(&executable.key())
+                .cloned()
+                .unwrap_or_default();
+            execute(authority2.clone(), executable, assigned).await
+        } else {
+            let assigned = authority2
+                .epoch_store_for_testing()
+                .acquire_shared_version_assignments_from_effects(
+                    &executable,
+                    &effects1,
+                    authority2.get_object_cache_reader().as_ref(),
+                )
+                .unwrap();
+            let effects2 = execute(authority2.clone(), executable, assigned).await;
+            // The first commit holding it keeps it, so that it reaches the
+            // checkpoint as on the first validator; the scheduler skips running
+            // it again.
+            let (scheduled, _) = sequence(authority2.clone(), transaction.clone()).await;
+            assert_eq!(
+                scheduled
+                    .iter()
+                    .map(|executable| *executable.digest())
+                    .collect::<Vec<_>>(),
+                vec![digest]
+            );
+            effects2
+        };
+        if sequenced_again {
+            let (scheduled, _) = sequence(authority2.clone(), transaction.clone()).await;
+            assert!(scheduled.is_empty());
+        }
+
+        assert_eq!(effects1, effects2);
+        assert_eq!(
+            authority2
+                .get_transaction_cache_reader()
+                .get_executed_effects(&digest)
+                .unwrap(),
+            effects2
+        );
+        assert_eq!(next_version(&authority1), next_version(&authority2));
+    }
 }
 
 #[sim_test]
@@ -6215,6 +8192,98 @@ async fn test_for_inc_201_dry_run() {
     assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
 }
 
+/// A query for a transaction's events is answered from the transaction
+/// itself, before its checkpoint exists: an executed transaction's event
+/// comes back without a timestamp, one without events gives an empty page,
+/// and a cursor naming another transaction's event is refused.
+#[tokio::test]
+async fn test_transaction_events_are_queryable_before_their_checkpoint() {
+    use iota_json_rpc_types::EventFilter;
+    use iota_storage::{
+        key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
+    };
+    use iota_types::event::EventID;
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object_id = ObjectId::random();
+    let (validator, fullnode, object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
+
+    let create = |value: u64| {
+        call_move_(
+            &validator,
+            Some(&fullnode),
+            &gas_object_id,
+            &sender,
+            &sender_key,
+            &object_basics.object_id,
+            "object_basics",
+            "create",
+            vec![],
+            vec![
+                TestCallArg::Pure(bcs::to_bytes(&value).unwrap()),
+                TestCallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+            ],
+            false,
+        )
+    };
+    let created = create(1).await.unwrap();
+    let first = created.created()[0].reference().object_id;
+    let second = create(2).await.unwrap().created()[0].reference().object_id;
+    let update = call_move_(
+        &validator,
+        Some(&fullnode),
+        &gas_object_id,
+        &sender,
+        &sender_key,
+        &object_basics.object_id,
+        "object_basics",
+        "update",
+        vec![],
+        vec![TestCallArg::Object(first), TestCallArg::Object(second)],
+        false,
+    )
+    .await
+    .unwrap();
+    assert!(update.status().is_success());
+
+    let kv_store = Arc::new(TransactionKeyValueStore::new(
+        "rocksdb",
+        KeyValueStoreMetrics::new_for_tests(),
+        fullnode.clone(),
+    ));
+    let query = |digest, cursor| {
+        fullnode.query_events(
+            &kv_store,
+            EventFilter::Transaction(digest),
+            cursor,
+            10,
+            false,
+        )
+    };
+
+    let events = query(*update.transaction_digest(), None).await.unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].id.tx_digest, *update.transaction_digest());
+    assert_eq!(
+        events[0].timestamp_ms, None,
+        "the transaction has no checkpoint yet"
+    );
+
+    let events = query(*created.transaction_digest(), None).await.unwrap();
+    assert!(events.is_empty());
+
+    let foreign_cursor = EventID {
+        tx_digest: *created.transaction_digest(),
+        event_seq: 0,
+    };
+    assert!(
+        query(*update.transaction_digest(), Some(foreign_cursor))
+            .await
+            .is_err()
+    );
+}
+
 #[tokio::test]
 async fn test_function_not_found() {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
@@ -6673,6 +8742,7 @@ fn create_shared_objects(num: u32) -> Vec<Object> {
 
 async fn test_consensus_handler_per_object_congestion_control(
     mode: PerObjectCongestionControlMode,
+    pcool: bool,
 ) {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
@@ -6688,7 +8758,8 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     let non_congested_tx_count = match mode {
         PerObjectCongestionControlMode::None => unreachable!(),
-        PerObjectCongestionControlMode::TotalGasBudget => 5,
+        PerObjectCongestionControlMode::TotalGasBudget
+        | PerObjectCongestionControlMode::TotalComputationUnits => 5,
         PerObjectCongestionControlMode::TotalTxCount => 2,
     };
     let gas_objects_commit_1 = create_gas_objects(5 + non_congested_tx_count, sender);
@@ -6697,11 +8768,13 @@ async fn test_consensus_handler_per_object_congestion_control(
     // Create the cluster with controlled per object congestion control.
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_enable_pcool_flow_for_testing(pcool);
     protocol_config.set_per_object_congestion_control_mode_for_testing(mode);
 
     match mode {
         PerObjectCongestionControlMode::None => unreachable!(),
-        PerObjectCongestionControlMode::TotalGasBudget => {
+        PerObjectCongestionControlMode::TotalGasBudget
+        | PerObjectCongestionControlMode::TotalComputationUnits => {
             protocol_config
                 .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
                     200_000_000,
@@ -6736,9 +8809,10 @@ async fn test_consensus_handler_per_object_congestion_control(
     // For transaction operates on the expensive object, we use gas price from 1000
     // to 5000, and for transaction operates on the cheaper object, we use gas
     // price of 1000.
-    let mut certificates: Vec<VerifiedCertificate> = vec![];
+    let mut transactions: Vec<TestTransaction> = vec![];
     for (index, gas_object) in gas_objects_commit_1.iter().enumerate() {
-        let certificate = make_test_transaction(
+        let transaction = make_test_transaction_for_flow(
+            pcool,
             &sender,
             &sender_key,
             &[],
@@ -6766,18 +8840,18 @@ async fn test_consensus_handler_per_object_congestion_control(
             },
         )
         .await;
-        certificates.push(certificate);
+        transactions.push(transaction);
     }
 
     // We shuffle the transactions so that transactions in the list do not have any
     // order in terms of gas price.
-    certificates.shuffle(&mut rand::rng());
+    transactions.shuffle(&mut rand::rng());
 
     // Sends the first batch of transactions. We should expect that 2 transactions
     // operate on the expensive object should go through, and all transactions
     // operate on the cheaper object should go through. We also check that the
     // scheduled transactions on the expensive object have the highest gas price.
-    let scheduled_txns = send_batch_consensus_no_execution(&authority, &certificates, true).await;
+    let scheduled_txns = send_test_transactions_no_execution(&authority, &transactions, true).await;
     assert_eq!(scheduled_txns.0.len(), 2 + non_congested_tx_count as usize);
     for cert in scheduled_txns.0.iter() {
         let cert = cert.as_tx().unwrap();
@@ -6814,9 +8888,10 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     // Create second batch of commits. Here, we create another
     // `non_congested_tx_count` transactions that operate on the cheap object.
-    let mut new_certificates: Vec<VerifiedCertificate> = vec![];
+    let mut new_transactions: Vec<TestTransaction> = vec![];
     for gas_object in gas_objects_commit_2.iter() {
-        let certificate = make_test_transaction(
+        let transaction = make_test_transaction_for_flow(
+            pcool,
             &sender,
             &sender_key,
             &[],
@@ -6828,7 +8903,7 @@ async fn test_consensus_handler_per_object_congestion_control(
             Some(10_000_000),
         )
         .await;
-        new_certificates.push(certificate);
+        new_transactions.push(transaction);
     }
 
     // Sends the second batch of transactions. We should expect that another 2
@@ -6836,7 +8911,7 @@ async fn test_consensus_handler_per_object_congestion_control(
     // previous round, should go through, and all the new transactions operate on
     // the cheaper object should go through.
     let scheduled_txns =
-        send_batch_consensus_no_execution(&authority, &new_certificates, true).await;
+        send_test_transactions_no_execution(&authority, &new_transactions, true).await;
     assert_eq!(scheduled_txns.0.len(), 2 + non_congested_tx_count as usize);
     for cert in scheduled_txns.0.iter() {
         let cert = cert.as_tx().unwrap();
@@ -6872,7 +8947,7 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     // Sends the last batch with no new transaction. The last deferred transactions
     // should go through.
-    let scheduled_txns = send_batch_consensus_no_execution(&authority, &[], true).await;
+    let scheduled_txns = send_test_transactions_no_execution(&authority, &[], true).await;
     assert_eq!(scheduled_txns.0.len(), 1);
     assert!(
         authority
@@ -6886,6 +8961,16 @@ async fn test_consensus_handler_per_object_congestion_control(
 async fn test_consensus_handler_per_object_congestion_control_using_budget() {
     test_consensus_handler_per_object_congestion_control(
         PerObjectCongestionControlMode::TotalGasBudget,
+        false,
+    )
+    .await;
+}
+
+#[sim_test]
+async fn test_consensus_handler_per_object_congestion_control_using_budget_pcool_flow() {
+    test_consensus_handler_per_object_congestion_control(
+        PerObjectCongestionControlMode::TotalGasBudget,
+        true,
     )
     .await;
 }
@@ -6894,6 +8979,16 @@ async fn test_consensus_handler_per_object_congestion_control_using_budget() {
 async fn test_consensus_handler_per_object_congestion_control_using_tx_count() {
     test_consensus_handler_per_object_congestion_control(
         PerObjectCongestionControlMode::TotalTxCount,
+        false,
+    )
+    .await;
+}
+
+#[sim_test]
+async fn test_consensus_handler_per_object_congestion_control_using_tx_count_pcool_flow() {
+    test_consensus_handler_per_object_congestion_control(
+        PerObjectCongestionControlMode::TotalTxCount,
+        true,
     )
     .await;
 }
@@ -6906,6 +9001,15 @@ async fn test_consensus_handler_per_object_congestion_control_using_tx_count() {
 //   4. Consensus commit prologue contains cancelled transaction version assignment.
 #[sim_test]
 async fn test_consensus_handler_congestion_control_transaction_cancellation() {
+    consensus_handler_congestion_control_transaction_cancellation(false).await;
+}
+
+#[sim_test]
+async fn test_consensus_handler_congestion_control_transaction_cancellation_pcool_flow() {
+    consensus_handler_congestion_control_transaction_cancellation(true).await;
+}
+
+async fn consensus_handler_congestion_control_transaction_cancellation(pcool: bool) {
     telemetry_subscribers::init_for_testing();
 
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
@@ -6914,7 +9018,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // be cancelled at round 3.
     let shared_objects = create_shared_objects(2);
     let gas_objects = create_gas_objects(3, sender);
-    let gas_objects_cancelled_txn = create_gas_objects(1, sender);
+    let gas_objects_cancelled_txn = create_gas_objects(2, sender);
     let owned_objects_cancelled_txn = vec![
         Object::with_id_owner_version_for_testing(
             ObjectId::random(),
@@ -6932,6 +9036,13 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // cancellation.
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_enable_pcool_flow_for_testing(pcool);
+    if pcool {
+        // The owned object is spent in the commit right after the one that
+        // cancelled its transaction, so validation must see that commit's
+        // results.
+        protocol_config.set_pcool_deterministic_validation_horizon_distance_for_testing(1);
+    }
     protocol_config.set_per_object_congestion_control_mode_for_testing(
         PerObjectCongestionControlMode::TotalGasBudget,
     );
@@ -6949,7 +9060,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     genesis_objects.extend(owned_objects_cancelled_txn.clone());
     authority.insert_genesis_objects(&genesis_objects);
 
-    let mut certificates: Vec<VerifiedCertificate> = vec![];
+    let mut transactions: Vec<TestTransaction> = vec![];
     let gas_price_of_non_cancelled_txs = 2_000;
     let gas_price_of_cancelled_txs = 1_000;
     let suggested_gas_price = gas_price_of_non_cancelled_txs + 1;
@@ -6957,7 +9068,8 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // Create 3 transactions that operate on shared_objects[0]. These transactions
     // will go through eventually.
     for gas_object in gas_objects.iter() {
-        let certificate = make_test_transaction(
+        let transaction = make_test_transaction_for_flow(
+            pcool,
             &sender,
             &sender_key,
             &[],
@@ -6969,14 +9081,15 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             Some(100_000_000),
         )
         .await;
-        certificates.push(certificate);
+        transactions.push(transaction);
     }
 
     // Create another transaction that operates on shared_objects[0] and
     // shared_objects[1]. Due to its lower gas price, it'll be deferred for 3
     // rounds and then cancelled. shared_objects[0] will be considered as
     // congested object.
-    let cancelled_txn = make_test_transaction(
+    let cancelled_txn = make_test_transaction_for_flow(
+        pcool,
         &sender,
         &sender_key,
         &owned_objects_cancelled_txn,
@@ -6991,16 +9104,16 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         Some(100_000_000),
     )
     .await;
-    certificates.push(cancelled_txn.clone());
+    transactions.push(cancelled_txn.clone());
 
     // We shuffle the transactions so that transactions in the list do not have any
     // order in terms of gas price.
-    certificates.shuffle(&mut rand::rng());
+    transactions.shuffle(&mut rand::rng());
 
     // Sends all transactions to consensus. Expect first 2 rounds with 1 user
     // transaction per round going through.
     let (scheduled_txns, _) =
-        send_batch_consensus_no_execution(&authority, &certificates, false).await;
+        send_test_transactions_no_execution(&authority, &transactions, false).await;
     assert_eq!(scheduled_txns.len(), 2);
     // Note that consensus handler also generates consensus commit prologue
     // transaction, and it must be the first one.
@@ -7023,7 +9136,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             == gas_price_of_non_cancelled_txs
     );
 
-    let (scheduled_txns, _) = send_batch_consensus_no_execution(&authority, &[], false).await;
+    let (scheduled_txns, _) = send_test_transactions_no_execution(&authority, &[], false).await;
     assert_eq!(scheduled_txns.len(), 2);
     assert!(matches!(
         scheduled_txns[0]
@@ -7047,7 +9160,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // Run consensus round 3. 2 user transactions will come out with 1 transaction
     // being cancelled.
     let (scheduled_txns, assigned_versions) =
-        send_batch_consensus_no_execution(&authority, &[], false).await;
+        send_test_transactions_no_execution(&authority, &[], false).await;
     assert_eq!(scheduled_txns.len(), 3); // 3 = 2 user transactions + 1 consensus commit prologue transaction.
     assert!(
         authority
@@ -7148,6 +9261,98 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
     }
+
+    // Execute the cancelled transaction: gas is charged, the owned inputs only
+    // get a new version, like every mutable input of a failed transaction, and
+    // can be spent by a later transaction.
+    let cancelled_executable = scheduled_txns
+        .iter()
+        .filter_map(|schedulable| schedulable.as_tx())
+        .find(|tx| tx.digest() == cancelled_txn.digest())
+        .expect("the cancelled transaction is scheduled in round 3")
+        .clone();
+    let (effects, _) = authority
+        .try_execute_immediately(
+            &cancelled_executable,
+            ExecutionEnv::new().with_assigned_versions(cancelled_txn_assigned_versions),
+            &authority.epoch_store_for_testing(),
+        )
+        .unwrap();
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
+                congested_objects: vec![shared_objects[0].id(), shared_objects[1].id()],
+                suggested_gas_price,
+            },
+            command: None
+        }
+    );
+
+    let gas_object_id = gas_objects_cancelled_txn[0].id();
+    assert!(
+        effects
+            .mutated()
+            .iter()
+            .any(|mutated| mutated.reference().object_id == gas_object_id)
+    );
+    assert!(effects.gas_cost_summary().computation_cost > 0);
+    let gas_balance_after = GasCoin::try_from(&authority.get_object(&gas_object_id).unwrap())
+        .unwrap()
+        .value();
+    assert_eq!(
+        gas_balance_after,
+        GAS_VALUE_FOR_TESTING - effects.gas_cost_summary().net_gas_usage() as u64
+    );
+    for owned_object in &owned_objects_cancelled_txn {
+        let current = authority.get_object(&owned_object.id()).unwrap();
+        assert!(
+            effects
+                .mutated()
+                .iter()
+                .any(|mutated| *mutated.reference() == current.object_ref())
+        );
+        assert!(current.version() > owned_object.version());
+        assert_eq!(current.owner, owned_object.owner);
+        assert_eq!(
+            current.data.as_opt_struct().unwrap().contents(),
+            owned_object.data.as_opt_struct().unwrap().contents()
+        );
+    }
+
+    let recipient = dbg_addr(2);
+    let spend_owned_object = init_transfer_transaction(
+        &authority,
+        sender,
+        &sender_key,
+        recipient,
+        authority
+            .get_object(&owned_objects_cancelled_txn[0].id())
+            .unwrap()
+            .object_ref(),
+        gas_objects_cancelled_txn[1].object_ref(),
+        1000 * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        1000,
+    );
+    let spend_effects = if pcool {
+        send_user_transaction_and_execute(&authority, spend_owned_object.into())
+            .await
+            .1
+    } else {
+        send_and_confirm_transaction(&authority, spend_owned_object.into())
+            .await
+            .unwrap()
+            .1
+            .into_data()
+    };
+    assert!(spend_effects.status().is_success());
+    assert_eq!(
+        authority
+            .get_object(&owned_objects_cancelled_txn[0].id())
+            .unwrap()
+            .owner,
+        Owner::Address(recipient)
+    );
 }
 
 // ============================================================================
@@ -7176,12 +9381,6 @@ fn get_object_lock(
 #[sim_test]
 async fn test_post_consensus_white_flag_simple_conflict() {
     telemetry_subscribers::init_for_testing();
-
-    // Enable P-COOL flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
 
     // Setup: Two transactions competing for the same owned object
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
@@ -7228,11 +9427,17 @@ async fn test_post_consensus_white_flag_simple_conflict() {
 
     // Create consensus transactions
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7303,12 +9508,6 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     // below double-checks the choice took effect.
     set_scheduler_env(use_execution_scheduler);
 
-    // Enable P-COOL flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     // Setup: two transactions competing for the same owned object.
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = dbg_addr(2);
@@ -7352,11 +9551,17 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     );
 
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7401,7 +9606,7 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     // production the consensus handler submits through AsyncTransactionScheduler;
     // here we enqueue directly to keep the test focused on the seam.
     let assigned_versions = assigned_versions.into_map();
-    let executable_txs: Vec<_> = executable_txs
+    let executable_txs: Vec<_> = drop_attestations(executable_txs)
         .into_iter()
         .map(|txn| {
             let key = txn.key();
@@ -7764,12 +9969,6 @@ async fn duplicate_enqueue_executes_once(use_execution_scheduler: bool) {
 async fn test_post_consensus_white_flag_no_conflict() {
     telemetry_subscribers::init_for_testing();
 
-    // Enable P-COOL flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     // Setup: Two transactions using different objects
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
@@ -7817,11 +10016,17 @@ async fn test_post_consensus_white_flag_no_conflict() {
 
     // Create consensus transactions
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7877,12 +10082,6 @@ async fn test_post_consensus_white_flag_no_conflict() {
 async fn test_post_consensus_white_flag_conflict_different_commits() {
     telemetry_subscribers::init_for_testing();
 
-    // Enable P-COOL flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_pcool_flow_for_testing(true);
-        config
-    });
-
     // Test that a transaction in a second commit is dropped if it conflicts
     // with a lock from a first commit that was persisted to DB
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
@@ -7917,7 +10116,10 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
     );
 
     let consensus_tx1 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx1.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -7964,7 +10166,10 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
 
     let verified_tx2 = epoch_store.verify_transaction(tx2.into()).unwrap();
     let consensus_tx2 = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+            verified_tx2.clone().into(),
+            None,
+        ))),
         tracking_id: Default::default(),
     };
 
@@ -8036,7 +10241,7 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
     let shared_objects = create_shared_objects(1);
     let gas_objects = create_gas_objects(2, sender);
 
-    // Enable the P-COOL flow (where the bug lived) and force congestion-driven
+    // Under the P-COOL flow (where the bug lived), force congestion-driven
     // deferral: count each transaction as one unit of cost, allow only one unit
     // per shared object per commit, and forbid any overshoot, so the second
     // transaction touching the shared object in the same commit is deferred.
@@ -8044,7 +10249,6 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
     // execute in, rather than being cancelled.
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    protocol_config.set_enable_pcool_flow_for_testing(true);
     protocol_config.set_per_object_congestion_control_mode_for_testing(
         PerObjectCongestionControlMode::TotalTxCount,
     );
@@ -8097,7 +10301,10 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
 
     let seq = |tx: VerifiedTransaction| {
         SequencedConsensusTransaction::new_test(ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.into())),
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(AttestedTransaction::new(
+                tx.into(),
+                None,
+            ))),
             tracking_id: Default::default(),
         })
     };
@@ -8169,8 +10376,8 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
 }
 
 /// Tests graduated load shedding based on the consensus queue length
-/// in the P-COOL (certificate-less) path of
-/// [`AuthorityState::check_system_overload`]. Verifies that:
+/// in the P-COOL flow, through
+/// [`AuthorityState::reserve_consensus_queue_slot()`]. Verifies that:
 /// - below soft limit: all transactions are accepted
 /// - between soft and hard limit: some transactions are rejected
 /// - at/above hard limit: all transactions are rejected
@@ -8214,19 +10421,10 @@ async fn test_consensus_queue_graduated_load_shedding() {
         rgp,
     );
 
-    let pcool_flow_enabled = true;
-    // Does not matter in the P-COOL flow.
-    let do_authority_overload_check = false;
-
     // Below and at soft limit, all transactions should be accepted.
     for num_inflight_txs in [0, soft_limit - 1, soft_limit] {
         consensus_adapter.set_num_inflight_transactions_for_testing(num_inflight_txs as u64);
-        let result = authority_state.check_system_overload(
-            &consensus_adapter,
-            tx.data(),
-            do_authority_overload_check,
-            pcool_flow_enabled,
-        );
+        let result = authority_state.reserve_consensus_queue_slot(&consensus_adapter, tx.data());
 
         assert!(
             result.is_ok(),
@@ -8239,19 +10437,14 @@ async fn test_consensus_queue_graduated_load_shedding() {
     // At 15_000: 100 * 5_000 / 10_000 = 50%. At/above 20_000: capped at 100%.
     // At 15_000, whether a specific tx is rejected depends on its digest, so
     // we check the metric instead. At/above the hard limit, rejection is
-    // deterministic (100% graduated shedding, plus the binary cutoff above).
+    // deterministic (100% graduated shedding).
     for (num_inflight_txs, expected_pct, expect_err) in [
         (15_000, 50, false),         // graduated, non-deterministic
         (hard_limit, 100, true),     // at hard limit: 100% shedding
         (hard_limit + 1, 100, true), // above hard limit: 100% shedding
     ] {
         consensus_adapter.set_num_inflight_transactions_for_testing(num_inflight_txs as u64);
-        let result = authority_state.check_system_overload(
-            &consensus_adapter,
-            tx.data(),
-            do_authority_overload_check,
-            pcool_flow_enabled,
-        );
+        let result = authority_state.reserve_consensus_queue_slot(&consensus_adapter, tx.data());
 
         assert_eq!(
             authority_state
@@ -8267,20 +10460,19 @@ async fn test_consensus_queue_graduated_load_shedding() {
             assert!(
                 result.is_err(),
                 "at/above hard limit ({num_inflight_txs} >= {hard_limit}), transaction should \
-                    always be rejected (100% graduated shedding, plus binary cutoff above)",
+                    always be rejected (100% graduated shedding)",
             );
         }
     }
 
-    // Verify that with `pcool_flow_enabled = false` (certificate flow),
-    // the consensus graduated shedding does NOT apply - only the binary
-    // hard cutoff runs.
+    // In the certificate flow, `check_system_overload()` applies no graduated
+    // shedding, only the binary hard cutoff.
     consensus_adapter.set_num_inflight_transactions_for_testing(hard_limit as u64);
+    let do_authority_overload_check = false;
     let result = authority_state.check_system_overload(
         &consensus_adapter,
         tx.data(),
         do_authority_overload_check,
-        false, // certificate flow
     );
     assert!(
         result.is_ok(),
@@ -8288,13 +10480,277 @@ async fn test_consensus_queue_graduated_load_shedding() {
     );
 }
 
-/// Builds an authority with the deny-rule-governance protocol flag toggled.
-async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityState> {
+/// [`AuthorityState::reserve_consensus_queue_slot()`] counts the transaction
+/// before judging it, keeps the slot counted until it is dropped, and
+/// releases it when it rejects.
+#[tokio::test]
+async fn consensus_queue_slot_is_counted_before_the_check_and_released_on_rejection() {
+    telemetry_subscribers::init_for_testing();
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object1 = Object::with_owner_for_testing(sender);
+    let gas_object2 = Object::with_owner_for_testing(sender);
+
+    let hard_limit: usize = 20_000;
+    // With the soft limit at the hard limit, graduated shedding accepts every
+    // transaction below the hard limit and rejects every one at it, so the
+    // outcome does not depend on the transaction digest.
+    let soft_limit_pct: u32 = 100;
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        hard_limit,
+        hard_limit,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        soft_limit_pct,
+    ));
+
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let tx = make_transfer_object_transaction(
+        gas_object1.object_ref(),
+        gas_object2.object_ref(),
+        sender,
+        &sender_key,
+        Address::random(),
+        rgp,
+    );
+
+    // One place is left: the first admission takes it, and its slot counts
+    // until it is dropped.
+    consensus_adapter.set_num_inflight_transactions_for_testing(hard_limit as u64 - 1);
+    let first = authority_state
+        .reserve_consensus_queue_slot(&consensus_adapter, tx.data())
+        .unwrap();
+    assert_eq!(first.queue_length_before(), hard_limit as u64 - 1);
+    assert_eq!(
+        consensus_adapter.num_inflight_transactions(),
+        hard_limit as u64
+    );
+
+    // A second admission while the first still holds its slot counts the
+    // first, so it is rejected, and its own slot is released.
+    let second = authority_state.reserve_consensus_queue_slot(&consensus_adapter, tx.data());
+    assert!(
+        matches!(second, Err(IotaError::TooManyTransactionsPendingConsensus)),
+        "the second admission should count the first and be rejected",
+    );
+    assert_eq!(
+        consensus_adapter.num_inflight_transactions(),
+        hard_limit as u64
+    );
+
+    drop(first);
+    assert_eq!(
+        consensus_adapter.num_inflight_transactions(),
+        hard_limit as u64 - 1
+    );
+}
+
+/// A slot passed to [`ConsensusAdapter::submit_with_slot()`] is released when
+/// the epoch has ended before the submission task starts.
+#[tokio::test]
+async fn consensus_queue_slot_is_released_when_the_epoch_has_ended() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object1 = Object::with_owner_for_testing(sender);
+    let gas_object2 = Object::with_owner_for_testing(sender);
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
+        authority_state.name,
+    ));
+    let tx = make_transfer_object_transaction(
+        gas_object1.object_ref(),
+        gas_object2.object_ref(),
+        sender,
+        &sender_key,
+        Address::random(),
+        authority_state.reference_gas_price_for_testing().unwrap(),
+    );
+
+    let epoch_store = authority_state.epoch_store_for_testing();
+    epoch_store.epoch_terminated().await;
+
+    let slot = consensus_adapter.reserve_inflight_slot();
+    assert_eq!(consensus_adapter.num_inflight_transactions(), 1);
+    consensus_adapter
+        .submit_with_slot(
+            ConsensusTransaction::new_user_transaction(tx),
+            None,
+            &epoch_store,
+            slot,
+        )
+        .unwrap()
+        .await
+        .unwrap();
+    assert_eq!(consensus_adapter.num_inflight_transactions(), 0);
+}
+
+/// [`AuthorityState::reserve_consensus_queue_slot()`] rejects a transaction
+/// when no submit permit is free, however short the consensus queue, and
+/// releases its slot.
+#[tokio::test]
+async fn consensus_queue_slot_needs_a_free_submit_permit() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object1 = Object::with_owner_for_testing(sender);
+    let gas_object2 = Object::with_owner_for_testing(sender);
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    // An empty queue far below its limit, and no submit permits at all.
+    let no_permits = 0;
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        20_000,
+        no_permits,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        50,
+    ));
+    let tx = make_transfer_object_transaction(
+        gas_object1.object_ref(),
+        gas_object2.object_ref(),
+        sender,
+        &sender_key,
+        Address::random(),
+        authority_state.reference_gas_price_for_testing().unwrap(),
+    );
+
+    let result = authority_state.reserve_consensus_queue_slot(&consensus_adapter, tx.data());
+    assert!(
+        matches!(result, Err(IotaError::TooManyTransactionsPendingConsensus)),
+        "an admission without a free submit permit should be rejected",
+    );
+    assert_eq!(consensus_adapter.num_inflight_transactions(), 0);
+}
+
+/// Admissions that arrive together near the limit fill exactly the places left
+/// in the consensus queue. Each is judged by the queue before its own slot, so
+/// slots taken after it, including those of admissions about to be rejected,
+/// do not get it rejected.
+#[tokio::test]
+async fn concurrent_admissions_fill_exactly_the_places_left_in_the_consensus_queue() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object1 = Object::with_owner_for_testing(sender);
+    let gas_object2 = Object::with_owner_for_testing(sender);
+
+    let hard_limit: usize = 1_000;
+    let places_left: usize = 20;
+    // With the soft limit at the hard limit, graduated shedding accepts every
+    // transaction below the hard limit and rejects every one at it, so the
+    // outcome does not depend on the transaction digest.
+    let soft_limit_pct: u32 = 100;
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        hard_limit,
+        hard_limit,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        soft_limit_pct,
+    ));
+    let tx = make_transfer_object_transaction(
+        gas_object1.object_ref(),
+        gas_object2.object_ref(),
+        sender,
+        &sender_key,
+        Address::random(),
+        authority_state.reference_gas_price_for_testing().unwrap(),
+    );
+
+    consensus_adapter.set_num_inflight_transactions_for_testing((hard_limit - places_left) as u64);
+    // Many threads admit at once, each keeping the slots it was given.
+    let accepted: Vec<_> = std::thread::scope(|scope| {
+        let threads: Vec<_> = (0..16)
+            .map(|_| {
+                scope.spawn(|| {
+                    (0..10)
+                        .filter_map(|_| {
+                            authority_state
+                                .reserve_consensus_queue_slot(&consensus_adapter, tx.data())
+                                .ok()
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        threads
+            .into_iter()
+            .flat_map(|thread| thread.join().expect("an admission thread panicked"))
+            .collect()
+    });
+
+    assert_eq!(accepted.len(), places_left);
+    assert_eq!(
+        consensus_adapter.num_inflight_transactions(),
+        hard_limit as u64
+    );
+    drop(accepted);
+    assert_eq!(
+        consensus_adapter.num_inflight_transactions(),
+        (hard_limit - places_left) as u64
+    );
+}
+
+/// [`ConsensusAdapter::submit_recovered()`] counts every transaction recovered
+/// from the pending consensus table at once, before its submission task
+/// starts, so admissions right after a restart see them.
+#[tokio::test]
+async fn recovered_transactions_count_in_the_consensus_queue_before_their_tasks_start() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas_object1 = Object::with_owner_for_testing(sender);
+    let gas_object2 = Object::with_owner_for_testing(sender);
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let recovered: Vec<_> = (0..2)
+        .map(|_| {
+            ConsensusTransaction::new_user_transaction(make_transfer_object_transaction(
+                gas_object1.object_ref(),
+                gas_object2.object_ref(),
+                sender,
+                &sender_key,
+                Address::random(),
+                rgp,
+            ))
+        })
+        .collect();
+    epoch_store
+        .insert_pending_consensus_transactions(&recovered, None)
+        .unwrap();
+
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
+        authority_state.name,
+    ));
+    // The test runtime runs one task at a time, so no submission task has
+    // started when the count is read.
+    consensus_adapter.submit_recovered(&epoch_store);
+    assert_eq!(
+        consensus_adapter.num_inflight_transactions(),
+        recovered.len() as u64
+    );
+}
+
+/// Builds an authority with the P-COOL flow, and with it deny rule
+/// governance, toggled.
+async fn authority_with_pcool_flow(enabled: bool) -> Arc<AuthorityState> {
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    if enabled {
-        protocol_config.set_deny_rule_governance_for_testing(true);
-    }
+    protocol_config.set_enable_pcool_flow_for_testing(enabled);
     TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
         .build()
@@ -8302,7 +10758,7 @@ async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityStat
 }
 
 /// The end-of-epoch transaction creates the `TransactionDenyRules` object
-/// exactly when on-chain deny rule governance is enabled and the object does
+/// exactly when the P-COOL flow is enabled and the object does
 /// not exist at epoch start.
 #[rstest::rstest]
 #[tokio::test]
@@ -8316,12 +10772,7 @@ async fn advance_epoch_tx_creates_deny_rules_object_under_flag(
 
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
-    if enabled {
-        protocol_config.set_deny_rule_governance_for_testing(true);
-        protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
-        protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
-        protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
-    }
+    protocol_config.set_enable_pcool_flow_for_testing(enabled);
     let authority = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
         .build()
@@ -8364,7 +10815,7 @@ async fn deny_rule_proposal_through_consensus_updates_active_set() {
         deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
 
-    let authority = authority_with_deny_rule_governance(true).await;
+    let authority = TestAuthorityBuilder::new().build().await;
     let epoch_store = authority.epoch_store_for_testing();
     // Single-validator test committee: this authority holds all stake and
     // clears both the f+1 and 2f+1 thresholds alone.
@@ -8449,7 +10900,7 @@ async fn deny_rule_proposal_ignored_when_flag_disabled() {
         deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
 
-    let authority = authority_with_deny_rule_governance(false).await;
+    let authority = authority_with_pcool_flow(false).await;
     let epoch_store = authority.epoch_store_for_testing();
     let me = epoch_store.name;
 
@@ -8546,6 +10997,7 @@ async fn test_effects_equivocation_prevented_at_signing_not_execution() {
 
     // Execution must not consult previously signed effects: it succeeds even
     // though the resulting effects differ from the previously signed digest.
+    epoch_store.assign_to_a_new_commit_for_testing(&[executable.key()]);
     let (effects, execution_error) = authority_state
         .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();
@@ -8634,4 +11086,875 @@ async fn simulate_rejects_a_transaction_above_the_size_limit() {
         transaction,
         "serialized transaction size exceeded maximum",
     );
+}
+
+/// A simulation meters the packages a transaction publishes with the node's
+/// own `VerifierSigningConfig` under both `VmChecks` modes. Execution verifies
+/// a published package with neither a limit nor a meter, trusting signing to
+/// have bounded it, so a simulation that skips the signing-time checks has to
+/// bound it itself.
+#[tokio::test]
+async fn simulate_meters_published_packages_with_the_node_signing_limits() {
+    use iota_config::verifier_signing_config::VerifierSigningConfig;
+    use iota_move_build::BuildConfig;
+    use iota_types::crypto::get_authority_key_pair;
+
+    // A one-tick meter fails the first function it meters.
+    let node_limits: VerifierSigningConfig = serde_yaml::from_str(concat!(
+        "max-per-fun-meter-units: 1\n",
+        "max-per-mod-meter-units: 1\n",
+        "max-per-pkg-meter-units: 1\n",
+    ))
+    .unwrap();
+    let fullnode_key_pair = get_authority_key_pair().1;
+    let fullnode = TestAuthorityBuilder::new()
+        .with_keypair(&fullnode_key_pair)
+        .with_verifier_signing_config(node_limits)
+        .build()
+        .await;
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("src/unit_tests/data/object_basics");
+    let modules = BuildConfig::new_for_testing()
+        .build(&path)
+        .unwrap()
+        .get_package_bytes(false);
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.publish_immutable(modules, BuiltInFramework::all_package_ids());
+    // Gas is left unset for the simulation to fill in, the way the RPC layer
+    // leaves it.
+    let transaction =
+        Transaction::new_programmable(Address::random(), vec![], builder.finish(), 0, 0);
+
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        let Err(error) = fullnode.simulate_transaction(transaction.clone(), checks) else {
+            panic!("{checks:?} should reject the package under the node's signing limits");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::PackageVerificationTimedout { .. }
+                }
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
+
+/// The epoch boundary expires the historic-object buckets outside the
+/// retention, which counts the epochs kept beyond the current one.
+#[tokio::test]
+async fn reconfiguration_expires_buckets_beyond_the_retention() {
+    use iota_types::storage::ObjectKey;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain(1)
+        .build()
+        .await;
+    let historic = authority.get_historic_objects();
+
+    let relocated: Vec<ObjectKey> = (0..=3)
+        .map(|epoch| {
+            let object = Object::immutable_with_id_for_testing(ObjectId::random());
+            let key = ObjectKey(object.id(), object.version());
+            let bucket = historic.ensure(epoch).unwrap();
+            let objects = &authority.database_for_testing().perpetual_tables.objects;
+            let mut batch = objects.batch();
+            batch
+                .insert_batch_tagged(&bucket.objects, [(key, object)])
+                .unwrap();
+            batch.write().unwrap();
+            key
+        })
+        .collect();
+
+    // Retaining one epoch beyond epoch 3 keeps the buckets of 3 and 2.
+    authority.advance_historic_buckets(3).await.unwrap();
+    assert_eq!(historic.earliest_bucket_epoch(), Some(2));
+    assert_eq!(historic.get(&relocated[0]).unwrap(), None);
+    assert_eq!(historic.get(&relocated[1]).unwrap(), None);
+    assert!(historic.get(&relocated[2]).unwrap().is_some());
+    assert!(historic.get(&relocated[3]).unwrap().is_some());
+}
+
+/// A bucket from the epoch of a checkpoint an object retention guard holds on
+/// survives the epoch boundary that would expire it, so a response still
+/// reading the versions a transaction superseded finds them; the next boundary
+/// after the guard is dropped expires it.
+#[tokio::test]
+async fn reconfiguration_keeps_the_buckets_a_retention_guard_reads() {
+    use iota_types::storage::ObjectKey;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain(0)
+        .build()
+        .await;
+    let historic = authority.get_historic_objects();
+    let relocated: Vec<ObjectKey> = (0..=2)
+        .map(|epoch| {
+            let object = Object::immutable_with_id_for_testing(ObjectId::random());
+            let key = ObjectKey(object.id(), object.version());
+            let bucket = historic.ensure(epoch).unwrap();
+            let objects = &authority.database_for_testing().perpetual_tables.objects;
+            let mut batch = objects.batch();
+            batch
+                .insert_batch_tagged(&bucket.objects, [(key, object)])
+                .unwrap();
+            batch.write().unwrap();
+            key
+        })
+        .collect();
+
+    // A request arrives once checkpoint 5, of epoch 1, is executed.
+    let retained = crate::test_utils::executed_checkpoint(1, 5);
+    authority
+        .checkpoint_store
+        .insert_certified_checkpoint(&retained)
+        .unwrap();
+    authority.record_executed_for_object_retention(retained.sequence_number());
+    let guard = authority.retain_objects();
+
+    // A retention of 0 would keep only epoch 2's bucket.
+    authority.advance_historic_buckets(2).await.unwrap();
+    assert_eq!(historic.get(&relocated[0]).unwrap(), None);
+    assert!(historic.get(&relocated[1]).unwrap().is_some());
+    assert!(historic.get(&relocated[2]).unwrap().is_some());
+
+    drop(guard);
+    authority.advance_historic_buckets(3).await.unwrap();
+    assert_eq!(historic.get(&relocated[1]).unwrap(), None);
+    assert_eq!(historic.get(&relocated[2]).unwrap(), None);
+}
+
+/// The background expiry runs for each epoch announced to it, and again once
+/// a retention guard that kept a bucket is dropped, without waiting for the
+/// next epoch.
+#[tokio::test]
+async fn the_background_expiry_drops_a_kept_bucket_once_its_guard_is_dropped() {
+    use iota_types::storage::ObjectKey;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain(0)
+        .build()
+        .await;
+    let historic = authority.get_historic_objects();
+    let relocated: Vec<ObjectKey> = (0..=2)
+        .map(|epoch| {
+            let object = Object::immutable_with_id_for_testing(ObjectId::random());
+            let key = ObjectKey(object.id(), object.version());
+            let bucket = historic.ensure(epoch).unwrap();
+            let objects = &authority.database_for_testing().perpetual_tables.objects;
+            let mut batch = objects.batch();
+            batch
+                .insert_batch_tagged(&bucket.objects, [(key, object)])
+                .unwrap();
+            batch.write().unwrap();
+            key
+        })
+        .collect();
+
+    let retained = crate::test_utils::executed_checkpoint(1, 5);
+    authority
+        .checkpoint_store
+        .insert_certified_checkpoint(&retained)
+        .unwrap();
+    authority.record_executed_for_object_retention(retained.sequence_number());
+    let guard = authority.retain_objects();
+
+    let gone = |key: ObjectKey| async move {
+        for _ in 0..200 {
+            if historic.get(&key).unwrap().is_none() {
+                return true;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        false
+    };
+
+    authority.historic_bucket_expiry.send_replace(2);
+    assert!(gone(relocated[0]).await, "epoch 0's bucket must expire");
+    assert!(historic.get(&relocated[1]).unwrap().is_some());
+
+    drop(guard);
+    assert!(
+        gone(relocated[1]).await,
+        "epoch 1's bucket must expire once its guard is dropped"
+    );
+    assert!(historic.get(&relocated[2]).unwrap().is_some());
+}
+
+/// A retention of `u64::MAX` turns object expiry off.
+#[tokio::test]
+async fn reconfiguration_retains_every_bucket_when_expiry_is_disabled() {
+    use iota_types::storage::ObjectKey;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain(u64::MAX)
+        .build()
+        .await;
+    let historic = authority.get_historic_objects();
+
+    let object = Object::immutable_with_id_for_testing(ObjectId::random());
+    let relocated = ObjectKey(object.id(), object.version());
+    let bucket = historic.ensure(0).unwrap();
+    let objects = &authority.database_for_testing().perpetual_tables.objects;
+    let mut batch = objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.objects, [(relocated, object)])
+        .unwrap();
+    batch.write().unwrap();
+
+    for epoch in 1..=3 {
+        authority.advance_historic_buckets(epoch).await.unwrap();
+    }
+    assert_eq!(historic.earliest_bucket_epoch(), Some(0));
+    assert!(historic.get(&relocated).unwrap().is_some());
+}
+
+/// The epoch boundary expires the ledger and checkpoint buckets outside the
+/// retention, counted back from the epoch just executed. A bucket state sync
+/// wrote for a later epoch is neither dropped nor counted.
+#[tokio::test]
+async fn reconfiguration_expires_ledger_buckets_beyond_the_retention() {
+    use iota_sdk_types::TransactionEffectsDigest;
+    use iota_types::messages_checkpoint::{FullCheckpointContents, VerifiedCheckpoint};
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    const SYNCED_AHEAD_EPOCH: EpochId = 5;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain_for_checkpoints(2)
+        .build()
+        .await;
+    let ledger = authority.get_historic_ledger();
+    let checkpoint_store = &authority.checkpoint_store;
+    let historic_checkpoints = &checkpoint_store.historic_checkpoints;
+
+    let epochs = [0, 1, 2, 3, SYNCED_AHEAD_EPOCH];
+    let seeded: Vec<(TransactionDigest, VerifiedCheckpoint)> = epochs
+        .iter()
+        .map(|&epoch| {
+            let digest = TransactionDigest::random();
+            let bucket = ledger.ensure(epoch).unwrap();
+            let mut batch = bucket.executed_effects.batch();
+            batch
+                .insert_batch_tagged(
+                    &bucket.executed_effects,
+                    [(digest, TransactionEffectsDigest::random())],
+                )
+                .unwrap()
+                .insert_batch_tagged(&bucket.tx_to_checkpoint, [(digest, epoch)])
+                .unwrap();
+            batch.write().unwrap();
+
+            let full_contents = FullCheckpointContents::random_for_testing();
+            let checkpoint = test_checkpoint_with_contents(epoch, epoch, &full_contents);
+            checkpoint_store
+                .insert_checkpoint_contents(&checkpoint, full_contents.checkpoint_contents())
+                .unwrap();
+            checkpoint_store
+                .insert_certified_checkpoint(&checkpoint)
+                .unwrap();
+            (digest, checkpoint)
+        })
+        .collect();
+
+    // Entering epoch 4 leaves epoch 3, and retaining two epochs from there
+    // keeps 2 and 3.
+    authority.advance_historic_buckets(4).await.unwrap();
+    assert_eq!(ledger.earliest_bucket_epoch(), Some(2));
+    assert_eq!(historic_checkpoints.earliest_bucket_epoch(), Some(2));
+
+    for (&epoch, (digest, checkpoint)) in epochs.iter().zip(&seeded) {
+        let retained = epoch >= 2;
+        assert_eq!(
+            ledger
+                .get_transaction_checkpoint(digest)
+                .unwrap()
+                .map(|(_, sequence)| sequence),
+            retained.then_some(epoch),
+            "epoch {epoch}'s transaction history",
+        );
+        assert_eq!(
+            checkpoint_store
+                .get_checkpoint_by_digest(checkpoint.digest())
+                .unwrap()
+                .is_some(),
+            retained,
+            "epoch {epoch}'s checkpoint history",
+        );
+        assert_eq!(
+            checkpoint_store
+                .get_checkpoint_contents(&checkpoint.contents_digest)
+                .unwrap()
+                .is_some(),
+            retained,
+            "epoch {epoch}'s checkpoint contents",
+        );
+    }
+}
+
+/// The index history retains exactly the configured number of epochs,
+/// counting the epoch being entered.
+#[tokio::test]
+async fn the_index_history_retains_exactly_the_configured_epochs() {
+    const EPOCHS_TO_RETAIN: u64 = 2;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain_for_indexes(EPOCHS_TO_RETAIN)
+        .build()
+        .await;
+    let indexes = authority.rpc_indexes_store.clone().unwrap();
+
+    for epoch in 0..=3 {
+        indexes.ensure_history_bucket_exists(epoch).unwrap();
+    }
+    assert_eq!(indexes.retained_history_epochs(), vec![0, 1, 2, 3]);
+
+    authority.advance_historic_buckets(4).await.unwrap();
+
+    assert_eq!(indexes.retained_history_epochs(), vec![2, 3, 4]);
+    // A dropped epoch's bucket cannot be reopened.
+    assert!(indexes.ensure_history_bucket_exists(1).is_err());
+    assert!(indexes.ensure_history_bucket_exists(2).is_ok());
+}
+
+/// Expiring the checkpoint buckets moves `HighestPruned` up to the last
+/// checkpoint of the newest expired epoch, and never back down.
+#[tokio::test]
+async fn expiring_the_checkpoint_buckets_moves_the_pruned_watermark() {
+    use iota_types::messages_checkpoint::FullCheckpointContents;
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain_for_checkpoints(2)
+        .build()
+        .await;
+    let checkpoint_store = &authority.checkpoint_store;
+
+    // Two checkpoints per epoch, so landing on the epoch's last one is checked.
+    for epoch in 0..=3 {
+        for sequence in [epoch * 2, epoch * 2 + 1] {
+            let full_contents = FullCheckpointContents::random_for_testing();
+            let checkpoint = test_checkpoint_with_contents(epoch, sequence, &full_contents);
+            checkpoint_store
+                .insert_checkpoint_contents(&checkpoint, full_contents.checkpoint_contents())
+                .unwrap();
+            checkpoint_store
+                .insert_certified_checkpoint(&checkpoint)
+                .unwrap();
+            if sequence == epoch * 2 + 1 {
+                checkpoint_store
+                    .insert_epoch_last_checkpoint(epoch, &checkpoint)
+                    .unwrap();
+            }
+        }
+    }
+    assert_eq!(
+        checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()
+            .unwrap(),
+        None,
+    );
+
+    // Keeps epochs 2 and 3, so up to epoch 1's last checkpoint is gone.
+    authority.advance_historic_buckets(4).await.unwrap();
+    assert_eq!(
+        checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()
+            .unwrap(),
+        Some(3),
+    );
+
+    // A higher watermark, as a formal-snapshot restore leaves, stays.
+    let restored = checkpoint_store
+        .get_checkpoint_by_sequence_number(5)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_pruned_checkpoint(&restored)
+        .unwrap();
+    authority.advance_historic_buckets(4).await.unwrap();
+    assert_eq!(
+        checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()
+            .unwrap(),
+        Some(5),
+    );
+}
+
+/// `HighestPruned` follows the ledger history when it has dropped more epochs
+/// than the checkpoint history, since a checkpoint without its transactions
+/// cannot be served either.
+#[tokio::test]
+async fn the_pruned_watermark_follows_the_higher_of_the_ledger_and_checkpoint_floors() {
+    use iota_types::messages_checkpoint::FullCheckpointContents;
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain_for_checkpoints(2)
+        .build()
+        .await;
+    let checkpoint_store = &authority.checkpoint_store;
+    for epoch in 0..=3 {
+        let full_contents = FullCheckpointContents::random_for_testing();
+        let checkpoint = test_checkpoint_with_contents(epoch, epoch, &full_contents);
+        checkpoint_store
+            .insert_checkpoint_contents(&checkpoint, full_contents.checkpoint_contents())
+            .unwrap();
+        checkpoint_store
+            .insert_certified_checkpoint(&checkpoint)
+            .unwrap();
+        checkpoint_store
+            .insert_epoch_last_checkpoint(epoch, &checkpoint)
+            .unwrap();
+        authority.get_historic_ledger().ensure(epoch).unwrap();
+    }
+
+    // The ledger history already dropped everything below epoch 4, as an
+    // expiry whose checkpoint half failed leaves it.
+    authority.get_historic_ledger().prune(4, 0, &|| {}).unwrap();
+    authority.advance_historic_buckets(4).await.unwrap();
+
+    assert_eq!(
+        checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()
+            .unwrap(),
+        Some(3),
+    );
+}
+
+/// A restart does not write the genesis checkpoint again once epoch 0's
+/// checkpoint bucket has expired.
+#[tokio::test]
+async fn a_restart_leaves_the_genesis_checkpoint_alone_once_its_epoch_expired() {
+    use iota_types::messages_checkpoint::FullCheckpointContents;
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    let authority = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .with_num_epochs_to_retain_for_checkpoints(2)
+        .build()
+        .await;
+    let checkpoint_store = &authority.checkpoint_store;
+    let genesis = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    let genesis_contents = checkpoint_store
+        .get_checkpoint_contents(&genesis.contents_digest)
+        .unwrap()
+        .unwrap();
+
+    // A later checkpoint the node has synced, so that a reset of the synced
+    // watermark to genesis is observable.
+    let full_contents = FullCheckpointContents::random_for_testing();
+    let synced = test_checkpoint_with_contents(1, 9, &full_contents);
+    checkpoint_store
+        .insert_certified_checkpoint(&synced)
+        .unwrap();
+    checkpoint_store
+        .set_highest_synced_checkpoint_subtle(&synced)
+        .unwrap();
+
+    for epoch in 1..=3 {
+        authority.advance_historic_buckets(epoch).await.unwrap();
+    }
+    assert!(
+        checkpoint_store
+            .get_checkpoint_by_digest(genesis.digest())
+            .unwrap()
+            .is_none(),
+        "epoch 0's bucket must have been expired for this to model a restart",
+    );
+
+    checkpoint_store.insert_genesis_checkpoint(
+        genesis,
+        genesis_contents,
+        &authority.epoch_store_for_testing(),
+    );
+    assert_eq!(
+        checkpoint_store
+            .get_highest_synced_checkpoint_seq_number()
+            .unwrap(),
+        Some(9),
+    );
+}
+
+/// The gRPC read store advertises object availability from the oldest bucket
+/// it holds, and claims nothing below the executed watermark when that
+/// bucket's epoch has no recorded start.
+#[tokio::test]
+async fn object_availability_follows_the_oldest_bucket_held() {
+    use iota_node_storage::GrpcStateReader;
+
+    // No genesis execution, so no bucket is written for epoch 0.
+    let authority = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .disable_execute_genesis_transactions()
+        .build()
+        .await;
+    let checkpoint_store = &authority.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&genesis_checkpoint)
+        .unwrap();
+
+    let grpc_read_store = GrpcReadStore::new(
+        authority.clone(),
+        RocksDbStore::new(
+            authority.execution_cache_trait_pointers.clone(),
+            authority.committee_store().clone(),
+            checkpoint_store.clone(),
+        ),
+    );
+
+    let historic = authority.get_historic_objects();
+    assert_eq!(
+        historic.earliest_bucket_epoch(),
+        None,
+        "the fixture must start with no bucket for this to model a restore"
+    );
+
+    assert_eq!(
+        grpc_read_store
+            .get_lowest_available_checkpoint_objects()
+            .unwrap(),
+        1
+    );
+
+    // Nothing records where epoch 7 started.
+    historic.ensure(7).unwrap();
+    assert_eq!(
+        grpc_read_store
+            .get_lowest_available_checkpoint_objects()
+            .unwrap(),
+        1
+    );
+
+    // Epoch 0 needs no recorded start.
+    historic.ensure(0).unwrap();
+    assert_eq!(
+        grpc_read_store
+            .get_lowest_available_checkpoint_objects()
+            .unwrap(),
+        0
+    );
+}
+
+/// A bucket that cannot be expired does not fail the reconfiguration; its
+/// durable expiring marker keeps its versions unreadable and the next open
+/// finishes the expiry.
+#[tokio::test]
+async fn a_failed_expiry_does_not_fail_reconfiguration() {
+    use typed_store::Map;
+
+    use crate::authority::historic_objects::HistoricObjects;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain(1)
+        .build()
+        .await;
+    let historic = authority.get_historic_objects();
+    let oldest = historic.ensure(0).unwrap();
+    for epoch in 1..=3 {
+        historic.ensure(epoch).unwrap();
+    }
+
+    let store = authority.database_for_testing();
+    HistoricObjects::corrupt_recorded_tombstones_for_testing(&store.perpetual_tables.objects.db, 0)
+        .unwrap();
+
+    authority
+        .advance_historic_buckets(3)
+        .await
+        .expect("a failed expiry must not fail the epoch boundary");
+
+    // The expiry did run and fail.
+    assert!(oldest.expiring.get(&()).unwrap().is_some());
+}
+
+/// The background compaction compacts a closed epoch's checkpoint bucket that
+/// holds several sorted runs, and does nothing once the work is stopped.
+#[tokio::test]
+async fn closed_bucket_compaction_compacts_until_stopped() {
+    use iota_types::messages_checkpoint::FullCheckpointContents;
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    let authority = TestAuthorityBuilder::new().build().await;
+    let checkpoint_store = authority.checkpoint_store.clone();
+    let flat = &checkpoint_store.tables.watermarks;
+    for sequence in [3, 4] {
+        let contents = FullCheckpointContents::random_for_testing();
+        let checkpoint = test_checkpoint_with_contents(1, sequence, &contents);
+        checkpoint_store
+            .insert_checkpoint_contents(&checkpoint, contents.checkpoint_contents())
+            .unwrap();
+        flat.flush_all().unwrap();
+    }
+    let cf_name = crate::epoch_buckets::bucket_cf_name("hist_ckpt_e", 1);
+    assert_eq!(flat.db.sorted_runs(&cf_name).unwrap(), 2);
+
+    let (_sender, mut epochs) = tokio::sync::watch::channel(2);
+    epochs.borrow_and_update();
+    let compact = |stopped: bool| {
+        AuthorityState::compact_closed_buckets(
+            2,
+            authority.historic_objects.clone(),
+            authority.historic_ledger.clone(),
+            checkpoint_store.clone(),
+            authority.rpc_indexes_store.clone(),
+            epochs.clone(),
+            Arc::new(std::sync::atomic::AtomicBool::new(stopped)),
+        )
+    };
+
+    compact(true).await;
+    assert_eq!(
+        flat.db.sorted_runs(&cf_name).unwrap(),
+        2,
+        "stopped work compacts nothing"
+    );
+    compact(false).await;
+    assert_eq!(flat.db.sorted_runs(&cf_name).unwrap(), 1);
+}
+
+/// The checkpoint contents a validator serves to state-sync peers carry the
+/// signatures consensus pinned, also when the validator executed another copy
+/// of the transaction with other signatures. Each replica executes one
+/// certificate of T1 on arrival, the way `handle_certificates` does for an
+/// owned-object-only certificate, then processes a consensus commit carrying
+/// the pinned copy, and a real checkpoint builder builds checkpoint 0. The
+/// served contents are checked with `FullCheckpointContents::verify`, the
+/// check a state-sync receiver applies before accepting them. Each replica is
+/// checked with the full-contents cache on (served from the builder's cache)
+/// and off (rebuilt by `RocksDbStore` from the stored transactions).
+#[tokio::test]
+async fn served_checkpoint_contents_carry_the_pinned_signatures() {
+    use std::time::Duration;
+
+    use fastcrypto::{
+        hash::{HashFunction, Sha256},
+        rsa::{Base64UrlUnpadded, Encoding as _},
+    };
+    use iota_sdk_crypto::{Signer, secp256r1::Secp256r1PrivateKey};
+    use iota_sdk_types::{
+        CheckpointContents as SdkCheckpointContents, CheckpointSummary, PasskeyPublicKey,
+        SimpleSignature, UserSignature, crypto::PasskeyAuthenticator,
+    };
+    use iota_types::{
+        messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContentsExt as _},
+        storage::ReadStore as _,
+    };
+    use tokio::sync::mpsc;
+
+    use crate::{
+        checkpoints::{
+            CheckpointMetrics, CheckpointService, CheckpointStore, FullCheckpointContentsCache,
+            FullCheckpointContentsCacheMetrics,
+        },
+        consensus_handler::SequencedConsensusTransaction,
+        execution_scheduler::ExecutionSchedulerAPI as _,
+        global_state_hasher::GlobalStateHasher,
+        storage::RocksDbStore,
+    };
+
+    let network =
+        iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_enable_pcool_flow_for_testing(false);
+
+    let passkey_key = Secp256r1PrivateKey::random();
+    let sender = PasskeyPublicKey::new(passkey_key.public_key()).derive_address();
+    let ids: Vec<ObjectId> = (1u8..=2)
+        .map(|i| {
+            let mut id = [0u8; 32];
+            id[0] = i;
+            ObjectId::new(id)
+        })
+        .collect();
+
+    let replica = || async {
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network, 0)
+            .with_protocol_config(protocol_config.clone())
+            .build()
+            .await;
+        for id in &ids {
+            state.insert_genesis_object(Object::with_id_owner_for_testing(*id, sender));
+        }
+        state
+    };
+
+    let sign = |tx: &Transaction, origin: &str| {
+        let client_data_json = format!(
+            r#"{{"type":"webauthn.get","challenge":"{}","origin":"{origin}"}}"#,
+            Base64UrlUnpadded::encode_string(&tx.signing_digest())
+        );
+        let authenticator_data = vec![0u8; 37];
+        let mut message = authenticator_data.clone();
+        message.extend_from_slice(&Sha256::digest(client_data_json.as_bytes()).digest);
+        let signature: SimpleSignature = passkey_key.sign(&message);
+        let passkey =
+            PasskeyAuthenticator::new(authenticator_data, client_data_json, signature).unwrap();
+        TransactionEnvelope::from_user_sig_data(
+            tx.clone(),
+            vec![UserSignature::PasskeyAuthenticator(passkey)],
+        )
+    };
+
+    let first = replica().await;
+    let rgp = first.reference_gas_price_for_testing().unwrap();
+    let t1 = Transaction::new_transfer(
+        Address::random(),
+        first.get_object(&ids[0]).unwrap().object_ref(),
+        sender,
+        first.get_object(&ids[1]).unwrap().object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    // Two certificates of one transaction: same digest, different user
+    // signatures. The first is the copy consensus sequences.
+    let pinned = init_certified_transaction(sign(&t1, "https://a.io"), &first);
+    let other = init_certified_transaction(sign(&t1, "https://b.io"), &first);
+    assert_eq!(pinned.digest(), other.digest());
+    assert_ne!(pinned.data().signatures(), other.data().signatures());
+    let digest = *pinned.digest();
+    let pinned_sigs = pinned.data().signatures().to_vec();
+
+    // (executed certificate, full-contents cache on) for each replica.
+    let cases = [
+        (pinned.clone(), true),
+        (pinned.clone(), false),
+        (other.clone(), true),
+        (other.clone(), false),
+    ];
+    for (index, (executed, cache_on)) in cases.into_iter().enumerate() {
+        let state = if index == 0 {
+            first.clone()
+        } else {
+            replica().await
+        };
+        let epoch_store = state.epoch_store_for_testing().clone();
+        for cert in [&pinned, &other] {
+            cert.validity_check(&epoch_store.tx_validity_check_context())
+                .unwrap();
+            epoch_store
+                .signature_verifier
+                .multi_verify_certs(vec![cert.clone().into_inner()])
+                .await
+                .into_iter()
+                .for_each(|r| {
+                    r.unwrap();
+                });
+        }
+
+        // Executed on arrival, before any consensus copy is sequenced.
+        state
+            .wait_for_certificate_execution(&executed, &epoch_store)
+            .await
+            .unwrap();
+
+        let tmp_dir = iota_common::tempdir();
+        let contents_cache = if cache_on {
+            FullCheckpointContentsCache::default()
+        } else {
+            FullCheckpointContentsCache::new(0, FullCheckpointContentsCacheMetrics::new_for_tests())
+        };
+        let checkpoint_store =
+            CheckpointStore::new_with_contents_cache(tmp_dir.path(), None, contents_cache);
+        let (output, mut result) = mpsc::channel::<(SdkCheckpointContents, CheckpointSummary)>(10);
+        let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
+        let hasher = Arc::new(GlobalStateHasher::new_for_tests(
+            state.get_global_state_hash_store().clone(),
+        ));
+        let checkpoint_service = CheckpointService::build(
+            state.clone(),
+            checkpoint_store.clone(),
+            epoch_store.clone(),
+            state.get_transaction_cache_reader().clone(),
+            Arc::downgrade(&hasher),
+            Box::new(output),
+            Box::new(certified_output),
+            CheckpointMetrics::new_for_tests(),
+            100,
+            30 * 1024 * 1024,
+        );
+        let _tasks = checkpoint_service.spawn(None).await;
+
+        // One commit carrying the pinned copy of T1.
+        let sequenced = vec![SequencedConsensusTransaction::new_test(
+            ConsensusTransaction::new_certificate_message(&state.name, pinned.clone().into_inner()),
+        )];
+        let (schedulables, _) = epoch_store
+            .process_consensus_transactions_for_tests(
+                sequenced,
+                &checkpoint_service,
+                state.get_object_cache_reader().as_ref(),
+                &state.metrics,
+                true,
+                &state,
+            )
+            .await
+            .unwrap();
+        // As the consensus handler does; T1 is already executed.
+        state.execution_scheduler().enqueue(
+            drop_attestations(schedulables)
+                .into_iter()
+                .map(|s| (s, ExecutionEnv::new()))
+                .collect(),
+            &epoch_store,
+        );
+
+        let (contents, summary) = tokio::time::timeout(Duration::from_secs(60), result.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        // The contents pin the sequenced copy's signatures.
+        let (_, sigs) = contents
+            .into_iter_with_signatures()
+            .find(|(digests, _)| digests.transaction == digest)
+            .expect("checkpoint 0 holds T1");
+        assert_eq!(sigs, pinned_sigs);
+        // The later consensus copy did not replace the stored envelope.
+        let stored = state
+            .get_transaction_cache_reader()
+            .get_transaction_block(&digest)
+            .unwrap();
+        assert_eq!(stored.data().signatures(), executed.data().signatures());
+
+        // What this node serves to a state-sync peer.
+        let rocks = RocksDbStore::new(
+            state.execution_cache_trait_pointers.clone(),
+            state.committee_store().clone(),
+            checkpoint_store.clone(),
+        );
+        assert_eq!(
+            checkpoint_store
+                .get_full_checkpoint_contents_by_digest(&summary.contents_digest)
+                .is_some(),
+            cache_on,
+            "served from the builder's cache only when the cache is on"
+        );
+        let served = rocks
+            .try_get_full_checkpoint_contents(&summary.contents_digest)
+            .unwrap()
+            .expect("the node serves the contents of a checkpoint it built");
+        let executed_pinned = executed.data().signatures() == pinned_sigs.as_slice();
+        served
+            .verify(summary.contents_digest)
+            .unwrap_or_else(|err| {
+                panic!("executed pinned copy: {executed_pinned}, cache on: {cache_on}: {err}")
+            });
+    }
 }

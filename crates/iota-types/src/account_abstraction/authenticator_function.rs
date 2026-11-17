@@ -5,8 +5,8 @@ use iota_sdk_move_types::iota_framework::{
     account::AuthenticatorFunctionRefV1Key, dynamic_field::Field,
 };
 use iota_sdk_types::{
-    Address, Identifier, MoveAuthenticator, ObjectId, ObjectReference, Owner, StructTag,
-    TransactionDigest, TypeTag,
+    Address, Identifier, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
+    StructTag, TransactionDigest, TypeTag, Version,
 };
 use serde::{Deserialize, Serialize};
 
@@ -128,7 +128,68 @@ pub struct MoveAuthenticatorForExecution<FunctionRef = AuthenticatorFunctionRefF
 /// execution and the failure is reported in the authentication's place.
 pub enum MoveAuthenticatorsForExecution {
     Resolved(Vec<MoveAuthenticatorForExecution>),
-    ResolutionFailed(ExecutionError),
+    /// An account could not be resolved; `error` is the first such failure in
+    /// signature order. `accounts` are the addresses of the accounts the
+    /// transaction's Move authenticators authenticate, so execution can tell
+    /// whether the gas owner is one of them. `gas_owner` is the gas owner's
+    /// authenticator when its account resolved. With P-COOL deterministic
+    /// validation it runs to decide whether the gas owner pays; otherwise no
+    /// authenticator runs.
+    ResolutionFailed {
+        error: ExecutionError,
+        accounts: Vec<Address>,
+        gas_owner: Option<Box<MoveAuthenticatorForExecution>>,
+    },
+}
+
+/// Checks that a loaded account object can authenticate `signer` and returns
+/// the account version at which the authenticator function ref field is
+/// resolved.
+pub fn validate_account_object(
+    account_object_id: ObjectId,
+    pinned_version: Option<Version>,
+    pinned_digest: Option<ObjectDigest>,
+    signer: &Address,
+    account_object: &Object,
+) -> UserInputResult<Version> {
+    let account_object_addr = Address::from(account_object_id);
+    if signer != &account_object_addr {
+        return Err(UserInputError::IncorrectUserSignature {
+            error: format!(
+                "Move authenticator is trying to unlock {account_object_addr:?}, but given signer address is {signer:?}"
+            ),
+        });
+    }
+
+    if !(account_object.is_shared() || account_object.is_immutable()) {
+        return Err(UserInputError::AccountObjectNotSupported {
+            object_id: account_object_id,
+        });
+    }
+
+    let account_object_version = account_object.version();
+    if let Some(pinned_version) = pinned_version {
+        if account_object_version != pinned_version {
+            return Err(UserInputError::AccountObjectVersionMismatch {
+                object_id: account_object_id,
+                expected_version: pinned_version,
+                actual_version: account_object_version,
+            });
+        }
+    }
+
+    if let Some(pinned_digest) = pinned_digest {
+        let expected_digest = account_object.digest();
+        if expected_digest != pinned_digest {
+            return Err(UserInputError::InvalidAccountObjectDigest {
+                object_id: account_object_id,
+                expected_digest,
+                actual_digest: pinned_digest,
+            });
+        }
+    }
+
+    Ok(account_object_version)
 }
 
 /// Derive the id of the dynamic field on the account object that holds its

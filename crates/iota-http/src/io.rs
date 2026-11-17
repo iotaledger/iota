@@ -12,6 +12,8 @@ use std::{
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio_rustls::server::TlsStream;
 
+use crate::metrics::{ConnectionGuard, TrackedIo};
+
 pub(crate) enum ServerIo<IO> {
     Io(IO),
     TlsIo(Box<TlsStream<IO>>),
@@ -38,6 +40,15 @@ impl<IO> ServerIo<IO> {
                     .peer_certificates()
                     .map(|certs| certs.to_owned().into())
             }
+        }
+    }
+}
+
+impl<IO> ServerIo<TrackedIo<IO>> {
+    pub(crate) fn connection(&self) -> Option<&ConnectionGuard> {
+        match self {
+            Self::Io(io) => io.connection(),
+            Self::TlsIo(io) => io.get_ref().0.connection(),
         }
     }
 }

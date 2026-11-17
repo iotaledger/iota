@@ -7,18 +7,28 @@
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
+    net::SocketAddr,
     sync::{Arc, Mutex},
     time::Duration,
 };
 
-use iota_config::{local_ip_utils, node::GrpcApiConfig};
+use bytes::Bytes;
+use http_body_util::Full;
+use iota_config::{
+    local_ip_utils,
+    node::{GrpcApiConfig, TlsConfig},
+};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_grpc_types::v1::{
+    bcs::BcsData,
     move_package_service::move_package_service_client::MovePackageServiceClient,
+    signatures::UserSignatures,
     state_service::state_service_client::StateServiceClient,
+    transaction::Transaction as ProtoTransaction,
+    transaction_execution_service::{ExecuteTransactionItem, ExecuteTransactionsRequest},
     types::{Address as ProtoAddress, ObjectId as ProtoObjectId},
 };
-use iota_node_storage::GrpcStateReader;
+use iota_node_storage::{GrpcStateReader, TransactionKeyValueStoreTrait};
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSummary,
     Event, Identifier, MoveStruct, ObjectId, Owner, StructTag, Transaction, TransactionDigest,
@@ -40,12 +50,12 @@ use iota_types::{
     quorum_driver_types::{
         ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, QuorumDriverError,
     },
-    storage::error::Result as StorageResult,
+    storage::{ObjectKey, error::Result as StorageResult},
     traffic_control::ClientIdSource,
     transaction::VerifiedTransaction,
     transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
 };
-use tonic::transport::Channel;
+use tonic::transport::{Certificate, Channel, ClientTlsConfig};
 
 // ---------------------------------------------------------------------------
 // Stream invariant helpers
@@ -252,6 +262,100 @@ impl TransactionExecutor for UnreachableExecutor {
     }
 }
 
+/// A `TransactionExecutor` whose executions never finish. `started` is
+/// notified when an execution starts.
+#[derive(Default)]
+pub struct PendingExecutor {
+    pub started: tokio::sync::Notify,
+}
+
+#[async_trait::async_trait]
+impl TransactionExecutor for PendingExecutor {
+    async fn execute_transaction(
+        &self,
+        _request: ExecuteTransactionRequestV1,
+        _skip_certification: bool,
+        _client_addr: Option<std::net::SocketAddr>,
+    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
+        self.started.notify_one();
+        std::future::pending().await
+    }
+
+    fn simulate_transaction(
+        &self,
+        _transaction: Transaction,
+        _checks: VmChecks,
+    ) -> Result<SimulateTransactionResult, IotaError> {
+        unreachable!("test requests only execute transactions")
+    }
+
+    async fn wait_for_checkpoint_inclusion(
+        &self,
+        _digests: &[TransactionDigest],
+        _timeout: Duration,
+    ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError> {
+        unreachable!("test executions never finish")
+    }
+}
+
+pub const EXECUTE_TRANSACTIONS_PATH: &str =
+    "/iota.grpc.v1.transaction_execution_service.TransactionExecutionService/ExecuteTransactions";
+
+/// An `ExecuteTransactions` request with one transaction that passes the
+/// checks of the handler and reaches the executor.
+pub fn execute_transactions_request() -> ExecuteTransactionsRequest {
+    let (_digest, transaction, _effects) = create_test_transaction();
+    let transaction_bcs =
+        bcs::to_bytes(&transaction.data().signed_transaction().transaction).unwrap();
+    ExecuteTransactionsRequest::default().with_transactions(vec![
+        ExecuteTransactionItem::default()
+            .with_transaction(
+                ProtoTransaction::default().with_bcs(BcsData::default().with_data(transaction_bcs)),
+            )
+            .with_signatures(UserSignatures::default()),
+    ])
+}
+
+/// Sends [`execute_transactions_request`] with a `grpc-timeout` of `timeout`
+/// and returns the gRPC status code in the response headers (`Ok` if there is
+/// none). The client does not end the call itself, so the response comes from
+/// the server. Panics if no response comes within 10 s.
+pub async fn call_execute_transactions_with_grpc_timeout(
+    address: SocketAddr,
+    timeout: Duration,
+) -> tonic::Code {
+    let io = hyper_util::rt::TokioIo::new(tokio::net::TcpStream::connect(address).await.unwrap());
+    let (mut sender, connection) =
+        hyper::client::conn::http2::handshake(hyper_util::rt::TokioExecutor::new(), io)
+            .await
+            .unwrap();
+    tokio::spawn(connection);
+    let call = sender.send_request(
+        http::Request::post(format!("http://{address}{EXECUTE_TRANSACTIONS_PATH}"))
+            .header(http::header::CONTENT_TYPE, "application/grpc")
+            .header(http::header::TE, "trailers")
+            .header("grpc-timeout", format!("{}m", timeout.as_millis()))
+            .body(Full::new(grpc_message(&execute_transactions_request())))
+            .unwrap(),
+    );
+    let response = tokio::time::timeout(Duration::from_secs(10), call)
+        .await
+        .expect("the server must end the call when its deadline passes")
+        .unwrap();
+    tonic::Status::from_header_map(response.headers())
+        .map_or(tonic::Code::Ok, |status| status.code())
+}
+
+/// Encodes `message` as one uncompressed gRPC message.
+fn grpc_message(message: &impl prost::Message) -> Bytes {
+    let encoded = message.encode_to_vec();
+    let mut framed = Vec::with_capacity(5 + encoded.len());
+    framed.push(0);
+    framed.extend_from_slice(&(encoded.len() as u32).to_be_bytes());
+    framed.extend_from_slice(&encoded);
+    framed.into()
+}
+
 // ---------------------------------------------------------------------------
 // MockGrpcStateReader
 // ---------------------------------------------------------------------------
@@ -285,6 +389,9 @@ pub struct MockGrpcStateReader {
 
     // -- Objects --
     pub objects: HashMap<ObjectId, Object>,
+    /// Objects by version, which `try_get_object_by_key` reads before
+    /// `objects`.
+    pub object_versions: HashMap<ObjectKey, Object>,
 
     // -- Owned objects (for list_owned_objects pagination tests) --
     /// Pre-sorted in owner index key order. The iterator respects cursor-based
@@ -310,6 +417,8 @@ pub struct MockGrpcStateReader {
     // -- Transactions --
     pub transactions: HashMap<TransactionDigest, Arc<VerifiedTransaction>>,
     pub effects: HashMap<TransactionDigest, TransactionEffects>,
+    pub events: HashMap<TransactionDigest, TransactionEvents>,
+    pub transaction_checkpoints: HashMap<TransactionDigest, CheckpointSequenceNumber>,
 
     // -- Pruning --
     pub lowest_available_checkpoint: u64,
@@ -358,9 +467,13 @@ impl iota_types::storage::ObjectStore for MockGrpcStateReader {
     fn try_get_object_by_key(
         &self,
         object_id: &ObjectId,
-        _version: Version,
+        version: Version,
     ) -> StorageResult<Option<Object>> {
-        Ok(self.objects.get(object_id).cloned())
+        Ok(self
+            .object_versions
+            .get(&ObjectKey(*object_id, version))
+            .or_else(|| self.objects.get(object_id))
+            .cloned())
     }
 }
 
@@ -476,9 +589,9 @@ impl iota_types::storage::ReadStore for MockGrpcStateReader {
 
     fn try_get_events(
         &self,
-        _digest: &TransactionDigest,
+        digest: &TransactionDigest,
     ) -> StorageResult<Option<TransactionEvents>> {
-        Ok(None)
+        Ok(self.events.get(digest).cloned())
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
@@ -559,6 +672,13 @@ impl GrpcStateReader for MockGrpcStateReader {
         Some(self)
     }
 
+    fn get_transaction_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> StorageResult<Option<CheckpointSequenceNumber>> {
+        Ok(self.transaction_checkpoints.get(digest).copied())
+    }
+
     fn get_struct_layout(
         &self,
         _type_tag: &StructTag,
@@ -569,13 +689,6 @@ impl GrpcStateReader for MockGrpcStateReader {
 
 // -- GrpcIndexes impl --
 impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
-    fn get_transaction_info(
-        &self,
-        _digest: &TransactionDigest,
-    ) -> StorageResult<Option<iota_types::storage::TransactionInfo>> {
-        Ok(None)
-    }
-
     fn account_owned_objects_info_iter(
         &self,
         owner: Address,
@@ -624,7 +737,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
                         version: info.version,
                         object_type: info.object_type.clone(),
                     },
-                    cursor.clone(),
+                    *cursor,
                 ))
             });
 
@@ -695,9 +808,13 @@ pub async fn start_test_server_with(
     traffic_controller: Option<Arc<iota_traffic_controller::TrafficController>>,
     client_id_source: Option<ClientIdSource>,
     metrics: Option<iota_grpc_server::GrpcServerMetrics>,
+    transaction_fallback: Option<Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>>,
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
-    let grpc_reader = Arc::new(GrpcReader::new(state_reader, Some("test".to_string())));
+    let grpc_reader = Arc::new(
+        GrpcReader::new(state_reader, Some("test".to_string()))
+            .with_transaction_fallback(transaction_fallback),
+    );
     let localhost = local_ip_utils::localhost_for_testing();
     let port = local_ip_utils::get_available_port(&localhost);
     let mut config = GrpcApiConfig {
@@ -711,6 +828,7 @@ pub async fn start_test_server_with(
         grpc_reader.clone(),
         executor,
         config,
+        &Default::default(),
         cancellation_token,
         iota_types::digests::ChainIdentifier::default(),
         metrics,
@@ -737,6 +855,7 @@ pub async fn start_test_server(
         None,
         None,
         Some(test_metrics()),
+        None,
         config_customizer,
     )
     .await
@@ -745,6 +864,24 @@ pub async fn start_test_server(
 /// The metrics a test server has, as the node gives them to the server.
 fn test_metrics() -> iota_grpc_server::GrpcServerMetrics {
     iota_grpc_server::GrpcServerMetrics::new(&prometheus_filtered::Registry::new())
+}
+
+/// Like [`start_test_server`], but with `transaction_fallback` as the
+/// key-value store serving data the state reader has pruned.
+pub async fn start_test_server_with_transaction_fallback(
+    state_reader: Arc<MockGrpcStateReader>,
+    transaction_fallback: Option<Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>>,
+) -> (GrpcServerHandle, Arc<GrpcReader>) {
+    start_test_server_with(
+        state_reader,
+        None,
+        None,
+        None,
+        Some(test_metrics()),
+        transaction_fallback,
+        |_| {},
+    )
+    .await
 }
 
 /// Like [`start_test_server`], but with the given traffic controller wired
@@ -763,6 +900,7 @@ pub async fn start_test_server_with_traffic_controller(
         Some(traffic_controller),
         Some(client_id_source),
         Some(test_metrics()),
+        None,
         |_| {},
     )
     .await
@@ -802,4 +940,54 @@ pub async fn connect_move_package_service_client(
         .await
         .unwrap();
     MovePackageServiceClient::new(channel)
+}
+
+// ---------------------------------------------------------------------------
+// TLS helpers
+// ---------------------------------------------------------------------------
+
+/// A self-signed certificate for `localhost`, in files that a server's TLS
+/// config points to.
+pub struct TestCertificate {
+    pub tls_config: TlsConfig,
+    certificate_pem: String,
+    _dir: tempfile::TempDir,
+}
+
+impl TestCertificate {
+    pub fn new() -> Self {
+        let rcgen::CertifiedKey { cert, key_pair } =
+            rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let cert_path = dir.path().join("cert.pem");
+        let key_path = dir.path().join("key.pem");
+        std::fs::write(&cert_path, cert.pem()).unwrap();
+        std::fs::write(&key_path, key_pair.serialize_pem()).unwrap();
+        let tls_config = serde_json::from_value(serde_json::json!({
+            "cert": cert_path,
+            "key": key_path,
+        }))
+        .unwrap();
+        Self {
+            tls_config,
+            certificate_pem: cert.pem(),
+            _dir: dir,
+        }
+    }
+
+    /// Connects to the TLS server at `address`, trusting only this
+    /// certificate.
+    pub async fn connect(&self, address: std::net::SocketAddr) -> Channel {
+        Channel::from_shared(format!("https://{address}"))
+            .unwrap()
+            .tls_config(
+                ClientTlsConfig::new()
+                    .ca_certificate(Certificate::from_pem(&self.certificate_pem))
+                    .domain_name("localhost"),
+            )
+            .unwrap()
+            .connect()
+            .await
+            .expect("failed to connect to the TLS gRPC server")
+    }
 }

@@ -19,7 +19,7 @@
 //! network outside of this module, so they can be reused easily across network
 //! implementations.
 
-use std::{collections::BTreeSet, fmt, pin::Pin, time::Duration};
+use std::{collections::BTreeSet, fmt, pin::Pin, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -29,7 +29,6 @@ use serde::{
     de::{self, SeqAccess, Visitor},
 };
 use starfish_config::{AuthorityIndex, Committee, MAX_HEADERS_OR_SHARDS_PER_BUNDLE};
-use tokio::sync::OwnedSemaphorePermit;
 
 use crate::{
     Round, VerifiedBlockHeader,
@@ -37,6 +36,7 @@ use crate::{
     block_header::{BlockHeaderDigest, BlockRef, VerifiedBlock},
     commit::{CommitRange, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
+    network::admission::AdmissionGuard,
 };
 
 // Tonic generated RPC stubs.
@@ -44,7 +44,8 @@ mod tonic_gen {
     include!(concat!(env!("OUT_DIR"), "/consensus.ConsensusService.rs"));
 }
 
-mod admission;
+pub(crate) mod admission;
+mod bounded_codec;
 pub(crate) mod metrics;
 mod metrics_layer;
 #[cfg(all(test, not(msim)))]
@@ -61,22 +62,24 @@ use crate::{
     commit_syncer::CommitSyncType, encoder::ShardEncoder, transaction_ref::TransactionRef,
 };
 
-/// Serialized response of a fast commit-sync fetch. Each entry of
-/// `transactions` is a `SerializedTransactionsV2`, which carries its
-/// `TransactionRef`, and covers a prefix of the commits when not all of their
-/// payloads fit one response.
+/// Serialized response of a fast commit-sync fetch: the commits and their
+/// certifier headers in full, then the transaction entries as they are sent.
+/// Each entry is a `SerializedTransactionsV2`, which carries its
+/// `TransactionRef`, and the entries cover a prefix of the commits when not all
+/// of their payloads fit one response.
 pub(crate) struct FetchedCommitsAndTransactions {
     pub(crate) commits: Vec<Bytes>,
     pub(crate) certifier_block_headers: Vec<Bytes>,
-    pub(crate) transactions: Vec<Bytes>,
-    /// Held until the response has been sent, so a second oversized commit is
-    /// not read while this one is still in memory.
-    pub(crate) oversized_commit_permit: Option<OwnedSemaphorePermit>,
+    pub(crate) transactions: ChunkStream,
 }
 
 /// A stream of serialized blocks with additional information such as headers or
 /// shards.
 pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBundle> + Send>>;
+
+/// Entries of a fetch response, one response message per item. An error item
+/// is the last one.
+pub(crate) type ChunkStream = Pin<Box<dyn Stream<Item = ConsensusResult<Vec<Bytes>>> + Send>>;
 
 /// Network client for communicating with peers.
 ///
@@ -129,20 +132,19 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
 
     /// Fetches serialized commits in the commit range from a peer, headers
     /// voting for the last commit, and all transactions from these commits.
-    /// Returns serialized commits, serialized headers voting for the last
-    /// commit, and serialized transactions (as SerializedTransactionsV2 which
-    /// includes TransactionRef). Used in the fast commit syncer.
+    /// The commits and headers have all arrived when this returns; the
+    /// transactions arrive through the returned stream. Used in the fast commit
+    /// syncer.
     ///
-    /// When the response stream is cut by an error after commits were
-    /// received, the buffers hold what arrived and the error is returned
-    /// alongside them, so the caller can attribute missing transactions to
-    /// the connection rather than to the peer's data.
+    /// When the response is cut by an error after commits were received, the
+    /// transaction stream ends with that error, so the caller can attribute
+    /// missing transactions to the connection rather than to the peer's data.
     async fn fetch_commits_and_transactions(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
         timeout: Duration,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)>;
+    ) -> ConsensusResult<FetchedCommitsAndTransactions>;
 
     /// Fetches the latest block from `peer` for the requested `authorities`.
     /// The latest blocks are returned in the serialised format of
@@ -201,12 +203,15 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<BlockBundleStream>;
 
     /// Handles the request to fetch block headers by references from the peer.
+    /// Headers asked for by commit sync are read one response message at a
+    /// time, as the messages are sent, each read holding `admission_guard`.
     async fn handle_fetch_headers(
         &self,
         peer: AuthorityIndex,
         block_refs: Vec<BlockRef>,
         highest_accepted_rounds: Vec<Round>,
-    ) -> ConsensusResult<Vec<Bytes>>;
+        admission_guard: Option<Arc<AdmissionGuard>>,
+    ) -> ConsensusResult<ChunkStream>;
 
     /// Handles the request to fetch commits by index range from the peer.
     /// Batch size limit depends on the sync type.
@@ -218,11 +223,13 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)>;
 
     /// Handles the request to fetch commits and transactions by index range
-    /// from the peer. Used in fast commit sync.
+    /// from the peer. Used in fast commit sync. The transactions are read one
+    /// response message at a time, each read holding `admission_guard`.
     async fn handle_fetch_commits_and_transactions(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
+        admission_guard: Option<Arc<AdmissionGuard>>,
     ) -> ConsensusResult<FetchedCommitsAndTransactions>;
 
     /// Handles the request to fetch the latest block headers for the provided
@@ -234,12 +241,15 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<Vec<Bytes>>;
 
     /// Handles the request to fetch transactions by references from the peer.
-    /// Results are truncated to the per-fetch transaction count cap.
+    /// Results are truncated to the per-fetch transaction count cap, and are
+    /// read one response message at a time, as the messages are sent, each
+    /// read holding `admission_guard`.
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
         transactions_refs: Vec<TransactionRef>,
-    ) -> ConsensusResult<Vec<Bytes>>;
+        admission_guard: Option<Arc<AdmissionGuard>>,
+    ) -> ConsensusResult<ChunkStream>;
 }
 
 #[derive(Clone, Debug, PartialEq)]

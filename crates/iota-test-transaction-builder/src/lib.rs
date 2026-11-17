@@ -198,6 +198,18 @@ impl TestTransactionBuilder {
         )
     }
 
+    pub fn call_unstaking(self, staked_iota: ObjectReference) -> Self {
+        self.move_call(
+            ObjectId::SYSTEM,
+            Identifier::IOTA_SYSTEM_MODULE.as_str(),
+            "request_withdraw_stake",
+            vec![
+                CallArg::IOTA_SYSTEM_MUTABLE,
+                CallArg::ImmutableOrOwned(staked_iota),
+            ],
+        )
+    }
+
     pub fn call_emit_random(
         self,
         package_id: ObjectId,
@@ -661,7 +673,18 @@ pub async fn emit_new_random_u128(
 ) -> IotaTransactionBlockResponse {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let rgp = context.get_reference_gas_price().await.unwrap();
+    let random_call_arg = randomness_state_call_arg(context).await;
 
+    let txn = context.sign_transaction(
+        &TestTransactionBuilder::new(sender, gas_object, rgp)
+            .move_call(package_id, "random", "new", vec![random_call_arg])
+            .build(),
+    );
+    context.execute_transaction_must_succeed(txn).await
+}
+
+/// Builds the `CallArg` for reading the shared randomness state object.
+pub async fn randomness_state_call_arg(context: &WalletContext) -> CallArg {
     let client = context.get_client().await.unwrap();
     let random_obj = client
         .read_api()
@@ -680,18 +703,11 @@ pub async fn emit_new_random_u128(
     let Owner::Shared(initial_shared_version) = random_obj_owner else {
         panic!("Expect Randomness to be shared object")
     };
-    let random_call_arg = CallArg::Shared(SharedObjectReference::new(
+    CallArg::Shared(SharedObjectReference::new(
         ObjectId::RANDOMNESS_STATE,
         initial_shared_version,
         false,
-    ));
-
-    let txn = context.sign_transaction(
-        &TestTransactionBuilder::new(sender, gas_object, rgp)
-            .move_call(package_id, "random", "new", vec![random_call_arg])
-            .build(),
-    );
-    context.execute_transaction_must_succeed(txn).await
+    ))
 }
 
 /// Executes a transaction to publish the specified examples package and returns

@@ -36,7 +36,7 @@ use crate::{
     misbehavior_store::MisbehaviorStore,
     network::{NetworkClient, SerializedTransactionsV2},
     task::spawn_blocking,
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 /// The number of concurrent live transaction fetch requests
@@ -329,15 +329,8 @@ impl TransactionsSynchronizerHandle {
     /// transactions - provided the refs set - from the peer authority.
     pub(crate) async fn fetch_transactions(
         &self,
-        missing_transaction_refs: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+        missing_transaction_refs: BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
     ) -> ConsensusResult<()> {
-        // The `BlockRef` arm exists only for `CommitV1`, which no longer reaches
-        // the transaction-sync paths, so the synchronizer works with
-        // `TransactionRef` directly past this point.
-        let missing_transaction_refs = missing_transaction_refs
-            .into_iter()
-            .map(|(tx_ref, authorities)| Ok((tx_ref.expect_transaction_ref()?, authorities)))
-            .collect::<ConsensusResult<BTreeMap<_, _>>>()?;
         let (sender, receiver) = oneshot::channel();
         self.commands_sender
             .send(Command::FetchTransactions {
@@ -609,13 +602,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             .get_missing_transaction_data()
             .await
             .map_err(|_err| ConsensusError::Shutdown)?;
-        // The `BlockRef` arm exists only for `CommitV1`, which no longer reaches
-        // the transaction-sync paths, so the synchronizer works with
-        // `TransactionRef` directly past this point.
-        let missing_transactions = missing_transactions
-            .into_iter()
-            .map(|(tx_ref, authorities)| Ok((tx_ref.expect_transaction_ref()?, authorities)))
-            .collect::<ConsensusResult<BTreeMap<_, _>>>()?;
 
         let dag_state = self.dag_state.clone();
 
@@ -724,10 +710,21 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         misbehavior_store: Arc<MisbehaviorStore>,
     ) {
         // Build a mapping from authority -> set of transaction refs it has
-        // acknowledged
+        // acknowledged. A committed payload was acknowledged by a quorum, so
+        // when no acknowledger is known, every peer is asked for it.
+        let committee: BTreeSet<AuthorityIndex> = context
+            .committee
+            .authorities()
+            .map(|(index, _)| index)
+            .collect();
         let mut transaction_refs_by_authority: BTreeMap<AuthorityIndex, BTreeSet<TransactionRef>> =
             BTreeMap::new();
         for (tx_ref, authorities) in &missing_transactions {
+            let authorities = if authorities.is_empty() {
+                &committee
+            } else {
+                authorities
+            };
             for authority in authorities {
                 if *authority != context.own_index {
                     transaction_refs_by_authority
@@ -803,7 +800,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             //   them to the core for processing.
             if let Some((transactions_guard, active_request_guard)) = inflight_transactions_map
                 .lock_transactions_and_active_request(
-                    authority_transaction_refs.clone(),
+                    authority_transaction_refs,
                     authority,
                     context
                         .parameters
@@ -1268,7 +1265,7 @@ mod tests {
         core_thread::CoreError,
         dag_state::{DagState, DataSource},
         encoder::create_encoder,
-        network::{BlockBundleStream, NetworkClient},
+        network::{BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient},
         storage::mem_store::MemStore,
         transaction_ref::TransactionRef,
     };
@@ -1338,8 +1335,7 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1));
             authorities.insert(AuthorityIndex::new_for_test(2));
-            let gen_ref = GenericTransactionRef::from(header.transaction_ref());
-            missing_transactions.insert(gen_ref, authorities);
+            missing_transactions.insert(header.transaction_ref(), authorities);
         }
 
         // Stub the transactions in the network client
@@ -1440,10 +1436,7 @@ mod tests {
         let mut missing_transactions = BTreeMap::new();
         let mut authorities = BTreeSet::new();
         authorities.insert(author);
-        missing_transactions.insert(
-            GenericTransactionRef::from(header.transaction_ref()),
-            authorities,
-        );
+        missing_transactions.insert(header.transaction_ref(), authorities);
 
         network_client
             .stub_fetch_transactions(vec![verified_transactions], author)
@@ -1519,10 +1512,7 @@ mod tests {
         let mut missing_transactions = BTreeMap::new();
         let mut authorities = BTreeSet::new();
         authorities.insert(peer);
-        missing_transactions.insert(
-            GenericTransactionRef::from(header.transaction_ref()),
-            authorities,
-        );
+        missing_transactions.insert(header.transaction_ref(), authorities);
         core_dispatcher
             .stub_missing_transactions(missing_transactions.clone())
             .await;
@@ -1623,10 +1613,7 @@ mod tests {
             authorities.insert(from_whom);
             network_client.set_timeout_peer(from_whom).await;
             let mut missing_txs = BTreeMap::new();
-            missing_txs.insert(
-                GenericTransactionRef::from(header.transaction_ref()),
-                authorities,
-            );
+            missing_txs.insert(header.transaction_ref(), authorities);
             missing_transactions.push(missing_txs)
         }
 
@@ -1745,8 +1732,7 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will timeout
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
-            let gen_ref = GenericTransactionRef::from(header.transaction_ref());
-            missing_transactions.insert(gen_ref, authorities);
+            missing_transactions.insert(header.transaction_ref(), authorities);
         }
 
         // Set peer 1 to timeout
@@ -1873,8 +1859,7 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will return an error
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
-            let gen_ref = GenericTransactionRef::from(header.transaction_ref());
-            missing_transactions.insert(gen_ref, authorities);
+            missing_transactions.insert(header.transaction_ref(), authorities);
         }
 
         // Set peer 1 to return an error
@@ -1990,8 +1975,7 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will return empty results
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
-            let gen_ref = GenericTransactionRef::from(header.transaction_ref());
-            missing_transactions.insert(gen_ref, authorities);
+            missing_transactions.insert(header.transaction_ref(), authorities);
         }
 
         // Set peer 1 to return empty results
@@ -2109,10 +2093,7 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will return corrupted data
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
-            missing_transactions.insert(
-                GenericTransactionRef::from(header.transaction_ref()),
-                authorities,
-            );
+            missing_transactions.insert(header.transaction_ref(), authorities);
         }
 
         // Set peer 1 to return corrupted data
@@ -2215,10 +2196,7 @@ mod tests {
             );
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1));
-            missing_transactions.insert(
-                GenericTransactionRef::from(header.transaction_ref()),
-                authorities,
-            );
+            missing_transactions.insert(header.transaction_ref(), authorities);
             block_headers.push(header);
         }
 
@@ -2355,8 +2333,7 @@ mod tests {
         for header in &block_headers {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1));
-            let gen_ref = GenericTransactionRef::from(header.transaction_ref());
-            missing_transactions.insert(gen_ref, authorities);
+            missing_transactions.insert(header.transaction_ref(), authorities);
         }
 
         // Peer 1 returns one of the requested transactions together with a
@@ -2457,10 +2434,7 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will timeout
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will return an error
-            missing_transactions.insert(
-                GenericTransactionRef::from(header.transaction_ref()),
-                authorities,
-            );
+            missing_transactions.insert(header.transaction_ref(), authorities);
         }
 
         // Set peer 1 to timeout
@@ -2560,8 +2534,7 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // errors
             authorities.insert(AuthorityIndex::new_for_test(2)); // succeeds
-            let gen_ref = GenericTransactionRef::from(header.transaction_ref());
-            missing_transactions.insert(gen_ref, authorities);
+            missing_transactions.insert(header.transaction_ref(), authorities);
         }
 
         network_client
@@ -2765,6 +2738,79 @@ mod tests {
         );
     }
 
+    /// A committed payload with no known acknowledger is fetched from any peer
+    /// that holds it.
+    #[tokio::test]
+    async fn live_syncing_without_acknowledgers_asks_every_peer() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+        let network_client = Arc::new(MockNetworkClient::new());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        let transaction_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            Arc::new(NoopBlockVerifier),
+        );
+        let mut encoder = create_encoder(&context);
+
+        let transactions = vec![Transaction::new(vec![7u8; 32])];
+        let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
+        let commitment = TransactionsCommitment::compute_transactions_commitment(
+            &serialized,
+            &context,
+            &mut encoder,
+        )
+        .unwrap();
+        let header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(1, 1)
+                .set_commitment(commitment)
+                .build(),
+        );
+        let verified_transactions = CommitmentVerifiedTransactions::new(
+            transactions,
+            header.transaction_ref(),
+            Some(header.digest()),
+            serialized,
+        );
+
+        // Only authority 2 holds the payload.
+        network_client
+            .stub_fetch_transactions(
+                vec![verified_transactions.clone()],
+                AuthorityIndex::new_for_test(2),
+            )
+            .await;
+        dag_state
+            .write()
+            .accept_block_headers(vec![header.clone()], DataSource::Test);
+
+        let missing_transactions = BTreeMap::from([(header.transaction_ref(), BTreeSet::new())]);
+
+        // WHEN
+        transaction_synchronizer
+            .fetch_transactions(missing_transactions)
+            .await
+            .unwrap();
+        sleep(Duration::from_millis(1000)).await;
+
+        // THEN
+        let fetched_transactions = core_dispatcher.get_and_drain_transactions().await;
+        assert_eq!(fetched_transactions.len(), 1);
+        assert_eq!(
+            fetched_transactions[0].transaction_ref(),
+            verified_transactions.transaction_ref()
+        );
+
+        transaction_synchronizer.stop().await.unwrap();
+    }
+
     struct MockNetworkClient {
         transactions: Arc<Mutex<HashMap<(AuthorityIndex, TransactionRef), Bytes>>>,
         error_peers: Arc<Mutex<HashMap<AuthorityIndex, ConsensusError>>>,
@@ -2863,7 +2909,7 @@ mod tests {
     #[derive(Default)]
     struct MockCoreThreadDispatcher {
         transactions: Mutex<Vec<CommitmentVerifiedTransactions>>,
-        missing_transactions: Mutex<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
+        missing_transactions: Mutex<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>>,
     }
 
     impl MockCoreThreadDispatcher {
@@ -2881,7 +2927,7 @@ mod tests {
 
         async fn stub_missing_transactions(
             &self,
-            missing_transactions: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+            missing_transactions: BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
         ) {
             let mut missing = self.missing_transactions.lock().await;
             *missing = missing_transactions;
@@ -2897,7 +2943,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -2911,7 +2957,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -2945,27 +2991,21 @@ mod tests {
         }
         async fn get_missing_transaction_data(
             &self,
-        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             let missing = self.missing_transactions.lock().await;
 
             // Lock transactions once, outside the loop
             let transactions = self.transactions.lock().await;
 
-            let mut filtered: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> =
-                BTreeMap::new();
+            let mut filtered: BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>> = BTreeMap::new();
 
-            for (gen_tr_ref, authority_set) in missing.iter() {
-                let exists = transactions.iter().any(|txn| {
-                    let tx_ref_match =
-                        GenericTransactionRef::TransactionRef(txn.transaction_ref()) == *gen_tr_ref;
-                    let block_ref_match = txn
-                        .block_ref()
-                        .is_some_and(|br| GenericTransactionRef::BlockRef(br) == *gen_tr_ref);
-                    tx_ref_match || block_ref_match
-                });
+            for (tx_ref, authority_set) in missing.iter() {
+                let exists = transactions
+                    .iter()
+                    .any(|txn| txn.transaction_ref() == *tx_ref);
 
                 if !exists {
-                    filtered.insert(*gen_tr_ref, authority_set.clone());
+                    filtered.insert(*tx_ref, authority_set.clone());
                 }
             }
 
@@ -2978,7 +3018,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -3003,7 +3043,7 @@ mod tests {
             &self,
             _round: Round,
             _reason: ReasonToCreateBlock,
-        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<TransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!()
         }
 
@@ -3131,7 +3171,7 @@ mod tests {
             _peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)> {
+        ) -> ConsensusResult<FetchedCommitsAndTransactions> {
             unimplemented!("fetch_commits_and_transactions not implemented in mock")
         }
     }

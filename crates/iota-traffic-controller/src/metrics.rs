@@ -15,15 +15,11 @@ pub struct TrafficControllerMetrics {
     pub connection_ip_blocklist_len: IntGauge,
     pub proxy_ip_blocklist_len: IntGauge,
     pub requests_blocked_at_protocol: IntCounter,
-    pub blocks_delegated_to_firewall: IntCounter,
-    pub firewall_delegation_request_fail: IntCounter,
-    pub firewall_delegation_overflow: IntCounter,
     pub rate_limiter_evictions: IntCounter,
     pub num_dry_run_blocked_requests: IntCounter,
     pub tally_handled: IntCounter,
     pub error_tally_handled: IntCounter,
     pub tally_error_types: IntCounterVec,
-    pub deadmans_switch_enabled: IntGauge,
     pub spam_client_threshold: IntGauge,
     pub error_client_threshold: IntGauge,
     pub spam_proxied_client_threshold: IntGauge,
@@ -69,24 +65,6 @@ impl TrafficControllerMetrics {
                 registry
             )
             .unwrap(),
-            blocks_delegated_to_firewall: register_int_counter_with_registry!(
-                "blocks_delegated_to_firewall",
-                "Number of delegation requests to firewall to add to blocklist",
-                registry
-            )
-            .unwrap(),
-            firewall_delegation_request_fail: register_int_counter_with_registry!(
-                "firewall_delegation_request_fail",
-                "Number of failed http requests to firewall for blocklist delegation",
-                registry
-            )
-            .unwrap(),
-            firewall_delegation_overflow: register_int_counter_with_registry!(
-                "firewall_delegation_overflow",
-                "Number of blocks applied locally because the firewall delegation queue was full",
-                registry
-            )
-            .unwrap(),
             rate_limiter_evictions: register_int_counter_with_registry!(
                 "rate_limiter_evictions",
                 "Number of per-client rate-limiter states evicted because an LRU \
@@ -116,13 +94,6 @@ impl TrafficControllerMetrics {
                 "traffic_control_tally_error_types",
                 "Number of tally errors, grouped by error type",
                 &["error_type"],
-                registry
-            )
-            .unwrap(),
-            deadmans_switch_enabled: register_int_gauge_with_registry!(
-                "deadmans_switch_enabled",
-                "If 1, the deadman's switch is enabled and all traffic control
-                should be getting bypassed",
                 registry
             )
             .unwrap(),

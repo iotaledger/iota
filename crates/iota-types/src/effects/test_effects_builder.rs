@@ -11,6 +11,7 @@ use iota_sdk_types::{
 };
 
 use crate::{
+    committee::EpochId,
     effects::TransactionEffectsExt,
     execution::SharedInput,
     message_envelope::Message,
@@ -19,6 +20,8 @@ use crate::{
 
 pub struct TestEffectsBuilder {
     transaction: SenderSignedTransaction,
+    /// The epoch the effects record as the one that executed the transaction.
+    epoch: EpochId,
     /// Override the execution status if provided.
     status: Option<ExecutionStatus>,
     /// Provide the assigned versions for all shared objects.
@@ -27,8 +30,8 @@ pub struct TestEffectsBuilder {
     created_objects: Vec<(ObjectId, Owner)>,
     /// Objects that are mutated: (ID, old version, new owner).
     mutated_objects: Vec<(ObjectId, Version, Owner)>,
-    /// Objects that are deleted: (ID, old version).
-    deleted_objects: Vec<(ObjectId, Version)>,
+    /// Objects that are deleted: (ID, old version, old owner).
+    deleted_objects: Vec<(ObjectId, Version, Owner)>,
     /// Objects that are wrapped: (ID, old version).
     wrapped_objects: Vec<(ObjectId, Version)>,
     /// Objects that are unwrapped: (ID, new owner).
@@ -41,6 +44,7 @@ impl TestEffectsBuilder {
     pub fn new(transaction: &SenderSignedTransaction) -> Self {
         Self {
             transaction: transaction.clone(),
+            epoch: 0,
             status: None,
             shared_input_versions: BTreeMap::new(),
             events_digest: None,
@@ -51,6 +55,12 @@ impl TestEffectsBuilder {
             unwrapped_objects: vec![],
             frozen_objects: BTreeSet::new(),
         }
+    }
+
+    /// Records `epoch` as the epoch that executed the transaction.
+    pub fn with_epoch(mut self, epoch: EpochId) -> Self {
+        self.epoch = epoch;
+        self
     }
 
     pub fn with_status(mut self, status: ExecutionStatus) -> Self {
@@ -102,9 +112,24 @@ impl TestEffectsBuilder {
         self
     }
 
+    /// Deleted objects owned by the sender: (ID, old version).
     pub fn with_deleted_objects(
         mut self,
         objects: impl IntoIterator<Item = (ObjectId, Version)>,
+    ) -> Self {
+        let sender = self.transaction.transaction().sender();
+        self.deleted_objects.extend(
+            objects
+                .into_iter()
+                .map(|(id, version)| (id, version, Owner::Address(sender))),
+        );
+        self
+    }
+
+    /// Deleted objects with the owner they had: (ID, old version, old owner).
+    pub fn with_deleted_objects_owned_by(
+        mut self,
+        objects: impl IntoIterator<Item = (ObjectId, Version, Owner)>,
     ) -> Self {
         self.deleted_objects.extend(objects);
         self
@@ -126,7 +151,7 @@ impl TestEffectsBuilder {
                 SharedInput::Existing(ObjectReference::new(*id, *version, ObjectDigest::MIN))
             })
             .collect();
-        let epoch = 0;
+        let epoch = self.epoch;
         let sender = self.transaction.transaction().sender();
         // TODO: Include receiving objects in the object changes as well.
         let changed_objects = self
@@ -222,21 +247,25 @@ impl TestEffectsBuilder {
                         )
                     }),
             )
-            .chain(self.deleted_objects.into_iter().map(|(id, version)| {
-                (
-                    id,
-                    ChangedObject {
-                        object_id: id,
-                        input_state: ObjectIn::Data {
-                            version,
-                            digest: ObjectDigest::random(),
-                            owner: Owner::Address(sender),
-                        },
-                        output_state: ObjectOut::Missing,
-                        id_operation: IdOperation::Deleted,
-                    },
-                )
-            }))
+            .chain(
+                self.deleted_objects
+                    .into_iter()
+                    .map(|(id, version, owner)| {
+                        (
+                            id,
+                            ChangedObject {
+                                object_id: id,
+                                input_state: ObjectIn::Data {
+                                    version,
+                                    digest: ObjectDigest::random(),
+                                    owner,
+                                },
+                                output_state: ObjectOut::Missing,
+                                id_operation: IdOperation::Deleted,
+                            },
+                        )
+                    }),
+            )
             .chain(self.wrapped_objects.into_iter().map(|(id, version)| {
                 (
                     id,
@@ -306,7 +335,7 @@ impl TestEffectsBuilder {
                 )
                 .chain(self.shared_input_versions.values().copied())
                 .chain(self.mutated_objects.iter().map(|(_, v, _)| *v))
-                .chain(self.deleted_objects.iter().map(|(_, v)| *v))
+                .chain(self.deleted_objects.iter().map(|(_, v, _)| *v))
                 .chain(self.wrapped_objects.iter().map(|(_, v)| *v)),
         )
         .unwrap()

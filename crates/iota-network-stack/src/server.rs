@@ -46,6 +46,7 @@ pub struct ServerBuilder<M: MetricsCallbackProvider = DefaultMetricsCallbackProv
     router: tonic::service::Routes,
     health_reporter: tonic_health::server::HealthReporter,
     listener_metrics: Option<ListenerMetrics>,
+    http_config: iota_http::Config,
 }
 
 impl<M: MetricsCallbackProvider> ServerBuilder<M> {
@@ -59,13 +60,23 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
             router,
             health_reporter,
             listener_metrics: None,
+            http_config: iota_http::Config::default(),
         }
     }
 
-    /// Measures the connections of the listener. See
+    /// Measures the connections and the requests of the listener. See
     /// [`iota_http::Config::metrics`].
     pub fn listener_metrics(mut self, metrics: ListenerMetrics) -> Self {
         self.listener_metrics = Some(metrics);
+        self
+    }
+
+    /// Sets the listener's connection and HTTP/2 settings. Its metrics are set
+    /// by [`Self::listener_metrics`], which replaces any in `http_config`.
+    ///
+    /// Default is [`iota_http::Config::default`].
+    pub fn http_config(mut self, http_config: iota_http::Config) -> Self {
+        self.http_config = http_config;
         self
     }
 
@@ -125,7 +136,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
 
     pub async fn bind(self, addr: &Multiaddr, tls_config: Option<ServerConfig>) -> Result<Server> {
         let request_timeout = self.request_timeout();
-        let http_config = self.config.http_config().metrics(self.listener_metrics);
+        let http_config = self.http_config.metrics(self.listener_metrics);
 
         let metrics_provider = self.metrics_provider;
         let metrics = MetricsHandler::new(metrics_provider.clone());
@@ -153,16 +164,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
             );
 
         let route_layers = ServiceBuilder::new()
-            .map_request(|mut request: http::Request<_>| {
-                if let Some(connect_info) = request.extensions().get::<iota_http::ConnectInfo>() {
-                    let tonic_connect_info = tonic::transport::server::TcpConnectInfo {
-                        local_addr: Some(connect_info.local_addr),
-                        remote_addr: Some(connect_info.remote_addr),
-                    };
-                    request.extensions_mut().insert(tonic_connect_info);
-                }
-                request
-            })
+            .map_request(insert_tonic_connect_info)
             .layer(RequestLifetimeLayer { metrics_provider })
             .layer(SetRequestHeaderLayer::overriding(
                 GRPC_ENDPOINT_PATH_HEADER.clone(),
@@ -232,6 +234,20 @@ impl Server {
     }
 }
 
+/// Copies the client address and the listener address of a connection served
+/// by iota-http into tonic's `TcpConnectInfo`, which
+/// `tonic::Request::remote_addr` reads.
+pub fn insert_tonic_connect_info<B>(mut request: Request<B>) -> Request<B> {
+    if let Some(connect_info) = request.extensions().get::<iota_http::ConnectInfo>() {
+        let tonic_connect_info = tonic::transport::server::TcpConnectInfo {
+            local_addr: Some(connect_info.local_addr),
+            remote_addr: Some(connect_info.remote_addr),
+        };
+        request.extensions_mut().insert(tonic_connect_info);
+    }
+    request
+}
+
 fn update_tcp_port_in_multiaddr(addr: &Multiaddr, port: u16) -> Multiaddr {
     addr.replace(1, |protocol| {
         if let Protocol::Tcp(_) = protocol {
@@ -251,12 +267,32 @@ mod test {
         time::Duration,
     };
 
-    use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
     use iota_metrics::test_utils::MetricsReader;
+    use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
     use tonic::Code;
     use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
 
     use crate::{Multiaddr, config::Config, metrics::MetricsCallbackProvider};
+
+    #[test]
+    fn insert_tonic_connect_info_copies_both_addresses() {
+        let local_addr = "127.0.0.1:1".parse().unwrap();
+        let remote_addr = "127.0.0.2:2".parse().unwrap();
+        let mut request = http::Request::new(());
+        request.extensions_mut().insert(iota_http::ConnectInfo {
+            local_addr,
+            remote_addr,
+        });
+
+        let request = super::insert_tonic_connect_info(request);
+
+        let connect_info = request
+            .extensions()
+            .get::<tonic::transport::server::TcpConnectInfo>()
+            .unwrap();
+        assert_eq!(connect_info.local_addr(), Some(local_addr));
+        assert_eq!(connect_info.remote_addr(), Some(remote_addr));
+    }
 
     #[tokio::test]
     async fn test_metrics_layer_successful() {
@@ -293,14 +329,14 @@ mod test {
 
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let config = Config::new();
-        let keypair = Ed25519KeyPair::generate(&mut rand08::thread_rng());
+        let private_key = Ed25519PrivateKey::random();
 
         let server = config
             .server_builder_with_metrics(metrics.clone())
             .bind(
                 &address,
                 Some(iota_tls::create_rustls_server_config(
-                    keypair.copy().private(),
+                    private_key.clone(),
                     "test".to_string(),
                 )),
             )
@@ -312,7 +348,7 @@ mod test {
             .connect(
                 &address,
                 iota_tls::create_rustls_client_config(
-                    keypair.public().to_owned(),
+                    private_key.public_key(),
                     "test".to_string(),
                     None,
                 ),
@@ -378,7 +414,7 @@ mod test {
         let registry = prometheus_filtered::Registry::new();
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let config = Config::new();
-        let keypair = Ed25519KeyPair::generate(&mut rand08::thread_rng());
+        let private_key = Ed25519PrivateKey::random();
         let server = config
             .server_builder()
             .listener_metrics(iota_http::metrics::ListenerMetrics::new(
@@ -389,7 +425,7 @@ mod test {
             .bind(
                 &address,
                 Some(iota_tls::create_rustls_server_config(
-                    keypair.copy().private(),
+                    private_key.clone(),
                     "test".to_string(),
                 )),
             )
@@ -400,7 +436,7 @@ mod test {
             .connect(
                 server.local_addr(),
                 iota_tls::create_rustls_client_config(
-                    keypair.public().to_owned(),
+                    private_key.public_key(),
                     "test".to_string(),
                     None,
                 ),
@@ -462,14 +498,14 @@ mod test {
 
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let config = Config::new();
-        let keypair = Ed25519KeyPair::generate(&mut rand08::thread_rng());
+        let private_key = Ed25519PrivateKey::random();
 
         let server = config
             .server_builder_with_metrics(metrics.clone())
             .bind(
                 &address,
                 Some(iota_tls::create_rustls_server_config(
-                    keypair.copy().private(),
+                    private_key.clone(),
                     "test".to_string(),
                 )),
             )
@@ -480,7 +516,7 @@ mod test {
             .connect(
                 &address,
                 iota_tls::create_rustls_client_config(
-                    keypair.public().to_owned(),
+                    private_key.public_key(),
                     "test".to_string(),
                     None,
                 ),
@@ -505,14 +541,14 @@ mod test {
 
     async fn test_multiaddr(address: Multiaddr) {
         let config = Config::new();
-        let keypair = Ed25519KeyPair::generate(&mut rand08::thread_rng());
+        let private_key = Ed25519PrivateKey::random();
 
         let server_handle = config
             .server_builder()
             .bind(
                 &address,
                 Some(iota_tls::create_rustls_server_config(
-                    keypair.copy().private(),
+                    private_key.clone(),
                     "test".to_string(),
                 )),
             )
@@ -523,7 +559,7 @@ mod test {
             .connect(
                 &address,
                 iota_tls::create_rustls_client_config(
-                    keypair.public().to_owned(),
+                    private_key.public_key(),
                     "test".to_string(),
                     None,
                 ),
@@ -720,11 +756,14 @@ mod test {
         const STREAM_CAP: u32 = 2;
 
         let started = Started::default();
-        let mut config = Config::new();
-        config.http2_max_concurrent_streams = Some(STREAM_CAP);
+        let config = Config::new();
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let server = config
             .server_builder_with_metrics(started.clone())
+            .http_config(
+                iota_http::Config::default()
+                    .max_concurrent_streams(std::num::NonZeroU32::new(STREAM_CAP)),
+            )
             .add_service(DrainBody)
             .bind(&address, None)
             .await
@@ -768,6 +807,65 @@ mod test {
         for request in in_flight {
             request.abort();
         }
+        server.server_handle.shutdown().await;
+    }
+
+    /// A request path that is valid UTF-8 but not visible ASCII cannot be read
+    /// back from the path header, so the metrics get "invalid" instead of the
+    /// server panicking.
+    #[tokio::test]
+    async fn non_ascii_path_is_answered_and_reported_as_invalid() {
+        #[derive(Clone, Default)]
+        struct ResponsePaths(Arc<Mutex<Vec<String>>>);
+
+        impl MetricsCallbackProvider for ResponsePaths {
+            fn on_request(&self, _path: String) {}
+
+            fn on_response(
+                &self,
+                path: String,
+                _latency: Duration,
+                _status: u16,
+                _grpc_status_code: Code,
+            ) {
+                self.0.lock().unwrap().push(path);
+            }
+        }
+
+        let paths = ResponsePaths::default();
+        let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
+        let server = Config::new()
+            .server_builder_with_metrics(paths.clone())
+            .bind(&address, None)
+            .await
+            .unwrap();
+
+        let stream = tokio::net::TcpStream::connect(server.local_addr().to_socket_addr().unwrap())
+            .await
+            .unwrap();
+        let (mut sender, connection) = hyper::client::conn::http2::handshake(
+            hyper_util::rt::TokioExecutor::new(),
+            hyper_util::rt::TokioIo::new(stream),
+        )
+        .await
+        .unwrap();
+        tokio::spawn(connection);
+
+        let response = sender
+            .send_request(
+                http::Request::post("/é")
+                    .header("content-type", "application/grpc")
+                    .body(TestBody::Empty)
+                    .unwrap(),
+            )
+            .await
+            .expect("the server must answer a request with a non-ASCII path");
+        assert_eq!(
+            response.headers()["grpc-status"],
+            (Code::Unimplemented as i32).to_string()
+        );
+        assert_eq!(*paths.0.lock().unwrap(), ["invalid"]);
+
         server.server_handle.shutdown().await;
     }
 }

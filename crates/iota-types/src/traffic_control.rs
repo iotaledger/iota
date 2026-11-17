@@ -2,13 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
-
 use rand::distr::Distribution;
 use serde::{Deserialize, Serialize, de::Deserializer};
 use serde_with::serde_as;
-
-const TRAFFIC_SINK_TIMEOUT_SEC: u64 = 300;
 
 /// The source that should be used to identify the client's
 /// IP address. To be used to configure cases where a node has
@@ -131,32 +127,6 @@ impl PartialEq for Weight {
 #[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct RemoteFirewallConfig {
-    pub remote_fw_url: String,
-    pub destination_port: u16,
-    #[serde(default)]
-    pub delegate_spam_blocking: bool,
-    #[serde(default)]
-    pub delegate_error_blocking: bool,
-    #[serde(default = "default_drain_path")]
-    pub drain_path: PathBuf,
-    /// Time in secs, after which no registered ingress traffic
-    /// will trigger dead mans switch to drain any firewalls
-    #[serde(default = "default_drain_timeout")]
-    pub drain_timeout_secs: u64,
-}
-
-fn default_drain_path() -> PathBuf {
-    PathBuf::from("/tmp/drain")
-}
-
-fn default_drain_timeout() -> u64 {
-    TRAFFIC_SINK_TIMEOUT_SEC
-}
-
-#[serde_as]
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
 pub struct FreqThresholdConfig {
     /// Sustained tallies per second allowed from a single direct client. Zero
     /// blocks every client; values above 10^9 are clamped.
@@ -254,6 +224,15 @@ pub struct PolicyConfig {
     /// and any blocklist related configuration will be ignored.
     #[serde(default)]
     pub allow_list: Option<Vec<String>>,
+    /// How many leading bits of an IPv6 address identify a client, from 32 to
+    /// 128. The node cannot see how long a client's own network prefix is, so
+    /// it assumes this length for every IPv6 client: the policies count, and
+    /// the node blocks, the addresses that share these bits as one client.
+    /// One subscriber usually holds a whole /64 and can switch addresses
+    /// within it. 128 treats every address as a client of its own. An IPv4
+    /// client is always its full address.
+    #[serde(default = "default_ipv6_prefix_len")]
+    pub ipv6_prefix_len: u8,
 }
 
 impl Default for PolicyConfig {
@@ -267,6 +246,7 @@ impl Default for PolicyConfig {
             spam_sample_rate: default_spam_sample_rate(),
             dry_run: default_dry_run(),
             allow_list: None,
+            ipv6_prefix_len: default_ipv6_prefix_len(),
         }
     }
 }
@@ -299,6 +279,10 @@ pub fn default_client_id_source() -> ClientIdSource {
 pub fn default_blocklist_ttl_sec() -> u64 {
     60
 }
+pub fn default_ipv6_prefix_len() -> u8 {
+    64
+}
+
 pub fn default_dry_run() -> bool {
     true
 }

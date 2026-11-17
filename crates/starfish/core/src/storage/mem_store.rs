@@ -21,10 +21,9 @@ use crate::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef,
         TrustedCommit,
     },
-    error::{ConsensusError, ConsensusResult},
+    error::ConsensusResult,
     misbehavior_store::MisbehaviorCounts,
-    storage::rocksdb_store::check_ref_consistency,
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 /// In-memory storage for testing.
@@ -148,21 +147,16 @@ impl Store for MemStore {
 
     fn read_verified_transactions(
         &self,
-        refs: &[GenericTransactionRef],
+        refs: &[TransactionRef],
     ) -> ConsensusResult<Vec<Option<CommitmentVerifiedTransactions>>> {
-        if !check_ref_consistency(refs) {
-            return Err(ConsensusError::InconsistentTransactionRefVariants);
-        }
         let inner = self.inner.read();
         let transactions = refs
             .iter()
-            .map(|r| match r {
-                // Legacy variant, never stored under v29.
-                GenericTransactionRef::BlockRef(_) => None,
-                GenericTransactionRef::TransactionRef(t) => inner
+            .map(|t| {
+                inner
                     .transactions_by_tx_refs
                     .get(&(t.round, t.author, t.transactions_commitment))
-                    .cloned(),
+                    .cloned()
             })
             .collect();
         Ok(transactions)
@@ -170,21 +164,16 @@ impl Store for MemStore {
 
     fn read_serialized_transactions(
         &self,
-        refs: &[GenericTransactionRef],
+        refs: &[TransactionRef],
     ) -> ConsensusResult<Vec<Option<Bytes>>> {
-        if !check_ref_consistency(refs) {
-            return Err(ConsensusError::InconsistentTransactionRefVariants);
-        }
         let inner = self.inner.read();
         let transactions = refs
             .iter()
-            .map(|r| match r {
-                // Legacy variant, never stored under v29.
-                GenericTransactionRef::BlockRef(_) => None,
-                GenericTransactionRef::TransactionRef(t) => inner
+            .map(|t| {
+                inner
                     .transactions_by_tx_refs
                     .get(&(t.round, t.author, t.transactions_commitment))
-                    .map(|tx| tx.serialized().clone()),
+                    .map(|tx| tx.serialized().clone())
             })
             .collect();
         Ok(transactions)
@@ -202,12 +191,12 @@ impl Store for MemStore {
             .iter()
             .map(|vh| {
                 if vh.is_none() {
-                    GenericTransactionRef::TransactionRef(TransactionRef::default())
+                    TransactionRef::default()
                 } else {
-                    GenericTransactionRef::TransactionRef(vh.as_ref().unwrap().transaction_ref())
+                    vh.as_ref().unwrap().transaction_ref()
                 }
             })
-            .collect::<Vec<GenericTransactionRef>>();
+            .collect::<Vec<TransactionRef>>();
         let transactions = self.read_verified_transactions(tx_refs.as_slice())?;
         drop(inner); // Explicitly drop the read lock before combining results
 
@@ -224,19 +213,16 @@ impl Store for MemStore {
         Ok(blocks)
     }
 
-    fn contains_transactions(&self, refs: &[GenericTransactionRef]) -> ConsensusResult<Vec<bool>> {
-        if !check_ref_consistency(refs) {
-            return Err(ConsensusError::InconsistentTransactionRefVariants);
-        }
+    fn contains_transactions(&self, refs: &[TransactionRef]) -> ConsensusResult<Vec<bool>> {
         let inner = self.inner.read();
         let exist = refs
             .iter()
-            .map(|r| match r {
-                // Legacy variant, never stored under v29.
-                GenericTransactionRef::BlockRef(_) => false,
-                GenericTransactionRef::TransactionRef(t) => inner
-                    .transactions_by_tx_refs
-                    .contains_key(&(t.round, t.author, t.transactions_commitment)),
+            .map(|t| {
+                inner.transactions_by_tx_refs.contains_key(&(
+                    t.round,
+                    t.author,
+                    t.transactions_commitment,
+                ))
             })
             .collect();
         Ok(exist)

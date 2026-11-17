@@ -361,7 +361,10 @@ mod test {
         commit::{CommitDigest, CommitRange, TrustedCommit},
         dag_state::DataSource,
         error::{ConsensusError, ConsensusResult},
-        network::{BlockBundleStream, SerializedBlockBundle, test_network::TestService},
+        network::{
+            BlockBundleStream, FetchedCommitsAndTransactions, SerializedBlockBundle,
+            test_network::TestService,
+        },
         storage::mem_store::MemStore,
         transaction_ref::TransactionRef,
     };
@@ -484,7 +487,7 @@ mod test {
             _peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)> {
+        ) -> ConsensusResult<FetchedCommitsAndTransactions> {
             unimplemented!("Unimplemented")
         }
     }
@@ -707,7 +710,6 @@ mod test {
         f.dag_state
             .write()
             .set_last_commit(TrustedCommit::new_for_test(
-                &f.context,
                 1,
                 CommitDigest::MIN,
                 f.context.clock.timestamp_utc_ms(),

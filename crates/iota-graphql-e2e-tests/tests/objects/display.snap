@@ -66,17 +66,17 @@ Response: {
           {
             "display": [
               {
-                "error": "Vector of name vec is not supported as a Display value",
+                "error": "Vector is not supported as a Display value vec",
                 "key": "vectors",
                 "value": null
               },
               {
-                "error": "Field 'idd' not found",
+                "error": "Field value idd cannot be found in struct",
                 "key": "idd",
                 "value": null
               },
               {
-                "error": "Field 'namee' not found",
+                "error": "Field value namee cannot be found in struct",
                 "key": "namee",
                 "value": null
               }
@@ -117,17 +117,17 @@ Response: {
           {
             "display": [
               {
-                "error": "Vector of name vec is not supported as a Display value",
+                "error": "Vector is not supported as a Display value vec",
                 "key": "vectors",
                 "value": null
               },
               {
-                "error": "Field 'idd' not found",
+                "error": "Field value idd cannot be found in struct",
                 "key": "idd",
                 "value": null
               },
               {
-                "error": "Field 'namee' not found",
+                "error": "Field value namee cannot be found in struct",
                 "key": "namee",
                 "value": null
               },
@@ -173,17 +173,17 @@ Response: {
           {
             "display": [
               {
-                "error": "Vector of name vec is not supported as a Display value",
+                "error": "Vector is not supported as a Display value vec",
                 "key": "vectors",
                 "value": null
               },
               {
-                "error": "Field 'idd' not found",
+                "error": "Field value idd cannot be found in struct",
                 "key": "idd",
                 "value": null
               },
               {
-                "error": "Field 'namee' not found",
+                "error": "Field value namee cannot be found in struct",
                 "key": "namee",
                 "value": null
               },

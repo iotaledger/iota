@@ -1,0 +1,146 @@
+---
+description: 'The conventions every IotaGrpcClient method follows: response metadata, per-item batch results, read masks and BCS-encoded payloads.'
+tags:
+  - explanation
+  - ts-sdk
+  - typescript
+  - grpc
+teams:
+  - iotaledger/tooling
+---
+
+# How Responses Work
+
+Every method of `IotaGrpcClient` follows the same four conventions.
+
+## Body and metadata
+
+Every method resolves to `{ body, metadata }`, typed as `WithMetadata<T>`. `body` is the answer itself. `metadata` is read from the `x-iota-*` headers the node sends along, and tells you what state the node was in when it answered:
+
+```ts
+const { body: objects, metadata } = await client.getObjects(['0x5']);
+
+console.log(metadata.chain, metadata.epoch, metadata.checkpointHeight);
+```
+
+| Field                              | Header                                       | Meaning                                                                  |
+| ---------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------ |
+| `chainId`                          | `x-iota-chain-id`                            | Base58 digest identifying the chain                                      |
+| `chain`                            | `x-iota-chain`                               | Chain name, such as `mainnet`                                            |
+| `epoch`                            | `x-iota-epoch`                               | Current epoch                                                            |
+| `checkpointHeight`                 | `x-iota-checkpoint-height`                   | Latest executed checkpoint                                               |
+| `timestampMs`, `timestamp`         | `x-iota-timestamp-ms`, `x-iota-timestamp`    | Chain time, as milliseconds since the Unix epoch and as RFC 3339         |
+| `lowestAvailableCheckpoint`        | `x-iota-lowest-available-checkpoint`         | Oldest checkpoint whose checkpoint data, transactions, effects and events the node still serves |
+| `lowestAvailableCheckpointObjects` | `x-iota-lowest-available-checkpoint-objects` | Oldest checkpoint whose input and output objects the node still serves  |
+| `serverVersion`                    | `x-iota-server`                              | Node version, such as `iota-node/1.32.1`                                 |
+
+Every field is optional. It is `undefined` when the header is missing or malformed. Epochs, checkpoints and timestamps are `bigint`.
+
+The two `lowestAvailable*` fields show how much history a pruning node still keeps. Ask for anything older and the call fails with `NOT_FOUND` or `FAILED_PRECONDITION`.
+
+Streams work a little differently: their `metadata` is a promise that settles once the first response arrives. See [Stream Checkpoints](how-tos/stream-checkpoints.mdx).
+
+## Batch results
+
+`getObjects`, `getTransactions`, `executeTransactions`, `simulateTransactions` and `viewFunctionCalls` take a list, and return one `ItemResult` per item in the same order:
+
+```ts
+type ItemResult<T> = { ok: true; value: T } | { ok: false; error: IotaGrpcError };
+```
+
+If the node cannot serve one item, only that item's slot fails. The call as a whole still succeeds, so check `ok` on every result:
+
+```ts
+const { body } = await client.getObjects(['0x2', '0x5', `0x${'ab'.repeat(32)}`]);
+
+for (const result of body) {
+    if (result.ok) {
+        console.log('found', result.value.reference?.version);
+    } else {
+        console.log('failed', result.error.message);
+    }
+}
+```
+
+The single-item forms (`executeTransaction`, `simulateTransaction` and `viewFunctionCall`) return the value directly, and throw the error instead of returning it. Passing an empty list to a batch method throws `EmptyRequestError`.
+
+The client also checks that the node sent back one result per item and, for objects and transactions, that each result belongs to the item at that position. If either check fails it throws a `ProtocolError`, so you never get results matched to the wrong request.
+
+## Read masks
+
+A read mask tells the node which fields of the response to fill in. Each method has a default, listed in `DEFAULT_READ_MASKS`. To get something else, pass `readMask` with the field constants for that method:
+
+| Constant                  | Used by                                                       |
+| ------------------------- | ------------------------------------------------------------- |
+| `ObjectField`             | `getObjects`                                                  |
+| `TransactionField`        | `getTransactions`, `executeTransaction(s)`                    |
+| `CheckpointResponseField` | `getCheckpoint`, `streamCheckpoints`                          |
+| `EpochField`              | `getEpoch`                                                    |
+| `ServiceInfoField`        | `getServiceInfo`                                              |
+| `OwnedObjectField`        | `listOwnedObjects`, `listAllOwnedObjects`                     |
+| `DynamicFieldField`       | `listDynamicFields`, `listAllDynamicFields`                   |
+| `SimulateField`           | `simulateTransaction(s)`                                      |
+| `ViewFunctionCallField`   | `viewFunctionCall(s)`                                         |
+
+```ts
+import { TransactionField } from '@iota/grpc';
+
+const { body } = await client.getTransactions([digest], {
+    readMask: [TransactionField.EFFECTS, TransactionField.CHECKPOINT],
+});
+```
+
+- A single field works as well as a list: `readMask: TransactionField.EFFECTS`.
+- A field includes everything under it. `TransactionField.EFFECTS` covers `effects.digest` and `effects.bcs`, and `ALL` (`*`) selects every field.
+- Your mask replaces the default rather than adding to it.
+- An empty list selects nothing, and every field comes back unset.
+- If the node does not know a path, the whole call fails with `INVALID_ARGUMENT`.
+
+Checkpoints are the case to watch: by default you get only the summary, and transactions and events have to be asked for.
+
+## BCS payloads
+
+Responses are protobuf messages, but the objects, transactions, effects, events and checkpoint data inside them are BCS bytes, the encoding the chain itself uses. The client leaves them encoded, so you only pay for decoding what you use. Each kind of payload has its own decoder:
+
+| Function                             | Takes                                           | Returns                                                     |
+| ------------------------------------ | ----------------------------------------------- | ----------------------------------------------------------- |
+| `decodeObject`                       | `Object$`                                       | `IotaObject`: data (Move struct or package), owner, previous transaction, storage rebate |
+| `objectIdOf`                         | `IotaObject`                                    | The object's ID                                             |
+| `decodeCoin`                         | `Object$`                                       | `Coin`: `{ coinType, id, balance }`                         |
+| `decodeTransaction`                  | `ExecutedTransaction['transaction']`            | `TransactionData`                                           |
+| `decodeTransactionEffects`           | `ExecutedTransaction['effects']`                | `TransactionEffects`                                        |
+| `decodeTransactionEvents`            | `ExecutedTransaction['events']`                 | `IotaEvent[]`                                               |
+| `decodeEvent`                        | `Event`                                         | `IotaEvent`: package, module, sender, type and BCS contents |
+| `decodeCheckpointSummary`            | `Checkpoint['summary']`                         | `CheckpointSummary`                                         |
+| `decodeCheckpointContents`           | `Checkpoint['contents']`                        | `CheckpointContents`                                        |
+| `decodeValidatorAggregatedSignature` | `Checkpoint['signature']`                       | `ValidatorAggregatedSignature`                              |
+| `decodeUserSignature`                | A signature from `ExecutedTransaction['signatures']` | The base64 serialized signature                        |
+| `decodeExecutionError`               | An execution error                              | `ExecutionError`                                            |
+| `decodeViewOutputs`                  | `ViewFunctionCallOutputs`                       | `{ returnValues }` or `{ executionError }`                  |
+| `decodeCheckpointTransaction`        | `ExecutedTransaction`                           | All of the above parts at once                              |
+
+```ts
+import { decodeObject, objectIdOf } from '@iota/grpc';
+
+const [result] = (await client.getObjects(['0x5'])).body;
+
+if (result.ok) {
+    const object = decodeObject(result.value);
+    console.log(objectIdOf(object), object.owner);
+}
+```
+
+A decoder throws `ProtoConversionError` when the bytes are invalid or the field is missing. A missing field usually means the read mask left it out. `decodeCheckpointTransaction` needs the transaction, signatures, effects, and input and output objects, so include all of them in the mask.
+
+Decoded values come from `@iota/bcs`, which returns `u64` and larger integers as decimal strings. The protobuf messages use `bigint` for the same numbers, so convert with `BigInt(...)` before comparing:
+
+```ts
+import { decodeCheckpointSummary } from '@iota/grpc';
+
+const { body } = await client.getCheckpoint();
+const summary = decodeCheckpointSummary(body.checkpoint.summary!);
+
+console.log(BigInt(summary.sequenceNumber) === body.sequenceNumber); // true
+```
+
+The one exception is `listCoins` and `listAllCoins`, which return coins already decoded, with `balance` as a `bigint`.

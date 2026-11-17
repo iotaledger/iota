@@ -271,7 +271,8 @@ impl GasMeter for IotaGasMeter<'_> {
     }
 
     fn charge_eq(&mut self, lhs: impl ValueView, rhs: impl ValueView) -> PartialVMResult<()> {
-        let size_reduction = abstract_memory_size(lhs) + abstract_memory_size(rhs);
+        let size_reduction = abstract_memory_size_with_traversal(self.0, lhs)
+            + abstract_memory_size_with_traversal(self.0, rhs);
         self.0.charge(
             1,
             1,
@@ -282,9 +283,15 @@ impl GasMeter for IotaGasMeter<'_> {
     }
 
     fn charge_neq(&mut self, lhs: impl ValueView, rhs: impl ValueView) -> PartialVMResult<()> {
-        let size_reduction = abstract_memory_size(lhs) + abstract_memory_size(rhs);
+        let size_reduction = abstract_memory_size_with_traversal(self.0, lhs)
+            + abstract_memory_size_with_traversal(self.0, rhs);
+        let size_increase = if traverse_refs(self.0.gas_model_version) {
+            Type::Bool.size() + size_reduction
+        } else {
+            Type::Bool.size()
+        };
         self.0
-            .charge(1, 1, 2, Type::Bool.size().into(), size_reduction.into())
+            .charge(1, 1, 2, size_increase.into(), size_reduction.into())
     }
 
     fn charge_vec_pack<'a>(
@@ -379,4 +386,15 @@ impl GasMeter for IotaGasMeter<'_> {
 
 fn abstract_memory_size(val: impl ValueView) -> AbstractMemorySize {
     val.abstract_memory_size(false)
+}
+
+fn abstract_memory_size_with_traversal(
+    status: &GasStatus,
+    val: impl ValueView,
+) -> AbstractMemorySize {
+    val.abstract_memory_size(traverse_refs(status.gas_model_version))
+}
+
+fn traverse_refs(gas_model_version: u64) -> bool {
+    gas_model_version > 2
 }

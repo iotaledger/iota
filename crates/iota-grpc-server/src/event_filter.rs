@@ -6,7 +6,10 @@ use iota_metrics::monitored_scope;
 use iota_sdk_types::{Address, Event, Identifier, ObjectId, StructTag};
 use serde::{Deserialize, Serialize};
 
-const MAX_FILTER_DEPTH: usize = 10;
+use crate::{
+    constants::count_filters,
+    utils::{parse_filter_identifier, parse_filter_struct_tag},
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EventFilter {
@@ -53,8 +56,30 @@ pub enum EventFilter {
 impl TryFrom<iota_grpc_types::v1::filter::EventFilter> for EventFilter {
     type Error = String;
 
+    /// Fails without converting the rest of the filter as soon as it is
+    /// deeper than [`MAX_FILTER_DEPTH`] or has more than [`MAX_FILTER_NODES`]
+    /// filters.
+    ///
+    /// [`MAX_FILTER_DEPTH`]: crate::constants::MAX_FILTER_DEPTH
+    /// [`MAX_FILTER_NODES`]: crate::constants::MAX_FILTER_NODES
     fn try_from(proto: iota_grpc_types::v1::filter::EventFilter) -> Result<Self, Self::Error> {
+        Self::from_proto(proto, 0, &mut 0)
+    }
+}
+
+impl EventFilter {
+    /// Converts `proto`, which is nested `depth` levels deep. `nodes` counts
+    /// the filters converted so far, as described for [`MAX_FILTER_NODES`].
+    ///
+    /// [`MAX_FILTER_NODES`]: crate::constants::MAX_FILTER_NODES
+    pub(crate) fn from_proto(
+        proto: iota_grpc_types::v1::filter::EventFilter,
+        depth: usize,
+        nodes: &mut usize,
+    ) -> Result<Self, String> {
         use iota_grpc_types::v1::filter::event_filter::Filter as ProtoFilter;
+
+        count_filters(depth, nodes, 1)?;
 
         let filter = proto.filter.ok_or("event filter is missing")?;
 
@@ -63,7 +88,7 @@ impl TryFrom<iota_grpc_types::v1::filter::EventFilter> for EventFilter {
                 let filters = all
                     .filters
                     .into_iter()
-                    .map(EventFilter::try_from)
+                    .map(|f| EventFilter::from_proto(f, depth + 1, nodes))
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok(EventFilter::All(filters))
             }
@@ -71,13 +96,17 @@ impl TryFrom<iota_grpc_types::v1::filter::EventFilter> for EventFilter {
                 let filters = any
                     .filters
                     .into_iter()
-                    .map(EventFilter::try_from)
+                    .map(|f| EventFilter::from_proto(f, depth + 1, nodes))
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok(EventFilter::Any(filters))
             }
             ProtoFilter::Negation(not) => {
                 let inner = not.filter.ok_or("negation filter is missing")?;
-                Ok(EventFilter::Not(Box::new(EventFilter::try_from(*inner)?)))
+                Ok(EventFilter::Not(Box::new(EventFilter::from_proto(
+                    *inner,
+                    depth + 1,
+                    nodes,
+                )?)))
             }
             ProtoFilter::Sender(addr_filter) => {
                 let address = addr_filter
@@ -93,12 +122,7 @@ impl TryFrom<iota_grpc_types::v1::filter::EventFilter> for EventFilter {
                 let package_bytes = filter.package_id.ok_or("package_id is missing")?.object_id;
                 let package = ObjectId::from_bytes(&package_bytes)
                     .map_err(|e| format!("invalid package_id: {e}"))?;
-                let module = filter
-                    .module
-                    .map(|m| {
-                        Identifier::new(m.as_str()).map_err(|e| format!("invalid module name: {e}"))
-                    })
-                    .transpose()?;
+                let module = parse_filter_identifier(filter.module, "module")?;
                 Ok(EventFilter::MovePackageAndModule { package, module })
             }
             ProtoFilter::MoveEventPackageAndModule(filter) => {
@@ -106,21 +130,12 @@ impl TryFrom<iota_grpc_types::v1::filter::EventFilter> for EventFilter {
                 let package_bytes = filter.package_id.ok_or("package_id is missing")?.object_id;
                 let package = ObjectId::from_bytes(&package_bytes)
                     .map_err(|e| format!("invalid package_id: {e}"))?;
-                let module = filter
-                    .module
-                    .map(|m| {
-                        Identifier::new(m.as_str()).map_err(|e| format!("invalid module name: {e}"))
-                    })
-                    .transpose()?;
+                let module = parse_filter_identifier(filter.module, "module")?;
                 Ok(EventFilter::MoveEventPackageAndModule { package, module })
             }
-            ProtoFilter::MoveEventType(filter) => {
-                let tag: StructTag = filter
-                    .struct_tag
-                    .parse()
-                    .map_err(|e| format!("invalid struct tag: {e}"))?;
-                Ok(EventFilter::MoveEventType(tag))
-            }
+            ProtoFilter::MoveEventType(filter) => Ok(EventFilter::MoveEventType(
+                parse_filter_struct_tag(&filter.struct_tag)?,
+            )),
             _ => Err("Unsupported event filter type".to_string()),
         }
     }
@@ -156,144 +171,136 @@ impl EventFilter {
     pub fn or(self, other_filter: EventFilter) -> Self {
         Self::Any(vec![self, other_filter])
     }
-
-    /// Validates that the filter depth doesn't exceed the maximum allowed depth
-    /// to prevent DoS attacks through deeply nested structures.
-    pub fn validate_depth(&self) -> Result<(), String> {
-        self.validate_depth_recursive(0)
-    }
-
-    pub(crate) fn validate_depth_recursive(&self, current_depth: usize) -> Result<(), String> {
-        if current_depth > MAX_FILTER_DEPTH {
-            return Err(format!(
-                "Event filter depth exceeds maximum allowed depth of {MAX_FILTER_DEPTH}"
-            ));
-        }
-
-        match self {
-            EventFilter::All(filters) => {
-                for filter in filters {
-                    filter.validate_depth_recursive(current_depth + 1)?;
-                }
-            }
-            EventFilter::Any(filters) => {
-                for filter in filters {
-                    filter.validate_depth_recursive(current_depth + 1)?;
-                }
-            }
-            EventFilter::Not(filter) => {
-                filter.validate_depth_recursive(current_depth + 1)?;
-            }
-            // Atomic filters don't add to depth
-            _ => {}
-        }
-
-        Ok(())
-    }
-
-    /// Returns the maximum depth of this filter tree
-    pub fn max_depth(&self) -> usize {
-        self.max_depth_recursive(0)
-    }
-
-    pub(crate) fn max_depth_recursive(&self, current_depth: usize) -> usize {
-        match self {
-            EventFilter::All(filters) | EventFilter::Any(filters) => filters
-                .iter()
-                .map(|f| f.max_depth_recursive(current_depth + 1))
-                .max()
-                .unwrap_or(current_depth),
-            EventFilter::Not(filter) => filter.max_depth_recursive(current_depth + 1),
-            // Atomic filters
-            _ => current_depth,
-        }
-    }
-
-    /// Create a new filter with validation. This should be used when creating
-    /// filters from external input (e.g., gRPC requests) to ensure safety.
-    pub fn new_validated(filter: EventFilter) -> Result<Self, String> {
-        filter.validate_depth()?;
-        Ok(filter)
-    }
-
-    /// Validates the total complexity of the filter including counting the
-    /// number of total filter nodes to prevent resource exhaustion.
-    pub fn validate_complexity(&self) -> Result<(), String> {
-        const MAX_FILTER_NODES: usize = 1000; // Maximum number of filter nodes
-
-        let node_count = self.count_nodes();
-        if node_count > MAX_FILTER_NODES {
-            return Err(format!(
-                "Event filter complexity exceeds maximum allowed nodes: {node_count} > {MAX_FILTER_NODES}"
-            ));
-        }
-
-        self.validate_depth()
-    }
-
-    pub(crate) fn count_nodes(&self) -> usize {
-        match self {
-            EventFilter::All(filters) | EventFilter::Any(filters) => {
-                1 + filters.iter().map(|f| f.count_nodes()).sum::<usize>()
-            }
-            EventFilter::Not(filter) => 1 + filter.count_nodes(),
-            // Atomic filters count as 1 node
-            _ => 1,
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
+    use iota_grpc_types::v1::filter::{self as proto_filter, event_filter::Filter as ProtoFilter};
+    use prost::Message;
 
     use super::*;
+    use crate::constants::{MAX_FILTER_DEPTH, MAX_FILTER_NODES};
 
-    #[test]
-    fn test_event_filter_depth_validation() {
-        // Simple atomic filter should pass
-        let simple_filter = EventFilter::Sender(Address::random());
-        assert!(simple_filter.validate_depth().is_ok());
-        assert_eq!(simple_filter.max_depth(), 0);
+    fn proto(filter: ProtoFilter) -> proto_filter::EventFilter {
+        let mut proto = proto_filter::EventFilter::default();
+        proto.filter = Some(filter);
+        proto
+    }
 
-        // Nested filter within limits should pass
-        let nested_filter = EventFilter::All(vec![
-            EventFilter::Sender(Address::random()),
-            EventFilter::Any(vec![
-                EventFilter::MovePackageAndModule {
-                    package: ObjectId::random(),
-                    module: Some(Identifier::from_static("MyModule")),
-                },
-                EventFilter::Not(Box::new(EventFilter::MoveEventType(StructTag::new(
-                    Address::random(),
-                    Identifier::from_static("MyModule"),
-                    Identifier::from_static("MyEvent"),
-                    vec![],
-                )))),
-            ]),
-        ]);
-        assert!(nested_filter.validate_depth().is_ok());
-        assert_eq!(nested_filter.max_depth(), 3); // All -> Any -> Not = 3 levels
+    fn proto_event_type() -> proto_filter::EventFilter {
+        let mut event_type = proto_filter::MoveEventTypeFilter::default();
+        event_type.struct_tag = "0x2::module::Event".to_string();
+        proto(ProtoFilter::MoveEventType(event_type))
+    }
 
-        // Deeply nested filter should fail
-        let mut deep_filter = EventFilter::Sender(Address::random());
-        for _ in 0..=10 {
-            // MAX_FILTER_DEPTH
-            deep_filter = EventFilter::Not(Box::new(deep_filter));
-        }
-        assert!(deep_filter.validate_depth().is_err());
-        assert!(deep_filter.max_depth() > 10);
+    fn proto_not(inner: proto_filter::EventFilter, levels: usize) -> proto_filter::EventFilter {
+        (0..levels).fold(inner, |inner, _| {
+            let mut not = proto_filter::NotEventFilter::default();
+            not.filter = Some(Box::new(inner));
+            proto(ProtoFilter::Negation(Box::new(not)))
+        })
+    }
+
+    fn proto_all(filters: Vec<proto_filter::EventFilter>) -> proto_filter::EventFilter {
+        let mut all = proto_filter::AllEventFilter::default();
+        all.filters = filters;
+        proto(ProtoFilter::All(all))
+    }
+
+    fn proto_any(filters: Vec<proto_filter::EventFilter>) -> proto_filter::EventFilter {
+        let mut any = proto_filter::AnyEventFilter::default();
+        any.filters = filters;
+        proto(ProtoFilter::Any(any))
     }
 
     #[test]
-    fn test_event_filter_empty_logical_filters() {
-        // Empty All filter should pass validation
-        let empty_all = EventFilter::All(vec![]);
-        assert!(empty_all.validate_depth().is_ok());
-        assert_eq!(empty_all.max_depth(), 0);
+    fn proto_conversion_rejects_filters_deeper_than_the_limit() {
+        assert!(EventFilter::try_from(proto_not(proto_event_type(), MAX_FILTER_DEPTH)).is_ok());
 
-        // Empty Any filter should pass validation
-        let empty_any = EventFilter::Any(vec![]);
-        assert!(empty_any.validate_depth().is_ok());
-        assert_eq!(empty_any.max_depth(), 0);
+        let err =
+            EventFilter::try_from(proto_not(proto_event_type(), MAX_FILTER_DEPTH + 1)).unwrap_err();
+        assert!(err.contains("levels"), "{err}");
+
+        assert!(EventFilter::try_from(proto_not(proto_event_type(), 1_000)).is_err());
+    }
+
+    #[test]
+    fn proto_conversion_counts_all_and_any_as_levels() {
+        let wraps: [fn(Vec<proto_filter::EventFilter>) -> proto_filter::EventFilter; 2] =
+            [proto_all, proto_any];
+        for wrap in wraps {
+            let nested = |levels| (0..levels).fold(proto_event_type(), |f, _| wrap(vec![f]));
+            assert!(EventFilter::try_from(nested(MAX_FILTER_DEPTH)).is_ok());
+            assert!(EventFilter::try_from(nested(MAX_FILTER_DEPTH + 1)).is_err());
+        }
+    }
+
+    #[test]
+    fn proto_conversion_rejects_filters_with_too_many_nodes() {
+        assert!(
+            EventFilter::try_from(proto_all(vec![proto_event_type(); MAX_FILTER_NODES - 1]))
+                .is_ok()
+        );
+        assert!(EventFilter::try_from(proto_all(vec![])).is_ok());
+        assert!(EventFilter::try_from(proto_any(vec![])).is_ok());
+
+        let err = EventFilter::try_from(proto_all(vec![proto_event_type(); MAX_FILTER_NODES]))
+            .unwrap_err();
+        assert!(err.contains("nodes"), "{err}");
+    }
+
+    fn struct_tag_error(struct_tag: String) -> String {
+        let mut event_type = proto_filter::MoveEventTypeFilter::default();
+        event_type.struct_tag = struct_tag;
+        EventFilter::try_from(proto(ProtoFilter::MoveEventType(event_type))).unwrap_err()
+    }
+
+    #[test]
+    fn proto_conversion_rejects_invalid_struct_tags_with_the_reason() {
+        let err = struct_tag_error("!".repeat(1_000_000));
+        assert!(err.starts_with("invalid struct tag"), "{err}");
+        assert!(err.len() < 200, "{} bytes", err.len());
+
+        let address = format!("0x{}", "ab".repeat(32));
+        let struct_tag = format!("{address}::pool::Pool<{address}::a::A, {address}::b::B>>");
+        let err = struct_tag_error(struct_tag.clone());
+        assert!(
+            err.ends_with(&format!("at byte {}: \">\"", struct_tag.len() - 1)),
+            "{err}"
+        );
+
+        let nested = (0..20).fold("0x2::a::A".to_string(), |inner, _| {
+            format!("0x2::a::A<{inner}>")
+        });
+        let err = struct_tag_error(nested);
+        assert!(err.contains("nesting exceeded"), "{err}");
+
+        for struct_tag in [
+            "0x2::<SELF>::Foo",
+            "0x2::coin::<SELF>",
+            "0x2::coin::Coin<0x2::<SELF>::A>",
+        ] {
+            let err = struct_tag_error(struct_tag.to_string());
+            assert!(err.starts_with("invalid struct tag"), "{err}");
+        }
+    }
+
+    #[test]
+    fn proto_conversion_rejects_self_as_module_name() {
+        let mut package_id = iota_grpc_types::v1::types::ObjectId::default();
+        package_id.object_id = ObjectId::random().as_bytes().to_vec().into();
+        let mut package_and_module = proto_filter::MovePackageAndModuleFilter::default();
+        package_and_module.package_id = Some(package_id);
+        package_and_module.module = Some("<SELF>".to_string());
+        let err =
+            EventFilter::try_from(proto(ProtoFilter::MovePackageAndModule(package_and_module)))
+                .unwrap_err();
+        assert!(err.contains("invalid module name"), "{err}");
+    }
+
+    #[test]
+    fn proto_decoding_rejects_deeply_nested_filters() {
+        let bytes = proto_not(proto_event_type(), 1_000).encode_to_vec();
+        assert!(proto_filter::EventFilter::decode(bytes.as_slice()).is_err());
     }
 }

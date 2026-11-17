@@ -6,7 +6,7 @@
 
 use anyhow::Result;
 use iota_sdk_move_types::{
-    iota_framework::bag::Bag,
+    iota_framework::{bag::Bag, object::UID},
     stardust::{
         expiration_unlock_condition::ExpirationUnlockCondition,
         storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition,
@@ -17,7 +17,7 @@ use iota_sdk_types::{Address, Identifier, StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::{balance::Balance, error::IotaError, id::UID, object::Object};
+use crate::{balance::Balance, error::IotaError, object::Object};
 
 pub const BASIC_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("basic_output");
 pub const BASIC_OUTPUT_STRUCT_NAME: Identifier = Identifier::from_static("BasicOutput");

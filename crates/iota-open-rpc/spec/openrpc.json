@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.34.0-alpha"
+    "version": "1.37.0-alpha"
   },
   "methods": [
     {
@@ -741,7 +741,8 @@
                 }
               ],
               "nextCursor": "1008",
-              "hasNextPage": true
+              "hasNextPage": true,
+              "oldestAvailableCheckpoint": "0"
             }
           }
         }
@@ -1287,31 +1288,35 @@
           "params": [
             {
               "name": "version",
-              "value": 38
+              "value": 41
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "38",
-              "protocolVersion": "38",
+              "maxSupportedProtocolVersion": "41",
+              "protocolVersion": "41",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
                 "additional_multisig_checks": true,
                 "adjust_rewards_by_score": true,
+                "allow_dkg_completion_after_timeout": true,
                 "allow_unbounded_system_objects": true,
                 "always_advance_dkg_to_resolution": true,
                 "calculate_validator_scores": true,
                 "check_canonical_module_version_header": true,
                 "check_cyclic_dependencies": true,
+                "check_groth16_pvk_length": true,
                 "congestion_control_gas_price_feedback_mechanism": true,
                 "congestion_control_min_free_execution_slot": true,
                 "congestion_limit_overshoot_in_gas_price_feedback_mechanism": true,
                 "consensus_batched_block_sync": true,
                 "consensus_block_restrictions": true,
+                "consensus_commit_transactions_once_traversed": true,
                 "consensus_commit_transactions_only_for_traversed_headers": true,
+                "consensus_dedup_only_recorded_messages": true,
                 "consensus_distributed_vote_scoring_strategy": true,
                 "consensus_enable_absolute_score_leader_schedule": true,
                 "consensus_enable_sliding_window_leader_schedule": true,
@@ -1325,24 +1330,27 @@
                 "consensus_zstd_compression": true,
                 "convert_type_argument_error": true,
                 "deny_authenticator_packages": true,
-                "deny_rule_governance": false,
-                "deny_rule_governance_on_chain": false,
                 "dependency_linkage_error": true,
-                "deprecate_global_storage_ops_during_deserialization": false,
+                "deprecate_global_storage_ops": true,
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "disallow_new_modules_in_deps_only_packages": true,
                 "disallow_randomness_in_move_authenticator": true,
                 "disallow_self_identifier": true,
+                "disallow_self_identifier_in_transactions": true,
                 "enable_group_ops_native_function_msm": true,
                 "enable_move_authentication": true,
                 "enable_move_authentication_for_sponsor": true,
                 "enable_pcool_flow": true,
                 "enable_poseidon": true,
+                "enable_validator_attestation": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
+                "limit_groth16_pvk_inputs": true,
                 "max_ptb_value_size_v2": true,
                 "metadata_in_module_bytes": true,
+                "meter_instantiation_loops": true,
                 "minimize_child_object_mutations": true,
+                "move_authenticator_type_arg_packages_as_inputs": true,
                 "move_native_tx_context": true,
                 "native_charging_v2": true,
                 "no_extraneous_module_bytes": true,
@@ -1358,6 +1366,7 @@
                 "publish_package_metadata": true,
                 "reject_immutable_account_creation": true,
                 "reject_immutable_account_objects": true,
+                "reject_partially_signed_mixed_ed25519_multisig": true,
                 "relocate_event_module": true,
                 "report_move_authentication_error": true,
                 "rethrow_serialization_type_layout_errors": true,
@@ -1382,6 +1391,8 @@
                 "address_to_u256_cost_base": {
                   "u64": "52"
                 },
+                "attestation_max_refuted_units_squared": null,
+                "attestor_accuracy_tolerance_percentage": null,
                 "auth_context_authenticator_function_info_v1_cost_base": {
                   "u64": "270"
                 },
@@ -1504,7 +1515,7 @@
                   "u64": "20"
                 },
                 "checkpoint_summary_version_specific_data": {
-                  "u64": "1"
+                  "u64": "2"
                 },
                 "config_read_setting_impl_cost_base": {
                   "u64": "100"
@@ -1539,8 +1550,9 @@
                 "debug_print_stack_trace_base_cost": {
                   "u64": "52"
                 },
-                "deny_rule_removal_grace_round_floor": null,
-                "deny_rule_update_max_entries_per_tx": null,
+                "deny_rule_update_max_entries_per_tx": {
+                  "u64": "1000"
+                },
                 "dynamic_field_add_child_object_cost_base": {
                   "u64": "100"
                 },
@@ -1704,7 +1716,7 @@
                   "u64": "1"
                 },
                 "gas_model_version": {
-                  "u64": "2"
+                  "u64": "3"
                 },
                 "gas_rounding_step": {
                   "u64": "1000"
@@ -1945,6 +1957,9 @@
                 "max_input_objects": {
                   "u64": "2048"
                 },
+                "max_instantiation_loop_graph_edges": {
+                  "u64": "100000"
+                },
                 "max_jwk_votes_per_validator_per_epoch": null,
                 "max_loop_depth": {
                   "u64": "5"
@@ -1960,6 +1975,12 @@
                 },
                 "max_modules_in_publish": {
                   "u32": "64"
+                },
+                "max_move_call_argument_nodes": {
+                  "u64": "2097152"
+                },
+                "max_move_call_argument_nodes_total": {
+                  "u64": "16777216"
                 },
                 "max_move_enum_variants": {
                   "u64": "127"
@@ -2079,7 +2100,7 @@
                   "u64": "4"
                 },
                 "min_validator_joining_stake": {
-                  "u64": "2000000000000000"
+                  "u64": "6000000000000000"
                 },
                 "move_binary_format_version": {
                   "u32": "7"
@@ -2128,6 +2149,9 @@
                 },
                 "package_publish_cost_per_byte": {
                   "u64": "80"
+                },
+                "pcool_deterministic_validation_horizon_distance": {
+                  "u64": "4"
                 },
                 "poseidon_bn254_cost_base": {
                   "u64": "260"
@@ -2253,7 +2277,7 @@
                   "u64": "7"
                 },
                 "validator_low_stake_threshold": {
-                  "u64": "1500000000000000"
+                  "u64": "5500000000000000"
                 },
                 "validator_target_reward": {
                   "u64": "767000000000000"
@@ -2265,7 +2289,7 @@
                   "u64": "2"
                 },
                 "validator_very_low_stake_threshold": {
-                  "u64": "1000000000000000"
+                  "u64": "5000000000000000"
                 },
                 "vdf_hash_to_input_cost": {
                   "u64": "100"
@@ -3492,7 +3516,7 @@
           "name": "cursor",
           "description": "optional paging cursor",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/OwnedObjectCursor"
           }
         },
         {
@@ -3506,10 +3530,10 @@
         }
       ],
       "result": {
-        "name": "Page<Coin,ObjectIdSchema>",
+        "name": "Page<Coin,OwnedObjectCursor>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_Coin_and_OwnedObjectCursor"
         }
       },
       "examples": [
@@ -3767,7 +3791,7 @@
           "name": "cursor",
           "description": "optional paging cursor",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/OwnedObjectCursor"
           }
         },
         {
@@ -3781,10 +3805,10 @@
         }
       ],
       "result": {
-        "name": "Page<Coin,ObjectIdSchema>",
+        "name": "Page<Coin,OwnedObjectCursor>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_Coin_and_OwnedObjectCursor"
         }
       },
       "examples": [
@@ -4272,7 +4296,8 @@
             "value": "some_system_state"
           }
         }
-      ]
+      ],
+      "deprecated": true
     },
     {
       "name": "iotax_getLatestIotaSystemStateV2",
@@ -4332,7 +4357,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Return the list of objects owned by an address. Note that if the address owns more than `QUERY_MAX_RESULT_LIMIT` objects, the pagination is not accurate, because previous page may have been updated when the next page is fetched. Please use iotax_queryObjects if this is a concern.",
+      "description": "Return the list of objects owned by an address. Note that if the address owns more than `QUERY_MAX_RESULT_LIMIT` objects, the pagination is not accurate, because previous page may have been updated when the next page is fetched. Please use iotax_queryObjects if this is a concern.\n\nA full node reads a limited number of objects per page, so a page can hold fewer objects than `limit`, even none, while `hasNextPage` is true: keep fetching pages until `hasNextPage` is false. A full node also refuses filters with more than 10 nested levels or more than 64 filters, counting each object ID of `ObjectIds`.",
       "params": [
         {
           "name": "address",
@@ -4353,7 +4378,7 @@
           "name": "cursor",
           "description": "An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/OwnedObjectCursor"
           }
         },
         {
@@ -4367,10 +4392,10 @@
         }
       ],
       "result": {
-        "name": "Page<IotaObjectResponse,ObjectIdSchema>",
+        "name": "Page<IotaObjectResponse,OwnedObjectCursor>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_OwnedObjectCursor"
         }
       },
       "examples": [
@@ -4840,7 +4865,7 @@
         {
           "name": "cursor",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/OwnedObjectCursor"
           }
         },
         {
@@ -4859,10 +4884,10 @@
         }
       ],
       "result": {
-        "name": "Page<IotaObjectResponse,ObjectIdSchema>",
+        "name": "Page<IotaObjectResponse,OwnedObjectCursor>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_OwnedObjectCursor"
         }
       }
     },
@@ -5054,7 +5079,8 @@
                 "txDigest": "2HyYwpsD5YiiN96i7BBoAyJfTwSvK8MTh42F5777a4ZD",
                 "eventSeq": "1"
               },
-              "hasNextPage": false
+              "hasNextPage": false,
+              "oldestAvailableCheckpoint": "0"
             }
           }
         }
@@ -5152,74 +5178,12 @@
                 }
               ],
               "nextCursor": "EBzDydzw7LpM9r3UFh8JTDQcXt2U4bvW8ZD1qTrPZyqo",
-              "hasNextPage": false
+              "hasNextPage": false,
+              "oldestAvailableCheckpoint": "0"
             }
           }
         }
       ]
-    },
-    {
-      "name": "iotax_subscribeEvent",
-      "tags": [
-        {
-          "name": "Extended API"
-        },
-        {
-          "name": "Websocket"
-        },
-        {
-          "name": "PubSub"
-        }
-      ],
-      "description": "Subscribe to a stream of IOTA event",
-      "params": [
-        {
-          "name": "filter",
-          "description": "The filter criteria of the event stream. See [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters) documentation for examples.",
-          "required": true,
-          "schema": {
-            "$ref": "#/components/schemas/EventFilter"
-          }
-        }
-      ],
-      "result": {
-        "name": "IotaEvent",
-        "required": true,
-        "schema": {
-          "$ref": "#/components/schemas/Event"
-        }
-      }
-    },
-    {
-      "name": "iotax_subscribeTransaction",
-      "tags": [
-        {
-          "name": "Extended API"
-        },
-        {
-          "name": "Websocket"
-        },
-        {
-          "name": "PubSub"
-        }
-      ],
-      "description": "Subscribe to a stream of IOTA transaction effects",
-      "params": [
-        {
-          "name": "filter",
-          "required": true,
-          "schema": {
-            "$ref": "#/components/schemas/TransactionFilter"
-          }
-        }
-      ],
-      "result": {
-        "name": "IotaTransactionBlockEffects",
-        "required": true,
-        "schema": {
-          "$ref": "#/components/schemas/TransactionBlockEffects"
-        }
-      }
     },
     {
       "name": "unsafe_batchTransaction",
@@ -10645,6 +10609,10 @@
           "ByValue"
         ]
       },
+      "OwnedObjectCursor": {
+        "description": "An opaque paging cursor. Pass back the `nextCursor` a page returned to read the page after it; its contents are not part of the API.",
+        "type": "string"
+      },
       "OwnedObjectRef": {
         "type": "object",
         "required": [
@@ -10746,10 +10714,17 @@
               "string",
               "null"
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
-      "Page_for_Coin_and_ObjectID": {
+      "Page_for_Coin_and_OwnedObjectCursor": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -10769,11 +10744,18 @@
           "nextCursor": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/OwnedObjectCursor"
               },
               {
                 "type": "null"
               }
+            ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
             ]
           }
         }
@@ -10804,6 +10786,13 @@
                 "type": "null"
               }
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10829,6 +10818,13 @@
               "string",
               "null"
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10850,6 +10846,13 @@
             "type": "boolean"
           },
           "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
             "type": [
               "string",
               "null"
@@ -10883,10 +10886,17 @@
                 "type": "null"
               }
             ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
-      "Page_for_IotaObjectResponse_and_ObjectID": {
+      "Page_for_IotaObjectResponse_and_OwnedObjectCursor": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -10906,11 +10916,18 @@
           "nextCursor": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/OwnedObjectCursor"
               },
               {
                 "type": "null"
               }
+            ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
             ]
           }
         }
@@ -10940,6 +10957,13 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "type": [
+              "string",
+              "null"
             ]
           }
         }
@@ -11875,6 +11899,7 @@
             ]
           },
           "errors": {
+            "description": "Why a requested field could not be filled. In a batch read, an unknown digest carries its not-found error here.",
             "type": "array",
             "items": {
               "type": "string"
@@ -12001,183 +12026,6 @@
             ]
           }
         }
-      },
-      "TransactionFilter": {
-        "oneOf": [
-          {
-            "description": "Query by checkpoint.",
-            "type": "object",
-            "required": [
-              "Checkpoint"
-            ],
-            "properties": {
-              "Checkpoint": {
-                "type": "string"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query by move function.",
-            "type": "object",
-            "required": [
-              "MoveFunction"
-            ],
-            "properties": {
-              "MoveFunction": {
-                "type": "object",
-                "required": [
-                  "package"
-                ],
-                "properties": {
-                  "function": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "module": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "package": {
-                    "$ref": "#/components/schemas/ObjectID"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query by input object.",
-            "type": "object",
-            "required": [
-              "InputObject"
-            ],
-            "properties": {
-              "InputObject": {
-                "$ref": "#/components/schemas/ObjectID"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query by changed object, including created, mutated and unwrapped objects.",
-            "type": "object",
-            "required": [
-              "ChangedObject"
-            ],
-            "properties": {
-              "ChangedObject": {
-                "$ref": "#/components/schemas/ObjectID"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query by sender address.",
-            "type": "object",
-            "required": [
-              "FromAddress"
-            ],
-            "properties": {
-              "FromAddress": {
-                "$ref": "#/components/schemas/Address"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query by recipient address.",
-            "type": "object",
-            "required": [
-              "ToAddress"
-            ],
-            "properties": {
-              "ToAddress": {
-                "$ref": "#/components/schemas/Address"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query by sender and recipient address.",
-            "type": "object",
-            "required": [
-              "FromAndToAddress"
-            ],
-            "properties": {
-              "FromAndToAddress": {
-                "type": "object",
-                "required": [
-                  "from",
-                  "to"
-                ],
-                "properties": {
-                  "from": {
-                    "$ref": "#/components/schemas/Address"
-                  },
-                  "to": {
-                    "$ref": "#/components/schemas/Address"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query txs that have a given address as sender or recipient.",
-            "type": "object",
-            "required": [
-              "FromOrToAddress"
-            ],
-            "properties": {
-              "FromOrToAddress": {
-                "type": "object",
-                "required": [
-                  "addr"
-                ],
-                "properties": {
-                  "addr": {
-                    "$ref": "#/components/schemas/Address"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query by transaction kind",
-            "type": "object",
-            "required": [
-              "TransactionKind"
-            ],
-            "properties": {
-              "TransactionKind": {
-                "$ref": "#/components/schemas/IotaTransactionKind"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "Query transactions of any given kind in the input.",
-            "type": "object",
-            "required": [
-              "TransactionKindIn"
-            ],
-            "properties": {
-              "TransactionKindIn": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/IotaTransactionKind"
-                }
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
       },
       "TransactionFilterV2": {
         "oneOf": [

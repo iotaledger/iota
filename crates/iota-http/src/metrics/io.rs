@@ -24,7 +24,7 @@ impl<IO> TrackedIo<IO> {
     pub(crate) fn new(io: IO, metrics: Option<&ListenerMetrics>, remote: SocketAddr) -> Self {
         Self {
             io,
-            connection: metrics.map(|metrics| metrics.record_accept(remote)),
+            connection: metrics.map(|metrics| metrics.track_connection(remote)),
         }
     }
 

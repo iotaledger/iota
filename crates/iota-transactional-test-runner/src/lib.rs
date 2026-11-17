@@ -19,7 +19,6 @@ use iota_core::authority::{
     shared_object_version_manager::AssignedVersions,
 };
 use iota_json_rpc::authority_state::StateRead;
-use iota_json_rpc_types::EventFilter;
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, Event, ObjectId,
     Transaction, TransactionDigest, TransactionEffects, TransactionEvents,
@@ -192,20 +191,13 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         tx_digest: &TransactionDigest,
         limit: usize,
     ) -> IotaResult<Vec<Event>> {
-        Ok(self
-            .validator
-            .query_events(
-                &self.kv_store,
-                EventFilter::Transaction(*tx_digest),
-                None,
-                limit,
-                false,
-            )
-            .await
-            .unwrap_or_default()
-            .into_iter()
-            .map(|iota_event| iota_event.into())
-            .collect())
+        // Read from the store rather than the JSON-RPC index, which indexes a
+        // transaction only once its checkpoint executes, and these tests
+        // execute no checkpoints.
+        let events = self
+            .try_get_events(tx_digest)?
+            .map_or_else(Vec::new, |e| e.0);
+        Ok(events.into_iter().take(limit).collect())
     }
 
     async fn create_checkpoint(&mut self) -> anyhow::Result<VerifiedCheckpoint> {

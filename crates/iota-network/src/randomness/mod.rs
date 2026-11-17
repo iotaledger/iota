@@ -29,7 +29,7 @@ use iota_types::{
     crypto::{RandomnessPartialSignature, RandomnessSignature},
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::{OnceCell, mpsc, oneshot};
+use tokio::sync::{OnceCell, OwnedSemaphorePermit, mpsc, oneshot};
 use tracing::{debug, error, info, instrument, warn};
 
 use self::{auth::AllowedPeersUpdatable, metrics::Metrics};
@@ -113,6 +113,22 @@ impl Handle {
             .expect("RandomnessEventLoop mailbox should not overflow or be closed")
     }
 
+    /// Hands over the full signature for `round` taken from a certified
+    /// checkpoint. It is used once local consensus has reserved the round,
+    /// and dropped if it does not verify.
+    pub fn receive_full_signature_from_checkpoint(
+        &self,
+        epoch: EpochId,
+        round: RandomnessRound,
+        sig: RandomnessSignature,
+    ) {
+        self.sender
+            .try_send(RandomnessMessage::ReceiveFullSignatureFromCheckpoint(
+                epoch, round, sig,
+            ))
+            .expect("RandomnessEventLoop mailbox should not overflow or be closed")
+    }
+
     /// Admin interface handler: generates partial signatures for the given
     /// round at the current epoch.
     pub fn admin_get_partial_signatures(
@@ -191,6 +207,7 @@ enum RandomnessMessage {
     ),
     SendPartialSignatures(EpochId, RandomnessRound),
     CompleteRound(EpochId, RandomnessRound),
+    ReceiveFullSignatureFromCheckpoint(EpochId, RandomnessRound, RandomnessSignature),
     ReceiveSignatures(
         PeerId,
         EpochId,
@@ -198,7 +215,6 @@ enum RandomnessMessage {
         Vec<Vec<u8>>,
         Option<RandomnessSignature>,
     ),
-    MaybeIgnoreByzantinePeer(EpochId, PeerId),
     AdminGetPartialSignatures(RandomnessRound, oneshot::Sender<Vec<u8>>),
     AdminInjectPartialSignatures(
         AuthorityName,
@@ -217,7 +233,7 @@ struct RandomnessEventLoop {
     name: AuthorityName,
     config: RandomnessConfig,
     mailbox: mpsc::Receiver<RandomnessMessage>,
-    mailbox_sender: mpsc::WeakSender<RandomnessMessage>,
+    peer_mailbox: mpsc::Receiver<(RandomnessMessage, OwnedSemaphorePermit)>,
     network: anemo::Network,
     allowed_peers: AllowedPeersUpdatable,
     allowed_peers_set: HashSet<PeerId>,
@@ -242,6 +258,7 @@ struct RandomnessEventLoop {
     future_epoch_partial_sigs: BTreeMap<(EpochId, RandomnessRound, PeerId), Vec<Vec<u8>>>,
     received_partial_sigs: BTreeMap<(RandomnessRound, PeerId), Vec<RandomnessPartialSignature>>,
     completed_sigs: BTreeMap<RandomnessRound, RandomnessSignature>,
+    full_sigs_from_checkpoints: BTreeMap<(EpochId, RandomnessRound), RandomnessSignature>,
     highest_completed_round: BTreeMap<EpochId, RandomnessRound>,
 }
 
@@ -251,6 +268,8 @@ impl RandomnessEventLoop {
 
         loop {
             tokio::select! {
+                // Serve the node's own messages first, so peer traffic cannot delay them.
+                biased;
                 maybe_message = self.mailbox.recv() => {
                     // Once all handles to our mailbox have been dropped this
                     // will yield `None` and we can terminate the event loop.
@@ -260,6 +279,7 @@ impl RandomnessEventLoop {
                         break;
                     }
                 },
+                Some((message, _permit)) = self.peer_mailbox.recv() => self.handle_message(message),
             }
         }
 
@@ -289,15 +309,15 @@ impl RandomnessEventLoop {
                 self.send_partial_signatures(epoch, round)
             }
             RandomnessMessage::CompleteRound(epoch, round) => self.complete_round(epoch, round),
+            RandomnessMessage::ReceiveFullSignatureFromCheckpoint(epoch, round, sig) => {
+                self.receive_full_signature_from_checkpoint(epoch, round, sig)
+            }
             RandomnessMessage::ReceiveSignatures(peer_id, epoch, round, partial_sigs, sig) => {
                 if let Some(sig) = sig {
                     self.receive_full_signature(peer_id, epoch, round, sig)
                 } else {
                     self.receive_partial_signatures(peer_id, epoch, round, partial_sigs)
                 }
-            }
-            RandomnessMessage::MaybeIgnoreByzantinePeer(epoch, peer_id) => {
-                self.maybe_ignore_byzantine_peer(epoch, peer_id)
             }
             RandomnessMessage::AdminGetPartialSignatures(round, tx) => {
                 self.admin_get_partial_signatures(round, tx)
@@ -372,6 +392,9 @@ impl RandomnessEventLoop {
             .split_off(&(new_epoch, RandomnessRound::new(0)));
         self.received_partial_sigs.clear();
         self.completed_sigs.clear();
+        self.full_sigs_from_checkpoints = self
+            .full_sigs_from_checkpoints
+            .split_off(&(new_epoch, RandomnessRound::new(0)));
         self.highest_completed_round = self.highest_completed_round.split_off(&new_epoch);
 
         // Start any pending tasks for the new epoch.
@@ -391,6 +414,7 @@ impl RandomnessEventLoop {
         for round in rounds_to_aggregate {
             self.maybe_aggregate_partial_signatures(new_epoch, round);
         }
+        self.maybe_process_full_sigs_from_checkpoints();
 
         Ok(())
     }
@@ -424,6 +448,7 @@ impl RandomnessEventLoop {
         self.round_request_time
             .insert((epoch, round), time::Instant::now());
         self.maybe_start_pending_tasks();
+        self.maybe_process_full_sigs_from_checkpoints();
     }
 
     #[instrument(level = "debug", skip_all, fields(?epoch, ?round))]
@@ -441,6 +466,8 @@ impl RandomnessEventLoop {
         }
 
         self.round_request_time = self.round_request_time.split_off(&(epoch, round + 1));
+        self.full_sigs_from_checkpoints
+            .retain(|(e, r), _| (*e, *r) > (epoch, round));
 
         if epoch == self.epoch {
             self.remove_partial_sigs_in_range((
@@ -646,11 +673,11 @@ impl RandomnessEventLoop {
 
         // Try to verify the aggregated signature all at once. (Should work in the happy
         // path.)
-        if ThresholdBls12381MinSig::verify(&vss_pk.c0(), &round.signature_message(), &sig).is_err()
-        {
+        let public_key = vss_pk.c0();
+        if ThresholdBls12381MinSig::verify(&public_key, &round.signature_message(), &sig).is_err() {
             // If verification fails, some of the inputs must be invalid. We have to go
             // through one-by-one to find which.
-            // TODO: add test for individual sig verification.
+            let mut byzantine_peers = Vec::new();
             self.received_partial_sigs
                 .retain(|&(r, peer_id), partial_sigs| {
                     if round != r {
@@ -667,17 +694,14 @@ impl RandomnessEventLoop {
                         warn!(
                             "received invalid partial signatures from possibly-Byzantine peer {peer_id}"
                         );
-                        if let Some(sender) = self.mailbox_sender.upgrade() {
-                            sender.try_send(RandomnessMessage::MaybeIgnoreByzantinePeer(
-                                epoch,
-                                peer_id,
-                            ))
-                            .expect("RandomnessEventLoop mailbox should not overflow or be closed");
-                        }
+                        byzantine_peers.push(peer_id);
                         return false;
                     }
                     true
                 });
+            for peer_id in byzantine_peers {
+                self.maybe_ignore_byzantine_peer(epoch, peer_id);
+            }
             let sig_range = self
                 .received_partial_sigs
                 .range(sig_bounds)
@@ -691,7 +715,7 @@ impl RandomnessEventLoop {
                 }
             };
             if let Err(e) =
-                ThresholdBls12381MinSig::verify(&vss_pk.c0(), &round.signature_message(), &sig)
+                ThresholdBls12381MinSig::verify(&public_key, &round.signature_message(), &sig)
             {
                 error!(
                     "error while verifying randomness partial signatures after removing invalid partials: {e:?}"
@@ -754,16 +778,70 @@ impl RandomnessEventLoop {
             ThresholdBls12381MinSig::verify(&vss_pk.c0(), &round.signature_message(), &sig)
         {
             info!("received invalid full signature from peer {peer_id}: {e:?}");
-            if let Some(sender) = self.mailbox_sender.upgrade() {
-                sender
-                    .try_send(RandomnessMessage::MaybeIgnoreByzantinePeer(epoch, peer_id))
-                    .expect("RandomnessEventLoop mailbox should not overflow or be closed");
-            }
+            self.maybe_ignore_byzantine_peer(epoch, peer_id);
             return;
         }
 
         debug!("received valid randomness full signature");
         self.process_valid_full_signature(epoch, round, sig);
+    }
+
+    #[instrument(level = "debug", skip_all, fields(?epoch, ?round))]
+    fn receive_full_signature_from_checkpoint(
+        &mut self,
+        epoch: EpochId,
+        round: RandomnessRound,
+        sig: RandomnessSignature,
+    ) {
+        if epoch < self.epoch {
+            debug!(
+                "skipping full sig from checkpoint, we are on epoch {}",
+                self.epoch
+            );
+            return;
+        }
+        self.full_sigs_from_checkpoints.insert((epoch, round), sig);
+        self.maybe_process_full_sigs_from_checkpoints();
+    }
+
+    fn maybe_process_full_sigs_from_checkpoints(&mut self) {
+        let Some(highest_requested_round) = self.highest_requested_round.get(&self.epoch).copied()
+        else {
+            return;
+        };
+        if self.dkg_output.is_none() {
+            return;
+        }
+        let ready: Vec<_> = self
+            .full_sigs_from_checkpoints
+            .range((self.epoch, RandomnessRound::new(0))..=(self.epoch, highest_requested_round))
+            .map(|(key, sig)| (*key, *sig))
+            .collect();
+        for ((epoch, round), sig) in ready {
+            self.full_sigs_from_checkpoints.remove(&(epoch, round));
+            if self.completed_sigs.contains_key(&round)
+                || self
+                    .highest_completed_round
+                    .get(&epoch)
+                    .is_some_and(|completed| *completed >= round)
+            {
+                continue;
+            }
+            let vss_pk = &self
+                .dkg_output
+                .as_ref()
+                .expect("checked above that DKG completed")
+                .vss_pk;
+            if let Err(e) =
+                ThresholdBls12381MinSig::verify(&vss_pk.c0(), &round.signature_message(), &sig)
+            {
+                error!(
+                    "full sig for round {round} from a certified checkpoint does not verify: {e:?}"
+                );
+                continue;
+            }
+            self.process_valid_full_signature(epoch, round, sig);
+        }
     }
 
     fn process_valid_full_signature(

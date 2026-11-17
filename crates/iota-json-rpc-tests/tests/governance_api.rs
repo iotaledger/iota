@@ -14,6 +14,7 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_move_types::iota_framework::object::UID;
 use iota_sdk_types::{MoveStruct, ObjectData, ObjectId, Owner, StructTag, TransactionDigest};
 use iota_swarm_config::genesis_config::{
     AccountConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
@@ -21,7 +22,6 @@ use iota_swarm_config::genesis_config::{
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::deterministic_random_account_private_key,
-    id::UID,
     iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
     object::{MoveStructExt, OBJECT_START_VERSION, ObjectInner},
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -404,11 +404,11 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
     };
 
     // Delegate some IOTA
-    for i in 0..3 {
+    for coin in coins.data.iter().take(3) {
         let transaction_bytes: TransactionBlockBytes = http_client
             .request_add_stake(
                 address,
-                vec![coins.data[i].coin_object_id],
+                vec![coin.coin_object_id],
                 Some(1000000000.into()),
                 validator,
                 None,
@@ -893,4 +893,35 @@ async fn get_validators_apy() {
     assert_eq!(epoch, 0);
     assert_eq!(apys.len(), 4);
     assert!(apys.iter().any(|apy| apy.apy == 0.0));
+}
+
+#[sim_test]
+async fn get_latest_iota_system_state_reports_protocol_config_validator_parameters() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let config = cluster.protocol_config();
+    let client = cluster.rpc_client();
+
+    let summary: IotaSystemStateSummary = client
+        .get_latest_iota_system_state_v2()
+        .await
+        .unwrap()
+        .into();
+    assert_eq!(summary.min_validator_count(), config.min_validator_count());
+    assert_eq!(summary.max_validator_count(), config.max_validator_count());
+    assert_eq!(
+        summary.min_validator_joining_stake(),
+        config.min_validator_joining_stake()
+    );
+    assert_eq!(
+        summary.validator_low_stake_threshold(),
+        config.validator_low_stake_threshold()
+    );
+    assert_eq!(
+        summary.validator_very_low_stake_threshold(),
+        config.validator_very_low_stake_threshold()
+    );
+    assert_eq!(
+        summary.validator_low_stake_grace_period(),
+        config.validator_low_stake_grace_period()
+    );
 }

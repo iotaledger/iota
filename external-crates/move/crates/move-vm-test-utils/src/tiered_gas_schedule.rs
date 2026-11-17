@@ -12,7 +12,6 @@
 use std::{
     collections::BTreeMap,
     ops::{Add, Bound},
-    u64,
 };
 
 use move_binary_format::errors::{PartialVMError, PartialVMResult};

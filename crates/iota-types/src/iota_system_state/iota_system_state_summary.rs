@@ -5,7 +5,8 @@
 use either::Either;
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
 use iota_multiaddr::Multiaddr;
-use iota_protocol_config::ProtocolVersion;
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk_move_types::iota_framework::object::ID;
 use iota_sdk_types::{Address, ObjectId};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -14,10 +15,9 @@ use super::{IotaSystemState, IotaSystemStateTrait};
 use crate::{
     base_types::AuthorityName,
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
-    crypto::NetworkPublicKey,
+    crypto::network_pubkey_from_bytes,
     dynamic_field::get_dynamic_field_from_store,
     error::IotaError,
-    id::ID,
     iota_serde::{BigInt, Readable},
     iota_system_state::get_validator_from_table,
     storage::ObjectStore,
@@ -445,6 +445,62 @@ impl IotaSystemStateSummary {
         *state_summary_get!(self, validator_low_stake_grace_period)
     }
 
+    /// Replaces the validator count limits and stake thresholds, which the
+    /// summary takes from deprecated on-chain fields, with the values the
+    /// protocol config of `chain` enforces at the summary's protocol version.
+    ///
+    /// A value is left unchanged if the protocol config does not define it at
+    /// that version, or if this binary does not support that version.
+    pub fn apply_protocol_config_validator_parameters(&mut self, chain: Chain) {
+        let Some(config) =
+            ProtocolConfig::get_for_version_if_supported(self.protocol_version(), chain)
+        else {
+            return;
+        };
+        let (IotaSystemStateSummary::V1(IotaSystemStateSummaryV1 {
+            min_validator_count,
+            max_validator_count,
+            min_validator_joining_stake,
+            validator_low_stake_threshold,
+            validator_very_low_stake_threshold,
+            validator_low_stake_grace_period,
+            ..
+        })
+        | IotaSystemStateSummary::V2(IotaSystemStateSummaryV2 {
+            min_validator_count,
+            max_validator_count,
+            min_validator_joining_stake,
+            validator_low_stake_threshold,
+            validator_very_low_stake_threshold,
+            validator_low_stake_grace_period,
+            ..
+        })) = self;
+        for (field, value) in [
+            (min_validator_count, config.min_validator_count_as_option()),
+            (max_validator_count, config.max_validator_count_as_option()),
+            (
+                min_validator_joining_stake,
+                config.min_validator_joining_stake_as_option(),
+            ),
+            (
+                validator_low_stake_threshold,
+                config.validator_low_stake_threshold_as_option(),
+            ),
+            (
+                validator_very_low_stake_threshold,
+                config.validator_very_low_stake_threshold_as_option(),
+            ),
+            (
+                validator_low_stake_grace_period,
+                config.validator_low_stake_grace_period_as_option(),
+            ),
+        ] {
+            if let Some(value) = value {
+                *field = value;
+            }
+        }
+    }
+
     pub fn total_stake(&self) -> u64 {
         *state_summary_get!(self, total_stake)
     }
@@ -547,7 +603,7 @@ impl IotaSystemStateSummaryV1 {
                                 .unwrap(),
                             primary_address: Multiaddr::try_from(validator.primary_address.clone())
                                 .unwrap(),
-                            network_public_key: NetworkPublicKey::from_bytes(
+                            network_public_key: network_pubkey_from_bytes(
                                 &validator.network_pubkey_bytes,
                             )
                             .ok(),
@@ -587,7 +643,7 @@ impl IotaSystemStateSummaryV2 {
                                 .unwrap(),
                             primary_address: Multiaddr::try_from(validator.primary_address.clone())
                                 .unwrap(),
-                            network_public_key: NetworkPublicKey::from_bytes(
+                            network_public_key: network_pubkey_from_bytes(
                                 &validator.network_pubkey_bytes,
                             )
                             .ok(),
@@ -1106,4 +1162,90 @@ where
         &candidate_address,
         Some(system_state_summary.protocol_version),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+
+    use super::{IotaSystemStateSummary, IotaSystemStateSummaryV2};
+
+    const ON_CHAIN_VALIDATOR_PARAMETERS: [u64; 6] = [1, 2, 3, 4, 5, 6];
+
+    fn summary_with_on_chain_validator_parameters(
+        protocol_version: ProtocolVersion,
+    ) -> IotaSystemStateSummary {
+        let [
+            min_validator_count,
+            max_validator_count,
+            min_validator_joining_stake,
+            validator_low_stake_threshold,
+            validator_very_low_stake_threshold,
+            validator_low_stake_grace_period,
+        ] = ON_CHAIN_VALIDATOR_PARAMETERS;
+        IotaSystemStateSummary::V2(IotaSystemStateSummaryV2 {
+            protocol_version: protocol_version.as_u64(),
+            min_validator_count,
+            max_validator_count,
+            min_validator_joining_stake,
+            validator_low_stake_threshold,
+            validator_very_low_stake_threshold,
+            validator_low_stake_grace_period,
+            ..Default::default()
+        })
+    }
+
+    fn summary_validator_parameters(summary: &IotaSystemStateSummary) -> [u64; 6] {
+        [
+            summary.min_validator_count(),
+            summary.max_validator_count(),
+            summary.min_validator_joining_stake(),
+            summary.validator_low_stake_threshold(),
+            summary.validator_very_low_stake_threshold(),
+            summary.validator_low_stake_grace_period(),
+        ]
+    }
+
+    fn config_validator_parameters(config: &ProtocolConfig) -> [Option<u64>; 6] {
+        [
+            config.min_validator_count_as_option(),
+            config.max_validator_count_as_option(),
+            config.min_validator_joining_stake_as_option(),
+            config.validator_low_stake_threshold_as_option(),
+            config.validator_very_low_stake_threshold_as_option(),
+            config.validator_low_stake_grace_period_as_option(),
+        ]
+    }
+
+    #[test]
+    fn applies_protocol_config_validator_parameters() {
+        let version = ProtocolVersion::MAX;
+        for chain in [Chain::Mainnet, Chain::Testnet, Chain::Unknown] {
+            let config = ProtocolConfig::get_for_version(version, chain);
+            let mut summary = summary_with_on_chain_validator_parameters(version);
+            summary.apply_protocol_config_validator_parameters(chain);
+
+            assert_eq!(
+                config_validator_parameters(&config),
+                summary_validator_parameters(&summary).map(Some)
+            );
+        }
+    }
+
+    #[test]
+    fn keeps_on_chain_validator_parameters_the_protocol_config_does_not_define() {
+        let version = ProtocolVersion::MIN;
+        let chain = Chain::Mainnet;
+        assert_eq!(
+            config_validator_parameters(&ProtocolConfig::get_for_version(version, chain)),
+            [None; 6]
+        );
+        let mut summary = summary_with_on_chain_validator_parameters(version);
+        summary.apply_protocol_config_validator_parameters(chain);
+
+        assert_eq!(
+            summary_validator_parameters(&summary),
+            ON_CHAIN_VALIDATOR_PARAMETERS
+        );
+    }
 }

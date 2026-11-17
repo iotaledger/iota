@@ -6,11 +6,12 @@
 //! Each RPC group has an independent concurrency budget per committee peer,
 //! keyed on the peer's authenticated authority index. A misbehaving peer can
 //! only exhaust its own budget, never another peer's. Commit fetches carry a
-//! second budget shared by all peers, since their responses are held in memory
-//! until they have been sent; a peer holding no commit fetch is granted one
-//! whatever the others hold, so that budget bounds how much a peer can be
-//! crowded out, never whether it is served at all. Caps are local, opt-in
-//! parameters; a cap of `0` disables the group, leaving the mechanism inert.
+//! second budget shared by all peers, since their responses hold memory and
+//! read the store until they have been sent; a peer holding no commit fetch is
+//! granted one whatever the others hold, so that budget bounds how much a peer
+//! can be crowded out, never whether it is served at all. Caps are local,
+//! opt-in parameters; a cap of `0` disables the group, leaving the mechanism
+//! inert.
 
 use std::{
     future::Future,
@@ -152,7 +153,7 @@ impl CommitFetchSlots {
         };
         // The counters guard nothing else, so relaxed ordering is enough.
         let Ok(held_before) =
-            held_by_peer.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |held| {
+            held_by_peer.try_update(Ordering::Relaxed, Ordering::Relaxed, |held| {
                 (self.per_peer_cap == 0 || held < self.per_peer_cap).then_some(held + 1)
             })
         else {
@@ -160,7 +161,7 @@ impl CommitFetchSlots {
         };
         let taken = self
             .held_total
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |held| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |held| {
                 (held_before == 0 || self.total_cap == 0 || held < self.total_cap)
                     .then_some(held + 1)
             });
@@ -272,8 +273,9 @@ impl PerPeerAdmission {
 }
 
 /// RAII guard for an admitted request: holds the peer's slot and keeps the
-/// per-group in-use gauge incremented for the request's (or stream's) lifetime.
-/// Dropping it releases the slot and decrements the gauge.
+/// per-group in-use gauge incremented. The response body and the reads its
+/// handler runs for it share the guard, so the slot is released and the gauge
+/// decremented once the last of them is dropped.
 pub(crate) struct AdmissionGuard {
     _peer: PeerHold,
     in_use: IntGauge,
@@ -331,7 +333,9 @@ impl<S> Layer<S> for AdmissionLayer {
 
 /// Answers an over-budget peer with `ResourceExhausted` and passes every other
 /// request on with its permits attached to the response body, which gives up
-/// the response and the node-wide slot when the peer stops reading it.
+/// the response and the node-wide slot when the peer stops reading it. The
+/// peer's slot also goes into the request extensions as an
+/// `Arc<AdmissionGuard>`, for the handler to hold while it reads the response.
 #[derive(Clone)]
 pub(crate) struct AdmissionService<S> {
     inner: S,
@@ -346,7 +350,7 @@ where
     ResBody: HttpBody<Data = Bytes> + Send + 'static,
     ResBody::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    type Response = Response<ReclaimableBody<Body, TotalSlot, AdmissionGuard>>;
+    type Response = Response<ReclaimableBody<Body, TotalSlot, Arc<AdmissionGuard>>>;
     type Error = S::Error;
     type Future = AdmissionFuture<S::Future>;
 
@@ -354,7 +358,7 @@ where
         self.inner.poll_ready(cx)
     }
 
-    fn call(&mut self, request: Request<ReqBody>) -> Self::Future {
+    fn call(&mut self, mut request: Request<ReqBody>) -> Self::Future {
         let path = request.uri().path();
         // The deprecated method decodes its request before its handler answers,
         // so answering here is what keeps its body from being read.
@@ -392,7 +396,8 @@ where
                 let in_use = metrics
                     .admission_in_use
                     .with_label_values(&[group.as_str()]);
-                let guard = AdmissionGuard::new(peer, in_use);
+                let guard = Arc::new(AdmissionGuard::new(peer, in_use));
+                request.extensions_mut().insert(guard.clone());
                 AdmissionFuture::admitted(
                     self.inner.call(request),
                     Some(guard),
@@ -426,7 +431,7 @@ pin_project! {
         Admitted {
             #[pin]
             inner: F,
-            guard: Option<AdmissionGuard>,
+            guard: Option<Arc<AdmissionGuard>>,
             total: Option<TotalSlot>,
             // The send deadline and the counter of responses it reclaims;
             // `None` for a response that may stay open.
@@ -441,7 +446,7 @@ pin_project! {
 impl<F> AdmissionFuture<F> {
     fn admitted(
         inner: F,
-        guard: Option<AdmissionGuard>,
+        guard: Option<Arc<AdmissionGuard>>,
         total: Option<TotalSlot>,
         send_deadline: Option<(Duration, IntCounter)>,
     ) -> Self {
@@ -469,7 +474,7 @@ where
     ResBody: HttpBody<Data = Bytes> + Send + 'static,
     ResBody::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    type Output = Result<Response<ReclaimableBody<Body, TotalSlot, AdmissionGuard>>, E>;
+    type Output = Result<Response<ReclaimableBody<Body, TotalSlot, Arc<AdmissionGuard>>>, E>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Self::Output> {
         match self.project() {

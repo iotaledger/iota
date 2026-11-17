@@ -11,6 +11,7 @@ use std::{
 
 use better_any::{Tid, TidAble};
 use indexmap::{IndexMap, IndexSet};
+use iota_sdk_move_types::iota_framework::object::UID;
 use iota_sdk_types::{
     Address, MoveStruct, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest, TypeTag,
     Version,
@@ -18,9 +19,9 @@ use iota_sdk_types::{
 use iota_types::{
     dynamic_field::DynamicFieldInfo,
     execution::DynamicallyLoadedObjectMetadata,
-    id::UID,
     in_memory_storage::InMemoryStorage,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
+    move_layout::MoveLayout,
     object::{MoveStructExt, Object},
     storage::{BackingPackageStore, ChildObjectResolver},
 };
@@ -160,6 +161,7 @@ pub fn end_transaction(
         loaded_child_objects: _,
         created_object_ids,
         deleted_object_ids,
+        received_coin_types: _,
     } = match results {
         Ok(res) => res,
         Err(_) => {

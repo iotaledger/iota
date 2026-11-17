@@ -36,10 +36,8 @@ use iota_swarm_config::{
     },
 };
 use iota_types::{
-    base_types::AuthorityName,
-    object::Object,
-    supported_protocol_versions::SupportedProtocolVersions,
-    traffic_control::{PolicyConfig, RemoteFirewallConfig},
+    base_types::AuthorityName, object::Object,
+    supported_protocol_versions::SupportedProtocolVersions, traffic_control::PolicyConfig,
 };
 use rand::{rand_core::UnwrapErr, rngs::SysRng};
 use tempfile::TempDir;
@@ -70,13 +68,14 @@ pub struct SwarmBuilder<R = UnwrapErr<SysRng>> {
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
     validator_policy_config: Option<PolicyConfig>,
+    fullnode_num_epochs_to_retain_for_indexes: Option<u64>,
     fullnode_policy_config: Option<PolicyConfig>,
-    fullnode_fw_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
     global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig,
     disable_fullnode_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
+    fullnode_enable_jsonrpc_api: bool,
     fullnode_enable_grpc_api: bool,
     fullnode_state_snapshot_config: Option<StateSnapshotConfig>,
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
@@ -110,13 +109,14 @@ impl SwarmBuilder {
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
             validator_policy_config: None,
+            fullnode_num_epochs_to_retain_for_indexes: None,
             fullnode_policy_config: None,
-            fullnode_fw_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
             global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig::Global(true),
             disable_fullnode_pruning: false,
             iota_names_config: None,
+            fullnode_enable_jsonrpc_api: true,
             fullnode_enable_grpc_api: false,
             fullnode_state_snapshot_config: None,
             fullnode_grpc_api_config: None,
@@ -152,13 +152,15 @@ impl<R> SwarmBuilder<R> {
             data_ingestion_dir: self.data_ingestion_dir,
             fullnode_run_with_range: self.fullnode_run_with_range,
             validator_policy_config: self.validator_policy_config,
+            fullnode_num_epochs_to_retain_for_indexes: self
+                .fullnode_num_epochs_to_retain_for_indexes,
             fullnode_policy_config: self.fullnode_policy_config,
-            fullnode_fw_config: self.fullnode_fw_config,
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
             global_state_hash_v1_enabled_config: self.global_state_hash_v1_enabled_config,
             disable_fullnode_pruning: self.disable_fullnode_pruning,
             iota_names_config: self.iota_names_config,
+            fullnode_enable_jsonrpc_api: self.fullnode_enable_jsonrpc_api,
             fullnode_enable_grpc_api: self.fullnode_enable_grpc_api,
             fullnode_state_snapshot_config: self.fullnode_state_snapshot_config,
             fullnode_grpc_api_config: self.fullnode_grpc_api_config,
@@ -353,6 +355,11 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
+    pub fn with_fullnode_num_epochs_to_retain_for_indexes(mut self, epochs: Option<u64>) -> Self {
+        self.fullnode_num_epochs_to_retain_for_indexes = epochs;
+        self
+    }
+
     pub fn with_fullnode_run_with_range(mut self, run_with_range: Option<RunWithRange>) -> Self {
         if let Some(run_with_range) = run_with_range {
             self.fullnode_run_with_range = Some(run_with_range);
@@ -372,15 +379,15 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
-    pub fn with_fullnode_fw_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
-        self.fullnode_fw_config = config;
-        self
-    }
-
     /// Makes the fullnode publish formal state snapshots to the store the
     /// config names.
     pub fn with_fullnode_state_snapshot_config(mut self, config: StateSnapshotConfig) -> Self {
         self.fullnode_state_snapshot_config = Some(config);
+        self
+    }
+
+    pub fn with_fullnode_enable_jsonrpc_api(mut self, enable: bool) -> Self {
+        self.fullnode_enable_jsonrpc_api = enable;
         self
     }
 
@@ -600,9 +607,9 @@ impl<R: rand::CryptoRng> SwarmBuilder<R> {
         let mut fullnode_config_builder = FullnodeConfigBuilder::new()
             .with_config_directory(dir.as_ref().into())
             .with_run_with_range(self.fullnode_run_with_range)
+            .with_num_epochs_to_retain_for_indexes(self.fullnode_num_epochs_to_retain_for_indexes)
             .with_policy_config(self.fullnode_policy_config)
             .with_data_ingestion_dir(ingest_data)
-            .with_fw_config(self.fullnode_fw_config)
             .with_disable_pruning(self.disable_fullnode_pruning)
             .with_iota_names_config(self.iota_names_config);
         if let Some(fullnode_db_path) = self.fullnode_db_path {
@@ -632,6 +639,9 @@ impl<R: rand::CryptoRng> SwarmBuilder<R> {
             fullnode_config_builder =
                 fullnode_config_builder.with_supported_protocol_versions(supported_versions);
         }
+
+        fullnode_config_builder =
+            fullnode_config_builder.with_enable_jsonrpc_api(self.fullnode_enable_jsonrpc_api);
 
         // Add gRPC config wiring
         fullnode_config_builder =
@@ -970,7 +980,7 @@ mod test {
                     .parse()
                     .unwrap(),
                 "validator:enable-soft-locking=false".parse().unwrap(),
-                "validator-0:enable-index-processing=false".parse().unwrap(),
+                "validator-0:enable-jsonrpc-api=false".parse().unwrap(),
             ])
             .build();
 
@@ -997,7 +1007,7 @@ mod test {
         swarm.apply_node_config_overrides_for_spawn(&mut config);
         assert!(!config.enable_soft_locking);
         // The `validator-0` and fullnode scopes leave this validator alone.
-        assert!(config.enable_index_processing);
+        assert!(config.enable_jsonrpc_api);
         assert_eq!(
             config.authority_store_pruning_config.num_epochs_to_retain,
             num_epochs_to_retain
@@ -1061,10 +1071,10 @@ mod test {
         );
     }
 
-    /// A network config whose validator 0 carries a firewall section, which
-    /// its peers do not. Returns the config and the temporary directory it
-    /// must outlive.
-    fn network_config_with_a_firewall_on_validator_0(
+    /// A network config whose validator 0 carries a key-value store write
+    /// section, which its peers do not. Returns the config and the temporary
+    /// directory it must outlive.
+    fn network_config_with_a_kv_store_writer_on_validator_0(
         committee_size: usize,
     ) -> (NetworkConfig, tempfile::TempDir) {
         let dir = tempfile::TempDir::new().unwrap();
@@ -1072,8 +1082,8 @@ mod test {
             .committee_size(NonZeroUsize::new(committee_size).unwrap())
             .build();
         let overrides: Vec<NodeConfigOverride> = [
-            "policy-config={}",
-            "firewall-config={remote-fw-url: 'http://127.0.0.1:65000', destination-port: 65000}",
+            "transaction-kv-store-write-config={aws-access-key-id: id, aws-secret-access-key: \
+             key, aws-region: region, table-name: table, bucket-name: bucket, concurrency: 1}",
         ]
         .iter()
         .map(|input| input.parse().unwrap())
@@ -1086,12 +1096,12 @@ mod test {
     fn validator_override_failures_name_the_validator() {
         // A `validator:` scope carries no index, so only the error context
         // can say which validator rejected the override.
-        let (network_config, _dir) = network_config_with_a_firewall_on_validator_0(2);
+        let (network_config, _dir) = network_config_with_a_kv_store_writer_on_validator_0(2);
 
         let err = Swarm::builder()
             .with_network_config(network_config)
             .with_node_config_overrides(vec![
-                "validator:firewall-config.destination-port=65001"
+                "validator:transaction-kv-store-write-config.concurrency=2"
                     .parse()
                     .unwrap(),
             ])
@@ -1101,7 +1111,7 @@ mod test {
         // edit therefore leaves its required fields unset on validator 1.
         let err = format!("{err:#}");
         assert!(err.contains("validator 1"), "{err}");
-        assert!(err.contains("remote-fw-url"), "{err}");
+        assert!(err.contains("aws-access-key-id"), "{err}");
     }
 
     #[test]
@@ -1147,29 +1157,29 @@ mod test {
     fn overrides_apply_to_a_supplied_network_config() {
         // The localnet feeds a network config loaded from disk. Overrides
         // apply to those configs, not to freshly generated ones.
-        let (network_config, _dir) = network_config_with_a_firewall_on_validator_0(1);
+        let (network_config, _dir) = network_config_with_a_kv_store_writer_on_validator_0(1);
 
         let swarm = Swarm::builder()
             .with_network_config(network_config)
             .with_fullnode_count(1)
             .with_node_config_overrides(vec![
-                "validator:firewall-config.destination-port=65001"
+                "validator:transaction-kv-store-write-config.concurrency=2"
                     .parse()
                     .unwrap(),
-                "fullnode:enable-index-processing=false".parse().unwrap(),
+                "fullnode:enable-jsonrpc-api=false".parse().unwrap(),
             ])
             .try_build()
             .unwrap();
         assert_eq!(
             swarm.config().validator_configs()[0]
-                .firewall_config
+                .transaction_kv_store_write_config
                 .as_ref()
                 .unwrap()
-                .destination_port,
-            65001
+                .concurrency,
+            2
         );
         let fullnode = swarm.fullnodes().next().unwrap();
-        assert!(!fullnode.config().enable_index_processing);
+        assert!(!fullnode.config().enable_jsonrpc_api);
     }
 
     #[test]

@@ -33,7 +33,19 @@
 /crates/iota-http/ @iotaledger/node
 /crates/iota-indexer*/ @iotaledger/infrastructure
 /crates/iota-json/ @iotaledger/infrastructure
-/crates/iota-json-rpc*/ @iotaledger/infrastructure
+/crates/iota-json-rpc/ @iotaledger/node
+/crates/iota-json-rpc/src/axum_router.rs @iotaledger/node @iotaledger/infrastructure
+/crates/iota-json-rpc/src/balance_changes.rs @iotaledger/node @iotaledger/infrastructure
+/crates/iota-json-rpc/src/error.rs @iotaledger/node @iotaledger/infrastructure
+/crates/iota-json-rpc/src/lib.rs @iotaledger/node @iotaledger/infrastructure
+/crates/iota-json-rpc/src/logger.rs @iotaledger/node @iotaledger/infrastructure
+/crates/iota-json-rpc/src/metrics.rs @iotaledger/node @iotaledger/infrastructure
+/crates/iota-json-rpc/src/object_changes.rs @iotaledger/node @iotaledger/infrastructure
+/crates/iota-json-rpc/src/routing_layer.rs @iotaledger/node @iotaledger/infrastructure
+/crates/iota-json-rpc/src/transaction_builder_api.rs @iotaledger/node @iotaledger/infrastructure
+/crates/iota-json-rpc-api/ @iotaledger/infrastructure
+/crates/iota-json-rpc-tests/ @iotaledger/node
+/crates/iota-json-rpc-types/ @iotaledger/infrastructure
 /crates/iota-keys/ @iotaledger/dev-tools
 /crates/iota-kvstore/ @iotaledger/infrastructure
 /crates/iota-ledger/ @iotaledger/dev-tools @alexsporn
