@@ -352,6 +352,9 @@ pub enum ToolCommand {
         fire_drill: crate::fire_drill::FireDrill,
     },
 
+    /// Call the admin API of a running node.
+    Admin(crate::admin::AdminCommand),
+
     /// Check the health of a running gRPC server.
     /// Exits with code 0 if healthy, non-zero otherwise.
     #[command(name = "grpc-health-check")]
@@ -779,6 +782,7 @@ impl ToolCommand {
             ToolCommand::FireDrill { fire_drill } => {
                 crate::fire_drill::run_fire_drill(fire_drill).await?;
             }
+            ToolCommand::Admin(admin) => admin.execute().await?,
             ToolCommand::GrpcHealthCheck { address } => {
                 let client = iota_grpc_client::GrpcClient::new(address)?;
                 client.health().await?;
