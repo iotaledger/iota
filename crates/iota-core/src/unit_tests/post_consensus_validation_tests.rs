@@ -11080,16 +11080,21 @@ impl SharedRegulatedCoin {
     }
 
     /// Executes the publisher's deletion of the shared coin on `s` as a root
-    /// of commit `deleting_commit`.
-    fn delete_shared_coin(&self, s: &HandlerObjectStateSetup, deleting_commit: CommitIndex) {
+    /// of commit `deleting_commit`, and returns its effects.
+    fn delete_shared_coin(
+        &self,
+        s: &HandlerObjectStateSetup,
+        deleting_commit: CommitIndex,
+    ) -> TransactionEffects {
         let deletion =
             self.destroy_shared_coin(s, self.publisher, &self.publisher_key, &self.publisher_gas);
         s.epoch_store.assign_commit_to_transactions(
             deleting_commit,
             vec![TransactionKey::Digest(*deletion.digest())],
         );
-        s.execute_with_assigned_shared_versions(deletion);
+        let effects = s.execute_with_assigned_shared_versions(deletion);
         assert!(s.authority.get_object(&self.coin_id).is_none());
+        effects
     }
 
     /// Executes `0x2::coin::<function>` of the deny list for the coin type
@@ -12461,6 +12466,74 @@ async fn commit_with_two_transfers_of_one_regulated_coin_type_reads_its_deny_lis
     );
     assert_eq!(result.kept, vec![*other_transfer.digest()]);
     assert_eq!(s.reused_reads("dynamic_field") - reused_before, 2);
+}
+
+/// A reader keeps the coin type of a shared input for the rest of its commit.
+/// The second read does not read the store: once the coin is deleted above
+/// the horizon and the version the deletion replaced is removed, the same
+/// reader still answers, and a new reader at the same commit fails.
+#[tokio::test]
+async fn reader_keeps_the_coin_type_of_a_shared_input_for_the_rest_of_its_commit() {
+    let (s, _, coin) =
+        setup_validators_with_a_shared_regulated_coin(RegulatedCoinOptions::default()).await;
+    let initial = initial_shared_version(&s.authority.get_object(&coin.coin_id).unwrap().owner);
+    let coin_type = Some(coin.coin_type.to_canonical_string(false));
+    let reused_before = s.reused_reads("shared_coin_type");
+    let reused = || s.reused_reads("shared_coin_type") - reused_before;
+
+    // Commit 14, horizon 10. The type read is for an input the reader kept.
+    let reader = s.reader_at(14);
+    assert_eq!(
+        reader.read_shared(coin.coin_id, initial).unwrap(),
+        SharedVerdict::Exists
+    );
+    assert_eq!(
+        reader.read_shared_coin_type(coin.coin_id, initial).unwrap(),
+        coin_type
+    );
+    assert_eq!(reused(), 0);
+
+    let deletion_effects = coin.delete_shared_coin(&s, 11);
+    s.commit_all_executed_and_clear_caches();
+    s.prune_versions_consumed_by(&[], &deletion_effects).await;
+    assert_eq!(
+        reader.read_shared_coin_type(coin.coin_id, initial).unwrap(),
+        coin_type
+    );
+    assert_eq!(reused(), 1);
+    // A new reader still keeps the input, deleted above the horizon, and
+    // then fails on its type.
+    let new_reader = s.reader_at(14);
+    assert_deleted_by(
+        new_reader.read_shared(coin.coin_id, initial).unwrap(),
+        &deletion_effects,
+    );
+    let result = new_reader.read_shared_coin_type(coin.coin_id, initial);
+    assert!(
+        matches!(result, Err(IotaError::Storage(_))),
+        "unexpected result: {result:?}"
+    );
+    assert_eq!(reused(), 1);
+}
+
+/// A commit with two transactions that name one shared coin reads the coin's
+/// type once and answers the second transaction from that read. The deny list
+/// still drops only the denied sender's transaction.
+#[tokio::test]
+async fn commit_with_two_transactions_on_one_shared_coin_reads_its_type_once() {
+    let (s, _, coin) =
+        setup_validators_with_a_shared_regulated_coin(RegulatedCoinOptions::default()).await;
+    let by_denied = coin.destroy_shared_coin(&s, coin.denied, &coin.denied_key, &coin.denied_gas);
+    let by_other = coin.destroy_shared_coin(&s, coin.other, &coin.other_key, &coin.other_gas);
+    let reused_before = s.reused_reads("shared_coin_type");
+
+    let result = s
+        .validate_at(14, &[by_denied.clone(), by_other.clone()])
+        .await;
+
+    assert_eq!(result.dropped, coin.address_denied(&by_denied, coin.denied));
+    assert_eq!(result.kept, vec![*by_other.digest()]);
+    assert_eq!(s.reused_reads("shared_coin_type") - reused_before, 1);
 }
 
 /// On a validator that lost the bytes of a dynamic-field child consumed

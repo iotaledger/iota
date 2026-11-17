@@ -1538,7 +1538,17 @@ impl AuthorityState {
         // loaded, so its type is read on its own. Execution also checks the
         // coins Move code receives, and the coins it writes, against the deny
         // list as the epoch started.
-        let mut shared_objects = Vec::new();
+        let mut coin_types = coin_types_for_denylist_check(
+            tx_checked_input_objects
+                .inner()
+                .iter_objects()
+                .chain(
+                    per_authenticator_checked_input_objects
+                        .iter()
+                        .flat_map(|objects| objects.inner().iter_objects()),
+                )
+                .chain(tx_receiving_objects.iter_objects()),
+        );
         for input in tx_checked_input_objects.inner().iter().chain(
             per_authenticator_checked_input_objects
                 .iter()
@@ -1553,22 +1563,9 @@ impl AuthorityState {
                 None,
             ) = (input.input_object_kind, input.as_object())
             {
-                shared_objects
-                    .push(reader.read_shared_object_for_type(id, initial_shared_version)?);
+                coin_types.extend(reader.read_shared_coin_type(id, initial_shared_version)?);
             }
         }
-        let coin_types = coin_types_for_denylist_check(
-            tx_checked_input_objects
-                .inner()
-                .iter_objects()
-                .chain(
-                    per_authenticator_checked_input_objects
-                        .iter()
-                        .flat_map(|objects| objects.inner().iter_objects()),
-                )
-                .chain(&shared_objects)
-                .chain(tx_receiving_objects.iter_objects()),
-        );
         if let Some(denial) = DenyListAtCommit::new(reader).denial(tx.sender(), coin_types)? {
             return Err(denial.into());
         }

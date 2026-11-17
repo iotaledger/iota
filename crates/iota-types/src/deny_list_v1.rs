@@ -438,11 +438,17 @@ pub fn coin_types_for_denylist_check<'a>(
 ) -> BTreeSet<String> {
     objects
         .into_iter()
-        .filter_map(|obj| {
-            obj.as_opt_struct()
-                .and_then(|move_object| coin_type_for_denylist_check(move_object.struct_tag()))
-        })
+        .filter_map(coin_type_of_object_for_denylist_check)
         .collect()
+}
+
+/// Returns the coin type of `object` in canonical string form, as
+/// [`coin_type_for_denylist_check`] gives it for the object's type. It
+/// returns `None` for an object that is not a Move object.
+pub fn coin_type_of_object_for_denylist_check(object: &Object) -> Option<String> {
+    object
+        .as_opt_struct()
+        .and_then(|move_object| coin_type_for_denylist_check(move_object.struct_tag()))
 }
 
 /// Returns the coin type of `struct_tag` in canonical string form. It returns

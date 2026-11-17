@@ -135,9 +135,9 @@ pub struct EpochMetrics {
     /// The number of handler-processed rows held in memory, not yet durable.
     pub handler_object_state_handler_processed_overlay_entries: IntGauge,
 
-    /// The number of shared inputs, package inputs and dynamic fields
-    /// post-consensus validation answered from an earlier read at the same
-    /// commit, by kind.
+    /// The number of shared inputs, package inputs, dynamic fields and coin
+    /// types of shared inputs post-consensus validation answered from an
+    /// earlier read at the same commit, by kind.
     pub consensus_handler_validation_reader_reused_verdicts: IntCounterVec,
 
     /// The number of consensus commits that injected deny-rule update
@@ -305,7 +305,7 @@ impl EpochMetrics {
             .unwrap(),
             consensus_handler_validation_reader_reused_verdicts: register_int_counter_vec_with_registry!(
                 "consensus_handler_validation_reader_reused_verdicts",
-                "The number of shared inputs, package inputs and dynamic fields post-consensus validation answered from an earlier read at the same commit, by kind",
+                "The number of shared inputs, package inputs, dynamic fields and coin types of shared inputs post-consensus validation answered from an earlier read at the same commit, by kind",
                 &["kind"],
                 registry
             )
