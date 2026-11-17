@@ -6562,6 +6562,7 @@ dependencies = [
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-types",
+ "jsonrpsee",
  "move-binary-format",
  "move-core-types",
  "move-disassembler",
@@ -6777,6 +6778,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.7.8",
+ "tonic 0.14.6",
  "tracing",
  "url",
 ]

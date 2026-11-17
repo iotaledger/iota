@@ -29,6 +29,7 @@ hex.workspace = true
 http.workspace = true
 http-body-util.workspace = true
 hyper.workspace = true
+jsonrpsee.workspace = true
 once_cell.workspace = true
 reqwest.workspace = true
 rustls.workspace = true

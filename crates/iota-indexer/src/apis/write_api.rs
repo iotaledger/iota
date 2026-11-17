@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{net::IpAddr, sync::Arc};
 
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
 use futures::TryFutureExt;
-use iota_grpc_client::{GrpcClient, read_mask_fields::SimulateField};
+use iota_grpc_client::{GrpcClient, HeadersInterceptor, read_mask_fields::SimulateField};
 use iota_json::IotaJsonValue;
-use iota_json_rpc::IotaRpcModule;
+use iota_json_rpc::{IotaRpcModule, axum_router::RequestClientIp};
 use iota_json_rpc_api::WriteApiServer;
 use iota_json_rpc_types::{
     BalanceChange, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
@@ -26,6 +26,7 @@ use iota_sdk_types::{
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     effects::TransactionEffectsAPI, error::ExecutionError, iota_serde::BigInt, object::Object,
+    traffic_control::FORWARDED_CLIENT_IP_HEADER,
 };
 use jsonrpsee::{Extensions, RpcModule, core::RpcResult};
 
@@ -121,11 +122,15 @@ impl WriteApi {
     /// for, so callers never deal with it directly. Every dry run and dev
     /// inspect goes through this, so the simulation and its conversions live in
     /// one place.
+    ///
+    /// `client` is the user the simulation runs for, which the fullnode charges
+    /// the simulation to when it lists this indexer as a forwarder.
     pub async fn simulate_transaction(
         &self,
         tx: Transaction,
         skip_checks: bool,
         fields: SimulationFields,
+        client: Option<IpAddr>,
     ) -> IndexerResult<SimulationOutput> {
         let mut read_mask = SIMULATE_CORE_READ_MASK.to_vec();
         if fields.transaction {
@@ -157,6 +162,8 @@ impl WriteApi {
 
         let response = self
             .fullnode_grpc_client
+            .clone()
+            .with_headers(forwarded_client_headers(&self.fullnode_grpc_client, client))
             .simulate_transaction(tx)
             .skip_checks(skip_checks)
             .read_mask(read_mask)
@@ -248,9 +255,55 @@ impl WriteApi {
         })
     }
 
+    /// Runs a Move view function for `client`, as
+    /// [`WriteApiServer::view_function_call`] does. `client` is as in
+    /// [`Self::simulate_transaction`].
+    pub async fn view_function_call_impl(
+        &self,
+        function_name: String,
+        type_args: Option<Vec<IotaTypeTag>>,
+        arguments: Vec<IotaJsonValue>,
+        client: Option<IpAddr>,
+    ) -> IndexerResult<IotaMoveViewCallResults> {
+        let MoveFunctionName {
+            package,
+            module,
+            function,
+        } = function_name.as_str().parse()?;
+        let sender = Address::ZERO;
+        let tx_kind = self
+            .transaction_builder
+            .move_view_call_tx_kind(
+                package,
+                &module,
+                &function,
+                type_args.unwrap_or_default(),
+                arguments,
+            )
+            .await?;
+        let tx_bytes = Base64::from_bytes(&tx_kind.to_bcs());
+        let dev_inspect_results = self
+            .dev_inspect_transaction_block_impl(
+                sender,
+                tx_bytes,
+                None,
+                None,
+                client,
+                &self.package_resolver,
+            )
+            .await?;
+        IotaMoveViewCallResults::from_dev_inspect_results(
+            self.package_resolver.package_store().clone(),
+            dev_inspect_results,
+        )
+        .await
+        .map_err(IndexerError::from)
+    }
+
     async fn dry_run_transaction_block_impl(
         &self,
         tx_bytes: Base64,
+        client: Option<IpAddr>,
         package_resolver: &Arc<Resolver<impl PackageStore>>,
     ) -> IndexerResult<DryRunTransactionBlockResponse> {
         let tx = bcs::from_bytes::<Transaction>(&tx_bytes.to_vec()?)?;
@@ -266,6 +319,7 @@ impl WriteApi {
                     object_changes: true,
                     ..Default::default()
                 },
+                client,
             )
             .await?;
 
@@ -324,6 +378,7 @@ impl WriteApi {
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         additional_args: Option<DevInspectArgs>,
+        client: Option<IpAddr>,
         package_resolver: &Arc<Resolver<impl PackageStore>>,
     ) -> IndexerResult<DevInspectResults> {
         let DevInspectArgs {
@@ -365,6 +420,7 @@ impl WriteApi {
                     execution_error: true,
                     ..Default::default()
                 },
+                client,
             )
             .await?;
 
@@ -431,16 +487,53 @@ impl OptimisticWriteApi {
         &self.optimistic_tx_executor
     }
 
+    /// See [`WriteApi::simulate_transaction`].
     pub async fn simulate_transaction(
         &self,
         tx: Transaction,
         skip_checks: bool,
         fields: SimulationFields,
+        client: Option<IpAddr>,
     ) -> IndexerResult<SimulationOutput> {
         self.write_api
-            .simulate_transaction(tx, skip_checks, fields)
+            .simulate_transaction(tx, skip_checks, fields, client)
             .await
     }
+
+    /// See [`WriteApi::view_function_call_impl`].
+    pub async fn view_function_call_impl(
+        &self,
+        function_name: String,
+        type_args: Option<Vec<IotaTypeTag>>,
+        arguments: Vec<IotaJsonValue>,
+        client: Option<IpAddr>,
+    ) -> IndexerResult<IotaMoveViewCallResults> {
+        self.write_api
+            .view_function_call_impl(function_name, type_args, arguments, client)
+            .await
+    }
+}
+
+/// The headers of `fullnode_grpc_client`, with `client`, when given, named in
+/// the [`FORWARDED_CLIENT_IP_HEADER`] header.
+fn forwarded_client_headers(
+    fullnode_grpc_client: &GrpcClient,
+    client: Option<IpAddr>,
+) -> HeadersInterceptor {
+    let mut headers = fullnode_grpc_client.headers().clone();
+    if let Some(client) = client {
+        let value = tonic::metadata::MetadataValue::try_from(client.to_string())
+            .expect("an IP address is a valid header value");
+        headers
+            .headers_mut()
+            .insert(FORWARDED_CLIENT_IP_HEADER, value);
+    }
+    headers
+}
+
+/// The user of a JSON-RPC request, which the indexer names to the fullnode.
+fn request_client(ext: &Extensions) -> Option<IpAddr> {
+    ext.get::<RequestClientIp>().map(|client| client.0)
 }
 
 #[async_trait]
@@ -462,7 +555,7 @@ impl WriteApiServer for WriteApi {
 
     async fn dev_inspect_transaction_block(
         &self,
-        _ext: &Extensions,
+        ext: &Extensions,
         sender_address: Address,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
@@ -474,6 +567,7 @@ impl WriteApiServer for WriteApi {
             tx_bytes,
             gas_price,
             additional_args,
+            request_client(ext),
             &self.package_resolver,
         )
         .await
@@ -482,10 +576,10 @@ impl WriteApiServer for WriteApi {
 
     async fn dry_run_transaction_block(
         &self,
-        _ext: &Extensions,
+        ext: &Extensions,
         tx_bytes: Base64,
     ) -> RpcResult<DryRunTransactionBlockResponse> {
-        self.dry_run_transaction_block_impl(tx_bytes, &self.package_resolver)
+        self.dry_run_transaction_block_impl(tx_bytes, request_client(ext), &self.package_resolver)
             .await
             .map_err(Into::into)
     }
@@ -497,33 +591,9 @@ impl WriteApiServer for WriteApi {
         type_args: Option<Vec<IotaTypeTag>>,
         arguments: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults> {
-        let MoveFunctionName {
-            package,
-            module,
-            function,
-        } = function_name.as_str().parse().map_err(IndexerError::from)?;
-        let sender = Address::ZERO;
-        let tx_kind = self
-            .transaction_builder
-            .move_view_call_tx_kind(
-                package,
-                &module,
-                &function,
-                type_args.unwrap_or_default(),
-                arguments,
-            )
+        self.view_function_call_impl(function_name, type_args, arguments, request_client(ext))
             .await
-            .map_err(IndexerError::from)?;
-        let tx_bytes = Base64::from_bytes(&tx_kind.to_bcs());
-        let dev_inspect_results = self
-            .dev_inspect_transaction_block(ext, sender, tx_bytes, None, None, None)
-            .await?;
-        Ok(IotaMoveViewCallResults::from_dev_inspect_results(
-            self.package_resolver.package_store().clone(),
-            dev_inspect_results,
-        )
-        .await
-        .map_err(IndexerError::from)?)
+            .map_err(Into::into)
     }
 }
 
@@ -606,5 +676,22 @@ impl IotaRpcModule for OptimisticWriteApi {
 
     fn rpc_doc_module() -> Module {
         iota_json_rpc_api::WriteApiOpenRpc::module_doc()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn a_simulation_names_its_client_to_the_fullnode() {
+        let client = GrpcClient::new("http://127.0.0.1:9000").unwrap();
+        let headers = forwarded_client_headers(&client, Some("198.51.100.7".parse().unwrap()));
+        assert_eq!(
+            headers.headers().get(FORWARDED_CLIENT_IP_HEADER).unwrap(),
+            "198.51.100.7"
+        );
+        let headers = forwarded_client_headers(&client, None);
+        assert!(headers.headers().get(FORWARDED_CLIENT_IP_HEADER).is_none());
     }
 }
