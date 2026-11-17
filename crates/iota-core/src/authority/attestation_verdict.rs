@@ -554,6 +554,7 @@ fn is_pre_execution_failure(kind: &ExecutionErrorKind) -> bool {
     matches!(
         kind,
         ExecutionErrorKind::InputObjectDeleted
+            | ExecutionErrorKind::TransactionDependencyFailed { .. }
             | ExecutionErrorKind::AddressDeniedForCoin { .. }
             | ExecutionErrorKind::CoinTypeGlobalPause { .. }
     ) || is_cancellation(kind)
@@ -604,6 +605,9 @@ mod tests {
             ExecutionErrorKind::CoinTypeGlobalPause {
                 coin_type: String::new(),
             },
+            ExecutionErrorKind::TransactionDependencyFailed {
+                dependency: TransactionDigest::random(),
+            },
         ] {
             let error = ExecutionError::from_kind(kind);
             assert!(!body_ran(false, Some(&error)), "{error:?}");
@@ -644,9 +648,6 @@ mod tests {
                 suggested_gas_price: 1,
             },
             ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable,
-            ExecutionErrorKind::TransactionDependencyFailed {
-                dependency: TransactionDigest::random(),
-            },
         ] {
             let error = wrapped(kind);
             assert!(
