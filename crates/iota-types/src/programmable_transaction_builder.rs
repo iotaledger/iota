@@ -114,12 +114,11 @@ impl ProgrammableTransactionBuilder {
             CallArg::ImmutableOrOwned(_) | CallArg::Shared(_) | CallArg::Receiving(_) => {
                 self.obj(call_arg)
             }
-            CallArg::TransactionDependency(digest) => {
-                let (i, _) = self.inputs.insert_full(
-                    BuilderArg::TransactionDependency(digest),
-                    CallArg::TransactionDependency(digest),
-                );
-                Ok(Argument::Input(i as u16))
+            CallArg::TransactionDependency(_) => {
+                anyhow::bail!(
+                    "use ProgrammableTransactionBuilder::transaction_dependency() \
+                     to add a transaction dependency input"
+                )
             }
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }

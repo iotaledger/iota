@@ -2904,13 +2904,19 @@ fn at_most_one_transaction_dependency_input() {
 
 #[test]
 fn transaction_dependency_input_cannot_be_used_by_a_command() {
-    let mut builder = ProgrammableTransactionBuilder::new();
-    let recipient = builder.pure(dbg_addr(1)).unwrap();
-    let dependency = builder
-        .input(CallArg::TransactionDependency(TransactionDigest::random()))
-        .unwrap();
-    builder.command(Command::new_transfer_objects(vec![dependency], recipient));
-    let transaction = transaction_with_dependency_input(builder.finish(), Some(3));
+    // Build a PTB with a dependency at index 0 and a pure at index 1, then a
+    // command that references index 0.
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::TransactionDependency(TransactionDigest::random()),
+            CallArg::Pure(bcs::to_bytes(&dbg_addr(1)).unwrap()),
+        ],
+        commands: vec![Command::new_transfer_objects(
+            vec![Argument::Input(0)],
+            Argument::Input(1),
+        )],
+    };
+    let transaction = transaction_with_dependency_input(pt, Some(3));
 
     assert_eq!(
         transaction.validity_check(&config_with_transaction_dependencies()),
