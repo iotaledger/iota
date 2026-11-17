@@ -93,7 +93,7 @@ use crate::{
         zklogin,
     },
     public_key::{
-        PublicKeyToIotaAddressImplCostParams, PublicKeyVerifyPersonalMessageSignatureImplCostParams,
+        PublicKeyToIotaAddressImplCostParams, PublicKeyVerifyPersonalMessageImplCostParams,
     },
     tx_context::TxContextDigestCostParams,
 };
@@ -215,8 +215,8 @@ pub struct NativesCostTable {
 
     // public_key
     pub public_key_to_iota_address_impl_cost_params: PublicKeyToIotaAddressImplCostParams,
-    pub public_key_verify_personal_message_signature_impl_cost_params:
-        PublicKeyVerifyPersonalMessageSignatureImplCostParams,
+    pub public_key_verify_personal_message_impl_cost_params:
+        PublicKeyVerifyPersonalMessageImplCostParams,
 
     // builtin_authenticator_functions
     pub builtin_authenticator_functions_cost_params: BuiltinAuthenticatorFunctionsCostParams,
@@ -396,13 +396,16 @@ impl NativesCostTable {
                     .public_key_to_iota_address_impl_cost_base_as_option()
                     .map(Into::into),
             },
-            public_key_verify_personal_message_signature_impl_cost_params:
-                PublicKeyVerifyPersonalMessageSignatureImplCostParams {
-                    public_key_verify_personal_message_signature_impl_cost_base: protocol_config
-                        .public_key_verify_personal_message_signature_impl_cost_base_as_option()
+            public_key_verify_personal_message_impl_cost_params:
+                PublicKeyVerifyPersonalMessageImplCostParams {
+                    public_key_verify_personal_message_impl_cost_base: protocol_config
+                        .public_key_verify_personal_message_impl_cost_base_as_option()
                         .map(Into::into),
-                    public_key_verify_personal_message_signature_impl_msg_cost_per_byte: protocol_config
-                        .public_key_verify_personal_message_signature_impl_msg_cost_per_byte_as_option()
+                    public_key_verify_personal_message_impl_msg_cost_per_byte: protocol_config
+                        .public_key_verify_personal_message_impl_msg_cost_per_byte_as_option()
+                        .map(Into::into),
+                    public_key_verify_personal_message_impl_sig_cost_per_byte: protocol_config
+                        .public_key_verify_personal_message_impl_sig_cost_per_byte_as_option()
                         .map(Into::into),
                 },
             builtin_authenticator_functions_cost_params: BuiltinAuthenticatorFunctionsCostParams {
@@ -1165,8 +1168,8 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
         ),
         (
             "public_key",
-            "verify_personal_message_signature_impl",
-            make_native!(public_key::verify_personal_message_signature_impl),
+            "verify_personal_message_impl",
+            make_native!(public_key::verify_personal_message_impl),
         ),
         (
             "builtin_authenticator_functions",

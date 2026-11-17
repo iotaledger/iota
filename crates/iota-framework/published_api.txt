@@ -2509,7 +2509,7 @@ raw_bytes
 to_iota_address
 	public fun
 	0x2::public_key
-verify_personal_message_signature
+verify_personal_message
 	public(package) fun
 	0x2::public_key
 validate_public_key
@@ -2518,7 +2518,7 @@ validate_public_key
 to_iota_address_impl
 	fun
 	0x2::public_key
-verify_personal_message_signature_impl
+verify_personal_message_impl
 	fun
 	0x2::public_key
 PublicKeyAttached

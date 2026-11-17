@@ -126,12 +126,14 @@ public fun to_iota_address(self: &PublicKey): address {
 ///
 /// Returns `false` if `self` is a MultiSig key, or if `signature` is malformed or of another
 /// scheme than `self`.
-public(package) fun verify_personal_message_signature(
+///
+/// The gas cost grows with the length of `message` and of `signature`.
+public(package) fun verify_personal_message(
     self: &PublicKey,
     signature: &vector<u8>,
     message: &vector<u8>,
 ): bool {
-    verify_personal_message_signature_impl(self, signature, message)
+    verify_personal_message_impl(self, signature, message)
 }
 
 // === Private Functions ===
@@ -167,8 +169,8 @@ fun validate_public_key(scheme: SignatureScheme, raw_bytes: &vector<u8>) {
 native fun to_iota_address_impl(flag: u8, raw_bytes: &vector<u8>): address;
 
 /// Returns `true` if `signature` is a valid signature, by `public_key`, of `message` signed as an
-/// IOTA personal message. See `verify_personal_message_signature`.
-native fun verify_personal_message_signature_impl(
+/// IOTA personal message. See `verify_personal_message`.
+native fun verify_personal_message_impl(
     public_key: &PublicKey,
     signature: &vector<u8>,
     message: &vector<u8>,
@@ -179,13 +181,4 @@ native fun verify_personal_message_signature_impl(
 #[test_only]
 public fun derive_address_for_testing(prefixed_bytes: &vector<u8>): address {
     from_prefixed_bytes(*prefixed_bytes).to_iota_address()
-}
-
-#[test_only]
-public fun verify_personal_message_signature_for_testing(
-    self: &PublicKey,
-    signature: &vector<u8>,
-    message: &vector<u8>,
-): bool {
-    self.verify_personal_message_signature(signature, message)
 }
