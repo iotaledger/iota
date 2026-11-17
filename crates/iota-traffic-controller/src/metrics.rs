@@ -24,6 +24,11 @@ pub struct TrafficControllerMetrics {
     pub allow_rules: IntGauge,
     pub deny_rules: IntGauge,
     pub default_deny: IntGauge,
+    pub simulation_gas_charged: IntCounter,
+    pub simulation_gas_refusals: IntCounter,
+    pub num_dry_run_simulation_gas_refusals: IntCounter,
+    pub simulation_gas_per_sec: IntGauge,
+    pub simulation_burst_gas: IntGauge,
     pub tally_handled: IntCounter,
     pub error_tally_handled: IntCounter,
     pub tally_error_types: IntCounterVec,
@@ -125,6 +130,41 @@ impl TrafficControllerMetrics {
             default_deny: register_int_gauge_with_registry!(
                 "traffic_control_default_deny",
                 "If 1, the default action is deny; if 0, it is limit",
+                registry
+            )
+            .unwrap(),
+            simulation_gas_charged: register_int_counter_with_registry!(
+                "traffic_control_simulation_gas_charged",
+                "Gas units charged to clients for simulations",
+                registry;
+                MetricLevel::Warn
+            )
+            .unwrap(),
+            simulation_gas_refusals: register_int_counter_with_registry!(
+                "traffic_control_simulation_gas_refusals",
+                "Number of simulations refused because their client was over its gas limit",
+                registry;
+                MetricLevel::Warn
+            )
+            .unwrap(),
+            num_dry_run_simulation_gas_refusals: register_int_counter_with_registry!(
+                "traffic_control_num_dry_run_simulation_gas_refusals",
+                "Number of simulations whose client was over its gas limit and dry run mode \
+                    served",
+                registry;
+                MetricLevel::Warn
+            )
+            .unwrap(),
+            simulation_gas_per_sec: register_int_gauge_with_registry!(
+                "traffic_control_simulation_gas_per_sec",
+                "Gas units a client's simulation balance refills by each second, 0 without a \
+                    limit",
+                registry
+            )
+            .unwrap(),
+            simulation_burst_gas: register_int_gauge_with_registry!(
+                "traffic_control_simulation_burst_gas",
+                "The largest simulation gas balance of a client, 0 without a limit",
                 registry
             )
             .unwrap(),

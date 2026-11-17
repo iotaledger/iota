@@ -61,13 +61,18 @@ pub enum ClientIdSource {
     XForwardedFor(usize),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct TrafficControlReconfigParams {
     pub error_threshold: Option<u64>,
     pub spam_threshold: Option<u64>,
     pub dry_run: Option<bool>,
     pub connection_blocklist_ttl_sec: Option<u64>,
     pub proxy_blocklist_ttl_sec: Option<u64>,
+    /// Sets `gas-per-sec` of the simulation gas limit. Turning the limit on
+    /// takes this and `simulation_burst_gas` together.
+    pub simulation_gas_per_sec: Option<u64>,
+    /// Sets `burst-gas` of the simulation gas limit.
+    pub simulation_burst_gas: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -193,6 +198,22 @@ pub enum PolicyType {
     TestPanicOnInvocation,
 }
 
+/// The gas each client may spend on simulations, the gRPC
+/// `SimulateTransactions` and `ViewFunctionCalls`, which run transactions for
+/// free. Each client has a gas balance that refills by `gas-per-sec` up to
+/// `burst-gas`. A simulation is refused while the balance of its client is
+/// below the computation cap of one transaction (`max_gas_computation_bucket`
+/// of the protocol), and the client's other requests are still served. Both
+/// values are in gas units and must be above 0.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct SimulationGasLimitConfig {
+    /// How much gas a client's balance refills by each second.
+    pub gas_per_sec: u64,
+    /// The largest balance a client can save up.
+    pub burst_gas: u64,
+}
+
 /// One of the two lists of access rules.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -312,6 +333,10 @@ pub struct PolicyConfig {
     /// and what it does with every other client.
     #[serde(default, skip_serializing_if = "AccessRules::is_default")]
     pub access_rules: AccessRules,
+    /// The gas each client may spend on simulations. Absent, simulations have
+    /// no gas limit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub simulation_gas_limit: Option<SimulationGasLimitConfig>,
     /// How many leading bits of an IPv6 address identify a client, from 32 to
     /// 128. The node cannot see how long a client's own network prefix is, so
     /// it assumes this length for every IPv6 client: the policies count, and
@@ -335,6 +360,7 @@ impl Default for PolicyConfig {
             dry_run: default_dry_run(),
             allow_list: None,
             access_rules: AccessRules::default(),
+            simulation_gas_limit: None,
             ipv6_prefix_len: default_ipv6_prefix_len(),
         }
     }

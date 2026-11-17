@@ -11,12 +11,14 @@ mod client_access;
 pub mod metrics;
 pub mod policies;
 pub mod sim;
+mod simulation_gas;
 
 use std::{
     fmt::Debug,
     net::{IpAddr, SocketAddr},
     str,
     sync::Arc,
+    time::Instant,
 };
 
 use iota_types::{
@@ -31,8 +33,10 @@ use self::{
     block_log::BlockReason,
     client_access::{ClientAccessManager, client_prefix, parse_access_rule},
     metrics::TrafficControllerMetrics,
+    simulation_gas::{SimulationGasLimiter, charged_gas},
 };
 use crate::policies::{MAX_CLIENT_THRESHOLD, TrafficControlPolicy, TrafficTally};
+pub use crate::simulation_gas::SimulationGasRefusal;
 
 /// The spam and error policies.
 struct Policies {
@@ -61,10 +65,42 @@ impl ClientAccess {
     }
 }
 
+/// Gas that a simulation holds from the balance of its client until it is
+/// settled. Dropping it unsettled gives all of it back.
+pub struct SimulationGasReservation {
+    limiter: Arc<SimulationGasLimiter>,
+    client: Option<IpAddr>,
+    reserved: u64,
+    settled: bool,
+}
+
+impl SimulationGasReservation {
+    /// Charges the client for a simulation that ran with `gas_price` and cost
+    /// `computation_cost`, as `charged_gas` computes it, and gives back the
+    /// rest of the reservation. Storage is not charged, since a simulation
+    /// writes nothing.
+    pub fn settle(mut self, computation_cost: u64, gas_price: u64) {
+        self.settled = true;
+        let charged = charged_gas(computation_cost, gas_price, self.limiter.max_computation());
+        self.limiter
+            .settle(self.client, self.reserved, charged, Instant::now());
+    }
+}
+
+impl Drop for SimulationGasReservation {
+    fn drop(&mut self) {
+        if !self.settled {
+            self.limiter
+                .settle(self.client, self.reserved, 0, Instant::now());
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct TrafficController {
     client_access: Arc<ClientAccessManager>,
     policies: Arc<Policies>,
+    simulation_gas: Arc<SimulationGasLimiter>,
     policy_config: Arc<PolicyConfig>,
     metrics: Arc<TrafficControllerMetrics>,
 }
@@ -97,7 +133,8 @@ impl TrafficController {
     ///
     /// If an access rule is neither an IP address nor a CIDR network, if a
     /// blocklist TTL exceeds the maximum, if `ipv6-prefix-len` is out of
-    /// range, or if a `freq-threshold` policy has a `burst-secs` of 0.
+    /// range, if a `freq-threshold` policy has a `burst-secs` of 0, or if a
+    /// value of `simulation-gas-limit` is 0.
     pub fn init(policy_config: PolicyConfig, metrics: Arc<TrafficControllerMetrics>) -> Self {
         let client_access = Arc::new(ClientAccessManager::new(&policy_config, metrics.clone()));
         let policies = Policies {
@@ -114,9 +151,14 @@ impl TrafficController {
         };
         set_policy_config_metrics(&policies, &policy_config, &metrics);
         let policies = Arc::new(policies);
+        let simulation_gas = Arc::new(SimulationGasLimiter::new(
+            policy_config.simulation_gas_limit.as_ref(),
+            metrics.clone(),
+        ));
         Self {
             client_access,
             policies,
+            simulation_gas,
             policy_config: Arc::new(policy_config),
             metrics,
         }
@@ -134,13 +176,52 @@ impl TrafficController {
     pub fn get_current_state(&self) -> TrafficControlReconfigParams {
         let (connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec) =
             self.client_access.blocklist_ttls_sec();
+        let simulation_gas = self.simulation_gas.settings();
         TrafficControlReconfigParams {
             error_threshold: self.policies.error.client_threshold(),
             spam_threshold: self.policies.spam.client_threshold(),
             dry_run: Some(self.client_access.dry_run()),
             connection_blocklist_ttl_sec: Some(connection_blocklist_ttl_sec),
             proxy_blocklist_ttl_sec: Some(proxy_blocklist_ttl_sec),
+            simulation_gas_per_sec: simulation_gas.as_ref().map(|limit| limit.gas_per_sec),
+            simulation_burst_gas: simulation_gas.map(|limit| limit.burst_gas),
         }
+    }
+
+    /// Sets the computation cap of one transaction, `max_gas_computation_bucket`
+    /// of the protocol in force, in gas units. A simulation reserves this much
+    /// of its client's gas balance, and is charged at most this much. Until it
+    /// is set, a simulation reserves the whole `burst-gas`.
+    pub fn set_max_simulation_computation(&self, gas: u64) {
+        self.simulation_gas.set_max_computation(gas);
+    }
+
+    /// Reserves gas for one simulation of `client`, which [`Self::check`]
+    /// decided as `access`. Returns `None` when there is nothing to reserve:
+    /// simulations have no gas limit, or an allow rule serves the client.
+    /// Refused while the client's balance is below the computation cap. In dry
+    /// run a client over the limit is served, and counted.
+    pub fn reserve_simulation_gas(
+        &self,
+        client: Option<IpAddr>,
+        access: ClientAccess,
+    ) -> Result<Option<SimulationGasReservation>, SimulationGasRefusal> {
+        if access == ClientAccess::Allowed {
+            return Ok(None);
+        }
+        let client = client.map(|client| client_prefix(client, self.policy_config.ipv6_prefix_len));
+        let Some(reserved) =
+            self.simulation_gas
+                .reserve(client, self.client_access.dry_run(), Instant::now())
+        else {
+            return Ok(None);
+        };
+        Ok(Some(SimulationGasReservation {
+            limiter: self.simulation_gas.clone(),
+            client,
+            reserved: reserved?,
+            settled: false,
+        }))
     }
 
     /// Adds an access rule, an IP address or a CIDR network, to `list`, and
@@ -183,6 +264,8 @@ impl TrafficController {
             dry_run,
             connection_blocklist_ttl_sec,
             proxy_blocklist_ttl_sec,
+            simulation_gas_per_sec,
+            simulation_burst_gas,
         } = params;
         let updates = [
             (
@@ -205,6 +288,9 @@ impl TrafficController {
         self.client_access
             .validate_reconfigure(connection_blocklist_ttl_sec, proxy_blocklist_ttl_sec)
             .map_err(IotaError::InvalidAdminRequest)?;
+        self.simulation_gas
+            .validate_reconfigure(simulation_gas_per_sec, simulation_burst_gas)
+            .map_err(IotaError::InvalidAdminRequest)?;
         for (threshold, policy, gauge) in updates {
             if let Some(threshold) = threshold {
                 policy.set_client_threshold(threshold);
@@ -216,6 +302,8 @@ impl TrafficController {
             connection_blocklist_ttl_sec,
             proxy_blocklist_ttl_sec,
         );
+        self.simulation_gas
+            .reconfigure(simulation_gas_per_sec, simulation_burst_gas);
 
         Ok(self.get_current_state())
     }
@@ -465,7 +553,8 @@ mod tests {
 
     use iota_macros::sim_test;
     use iota_types::traffic_control::{
-        AccessRules, DefaultAction, FreqThresholdConfig, Weight, default_blocklist_ttl_sec,
+        AccessRules, DefaultAction, FreqThresholdConfig, SimulationGasLimitConfig, Weight,
+        default_blocklist_ttl_sec,
     };
 
     use super::*;
@@ -534,6 +623,7 @@ mod tests {
                 dry_run: Some(false),
                 connection_blocklist_ttl_sec: None,
                 proxy_blocklist_ttl_sec: None,
+                ..Default::default()
             })
             .expect("the request changes only the dry-run flag");
 
@@ -608,6 +698,7 @@ mod tests {
                     dry_run: Some(false),
                     connection_blocklist_ttl_sec: None,
                     proxy_blocklist_ttl_sec: None,
+                    ..Default::default()
                 })
                 .expect("the request changes only the dry-run flag");
         });
@@ -670,6 +761,7 @@ mod tests {
                 dry_run: None,
                 connection_blocklist_ttl_sec: Some(120),
                 proxy_blocklist_ttl_sec: None,
+                ..Default::default()
             })
             .expect("the request changes only the connection blocklist TTL");
 
@@ -694,6 +786,7 @@ mod tests {
                 dry_run: Some(true),
                 connection_blocklist_ttl_sec,
                 proxy_blocklist_ttl_sec,
+                ..Default::default()
             });
             assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
         }
@@ -718,6 +811,7 @@ mod tests {
                 dry_run: None,
                 connection_blocklist_ttl_sec: Some(0),
                 proxy_blocklist_ttl_sec: Some(0),
+                ..Default::default()
             })
             .expect("a zero blocklist TTL is valid");
 
@@ -791,6 +885,7 @@ mod tests {
             dry_run: Some(true),
             connection_blocklist_ttl_sec: Some(5),
             proxy_blocklist_ttl_sec: Some(5),
+            ..Default::default()
         });
 
         assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
@@ -952,6 +1047,124 @@ mod tests {
         assert_eq!(controller.metrics.unresolved_client_requests.get(), 1);
     }
 
+    fn gas_limited(dry_run: bool, allow: Vec<String>) -> TrafficController {
+        let controller = TrafficController::init_for_test(PolicyConfig {
+            access_rules: AccessRules {
+                allow,
+                ..Default::default()
+            },
+            simulation_gas_limit: Some(SimulationGasLimitConfig {
+                gas_per_sec: 1,
+                burst_gas: 100,
+            }),
+            dry_run,
+            ..Default::default()
+        });
+        controller.set_max_simulation_computation(100);
+        controller
+    }
+
+    #[tokio::test]
+    async fn a_simulation_is_refused_once_the_balance_is_used() {
+        let controller = gas_limited(false, vec![]);
+        let reservation = controller
+            .reserve_simulation_gas(Some(CLIENT), ClientAccess::Limited)
+            .unwrap()
+            .expect("the limit is on");
+        reservation.settle(100_000, 1000);
+        let refusal = controller
+            .reserve_simulation_gas(Some(CLIENT), ClientAccess::Limited)
+            .err()
+            .expect("the balance is used");
+        assert_eq!(
+            refusal.to_string(),
+            "simulation gas limit reached, retry in 100s"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_dropped_reservation_gives_all_of_it_back() {
+        let controller = gas_limited(false, vec![]);
+        drop(controller.reserve_simulation_gas(Some(CLIENT), ClientAccess::Limited));
+        assert!(
+            controller
+                .reserve_simulation_gas(Some(CLIENT), ClientAccess::Limited)
+                .is_ok()
+        );
+    }
+
+    #[tokio::test]
+    async fn an_allowed_client_has_no_gas_limit() {
+        let controller = gas_limited(false, vec![CLIENT.to_string()]);
+        let access = controller.check(&Some(CLIENT), &None);
+        assert_eq!(access, ClientAccess::Allowed);
+        for _ in 0..3 {
+            assert!(matches!(
+                controller.reserve_simulation_gas(Some(CLIENT), access),
+                Ok(None)
+            ));
+        }
+    }
+
+    /// The addresses of one IPv6 prefix of `ipv6-prefix-len` bits share one
+    /// balance.
+    #[tokio::test]
+    async fn the_addresses_of_one_ipv6_prefix_share_a_balance() {
+        let controller = gas_limited(false, vec![]);
+        let address =
+            |last: u16| IpAddr::V6(std::net::Ipv6Addr::new(0x2001, 0xdb8, 1, 2, 0, 0, 0, last));
+        let _held = controller
+            .reserve_simulation_gas(Some(address(1)), ClientAccess::Limited)
+            .unwrap();
+        assert!(
+            controller
+                .reserve_simulation_gas(Some(address(2)), ClientAccess::Limited)
+                .is_err()
+        );
+        let other_prefix = IpAddr::V6(std::net::Ipv6Addr::new(0x2001, 0xdb8, 1, 3, 0, 0, 0, 1));
+        assert!(
+            controller
+                .reserve_simulation_gas(Some(other_prefix), ClientAccess::Limited)
+                .is_ok()
+        );
+    }
+
+    #[tokio::test]
+    async fn dry_run_serves_a_simulation_over_the_gas_limit() {
+        let controller = gas_limited(true, vec![]);
+        let _held = controller.reserve_simulation_gas(Some(CLIENT), ClientAccess::Limited);
+        assert!(
+            controller
+                .reserve_simulation_gas(Some(CLIENT), ClientAccess::Limited)
+                .is_ok()
+        );
+        assert_eq!(
+            controller.metrics.num_dry_run_simulation_gas_refusals.get(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn the_admin_api_changes_the_simulation_gas_limit() {
+        let controller = TrafficController::init_for_test(PolicyConfig::default());
+        assert!(matches!(
+            controller.admin_reconfigure(TrafficControlReconfigParams {
+                simulation_gas_per_sec: Some(10),
+                ..Default::default()
+            }),
+            Err(IotaError::InvalidAdminRequest(_))
+        ));
+        let state = controller
+            .admin_reconfigure(TrafficControlReconfigParams {
+                simulation_gas_per_sec: Some(10),
+                simulation_burst_gas: Some(20),
+                ..Default::default()
+            })
+            .expect("both values turn the limit on");
+        assert_eq!(state.simulation_gas_per_sec, Some(10));
+        assert_eq!(state.simulation_burst_gas, Some(20));
+    }
+
     fn denying_by_default() -> TrafficController {
         TrafficController::init_for_test(PolicyConfig {
             access_rules: AccessRules {
@@ -996,6 +1209,7 @@ mod tests {
                 dry_run: Some(true),
                 connection_blocklist_ttl_sec: None,
                 proxy_blocklist_ttl_sec: None,
+                ..Default::default()
             })
             .expect("the request changes only the dry-run flag");
         assert!(controller.check(&Some(stranger), &None).is_served());
