@@ -6,7 +6,7 @@ use iota_grpc_types::{google::rpc::bad_request::FieldViolation, v1::error_reason
 use crate::error::RpcError;
 
 /// Name of the response header carrying
-/// [`MIN_IOTA_SDK_GRPC_CLIENT_VERSION`].
+/// [`IOTA_SDK_GRPC_CLIENT_VERSION_MIN`].
 // TODO(https://github.com/iotaledger/iota/issues/13598): replace with
 // `iota_grpc_types::headers::X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN`
 // once an `iota-sdk-grpc-types` release has it, and test that the bundled
@@ -23,7 +23,7 @@ pub const X_IOTA_SDK_GRPC_CLIENT_VERSION_MIN: &str = "x-iota-sdk-grpc-client-ver
 /// decode. `scripts/check_min_iota_sdk_client_version.py` fails in CI when a
 /// change to the BCS schema of `iota-sdk-types` requires raising it. A change
 /// to the proto definitions is not checked and has to be raised by hand.
-pub const MIN_IOTA_SDK_GRPC_CLIENT_VERSION: &str = "1.0.0-rc.1";
+pub const IOTA_SDK_GRPC_CLIENT_VERSION_MIN: &str = "1.0.0-rc.1";
 
 /// Maximum number of nested `All`, `Any` and `Not` filters in a transaction or
 /// event filter. The event filter of a transaction filter adds one level.
@@ -98,7 +98,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn min_iota_sdk_grpc_client_version_is_valid_semver() {
-        Version::parse(MIN_IOTA_SDK_GRPC_CLIENT_VERSION).unwrap();
+    fn iota_sdk_grpc_client_version_min_is_valid_semver() {
+        Version::parse(IOTA_SDK_GRPC_CLIENT_VERSION_MIN).unwrap();
     }
 }

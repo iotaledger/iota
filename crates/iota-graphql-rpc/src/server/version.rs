@@ -31,7 +31,7 @@ pub(crate) static IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER: HeaderName =
 /// panicking on un-decodable values. `scripts/check_min_iota_sdk_client_version.py` fails in CI
 /// when a change to the BCS schema of `iota-sdk-types` requires raising it. A change to the
 /// GraphQL schema is not checked and has to be raised by hand.
-pub(crate) const MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION: &str = "1.0.0-rc.1";
+pub(crate) const IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN: &str = "1.0.0-rc.1";
 
 #[expect(unused)]
 pub(crate) struct IotaRpcVersion(Vec<u8>, Vec<Vec<u8>>);
@@ -124,7 +124,7 @@ pub(crate) async fn set_version_middleware(
     );
     headers.insert(
         IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER.clone(),
-        HeaderValue::from_static(MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION),
+        HeaderValue::from_static(IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN),
     );
     response
 }
@@ -228,8 +228,8 @@ mod tests {
     }
 
     #[test]
-    fn min_iota_sdk_graphql_client_version_is_valid_semver() {
-        semver::Version::parse(MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION).unwrap();
+    fn iota_sdk_graphql_client_version_min_is_valid_semver() {
+        semver::Version::parse(IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN).unwrap();
     }
 
     #[tokio::test]
@@ -251,7 +251,7 @@ mod tests {
                 .headers()
                 .get(&IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER),
             Some(&HeaderValue::from_static(
-                MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION
+                IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN
             ))
         );
     }
@@ -271,7 +271,7 @@ mod tests {
                 .headers()
                 .get(&IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN_HEADER),
             Some(&HeaderValue::from_static(
-                MIN_IOTA_SDK_GRAPHQL_CLIENT_VERSION
+                IOTA_SDK_GRAPHQL_CLIENT_VERSION_MIN
             ))
         );
     }
