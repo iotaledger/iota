@@ -860,7 +860,8 @@ struct FeatureFlags {
     secp256r1_ecrecover_checks_x_below_p: bool,
 
     // If true, a programmable transaction may carry a transaction dependency
-    // input, and is executed only after the named transaction succeeded.
+    // input. It executes after the named transaction, and fails without running
+    // its commands if that transaction failed.
     #[serde(skip_serializing_if = "is_false")]
     enable_transaction_dependencies: bool,
 }
