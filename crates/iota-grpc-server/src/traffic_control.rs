@@ -34,7 +34,8 @@ use std::{
 };
 
 use iota_traffic_controller::{
-    ClientAccess, ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
+    ClientAccess, ClientIpStatus, SimulationGasRefusal, SimulationGasReservation,
+    TrafficController, get_client_ip, policies::TrafficTally,
 };
 use iota_types::traffic_control::{ClientIdSource, Weight};
 use tonic::{Code, Status, transport::server::TcpConnectInfo};
@@ -224,6 +225,16 @@ impl TallyHandle {
         for code in codes {
             self.tally_item(code);
         }
+    }
+
+    /// Reserves gas for one simulation of this request's client, as
+    /// [`TrafficController::reserve_simulation_gas`] does.
+    pub fn reserve_simulation_gas(
+        &self,
+    ) -> Result<Option<SimulationGasReservation>, SimulationGasRefusal> {
+        self.0
+            .traffic_controller
+            .reserve_simulation_gas(self.0.client, self.0.access)
     }
 
     fn tally(&self, code: Code) {
