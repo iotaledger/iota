@@ -856,6 +856,10 @@ struct FeatureFlags {
     // If true, the Move authenticators run at execution share at most
     // `max_auth_gas`, as before consensus; the transaction body gets the rest
     // of the budget.
+    //
+    // To be turned on only together with `enable_validator_attestation`: the
+    // attestor's dry run meters the authenticators as execution does, so it
+    // refuses a transaction that goes over the limit before consensus.
     #[serde(skip_serializing_if = "is_false")]
     limit_move_authentication_gas_at_execution: bool,
 }
@@ -5032,6 +5036,27 @@ mod test {
         });
         let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
         assert!(!config.enable_pcool_flow());
+    }
+
+    /// The attestor's dry run meters the Move authenticators as execution
+    /// does, so it refuses a transaction that goes over the limit before
+    /// consensus. Admission alone can leave out the sender's authenticator of
+    /// a sponsored transaction, which would then fail at execution at the
+    /// sponsor's expense. So no version of a network may turn the limit on
+    /// without attestation.
+    #[test]
+    fn move_authenticators_are_limited_at_execution_only_with_attestation() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                assert!(
+                    !config.limit_move_authentication_gas_at_execution()
+                        || config.enable_validator_attestation(),
+                    "version {version} on {chain:?} limits the Move authenticators at execution \
+                     without validator attestation"
+                );
+            }
+        }
     }
 
     #[test]

@@ -1,10 +1,10 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// With only the sponsor's authenticator run before consensus, the sender's
-// authenticator of a sponsored transaction runs first at execution. There it
-// gets at most `max_auth_gas`, as before consensus, and the transaction body
-// gets the rest of the budget.
+// The test runner runs only the sponsor's authenticator before consensus, so
+// the sender's authenticator of a sponsored transaction runs first at
+// execution. There it gets at most `max_auth_gas`, as before consensus, and the
+// transaction body gets the rest of the budget.
 
 //# init --addresses test=0x0 simple_abstract_account=0x0 --accounts A --move-auth true
 
