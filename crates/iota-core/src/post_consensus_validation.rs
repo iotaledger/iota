@@ -47,8 +47,9 @@
 //!    lock held by the same transaction, which is exempt. Cheap; performed before expensive checks.
 //! 7. Transaction dependency (transactions with a dependency input only): decided from consensus
 //!    state, see `dependency_verdict` — drop with error when the dependency failed or is not
-//!    sequenced yet. A dependency whose outcome is not known yet keeps the transaction; the
-//!    execution scheduler then runs it only after the dependency's effects are here.
+//!    sequenced yet. A dependency whose outcome is not known yet keeps the transaction: it is
+//!    deferred at sequencing until the dependency is a root, and the execution scheduler then runs
+//!    it only after the dependency's effects are here.
 //! 8. `handle_transaction_validation_checks_at_commit()` — drop with error. An attested transaction
 //!    runs the input checks execution runs, gas included, and the checks on receiving objects; the
 //!    publish verifier stays at execution. Only reached when all locks are free. Its result may
@@ -1153,9 +1154,11 @@ enum DependencyVerdict {
     Satisfied,
     /// The dependency is sequenced, but not every validator may know its
     /// outcome yet: it was kept earlier in this commit, it is deferred, or it
-    /// is a root of a commit later than the horizon. The execution scheduler
-    /// makes the dependent wait for the dependency's effects, and the
-    /// dependent fails at execution if they report a failure.
+    /// is a root of a commit later than the horizon. At sequencing the
+    /// dependent is deferred until the dependency is a root, or cancelled past
+    /// the deferral limit. Once scheduled, it waits in the execution scheduler
+    /// for the dependency's effects and fails at execution if they report a
+    /// failure.
     Pending,
     /// The dependency's effects report a failure, a cancellation at
     /// sequencing included, or the dependency was dropped for good earlier in
