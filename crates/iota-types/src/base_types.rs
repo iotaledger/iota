@@ -623,7 +623,9 @@ impl TxContext {
         Ok(())
     }
 
-    /// Replace all fields. Used by Move test-only native functions.
+    /// Replace every field except the chain identifier, which
+    /// [`Self::set_chain_identifier`] replaces, and whether the context is
+    /// native. Used by Move test-only native functions.
     pub fn replace(
         &mut self,
         sender: AccountAddress,
