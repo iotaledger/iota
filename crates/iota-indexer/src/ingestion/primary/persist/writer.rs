@@ -10,7 +10,7 @@ use super::{CheckpointBatch, CheckpointDataToCommit, EpochToCommit, data};
 use crate::{
     ingestion::common::persist::{CHECKPOINT_COMMIT_BATCH_SIZE, CommitterTables},
     metrics::IndexerMetrics,
-    models::watermarks::WatermarkUpperBounds,
+    models::watermarks::{WatermarkLowerBounds, WatermarkUpperBounds},
     store::{IndexerStore, PgIndexerStore},
     types::IndexerResult,
 };
@@ -100,7 +100,8 @@ impl PrimaryWriter {
 
         let first_checkpoint_seq = checkpoint_batch.first().as_ref().unwrap().sequence_number;
 
-        let committer_watermark = WatermarkUpperBounds::from(checkpoint_batch.last().unwrap());
+        let committer_upper_bound = WatermarkUpperBounds::from(checkpoint_batch.last().unwrap());
+        let committer_lower_bound = WatermarkLowerBounds::from(checkpoint_batch.first().unwrap());
         let mut committer_tables = Vec::from_iter(CommitterTables::BASIC);
         if objects_history.is_some() {
             committer_tables.extend(CommitterTables::OBJECTS_HISTORY);
@@ -277,15 +278,18 @@ impl PrimaryWriter {
         }
 
         self.state
-            .update_watermarks_upper_bound(committer_tables, committer_watermark)
+            .execute_in_blocking_worker(move |this| {
+                this.update_watermarks(
+                    committer_tables,
+                    committer_upper_bound,
+                    committer_lower_bound,
+                )
+            })
             .await
             .tap_err(|e| {
-                error!(
-                    "Failed to update watermark upper bound with error: {}",
-                    e.to_string()
-                );
+                error!("Failed to update watermarks with error: {}", e.to_string());
             })
-            .expect("Updating watermark upper bound in DB should not fail.");
+            .expect("Updating watermarks in DB should not fail.");
 
         let elapsed = guard.stop_and_record();
 
@@ -293,12 +297,12 @@ impl PrimaryWriter {
             elapsed,
             "Checkpoint {}-{} committed with {} transactions.",
             first_checkpoint_seq,
-            committer_watermark.max_committed_cp,
+            committer_upper_bound.max_committed_cp,
             tx_count,
         );
         self.metrics
             .latest_tx_checkpoint_sequence_number
-            .set(committer_watermark.max_committed_cp);
+            .set(committer_upper_bound.max_committed_cp);
         self.metrics
             .total_tx_checkpoint_committed
             .inc_by(checkpoint_num as u64);
@@ -307,7 +311,7 @@ impl PrimaryWriter {
             .inc_by(tx_count as u64);
         self.metrics.transaction_per_checkpoint.observe(
             tx_count as f64
-                / (committer_watermark.max_committed_cp - first_checkpoint_seq as i64 + 1) as f64,
+                / (committer_upper_bound.max_committed_cp - first_checkpoint_seq as i64 + 1) as f64,
         );
         // 1000.0 is not necessarily the batch size, it's to roughly map average tx
         // commit latency to [0.1, 1] seconds, which is well covered by
