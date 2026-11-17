@@ -7250,14 +7250,22 @@ impl AuthorityPerEpochStore {
 
                 // This transaction will be scheduled. We update the congestion
                 // tracker (execution slots / worker slots) and the suggested
-                // gas price calculator. An owned-object-only transaction
-                // occupies no object execution slot, but the tracker records
-                // when it ends for the transactions that depend on it, and it
-                // occupies an execution worker when execution-worker congestion
-                // control is active.
+                // gas price calculator when it touches a shared object, when
+                // execution-worker congestion control is active (every
+                // transaction occupies an execution worker), or when the epoch
+                // enables transaction dependencies (the tracker records when
+                // every transaction ends, for the transactions that depend on
+                // it).
+                let worker_congestion_control_active = shared_object_congestion_tracker
+                    .congestion_control_parameters()
+                    .max_concurrent_execution_workers()
+                    .is_some();
                 if shared_object_congestion_tracker
                     .congestion_control_parameters()
                     .is_congestion_control_enabled()
+                    && (verified_executable_tx.contains_shared_object()
+                        || worker_congestion_control_active
+                        || self.protocol_config.enable_transaction_dependencies())
                 {
                     // We only need to do this if congestion control is enabled,
                     // since otherwise this bumping will panic as object execution

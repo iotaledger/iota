@@ -131,9 +131,9 @@ impl SuggestedGasPriceCalculator {
         }
     }
 
-    /// Update per-commit congestion info for a single transaction. This should
-    /// only be called for scheduled transactions that contain shared object(s);
-    /// otherwise, the calculator might wrongly calculate suggested gas price.
+    /// Update per-commit congestion info for a single scheduled transaction.
+    /// A transaction without shared objects changes only the execution-worker
+    /// info, and only when execution-worker congestion control is active.
     /// `bump_object_execution_slots_result` is the outcome of the
     /// `bump_object_execution_slots` of `SharedObjectCongestionTracker`.
     pub(super) fn update_congestion_info(
