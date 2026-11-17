@@ -1246,6 +1246,8 @@ struct MoveAccountSponsorInputs {
     transfer_id: ObjectId,
     gas_id: ObjectId,
     recipient: Address,
+    /// The gas budget of the transfer; ten transfers' worth when not given.
+    gas_budget: Option<u64>,
 }
 
 impl MoveAccountSponsorInputs {
@@ -1256,6 +1258,7 @@ impl MoveAccountSponsorInputs {
             transfer_id: ObjectId::random(),
             gas_id: ObjectId::random(),
             recipient: get_key_pair::<AccountPrivateKey>().0,
+            gas_budget: None,
         }
     }
 }
@@ -1304,7 +1307,9 @@ impl MoveAccountSponsorSetup {
             sender_address,
             vec![latest(&inputs.gas_id)],
             builder.finish(),
-            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
+            inputs
+                .gas_budget
+                .unwrap_or(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10),
             rgp,
             sponsor_address,
         );
@@ -1503,6 +1508,77 @@ async fn failing_move_account_sponsor_failure_is_reported_when_both_fail() {
         effects.status()
     );
     assert_eq!(effects.gas_cost_summary(), &GasCostSummary::default());
+}
+
+/// The error of authenticators that run out of gas, with the transfer's gas
+/// budget set to `gas_budget` and `max_auth_gas` to `max_auth_gas`. The
+/// minimum gas budget is lifted, so the budget can be too small for any
+/// authenticator.
+async fn authentication_out_of_gas(gas_budget: u64, max_auth_gas: u64) -> ExecutionError {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        config.set_base_tx_cost_fixed_for_testing(0);
+        config.set_max_auth_gas_for_testing(max_auth_gas);
+        config
+    });
+    let inputs = MoveAccountSponsorInputs {
+        gas_budget: Some(gas_budget),
+        ..MoveAccountSponsorInputs::random()
+    };
+    let setup = MoveAccountSponsorSetup::new(
+        &inputs,
+        TestAccount::Account(TestAuthenticator::Passes),
+        TestAccount::Account(TestAuthenticator::Passes),
+        SponsorSignature::Second,
+    )
+    .await;
+    assert!(
+        setup.chain.reference_gas_price() > gas_budget,
+        "the budget must buy no gas unit, so that the authenticators run out of it"
+    );
+
+    let (effects, error) = setup.execute_with_error();
+
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionErrorKind::MoveAuthentication {
+                error: Box::new(ExecutionErrorKind::InsufficientGas),
+            },
+            command: None,
+        }
+    );
+    error.expect("the failed authentication must be reported")
+}
+
+/// A gas budget that buys exactly `max_auth_gas`, as the minimum budget does
+/// at a gas price of 1000 on devnet, gives the authenticators no more than a
+/// larger one would. So the error of authenticators that run out of it names
+/// `max_auth_gas`.
+#[tokio::test]
+async fn authenticators_out_of_a_budget_that_buys_max_auth_gas_name_it_in_the_error() {
+    let error = authentication_out_of_gas(1, 1).await;
+
+    let source = error
+        .source()
+        .as_ref()
+        .expect("the error must say what ran out")
+        .to_string();
+    assert!(source.contains("max_auth_gas (1)"), "{source}");
+}
+
+/// A gas budget that buys less than `max_auth_gas` is what the authenticators
+/// run out of, and a larger one would give them more. So the error does not
+/// name `max_auth_gas`.
+#[tokio::test]
+async fn authenticators_out_of_a_budget_below_max_auth_gas_do_not_name_it() {
+    let error = authentication_out_of_gas(1, 1_000_000_000).await;
+
+    let source = error
+        .source()
+        .as_ref()
+        .map(ToString::to_string)
+        .unwrap_or_default();
+    assert!(!source.contains("max_auth_gas"), "{source}");
 }
 
 /// At execution the Move authenticators get at most `max_auth_gas`. When they

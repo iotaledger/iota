@@ -277,20 +277,22 @@ impl GasStatus {
     }
 
     /// Lowers the gas left to what `budget` buys at this gas price, when that
-    /// is less, and returns the gas taken off, for [`Self::add_gas_left`] to
-    /// give back. Leaves an unmetered status as it is.
-    pub fn limit_gas_left(&mut self, budget: u64) -> InternalGas {
+    /// is not more, and returns the gas taken off, for [`Self::add_gas_left`]
+    /// to give back: zero when `budget` buys exactly the gas left. Returns
+    /// `None` and leaves the gas left as it is when `budget` buys more, so it
+    /// does not bound the gas used, and for an unmetered status.
+    pub fn limit_gas_left(&mut self, budget: u64) -> Option<InternalGas> {
         if !self.charge {
-            return InternalGas::new(0);
+            return None;
         }
         // Saturating: a budget that buys more internal units than a `u64`
-        // holds is above any gas left, so it takes nothing off.
+        // holds is above any gas left.
         let limit = InternalGas::new(
             (budget / self.gas_price).saturating_mul(Self::INTERNAL_UNIT_MULTIPLIER),
         );
-        let taken = self.gas_left.saturating_sub(limit);
-        self.gas_left = self.gas_left.saturating_sub(taken);
-        taken
+        let taken = self.gas_left.checked_sub(limit)?;
+        self.gas_left = limit;
+        Some(taken)
     }
 
     /// Adds `gas` to the gas left, such as the gas
@@ -448,9 +450,22 @@ mod tests {
         let taken = status.limit_gas_left(30 * gas_price);
 
         assert_eq!(status.remaining_gas(), Gas::new(30));
-        assert_eq!(taken, GasStatus::to_internal_units(70));
+        assert_eq!(taken, Some(GasStatus::to_internal_units(70)));
 
-        status.add_gas_left(taken);
+        status.add_gas_left(taken.unwrap());
+        assert_eq!(status.remaining_gas(), Gas::new(100));
+    }
+
+    /// A budget that buys exactly the gas left bounds the gas used as much as
+    /// a smaller one, though it takes nothing off.
+    #[test]
+    fn limit_gas_left_bounds_the_gas_left_when_the_budget_buys_exactly_it() {
+        let gas_price = 5;
+        let mut status = gas_status(100, gas_price);
+
+        let taken = status.limit_gas_left(100 * gas_price);
+
+        assert_eq!(taken, Some(InternalGas::new(0)));
         assert_eq!(status.remaining_gas(), Gas::new(100));
     }
 
@@ -461,7 +476,7 @@ mod tests {
 
         let taken = status.limit_gas_left(101 * gas_price);
 
-        assert_eq!(taken, InternalGas::new(0));
+        assert_eq!(taken, None);
         assert_eq!(status.remaining_gas(), Gas::new(100));
     }
 
@@ -473,7 +488,7 @@ mod tests {
 
         let taken = status.limit_gas_left(u64::MAX);
 
-        assert_eq!(taken, InternalGas::new(0));
+        assert_eq!(taken, None);
         assert_eq!(status.remaining_gas(), Gas::new(100));
     }
 }

@@ -739,7 +739,7 @@ mod checked {
             return error;
         }
         let message = format!(
-            "the Move authenticators ran out of max_auth_gas ({max_auth_gas}), not of the gas budget"
+            "the Move authenticators ran out of max_auth_gas ({max_auth_gas}), which a larger gas budget does not raise"
         );
         let message = match error.source() {
             Some(source) => format!("{message}: {source}"),
