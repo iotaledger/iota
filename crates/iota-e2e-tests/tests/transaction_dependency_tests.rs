@@ -309,7 +309,8 @@ async fn wait_until_sequenced(validators: &[iota_node::IotaNodeHandle], digest: 
 /// effects. Execution is paused on every node until both transactions are
 /// sequenced, so the dependency fails only after its dependent is sequenced.
 ///
-/// Simulator only, because the pause is a fail point.
+/// Simulator only, because the pause is a fail point and the protocol config
+/// override reaches the validators only there.
 #[cfg(msim)]
 #[sim_test]
 async fn dependent_sequenced_before_its_dependency_fails_is_cancelled_at_execution() {
