@@ -439,14 +439,14 @@ mod tests {
     };
 
     use futures::future::BoxFuture;
-    use iota_sdk_types::{ObjectId, ObjectReference, Owner, Version};
+    use iota_sdk_types::{ObjectId, ObjectReference, Owner, TransactionDigest, Version};
     use iota_types::{
         base_types::EpochId,
         error::IotaResult,
         iota_system_state::IotaSystemState,
         object::Object,
         storage::{InputKey, MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject},
-        transaction::InputObjectKind,
+        transaction::{InputObjectKind, ObjectReadResultKind},
     };
 
     use super::TransactionInputLoader;
@@ -457,21 +457,27 @@ mod tests {
         execution_cache::ObjectCacheRead,
     };
 
-    /// An object cache that holds one shared object and returns its next
-    /// version from the second read on, as when a transaction that changes
-    /// the object executes between two reads. It answers only the reads that
-    /// loading shared inputs makes.
-    struct SharedObjectChangingAfterOneRead {
-        versions: [Object; 2],
+    /// An object cache that holds one shared object and counts the reads of
+    /// it with [`ObjectCacheRead::try_get_object()`]. The first read finds
+    /// `versions[0]` and every later read `versions[1]`, as when a transaction
+    /// that changes the object executes between two reads. It answers only the
+    /// reads that loading shared inputs makes.
+    struct OneSharedObjectCache {
+        /// `None` once the object is deleted.
+        versions: [Option<Object>; 2],
+        /// The version and the transaction of the object's deletion, once it
+        /// is deleted.
+        deletion: Option<(Version, TransactionDigest)>,
         reads: AtomicUsize,
     }
 
-    impl ObjectCacheRead for SharedObjectChangingAfterOneRead {
+    impl ObjectCacheRead for OneSharedObjectCache {
         fn try_get_object(&self, id: &ObjectId) -> IotaResult<Option<Object>> {
             let read = self.reads.fetch_add(1, Ordering::Relaxed);
-            let object = &self.versions[read.min(1)];
 
-            Ok((object.id() == *id).then(|| object.clone()))
+            Ok(self.versions[read.min(1)]
+                .clone()
+                .filter(|object| object.id() == *id))
         }
 
         fn try_multi_get_objects_by_key(
@@ -577,7 +583,9 @@ mod tests {
             _: &ObjectId,
             _: EpochId,
         ) -> IotaResult<Option<(Version, MarkerValue)>> {
-            unreachable!("not read when loading shared inputs")
+            Ok(self
+                .deletion
+                .map(|(version, digest)| (version, MarkerValue::SharedDeleted(digest))))
         }
 
         fn notify_read_input_objects<'a>(
@@ -590,38 +598,86 @@ mod tests {
         }
     }
 
+    /// Loads `kinds` from `cache` for signing. Returns the kind and the read
+    /// result of each loaded input, in the loader's order, and the number of
+    /// reads of the object.
+    fn load_for_signing(
+        cache: OneSharedObjectCache,
+        kinds: &[InputObjectKind],
+    ) -> (Vec<(InputObjectKind, ObjectReadResultKind)>, usize) {
+        let cache = Arc::new(cache);
+        let loader = TransactionInputLoader::new(cache.clone());
+        let (input_objects, _) = loader
+            .read_objects_for_signing(None, kinds, &[], 0)
+            .unwrap();
+        let inputs = input_objects
+            .iter()
+            .map(|input| (input.input_object_kind, input.object.clone()))
+            .collect();
+
+        (inputs, cache.reads.load(Ordering::Relaxed))
+    }
+
     /// A shared object that a transaction takes as mutable and its Move
     /// authenticator as immutable is read once, so both inputs hold the same
-    /// version even when the object changes right after the first read.
+    /// version even when the object changes right after the first read. The
+    /// inputs keep the kinds they were named with, in the same order.
     #[test]
     fn shared_object_named_with_two_kinds_is_read_once() {
         let id = ObjectId::random();
         let initial_shared_version = Version::from(1);
-        let owner = Owner::Shared(initial_shared_version);
-        let cache = Arc::new(SharedObjectChangingAfterOneRead {
-            versions: [
-                Object::with_id_owner_version_for_testing(id, Version::from(2), owner),
-                Object::with_id_owner_version_for_testing(id, Version::from(3), owner),
-            ],
-            reads: AtomicUsize::new(0),
-        });
-        let loader = TransactionInputLoader::new(cache.clone());
         let kind = |mutable| InputObjectKind::SharedMoveObject {
             id,
             initial_shared_version,
             mutable,
         };
+        let object_at = |version: u64| {
+            Object::with_id_owner_version_for_testing(
+                id,
+                Version::from(version),
+                Owner::Shared(initial_shared_version),
+            )
+        };
+        let cache = OneSharedObjectCache {
+            versions: [Some(object_at(2)), Some(object_at(3))],
+            deletion: None,
+            reads: AtomicUsize::new(0),
+        };
 
-        let (input_objects, _) = loader
-            .read_objects_for_signing(None, &[kind(true), kind(false)], &[], 0)
-            .unwrap();
+        let (inputs, reads) = load_for_signing(cache, &[kind(true), kind(false)]);
 
-        let objects: Vec<_> = input_objects.iter().map(|input| &input.object).collect();
-        assert_eq!(objects.len(), 2);
+        let first_read = ObjectReadResultKind::Object(object_at(2));
         assert_eq!(
-            objects[0], objects[1],
-            "both kinds should hold the version of the one read"
+            inputs,
+            [(kind(true), first_read.clone()), (kind(false), first_read)]
         );
-        assert_eq!(cache.reads.load(Ordering::Relaxed), 1);
+        assert_eq!(reads, 1);
+    }
+
+    /// Both inputs hold the version and the transaction of the deletion, with
+    /// the kinds they were named with, in the same order.
+    #[test]
+    fn deleted_shared_object_named_with_two_kinds_is_read_once() {
+        let id = ObjectId::random();
+        let kind = |mutable| InputObjectKind::SharedMoveObject {
+            id,
+            initial_shared_version: Version::from(1),
+            mutable,
+        };
+        let (version, digest) = (Version::from(2), TransactionDigest::random());
+        let cache = OneSharedObjectCache {
+            versions: [None, None],
+            deletion: Some((version, digest)),
+            reads: AtomicUsize::new(0),
+        };
+
+        let (inputs, reads) = load_for_signing(cache, &[kind(true), kind(false)]);
+
+        let deleted = ObjectReadResultKind::DeletedSharedObject(version, digest);
+        assert_eq!(
+            inputs,
+            [(kind(true), deleted.clone()), (kind(false), deleted)]
+        );
+        assert_eq!(reads, 1);
     }
 }
