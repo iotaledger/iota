@@ -2180,9 +2180,10 @@ impl SharedObjectSequencing {
     }
 
     /// Sequences one commit, `regular` and `randomness` being the two lists
-    /// in the order the ordering pass produces (with the combined tracker,
-    /// everything is in `regular`), and returns the scheduled digests of both
-    /// phases in scheduling order with the assigned shared-object versions.
+    /// in the order `process_consensus_transactions_and_commit_boundary` sorts
+    /// them (with the combined tracker, everything is in `regular`), and
+    /// returns the scheduled digests of both phases in scheduling order with
+    /// the assigned shared-object versions.
     async fn sequence(
         &self,
         regular: Vec<VerifiedSequencedConsensusTransaction>,
