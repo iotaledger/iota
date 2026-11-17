@@ -227,12 +227,13 @@ impl VersionedScorer {
         voting_power: &[u64],
         aggregator: &ReportAggregator,
     ) -> Option<Vec<u64>> {
-        let reporters = aggregator.reporters_with_voting_power(voting_power);
-        if reporters.is_empty() {
-            return None;
-        }
+        let reporters = || {
+            let reporters = aggregator.reporters_with_voting_power(voting_power);
+            (!reporters.is_empty()).then_some(reporters)
+        };
         match self {
             Self::V1(scorer) => {
+                let reporters = reporters()?;
                 let reporters_v1: Vec<(&MisbehaviorObservationsV1, VotingPower)> = reporters
                     .iter()
                     .map(|(observations, vp)| match observations.as_ref() {
@@ -247,6 +248,7 @@ impl VersionedScorer {
                 Some(scorer.score_from_median(voting_power, &median))
             }
             Self::V2(scorer) => {
+                let reporters = reporters()?;
                 let reporters_v2: Vec<(&MisbehaviorObservationsV2, VotingPower)> = reporters
                     .iter()
                     .map(|(observations, vp)| match observations.as_ref() {
