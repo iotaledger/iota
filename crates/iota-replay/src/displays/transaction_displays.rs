@@ -92,7 +92,7 @@ impl Display for Pretty<'_, FullPTB> {
                         )]);
                     }
                     CallArg::TransactionDependency(digest) => {
-                        builder.push_record(vec![format!("{i:<3} Depends On Tx:     {digest}")]);
+                        builder.push_record(vec![format!("{i:<3} Depends On Tx:        {digest}")]);
                     }
                     _ => unimplemented!(
                         "a new CallArg enum variant was added and needs to be handled"
