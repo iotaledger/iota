@@ -18,7 +18,7 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
     config::ServiceConfig,
-    consistency::{Checkpointed, ConsistentIndexCursor},
+    consistency::{Checkpointed, ConsistentIndexCursor, LiveCursor},
     data::{Conn, Db, DbConnection, DieselBackend, DieselConn, Query},
     error::Error,
     raw_query::RawQuery,
@@ -240,6 +240,23 @@ where
             // number on it.
             (Some(cursor), None) | (None, Some(cursor)) => Ok(Some(cursor.checkpoint_viewed_at())),
             (None, None) => Ok(None),
+        }
+    }
+}
+
+impl<C> Page<C>
+where
+    C: LiveCursor,
+{
+    /// Sets the checkpoint sequence number of the page cursors to
+    /// `checkpoint_viewed_at`.
+    ///
+    /// In a live view, the latest checkpoint can change between two pages.
+    /// Call this before the query, so that the page cursors agree with the
+    /// cursors that the query builds at `checkpoint_viewed_at`.
+    pub(crate) fn set_checkpoint_viewed_at(&mut self, checkpoint_viewed_at: u64) {
+        for cursor in self.after.iter_mut().chain(self.before.iter_mut()) {
+            cursor.set_checkpoint_viewed_at(checkpoint_viewed_at);
         }
     }
 }

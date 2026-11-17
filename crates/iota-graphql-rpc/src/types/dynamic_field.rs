@@ -188,7 +188,7 @@ impl DynamicField {
     /// `checkpoint_viewed-at` parameter.`
     pub(crate) async fn paginate(
         db: &Db,
-        page: Page<object::Cursor>,
+        mut page: Page<object::Cursor>,
         parent: IotaAddress,
         parent_version: Option<u64>,
         checkpoint_viewed_at: u64,
@@ -210,6 +210,10 @@ impl DynamicField {
                 else {
                     return Ok::<_, diesel::result::Error>(None);
                 };
+
+                if matches!(ledger_view, LedgerView::Live(_)) {
+                    page.set_live_view(checkpoint_viewed_at);
+                }
 
                 let query = match parent_version {
                     Some(pv) => dynamic_fields::query(parent, pv, &page),
