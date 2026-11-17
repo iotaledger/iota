@@ -70,6 +70,11 @@ policy-config:
   # Sampling rate for spam detection (0.0 to 1.0)
   spam-sample-rate: 0.2
   
+  # The gas each client may spend on simulations. Omit the field for no limit.
+  simulation-gas-limit:
+    gas-per-sec: 1000000  # How much gas a client's balance refills by each second
+    burst-gas: 20000000  # The largest balance a client can save up
+  
   # Whether to run in dry-run mode (log but don't block)
   dry-run: false
 ```
@@ -109,6 +114,22 @@ policy-config:
     allow: ["10.0.0.1", "10.0.0.2"]
     default: deny
 ```
+
+## Simulation Gas Limit
+
+A fullnode simulates transactions for free over gRPC: `SimulateTransactions` and `ViewFunctionCalls`. With `simulation-gas-limit` set, each client has a gas balance that refills by `gas-per-sec` up to `burst-gas`. A simulation reserves the computation cap of one transaction (`max_gas_computation_bucket` of the protocol, currently 5,000,000 gas units) when it starts, and gets back what it did not use when it ends. The node refuses a simulation while the balance of its client is below the cap, and the refusal says when to retry. The node still serves the client's other requests, and a refusal does not count toward the error policy. A client is charged its computation cost in gas units, at most the cap; storage is not charged.
+
+Both values must be above 0. The example values above are not measured defaults: with them a client can run four simulations at the cap back to back, and then about one every five seconds. Measure what your clients simulate before you set them.
+
+The policies count an IPv6 client by its `ipv6-prefix-len` prefix, and so does the gas limit: the addresses of one prefix share one balance. Clients whose IP the node cannot resolve share one balance. Clients that an allow rule serves have no gas limit. A GraphQL server or an indexer simulates through the fullnode's gRPC API, so all of its users share the balance of its IP. Do not give either one an allow rule for that reason: simulation through it would then have no limit. In dry run mode the node serves a simulation over the limit, and counts it in `traffic_control_num_dry_run_simulation_gas_refusals`.
+
+The admin API changes the values at runtime. It can turn the limit on for a node whose `policy-config` has no `simulation-gas-limit`, given both values, but it cannot turn the limit off:
+
+```bash
+curl -X POST 'http://127.0.0.1:1337/traffic-control?simulation_gas_per_sec=1000000&simulation_burst_gas=20000000'
+```
+
+The change lasts until the node restarts. The balances are kept, and cut to a lower `burst-gas` at their next refill.
 
 ## Non-Proxy Mode Configuration
 
@@ -249,6 +270,8 @@ After enabling the `TrafficController`, monitor your node's metrics to ensure le
 - `traffic_control_allow_rule_requests`
 - `traffic_control_deny_rule_requests`
 - `traffic_control_allow_rules`, `traffic_control_deny_rules` and `traffic_control_default_deny`
+- `traffic_control_simulation_gas_charged`, `traffic_control_simulation_gas_refusals` and `traffic_control_num_dry_run_simulation_gas_refusals`
+- `traffic_control_simulation_gas_per_sec` and `traffic_control_simulation_burst_gas`
 - `traffic_control_unresolved_client_requests`
 - `connection_blocklist_ttl_sec`
 - `proxy_blocklist_ttl_sec`
